@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Locator } from '@playwright/test';
+import { test, expect, type Page, type Locator, type Route } from '@playwright/test';
 
 const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
   state: {
@@ -22,6 +22,32 @@ const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
   version: 0,
 });
 
+// 부하가 큰 기계에서 느려지는 대기의 상한. 기본값(expect 5초, 테스트 30초)은 한가한 기계 기준이다.
+// Start 뒤 곡 선택이 그려질 때까지. 곡 목록은 빈 목록으로 바꾸므로 네트워크는 기다리지 않는다(startSongSelect).
+const APP_START_TIMEOUT_MS = 15_000;
+// 플레이 진행(스킨 PNG·오디오 준비와 Pixi 초기화·텍스처 업로드 뒤의 첫 프레임, 판정 효과, 결과 화면)을 기다리는 상한. gear-motion 등 다른 게임 E2E와 같다.
+const PLAY_TIMEOUT_MS = 30_000;
+// 실제 플레이 테스트는 앱을 두 번 열고(설정 저장 → 새로고침) 플레이까지 하므로 기본 30초 대신 이만큼 기다린다.
+const PLAY_TEST_TIMEOUT_MS = 90_000;
+const SONG_LIST_URL = '**/rest/v1/songs?**';
+
+// 타이틀에서 Start를 눌러 곡 선택을 연다. 곡 선택과 Settings 버튼은 곡 목록 응답 뒤에야 그려진다(그 전에는 PageLoading이 화면을 대신하며, 버튼을 덮는 요소는 없다).
+// 이 스펙은 곡 목록을 쓰지 않으므로 Supabase 응답 대신 빈 목록을 준다. 실제 요청은 부하가 큰 기계에서 30초 넘게 멈추다 "Failed to fetch"로 끝나기도 했다.
+// page.route가 걸린 동안은 모든 요청을 가로채고 캐시를 꺼 앱 로딩이 느려지므로, 곡 선택이 뜰 때까지만 건다.
+async function startSongSelect(page: Page): Promise<void> {
+  const emptySongList = (route: Route) => route.fulfill({ json: [] });
+  await page.route(SONG_LIST_URL, emptySongList);
+  try {
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible({ timeout: APP_START_TIMEOUT_MS });
+  } catch (error) {
+    // 실패했으면 route는 할 수 있는 만큼만 푼다. 테스트 시간 초과 등으로 페이지가 닫히는 중이면 unroute가 실패해 원래 오류를 가리기 때문이다.
+    await page.unroute(SONG_LIST_URL, emptySongList).catch(() => {});
+    throw error;
+  }
+  await page.unroute(SONG_LIST_URL, emptySongList);
+}
+
 // 설정 모달을 연다. 설정은 곡 선택 위에 모달(role=dialog)로 뜨며, 기본 섹션은 Controls다.
 async function openSettings(page: Page): Promise<Locator> {
   await page.goto('/game');
@@ -30,11 +56,18 @@ async function openSettings(page: Page): Promise<Locator> {
     NON_FIRST_LAUNCH_SETTINGS
   );
   await page.reload();
-  await page.getByRole('button', { name: 'Start' }).click();
+  await startSongSelect(page);
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog', { name: 'Settings' });
   await expect(dialog).toBeVisible();
   return dialog;
+}
+
+// 새로고침해 저장된 설정으로 앱을 다시 열고 설정 모달을 띄운다(재방문).
+async function reopenSettings(page: Page): Promise<void> {
+  await page.reload();
+  await startSongSelect(page);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
 }
 
 // "Lane N" 레이블이 든 키 바인딩 행을 반환한다.
@@ -44,6 +77,7 @@ function laneRow(dialog: Locator, laneNumber: number): Locator {
 
 test.describe('Game Settings', () => {
   test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 공통 노트·터미널·봄 PNG를 로드한다', async ({ page }, testInfo) => {
+    test.setTimeout(PLAY_TEST_TIMEOUT_MS);
     const errors: string[] = [];
     const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -54,27 +88,52 @@ test.describe('Game Settings', () => {
     await expect(dialog.getByRole('button', { name: 'Crystal', exact: true })).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Classic', exact: true }).click();
     await expect(dialog.getByRole('button', { name: 'Classic', exact: true })).toHaveAttribute('aria-pressed', 'true');
-    await page.reload();
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await reopenSettings(page);
     await dialog.getByRole('button', { name: 'Skin', exact: true }).click();
     await expect(dialog.getByRole('button', { name: 'Classic', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 
     // Supply an isolated chart/audio fixture, then let the actual PlayScreen
-    // initialize its renderer and skin. The hook only observes rendering.
-    await page.evaluate(async () => {
+    // initialize its renderer and skin. The hook records only frames drawn after
+    // the song started, and for the screenshot it stops drawing after the first
+    // of them that shows a point note and a body inside the lane clip.
+    // 오디오를 테스트 제한 시간만큼 길게 두어, 스크린샷 전에 곡이 끝나 결과 화면이 캔버스를 대신하지 않게 한다.
+    await page.evaluate(async (audioSeconds) => {
       const win = window as unknown as Record<string, unknown>;
       const rendererPath = performance.getEntriesByType('resource').map(entry=>entry.name)
         .find(url=>new URL(url).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
       const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
       const renderFrame = GameRenderer.prototype.renderFrame;
       GameRenderer.prototype.renderFrame = function (...args) {
+        // 노트·바디를 담은 플레이 프레임을 그린 뒤에는 그리지 않아 캔버스가 그 프레임을 담고 있게 한다. 판정·재생은 그대로 이어진다.
+        if (win.__classicVisibleNotes) return;
         const result = renderFrame.apply(this, args);
-        const layers = this as unknown as { noteLayer: {children:{visible:boolean}[]}; longNoteBodyLayer: {children:{visible:boolean}[]} };
-        if (layers.noteLayer.children.some(child=>child.visible) && layers.longNoteBodyLayer.children.some(child=>child.visible)) win.__classicVisibleNotes = true;
+        // deltaMs 0은 재생 전에 그리는 준비 프레임(prepareForPlayback)이라 기록하지 않는다. 게임 루프가 그린 프레임만 센다.
+        if (args[1] === 0) return result;
+        type Drawn = { visible: boolean; texture?: unknown; getBounds: () => { minY: number; maxY: number } };
+        const self = this as unknown as {
+          skinManager: import('../../src/game/skin/SkinManager').SkinManager;
+          laneEndClip: { bounds: { minX: number; minY: number; maxY: number }; toGlobal: (point: { x: number; y: number }) => { y: number } };
+          noteLayer: { children: Drawn[] };
+          longNoteBodyLayer: { children: Drawn[] };
+        };
+        // 레이어에 있어도 레인 끝 클립(laneEndClip, 키 윗면까지) 밖이면 화면에 없다. 포인트는 판정 시각 + 500ms까지 레이어에 남지만 키 윗면은
+        // 판정 시각 + 약 184ms에 지나므로, 클립과 세로로 겹치는 것만 센다. mask로 쓰는 Graphics는 Pixi가 측정에서 빼 getBounds가 빈 상자라
+        // 자기 사각형(bounds)을 전역 좌표로 바꾼다.
+        const clip = self.laneEndClip;
+        const clipTop = clip.toGlobal({ x: clip.bounds.minX, y: clip.bounds.minY }).y;
+        const clipBottom = clip.toGlobal({ x: clip.bounds.minX, y: clip.bounds.maxY }).y;
+        const inClip = (child: Drawn) => {
+          if (!child.visible) return false;
+          const bounds = child.getBounds();
+          return bounds.maxY > clipTop && bounds.minY < clipBottom;
+        };
+        // noteLayer에는 포인트 위아래 약 3px의 접촉 그림자도 있어, 포인트 텍스처를 쓴 것만 포인트로 센다.
+        const pointTextures = new Set<unknown>(['noteSingle','noteDouble','noteTrill','noteDoubleFailed','noteTrillFailed']
+          .filter(key => self.skinManager.hasTexture(key)).map(key => self.skinManager.getTexture(key)));
+        if (self.noteLayer.children.some(child => pointTextures.has(child.texture) && inClip(child)) && self.longNoteBodyLayer.children.some(inClip)) win.__classicVisibleNotes = true;
         if (!win.__classicPlayFrame) {
-          const skin = (this as unknown as { skinManager: import('../../src/game/skin/SkinManager').SkinManager }).skinManager;
+          const skin = self.skinManager;
           win.__classicPlayFrame = {
             skinId: skin.skinId,
             bodyMode: skin.getTheme().longNoteBodyMode,
@@ -95,6 +154,8 @@ test.describe('Game Settings', () => {
       const state = useGameStore.getState();
       state.setChartData({
         meta: {title:'Classic skin check',artist:'test',difficultyLabel:'NORMAL',difficultyLevel:1,imageFile:'',audioFile:'',previewAudioFile:'',offsetMs:0},
+        // 같은 노트 묶음을 1.5초와 7.5초에 둔다. 포인트가 레인 안에 보이는 구간은 1.5초 묶음이 플레이 약 −0.66~1.68초, 7.5초 묶음이 약 5.34~7.68초(각 약 2.35초)다.
+        // 1.5초 묶음은 곡이 시작될 때 판정선 위쪽에 있어 보통 첫 플레이 프레임이 담고, 첫 플레이 프레임이 늦으면 7.5초 묶음이 포인트·바디가 보이는 프레임을 만든다.
         notes: [
           {type:'single',lane:1,beat:{n:3,d:1}},
           {type:'long',lane:1,beat:{n:3,d:1},endBeat:{n:9,d:1}},
@@ -102,15 +163,23 @@ test.describe('Game Settings', () => {
           {type:'doubleLong',lane:2,beat:{n:3,d:1},endBeat:{n:9,d:1}},
           {type:'trill',lane:3,beat:{n:3,d:1}},
           {type:'trillLong',lane:3,beat:{n:3,d:1},endBeat:{n:9,d:1}},
+          {type:'single',lane:1,beat:{n:15,d:1}},
+          {type:'long',lane:1,beat:{n:15,d:1},endBeat:{n:21,d:1}},
+          {type:'double',lane:2,beat:{n:15,d:1}},
+          {type:'doubleLong',lane:2,beat:{n:15,d:1},endBeat:{n:21,d:1}},
+          {type:'trill',lane:3,beat:{n:15,d:1}},
+          {type:'trillLong',lane:3,beat:{n:15,d:1},endBeat:{n:21,d:1}},
         ],
-        trillZones:[{lane:3,beat:{n:0,d:1},endBeat:{n:10,d:1}}],
+        trillZones:[{lane:3,beat:{n:0,d:1},endBeat:{n:22,d:1}}],
         events:[{type:'bpm',beat:{n:0,d:1},bpm:120}],
       });
-      state.setAudioBuffer(new AudioBuffer({numberOfChannels:1,length:44100*6,sampleRate:44100}));
-      state.updateSettings({masterVolume:0,scrollSpeed:400});
+      state.setAudioBuffer(new AudioBuffer({numberOfChannels:1,length:44100*audioSeconds,sampleRate:44100}));
+      // 포인트는 화면 위끝에 든 뒤 키 윗면(레인 끝 클립)을 지날 때까지 보인다. 200(설정 최솟값)이면 그 시간이 약 2.35초(400이면 약 1.2초)라
+      // 부하로 프레임 간격이 벌어져도 그 사이에 플레이 프레임이 든다.
+      state.updateSettings({masterVolume:0,scrollSpeed:200});
       useGameStore.setState({screen:'play',startTimeMs:0,editorReturnUrl:null});
-    });
-    await expect.poll(()=>page.evaluate(() => (window as unknown as Record<string, {skinId:string}>).__classicPlayFrame?.skinId)).toBe('classic');
+    }, PLAY_TEST_TIMEOUT_MS / 1000);
+    await expect.poll(()=>page.evaluate(() => (window as unknown as Record<string, {skinId:string}>).__classicPlayFrame?.skinId), { timeout: PLAY_TIMEOUT_MS }).toBe('classic');
     const frame = await page.evaluate(() => (window as unknown as Record<string, unknown>).__classicPlayFrame);
     expect(frame).toMatchObject({skinId:'classic',bodyMode:'repeat',terminalMode:'full-height',bombFrames:16,bombDurationMs:280});
     expect(frame).toHaveProperty('textures', [
@@ -125,7 +194,9 @@ test.describe('Game Settings', () => {
     expect(requested.some(path=>path.startsWith('/lab/'))).toBe(false);
     expect(errors).toEqual([]);
     await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
-    await expect.poll(()=>page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__classicVisibleNotes))).toBe(true);
+    // 곡이 시작된 뒤 게임 루프가 그린 프레임의 레인 안에 포인트와 바디가 함께 보였는지. 1.5초 묶음을 놓치면 7.5초 묶음까지 기다린다.
+    await expect.poll(()=>page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__classicVisibleNotes)), { timeout: PLAY_TIMEOUT_MS }).toBe(true);
+    // 육안 확인용 산출물이다(픽셀 비교 없음). 훅이 그 프레임에서 그리기를 멈췄으므로 캡처가 늦어도 그 프레임을 담는다.
     await page.getByTestId('gameplay-canvas').screenshot({path:testInfo.outputPath('classic-in-game.png')});
   });
 
@@ -139,9 +210,7 @@ test.describe('Game Settings', () => {
     await expect(slider).toHaveAttribute('step', '0.1');
     await slider.fill('1.7');
     await expect(dialog.getByText('1.7×', { exact: true })).toBeVisible();
-    await page.reload();
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await reopenSettings(page);
     await dialog.getByRole('button', { name: 'Skin', exact: true }).click();
     await expect(slider).toHaveValue('1.7');
     await dialog.getByRole('button', { name: 'Classic', exact: true }).click();
@@ -152,6 +221,7 @@ test.describe('Game Settings', () => {
   for (const skin of ['Classic']) {
     for (const scale of [0, 3]) {
       test(`Skin: ${skin} 키봄 ${scale}배를 저장하면 실제 플레이에서 ${scale === 0 ? '키봄을 숨겨도 Perfect 판정' : '기본 75×75의 3배인 225×225로 표시하고 Perfect 판정'}을 유지한다`, async ({ page }) => {
+        test.setTimeout(PLAY_TEST_TIMEOUT_MS);
         const errors: string[] = [];
         page.on('pageerror', error => errors.push(error.message));
         const dialog = await openSettings(page);
@@ -160,7 +230,7 @@ test.describe('Game Settings', () => {
         await dialog.getByLabel('Key Bomb Size').fill(String(scale));
         await expect(dialog.getByText(scale === 0 ? '0.0× (Off)' : '3.0×', { exact: true })).toBeVisible();
         await page.reload();
-        await page.getByRole('button', { name: 'Start', exact: true }).click();
+        await startSongSelect(page);
 
         await page.evaluate(async () => {
           const win = window as unknown as Record<string, unknown>;
@@ -195,9 +265,9 @@ test.describe('Game Settings', () => {
           useGameStore.setState({ screen: 'play', lastResult: null, startTimeMs: 0, editorReturnUrl: null });
         });
 
-        await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__keybombSize))
+        await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__keybombSize), { timeout: PLAY_TIMEOUT_MS })
           .toEqual(scale === 0 ? [] : [{ width: 225, height: 225 }]);
-        await expect(page.getByText('100.00%', { exact: true })).toBeVisible({ timeout: 7000 });
+        await expect(page.getByText('100.00%', { exact: true })).toBeVisible({ timeout: PLAY_TIMEOUT_MS });
         const result = await page.evaluate(async () => {
           const storePath = performance.getEntriesByType('resource').map(entry => entry.name)
             .find(url => new URL(url).pathname === '/src/game/stores/gameStore.ts') ?? '/src/game/stores/gameStore.ts';
@@ -258,9 +328,7 @@ test.describe('Game Settings', () => {
     await expect(toggle).toBeChecked();
     await toggle.uncheck();
     await expect(toggle).not.toBeChecked();
-    await page.reload();
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await reopenSettings(page);
     await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
     await expect(dialog.getByLabel('Gear Motion')).not.toBeChecked();
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-settings') ?? '{}').state?.settings?.gearMotion);
@@ -281,9 +349,7 @@ test.describe('Game Settings', () => {
     await expect(dialog.getByRole('button', { name: /Calibrate/ })).toHaveCount(0);
     await expect(dialog.getByLabel('Audio Offset (ms)')).toHaveCount(0);
     await expect(dialog.getByLabel('Judgment Offset (ms)')).toHaveCount(0);
-    await page.reload();
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await reopenSettings(page);
     await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
     await expect(dialog.getByLabel('Input Offset (ms)')).toHaveValue('-50');
     await expect(dialog.getByLabel('Visual Offset (ms)')).toHaveValue('30');
@@ -306,9 +372,7 @@ test.describe('Game Settings', () => {
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-settings') ?? '{}').state.settings);
     expect(stored.inputOffsetMs).toBe(1000);
     expect(stored.visualOffsetMs).toBe(-1000);
-    await page.reload();
-    await page.getByRole('button', { name: 'Start', exact: true }).click();
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await reopenSettings(page);
     await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
     await expect(input).toHaveValue('1000');
     await expect(visual).toHaveValue('-1000');
