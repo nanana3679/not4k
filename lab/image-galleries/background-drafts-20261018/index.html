@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>배경 시안 · 인게임 겹쳐 보기</title>
+  <style>
+    * { box-sizing: border-box; }
+    html { color-scheme: dark; }
+    body { margin: 0; background: #101318; color: #e8edf2; font-family: system-ui, "Noto Sans KR", sans-serif; line-height: 1.6; word-break: keep-all; }
+    main { max-width: 1280px; margin: auto; padding: 24px clamp(16px, 4vw, 48px) 72px; }
+    a { color: #b7d8f0; text-underline-offset: 4px; }
+    :focus-visible { outline: 2px solid #a3d9ff; outline-offset: 3px; }
+    nav a { display: inline-flex; align-items: center; min-height: 44px; }
+    header { margin: 28px 0 24px; }
+    .eyebrow { color: #a8b9cb; font-size: 13px; letter-spacing: .08em; }
+    h1 { margin: 6px 0 12px; font-size: clamp(26px, 4vw, 40px); font-weight: 650; line-height: 1.25; }
+    .intro { max-width: 780px; color: #b8c4d0; margin: 0; }
+
+    .viewer { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+    .preview { position: relative; overflow: hidden; background: #05080d; border-radius: 6px; cursor: pointer; user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    .aspect-box { position: relative; width: 100%; aspect-ratio: 16 / 9; }
+    .preview:fullscreen { display: flex; align-items: center; justify-content: center; border-radius: 0; background: #000; }
+    .preview:fullscreen .aspect-box { width: min(100vw, 100vh * 16 / 9); }
+    .preview img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .preview .background { object-fit: cover; filter: brightness(var(--brightness, 1)); }
+    .preview .layer { object-fit: fill; transition: opacity .12s ease-out; }
+    .preview .layer[hidden] { display: block; opacity: 0; }
+    .preview-caption { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0 16px; color: #a8b9cb; font-size: 14px; }
+    .preview-caption strong { color: #e8edf2; font-weight: 600; }
+    .preview-caption .links { display: flex; gap: 16px; }
+    .preview-caption button { padding: 0; border: 0; background: none; color: #b7d8f0; font: inherit; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; min-height: 44px; }
+    .preview-caption a { display: inline-flex; align-items: center; min-height: 44px; }
+    .selected-note { margin: 0; color: #b8c4d0; max-width: 780px; }
+
+    .panel { display: grid; gap: 16px; }
+    fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+    legend { padding: 0; margin-bottom: 6px; color: #a8b9cb; font-size: 13px; letter-spacing: .06em; }
+    .master { width: 100%; min-height: 48px; border: 1px solid #4d6378; border-radius: 6px; background: #1a2430; color: #e8edf2; font: inherit; font-weight: 600; cursor: pointer; }
+    .master[aria-pressed="true"] { background: #23384a; border-color: #8fc8ef; }
+    .master span, legend kbd { color: #b8c4d0; font-weight: 400; font-family: inherit; font-size: 12px; }
+    .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; }
+    .segmented label { position: relative; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 6px; border: 1px solid #343c46; border-radius: 6px; cursor: pointer; text-align: center; font-size: 14px; line-height: 1.2; }
+    .segmented input { position: absolute; opacity: 0; pointer-events: none; }
+    .segmented label:has(input:checked) { border-color: #8fc8ef; background: #23384a; }
+    .segmented label:has(input:focus-visible) { outline: 2px solid #a3d9ff; outline-offset: 2px; }
+    .layers { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .check { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 10px; border: 1px solid #343c46; border-radius: 6px; cursor: pointer; }
+    .check input { width: 18px; height: 18px; margin: 0; accent-color: #8fc8ef; }
+    .check small { display: block; color: #8e9daf; font-size: 12px; line-height: 1.3; }
+    .brightness { display: grid; gap: 4px; }
+    .brightness-head { display: flex; justify-content: space-between; color: #a8b9cb; font-size: 13px; letter-spacing: .06em; }
+    .brightness input { width: 100%; accent-color: #8fc8ef; min-height: 32px; }
+    .hint { margin: 0; color: #8e9daf; font-size: 13px; }
+
+    .overview { margin-top: 28px; }
+    .overview h2 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+    .overview > p { margin: 0 0 14px; color: #b8c4d0; max-width: 780px; }
+    .grid { display: grid; grid-template-columns: auto repeat(3, minmax(0, 1fr)); gap: 8px; align-items: center; }
+    .grid .head { color: #a8b9cb; font-size: 13px; letter-spacing: .06em; text-align: center; }
+    .grid .row-head { color: #a8b9cb; font-size: 13px; letter-spacing: .04em; writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; }
+    .grid button { display: block; width: 100%; padding: 0; border: 1px solid #343c46; border-radius: 6px; overflow: hidden; background: #151a21; cursor: pointer; }
+    .grid button[aria-current="true"] { border-color: #8fc8ef; box-shadow: 0 0 0 1px #8fc8ef; }
+    .grid img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+
+    details { margin-top: 32px; padding-top: 16px; border-top: 1px solid #343c46; }
+    summary { cursor: pointer; padding: 10px 0; }
+    .image-error { margin: 4px 0 0; color: #ffb4a8; }
+    main[data-shortcuts="off"] kbd, main[data-shortcuts="off"] .shortcut-hint { display: none; }
+    details p, details li { color: #b8c4d0; max-width: 780px; }
+    footer { border-top: 1px solid #343c46; margin-top: 32px; padding-top: 12px; }
+
+    @media (max-width: 900px) {
+      .viewer { grid-template-columns: 1fr; }
+      .grid { gap: 4px; }
+    }
+    /* Rows are too short for vertical labels on a phone: label each row above it instead. */
+    @media (max-width: 600px) {
+      .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .grid > span:first-child { display: none; }
+      .grid .row-head { grid-column: 1 / -1; writing-mode: horizontal-tb; transform: none; text-align: left; margin-top: 6px; }
+    }
+    @media (prefers-reduced-motion: reduce) { .preview .layer { transition: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <nav aria-label="Lab 탐색"><a href="../../">← Lab 목록</a></nav>
+    <header>
+      <div class="eyebrow">FLIGHT BACKGROUND / 2026.10.18 · 2차</div>
+      <h1>배경 시안 위에 인게임 에셋 겹쳐 보기</h1>
+      <p class="intro">지금 배경은 어둡고 평평한 픽셀풍이라 광택 일러스트로 그린 기어와 화풍이 다릅니다. 2차 시안은 지금 배경의 장면 구성과 고도 상·중·하를 그대로 따르면서 기어와 같은 일러스트 화풍으로 다시 그렸습니다. 노트와 기어에 집중할 수 있도록 대비·채도·디테일은 낮췄습니다. 실제 게임 렌더러에서 뽑은 기어·레인·노트·HUD를 보였다 숨기며 지금 배경과 비교합니다.</p>
+    </header>
+
+    <section class="viewer" aria-label="겹쳐 보기">
+      <div>
+        <div class="preview" id="preview" role="button" tabindex="0" aria-label="인게임 에셋 보이기" aria-pressed="true" aria-keyshortcuts="H">
+          <div class="aspect-box">
+            <img class="background" id="background" src="drafts/liftoff-mid.webp" width="1672" height="941" alt="" decoding="async">
+            <img class="layer" data-layer="lanes" src="captures/layer-lanes.webp" width="1920" height="1080" alt="" decoding="async">
+            <img class="layer" data-layer="notes" src="captures/layer-notes.webp" width="1920" height="1080" alt="" decoding="async">
+            <img class="layer" data-layer="lanes" src="captures/layer-judgment-line.webp" width="1920" height="1080" alt="" decoding="async">
+            <img class="layer" data-layer="gear" id="gear-layer" src="captures/layer-gear-mid.webp" width="1920" height="1080" alt="" decoding="async">
+            <img class="layer" data-layer="hud" src="captures/layer-hud.webp" width="1920" height="1080" alt="" decoding="async">
+          </div>
+        </div>
+        <div class="preview-caption">
+          <span><strong id="selected-title">2차 시안 · Liftoff · 고도 중</strong></span>
+          <span class="links"><button type="button" id="fullscreen" hidden>전체화면</button><a id="selected-original" href="drafts/liftoff-mid.webp">배경 원본 보기</a></span>
+        </div>
+        <p class="selected-note" id="selected-note"></p>
+        <p class="image-error" id="image-error" role="alert" hidden></p>
+      </div>
+
+      <div class="panel">
+        <button type="button" class="master" id="master" aria-pressed="true" aria-keyshortcuts="H">인게임 에셋 보이기 <span aria-hidden="true"><span id="master-state">켬</span><span class="shortcut-hint"> (H)</span></span></button>
+        <fieldset>
+          <legend>배경 <kbd>(C)</kbd></legend>
+          <div class="segmented">
+            <label><input type="radio" name="source" value="draft" checked>2차 시안</label>
+            <label><input type="radio" name="source" value="current">지금 배경</label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>장면 <kbd>(← →)</kbd></legend>
+          <div class="segmented">
+            <label><input type="radio" name="scenario" value="liftoff" checked>Liftoff</label>
+            <label><input type="radio" name="scenario" value="infiltration">Infiltration</label>
+            <label><input type="radio" name="scenario" value="breakthrough">Breakthrough</label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>고도 <kbd>(↑ ↓)</kbd></legend>
+          <div class="segmented">
+            <label><input type="radio" name="altitude" value="high">상 · 100%</label>
+            <label><input type="radio" name="altitude" value="mid" checked>중 · 50%</label>
+            <label><input type="radio" name="altitude" value="low">하 · 0%</label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>레이어</legend>
+          <div class="layers">
+            <label class="check"><input type="checkbox" data-toggle="gear" checked><span>기어<small>그림·유리관 게이지</small></span></label>
+            <label class="check"><input type="checkbox" data-toggle="lanes" checked><span>레인<small>바탕·판정선</small></span></label>
+            <label class="check"><input type="checkbox" data-toggle="notes" checked><span>노트<small>노트·키빔·마디선</small></span></label>
+            <label class="check"><input type="checkbox" data-toggle="hud" checked><span>HUD<small>판정·콤보·키봄·키보드</small></span></label>
+          </div>
+        </fieldset>
+        <div class="brightness">
+          <div class="brightness-head"><label for="brightness">배경 밝기</label><output id="brightness-value" for="brightness">100%</output></div>
+          <input type="range" id="brightness" min="30" max="100" step="5" value="100">
+        </div>
+        <label class="check"><input type="checkbox" id="shortcuts" checked><span>키보드 단축키<small>H·C·화살표. 음성 입력 등과 겹치면 끕니다</small></span></label>
+        <p class="hint">미리보기를 누르면 에셋을 보이고 숨깁니다.<span class="shortcut-hint"> H 키도 같고, C 키로 2차 시안과 지금 배경을 바꿔 봅니다.</span></p>
+      </div>
+    </section>
+
+    <section class="overview" aria-labelledby="overview-title">
+      <h2 id="overview-title">2차 시안 한눈에 보기</h2>
+      <p>장면마다 같은 장소를 고도 상·중·하에서 본 세 장입니다. 누르면 위 미리보기에 띄웁니다.</p>
+      <div class="grid" id="grid">
+        <span></span><span class="head">상 · 100%</span><span class="head">중 · 50%</span><span class="head">하 · 0%</span>
+        <span class="row-head">Liftoff</span>
+        <button type="button" data-scenario="liftoff" data-altitude="high" aria-label="Liftoff 고도 상"><img src="drafts/liftoff-high.webp" width="1672" height="941" alt="" loading="lazy" decoding="async"></button>
+        <button type="button" data-scenario="liftoff" data-altitude="mid" aria-label="Liftoff 고도 중"><img src="drafts/liftoff-mid.webp" width="1672" height="941" alt="" loading="lazy" decoding="async"></button>
+        <button type="button" data-scenario="liftoff" data-altitude="low" aria-label="Liftoff 고도 하"><img src="drafts/liftoff-low.webp" width="1672" height="941" alt="" loading="lazy" decoding="async"></button>
+        <span class="row-head">Infiltration</span>
+        <button type="button" data-scenario="infiltration" data-altitude="high" aria-label="Infiltration 고도 상"><img src="drafts/infiltration-high.webp" width="1672" height="941" alt="" loading="lazy" decoding="async"></button>
+        <button type="button" data-scenario="infiltration" data-altitude="mid" aria-label="Infiltration 고도 중"><img src="drafts/infiltration-mid.webp" width="1672" height="941" alt="" loading="lazy" decoding="async"></button>
+        <button type="button" data-scenario="infiltration" data-altitude="low" aria-label="Infiltration 고도 하"><img src="drafts/infiltration-low.webp" width="1672" height="941" alt="" loading="lazy" decoding="async"></button>
+        <span class="row-head">Breakthrough</span>
+        <button type="button" data-scenario="breakthrough" data-altitude="high" aria-label="Breakthrough 고도 상"><img src="drafts/breakthrough-high.webp" width="1672" height="941" alt="" loading="lazy" decoding="async"></button>
+        <button type="button" data-scenario="breakthrough" data-altitude="mid" aria-label="Breakthrough 고도 중"><img src="drafts/breakthrough-mid.webp" width="1672" height="941" alt="" loading="lazy" decoding="async"></button>
+        <button type="button" data-scenario="breakthrough" data-altitude="low" aria-label="Breakthrough 고도 하"><img src="drafts/breakthrough-low.webp" width="1672" height="941" alt="" loading="lazy" decoding="async"></button>
+      </div>
+    </section>
+
+    <details>
+      <summary>만든 방법과 한계 펼치기</summary>
+      <ul>
+        <li>2차 시안은 장면마다 지금 배경을 고도 상·중·하(100%·50%·0%)로 캡처한 세 장과 기어 원본을 참고 이미지로 넣어 생성했습니다. 메탈릭 구조물은 쓰지 않고, 기어에 가려지는 가운데 띠는 차분하게 두며, 기어의 하늘색·금색은 작은 불빛에만 남기도록 요청했습니다.</li>
+        <li>1차 시안(메탈릭 장갑·밝은 구조물 6장)은 너무 강하다는 피드백으로 뺐습니다.</li>
+        <li>인게임 레이어와 지금 배경은 실제 게임 렌더러(Classic 스킨, 기어, <code>/lab/gear</code> 시연 차트)를 곡 시작 8.8초 시점에 멈춰 1920×1080으로 캡처했습니다. 기어의 유리관 게이지는 고른 고도를 보여 줍니다.</li>
+        <li>시안은 정지 이미지라 고도 사이의 연속 변화와 움직임은 없습니다. 지금 게임 배경은 고도에 따라 움직이는 3D 장면이라, 방향을 고르면 그 화풍을 움직이는 배경으로 옮기는 작업이 따로 필요합니다.</li>
+      </ul>
+    </details>
+    <footer><nav aria-label="목록으로 이동"><a href="../../">← Lab 목록</a></nav></footer>
+  </main>
+  <script>
+    const LABEL_BY_SCENARIO = { liftoff: 'Liftoff', infiltration: 'Infiltration', breakthrough: 'Breakthrough' };
+    const LABEL_BY_ALTITUDE = { high: '상', mid: '중', low: '하' };
+    const LABEL_BY_SOURCE = { draft: '2차 시안', current: '지금 배경' };
+    const LAYERS = ['gear', 'lanes', 'notes', 'hud'];
+    const NOTE_BY_SCENARIO = {
+      liftoff: '지금 이륙 배경의 구도(지평선 높이, 고도별 지면 불빛)를 그대로 두고, 밭과 도로가 보이는 차분한 지면과 부드러운 구름으로 다시 그렸습니다. 고도 하에서는 하늘이 어두워지고 금색 유도등 두 줄만 남습니다.',
+      infiltration: '먹구름 아래 시설 불빛을 무리 지어 두었고, 고도가 낮을수록 시선이 아래로 꺾여 지평선이 화면 위로 사라집니다. 고도 하는 지금 배경처럼 바로 위에서 내려다본 근접 시점이 아니라, 비스듬히 내려다본 시설로 그려졌습니다.',
+      breakthrough: '하늘 없이 어두운 구조물 사이로 선 광원이 소실점으로 흐릅니다. 소실점은 지금 배경처럼 고도 상에서 위, 중에서 가운데, 하에서 아래에 있습니다. 빨간 선이 너무 눈에 띈다는 피드백으로 주홍을 어둡고 흐린 불씨색으로 낮췄습니다. 고도 상·하는 선도 줄었고, 고도 중은 선이 아직 촘촘합니다.',
+    };
+    const DEFAULT_STATE = { source: 'draft', scenario: 'liftoff', altitude: 'mid', layers: LAYERS, overlayShown: true, brightness: 100 };
+    const HASH_WRITE_DELAY_MS = 250;
+    const scenarioIds = Object.keys(LABEL_BY_SCENARIO);
+    const altitudeIds = Object.keys(LABEL_BY_ALTITUDE);
+    const sourceIds = Object.keys(LABEL_BY_SOURCE);
+
+    const preview = document.getElementById('preview');
+    const background = document.getElementById('background');
+    const gearLayer = document.getElementById('gear-layer');
+    const master = document.getElementById('master');
+    const brightness = document.getElementById('brightness');
+    const brightnessValue = document.getElementById('brightness-value');
+    const shortcuts = document.getElementById('shortcuts');
+    const selectedNote = document.getElementById('selected-note');
+    const imageError = document.getElementById('image-error');
+    const main = document.querySelector('main');
+    const imagesByLayer = Object.fromEntries(LAYERS.map((name) => [name, [...preview.querySelectorAll(`[data-layer="${name}"]`)]]));
+    const checkboxByLayer = Object.fromEntries(LAYERS.map((name) => [name, document.querySelector(`[data-toggle="${name}"]`)]));
+
+    let state = { ...DEFAULT_STATE, layers: new Set(DEFAULT_STATE.layers) };
+
+    const backgroundSrc = ({ source, scenario, altitude }) => source === 'draft'
+      ? `drafts/${scenario}-${altitude}.webp`
+      : `captures/current-${scenario}-${altitude}.webp`;
+
+    // `layers=` (empty) means no layers on purpose; a value without any known layer name falls back to all layers.
+    function layersFromParam(raw) {
+      if (raw === null) return DEFAULT_STATE.layers;
+      const names = raw.split(',').filter((name) => LAYERS.includes(name));
+      return raw !== '' && names.length === 0 ? DEFAULT_STATE.layers : names;
+    }
+
+    // Every hash is read into a complete state from the defaults, so the same address always shows the same view.
+    function stateFromHash(hash) {
+      const params = new URLSearchParams(hash.slice(1));
+      const pick = (name, allowed, fallback) => (allowed.includes(params.get(name)) ? params.get(name) : fallback);
+      const brightnessPercent = Number(params.get('brightness'));
+      return {
+        source: pick('source', sourceIds, DEFAULT_STATE.source),
+        scenario: pick('scenario', scenarioIds, DEFAULT_STATE.scenario),
+        altitude: pick('altitude', altitudeIds, DEFAULT_STATE.altitude),
+        layers: new Set(layersFromParam(params.get('layers'))),
+        overlayShown: params.get('overlay') !== '0',
+        // Snap to the slider's 5% steps so the label, the slider and the filter agree.
+        brightness: params.has('brightness') && brightnessPercent >= 30 && brightnessPercent <= 100 ? Math.round(brightnessPercent / 5) * 5 : DEFAULT_STATE.brightness,
+      };
+    }
+
+    function hashFromState() {
+      return `#${new URLSearchParams({
+        source: state.source,
+        scenario: state.scenario,
+        altitude: state.altitude,
+        layers: LAYERS.filter((name) => state.layers.has(name)).join(','),
+        overlay: state.overlayShown ? '1' : '0',
+        brightness: String(state.brightness),
+      })}`;
+    }
+
+    // Swap an image only after the next one has decoded, so switching never flashes an empty preview. If the file
+    // cannot be loaded the previous image stays and an alert names the failed file; choosing it again retries.
+    // The first render sets the sources directly, so a deep link does not show the default images under the
+    // requested title; a failure there is reported the same way.
+    const pendingSrcByImage = new Map();
+    const failedSrcs = new Set();
+    let firstRender = true;
+    // Report a failure of the source an image is loading now; listen only until that source settles.
+    function watchFirstLoad(image, src) {
+      const settled = new AbortController();
+      image.addEventListener('load', () => settled.abort(), { signal: settled.signal });
+      image.addEventListener('error', () => { settled.abort(); failedSrcs.add(src); renderNote(); }, { signal: settled.signal });
+    }
+    function swapImage(image, src) {
+      if (firstRender) {
+        watchFirstLoad(image, src);
+        image.src = src;
+        return;
+      }
+      if (image.getAttribute('src') === src && !pendingSrcByImage.has(image) && !failedSrcs.has(src)) return;
+      pendingSrcByImage.set(image, src);
+      const next = new Image();
+      next.src = src;
+      next.decode().then(() => {
+        if (pendingSrcByImage.get(image) !== src) return;
+        pendingSrcByImage.delete(image);
+        failedSrcs.delete(src);
+        image.src = src;
+        renderNote();
+      }, () => {
+        if (pendingSrcByImage.get(image) !== src) return;
+        pendingSrcByImage.delete(image);
+        failedSrcs.add(src);
+        renderNote();
+      });
+    }
+
+    function renderNote() {
+      selectedNote.textContent = state.source === 'draft' ? NOTE_BY_SCENARIO[state.scenario] : '지금 게임 배경을 같은 고도로 캡처했습니다.';
+      const shown = [backgroundSrc(state), `captures/layer-gear-${state.altitude}.webp`, ...fixedLayerSrcs];
+      const failed = shown.filter((src) => failedSrcs.has(src));
+      const message = failed.length > 0 ? `이미지를 불러오지 못했습니다: ${failed.join(', ')}` : '';
+      if (imageError.textContent !== message) imageError.textContent = message;
+      imageError.hidden = message === '';
+    }
+
+    function render() {
+      const src = backgroundSrc(state);
+      swapImage(background, src);
+      swapImage(gearLayer, `captures/layer-gear-${state.altitude}.webp`);
+      firstRender = false;
+      document.getElementById('selected-title').textContent = `${LABEL_BY_SOURCE[state.source]} · ${LABEL_BY_SCENARIO[state.scenario]} · 고도 ${LABEL_BY_ALTITUDE[state.altitude]}`;
+      renderNote();
+      document.getElementById('selected-original').href = src;
+      for (const name of ['source', 'scenario', 'altitude']) {
+        document.querySelector(`input[name="${name}"][value="${state[name]}"]`).checked = true;
+      }
+      for (const button of document.querySelectorAll('#grid button')) {
+        const current = button.dataset.scenario === state.scenario && button.dataset.altitude === state.altitude;
+        button.setAttribute('aria-current', String(current));
+      }
+      for (const name of LAYERS) {
+        for (const image of imagesByLayer[name]) image.hidden = !(state.overlayShown && state.layers.has(name));
+        // The checkboxes stay enabled while the overlay is off (disabling one would drop keyboard focus).
+        checkboxByLayer[name].checked = state.layers.has(name);
+      }
+      master.setAttribute('aria-pressed', String(state.overlayShown));
+      preview.setAttribute('aria-pressed', String(state.overlayShown));
+      document.getElementById('master-state').textContent = state.overlayShown ? '켬' : '끔';
+      renderShortcutHints();
+      background.style.setProperty('--brightness', String(state.brightness / 100));
+      brightness.value = String(state.brightness);
+      brightnessValue.textContent = `${state.brightness}%`;
+      scheduleHashWrite();
+    }
+
+    // Holding an arrow key or dragging the slider renders many times a second; browsers throttle replaceState
+    // bursts, so the address is written once the input settles.
+    let hashWriteTimer = 0;
+    function writeHash() {
+      clearTimeout(hashWriteTimer);
+      hashWriteTimer = 0;
+      if (location.hash !== hashFromState()) history.replaceState(null, '', hashFromState());
+    }
+    function scheduleHashWrite() {
+      clearTimeout(hashWriteTimer);
+      hashWriteTimer = setTimeout(writeHash, HASH_WRITE_DELAY_MS);
+    }
+
+    function update(change) { state = { ...state, ...change }; render(); }
+    const toggleOverlay = () => update({ overlayShown: !state.overlayShown });
+    const toggleSource = () => update({ source: state.source === 'draft' ? 'current' : 'draft' });
+    const adjacent = (ids, id, offset) => ids[(ids.indexOf(id) + offset + ids.length) % ids.length];
+
+    preview.addEventListener('click', toggleOverlay);
+    preview.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleOverlay(); }
+    });
+    master.addEventListener('click', toggleOverlay);
+    // Fullscreen is mainly for phones held sideways; tapping the preview still shows and hides the assets there.
+    const fullscreen = document.getElementById('fullscreen');
+    if (preview.requestFullscreen) {
+      fullscreen.hidden = false;
+      fullscreen.addEventListener('click', () => { preview.requestFullscreen().catch(() => undefined); });
+    }
+    for (const name of LAYERS) {
+      checkboxByLayer[name].addEventListener('change', () => {
+        const layers = new Set(state.layers);
+        if (checkboxByLayer[name].checked) layers.add(name); else layers.delete(name);
+        // Changing a layer while the overlay is hidden would show nothing, so the overlay comes back.
+        update({ layers, overlayShown: true });
+      });
+    }
+    for (const name of ['source', 'scenario', 'altitude']) {
+      for (const input of document.querySelectorAll(`input[name="${name}"]`)) {
+        input.addEventListener('change', () => update({ [name]: input.value }));
+      }
+    }
+    document.getElementById('grid').addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      update({ source: 'draft', scenario: button.dataset.scenario, altitude: button.dataset.altitude });
+      // On a phone the preview sits above the grid; bring it back when it is (even partly) scrolled away.
+      if (preview.getBoundingClientRect().top < 0) preview.scrollIntoView({ block: 'start' });
+    });
+    brightness.addEventListener('input', () => update({ brightness: Number(brightness.value) }));
+    // Arrow keys belong to the page (scrolling, radios, the slider, links) unless nothing in particular has focus.
+    const galleryTakesArrowKeys = (target) => target === document.body || target === preview || target === master;
+    // With the shortcuts off, no hint or aria-keyshortcuts may still advertise them.
+    function renderShortcutHints() {
+      main.dataset.shortcuts = shortcuts.checked ? 'on' : 'off';
+      for (const element of [preview, master]) {
+        if (shortcuts.checked) element.setAttribute('aria-keyshortcuts', 'H'); else element.removeAttribute('aria-keyshortcuts');
+      }
+    }
+    shortcuts.addEventListener('change', renderShortcutHints);
+    document.addEventListener('keydown', (event) => {
+      if (!shortcuts.checked || event.altKey || event.ctrlKey || event.metaKey) return;
+      const key = event.key;
+      // The printed letter, so other layouts work; under the Korean input method the key is 'Process' or a jamo (ㅗ, ㅊ),
+      // so fall back to the physical key there. A held key toggles once.
+      const letter = key === 'Process' || key === 'ㅗ' || key === 'ㅊ' ? { KeyH: 'h', KeyC: 'c' }[event.code] : key.toLowerCase();
+      if (letter === 'h') { if (!event.repeat) toggleOverlay(); return; }
+      if (letter === 'c') { if (!event.repeat) toggleSource(); return; }
+      if (!galleryTakesArrowKeys(event.target)) return;
+      if (key === 'ArrowRight' || key === 'ArrowLeft') {
+        event.preventDefault();
+        update({ scenario: adjacent(scenarioIds, state.scenario, key === 'ArrowRight' ? 1 : -1) });
+      } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+        event.preventDefault();
+        // altitudeIds runs high → low, so ↑ moves toward the start and stops at either end.
+        const index = altitudeIds.indexOf(state.altitude) + (key === 'ArrowUp' ? -1 : 1);
+        update({ altitude: altitudeIds[Math.min(altitudeIds.length - 1, Math.max(0, index))] });
+      }
+    });
+    // render() writes the hash with replaceState, which fires neither event; edits of the address and back/forward
+    // land here. A pending write is dropped first so it cannot overwrite the entry the user moved to.
+    const readHash = () => { clearTimeout(hashWriteTimer); state = stateFromHash(location.hash); render(); };
+    window.addEventListener('hashchange', readHash);
+    window.addEventListener('popstate', readHash);
+    window.addEventListener('pagehide', () => { if (hashWriteTimer) writeHash(); });
+
+    // The lanes, notes, judgment line and HUD images never change; one that failed before this script ran is already
+    // complete with no pixels.
+    const fixedLayerSrcs = [];
+    for (const image of preview.querySelectorAll('.layer')) {
+      if (image === gearLayer) continue;
+      const src = image.getAttribute('src');
+      fixedLayerSrcs.push(src);
+      if (image.complete && image.naturalWidth === 0) failedSrcs.add(src); else watchFirstLoad(image, src);
+    }
+
+    state = stateFromHash(location.hash);
+    render();
+  </script>
+</body>
+</html>

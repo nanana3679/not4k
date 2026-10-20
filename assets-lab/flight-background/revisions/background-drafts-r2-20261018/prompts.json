@@ -1,0 +1,29 @@
+{
+  "createdAt": "2026-10-18",
+  "generator": "built-in image_gen (codex exec, gpt-6-astra, reasoning xhigh)",
+  "feedback": "Round 1 (six metallic drafts, archived outside the repository in ~/not4k-prototypes/background-drafts-r1-20261018/) was too strong: the background does not have to be metallic, it must not be so busy that it pulls attention from the in-game elements, and the current background should be referenced at altitude high, mid and low.",
+  "references": {
+    "gear": "public/gear/gear.png",
+    "current": "lab/image-galleries/background-drafts-20261018/captures/current-<scenario>-<high|mid|low>.webp (the real game background at altitude 100% / 50% / 0%)"
+  },
+  "method": "One codex session per scenario with three image_gen calls: mid first, then high and low with the mid result as the style and palette anchor, so the three read as one place seen from different heights.",
+  "common": "Use case: game background concept art for a vertical four-lane rhythm game. The background must stay quiet.\nImage 1 is the in-game HUD frame called the gear. During play it is overlaid at the horizontal center over the full height and covers the central band (about 30% to 70% of the width); only the left and right strips of the background stay visible.\nImages 2, 3 and 4 are the CURRENT in-game background of this scenario at altitude HIGH (100%), MID (50%) and LOW (0%). They define what the scene is, where the horizon sits and how the view changes with altitude; that altitude cue is how the player feels height in peripheral vision, so keep it. The only problem with them is the rendering: flat, pixel-like and noisy, so they do not look like the same game as the gear's clean illustration.\nRepaint the SAME scene as a calm, clean anime-style background painting (soft cel-shaded or painterly shapes, smooth gradients, gentle atmospheric depth) at the gear's level of finish, but much simpler and quieter than the gear.\nKeep it restrained so the player focuses on the notes and the gear:\n- not metallic: no armor plates, mecha walls or chrome structures; the environment is sky, clouds, ground and distant lights as in the references;\n- low contrast and low saturation, dark mid-tone values (rich and readable, never pure black), clearly darker and duller than the gear;\n- only small, sparse accent lights; no large bright shapes, no glare, no lens flare, no lightning bolts, no dense texture or busy detail;\n- palette from the references, with only tiny touches of cyan and warm gold in the lights to tie it to the gear.\nComposition: forward-facing view with the same horizon height and camera tilt as the reference for each altitude, one vanishing point at the horizontal center. Keep the central band calm. Keep important content within the middle 85% of the height because the image is cropped to 16:9.\nDraw the background ONLY: no gear, lanes, notes, keys, HUD, numbers, text, logos, UI, cockpit, aircraft, characters or watermark.",
+  "scenarios": [
+    {
+      "id": "liftoff",
+      "title": "Liftoff",
+      "direction": "Liftoff: a night climb over a wide, quiet airfield and plain. Deep navy starry sky with a thin cloud band along the horizon and a faint blue glow at the horizon center. The ground is a dark, softly textured plain. HIGH and MID: sparse small lights scattered over the ground in loose rows converging to the vanishing point, mostly teal-cyan with a few amber. LOW: the sky is much darker and the ground is almost empty except two converging rows of small amber runway guide lights."
+    },
+    {
+      "id": "infiltration",
+      "title": "Infiltration",
+      "direction": "Infiltration: descending into a guarded restricted area at night. Starless indigo-violet overcast with heavy, soft cloud layers and a faint blue-violet haze. The camera tilts further down as altitude drops (follow the references): HIGH shows the horizon and a dark ground with clustered small violet and cool-white facility lights; MID and LOW look more steeply down onto the ground plane as the horizon leaves the top of the frame. Lights stay small and grouped by facility, with a few mint accents."
+    },
+    {
+      "id": "breakthrough",
+      "title": "Breakthrough",
+      "direction": "Breakthrough: sustained fast flight low inside a vast dark structure, with no sky and no horizon. Deep black-blue darkness with faint, dim silhouettes of distant architecture. Line lights run along the walls, floor and ceiling toward one vanishing point; the vanishing point and the direction of the lines follow the references for each altitude. A previous attempt was rejected because its red lines pulled the eye away from the notes. Keep the vermilion identity but very muted: desaturated, dim ember and rust-coral tones, far darker than the gear's cyan glow and closer to the background values than to neon. Fewer lines, mostly thin, faint and soft-edged; no bright saturated red streak anywhere and no glow halos; a few dim teal accents. The whole image should read as a dark, cool space with a faint warm flow, not as red light.",
+      "revision": "2nd Breakthrough attempt. The first attempt (same brief with 'thin vermilion and coral line lights ... keep the lines thin and sparse') is archived in ~/not4k-prototypes/background-drafts-r2-breakthrough-v1-20261018/ after the user found its red too eye-catching."
+    }
+  ]
+}

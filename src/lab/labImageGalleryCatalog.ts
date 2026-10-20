@@ -52,4 +52,10 @@ export const labImageGalleryCatalog = Object.freeze<readonly LabImageGalleryEntr
     description: "임시 시안의 백색광 버튼 전후를 비교하고, 네 키 누름·게이지 채움과 프레임 움직임 시연을 엽니다.",
     createdAt: "2026-09-29",
   }),
+  registerImageGallery({
+    id: "background-drafts-20261018",
+    title: "배경 시안 · 인게임 겹쳐 보기",
+    description: "장면별 고도 상·중·하 배경 시안과 지금 배경 위에 실제 게임의 기어·레인·노트·HUD를 보였다 숨기며 비교합니다.",
+    createdAt: "2026-10-18",
+  }),
 ]);
