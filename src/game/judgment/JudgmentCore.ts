@@ -28,7 +28,8 @@ export interface NoteJudgmentEvent {
   phase?: "input" | "deadline";
 }
 
-export interface NoteJudgmentCoreOptions {
+/** 판정 코어를 만들 때 넘기는 판정 창과 확정 콜백. */
+export interface JudgmentCoreOptions {
   windows?: JudgmentWindows;
   onConfirmed?: (event: NoteJudgmentEvent) => void;
   onBatchConfirmed?: (events: readonly NoteJudgmentEvent[], at: number) => void;

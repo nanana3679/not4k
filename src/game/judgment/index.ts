@@ -19,15 +19,15 @@ export { SessionRendererAdapter } from "./SessionRendererAdapter";
 export { NoteJudgmentSession } from "./NoteJudgmentSession";
 export type { NoteJudgmentSessionView, NoteJudgmentSessionOptions } from "./NoteJudgmentSession";
 export type { SessionRendererPort, SessionRendererAdapterOptions, SessionBodyState } from "./SessionRendererAdapter";
-export type { JudgmentChartLike } from "./NoteJudgmentCore";
+export type { JudgmentChartLike, NoteJudgmentCoreOptions } from "./NoteJudgmentCore";
 export type {
   JudgmentBodyState,
   JudgmentCore,
+  JudgmentCoreOptions,
   JudgmentInput,
   JudgmentEventKind,
   JudgmentGrade as NoteJudgmentGrade,
   NoteJudgmentEvent,
-  NoteJudgmentCoreOptions,
 } from "./JudgmentCore";
 export {
   compileJudgmentChart,

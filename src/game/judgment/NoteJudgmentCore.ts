@@ -6,10 +6,12 @@ import { LaneHoldTracker, type LaneHoldView } from "./LaneHoldTracker";
 import { compileJudgmentChart, type CompiledJudgmentChart } from "./compiledJudgmentChart";
 import { PointJudgmentState } from "./PointJudgmentState";
 import { ZeroHoldOnlyState } from "./ZeroHoldOnlyState";
-import type { JudgmentBodyState, JudgmentCore, JudgmentGrade, JudgmentInput, NoteJudgmentCoreOptions, NoteJudgmentEvent } from "./JudgmentCore";
+import type { JudgmentBodyState, JudgmentCore, JudgmentCoreOptions, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
 
 /** 공용 타입을 JudgmentCore.ts로 옮기기 전의 import 경로(`./NoteJudgmentCore`)를 그대로 쓸 수 있게 다시 내보낸다. */
-export type { JudgmentEventKind, JudgmentGrade, JudgmentInput, NoteJudgmentCoreOptions, NoteJudgmentEvent } from "./JudgmentCore";
+export type { JudgmentEventKind, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+/** 이 코어의 생성 옵션. 코어 공용 이름은 `JudgmentCoreOptions`이고 이 이름은 기존 import를 위해 남긴다. */
+export type NoteJudgmentCoreOptions = JudgmentCoreOptions;
 
 /** A deliberately small seam between chart compilation and the judgment runtime. */
 export interface JudgmentChartLike {
