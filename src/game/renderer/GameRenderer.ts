@@ -1341,7 +1341,7 @@ export class GameRenderer {
     this.autoGarbageCollectBeforePlayback.clear();
     this.flightBackground?.dispose();
     this.flightBackground = null;
-    // `gearMotion` 텍스처는 공유 로더 소유라 lease만 release한다(마지막 lease면 로더가 unload한다).
+    // `gearMotion` 텍스처는 공유 로더 소유라 lease만 release한다(마지막 lease면 로더가 그 텍스처를 unload한다).
     this.gearMotionController?.destroy();
     this.gearMotionController = null;
     // 게이지가 만든 행 텍스처만 정리한다(빈 유리 아틀라스는 SkinManager 소유).
