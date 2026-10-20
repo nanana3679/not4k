@@ -714,6 +714,12 @@ store·renderer를 모르는 **주입 source 기반 팩토리**(`createTimelineS
 
 **구현**: `src/editor/timeline/TimelineSpace.ts` (팩토리) + `src/editor/hooks/useTimelineSpace.ts` (React 어댑터).
 
+### 원위치 고스트 (Move Origin Ghost)
+
+Select 모드에서 노트나 구간을 끌어 옮기는 동안 **원래 위치에 남는 흐린 사본**. 원래 모습을 30% 불투명도로 그려(`ORIGIN_ALPHA`), 무엇이 어디서 옮겨지는 중인지 보여 준다. 노트를 옮길 때는 노트의 원래 위치에, `trillZone`·`restZone`을 구간 단위로 옮길 때(구간과 안의 노트가 함께 움직임)는 구간의 원래 위치에도 남는다. 드롭하거나 취소하면 바로 사라진다. 실제 차트 엔티티가 아니며, Create 모드에서 배치 예정 위치를 보여 주는 고스트 프리뷰와 다르다.
+
+**구현**: 원래 위치 목록은 `moveOrigins`(노트)·`trillZoneMoveOrigins`·`restZoneMoveOrigins`이다. Select 모드가 이동 preview로 넘기면 `TimelineRenderer`가 받아 `OverlayRenderer.renderMoveOrigins`가 `moveOriginLayer`에 그린다. 드롭·취소 때는 `TimelineRenderer.clearMoveOrigins`가 목록을 비우고 `OverlayRenderer.clearMoveOriginGhosts`로 그린 고스트를 바로 지운다. 식별자들이 원래 위치 목록을 가리켜 "흐린 사본"이라는 뜻을 담지 못하므로 한국어 이름을 쓴다([term-map](term-map.md) 판별 규칙 4).
+
 ---
 
 ## 관련 문서
