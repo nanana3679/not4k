@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import type { Chart } from '../../src/shared';
+import { STORAGE_BUCKET, songChartExtraPath, songChartPath } from '../../src/shared/storage';
 
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
@@ -26,12 +27,22 @@ const RESUME_SONG_TIME_ADVANCE_LIMIT_MS = 1000;
 const EDITOR_CURSOR_MS = 2000;
 /** 커서 뒤 single 노트 수(3·3.5·4초). 테스트 플레이는 커서 앞 노트를 판정하지 않으므로 커서부터 완주한 결과의 판정 수 합이 이 값이다. */
 const NOTES_AFTER_EDITOR_CURSOR = 3;
+/** 테스트 플레이를 연 에디터의 곡(실제 곡이 아니다)과 난이도. */
+const EDITOR_SONG_ID = 'game-loop-smoke';
+const EDITOR_DIFFICULTY = 'normal';
 /**
- * 테스트 플레이를 연 에디터 주소. 에디터는 `window.location.pathname + window.location.search`를 넘긴다. songId는 실제 곡이 아니다.
+ * 테스트 플레이를 연 에디터 주소. 에디터는 `window.location.pathname + window.location.search`를 넘긴다.
  * 돌아간 에디터는 songId·difficulty가 없으면 `/game`을 새로 읽고, Storage 경로 규칙(소문자·숫자로 시작하고 소문자·숫자·`.`·`_`·`-`만)에
  * 맞지 않는 songId에는 예외를 던지므로 규칙에 맞는 둘을 둔다.
  */
-const EDITOR_RETURN_URL = '/editor?songId=game-loop-smoke&difficulty=normal';
+const EDITOR_RETURN_URL = `/editor?songId=${EDITOR_SONG_ID}&difficulty=${EDITOR_DIFFICULTY}`;
+/**
+ * 돌아간 에디터가 Storage에서 읽는 차트 두 개의 공개 URL 경로. 에디터와 같은 경로 함수(songChartPath·songChartExtraPath)로 만들며,
+ * `/storage/v1/object/public/assets/songs/game-loop-smoke/normal.json`과 `…/normal.extra.json`이다.
+ */
+const EDITOR_CHART_READ_PATHS = new Set(
+  [songChartPath, songChartExtraPath].map(chartPath => `/storage/v1/object/public/${STORAGE_BUCKET}/${chartPath(EDITOR_SONG_ID, EDITOR_DIFFICULTY)}`),
+);
 
 const GAME_STORE_PATH = '/src/game/stores/gameStore.ts';
 const GAME_RENDERER_PATH = '/src/game/renderer/GameRenderer.ts';
@@ -56,7 +67,7 @@ const GOOGLE_FONTS_ORIGINS = new Set(['https://fonts.googleapis.com', 'https://f
  *   index.html의 CSP(connect-src·img-src 등)가 막는 origin의 요청은 브라우저가 보내기 전에 막혀 page.route에 오지 않으므로
  *   여기 기록되지 않는다(콘솔의 CSP 위반 오류로만 남는다).
  * 기록은 `${method} ${origin}${pathname}` 형식으로 돌려주는 배열에 쌓이며, 중단한 요청에는 ` (aborted)`를 붙인다.
- * 에디터 주소로 돌아가는 테스트는 플레이 화면을 떠나기 직전에 answerEditorReadsWithNotFound를 더 건다.
+ * 에디터 주소로 돌아가는 테스트는 플레이 화면을 떠나기 직전에 answerEditorChartReadsWithNotFound를 더 건다.
  */
 async function guardOfflineRequests(page: Page, appOrigin: string): Promise<string[]> {
   const unexpectedRequests: string[] = [];
@@ -81,15 +92,15 @@ async function guardOfflineRequests(page: Page, appOrigin: string): Promise<stri
 }
 
 /**
- * 플레이 화면을 떠나 에디터 주소로 돌아가기 직전에 건다. 그 뒤 Supabase API 경로의 GET은 guardOfflineRequests보다 먼저(나중에 건 route가 먼저 받는다)
- * 실제 Supabase에 보내지 않고 404로 응답하며, 예상 밖 요청으로 기록하지 않는다. GET이 아닌 요청(저장 등)은 guardOfflineRequests로 넘겨 계속 기록한다.
- * 돌아간 에디터는 에디터 스토어에 이 곡이 없어 Storage에서 차트(`songs/{songId}/{difficulty}.json`·`.extra.json`)를 읽으려 하고, 읽지 못하면
- * PIXI 타임라인을 만들지 않은 채 오류 화면(관리자, 개발 서버의 `VITE_DEV_ADMIN=true`) 또는 Access Denied(비관리자)에서 멈춘다.
+ * 플레이 화면을 떠나 에디터 주소로 돌아가기 직전에 건다. 돌아간 에디터는 에디터 스토어에 이 곡이 없어 Storage에서 차트 두 개(EDITOR_CHART_READ_PATHS)를 읽는다.
+ * 그 두 경로의 GET만 guardOfflineRequests보다 먼저(나중에 건 route가 먼저 받는다) 받아, 실제 Supabase에 보내지 않고 404로 응답하며 예상 밖 요청으로 기록하지 않는다.
+ * 그 밖의 요청(두 경로의 GET이 아닌 요청, 다른 Supabase 경로의 요청)은 guardOfflineRequests로 넘겨 계속 예상 밖 요청으로 기록한다.
+ * 차트를 읽지 못한 에디터는 PIXI 타임라인을 만들지 않은 채 오류 화면(관리자, 개발 서버의 `VITE_DEV_ADMIN=true`) 또는 Access Denied(비관리자)에서 멈춘다.
  * 둘 다 Back to Songs 버튼이 있는 정적 화면이라 실제 Supabase 데이터와 무관하고, 그 뒤로는 요청을 보내지 않는다.
  * 편집 화면까지 열면 PIXI 티커가 SwiftShader에서 페이지를 닫는 데 수십 초가 걸리게 해 다음 테스트를 흔들 수 있다(#308).
  */
-async function answerEditorReadsWithNotFound(page: Page) {
-  await page.route(url => SUPABASE_API_PATH.test(url.pathname), async (route) => {
+async function answerEditorChartReadsWithNotFound(page: Page) {
+  await page.route(url => EDITOR_CHART_READ_PATHS.has(url.pathname), async (route) => {
     if (route.request().method() !== 'GET') { await route.fallback(); return; }
     await route.fulfill({ status: 404, json: { message: 'Not found in offline test' } });
   });
@@ -219,7 +230,7 @@ async function startAutoPlay(page: Page, { escapeAtFirstComboOfRendererIndex, ed
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await installProbe(page, { escapeAtFirstComboOfRendererIndex });
   const [storeUrl, performPlayTestUrl] = await Promise.all([appModuleUrl(page, GAME_STORE_PATH), appModuleUrl(page, PERFORM_PLAY_TEST_PATH)]);
-  const playTestToasts = await page.evaluate(async ({ storeUrl, performPlayTestUrl, editorCursorMs, editorReturnUrl }) => {
+  const playTestStart = await page.evaluate(async ({ storeUrl, performPlayTestUrl, editorCursorMs, editorReturnUrl }) => {
     const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storeUrl);
     const b = (n: number, d = 1) => ({ n, d });
     const state = useGameStore.getState();
@@ -244,12 +255,12 @@ async function startAutoPlay(page: Page, { escapeAtFirstComboOfRendererIndex, ed
       state.setChartData(chart);
       state.setAudioBuffer(audioBuffer);
       useGameStore.setState({ screen: 'play', lastResult: null, startTimeMs: 0, editorReturnUrl: null });
-      return [];
+      return null;
     }
     const { performPlayTest }: typeof import('../../src/editor/playtest/performPlayTest') = await import(performPlayTestUrl);
     const toasts: string[] = [];
     // 에디터(useFileOperations의 handlePlayTest)처럼 게임 스토어의 액션을 넘긴다.
-    performPlayTest({
+    const started = performPlayTest({
       fromCursor: true,
       audioBuffer,
       isPlaying: false,
@@ -262,10 +273,11 @@ async function startAutoPlay(page: Page, { escapeAtFirstComboOfRendererIndex, ed
       closeMenu: () => {},
       navigate: () => {},
     });
-    return toasts;
+    return { started, toasts };
   }, { storeUrl, performPlayTestUrl, editorCursorMs: editorCursorMs ?? null, editorReturnUrl: EDITOR_RETURN_URL });
-  // performPlayTest는 배치 제약 위반 등으로 시작하지 못하면 토스트를 띄우고 게임 스토어를 바꾸지 않는다.
-  expect(playTestToasts, 'performPlayTest가 띄운 토스트').toEqual([]);
+  // performPlayTest는 시작하지 못하면 false를 돌려주고 게임 스토어를 바꾸지 않는다(오디오 없음·배치 제약 위반은 토스트도 띄운다).
+  // 여기서 바로 실패시켜, 플레이 화면 캔버스를 30초 기다린 뒤에야 실패하지 않게 한다.
+  if (playTestStart) expect(playTestStart, 'performPlayTest 결과').toEqual({ started: true, toasts: [] });
   await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
 }
 
@@ -298,11 +310,13 @@ function judgmentTotal(judgmentCounts: Record<string, number>): number {
 /**
  * 에디터 테스트 플레이(startAutoPlay의 editorCursorMs = EDITOR_CURSOR_MS) 중인 화면에서 exitButton을 눌러 에디터 주소로 돌아가고, 돌아간 뒤를 확인한다.
  * 누르기 전에 게임 스토어에 테스트 플레이 상태(startTimeMs = EDITOR_CURSOR_MS, editorReturnUrl = EDITOR_RETURN_URL)가 있는지 보고,
- * answerEditorReadsWithNotFound를 건 뒤 누른다. 누른 뒤에는 차례로 확인한다.
+ * answerEditorChartReadsWithNotFound를 건 뒤 누른다. 누른 뒤에는 차례로 확인한다.
  * 1. 주소가 EDITOR_RETURN_URL이다.
  * 2. 돌아간 에디터가 차트를 읽지 못한 화면(Back to Songs)에서 멈출 때까지 기다린다. 에디터가 보낼 요청과 생길 수 있는 pageerror를
- *    afterEach가 확인하기 전에 모두 받기 위해서다. pageerror는 이 화면까지 함께 본다. 플레이 화면 정리(렌더러·AudioEngine dispose)가
- *    누른 뒤 언마운트에서 일어나기 때문이다.
+ *    afterEach가 확인하기 전에 모두 받기 위해서다. pageerror는 누른 순간에서 끊지 않고 이 화면까지 함께 본다. 주소는 누를 때 바로 바뀌지만,
+ *    react-router(7.13)의 BrowserRouter는 화면 전환을 React.startTransition으로 반영해, lazy로 읽는 에디터 코드가 도착할 때까지 게임 화면을
+ *    그대로 두었다가 그때 한 번에 바꾼다. Quit이면 일시정지한 플레이 화면의 정리(렌더러·AudioEngine dispose)가 그 커밋에서 일어난다
+ *    (Back to Editor는 결과 화면이 뜰 때 플레이 화면을 이미 정리했고, 그 커밋에서는 결과 화면을 내린다).
  * 3. 같은 문서에서 react-router로 옮겨 갔다. 페이지를 새로 읽었다면 관찰 도우미(window.__gameLoopProbe)가 없다(실제 에디터라면 저장하지 않은 편집도 사라진다).
  * 4. 게임 스토어의 테스트 플레이 상태를 지웠다(startTimeMs 0, editorReturnUrl null). 새로 읽은 페이지의 기본값과 같아 3을 확인한 뒤에 본다.
  */
@@ -310,7 +324,7 @@ async function leaveTestPlayToEditor(page: Page, exitButton: Locator) {
   const before = await readGameState(page);
   expect({ startTimeMs: before.startTimeMs, editorReturnUrl: before.editorReturnUrl }, '누르기 전 테스트 플레이 상태')
     .toEqual({ startTimeMs: EDITOR_CURSOR_MS, editorReturnUrl: EDITOR_RETURN_URL });
-  await answerEditorReadsWithNotFound(page);
+  await answerEditorChartReadsWithNotFound(page);
   await exitButton.click();
 
   await expect(page).toHaveURL(EDITOR_RETURN_URL);
@@ -394,13 +408,16 @@ test.describe('게임 루프 스모크(#151): 일시정지 뒤 Resume·Retry를 
   });
 });
 
-test.describe('게임 루프 스모크(#151): 에디터 테스트 플레이(커서부터 시작)에서 에디터 주소로 돌아가기까지 pageerror·예상 밖 요청 없이 진행', () => {
-  test('에디터가 커서 2000ms부터 테스트 플레이하면 AutoEvent single 노트 4개(1·3·3.5·4초) 곡을 2000ms부터 재생해 커서 뒤 노트 3개만 판정하고(판정 수 합 3), 결과 화면의 Back to Editor를 누르면 새로고침 없이 에디터 주소로 돌아가 startTimeMs 0·editorReturnUrl null이 된다', async ({ page }) => {
+test.describe('게임 루프 스모크(#151): 에디터 테스트 플레이(커서부터 시작, 에디터 화면 없이 performPlayTest로 진입)에서 에디터 주소로 돌아가기까지 pageerror·예상 밖 요청 없이 진행', () => {
+  test('에디터 Test Play 진입 함수(performPlayTest)로 커서 2000ms부터 열면 AutoEvent single 노트 4개(1·3·3.5·4초) 곡을 2000ms부터 재생해 커서 뒤 노트 3개만 판정하고(판정 수 합 3), 결과 화면의 Back to Editor를 누르면 새로고침 없이 에디터 주소로 돌아가 startTimeMs 0·editorReturnUrl null이 된다', async ({ page }) => {
     await startAutoPlay(page, { escapeAtFirstComboOfRendererIndex: null, editorCursorMs: EDITOR_CURSOR_MS });
     const result = await expectResultScreen(page);
     const finished = await readProbe(page);
-    // 곡을 커서 위치부터 한 번 재생한다.
+    // 곡을 커서 위치부터 한 번 재생한다. AudioEngine.play에 넘긴 위치만 보면 엔진이 그 위치를 무시하고 0ms부터 재생해도 [2000]이므로,
+    // 그 시계로 그린 곡 시간도 본다. 곡 시작 전 준비 프레임은 커서 − 출력 지연 L₀(수십 ms)에, 재생 중 프레임은 그 뒤에 그린다.
+    // 0ms부터 재생하면 첫 노트(1초)보다 앞을 그린다.
     expect(finished.playOffsetsByEngine.flat(), 'AudioEngine.play 재생 시작 위치(ms)').toEqual([EDITOR_CURSOR_MS]);
+    expect(Math.min(...finished.songTimesByRenderer[0]), '그린 곡 시간 최솟값').toBeGreaterThan(EDITOR_CURSOR_MS - 1000);
     // 커서 앞 노트(1초)는 판정하지 않는다. 판정 대상에 남으면 판정 수 합이 4가 된다.
     expect(judgmentTotal(result.judgmentCounts), '판정 수 합').toBe(NOTES_AFTER_EDITOR_CURSOR);
 
@@ -409,7 +426,7 @@ test.describe('게임 루프 스모크(#151): 에디터 테스트 플레이(커�
     await leaveTestPlayToEditor(page, backToEditor);
   });
 
-  test('에디터가 커서 2000ms부터 테스트 플레이하는 중 콤보가 1이 된 렌더 프레임에 Esc로 일시정지하고 Quit을 누르면 결과를 남기지 않고(lastResult null) 새로고침 없이 에디터 주소로 돌아가 startTimeMs 0·editorReturnUrl null이 된다', async ({ page }) => {
+  test('에디터 Test Play 진입 함수(performPlayTest)로 커서 2000ms부터 열고 콤보가 1이 된 렌더 프레임에 Esc로 일시정지한 뒤 Quit을 누르면 결과를 남기지 않고(lastResult null) 새로고침 없이 에디터 주소로 돌아가 startTimeMs 0·editorReturnUrl null이 된다', async ({ page }) => {
     await startAutoPlay(page, { escapeAtFirstComboOfRendererIndex: 0, editorCursorMs: EDITOR_CURSOR_MS });
     // 커서부터 재생하면 첫 판정(3초) 0.5초 뒤에 다음 노트가 있지만, 이 테스트는 곡 끝(5초) 전에 일시정지하기만 하면 된다.
     await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible({ timeout: 30_000 });
