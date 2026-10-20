@@ -6,7 +6,7 @@ import { LaneHoldTracker, type LaneHoldView } from "./LaneHoldTracker";
 import { compileJudgmentChart, type CompiledJudgmentChart } from "./compiledJudgmentChart";
 import { PointJudgmentState } from "./PointJudgmentState";
 import { ZeroHoldOnlyState } from "./ZeroHoldOnlyState";
-import type { JudgmentBodyState, JudgmentCore, JudgmentCoreOptions, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+import type { JudgmentBodyState, JudgmentCore, JudgmentCoreFactory, JudgmentCoreOptions, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
 
 /** 공용 타입을 JudgmentCore.ts로 옮기기 전의 import 경로(`./NoteJudgmentCore`)를 그대로 쓸 수 있게 다시 내보낸다. */
 export type { JudgmentEventKind, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
@@ -835,5 +835,8 @@ export class NoteJudgmentCore implements JudgmentCore {
     this.onConfirmed?.(event);
   }
 }
+
+/** 기존 등록 키 코어(RFD 0020)를 만드는 생성 함수. 세션과 판정 테스트 harness가 생성 함수를 받지 않을 때의 기본값이다. */
+export const createNoteJudgmentCore: JudgmentCoreFactory = (chart, options) => new NoteJudgmentCore(chart, options);
 
 export default NoteJudgmentCore;

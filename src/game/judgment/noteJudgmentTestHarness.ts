@@ -3,11 +3,11 @@ import type { NoteEntity, PointNote, RangeNote, TrillZone } from "../../shared/t
 import { ScoreManager } from "../scoring/ScoreManager";
 import { compileJudgmentChart } from "./compiledJudgmentChart";
 import type { JudgmentCoreFactory, JudgmentCoreOptions, NoteJudgmentEvent } from "./JudgmentCore";
-import { NoteJudgmentCore } from "./NoteJudgmentCore";
+import { createNoteJudgmentCore } from "./NoteJudgmentCore";
 import { decideConfirmedJudgmentEffects } from "./confirmedJudgmentEffects";
 
-/** 기존 등록 키 코어(RFD 0020). harness의 기본값이며 실제 게임이 쓰는 코어다. */
-export const createNoteJudgmentCore: JudgmentCoreFactory = (chart, options) => new NoteJudgmentCore(chart, options);
+/** harness의 기본 생성 함수(기존 등록 키 코어). 판정 테스트가 harness 하나에서 가져올 수 있게 다시 내보낸다. */
+export { createNoteJudgmentCore };
 
 // 사례의 ms 수치를 Beat에도 그대로 사용해 정확한 인접 관계를 보존한다.
 export function point(at: number, type: PointNote["type"] = "single", lane: Lane = 1): PointNote {

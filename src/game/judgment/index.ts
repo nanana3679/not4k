@@ -21,7 +21,6 @@ export type { NoteJudgmentSessionView, NoteJudgmentSessionOptions } from "./Note
 export type { SessionRendererPort, SessionRendererAdapterOptions, SessionBodyState } from "./SessionRendererAdapter";
 export type { JudgmentChartLike, NoteJudgmentCoreOptions } from "./NoteJudgmentCore";
 export type {
-  JudgmentBodyState,
   JudgmentCore,
   JudgmentCoreFactory,
   JudgmentCoreOptions,

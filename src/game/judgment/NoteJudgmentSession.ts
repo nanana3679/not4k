@@ -6,7 +6,7 @@ import {
   type ConfirmedJudgmentEffects,
 } from "./confirmedJudgmentEffects";
 import type { JudgmentCore, JudgmentCoreFactory, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
-import { NoteJudgmentCore } from "./NoteJudgmentCore";
+import { createNoteJudgmentCore } from "./NoteJudgmentCore";
 import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
 
 export interface NoteJudgmentSessionView {
@@ -25,8 +25,6 @@ export interface NoteJudgmentSessionOptions {
    */
   readonly createCore?: JudgmentCoreFactory;
 }
-
-const createNoteJudgmentCore: JudgmentCoreFactory = (chart, options) => new NoteJudgmentCore(chart, options);
 
 /**
  * compiled chart, pure core, score 정산, 확정 효과를 한 플레이 세션으로 묶는다.
