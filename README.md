@@ -32,7 +32,7 @@
 
 - **[문제]** 게임 루프가 requestAnimationFrame(16.67ms 간격) 기반이라, 12ms 유예 시간이 0ms 또는 16.67ms로 이분화
 - **[해결]** KeyboardEvent.timeStamp(서브밀리초 정밀도) 기반 이벤트 큐 방식으로 전환, 프레임 주기 의존 제거
-- **[결과]** 키보드 폴링 레이트(125Hz~8000Hz)별 오차 범위를 문서화하고, 1000Hz 이상에서 ±1ms 이내 정확도 달성
+- **[결과]** 키보드 폴링 레이트(125Hz～8000Hz)별 오차 범위를 문서화하고, 1000Hz 이상에서 ±1ms 이내 정확도 달성
 
 ### 유리수 박자 연산
 
@@ -44,7 +44,7 @@
 
 - **[문제]** 고밀도 채보에서 매 프레임 Sprite 생성/삭제로 인한 GC 압박과 프레임 드롭
 - **[해결]** PixiJS v8 기반 레이어드 컨테이너 + 상태별(pending/active/failed/complete) 오브젝트 풀링
-- **[결과]** 60~144fps 이상 안정 유지
+- **[결과]** 60～144fps 이상 안정 유지
 
 ### 오디오 동기화
 
@@ -104,13 +104,13 @@
 | [mvp-scope.md](docs/spec/mvp-scope.md) | **MVP 스코프**. Phase A(프로토타입) / Phase B(알파) 기능 범위. **구현 진입점** |
 | [tech-stack.md](docs/spec/tech-stack.md) | **기술 스택**. React 19 + PixiJS v8 + Supabase + Web Audio API. 모노레포, 배포, 차트 JSON 포맷 |
 | [note-system.md](docs/spec/note-system.md) | **노트 시스템 상세**. 싱글/롱/트릴/더블 노트의 메커니즘, 판정, 유예 시간(12ms), 피스 정의 |
-| [difficulty-design.md](docs/spec/difficulty-design.md) | **난이도 설계**. Lv.1~15의 5단계 등급, 등급별 핵심 경험, 난이도명별 패턴 제한, 등급 간 전이 설계 |
-| [tutorial.md](docs/spec/tutorial.md) | **튜토리얼 설계**. Phase 1~4의 단계적 학습 구조 |
-| [piece-definition.md](docs/spec/piece-definition.md) | **피스 정의 (PP-000 체계)**. PP-001~PP-010 카탈로그, PLv. 메타데이터 |
+| [difficulty-design.md](docs/spec/difficulty-design.md) | **난이도 설계**. Lv.1～15의 5단계 등급, 등급별 핵심 경험, 난이도명별 패턴 제한, 등급 간 전이 설계 |
+| [tutorial.md](docs/spec/tutorial.md) | **튜토리얼 설계**. Phase 1～4의 단계적 학습 구조 |
+| [piece-definition.md](docs/spec/piece-definition.md) | **피스 정의 (PP-000 체계)**. PP-001～PP-010 카탈로그, PLv. 메타데이터 |
 | [piece-notation.md](docs/spec/piece-notation.md) | **피스 표기법**. 수직/수평 표기법 문법, 심볼 정의 |
 | [chart-editor.md](docs/spec/chart-editor.md) | **차트 편집기**. 타임라인·줌·스냅·편집 모드·단축키·배치 제약 조건, 엔티티 정의 |
 | [save-as-ux-storyline.md](docs/spec/save-as-ux-storyline.md) | **Save As UX 스토리라인**. 차트 에디터 "다른 이름으로 저장"의 사용자 경험 시나리오 |
-| [scoring.md](docs/spec/scoring.md) | **스코어링 시스템**. 판정 윈도우(Perfect ±41ms ~ Bad ±160ms), 달성률, 랭크, 콤보 규칙 |
+| [scoring.md](docs/spec/scoring.md) | **스코어링 시스템**. 판정 윈도우(Perfect ±41ms ～ Bad ±160ms), 달성률, 랭크, 콤보 규칙 |
 | [game-core.md](docs/spec/game-core.md) | **게임 코어 설계**. 플랫폼, 인증, 랭킹, 입력 매칭, 스크롤, 비행 규칙, 오프셋, 상태 흐름 |
 | [keybinding.md](docs/spec/keybinding.md) | **키 바인딩 시스템**. 엄검중약 손배치, 키보드 레이아웃, 16키 기본 프리셋, 주키/보조키 |
 | [observer-mode.md](docs/spec/observer-mode.md) | **옵저버 모드**. 자유 스크롤, 구간 반복 재생, 손배치 정보 제공 |

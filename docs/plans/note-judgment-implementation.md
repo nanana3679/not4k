@@ -35,7 +35,7 @@
 | [judgmentEffects](../../src/game/judgment/judgmentEffects.ts) | 모든 판정에 점수 기록, 바디 raw 타이밍 생략 | 점수·통계·콤보·고도·표시의 효과를 판정 종류에 맞게 구분 |
 | [PlayScreen](../../src/game/screens/PlayScreen.tsx) | 모든 range에 1/2점수 항목을 세고 결과를 즉시 적용 | 정적 점수 항목 집계 사용, 확정 묶음 적용, 종속 실패 중복 방지 |
 | [GameNoteRenderer](../../src/game/renderer/GameNoteRenderer.ts) | 판정 후 processed 처리, 연결 held 전파 | 이른 연결 성공 뒤 남아야 할 바디와 실제 실패 표시 구분 |
-| [shared validation](../../src/shared/validation/index.ts), [편집 배치 가드](../../src/editor/modes/createPlacementGuard.ts) | 양수 `trillLong + holdOnly`까지 금지, 최신 경계 제약 일부 없음 | NJ-C01~C03의 모델 제약과 편집 피드백 반영 |
+| [shared validation](../../src/shared/validation/index.ts), [편집 배치 가드](../../src/editor/modes/createPlacementGuard.ts) | 양수 `trillLong + holdOnly`까지 금지, 최신 경계 제약 일부 없음 | NJ-C01～C03의 모델 제약과 편집 피드백 반영 |
 | [ResultScreen](../../src/game/screens/ResultScreen.tsx), [gameStore](../../src/game/stores/gameStore.ts) | `maxCombo` 저장·표시 | 최대 콤보 통계 노출 제거, 사용하는 곳이 없어진 필드 정리 |
 
 노트의 같은 위치 여부는 [Beat 연산](../../src/shared/types/beat.ts)의 유리수 비교를 사용한다. 차트 관계를 ms 허용 오차로 추정하지 않는다. 판정 창 계산에 필요한 ms 변환은 [timing](../../src/shared/timing/index.ts)을 사용한다.
@@ -102,31 +102,31 @@ flowchart LR
 
 연결 관계와 점수 항목 계산을 먼저 분리한다. 정확한 Beat 경계, unit 수, head 종속 관계, `holdOnly` 여부를 입력 타이밍과 독립적으로 계산한다. 새 핵심 모듈이 완성되기 전에는 실제 플레이의 기존 구현을 전환하지 않는다.
 
-통과 기준: 차트 해석 단위 테스트와 NJ-C01~C03 통과. 정상 연결과 1ms 틈의 독립 바디가 구분되고, 양수·길이 0·단일/더블의 점수 항목 수를 검증한다.
+통과 기준: 차트 해석 단위 테스트와 NJ-C01～C03 통과. 정상 연결과 1ms 틈의 독립 바디가 구분되고, 양수·길이 0·단일/더블의 점수 항목 수를 검증한다.
 
 ### 단계 2 — 독립 시작, unit 상태, 누름별 release 권한
 
 head·headless 시작 매칭, 미처리 시작 소비, 활성화 기한, 등록된 유지 키, 누름별 release 권한을 구현한다. 단일·더블·부분 head의 시작을 같은 상태 모델로 다룬다. 실제 release는 준비·창·권한이 있는 가장 이른 대상 하나만 소비한다.
 
-통과 기준: NJ-A01~A06, NJ-R05, NJ-R15의 독립 동작. 같은 키 raw 재누름은 새 권한을 얻지 않고, 두 키를 미리 잡는 것만으로 양수 바디 시작을 생략할 수 없다. 아주 짧은 double은 두 held가 겹치지 않아도 각 필수 입력으로 완료된다.
+통과 기준: NJ-A01～A06, NJ-R05, NJ-R15의 독립 동작. 같은 키 raw 재누름은 새 권한을 얻지 않고, 두 키를 미리 잡는 것만으로 양수 바디 시작을 생략할 수 없다. 아주 짧은 double은 두 held가 겹치지 않아도 각 필수 입력으로 완료된다.
 
 ### 단계 3 — 연결, 감소, 보류 up과 실패 경로
 
 승계 준비와 새 시작을 분리하고, 앞에 남은 종료 요구를 포함하여 여분 키를 판단한다. 연결용 up은 허용된 몫만큼 발생 순서로 배정한다. 새 head가 같은 물리 키여도 보정과 새 누름의 권한 갱신을 적용한다. 실제 승계 실패와 별도 head Miss를 구분한다.
 
-통과 기준: NJ-R01~R04, NJ-R06~R14, NJ-F01~F03. 정상·늦은 `=-=-`의 요구 입력 수, `o-o-`·`d=d=`의 유지와 교대, 부분 head Miss, 동일 키 재타격, 동시 up 수집 순서를 모두 대조한다. 실패한 unit의 부활이나 실패 경로를 건너뛰는 승계가 없어야 한다.
+통과 기준: NJ-R01～R04, NJ-R06～R14, NJ-F01～F03. 정상·늦은 `=-=-`의 요구 입력 수, `o-o-`·`d=d=`의 유지와 교대, 부분 head Miss, 동일 키 재타격, 동시 up 수집 순서를 모두 대조한다. 실패한 unit의 부활이나 실패 경로를 건너뛰는 승계가 없어야 한다.
 
 ### 단계 4 — `holdOnly`, 길이 0, 면제와 재승계
 
 양수 `holdOnly`의 시작·유지 자격을 구현하고, 상태 완료와 실제 up 소비를 분리한다. 감소 `holdOnly`의 두 점수 항목, 키 수 감소 면제, 면제 몫의 여분 계산 제외와 다음 증가에서의 재사용을 구현한다. 길이 0 `holdOnly`는 별도의 held 상태 판정으로 다룬다.
 
-통과 기준: NJ-H01~H07, NJ-Z01 및 NJ-A01~A06 재통과. E 이후 첫 활성화, 이른 up 하나로 상태 완료와 실제 release가 함께 성립하는 경우, 면제 몫을 새 일반 unit의 추가 면제로 중복 사용하는 경우를 대조한다.
+통과 기준: NJ-H01～H07, NJ-Z01 및 NJ-A01～A06 재통과. E 이후 첫 활성화, 이른 up 하나로 상태 완료와 실제 release가 함께 성립하는 경우, 면제 몫을 새 일반 unit의 추가 면제로 중복 사용하는 경우를 대조한다.
 
 ### 단계 5 — 점수·현재 콤보·실패 효과
 
 `ScoreManager`를 정적 점수 항목의 정산과 무점수 실패를 받을 수 있게 변경한다. 실시간 분모는 처리한 항목의 이론 가중치, 최종 분모는 해당 플레이 대상 차트의 전체 이론 가중치로 정리한다. `judgmentEffects`와 콤보 처리는 확정 결과 종류를 사용한다.
 
-통과 기준: NJ-S01~S03과 모든 실패 사례의 점수·통계 검증. 100%지만 Full Combo가 아닌 결과, head Miss와 종속 끝점 0점, 중복 고도 손실 방지, 보류 판정의 확정 순서를 검증한다. 최대 콤보 통계나 계산 테스트는 추가하지 않는다.
+통과 기준: NJ-S01～S03과 모든 실패 사례의 점수·통계 검증. 100%지만 Full Combo가 아닌 결과, head Miss와 종속 끝점 0점, 중복 고도 손실 방지, 보류 판정의 확정 순서를 검증한다. 최대 콤보 통계나 계산 테스트는 추가하지 않는다.
 
 **여기까지 38개 사례를 같은 핵심 모듈로 모두 통과시킨 뒤 실제 플레이 연결로 넘어간다.** 단계별로 따로 만든 임시 모형의 성공을 합쳐 전체 검증으로 보고하지 않는다.
 
@@ -160,13 +160,13 @@ shared validation의 최신 제약을 편집기 의미 검증·위반 표시·�
 
 | 사례 | 주요 검증 | 테스트 위치 |
 |---|---|---|
-| NJ-A01~A06 | 시작 자격·부분 시작·짧은 길이·활성화 기한 | `src/game/judgment/`의 상태 전이 테스트 |
-| NJ-R01~R15 | 소비 순서·연결 보정·누름별 권한·동시 입력 | `src/game/judgment/`의 release·연결 테스트 |
-| NJ-H01~H07 | 감소 면제·상태 완료·면제 몫 승계 | `src/game/judgment/`의 `holdOnly` 테스트 |
-| NJ-F01~F03 | 실패 unit 불가역·건강한 unit 보존 | `src/game/judgment/`의 실패 경로 테스트 |
+| NJ-A01～A06 | 시작 자격·부분 시작·짧은 길이·활성화 기한 | `src/game/judgment/`의 상태 전이 테스트 |
+| NJ-R01～R15 | 소비 순서·연결 보정·누름별 권한·동시 입력 | `src/game/judgment/`의 release·연결 테스트 |
+| NJ-H01～H07 | 감소 면제·상태 완료·면제 몫 승계 | `src/game/judgment/`의 `holdOnly` 테스트 |
+| NJ-F01～F03 | 실패 unit 불가역·건강한 unit 보존 | `src/game/judgment/`의 실패 경로 테스트 |
 | NJ-Z01 | 길이 0의 held 공유와 시작 무소비 | `src/game/judgment/`의 길이 0 테스트 |
-| NJ-S01~S03 | 고정 가중치·무점수 Miss·종속 정산·확정 콤보 | `ScoreManager.test.ts`, `judgmentEffects.test.ts`, 엔진 통합 테스트 |
-| NJ-C01~C03 | 차트 구조·의미 제약 | `src/shared/validation/validation.test.ts`, `longNoteConnection.test.ts`, 편집 가드 테스트 |
+| NJ-S01～S03 | 고정 가중치·무점수 Miss·종속 정산·확정 콤보 | `ScoreManager.test.ts`, `judgmentEffects.test.ts`, 엔진 통합 테스트 |
+| NJ-C01～C03 | 차트 구조·의미 제약 | `src/shared/validation/validation.test.ts`, `longNoteConnection.test.ts`, 편집 가드 테스트 |
 
 테스트명은 `NJ-R13: B 1040ms up 뒤 새 B head를 처리하면 1100ms up으로 남은 release Perfect`처럼 ID와 상황·행동·결과를 한국어로 쓴다. 내부 필드 값만 확인하거나 구현에서 기대값을 다시 계산하는 테스트로 대체하지 않는다.
 

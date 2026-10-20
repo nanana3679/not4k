@@ -16,7 +16,7 @@ _Avoid_: 맵 에디터
 _Avoid_: 플레이필드
 
 **노트 레인**:
-L1~L4 노트를 배치하는 타임라인 레인이다.
+L1～L4 노트를 배치하는 타임라인 레인이다.
 _Avoid_: 보조 레인
 
 **보조 레인**:
@@ -137,7 +137,7 @@ _Avoid_: 뷰포트 제스처
 - **Grace 모드**는 배치 시 노트에 면제 플래그를 부여하며, 어떤 위치·조합이 허용되는지는 **배치 제약**이 정한다.
 - 차트 제작 시 손 선택을 미리 암시하고 탭·교대 up과 가까운 release의 간섭을 피한다. 연결 head에서 소비하는 up과 실제 release에 쓰는 up을 구별하며, 실제 release의 정밀도를 요구하지 않을 교대 구간의 끝에는 `holdOnly`를 배치한다. Point의 `grace`와 구분하며 세부는 [차트 디자인의 주의사항](../../docs/context/chart-design.md#차트-설계-시-주의사항)을 따른다.
 - **고스트 프리뷰**는 확정 전 상태이고 실제 차트 엔티티가 아니다.
-- **배치 제약**은 차트 모델이 성립하지 않는 배치를 막는다 — 트릴 노트는 `trillZone` 안에만·일반 노트는 밖에만 배치하며, `StopEvent` 내 배치와 `restZone`이 덮은 레인·구간의 노트·`trillZone` 공존을 금지한다(의미 위반, 역방향 대칭 — RFD 0019). 트릴 롱노트는 head가 필요하고 양수 길이의 `holdOnly`는 허용하되 길이 0 조합은 금지한다. 양수 길이 끝점과 별도 길이 0 롱노트의 중복, 같은 unit 수로 이어지는 경계 규칙은 [glossary](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [사례 NJ-C01~C03](../../docs/spec/note-judgment-cases.md#nj-c01)을 따른다(RFD 0020). validator·편집기의 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
+- **배치 제약**은 차트 모델이 성립하지 않는 배치를 막는다 — 트릴 노트는 `trillZone` 안에만·일반 노트는 밖에만 배치하며, `StopEvent` 내 배치와 `restZone`이 덮은 레인·구간의 노트·`trillZone` 공존을 금지한다(의미 위반, 역방향 대칭 — RFD 0019). 트릴 롱노트는 head가 필요하고 양수 길이의 `holdOnly`는 허용하되 길이 0 조합은 금지한다. 양수 길이 끝점과 별도 길이 0 롱노트의 중복, 같은 unit 수로 이어지는 경계 규칙은 [glossary](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [사례 NJ-C01～C03](../../docs/spec/note-judgment-cases.md#nj-c01)을 따른다(RFD 0020). validator·편집기의 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 
 ## Example dialogue
 
