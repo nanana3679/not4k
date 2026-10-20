@@ -11,8 +11,9 @@ test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', 
 // `AutoEvent` 완주와 결과(note-judgment.spec.ts), 실제 키 입력 판정(manual-note-judgment.spec.ts), 곡 끝 전까지 보는
 // 일시정지·Resume·Retry(flight-background.spec.ts·gear-motion.spec.ts)는 각 스펙이 맡는다.
 // Esc는 콤보가 1이 된 렌더 프레임 안에서 브라우저가 보낸다. 테스트 러너를 왕복해 누르면 부하가 클 때 Esc가 뒤 노트보다 늦게 도착할 수 있다.
-// swiftshader의 렌더 프레임 지터에 흔들릴 수 있는 점수 값은 보지 않고 결과 도달·항목 표시·판정 수·콤보·곡 시간·재생 시작 위치와
-// 에디터로 돌아갈 때의 주소·게임 스토어 상태만 본다.
+// swiftshader의 렌더 프레임 지터에 흔들릴 수 있는 점수 값(달성률·랭크)은 보지 않고 결과 도달·항목 표시·판정 수·콤보·Full Combo·곡 시간·
+// 재생 시작 위치와 에디터로 돌아갈 때의 주소·게임 스토어 상태만 본다. `AutoEvent` 입력은 노트 시각을 그대로 실어 보내 렌더 프레임이 늦어도
+// Miss가 나지 않으므로, Retry 뒤 콤보 최댓값과 Full Combo는 지터와 무관하다.
 
 /** 차트의 single 노트 수. single 노트는 노트마다 판정이 1개라 한 번 완주한 결과의 판정 수 합이 이 값이다. */
 const SINGLE_NOTE_COUNT = 4;
@@ -389,7 +390,7 @@ test.describe('게임 루프 스모크(#151): 일시정지 뒤 Resume·Retry를 
     await expect(page.getByText('No songs found.', { exact: true })).toBeVisible();
   });
 
-  test('AutoEvent single 노트 4개(1·3·3.5·4초) 곡에서 콤보가 1이 된 렌더 프레임에 Esc로 일시정지하고 Retry를 누르면 곡을 0ms부터 다시 재생해 새 렌더러가 판정하고, 결과의 판정 수 합은 Retry 전 판정이 더해지지 않은 4다', async ({ page }) => {
+  test('AutoEvent single 노트 4개(1·3·3.5·4초) 곡에서 콤보가 1이 된 렌더 프레임에 Esc로 일시정지하고 Retry를 누르면 곡을 0ms부터 다시 재생해 새 렌더러의 콤보를 1부터 다시 세어 최댓값 4가 되고, 결과의 판정 수 합은 Retry 전 판정이 더해지지 않은 4이며 Full Combo는 YES다', async ({ page }) => {
     await startAutoPlay(page, { escapeAtFirstComboOfRendererIndex: 0 });
     await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible({ timeout: 30_000 });
     await page.getByRole('button', { name: 'Retry', exact: true }).click();
@@ -405,6 +406,11 @@ test.describe('게임 루프 스모크(#151): 일시정지 뒤 Resume·Retry를 
     // (warm-up 렌더 프레임은 재생 시작 전에 그려지므로 어디부터 재생했는지 알려 주지 않는다.)
     expect(finished.playOffsetsByEngine.flat()).toEqual([0, 0]);
     expect(judgmentTotal(result.judgmentCounts)).toBe(SINGLE_NOTE_COUNT);
+    // Retry 뒤 새 렌더러는 콤보를 1부터 다시 세어 노트 4개를 모두 맞힌 최댓값 4를 표시하고, 결과 화면의 Full Combo 행은 YES다.
+    // Retry 전 콤보(1)를 이어 세면 최댓값이 5가 되고, Retry 뒤 놓친 노트가 있으면 4 미만·Full Combo NO가 된다.
+    // 어느 쪽이든 판정 수 합은 4라 위 단언으로는 드러나지 않는다. 놓친 노트는 두 단언을 함께 틀리게 하므로 둘 다 보고하도록 soft로 둔다.
+    expect.soft(finished.maxComboByRenderer[1], 'Retry 뒤 새 렌더러의 콤보 최댓값').toBe(SINGLE_NOTE_COUNT);
+    await expect.soft(page.getByText('Full Combo:', { exact: true }).locator('..'), '결과 화면의 Full Combo 행').toHaveText(/^Full Combo:\s*YES$/);
   });
 });
 
