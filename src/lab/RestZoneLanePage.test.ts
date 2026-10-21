@@ -9,11 +9,11 @@ describe('RestZoneLanePage', () => {
     const html = renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(RestZoneLanePage)));
     expect(html).toContain('data-lab-page="rest-zone-lane"');
     expect(html).toContain('href="/lab"');
-    for (const label of ['재생', '처음으로', '재생 위치', '재생 속도', '꺼지는 각도', '원근 거리', '애니메이션 길이', '테두리', '붉은 둘레', '붉은 빗금 경계', '밝은 레인색 둘레', '없음', '빗금 레인색 밝기', '빗금 간격', '어둠 시작 위치', '윗변 남는 밝기', '차트 지침', '난이도별 추정 녹숫', '사용자 녹숫', '스크롤 속도', '리프트', '서든', 'restZone 배치', '레인 2만', '레인 3·4 같은 구간', '레인 3·4 시작 어긋남', '레인 2 짧은 구간(1.5초)', '인접 레인 묶기', '레인 사이 틈 메우기', '노트 표시']) {
+    for (const label of ['재생', '처음으로', '재생 위치', '재생 속도', '넘어가는 각도', '원근 거리', '애니메이션 길이', '테두리', '붉은 둘레', '붉은 빗금 경계', '밝은 레인색 둘레', '없음', '빗금 레인색 밝기', '빗금 간격', '어둠 시작 위치', '윗변 남는 밝기', '차트 지침', '난이도별 추정 녹숫', '사용자 녹숫', '스크롤 속도', '리프트', '서든', 'restZone 배치', '레인 2만', '레인 3·4 같은 구간', '레인 3·4 시작 어긋남', '레인 2 짧은 구간(1.5초)', '인접 레인 묶기', '레인 사이 틈 메우기', '노트 표시']) {
       expect(html).toContain(label);
     }
     expect(html).toContain('max="16000"');
-    expect(html).toContain('꺼진 높이 50%');
+    expect(html).toContain('넘어간 높이 50%');
     expect(html).toContain('평상');
     expect(html).toContain('120 BPM');
     expect(html).toContain('레인 2 8 → 24박');

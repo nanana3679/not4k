@@ -35,7 +35,7 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
   {
     id: "rest-zone-lane",
     title: "restZone Lane",
-    description: "restZone 동안 레인 판넬이 뒤로 꺼졌다 차트의 추정 녹숫에 맞춰 올라오는 연출과 꺼진 동안의 빗금 판넬을 재생하고, 스크롤 속도·리프트·서든에 따라 다음 노트가 보이는 시점을 비교합니다.",
+    description: "restZone 동안 레인 판넬이 뒤로 넘어갔다 차트의 추정 녹숫에 맞춰 올라오는 연출과 넘어가 있는 동안의 빗금 판넬을 재생하고, 스크롤 속도·리프트·서든에 따라 다음 노트가 보이는 시점을 비교합니다.",
     category: "Rendering",
     path: "/lab/rest-zone-lane",
   },

@@ -12,7 +12,7 @@ export const REST_EDGE_RED = 0xff3344;
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 /**
- * startMs에 꺼짐을, endMs에 올라옴을 끝낸다(실제 시각은 restPanelTiming이 정한다).
+ * startMs에 넘어감을, endMs에 올라옴을 끝낸다(실제 시각은 restPanelTiming이 정한다).
  * 짧은 구간은 두 곡선 중 작은 진행도를 쓴다.
  */
 export function restPanelState(songMs: number, timing: RestPanelTiming): { progress: number; phase: RestPanelPhase } {
@@ -44,8 +44,8 @@ export function noteDwellMs(travelPx: number, scrollPxPerSecond: number): number
 /**
  * restZone 구간과 노트가 레인에 머무는 시간으로 판넬 전환 시각을 정한다. 판넬은 판정선 위 레인에 노트가 하나도 안 보일 때만 움직인다.
  * restZone 시작 시각에는 앞 노트가 모두 판정선에 닿았고, (끝 − dwellMs)에 뒤 노트가 레인 위끝에 나타나므로
- * 빈 레인 창은 [startMs, endMs − dwellMs]다. 꺼짐은 창이 열린 뒤 animMs 동안 하고, 올라옴은 창이 닫힐 때 끝난다.
- * 창이 2 × animMs보다 짧으면 restPanelState가 덜 꺼지게 하고, 창이 없으면 꺼지지 않는다.
+ * 빈 레인 창은 [startMs, endMs − dwellMs]다. 넘어감은 창이 열린 뒤 animMs 동안 하고, 올라옴은 창이 닫힐 때 끝난다.
+ * 창이 2 × animMs보다 짧으면 restPanelState가 덜 넘어가게 하고, 창이 없으면 넘어가지 않는다.
  * dwellMs에 차트 난이도별 추정 녹숫을 넣으면 모든 사용자가 같은 시각에 같은 연출을 본다. 추정보다 느린 설정에서는
  * 다음 노트가 그 차이만큼 먼저 보이고, 빠른 설정에서는 판넬이 다음 노트보다 먼저 올라와 레인 복귀를 미리 알린다.
  */
@@ -55,7 +55,7 @@ export function restPanelTiming(startMs: number, endMs: number, dwellMs: number,
 }
 
 /**
- * 차트 제작 지침의 restZone 최소 길이(ms). 꺼짐(animMs)·올라옴(animMs)과, 다 올라온 뒤 다음 노트가 판정선까지 내려오는
+ * 차트 제작 지침의 restZone 최소 길이(ms). 넘어감(animMs)·올라옴(animMs)과, 다 올라온 뒤 다음 노트가 판정선까지 내려오는
  * 추정 녹숫(estimatedDwellMs)이 모두 restZone 안에 들어가야 판넬이 끝까지 꺼질 수 있다. 이보다 짧아도 restPanelTiming이
  * 올라옴을 (끝 − 추정 녹숫)에 끝내므로 추정 녹숫 이하의 설정에서 애니메이션 중에 노트가 보이지는 않고, 덜 꺼질 뿐이다.
  */
@@ -108,7 +108,7 @@ export function panelCorners(
 }
 
 /**
- * 꺼진 판넬이 먼 쪽(윗변)으로 갈수록 검은 배경에 묻히도록 판넬 위에 덮는 검정의 불투명도.
+ * 넘어간 판넬이 먼 쪽(윗변)으로 갈수록 검은 배경에 묻히도록 판넬 위에 덮는 검정의 불투명도.
  * t는 판넬을 따라 잰 위치로 경첩 0 → 윗변 1이다. fadeStart까지는 0이고, 그 뒤 smoothstep으로 짙어져
  * 윗변에서 1 − topBrightness가 된다(topBrightness 0이면 윗변이 배경과 같은 검정).
  */

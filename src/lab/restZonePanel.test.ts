@@ -10,9 +10,9 @@ describe('restZone 판넬 시각', () => {
   it.each([
     [3699, 0, 'up', '시작 301ms 전이면 progress 0으로 평상'],
     [3700, 0, 'up', '시작 300ms 전이면 progress 0으로 평상'],
-    [3850, 0.25, 'falling', '시작 150ms 전이면 progress 0.25로 꺼지는 중'],
-    [4000, 1, 'down', '시작 4000ms이면 progress 1로 꺼짐'],
-    [11700, 1, 'down', '종료 300ms 전이면 progress 1로 꺼짐'],
+    [3850, 0.25, 'falling', '시작 150ms 전이면 progress 0.25로 넘어가는 중'],
+    [4000, 1, 'down', '시작 4000ms이면 progress 1로 넘어가 있음'],
+    [11700, 1, 'down', '종료 300ms 전이면 progress 1로 넘어가 있음'],
     [11850, 0.25, 'rising', '종료 150ms 전이면 progress 0.25로 올라오는 중'],
     [12000, 0, 'up', '종료 12000ms이면 progress 0으로 평상'],
     [12001, 0, 'up', '종료 1ms 후이면 progress 0으로 평상'],
@@ -29,7 +29,7 @@ describe('restZone 판넬 시각', () => {
     expect(restPanelState(3951, short).phase).toBe('rising');
   });
 
-  it.each([0, -100])('애니메이션 %s ms이면 3999ms에 평상·4000~11999ms에 꺼짐·12000ms에 평상으로 즉시 전환한다', animMs => {
+  it.each([0, -100])('애니메이션 %s ms이면 3999ms에 평상·4000~11999ms에 넘어가 있음·12000ms에 평상으로 즉시 전환한다', animMs => {
     expect([3999, 4000, 11999, 12000].map(ms => restPanelState(ms, { ...timing, animMs }))).toEqual([
       { progress: 0, phase: 'up' }, { progress: 1, phase: 'down' },
       { progress: 1, phase: 'down' }, { progress: 0, phase: 'up' },
@@ -56,10 +56,10 @@ describe('restZone 판넬 전환 시각', () => {
 
   it.each([
     [3999, 0, 'up', '시작 1ms 전이면 앞 노트가 레인에 남아 있을 수 있어 평상'],
-    [4000, 0, 'up', '시작 시각이면 꺼지기 시작하는 순간이라 progress 0'],
-    [4150, 0.25, 'falling', '시작 150ms 후이면 꺼지는 중'],
-    [4300, 1, 'down', '시작 300ms 후이면 다 꺼짐'],
-    [10500, 1, 'down', '뒤 노트가 나타나기 300ms 전이면 아직 꺼짐'],
+    [4000, 0, 'up', '시작 시각이면 넘어가기 시작하는 순간이라 progress 0'],
+    [4150, 0.25, 'falling', '시작 150ms 후이면 넘어가는 중'],
+    [4300, 1, 'down', '시작 300ms 후이면 다 넘어감'],
+    [10500, 1, 'down', '뒤 노트가 나타나기 300ms 전이면 아직 넘어가 있음'],
     [10650, 0.25, 'rising', '뒤 노트가 나타나기 150ms 전이면 올라오는 중'],
     [10800, 0, 'up', '뒤 노트가 레인 위끝에 나타나는 10800ms이면 다 올라옴'],
     [11999, 0, 'up', '끝 1ms 전이면 뒤 노트가 레인에 보이므로 평상'],
@@ -76,14 +76,14 @@ describe('restZone 판넬 전환 시각', () => {
     expect(restPanelState(9600, restPanelTiming(4000, 12000, 2400, 300)).phase).toBe('up');
   });
 
-  it('빈 레인 창 300ms가 애니메이션 2번(600ms)보다 짧으면 4150ms에 최대 progress 0.25까지만 꺼진다', () => {
+  it('빈 레인 창 300ms가 애니메이션 2번(600ms)보다 짧으면 4150ms에 최대 progress 0.25까지만 넘어간다', () => {
     const short = restPanelTiming(4000, 5500, 1200, 300);
     const states = Array.from({ length: 1501 }, (_, i) => restPanelState(4000 + i, short));
     expect(Math.max(...states.map(state => state.progress))).toBeCloseTo(0.25, 12);
     expect(states.every(state => state.phase !== 'down')).toBe(true);
   });
 
-  it('restZone 1000ms가 머무는 시간 1200ms보다 짧으면 빈 레인 창이 없어 판넬이 한 번도 꺼지지 않는다', () => {
+  it('restZone 1000ms가 머무는 시간 1200ms보다 짧으면 빈 레인 창이 없어 판넬이 한 번도 넘어가지 않는다', () => {
     const none = restPanelTiming(4000, 5000, 1200, 300);
     const states = Array.from({ length: 2001 }, (_, i) => restPanelState(3500 + i, none));
     expect(states.every(state => state.progress === 0 && state.phase === 'up')).toBe(true);
@@ -98,13 +98,13 @@ describe('restZone 판넬 전환 시각', () => {
     expect(minRestZoneMs(estimatedDwellMs, animMs)).toBe(expected);
   });
 
-  it('restZone이 최소 길이 2100ms(추정 녹숫 1500ms + 애니메이션 300ms × 2)와 같으면 4300ms 한 순간 progress 1까지 꺼졌다가 바로 올라온다', () => {
+  it('restZone이 최소 길이 2100ms(추정 녹숫 1500ms + 애니메이션 300ms × 2)와 같으면 4300ms 한 순간 progress 1까지 넘어갔다가 바로 올라온다', () => {
     const exact = restPanelTiming(4000, 6100, 1500, 300);
     expect(restPanelState(4300, exact)).toEqual({ progress: 1, phase: 'down' });
     expect(restPanelState(4301, exact).phase).toBe('rising');
   });
 
-  it('애니메이션 0ms이면 빈 레인 창 4000~10799ms 동안만 즉시 꺼진다', () => {
+  it('애니메이션 0ms이면 빈 레인 창 4000~10799ms 동안만 즉시 넘어간다', () => {
     const instant = restPanelTiming(4000, 12000, 1200, 0);
     expect([3999, 4000, 10799, 10800].map(ms => restPanelState(ms, instant).phase)).toEqual(['up', 'down', 'down', 'up']);
   });
