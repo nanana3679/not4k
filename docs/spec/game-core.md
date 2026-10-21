@@ -482,7 +482,7 @@ Trill은 연결 켜짐 표시에서 제외한다. 각 바디·터미널은 자�
 
 `compileJudgmentChart`가 정확한 Beat 경계, head 관계, unit 수, 점수 항목, 트릴 구간 귀속을 한 번 계산한다. 에디터 커서부터 테스트할 때는 `selectCompiledJudgmentChart`로 원래 noteIndex를 보존하면서 제외한 노트의 점수 항목·시간 맵·연결을 함께 제거한다.
 
-`NoteJudgmentCore`는 차트와 시각별 입력만 받아 상태 전이와 확정 판정을 만든다. `NoteJudgmentSession`이 이 core와 `ScoreManager`를 묶고 `ConfirmedJudgmentEffects`를 적용한다. 실제 플레이와 튜토리얼의 판정 진입점은 이 세션이다. 이전 `JudgmentEngine`은 호환 회귀용이며 현재 모델의 규칙 원본으로 사용하지 않는다.
+`NoteJudgmentCore`는 차트와 시각별 입력만 받아 상태 전이와 확정 판정을 만든다. `NoteJudgmentSession`이 이 core와 `ScoreManager`를 묶고 `ConfirmedJudgmentEffects`를 적용한다. 세션은 core를 구현 클래스 대신 `JudgmentCore` 경계로 다루며 생성 함수 `createCore`로 받는다. 기본값은 `NoteJudgmentCore`이고, 다른 core는 테스트에서만 `createCore`로 넘긴다. 실제 플레이와 튜토리얼의 판정 진입점은 이 세션이다. 이전 `JudgmentEngine`은 호환 회귀용이며 현재 모델의 규칙 원본으로 사용하지 않는다.
 
 `InputTimeline`은 키보드와 `AutoPlayer.eventsThrough` 입력을 원래 timestamp별로 묶는다. 입력 오프셋은 `GameClock.toInputTimeMs`에서 한 번만 적용한다. 프레임 진행은 판정 시간과 현재 입력 시간 중 이른 시각까지로 제한하여 음수 오프셋(늦게 누르는 사람의 보정)의 Good 창을 잘라내지 않는다. 합성(auto) 입력도 그 진행 시각까지만 만들어, 뒤의 auto 입력이 늦게 도착할 수동 입력보다 먼저 core를 앞당기지 않게 한다. 곡 끝 정산 조건을 통과한 뒤에도 남은 auto 입력 생성·큐 비우기 순서를 유지한다(`finishPlaySession`). 이미 수집한 양수 오프셋(일찍 누르는 사람의 보정) 입력이 core를 앞당겼으면 과거 프레임 시각으로 되돌리지 않고, 큐에 앞서 있는 시각까지 합성 입력을 먼저 수집하여 시간순으로 전달한다.
 

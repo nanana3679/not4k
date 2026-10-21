@@ -3,6 +3,7 @@ import { JUDGMENT_WINDOWS } from '../../../shared/constants';
 import { beatToMs, extractBpmMarkers } from '../../../shared/timing';
 import type { Chart } from '../../../shared/types';
 import { compileJudgmentChart } from '../../judgment/compiledJudgmentChart';
+import type { JudgmentCoreFactory } from '../../judgment/JudgmentCore';
 import { NoteJudgmentSession, type NoteJudgmentSessionView } from '../../judgment/NoteJudgmentSession';
 import type { TutorialInputTiming } from './tutorialPreviewChart';
 
@@ -14,24 +15,24 @@ export interface TutorialPreviewSessionController {
   reset(): void;
 }
 
-function createSession(chart: Chart, windows: JudgmentWindows, onBatchConfirmed?: (view: NoteJudgmentSessionView) => void): NoteJudgmentSession {
+function createSession(chart: Chart, windows: JudgmentWindows, onBatchConfirmed?: (view: NoteJudgmentSessionView) => void, createCore?: JudgmentCoreFactory): NoteJudgmentSession {
   const bpmMarkers = extractBpmMarkers(chart.events);
   const starts = new Map(chart.notes.map((note, index) => [index, beatToMs(note.beat, bpmMarkers, chart.meta.offsetMs)] as [number, number]));
   const ends = new Map(chart.notes.flatMap((note, index) => 'endBeat' in note ? [[index, beatToMs(note.endBeat, bpmMarkers, chart.meta.offsetMs)] as [number, number]] : []));
-  return new NoteJudgmentSession(compileJudgmentChart(chart.notes, starts, ends, chart.trillZones), { windows, onBatchConfirmed });
+  return new NoteJudgmentSession(compileJudgmentChart(chart.notes, starts, ends, chart.trillZones), { windows, onBatchConfirmed, createCore });
 }
 
 export function createTutorialPreviewSessionController(
   chart: Chart,
   timings: readonly TutorialInputTiming[],
-  options: { windows?: JudgmentWindows; onBatchConfirmed?: (view: NoteJudgmentSessionView) => void } = {},
+  options: { windows?: JudgmentWindows; onBatchConfirmed?: (view: NoteJudgmentSessionView) => void; createCore?: JudgmentCoreFactory } = {},
 ): TutorialPreviewSessionController {
   const windows = options.windows ?? JUDGMENT_WINDOWS;
   const actions: PreviewAction[] = timings.flatMap((timing, index) => [
     { timeMs: timing.startMs, lane: timing.event.lane, key: timing.event.keyCode, type: 'down' as const, order: index * 2 },
     { timeMs: timing.endMs, lane: timing.event.lane, key: timing.event.keyCode, type: 'up' as const, order: index * 2 + 1 },
   ]).sort((a, b) => a.timeMs - b.timeMs || a.order - b.order);
-  let current = createSession(chart, windows, options.onBatchConfirmed);
+  let current = createSession(chart, windows, options.onBatchConfirmed, options.createCore);
   let cursor = 0;
   let time = 0;
   const controller: TutorialPreviewSessionController = {
@@ -51,7 +52,7 @@ export function createTutorialPreviewSessionController(
       time = target;
     },
     reset() {
-      current = createSession(chart, windows, options.onBatchConfirmed);
+      current = createSession(chart, windows, options.onBatchConfirmed, options.createCore);
       cursor = 0; time = 0;
     },
   };

@@ -3,6 +3,7 @@ import { PLAYTEST_SCENARIOS, chartEndMs, metronomeClickTimesMs, noteOnsetTimesMs
 import { isHoldOnlyNote } from "../shared/types/chart";
 import { beatToMs, extractBpmMarkers } from "../shared/timing";
 import { compileJudgmentChart } from "../game/judgment/compiledJudgmentChart";
+import type { JudgmentCoreFactory } from "../game/judgment/JudgmentCore";
 import { NoteJudgmentSession } from "../game/judgment/NoteJudgmentSession";
 
 describe("판정 실플레이 시나리오", () => {
@@ -35,12 +36,13 @@ describe("판정 실플레이 시나리오", () => {
     }
   });
 
-  function sessionFor(id: string): NoteJudgmentSession {
+  /** createCore가 없으면 실제 게임이 쓰는 기존 코어로 세션을 만든다. */
+  function sessionFor(id: string, createCore?: JudgmentCoreFactory): NoteJudgmentSession {
     const scenario = byId(id);
     const markers = extractBpmMarkers(scenario.chart.events);
     const starts = new Map(scenario.chart.notes.map((note, index) => [index, beatToMs(note.beat, markers)] as [number, number]));
     const ends = new Map(scenario.chart.notes.flatMap((note, index) => "endBeat" in note ? [[index, beatToMs(note.endBeat, markers)] as [number, number]] : []));
-    return new NoteJudgmentSession(compileJudgmentChart(scenario.chart.notes, starts, ends));
+    return new NoteJudgmentSession(compileJudgmentChart(scenario.chart.notes, starts, ends), { createCore });
   }
 
   function play(id: string, batches: Array<[number, Array<{ key: string; lane: 1; type: "down" | "up" }>]>) {
