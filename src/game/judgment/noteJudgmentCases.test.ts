@@ -201,3 +201,17 @@ describe("RFD 0020 실제 입력에서 점수와 현재 콤보까지", () => {
     expect(counts(h.events).miss).toBe(2);
   });
 });
+
+describe("렌더러가 읽는 unit 상태(unitStates)", () => {
+  it("doubleLong [1000,3000]을 A·B로 시작하면 1500에 두 unit의 held가 true이고, A up 1800 뒤 1821에는 실패한 unit의 held가 false", () => {
+    const h = createHarness([body(1000, 3000, "doubleLong")]);
+    h.at(1000, down("A"), down("B"));
+    h.at(1500);
+    expect(h.core.unitStates.map(state => state.held)).toEqual([true, true]);
+    h.at(1800, up("A"));
+    h.at(1821);
+    const failed = h.core.unitStates.filter(state => state.failed);
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({ hasStarted: true, held: false });
+  });
+});
