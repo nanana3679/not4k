@@ -48,10 +48,10 @@ export interface JudgmentCaseUnitState {
   noteIndex: number;
   unitIndex: number;
   /**
-   * 한 번이라도 시작했는지(엔진의 `hasStarted`, 이전 엔진은 `active`). 엔진에서 true로만 바뀌므로 failed && !active = 시작하지
-   * 못한 유닛
+   * 한 번이라도 시작했는지(엔진의 `hasStarted`, 이전 엔진은 `active`). 엔진에서 true로만 바뀌므로 failed && !hasStarted =
+   * 시작하지 못한 유닛
    */
-  active: boolean;
+  hasStarted: boolean;
   failed: boolean;
   complete: boolean;
   /** 이 유닛에 등록된 유지 키. 기존 코어만 경계 밖 필드로 싣고, 없는 엔진이면 빈 배열 */
@@ -126,7 +126,7 @@ type EngineUnitState = Partial<{
 
 /**
  * 세션의 유닛 상태를 읽는다. `unitStates`를 먼저 읽고, 없으면 이전 이름 `bodyStates`를 읽는다. 시작 여부는 `hasStarted`를,
- * 없으면 `active`를 `active`에 적는다(`unitStates`가 `bodyStates`와 같은 값을 주던 엔진도 있다). 둘 다 없는 엔진이면 null
+ * 없으면 `active`를 `hasStarted`에 적는다(`unitStates`가 `bodyStates`와 같은 값을 주던 엔진도 있다). 둘 다 없는 엔진이면 null
  */
 function readUnitStates(session: unknown): JudgmentCaseUnitState[] | null {
   const source = session as { unitStates?: unknown; bodyStates?: unknown };
@@ -136,7 +136,7 @@ function readUnitStates(session: unknown): JudgmentCaseUnitState[] | null {
   return states.map((state: EngineUnitState) => ({
     noteIndex: state.noteIndex ?? -1,
     unitIndex: state.unitIndex ?? 0,
-    active: (state.hasStarted ?? state.active) === true,
+    hasStarted: (state.hasStarted ?? state.active) === true,
     failed: state.failed === true,
     complete: state.complete === true,
     registeredKeys: Array.isArray(state.registeredKeys) ? [...state.registeredKeys] : [],

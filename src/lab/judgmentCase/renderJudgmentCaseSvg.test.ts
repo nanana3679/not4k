@@ -89,7 +89,7 @@ function labelsOf(text: string, overrides: Partial<JudgmentCaseRun> = {}): strin
 }
 
 function unitState(overrides: Partial<JudgmentCaseUnitState>): JudgmentCaseUnitState {
-  return { noteIndex: 0, unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: [], ...overrides };
+  return { noteIndex: 0, unitIndex: 0, hasStarted: true, failed: false, complete: false, registeredKeys: [], ...overrides };
 }
 
 /** run.unitStates에서 noteIndex 유닛만 바꾼 run */
@@ -349,12 +349,12 @@ describe("describeFailureReason — 확실하지 않으면 생략", () => {
 
   it("앞 바디를 쥔 키 A가 끝−Good 1440 뒤(1450)에 떼졌으면 키 조각을 빼고 시작 창 입력만 남김(N2를 시작 실패로 바꾼 엔진 상태)", () => {
     const later = panelFor(D4.replace("A 1000-1430", "A 1000-1450"));
-    const run = withUnit(later.run, 1, { active: false, failed: true, complete: false, registeredKeys: [] });
+    const run = withUnit(later.run, 1, { hasStarted: false, failed: true, complete: false, registeredKeys: [] });
     expect(labelText(describeFailureReason(startFailure, later.judgmentCase, run))).toBe("D↓1490 → N3 head");
   });
 
   it("앞 바디 N1이 시작하지 않았으면(등록 키 없음) A↑1430 조각을 빼고 D↓1490 → N3 head만", () => {
-    const run = withUnit(panel.run, 0, { active: false, failed: true, complete: false, registeredKeys: [] });
+    const run = withUnit(panel.run, 0, { hasStarted: false, failed: true, complete: false, registeredKeys: [] });
     expect(labelText(describeFailureReason(startFailure, panel.judgmentCase, run))).toBe("D↓1490 → N3 head");
   });
 
@@ -370,7 +370,7 @@ describe("describeFailureReason — 확실하지 않으면 생략", () => {
 
   it("시작했던 N2가 끝 + Good(1680)에 유지 실패로 확정되면 바디 밖이라 이유를 붙이지 않음", () => {
     const endFailure = event({ kind: "maintenanceMiss", noteIndex: 1, unitIndex: 0, grade: "miss", deltaMs: 120, confirmedAt: 1680 });
-    const run = withUnit(panel.run, 1, { active: true, failed: true, registeredKeys: ["A"] });
+    const run = withUnit(panel.run, 1, { hasStarted: true, failed: true, registeredKeys: ["A"] });
     expect(describeFailureReason(endFailure, panel.judgmentCase, run)).toEqual([]);
   });
 });

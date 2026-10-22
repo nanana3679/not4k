@@ -384,13 +384,13 @@ const FAILURE_TEXT: Record<FailureKind, string> = { start: "시작 실패", main
 
 /**
  * maintenanceMiss의 유닛이 한 번이라도 시작했는지를 재생 뒤 엔진 유닛 상태로 가린다.
- * 엔진에서 active(엔진의 hasStarted)는 true로만 바뀌므로 failed이면서 active가 아니면 시작하지 못한 유닛이다.
+ * 엔진에서 hasStarted는 true로만 바뀌므로 failed이면서 hasStarted가 아니면 시작하지 못한 유닛이다.
  * 유닛 상태가 없으면(unitStates·bodyStates가 없는 엔진) 가리지 않는다.
  */
 function failureKind(event: JudgmentCaseRunEvent, run: JudgmentLabelRun): FailureKind {
   const state = run.unitStates?.find((candidate) => candidate.noteIndex === event.noteIndex && candidate.unitIndex === (event.unitIndex ?? 0));
   if (!state?.failed) return "unknown";
-  return state.active ? "maintenance" : "start";
+  return state.hasStarted ? "maintenance" : "start";
 }
 
 /** 엔진 이벤트 하나를 `N3 head Great −70 ← D↓1490` 같은 라벨 조각으로 바꾼다. 실패 이유는 describeFailureReason. */
@@ -457,7 +457,7 @@ export function describeFailureReason(
     const clauses: LabelSegment[][] = [];
     const before = judgmentCase.notes.find((candidate) => candidate.index !== entry.index && candidate.note.lane === lane && candidate.endMs === entry.startMs);
     // 앞 바디를 실제로 쥔 키 = 엔진이 앞 바디 유닛에 등록한 유지 키(앞 바디가 시작하지 않았으면 없음)
-    const beforeKeys = new Set((run.unitStates ?? []).filter((state) => state.noteIndex === before?.index && state.active).flatMap((state) => state.registeredKeys));
+    const beforeKeys = new Set((run.unitStates ?? []).filter((state) => state.noteIndex === before?.index && state.hasStarted).flatMap((state) => state.registeredKeys));
     if (before && beforeKeys.size > 0) {
       const holders = judgmentCase.inputs.filter((input) => input.lane === lane && beforeKeys.has(input.key) &&
         input.downMs < before.endMs! && (input.upMs === null || input.upMs >= before.startMs));

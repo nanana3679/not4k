@@ -87,16 +87,16 @@ describe("runJudgmentCase — 실제 엔진 재현", () => {
     ]);
   });
 
-  it("A↓500이 시작 창 밖인 long 1000-2000은 재생 뒤 유닛 상태가 failed이고 한 번도 active가 아님(S+Good 1120의 A↑와 무관)", () => {
+  it("A↓500이 시작 창 밖인 long 1000-2000은 재생 뒤 유닛 상태가 failed이고 한 번도 hasStarted가 아님(S+Good 1120의 A↑와 무관)", () => {
     const run = runJudgmentCase(judgmentCaseFromSource("노트: long 1000-2000\n입력: A 500-1120"), engine);
-    expect(run.unitStates).toEqual([{ noteIndex: 0, unitIndex: 0, active: false, failed: true, complete: false, registeredKeys: [] }]);
+    expect(run.unitStates).toEqual([{ noteIndex: 0, unitIndex: 0, hasStarted: false, failed: true, complete: false, registeredKeys: [] }]);
   });
 
-  it("head 1000 | long 1000-2000을 A 1000-1500으로 치면 1000 batch 직전 바디는 등록 키 없음, 1500 batch 직전에는 active·등록 키 [A]", () => {
+  it("head 1000 | long 1000-2000을 A 1000-1500으로 치면 1000 batch 직전 바디는 등록 키 없음, 1500 batch 직전에는 hasStarted·등록 키 [A]", () => {
     const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-1500"), engine);
     expect(run.unitStatesBeforeBatch?.map((batch) => batch.atMs)).toEqual([1000, 1500]);
-    expect(run.unitStatesBeforeBatch?.[0].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, active: false, failed: false, complete: false, registeredKeys: [] }]);
-    expect(run.unitStatesBeforeBatch?.[1].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] }]);
+    expect(run.unitStatesBeforeBatch?.[0].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, hasStarted: false, failed: false, complete: false, registeredKeys: [] }]);
+    expect(run.unitStatesBeforeBatch?.[1].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, hasStarted: true, failed: false, complete: false, registeredKeys: ["A"] }]);
   });
 
   it("validateChart 오류(같은 레인 long 1000-2000과 head 1500 겹침)를 rule·message로 담고 그래도 엔진을 돌림", () => {
@@ -160,11 +160,12 @@ describe("runJudgmentCase — 세션 구동 순서", () => {
   it.each([
     ["unitStates 없이 bodyStates만 있는", "bodyStates"],
     ["unitStates가 hasStarted 없이 active만 주는", "unitStates"],
-  ])("%s 이전 엔진이면 active true·등록 키 [A]인 unit을 그대로 읽음", (_, field) => {
+  ])("%s 이전 엔진이면 active true·등록 키 [A]인 unit을 hasStarted true로 읽음", (_, field) => {
     const legacy = { noteIndex: 1, unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] };
     const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), engineWithSessionFields({ [field]: [legacy] }));
-    expect(run.unitStates).toEqual([legacy]);
-    expect(run.unitStatesBeforeBatch?.map((batch) => batch.unitStates)).toEqual([[legacy], [legacy]]);
+    const expected = { noteIndex: 1, unitIndex: 0, hasStarted: true, failed: false, complete: false, registeredKeys: ["A"] };
+    expect(run.unitStates).toEqual([expected]);
+    expect(run.unitStatesBeforeBatch?.map((batch) => batch.unitStates)).toEqual([[expected], [expected]]);
   });
 
   it("프레임 간격은 기본 16ms, frameMs 5를 주면 run.frameMs 5", () => {
