@@ -265,6 +265,28 @@ describe("판정 상태 조회를 사용하는 연결 롱노트 표시", () => {
     expect(calledWithTex(getTexture, "bodySingleHeld")).toBe(false);
   });
 
+  it("앞 구간이 held여도 자기 unit이 hasStarted이고 held가 아니면 자기 바디는 bodySingleHeld가 아니라 bodySingle", () => {
+    const { renderer, getTexture } = createRenderer();
+    connectStates(renderer, [
+      { units: [heldUnit()], successorIndex: 1 },
+      { units: [unit(0, { hasStarted: true })] },
+    ]);
+
+    renderer.renderLongNote(body(200, 400), 1, 200, 400, 300);
+
+    expect(calledWithTex(getTexture, "bodySingle")).toBe(true);
+    expect(calledWithTex(getTexture, "bodySingleHeld")).toBe(false);
+  });
+
+  it("trillLong unit이 hasStarted이고 실패·완료하지 않았어도 held가 false면 bodyTrillHeld가 아니라 bodyTrill", () => {
+    const { renderer, bodyLayer } = createRenderer();
+    connectStates(renderer, [{ units: [unit(0, { hasStarted: true })] }], new Set([0]));
+
+    renderer.renderLongNote(body(0, 200, "trillLong"), 0, 0, 200, 100);
+
+    expect((bodyLayer.children.at(-1) as unknown as { texture: { key: string } }).texture.key).toBe("bodyTrill");
+  });
+
   it("첫 구간이 켜져 있어도 중간 구간이 실패하면 세 번째 구간으로 전파하지 않는다", () => {
     const { renderer, getTexture } = createRenderer();
     connectStates(renderer, [

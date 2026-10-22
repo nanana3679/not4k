@@ -203,7 +203,7 @@ describe("RFD 0020 실제 입력에서 점수와 현재 콤보까지", () => {
 });
 
 describe("렌더러가 읽는 unit 상태(unitStates)", () => {
-  it("doubleLong [1000,3000]을 A·B로 시작하면 1500에 두 unit의 held가 true이고, A up 1800 뒤 1821에는 실패한 unit의 held가 false", () => {
+  it("doubleLong [1000,3000]을 A·B로 시작하면 1500에 두 unit의 held가 true이고, A up 1800 뒤 1821에는 실패한 unit의 held만 false이고 남은 unit은 true", () => {
     const h = createHarness([body(1000, 3000, "doubleLong")]);
     h.at(1000, down("A"), down("B"));
     h.at(1500);
@@ -213,5 +213,15 @@ describe("렌더러가 읽는 unit 상태(unitStates)", () => {
     const failed = h.core.unitStates.filter(state => state.failed);
     expect(failed).toHaveLength(1);
     expect(failed[0]).toMatchObject({ hasStarted: true, held: false });
+    expect(h.core.unitStates.filter(state => !state.failed).map(state => state.held)).toEqual([true]);
+  });
+
+  it("long [1000,2000]을 A 1000-2000으로 치면 2000에 complete이고 held false", () => {
+    const h = createHarness([body(1000, 2000)]);
+    h.at(1000, down("A"));
+    h.at(1999);
+    expect(h.core.unitStates[0]).toMatchObject({ hasStarted: true, complete: false, held: true });
+    h.at(2000, up("A"));
+    expect(h.core.unitStates[0]).toMatchObject({ hasStarted: true, failed: false, complete: true, held: false });
   });
 });
