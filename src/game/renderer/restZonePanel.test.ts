@@ -320,6 +320,13 @@ describe('차트 Lv.별 추정 녹숫', () => {
   it('옛 차트 JSON에 difficultyLevel이 없어 undefined가 들어오면 Lv.1로 보고 3000ms다', () => {
     expect(estimatedDwellMs(undefined as unknown as number)).toBe(3000);
   });
+  it.each([
+    ['8', '숫자 문자열 "8"'],
+    [null, 'null'],
+    [{ level: 8 }, '객체'],
+  ] as const)('Lv.가 %s처럼 숫자가 아니면(%s) Lv.1로 보고 3000ms다', (level, _label) => {
+    expect(estimatedDwellMs(level as unknown as number)).toBe(3000);
+  });
   it('Lv.가 Infinity면 Lv.15보다 높으므로 500ms, −Infinity면 Lv.1보다 낮으므로 3000ms다', () => {
     expect(estimatedDwellMs(Number.POSITIVE_INFINITY)).toBe(500);
     expect(estimatedDwellMs(Number.NEGATIVE_INFINITY)).toBe(3000);
@@ -364,6 +371,9 @@ describe('같은 레인에서 맞닿은 restZone 잇기', () => {
     expect(mergeTouchingRestZones([
       zone(4, [0], [2]), zone(2, [12], [20]), zone(1, [16], [24]), zone(2, [8], [12]), zone(1, [0], [4]),
     ])).toEqual([zone(1, [0], [4]), zone(1, [16], [24]), zone(2, [8], [20]), zone(4, [0], [2])]);
+  });
+  it('레인 2에 3/2→2박이 4/3→3/2박보다 먼저 들어와도 시작 박을 분수 크기로 정렬해 4/3→2박 하나로 잇는다', () => {
+    expect(mergeTouchingRestZones([zone(2, [3, 2], [2]), zone(2, [4, 3], [3, 2])])).toEqual([zone(2, [4, 3], [2])]);
   });
   it('입력 배열과 그 안의 restZone 객체를 바꾸지 않는다', () => {
     const input = [zone(2, [12], [20]), zone(2, [8], [12])];

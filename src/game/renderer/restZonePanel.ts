@@ -59,11 +59,11 @@ export function restPanelTiming(startMs: number, endMs: number, dwellMs: number,
 
 /**
  * 차트 제작 지침의 restZone 최소 길이(ms). 넘어감(animMs)·올라옴(animMs)과, 다 올라온 뒤 다음 노트가 판정선까지 내려오는
- * 추정 녹숫(estimatedDwellMs)이 모두 restZone 안에 들어가야 판넬이 끝까지 넘어갈 수 있다. 이보다 짧아도 restPanelTiming이
+ * 추정 녹숫(dwellMs)이 모두 restZone 안에 들어가야 판넬이 끝까지 넘어갈 수 있다. 이보다 짧아도 restPanelTiming이
  * 올라옴을 (끝 − 추정 녹숫)에 끝내므로 추정 녹숫 이하의 설정에서 애니메이션 중에 노트가 보이지는 않고, 덜 넘어갈 뿐이다.
  */
-export function minRestZoneMs(estimatedDwellMs: number, animMs: number): number {
-  return Math.max(0, estimatedDwellMs) + 2 * Math.max(0, animMs);
+export function minRestZoneMs(dwellMs: number, animMs: number): number {
+  return Math.max(0, dwellMs) + 2 * Math.max(0, animMs);
 }
 
 /** 추정 녹숫 직선의 두 끝점(RFD 0034 결정 3). 이보다 낮은 Lv.는 Lv.1 값을, 높은 Lv.는 Lv.15 값을 쓴다. */
@@ -148,6 +148,7 @@ export function depthFadeAlpha(t: number, fadeStart: number, topBrightness: numb
  * (레인이 붙고 박 범위가 같은 구간을 한 판넬로 묶는 것은 groupRestPanels가 따로 한다).
  * 겹친 구간은 검증(`restZoneOverlap`)이 저장·플레이 전에 막지만, 들어오면 맞닿은 것처럼 합쳐 [가장 이른 시작, 가장 늦은 끝]
  * 하나로 본다. 안에 든 구간·같은 구간도 마찬가지다. 결과는 레인, 그다음 시작 박 순서이고 입력 배열과 객체는 바꾸지 않는다.
+ * 판넬로 묶기(groupRestPanels) 전에 부른다. 잇기 전에는 박 범위가 달라 묶이지 않던 이웃 레인 구간이 이은 뒤에는 한 판넬로 묶일 수 있다.
  */
 export function mergeTouchingRestZones(zones: readonly RestZone[]): RestZone[] {
   const sorted = [...zones].sort((a, b) => a.lane - b.lane || beatCompare(a.beat, b.beat));
@@ -163,6 +164,7 @@ export function mergeTouchingRestZones(zones: readonly RestZone[]): RestZone[] {
   return merged;
 }
 
+/** 판넬 묶기에 쓰는 restZone. lane은 0부터 센다(레인 0이 왼쪽 끝, 차트 `RestZone`의 1～4와 다르다). */
 export interface LaneRestZone { lane: number; beat: number; endBeat: number }
 /** 함께 접히는 판넬 하나. firstLane부터 laneCount개 레인 폭을 덮는다. */
 export interface RestPanelGroup { firstLane: number; laneCount: number; beat: number; endBeat: number }
@@ -187,7 +189,7 @@ export function groupRestPanels(zones: readonly LaneRestZone[], merge: boolean):
   return groups.sort((a, b) => a.firstLane - b.firstLane || a.beat - b.beat);
 }
 
-/** 지금 접혀 있는(progress > 0) 판넬. 레인 단위 위치를 쓴다. */
+/** 지금 접혀 있는(progress > 0) 판넬. 레인 단위 위치를 쓰고 firstLane은 0부터 센다(LaneRestZone과 같다). */
 export interface FoldingPanel { firstLane: number; laneCount: number; progress: number }
 
 /** panels[index]와 끊김 없이 붙어 함께 접혀 있는 판넬들의 인덱스 범위. panels는 firstLane 순서여야 한다. */
@@ -208,7 +210,7 @@ function foldingRun(panels: readonly FoldingPanel[], index: number): [number, nu
  * 접히기 시작해 묶음이 이어질 때도 바깥 판넬의 영향이 0에서 시작해 카메라가 연속으로 움직이고, 모두 같은 progress로
  * 접히면 가중치가 같아져 묶음 전체가 한 카메라를 써서 맞닿은 변이 겹친다.
  * 알려진 한계(받아들임, RFD 0034 영향 2): 판넬마다 카메라 하나라, 3개 이상 붙은 묶음에서 progress가 서로 다르면 맞닿은 변이
- * 몇 px 벌어진다(예: 레인 폭 62.5·60°에서 0.5·0.5·1이면 앞 두 판넬 사이 약 4px). progress가 서로 다른 것은 300ms 넘어감·올라옴이
+ * 몇 px 벌어진다(예: 레인 폭 62.5·60°에서 0.5·0.5·1이면 앞 두 판넬 사이 약 3.9px). progress가 서로 다른 것은 300ms 넘어감·올라옴이
  * 겹치는 동안뿐이라 잠깐 보이고, 모두 다 넘어가 있으면 progress가 같아 맞닿은 변이 겹친다. Lab 배치는 많아야 2개라 생기지 않는다.
  * 이음새마다 카메라를 따로 두는 방식(판넬 왼쪽 윗모서리는 왼쪽 이음새, 오른쪽 윗모서리는 오른쪽 이음새 카메라로 투영)은 쓰지 않는다.
  */

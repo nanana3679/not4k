@@ -1,6 +1,6 @@
 # RFD 0034: 게임의 `restZone` 표시를 레인 판넬로 바꾼다
 
-**Status:** 채택 (2026-10-21, 사용자 결정) · 판넬 계산·텍스처를 게임 렌더러 모듈로 옮기고 추정 녹숫·맞닿은 구간 잇기 함수 추가, 3개 이상 판넬 이음새는 받아들임 (2026-10-22, PR #334)
+**Status:** 채택 (2026-10-21, 사용자 결정) · 판넬 계산·텍스처를 게임 렌더러 모듈로 옮기고 추정 녹숫·맞닿은 구간 잇기 함수 추가, 3개 이상 판넬 이음새는 받아들임 (2026-10-22, PR #334) · 게임 렌더러 적용(영향 3) 대기
 
 **관련 문서:**
 
@@ -65,8 +65,11 @@
 구현은 작은 PR로 나눈다.
 
 1. **결정 기록(이 RFD):** RFD 0019 Status 이정표, [PRD §12](../prd.md#12-미정-사항)의 `restZone` 판넬 연출 행(모두 결정되어 뺀다), glossary 추정 녹숫 값, [차트 디자인 9항](../context/chart-design.md#9-restzone은-판넬-연출이-들어갈-만큼-길게-잡는다), [Lab `restZone Lane`](../spec/lab-preview-catalog.md#restzone-lane)의 게임 적용 문장
-2. **판넬 계산을 게임 모듈로 옮김:** `src/lab/restZonePanel.ts`·`restZonePanelTexture.ts`의 전환 시각·투영·판넬 묶기·텍스처를 게임 렌더러 쪽 모듈로 옮기고 Lab이 그것을 쓴다. 함께 할 일은 다음과 같다.
-   - Lv.에서 추정 녹숫을 구하는 함수, 맞닿은 같은 레인 `restZone`을 잇는 계산과 단위 테스트
-   - 3개 이상 붙어 넘어가는 판넬의 진행도가 서로 다르면 맞닿은 변이 몇 px 벌어지는 알려진 한계(`sharedCameraLane` 주석, Lab은 많아야 2개라 생기지 않음): 이음새마다 카메라를 따로 두거나, 벌어짐을 받아들이기로 정한다
-   - Lab `restZone Lane`이 게임 값을 보여 주도록 추정 녹숫 슬라이더(지금 300～2500ms)를 500～3000ms로 넓히거나 Lv. 선택으로 바꾸고, 테두리 기본값을 `밝은 레인색 둘레`로 바꾼다
-3. **게임 렌더러 적용:** `GameRenderer`의 `restZone` dim 띠(`COLORS.REST_ZONE_DIM`·`REST_ZONE_ALPHA`)를 판넬로 바꾼다. 추정 녹숫은 차트 메타의 `difficultyLevel`에서 구한다. 같은 렌더러를 쓰는 튜토리얼 미리보기도 판넬로 바뀌므로, 결정 6에 따라 `src/game/screens/songSelect/tutorialPreviewChart.ts`의 "휴지 구간" 레슨 차트와 문구, [튜토리얼 스펙](../spec/tutorial.md) 14행을 함께 고친다. glossary `restZone` 기능 (1)의 "게임은 dim"과 `src/shared/CONTEXT.md` 요약, [게임 코어](../spec/game-core.md)의 레인 끝 문장, 관련 단위 테스트와 E2E도 함께 고친다.
+2. **판넬 계산을 게임 모듈로 옮김(PR #334):** `src/lab/restZonePanel.ts`·`restZonePanelTexture.ts`의 전환 시각·투영·판넬 묶기·텍스처를 `src/game/renderer/`로 옮기고 Lab이 그것을 쓴다. 함께 한 일은 다음과 같다.
+   - Lv.에서 추정 녹숫을 구하는 함수(`estimatedDwellMs`), 맞닿은 같은 레인 `restZone`을 잇는 함수(`mergeTouchingRestZones`)와 단위 테스트
+   - 3개 이상 붙어 넘어가는 판넬의 진행도가 서로 다르면 맞닿은 변이 몇 px 벌어지는 알려진 한계(`sharedCameraLane` 주석, Lab은 많아야 2개라 생기지 않음): 이음새마다 카메라를 따로 두지 않고 벌어짐을 받아들인다(2026-10-22 사용자 결정). 0.5·0.5·1에서 약 3.9px다
+   - Lab `restZone Lane`이 게임 값을 보여 주도록 추정 녹숫 슬라이더를 300～2500ms에서 500～3000ms로 넓히고, 테두리 기본값을 `밝은 레인색 둘레`로 바꿈
+3. **게임 렌더러 적용:** `GameRenderer`의 `restZone` dim 띠(`COLORS.REST_ZONE_DIM`·`REST_ZONE_ALPHA`)를 판넬로 바꾼다. 추정 녹숫은 차트 메타의 `difficultyLevel`에서 구한다. 먼저 할 일은 다음과 같다.
+   - Lab 페이지에만 있는 `밝은 레인색 둘레` 계산(테두리 밝기·색 섞기, 이웃 판넬과 맞닿을 때 테두리 폭을 레인 구분선으로 바꾸는 계산)을 게임 모듈의 순수 함수로 옮기고 Lab과 게임이 함께 쓴다. 따로 만들면 Lab이 게임 값을 보여 준다는 전제가 깨진다.
+   - 차트 `RestZone`(레인 1～4, `Beat`)을 판넬 계산의 입력(레인 0부터, 박은 숫자)으로 바꾸는 어댑터를 하나 두고 테스트한다. 순서는 `mergeTouchingRestZones`로 잇기 → `ChartTiming.beatToMs`로 시각 변환 → 레인을 0부터로 바꿔 `groupRestPanels`다.
+   - 함께 고칠 것: 같은 렌더러를 쓰는 튜토리얼 미리보기도 판넬로 바뀌므로, 결정 6에 따라 `src/game/screens/songSelect/tutorialPreviewChart.ts`의 "휴지 구간" 레슨 차트와 문구, [튜토리얼 스펙](../spec/tutorial.md) 14행을 함께 고친다. glossary `restZone` 기능 (1)의 "게임은 dim"과 `src/shared/CONTEXT.md` 요약, [게임 코어](../spec/game-core.md)의 레인 끝 문장, 관련 단위 테스트와 E2E도 함께 고친다.
