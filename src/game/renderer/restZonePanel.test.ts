@@ -415,7 +415,7 @@ describe('판넬 테두리 색 계산', () => {
 describe('판넬 좌우 변 띠', () => {
   const base = { separatorColor: 0x333355, outlineWidth: 2, separatorWidth: 3 };
 
-  it('판넬 테두리 폭은 2다', () => {
+  it('변 띠 테두리 폭 상수 REST_PANEL_OUTLINE_WIDTH는 2다', () => {
     expect(REST_PANEL_OUTLINE_WIDTH).toBe(2);
   });
   it('테두리가 있고 옆에 맞닿은 판넬이 없으면(seam 0) 진행도 0.5에서 폭 2·테두리 색 그대로·불투명도 0.5다', () => {
@@ -430,7 +430,12 @@ describe('판넬 좌우 변 띠', () => {
   });
   it('테두리가 있고 옆 판넬이 반쯤 넘어가 있으면(seam 0.5) 폭 2와 1.5의 중간 1.75·색은 테두리와 구분선을 반씩 섞는다', () => {
     expect(panelEdgeStrip({ ...base, progress: 1, seam: 0.5, outlineColor: 0x6363a4 })).toEqual({
-      visible: true, width: 1.75, tint: mixColor(0x6363a4, 0x333355, 0.5), alpha: 1,
+      visible: true, width: 1.75, tint: 0x4b4b7d, alpha: 1,
+    });
+  });
+  it('테두리가 있고 옆 판넬이 0.25만큼 넘어가 있으면 폭 2 + (1.5 − 2) × 0.25 = 1.875·색은 테두리 0x6363a4 쪽 75% 섞음 0x575790이다', () => {
+    expect(panelEdgeStrip({ ...base, progress: 1, seam: 0.25, outlineColor: 0x6363a4 })).toEqual({
+      visible: true, width: 1.875, tint: 0x575790, alpha: 1,
     });
   });
   it('테두리가 없고(outlineColor null) 옆 판넬도 없으면 띠를 그리지 않고 불투명도 0이다', () => {

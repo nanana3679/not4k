@@ -15,7 +15,7 @@ export const REST_EDGE_RED = 0xff3344;
 
 /**
  * 게임이 쓰는 판넬 시각 값(RFD 0034 결정 4). Lab `restZone Lane`의 기본 조절값도 이것을 읽으므로 Lab 기본값이 곧 게임 값이다.
- * 비율 값(hatchBrightness·fadeStart·topBrightness)은 0～1이고, Lab 슬라이더는 %로 바꿔 보여 준다.
+ * fadeStart·topBrightness는 0～1 비율이고 hatchBrightness는 레인색에 곱하는 배수(1이면 그대로)다. Lab 슬라이더는 셋 다 %로 바꿔 보여 준다.
  * cameraDistance·eyeHeight를 그대로 가지고 있어 PanelCamera 자리에 넘길 수 있다.
  */
 export const REST_PANEL_LOOK = {
@@ -273,7 +273,7 @@ export interface RestPanelGroup { firstLane: number; laneCount: number; start: n
  * 시작·끝 박을 timing.beatToMs로 곡 시간 ms로 바꾸고, 레인을 1～4에서 0～3으로 옮긴다. 결과를 groupRestPanels에 넣는다.
  * 잇기를 묶기보다 먼저 해야, 이어서야 박 범위가 같아지는 이웃 레인 구간도 한 판넬로 묶인다.
  * 같은 박은 같은 beatToMs를 거쳐 같은 ms가 되므로 groupRestPanels의 같음 비교가 박에서와 똑같이 맞는다.
- * 결과는 레인, 그다음 시작 순서이고 입력 배열과 객체는 바꾸지 않는다.
+ * 결과는 레인, 그다음 시작 순서이고 입력 배열과 객체는 바꾸지 않는다. 차트에 BPM 마커가 없으면 beatToMs처럼 예외를 던진다.
  */
 export function toLaneRestZones(restZones: readonly RestZone[], timing: Pick<ChartTiming, 'beatToMs'>): LaneRestZone[] {
   return mergeTouchingRestZones(restZones).map(zone => ({

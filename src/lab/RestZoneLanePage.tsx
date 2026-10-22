@@ -94,6 +94,7 @@ interface Controls {
 }
 
 /** 0～1 비율을 Lab 슬라이더의 정수 %로 바꾼다(0.4 → 40). */
+// REST_PANEL_LOOK의 비율이 슬라이더 칸(5%)에 정확히 놓여야 Lab 기본값이 게임 값과 같다(지금 1·0.4·0 모두 그렇다).
 const toPercent = (fraction: number) => Math.round(fraction * 100);
 /** 게임 값(REST_PANEL_LOOK)에서 가져오는 판넬 조절 기본값. 슬라이더 범위·단위는 Lab 것이고 비율은 %로 바꾼다. */
 const gameLookControls = (): Pick<Controls,
