@@ -23,4 +23,12 @@ describe('RestZoneLanePage', () => {
     expect(html).toContain('data-dwell-gap-ms="-282"');
     expect(html).toContain('지침상 restZone은 2.10초(추정 녹숫 + 애니메이션 2번) 이상');
   });
+
+  it('WebGL 없는 서버에서 렌더링하면 테두리 기본값이 게임 값 밝은 레인색 둘레(rim)이고 난이도별 추정 녹숫 슬라이더는 500ms부터 3000ms까지에 기본 1500ms다', () => {
+    const html = renderToStaticMarkup(createElement(MemoryRouter, {}, createElement(RestZoneLanePage)));
+    expect(html).toContain('<option value="rim" selected="">밝은 레인색 둘레</option>');
+    expect(html).not.toContain('<option value="red-outline" selected="">');
+    // 추정 녹숫 범위는 게임의 Lv.15 500ms ～ Lv.1 3000ms다(RFD 0034 결정 3).
+    expect(html).toContain('<input type="range" min="500" max="3000" step="10" value="1500"/>');
+  });
 });

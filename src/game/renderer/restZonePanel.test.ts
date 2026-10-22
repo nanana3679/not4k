@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { beat } from '../../shared/types/beat';
+import type { RestZone } from '../../shared/types/chart';
 import {
-  depthFadeAlpha, fallenHeightRatio, groupRestPanels, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState,
-  restPanelTiming, separatorTop, sharedCameraLane,
+  ESTIMATED_DWELL_HIGHEST_LEVEL, ESTIMATED_DWELL_LOWEST_LEVEL, depthFadeAlpha, estimatedDwellMs, fallenHeightRatio, groupRestPanels,
+  mergeTouchingRestZones, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState, restPanelTiming, separatorTop,
+  sharedCameraLane,
 } from './restZonePanel';
 
 describe('restZone 판넬 시각', () => {
@@ -252,6 +255,16 @@ describe('붙어서 접히는 판넬의 공유 카메라', () => {
       expect(corners[left][1].y).toBeCloseTo(corners[right][0].y, 9);
     }
   });
+  it('따로 묶인 레인 1·2·3이 progress 0.5·0.5·1로 접히면 60°·거리 1.5·레인 폭 62.5에서 앞 두 판넬의 맞닿은 윗모서리가 x로 약 3.9px 벌어진다(RFD 0034에서 받아들인 한계)', () => {
+    const panels = [0.5, 0.5, 1].map((progress, index) => ({ firstLane: index + 1, laneCount: 1, progress }));
+    const camera = { cameraDistance: 1.5, eyeHeight: 0.5 };
+    const corners = panels.map((panel, index) => panelCorners(
+      { x: panel.firstLane * 62.5, width: 62.5, hingeY: 426, height: 426 },
+      panel.progress * Math.PI / 3, camera, sharedCameraLane(panels, index) * 62.5,
+    ));
+    expect(corners[1][0].y).toBeCloseTo(corners[0][1].y, 9);
+    expect(corners[1][0].x - corners[0][1].x).toBeCloseTo(3.906, 3);
+  });
   it('레인 1·2·3이 모두 progress 1이면 셋 다 묶음 가운데인 레인 좌표 2.5에서 본다', () => {
     const panels = [1, 2, 3].map(firstLane => ({ firstLane, laneCount: 1, progress: 1 }));
     expect(panels.map((_, index) => sharedCameraLane(panels, index))).toEqual([2.5, 2.5, 2.5]);
@@ -274,5 +287,104 @@ describe('접힌 판넬 둘레의 레인 구분선', () => {
     const folding = [{ firstLane: 2, laneCount: 1 }, { firstLane: 3, laneCount: 1 }];
     expect(separatorTop(3, folding, true, 246)).toBe(246);
     expect(separatorTop(3, folding, false, 246)).toBe(0);
+  });
+});
+
+describe('차트 Lv.별 추정 녹숫', () => {
+  it('추정 녹숫 직선의 두 끝점은 Lv.1 3000ms·Lv.15 500ms다', () => {
+    expect(ESTIMATED_DWELL_LOWEST_LEVEL).toEqual({ level: 1, ms: 3000 });
+    expect(ESTIMATED_DWELL_HIGHEST_LEVEL).toEqual({ level: 15, ms: 500 });
+  });
+  it.each([
+    [1, 3000, 'Lv.1이면 가장 긴 3000ms'],
+    [8, 1750, 'Lv.8이면 한가운데 1750ms'],
+    [15, 500, 'Lv.15면 가장 짧은 500ms'],
+    [4.5, 2375, '소수 Lv.4.5면 3000 − 3.5 × 2500 / 14 = 2375ms로 선형 보간'],
+    [20, 500, 'Lv.15보다 높은 Lv.20이면 500ms'],
+    [0, 3000, 'Lv.1보다 낮은 Lv.0이면 3000ms'],
+    [-3, 3000, '음수 Lv.−3이면 3000ms'],
+  ] as const)('Lv.%s → 추정 녹숫 %sms (%s)', (level, expected, _label) => {
+    expect(estimatedDwellMs(level)).toBe(expected);
+  });
+  it('Lv.2이면 1단계만큼 줄어 3000 − 2500 / 14 ≈ 2821.43ms다', () => {
+    expect(estimatedDwellMs(2)).toBeCloseTo(3000 - 2500 / 14, 9);
+  });
+  it('Lv.1부터 Lv.15까지 정수 Lv.가 오를 때마다 추정 녹숫이 2500 / 14 ≈ 178.57ms씩 줄어든다', () => {
+    for (let level = 1; level < 15; level++) {
+      expect(estimatedDwellMs(level) - estimatedDwellMs(level + 1)).toBeCloseTo(2500 / 14, 9);
+    }
+  });
+  it('Lv.가 NaN이면 Lv.1로 보고 3000ms다', () => {
+    expect(estimatedDwellMs(Number.NaN)).toBe(3000);
+  });
+  it('옛 차트 JSON에 difficultyLevel이 없어 undefined가 들어오면 Lv.1로 보고 3000ms다', () => {
+    expect(estimatedDwellMs(undefined as unknown as number)).toBe(3000);
+  });
+  it.each([
+    ['8', '숫자 문자열 "8"'],
+    [null, 'null'],
+    [{ level: 8 }, '객체'],
+  ] as const)('Lv.가 %s처럼 숫자가 아니면(%s) Lv.1로 보고 3000ms다', (level, _label) => {
+    expect(estimatedDwellMs(level as unknown as number)).toBe(3000);
+  });
+  it('Lv.가 Infinity면 Lv.15보다 높으므로 500ms, −Infinity면 Lv.1보다 낮으므로 3000ms다', () => {
+    expect(estimatedDwellMs(Number.POSITIVE_INFINITY)).toBe(500);
+    expect(estimatedDwellMs(Number.NEGATIVE_INFINITY)).toBe(3000);
+  });
+});
+
+describe('같은 레인에서 맞닿은 restZone 잇기', () => {
+  const zone = (lane: RestZone['lane'], start: [number, number?], end: [number, number?]): RestZone => ({
+    lane, beat: beat(...start), endBeat: beat(...end),
+  });
+
+  it('레인 2의 8→12박과 12→20박이 맞닿으면 8→20박 하나로 잇는다', () => {
+    expect(mergeTouchingRestZones([zone(2, [8], [12]), zone(2, [12], [20])])).toEqual([zone(2, [8], [20])]);
+  });
+  it('레인 2의 0→4박·4→6박·6→10박처럼 3개가 이어 맞닿으면 0→10박 하나로 잇는다', () => {
+    expect(mergeTouchingRestZones([zone(2, [0], [4]), zone(2, [4], [6]), zone(2, [6], [10])])).toEqual([zone(2, [0], [10])]);
+  });
+  it('끝 박 7/2와 다음 시작 박 14/4처럼 분수 표기가 달라도 같은 박이면 1/2→6박 하나로 잇는다', () => {
+    expect(mergeTouchingRestZones([
+      { lane: 3, beat: beat(1, 2), endBeat: { n: 7, d: 2 } },
+      { lane: 3, beat: { n: 14, d: 4 }, endBeat: beat(6) },
+    ])).toEqual([zone(3, [1, 2], [6])]);
+  });
+  it('레인 2의 8→12박과 레인 3의 12→20박처럼 레인이 다르면 맞닿아도 잇지 않는다', () => {
+    expect(mergeTouchingRestZones([zone(2, [8], [12]), zone(3, [12], [20])])).toEqual([zone(2, [8], [12]), zone(3, [12], [20])]);
+  });
+  it('레인 2의 8→12박과 12+1/48박→20박 사이에 1/48박 틈이 있으면 잇지 않는다', () => {
+    expect(mergeTouchingRestZones([zone(2, [8], [12]), zone(2, [577, 48], [20])])).toEqual([
+      zone(2, [8], [12]), zone(2, [577, 48], [20]),
+    ]);
+  });
+  it('레인 2의 2→6박과 4→8박처럼 겹치면(검증 위반 restZoneOverlap) 합쳐 2→8박 하나로 본다', () => {
+    expect(mergeTouchingRestZones([zone(2, [2], [6]), zone(2, [4], [8])])).toEqual([zone(2, [2], [8])]);
+  });
+  it('레인 2의 0→8박 안에 2→4박이 들어 있으면 바깥 0→8박 하나로 본다', () => {
+    expect(mergeTouchingRestZones([zone(2, [0], [8]), zone(2, [2], [4])])).toEqual([zone(2, [0], [8])]);
+  });
+  it('레인 2의 0→4박이 두 번 들어 있으면 0→4박 하나로 본다', () => {
+    expect(mergeTouchingRestZones([zone(2, [0], [4]), zone(2, [0], [4])])).toEqual([zone(2, [0], [4])]);
+  });
+  it('순서가 뒤섞인 입력이면 레인 순서, 같은 레인 안에서는 시작 박 순서로 돌려준다', () => {
+    expect(mergeTouchingRestZones([
+      zone(4, [0], [2]), zone(2, [12], [20]), zone(1, [16], [24]), zone(2, [8], [12]), zone(1, [0], [4]),
+    ])).toEqual([zone(1, [0], [4]), zone(1, [16], [24]), zone(2, [8], [20]), zone(4, [0], [2])]);
+  });
+  it('레인 2에 3/2→2박이 4/3→3/2박보다 먼저 들어와도 시작 박을 분수 크기로 정렬해 4/3→2박 하나로 잇는다', () => {
+    expect(mergeTouchingRestZones([zone(2, [3, 2], [2]), zone(2, [4, 3], [3, 2])])).toEqual([zone(2, [4, 3], [2])]);
+  });
+  it('입력 배열과 그 안의 restZone 객체를 바꾸지 않는다', () => {
+    const input = [zone(2, [12], [20]), zone(2, [8], [12])];
+    const snapshot = structuredClone(input);
+    const result = mergeTouchingRestZones(input);
+    expect(input).toEqual(snapshot);
+    expect(result).toEqual([zone(2, [8], [20])]);
+    expect(result[0]).not.toBe(input[0]);
+    expect(result[0]).not.toBe(input[1]);
+  });
+  it('restZone이 없으면 빈 배열이다', () => {
+    expect(mergeTouchingRestZones([])).toEqual([]);
   });
 });

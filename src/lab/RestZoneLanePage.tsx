@@ -5,9 +5,10 @@ import {
   LANE_AREA_WIDTH, LANE_COUNT, LANE_WIDTH, NOTE_HEIGHT, NOTE_WIDTH, judgmentLineYAtLift, playfieldPx, suddenCoverPx,
 } from '../game/renderer/constants';
 import {
-  REST_EDGE_RED, fallenHeightRatio, groupRestPanels, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState,
-  restPanelTiming, separatorTop, sharedCameraLane, type FoldingPanel, type LaneRestZone, type RestPanelGroup, type RestPanelPhase,
-} from './restZonePanel';
+  ESTIMATED_DWELL_HIGHEST_LEVEL, ESTIMATED_DWELL_LOWEST_LEVEL, REST_EDGE_RED, fallenHeightRatio, groupRestPanels, minRestZoneMs,
+  neighborProgress, noteDwellMs, panelCorners, restPanelState, restPanelTiming, separatorTop, sharedCameraLane,
+  type FoldingPanel, type LaneRestZone, type RestPanelGroup, type RestPanelPhase,
+} from '../game/renderer/restZonePanel';
 import './RestZoneLanePage.css';
 
 // 기존 Lab의 어두운 작업 화면: 왼쪽에 실제 레인, 오른쪽에 조절 항목을 두고 폰에서는 세로로 쌓는다.
@@ -37,7 +38,7 @@ const laneColor = (lane: number) => lane % 2 === 0 ? COLORS.LANE_BG_EVEN : COLOR
 const SEPARATOR_WIDTH = playfieldPx(2);
 /** 판넬 좌우 붉은 변의 폭(논리 px). */
 const RED_EDGE_WIDTH = 2;
-/** 판넬 테두리 스타일. 'rim'은 레인색을 밝힌 선으로 가장자리에 빛이 맺힌 듯 보이게 한다. */
+/** 판넬 테두리 스타일. 'rim'은 레인색을 밝힌 선으로 가장자리에 빛이 맺힌 듯 보이게 하며, 게임이 쓰는 값이라 기본값이다(RFD 0034 결정 4). */
 type EdgeStyle = 'red-outline' | 'red-stripe' | 'rim' | 'none';
 const EDGE_STYLE_LABEL: Record<EdgeStyle, string> = {
   'red-outline': '붉은 둘레', 'red-stripe': '붉은 빗금 경계', rim: '밝은 레인색 둘레', none: '없음',
@@ -82,7 +83,10 @@ interface Controls {
   fadeStart: number;
   topBrightness: number;
   scrollPxPerSecond: number;
-  /** 차트 난이도별로 정하는 추정 녹숫(ms). 판넬 전환 시각과 restZone 최소 길이 지침의 기준이다. */
+  /**
+   * 차트 난이도별로 정하는 추정 녹숫(ms). 판넬 전환 시각과 restZone 최소 길이 지침의 기준이다.
+   * 슬라이더 범위는 게임의 Lv.15 500ms부터 Lv.1 3000ms까지(estimatedDwellMs)다.
+   */
   estimatedDwellMs: number;
   liftPercent: number;
   suddenPercent: number;
@@ -108,7 +112,7 @@ const laneView = (current: Pick<Controls, 'liftPercent' | 'suddenPercent' | 'scr
 export default function RestZoneLanePage() {
   const [controls, setControls] = useState<Controls>({
     playing: true, playbackRate: 1, maxAngle: 60, cameraDistance: 1.5, animMs: 300,
-    edgeStyle: 'red-outline', brightness: 100, stripeWidth: 8, fadeStart: 40, topBrightness: 0, scrollPxPerSecond: Math.round(JUDGE_Y / 1.2),
+    edgeStyle: 'rim', brightness: 100, stripeWidth: 8, fadeStart: 40, topBrightness: 0, scrollPxPerSecond: Math.round(JUDGE_Y / 1.2),
     estimatedDwellMs: 1500, liftPercent: 0, suddenPercent: 0, preset: 'single', mergeAdjacent: true, fillGaps: true, showNotes: true,
   });
   const [timeMs, setTimeMs] = useState(0);
@@ -142,7 +146,7 @@ export default function RestZoneLanePage() {
 
     const init = async () => {
       const [{ Application, Container, Graphics, PerspectiveMesh, Texture }, { createRestEdgeTexture, createRestPanelTexture }] = await Promise.all([
-        import('pixi.js'), import('./restZonePanelTexture'), import('pixi.js/unsafe-eval'),
+        import('pixi.js'), import('../game/renderer/restZonePanelTexture'), import('pixi.js/unsafe-eval'),
       ]);
       if (cancelled) return;
       const app = new Application();
@@ -485,7 +489,10 @@ export default function RestZoneLanePage() {
           </label>
           <h3>차트 지침</h3>
           <label className="rest-zone-control">난이도별 추정 녹숫 <span className="rest-zone-value">{seconds(controls.estimatedDwellMs)}초</span>
-            <input type="range" min={300} max={2500} step={10} value={controls.estimatedDwellMs} onChange={event => update('estimatedDwellMs', Number(event.target.value))} />
+            <input
+              type="range" min={ESTIMATED_DWELL_HIGHEST_LEVEL.ms} max={ESTIMATED_DWELL_LOWEST_LEVEL.ms} step={10}
+              value={controls.estimatedDwellMs} onChange={event => update('estimatedDwellMs', Number(event.target.value))}
+            />
           </label>
           <p className="rest-zone-hint">
             녹숫은 노트가 레인에 머무는 시간입니다. 지침상 restZone은 {seconds(minZoneMs)}초(추정 녹숫 + 애니메이션 2번) 이상이어야 합니다.
