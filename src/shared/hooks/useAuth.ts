@@ -3,6 +3,10 @@ import { supabase } from '../../supabase';
 import type { User } from '@supabase/supabase-js';
 import { getAuthRedirectTo, type AuthRedirectLocation } from './authRedirect';
 
+// 개발 전용: .env.local에 VITE_DEV_ADMIN=true 설정 시 로그인 없이 admin으로 진입 (로컬 OAuth redirect 우회).
+// 배포 빌드에서는 import.meta.env.DEV가 false라 DEV_ADMIN 분기가 제거된다.
+const DEV_ADMIN = import.meta.env.DEV && import.meta.env.VITE_DEV_ADMIN === 'true';
+
 export function getGoogleRedirectTo(location: AuthRedirectLocation): string {
   return getAuthRedirectTo(location);
 }
@@ -21,19 +25,15 @@ async function fetchIsAdmin(uid: string): Promise<boolean> {
 }
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // DEV_ADMIN이면 첫 렌더부터 dev admin 상태로 시작하고, effect에서 세션을 구독하지 않는다.
+  const [user, setUser] = useState<User | null>(
+    DEV_ADMIN ? ({ id: 'dev-user', email: 'dev@local' } as User) : null,
+  );
+  const [isAdmin, setIsAdmin] = useState(DEV_ADMIN);
+  const [loading, setLoading] = useState(!DEV_ADMIN);
 
   useEffect(() => {
-    // 개발 전용: .env.local에 VITE_DEV_ADMIN=true 설정 시 로그인 없이 admin으로 진입 (로컬 OAuth redirect 우회).
-    // 배포 빌드에서는 import.meta.env.DEV가 false라 이 분기가 제거된다.
-    if (import.meta.env.DEV && import.meta.env.VITE_DEV_ADMIN === 'true') {
-      setUser({ id: 'dev-user', email: 'dev@local' } as User);
-      setIsAdmin(true);
-      setLoading(false);
-      return;
-    }
+    if (DEV_ADMIN) return;
 
     let active = true;
 
