@@ -7,7 +7,7 @@
 - [RFD 0019](0019-rest-zone-lane-guidance.md) — `restZone` 도입과 게임 dim 결정. 이 RFD가 그중 게임 시각 효과(§4-2의 1)만 바꾼다
 - [Lab `restZone Lane`](../spec/lab-preview-catalog.md#restzone-lane) — 판넬 시안(#282)
 - [glossary 녹숫·추정 녹숫](../context/glossary.md#녹숫-green-number), [차트 디자인 9항](../context/chart-design.md#9-restzone은-판넬-연출이-들어갈-만큼-길게-잡는다)
-- 코드: [`src/lab/restZonePanel.ts`](../../src/lab/restZonePanel.ts)(전환 시각·최소 길이·투영 순수 계산), [`src/lab/restZonePanelTexture.ts`](../../src/lab/restZonePanelTexture.ts), [`src/game/renderer/GameRenderer.ts`](../../src/game/renderer/GameRenderer.ts)(지금의 dim 띠)
+- 코드: [`src/game/renderer/restZonePanel.ts`](../../src/game/renderer/restZonePanel.ts)(전환 시각·최소 길이·투영 순수 계산), [`src/game/renderer/restZonePanelTexture.ts`](../../src/game/renderer/restZonePanelTexture.ts), [`src/game/renderer/GameRenderer.ts`](../../src/game/renderer/GameRenderer.ts)(지금의 dim 띠)
 
 ## 기존 결정과 문제
 

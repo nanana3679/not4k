@@ -6,7 +6,7 @@ export interface RestPanelTiming {
 
 export type RestPanelPhase = 'up' | 'falling' | 'down' | 'rising';
 
-/** 판넬 좌우 변 띠와 빗금 경계의 붉은색. 페이지가 Pixi를 미리 불러오지 않도록 텍스처 모듈이 아니라 여기에 둔다. */
+/** 판넬 좌우 변 띠와 빗금 경계의 붉은색(Lab 테두리 시안 `붉은 둘레`·`붉은 빗금 경계`). Lab 페이지가 Pixi를 미리 불러오지 않도록 텍스처 모듈이 아니라 여기에 둔다. */
 export const REST_EDGE_RED = 0xff3344;
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));

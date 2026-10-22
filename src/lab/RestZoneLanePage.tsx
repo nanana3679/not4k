@@ -7,7 +7,7 @@ import {
 import {
   REST_EDGE_RED, fallenHeightRatio, groupRestPanels, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState,
   restPanelTiming, separatorTop, sharedCameraLane, type FoldingPanel, type LaneRestZone, type RestPanelGroup, type RestPanelPhase,
-} from './restZonePanel';
+} from '../game/renderer/restZonePanel';
 import './RestZoneLanePage.css';
 
 // 기존 Lab의 어두운 작업 화면: 왼쪽에 실제 레인, 오른쪽에 조절 항목을 두고 폰에서는 세로로 쌓는다.
@@ -142,7 +142,7 @@ export default function RestZoneLanePage() {
 
     const init = async () => {
       const [{ Application, Container, Graphics, PerspectiveMesh, Texture }, { createRestEdgeTexture, createRestPanelTexture }] = await Promise.all([
-        import('pixi.js'), import('./restZonePanelTexture'), import('pixi.js/unsafe-eval'),
+        import('pixi.js'), import('../game/renderer/restZonePanelTexture'), import('pixi.js/unsafe-eval'),
       ]);
       if (cancelled) return;
       const app = new Application();
