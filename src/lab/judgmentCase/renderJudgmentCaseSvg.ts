@@ -385,7 +385,7 @@ const FAILURE_TEXT: Record<FailureKind, string> = { start: "시작 실패", main
 /**
  * maintenanceMiss의 유닛이 한 번이라도 시작했는지를 재생 뒤 엔진 유닛 상태로 가린다.
  * 엔진에서 hasStarted는 true로만 바뀌므로 failed이면서 hasStarted가 아니면 시작하지 못한 유닛이다.
- * 유닛 상태가 없으면(unitStates·bodyStates가 없는 엔진) 가리지 않는다.
+ * 유닛 상태가 없으면(세션이 유닛 상태를 주지 않는 엔진) 가리지 않는다.
  */
 function failureKind(event: JudgmentCaseRunEvent, run: JudgmentLabelRun): FailureKind {
   const state = run.unitStates?.find((candidate) => candidate.noteIndex === event.noteIndex && candidate.unitIndex === (event.unitIndex ?? 0));

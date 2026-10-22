@@ -32,17 +32,16 @@ function recordingEngine(behavior: { throwAt?: number } = {}) {
   return { engine: fake, calls };
 }
 
-/** recordingEngine의 세션에 유닛 상태 필드(`unitStates`·`bodyStates`)를 붙인 엔진. `--engine`으로 고른 이전 워크트리 세션 대역 */
-function engineWithSessionFields(fields: Record<string, unknown>): JudgmentEngine {
+/**
+ * recordingEngine의 세션에 유닛 상태 getter(`unitStates`·`bodyStates`)를 붙인 엔진. `--engine`으로 고른 다른 워크트리 세션 대역이다.
+ * 실제 세션처럼 prototype getter로 붙인다. 값이 undefined인 getter도 속성으로는 있다.
+ */
+function engineWithSessionGetters(getters: Record<string, unknown>): JudgmentEngine {
   const { engine: fake } = recordingEngine();
   const Base = (fake as unknown as { NoteJudgmentSession: new () => object }).NoteJudgmentSession;
-  class SessionWithFields extends Base {
-    constructor() {
-      super();
-      Object.assign(this, fields);
-    }
-  }
-  return { ...fake, NoteJudgmentSession: SessionWithFields } as unknown as JudgmentEngine;
+  class SessionWithGetters extends Base {}
+  for (const [name, value] of Object.entries(getters)) Object.defineProperty(SessionWithGetters.prototype, name, { get: () => value });
+  return { ...fake, NoteJudgmentSession: SessionWithGetters } as unknown as JudgmentEngine;
 }
 
 describe("runJudgmentCase — 실제 엔진 재현", () => {
@@ -158,14 +157,29 @@ describe("runJudgmentCase — 세션 구동 순서", () => {
   });
 
   it.each([
-    ["unitStates 없이 bodyStates만 있는", "bodyStates"],
-    ["unitStates가 hasStarted 없이 active만 주는", "unitStates"],
-  ])("%s 이전 엔진이면 active true·등록 키 [A]인 unit을 hasStarted true로 읽음", (_, field) => {
+    ["unitStates 없이 bodyStates만 있는", ["bodyStates"]],
+    ["bodyStates와 unitStates가 같은 값을 주는(PR #335 전)", ["bodyStates", "unitStates"]],
+  ])("%s 이전 엔진이면 bodyStates의 active true·등록 키 [A]인 unit을 hasStarted true로 읽음", (_, names) => {
     const legacy = { noteIndex: 1, unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] };
-    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), engineWithSessionFields({ [field]: [legacy] }));
+    const getters = Object.fromEntries(names.map((name) => [name, [legacy]]));
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), engineWithSessionGetters(getters));
     const expected = { noteIndex: 1, unitIndex: 0, hasStarted: true, failed: false, complete: false, registeredKeys: ["A"] };
     expect(run.unitStates).toEqual([expected]);
     expect(run.unitStatesBeforeBatch?.map((batch) => batch.unitStates)).toEqual([[expected], [expected]]);
+  });
+
+  it("bodyStates getter가 undefined를 주는 세션(사례 이미지 엔진 워크트리 new-core-v1)이면 unitStates가 있어도 unitStates·unitStatesBeforeBatch는 null", () => {
+    const started = { noteIndex: 1, unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: ["A"] };
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-1500"),
+      engineWithSessionGetters({ bodyStates: undefined, unitStates: [started] }));
+    expect(run.unitStates).toBeNull();
+    expect(run.unitStatesBeforeBatch).toBeNull();
+  });
+
+  it("bodyStates 없이 unitStates만 hasStarted·held로 주는 세션이면 unitStates를 읽고 등록 키는 빈 배열", () => {
+    const state = { noteIndex: 1, unitIndex: 0, hasStarted: true, failed: false, complete: false, held: true };
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), engineWithSessionGetters({ unitStates: [state] }));
+    expect(run.unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, hasStarted: true, failed: false, complete: false, registeredKeys: [] }]);
   });
 
   it("프레임 간격은 기본 16ms, frameMs 5를 주면 run.frameMs 5", () => {
