@@ -70,6 +70,6 @@
    - 3개 이상 붙어 넘어가는 판넬의 진행도가 서로 다르면 맞닿은 변이 몇 px 벌어지는 알려진 한계(`sharedCameraLane` 주석, Lab은 많아야 2개라 생기지 않음): 이음새마다 카메라를 따로 두지 않고 벌어짐을 받아들인다(2026-10-22 사용자 결정). 0.5·0.5·1에서 약 3.9px다
    - Lab `restZone Lane`이 게임 값을 보여 주도록 추정 녹숫 슬라이더를 300～2500ms에서 500～3000ms로 넓히고, 테두리 기본값을 `밝은 레인색 둘레`로 바꿈
 3. **게임 렌더러 적용:** `GameRenderer`의 `restZone` dim 띠(`COLORS.REST_ZONE_DIM`·`REST_ZONE_ALPHA`)를 판넬로 바꾼다. 추정 녹숫은 차트 메타의 `difficultyLevel`에서 구한다. 먼저 할 일은 다음과 같다.
-   - Lab 페이지에만 있는 `밝은 레인색 둘레` 계산(테두리 밝기·색 섞기, 이웃 판넬과 맞닿을 때 테두리 폭을 레인 구분선으로 바꾸는 계산)을 게임 모듈의 순수 함수로 옮기고 Lab과 게임이 함께 쓴다. 따로 만들면 Lab이 게임 값을 보여 준다는 전제가 깨진다.
-   - 차트 `RestZone`(레인 1～4, `Beat`)을 판넬 계산의 입력(레인 0부터, 박은 숫자)으로 바꾸는 어댑터를 하나 두고 테스트한다. 순서는 `mergeTouchingRestZones`로 잇기 → `ChartTiming.beatToMs`로 시각 변환 → 레인을 0부터로 바꿔 `groupRestPanels`다.
+   - Lab 페이지에만 있는 `밝은 레인색 둘레` 계산(테두리 밝기·색 섞기, 이웃 판넬과 맞닿을 때 테두리 폭을 레인 구분선으로 바꾸는 계산)을 게임 모듈의 순수 함수로 옮기고 Lab과 게임이 함께 쓴다. 따로 만들면 Lab이 게임 값을 보여 준다는 전제가 깨진다. → 3단계 1/2에서 `rimColor`·`panelEdgeStrip`과 게임 판넬 값 `REST_PANEL_LOOK`으로 옮겼고, Lab 기본값도 `REST_PANEL_LOOK`에서 읽는다.
+   - 차트 `RestZone`(레인 1～4, `Beat`)을 판넬 계산의 입력(레인 0부터, 시작·끝은 곡 시간 ms)으로 바꾸는 어댑터를 하나 두고 테스트한다. 순서는 `mergeTouchingRestZones`로 잇기 → `ChartTiming.beatToMs`로 시각 변환 → 레인을 0부터로 바꿔 `groupRestPanels`다. → 3단계 1/2에서 `toLaneRestZones`로 만들었다. 판넬 입력의 `beat`·`endBeat`는 Lab(박)과 게임(ms)이 함께 쓰도록 `start`·`end`로 바꿨다.
    - 함께 고칠 것: 같은 렌더러를 쓰는 튜토리얼 미리보기도 판넬로 바뀌므로, 결정 6에 따라 `src/game/screens/songSelect/tutorialPreviewChart.ts`의 "휴지 구간" 레슨 차트와 문구, [튜토리얼 스펙](../spec/tutorial.md) 14행을 함께 고친다. glossary `restZone` 기능 (1)의 "게임은 dim"과 `src/shared/CONTEXT.md` 요약, [게임 코어](../spec/game-core.md)의 레인 끝 문장, 관련 단위 테스트와 E2E도 함께 고친다.
