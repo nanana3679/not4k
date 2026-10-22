@@ -165,9 +165,13 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
 
   await page.keyboard.press('Escape');
   const oldCanvas = await page.getByTestId('gameplay-canvas').elementHandle();
+  // Esc는 곡이 시작된 뒤에만 일시정지한다(#276). 지운 __devPlaySkin은 Retry 곡의 첫 renderFrame(warm-up)이 다시 쓰는데, warm-up과
+  // audioEngine.play는 한 동기 흐름이라 값이 보이면 곡이 시작된 것이다. 일시정지 중에는 옛 렌더러가 그리지 않아 옛 곡이 값을 다시 쓰지 않는다.
+  await page.evaluate(() => { delete (window as unknown as Record<string, unknown>).__devPlaySkin; });
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect.poll(() => oldCanvas!.evaluate(element => element.isConnected)).toBe(false);
   await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__devPlaySkin), { timeout: 30_000 }).toBe('classic-v012');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Quit', exact: true }).click();
   await openSkinSettings(page);

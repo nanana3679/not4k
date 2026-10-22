@@ -24,6 +24,8 @@ export function PlayScreen() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isPaused, setIsPaused] = useState(false);
   const isPausedRef = useRef(false);
+  // 곡이 시작됐는지(audioEngine.play를 불렀는지). Esc 일시정지는 이 값이 true일 때만 받는다. Retry·화면 종료 때 init effect의 cleanup이 false로 되돌린다.
+  const playbackStartedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
@@ -309,6 +311,7 @@ export function PlayScreen() {
 
         // Start audio playback
         audioEngine.play(startTimeMs);
+        playbackStartedRef.current = true;
 
         animationFrameRef.current = requestAnimationFrame(gameLoop);
 
@@ -322,6 +325,7 @@ export function PlayScreen() {
     // Cleanup
     return () => {
       cancelled = true;
+      playbackStartedRef.current = false;
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -349,7 +353,8 @@ export function PlayScreen() {
   // Escape key handler for pause
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Escape') {
+      // 로딩 중(곡 시작 전) Esc는 무시한다. 이때는 멈출 음원이 없어 isPaused만 켜지고, 로딩이 끝나면 일시정지 메뉴가 뜬 채 음원이 재생되기 때문이다(#276).
+      if (e.code === 'Escape' && playbackStartedRef.current) {
         setIsPaused((prev) => {
           if (audioEngineRef.current) {
             if (prev) {
