@@ -129,6 +129,8 @@ test.describe("Lab preview catalog", () => {
       await seek('7000');
       await expect(stageHost).toHaveAttribute('data-drawn-progress', '1.000');
       await expect(stageHost).toHaveAttribute('data-panel-texture-height', '298'); // 리프트 30%: 판정선 426 − 127.8 = 298.2를 반올림
+      // 테두리 기본값은 게임 값인 밝은 레인색 둘레다(RFD 0034 결정 4).
+      await expect(stageHost).toHaveAttribute('data-panel-texture-edge', 'rim');
       await page.getByLabel(/^리프트/).fill('0');
       await expect(stageHost).toHaveAttribute('data-panel-texture-height', '426');
       // 서든 20%면 위 85.2(426의 20%)가 가려져 판넬 높이 340.8(텍스처 341), 사용자 녹숫 (340.8 + 6.25) ÷ 355 ≈ 978ms다.
@@ -137,7 +139,7 @@ test.describe("Lab preview catalog", () => {
       await expect(stageHost).toHaveAttribute('data-panel-texture-height', '341');
       await page.getByLabel(/^서든/).fill('0');
       await expect(stageHost).toHaveAttribute('data-panel-texture-height', '426');
-      for (const style of ['red-stripe', 'rim', 'none', 'red-outline']) {
+      for (const style of ['red-outline', 'red-stripe', 'none', 'rim']) {
         await page.getByLabel('테두리', { exact: true }).selectOption(style);
         await expect(stageHost).toHaveAttribute('data-panel-texture-edge', style);
       }
@@ -145,15 +147,19 @@ test.describe("Lab preview catalog", () => {
       await page.getByLabel(/^스크롤 속도/).fill('200');
       await expect(gap).toContainText('추정보다 0.66초 느린 설정입니다');
       await page.getByLabel(/^스크롤 속도/).fill('355');
+      // 추정 녹숫 슬라이더는 게임의 Lv.15 500ms부터 Lv.1 3000ms까지다(RFD 0034 결정 3).
+      const estimatedDwell = page.getByLabel(/^난이도별 추정 녹숫/);
+      await expect(estimatedDwell).toHaveAttribute('min', '500');
+      await expect(estimatedDwell).toHaveAttribute('max', '3000');
       // 추정 녹숫을 0.6초로 낮추면 11.4초까지 다 올라오므로 10.6초에는 아직 넘어가 있다.
       await seek('10600');
-      await page.getByLabel(/^난이도별 추정 녹숫/).fill('600');
+      await estimatedDwell.fill('600');
       await expect(phase).toHaveAttribute('data-panel-phase', 'down');
       await expect(stageHost).toHaveAttribute('data-drawn-progress', '1.000');
       // 1.5초짜리 restZone은 추정 녹숫 0.6초면 최소 길이 1.2초를 넘지만, 1.5초면 최소 길이 2.1초보다 짧아 넘어가지 않는다.
       await page.getByLabel('restZone 배치', { exact: true }).selectOption('short');
       await expect(page.getByRole('note')).toHaveCount(0);
-      await page.getByLabel(/^난이도별 추정 녹숫/).fill('1500');
+      await estimatedDwell.fill('1500');
       await expect(page.getByRole('note')).toContainText('지침 최소 길이 2.10초');
       await expect(page.getByRole('note')).toContainText('넘어가지 않습니다');
       await page.getByLabel('restZone 배치', { exact: true }).selectOption('single');

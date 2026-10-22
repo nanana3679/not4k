@@ -1,3 +1,6 @@
+import { beatCompare, beatLte } from '../../shared/types/beat';
+import type { RestZone } from '../../shared/types/chart';
+
 export interface RestPanelTiming {
   startMs: number;
   endMs: number;
@@ -63,6 +66,25 @@ export function minRestZoneMs(estimatedDwellMs: number, animMs: number): number 
   return Math.max(0, estimatedDwellMs) + 2 * Math.max(0, animMs);
 }
 
+/** 추정 녹숫 직선의 두 끝점(RFD 0034 결정 3). 이보다 낮은 Lv.는 Lv.1 값을, 높은 Lv.는 Lv.15 값을 쓴다. */
+export const ESTIMATED_DWELL_LOWEST_LEVEL = { level: 1, ms: 3000 } as const;
+export const ESTIMATED_DWELL_HIGHEST_LEVEL = { level: 15, ms: 500 } as const;
+
+/**
+ * 차트 Lv.(`difficultyLevel`)의 추정 녹숫(ms). Lv.1 3000ms부터 Lv.15 500ms까지 선형으로 줄어, Lv.n은
+ * 3000 − (n − 1) × 2500 / 14다. Lv.를 1～15로 자른 뒤 같은 식에 넣으므로 소수 Lv.도 선형으로 구한다.
+ * 숫자가 아니면(NaN, 옛 JSON에 없어 들어온 undefined) Lv.1로 본다. ±Infinity는 숫자라 자르기만 한다.
+ * 두 끝점 값을 정수 가중치로 섞은 뒤 한 번만 나눠, 정수 Lv.(예: Lv.8 1750ms)에서 부동소수 오차가 끼지 않게 한다.
+ */
+export function estimatedDwellMs(difficultyLevel: number): number {
+  const low = ESTIMATED_DWELL_LOWEST_LEVEL;
+  const high = ESTIMATED_DWELL_HIGHEST_LEVEL;
+  const level = typeof difficultyLevel === 'number' && !Number.isNaN(difficultyLevel)
+    ? Math.min(high.level, Math.max(low.level, difficultyLevel))
+    : low.level;
+  return (low.ms * (high.level - level) + high.ms * (level - low.level)) / (high.level - low.level);
+}
+
 export interface PanelRect {
   x: number;
   width: number;
@@ -119,6 +141,28 @@ export function depthFadeAlpha(t: number, fadeStart: number, topBrightness: numb
   return (1 - clamp01(topBrightness)) * u * u * (3 - 2 * u);
 }
 
+/**
+ * 같은 레인에서 앞 restZone의 끝 박과 뒤 restZone의 시작 박이 같으면 하나로 잇는다(RFD 0034 결정 2).
+ * 검증은 맞닿음을 허용하므로, 따로 계산하면 이어진 쉼 한가운데서 판넬이 올라왔다가 다시 넘어간다. 3개 이상 이어져도 하나가 된다.
+ * 박은 Beat 분수로 비교하므로 1/48박 틈이라도 있으면 잇지 않고, 다른 레인끼리는 맞닿아도 잇지 않는다
+ * (레인이 붙고 박 범위가 같은 구간을 한 판넬로 묶는 것은 groupRestPanels가 따로 한다).
+ * 겹친 구간은 검증(`restZoneOverlap`)이 저장·플레이 전에 막지만, 들어오면 맞닿은 것처럼 합쳐 [가장 이른 시작, 가장 늦은 끝]
+ * 하나로 본다. 안에 든 구간·같은 구간도 마찬가지다. 결과는 레인, 그다음 시작 박 순서이고 입력 배열과 객체는 바꾸지 않는다.
+ */
+export function mergeTouchingRestZones(zones: readonly RestZone[]): RestZone[] {
+  const sorted = [...zones].sort((a, b) => a.lane - b.lane || beatCompare(a.beat, b.beat));
+  const merged: RestZone[] = [];
+  for (const zone of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && last.lane === zone.lane && beatLte(zone.beat, last.endBeat)) {
+      if (beatCompare(zone.endBeat, last.endBeat) > 0) last.endBeat = zone.endBeat;
+    } else {
+      merged.push({ lane: zone.lane, beat: zone.beat, endBeat: zone.endBeat });
+    }
+  }
+  return merged;
+}
+
 export interface LaneRestZone { lane: number; beat: number; endBeat: number }
 /** 함께 접히는 판넬 하나. firstLane부터 laneCount개 레인 폭을 덮는다. */
 export interface RestPanelGroup { firstLane: number; laneCount: number; beat: number; endBeat: number }
@@ -163,9 +207,10 @@ function foldingRun(panels: readonly FoldingPanel[], index: number): [number, nu
  * 두 칸 이상 떨어진 판넬의 progress는 사이에 낀 판넬들의 progress 중 가장 작은 값을 넘지 않게 한다. 가운데 판넬이 막
  * 접히기 시작해 묶음이 이어질 때도 바깥 판넬의 영향이 0에서 시작해 카메라가 연속으로 움직이고, 모두 같은 progress로
  * 접히면 가중치가 같아져 묶음 전체가 한 카메라를 써서 맞닿은 변이 겹친다.
- * 알려진 한계: 판넬마다 카메라 하나라, 3개 이상 붙은 묶음에서 progress가 서로 다르면 맞닿은 변이 몇 px 벌어질 수 있다
- * (예: 0.5·0.5·1이면 앞 두 판넬 사이 약 4px). 지금 Lab 배치는 많아야 2개라 생기지 않는다. 게임에 옮길 때는 이음새마다
- * 카메라를 따로 두고 판넬 왼쪽 윗모서리는 왼쪽 이음새, 오른쪽 윗모서리는 오른쪽 이음새 카메라로 투영하는 방식을 검토한다.
+ * 알려진 한계(받아들임, RFD 0034 영향 2): 판넬마다 카메라 하나라, 3개 이상 붙은 묶음에서 progress가 서로 다르면 맞닿은 변이
+ * 몇 px 벌어진다(예: 레인 폭 62.5·60°에서 0.5·0.5·1이면 앞 두 판넬 사이 약 4px). progress가 서로 다른 것은 300ms 넘어감·올라옴이
+ * 겹치는 동안뿐이라 잠깐 보이고, 모두 다 넘어가 있으면 progress가 같아 맞닿은 변이 겹친다. Lab 배치는 많아야 2개라 생기지 않는다.
+ * 이음새마다 카메라를 따로 두는 방식(판넬 왼쪽 윗모서리는 왼쪽 이음새, 오른쪽 윗모서리는 오른쪽 이음새 카메라로 투영)은 쓰지 않는다.
  */
 export function sharedCameraLane(panels: readonly FoldingPanel[], index: number): number {
   const [first, last] = foldingRun(panels, index);
