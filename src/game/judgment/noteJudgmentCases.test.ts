@@ -5,7 +5,7 @@ describe("RFD 0020 시작과 유지", () => {
   it("NJ-A01: 900/920 앞 바디를 처리해도 독립 holdOnly 1000/1060은 별도 down으로 시작", () => {
     const h = createHarness([body(900, 920), body(1000, 1060, "long", true)]);
     h.at(900, down("A"));
-    expect(h.core.bodyStates.filter(s => s.noteIndex === 1).every(s => !s.active && !s.failed)).toBe(true);
+    expect(h.core.unitStates.filter(s => s.noteIndex === 1).every(s => !s.hasStarted && !s.failed)).toBe(true);
     h.at(920, up("A"));
     expect(h.events).toHaveLength(1);
     expect(h.events[0]).toMatchObject({ kind: "release", noteIndex: 0, grade: "perfect", inputAt: 920, consumed: true });
@@ -21,9 +21,9 @@ describe("RFD 0020 시작과 유지", () => {
     const h = createHarness([body(1000, 2000, "long", true)]);
     h.at(500, down("A"));
     h.at(1000);
-    expect(h.core.bodyStates[0]).toMatchObject({ active: false, failed: false });
+    expect(h.core.unitStates[0]).toMatchObject({ hasStarted: false, failed: false });
     h.at(1121);
-    expect(h.core.bodyStates[0].failed).toBe(true);
+    expect(h.core.unitStates[0].failed).toBe(true);
     expect(counts(h.events)).toEqual({ perfect: 0, great: 0, good: 0, goodTrill: 0, miss: 1 });
     expect(h.score.getState()).toMatchObject({ earnedScore: 0, liveDenominatorWeight: 3 });
     const before = h.events.length;
@@ -36,7 +36,7 @@ describe("RFD 0020 시작과 유지", () => {
     h.at(1000, down("A"));
     h.at(1200, down("B"));
     h.at(1500, up("A"));
-    expect(h.core.bodyStates[0].failed).toBe(true);
+    expect(h.core.unitStates[0].failed).toBe(true);
     expect(counts(h.events).miss).toBe(1);
     const before = h.events.length;
     h.at(2121);
@@ -96,13 +96,13 @@ describe("RFD 0020 실패 경로와 길이 0", () => {
     h.at(1070, down("A"));
     expect(h.events.filter(e => e.kind === "head")).toHaveLength(1);
     h.at(1090, up("A"));
-    expect(h.core.bodyStates.find(s => s.noteIndex === 2)?.failed).toBe(true);
+    expect(h.core.unitStates.find(s => s.noteIndex === 2)?.failed).toBe(true);
     h.at(1100, down("B"));
     expect(h.events.filter(e => e.kind === "head").map(e => e.grade)).toEqual(["perfect", "good"]);
     h.at(2000);
-    expect(h.core.bodyStates.filter(s => s.noteIndex === 3)).toEqual([
-      expect.objectContaining({ active: false, failed: false }),
-      expect.objectContaining({ active: false, failed: false }),
+    expect(h.core.unitStates.filter(s => s.noteIndex === 3)).toEqual([
+      expect.objectContaining({ hasStarted: false, failed: false }),
+      expect.objectContaining({ hasStarted: false, failed: false }),
     ]);
     h.at(2000, down("C"), down("D"));
     h.at(3000, up("C"), up("D"));
@@ -111,7 +111,7 @@ describe("RFD 0020 실패 경로와 길이 0", () => {
       expect.objectContaining({ grade: "perfect", inputAt: 3000 }),
       expect.objectContaining({ grade: "perfect", inputAt: 3000 }),
     ]);
-    expect(h.core.bodyStates.find(s => s.noteIndex === 2)?.failed).toBe(true);
+    expect(h.core.unitStates.find(s => s.noteIndex === 2)?.failed).toBe(true);
   });
 
   it.each([false, true])("NJ-F02: 경계 1000의 A up/B head 수집 순서 반전=%s여도 Perfect 3개", (reverse) => {
@@ -129,7 +129,7 @@ describe("RFD 0020 실패 경로와 길이 0", () => {
     h.at(1095, up("A"));
     h.at(1100, down("B"));
     h.at(1105, up("B"));
-    expect(h.core.bodyStates.find(s => s.noteIndex === 2)?.failed).toBe(true);
+    expect(h.core.unitStates.find(s => s.noteIndex === 2)?.failed).toBe(true);
     expect(counts(h.events)).toEqual({ perfect: 1, great: 0, good: 2, goodTrill: 0, miss: 1 });
     const before = h.events.length;
     h.at(1110, down("B"));

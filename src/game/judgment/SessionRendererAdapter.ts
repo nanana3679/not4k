@@ -1,18 +1,10 @@
 import type { Lane, JudgmentGrade } from "../../shared/constants";
 import type { NoteEntity } from "../../shared/types";
+import type { JudgmentUnitState } from "./JudgmentCore";
 import type { NoteJudgmentEvent } from "./NoteJudgmentCore";
 import type { ConfirmedJudgmentEffects } from "./confirmedJudgmentEffects";
 import type { NoteJudgmentSessionView } from "./NoteJudgmentSession";
 import type { JudgmentBodyStateQuery } from "../renderer/GameNoteRenderer";
-
-export interface SessionBodyState {
-  readonly noteIndex: number;
-  readonly unitIndex: number;
-  readonly active: boolean;
-  readonly failed: boolean;
-  readonly complete: boolean;
-  readonly registeredKeys: readonly string[];
-}
 
 /** The smallest renderer-facing surface used by the session adapter. */
 export interface SessionRendererPort {
@@ -29,7 +21,8 @@ export interface SessionRendererPort {
 export interface SessionRendererAdapterOptions {
   readonly notes: readonly NoteEntity[];
   readonly connections: readonly { predecessorIndex: number; successorIndex: number }[];
-  readonly bodyStates: () => readonly SessionBodyState[];
+  /** 세션의 unit 상태(`NoteJudgmentSession.unitStates`). 렌더러의 바디 상태 조회가 노트별로 묶어 그대로 넘긴다. */
+  readonly unitStates: () => readonly JudgmentUnitState[];
   readonly scoreAccuracy: () => number;
   readonly port: SessionRendererPort;
 }
@@ -38,7 +31,7 @@ export interface SessionRendererAdapterOptions {
 export class SessionRendererAdapter {
   private readonly settledHeads = new Map<number, { success: number; settled: number; total: number; failed: boolean }>();
   private stateSnapshotAt: number | undefined;
-  private readonly statesByNote = new Map<number, SessionBodyState[]>();
+  private readonly statesByNote = new Map<number, JudgmentUnitState[]>();
 
   constructor(private readonly options: SessionRendererAdapterOptions) {
     const successors = new Map(options.connections.map(connection => [connection.predecessorIndex, connection.successorIndex]));
@@ -47,7 +40,7 @@ export class SessionRendererAdapter {
       // 같은 시각의 조회를 한 snapshot으로 공유한다.
       if (this.stateSnapshotAt !== at) {
         this.statesByNote.clear();
-        for (const state of options.bodyStates()) {
+        for (const state of options.unitStates()) {
           const group = this.statesByNote.get(state.noteIndex) ?? [];
           group.push(state);
           this.statesByNote.set(state.noteIndex, group);

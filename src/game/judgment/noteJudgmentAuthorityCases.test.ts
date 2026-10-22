@@ -7,20 +7,20 @@ describe("정당한 시작과 키 수의 추가 대조", () => {
     h.at(1050, down("A"), up("A")); h.at(1121);
     expect(counts(h.events)).toEqual({ perfect: 1, great: 0, good: 0, goodTrill: 0, miss: 0 });
     expect(h.events[0]).toMatchObject({ kind: "holdOnly", confirmedAt: 1050, consumed: false });
-    expect(h.core.bodyStates[0]).toMatchObject({ complete: true, failed: false });
+    expect(h.core.unitStates[0]).toMatchObject({ complete: true, failed: false });
   });
 
   it("길이 0 holdOnly 1000ms를 놓치면 query도 failed이고 새 1200ms 입력은 되살리지 못함", () => {
     const h = createHarness([body(1000, 1000, "long", true)]);
     h.at(1121); h.at(1200, down("A"));
-    expect(h.core.bodyStates[0]).toMatchObject({ complete: false, failed: true });
+    expect(h.core.unitStates[0]).toMatchObject({ complete: false, failed: true });
     expect(counts(h.events).miss).toBe(1);
   });
 
   it("[1000,2000]의 A를 1500ms에 떼고 같은 timestamp에 raw 재누름해도 옛 유지 권한이 되살아나지 않음", () => {
     const h = createHarness([point(1000), body(1000, 2000)]);
     h.at(1000, down("A")); h.at(1500, up("A"), down("A"));
-    expect(h.core.bodyStates[0].failed).toBe(true);
+    expect(h.core.unitStates[0].failed).toBe(true);
     h.at(2000, up("A")); h.at(2121);
     expect(counts(h.events)).toEqual({ perfect: 1, great: 0, good: 0, goodTrill: 0, miss: 1 });
   });
@@ -29,7 +29,7 @@ describe("정당한 시작과 키 수의 추가 대조", () => {
     const h = createHarness([body(1000, 1060), point(1100)]);
     h.at(1000, down("A"));
     expect(h.events).toEqual([]);
-    expect(h.core.bodyStates[0].active).toBe(true);
+    expect(h.core.unitStates[0].hasStarted).toBe(true);
     h.at(1060, up("A")); h.at(1100, down("B")); h.at(1300);
     expect(h.events.map(event => [event.kind, event.inputAt, event.grade])).toEqual([
       ["release", 1060, "perfect"], ["head", 1100, "perfect"],

@@ -126,8 +126,8 @@ test('연결 트릴에서 v013·v014 트릴 포인트는 마름모 테두리 그
       // 홀드: 가운데 구간을 누르고 있어 바디가 하얗게 켜진 상태.
       renderer.setJudgmentBodyStateQuery((index: number) => index >= 3 ? null : {
         successorIndex: index < 2 ? index + 1 : undefined,
-        units: [{ unitIndex: 0, active: phase === 'held' && index === 1, complete: phase === 'held' && index === 0, failed: false,
-          registeredKeys: phase === 'held' && index === 1 ? ['KeyF'] : [] }],
+        units: [{ unitIndex: 0, hasStarted: phase === 'held' && index === 1, complete: phase === 'held' && index === 0, failed: false,
+          held: phase === 'held' && index === 1 }],
       });
       renderer.renderFrame(200);
       const frame = renderer.app.renderer.screen;

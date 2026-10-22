@@ -74,7 +74,7 @@ describe("RFD0020 release 사례 NJ-R01~R16", () => {
     h.at(1181);
     expect(h.events.filter(e => e.kind === "release" && e.grade === "miss" && e.noteIndex === 1)).toHaveLength(1);
     expect(h.events.filter(e => e.kind === "maintenanceMiss" && e.noteIndex === 3)).toHaveLength(1);
-    expect(h.core.bodyStates.some(s => s.noteIndex === 3 && s.failed)).toBe(true);
+    expect(h.core.unitStates.some(s => s.noteIndex === 3 && s.failed)).toBe(true);
     expect(h.events.filter(e => e.kind === "release" && e.grade === "miss")).toHaveLength(1);
   });
 
