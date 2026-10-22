@@ -18,7 +18,7 @@ import {
  * 거기에 더하면 첫 화면과 곡 시작이 늦어진다. 또 기어를 그리지 않는 튜토리얼·노트 에셋 재생기도 스킨을 읽고, 설정에서 `gearMotion`을 끄면
  * 아예 읽지 않아야 한다. 그래서 기어를 그리는 렌더러가 `gearMotion`을 켤 때만 lease를 acquire하고, 기다리지 않고 준비되면 추가한다.
  *
- * 읽기와 공유는 스킨 에셋과 같은 장치(sharedAssets: Pixi Assets 전역 캐시 + 경로별 참조 세기)를 쓴다. 텍스처는 기어(gearImage)와 같은
+ * 읽기와 공유는 스킨 에셋과 같은 장치(sharedAssets: Pixi Assets 전역 캐시 + 경로별 reference counting)를 쓴다. 텍스처는 기어(gearImage)와 같은
  * 밉맵·삼선형 설정으로 경로 별칭을 붙여 읽으므로, 같은 페이지의 게임 렌더러와 Lab 비교 화면이 같은 텍스처를 함께 쓰고,
  * 마지막 lease를 release하면 sharedAssets가 JSON과 PNG를 함께 unload한다.
  */

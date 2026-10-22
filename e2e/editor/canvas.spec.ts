@@ -1,19 +1,19 @@
 import { test, expect } from '@playwright/test';
+import { openEditor } from './editorTestSetup';
 
-test.describe('Editor Canvas', () => {
+test.describe('에디터 타임라인 canvas', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/editor');
-    await page.waitForSelector('canvas');
+    await openEditor(page);
   });
 
-  test('canvas element exists and is visible', async ({ page }) => {
+  test('songId·difficulty를 URL에 붙여 진입하면 타임라인 canvas가 보인다', async ({ page }) => {
     const canvas = page.locator('canvas');
     await expect(canvas).toBeVisible();
   });
 
-  test('ctrl+wheel changes zoom display', async ({ page }) => {
+  test('Ctrl+휠 위(deltaY -100) 한 번에 Zoom 표시가 200px/s → 220px/s로 바뀐다', async ({ page }) => {
     const zoomText = page.getByText(/Zoom: \d+px\/s/);
-    const initialText = await zoomText.textContent();
+    await expect(zoomText).toHaveText('Zoom: 200px/s');
 
     const canvas = page.locator('canvas');
     await canvas.hover();
@@ -23,11 +23,10 @@ test.describe('Editor Canvas', () => {
     await canvas.dispatchEvent('wheel', { deltaY: -100, ctrlKey: true });
     await page.keyboard.up('Control');
 
-    // Zoom value should have changed
-    await expect(zoomText).not.toHaveText(initialText!);
+    await expect(zoomText).toHaveText('Zoom: 220px/s');
   });
 
-  test('wheel scroll produces no passive event errors', async ({ page }) => {
+  test('휠 스크롤(deltaY 100)은 passive 리스너 오류를 내지 않는다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
     page.on('console', (msg) => {

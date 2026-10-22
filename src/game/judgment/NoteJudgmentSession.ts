@@ -5,11 +5,8 @@ import {
   decideConfirmedJudgmentEffects,
   type ConfirmedJudgmentEffects,
 } from "./confirmedJudgmentEffects";
-import {
-  NoteJudgmentCore,
-  type JudgmentInput,
-  type NoteJudgmentEvent,
-} from "./NoteJudgmentCore";
+import type { JudgmentCore, JudgmentCoreFactory, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+import { createNoteJudgmentCore } from "./NoteJudgmentCore";
 import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
 
 export interface NoteJudgmentSessionView {
@@ -22,6 +19,11 @@ export interface NoteJudgmentSessionView {
 export interface NoteJudgmentSessionOptions {
   readonly windows?: JudgmentWindows;
   readonly onBatchConfirmed?: (view: NoteJudgmentSessionView) => void;
+  /**
+   * 판정 코어 생성 함수. 없으면 실제 게임이 쓰는 `NoteJudgmentCore`를 만든다. 다른 코어를 실제 세션 경로(drain, `advance`,
+   * finalize, 확정 효과)로 시험할 때만 넘긴다.
+   */
+  readonly createCore?: JudgmentCoreFactory;
 }
 
 /**
@@ -29,7 +31,7 @@ export interface NoteJudgmentSessionOptions {
  * 입력 배열의 순서와 timestamp는 core에 그대로 전달하며 session은 재정렬하거나 보정하지 않는다.
  */
 export class NoteJudgmentSession {
-  readonly core: NoteJudgmentCore;
+  readonly core: JudgmentCore;
   readonly score: ScoreManager;
   private readonly notes: CompiledJudgmentChart["rawNotes"];
   private readonly windows: JudgmentWindows;
@@ -50,7 +52,7 @@ export class NoteJudgmentSession {
     ) + this.windows.GOOD;
     this.onBatchConfirmed = options.onBatchConfirmed;
     this.score = new ScoreManager(chart.scoreItems, this.windows);
-    this.core = new NoteJudgmentCore(chart, {
+    this.core = (options.createCore ?? createNoteJudgmentCore)(chart, {
       windows: this.windows,
       onConfirmed: (event) => this.applyConfirmedEvent(event),
       onBatchConfirmed: (events, at) => this.publishBatch(events, at),

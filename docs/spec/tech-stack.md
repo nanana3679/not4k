@@ -3,7 +3,7 @@
 > 결정: React 19 + PixiJS v8 + Supabase + Web Audio API (AudioContext)
 > 런타임: Node.js 22 LTS
 > 패키지 매니저: pnpm
-> 배포: Cloudflare Pages + Supabase Storage
+> 배포: Vercel + Supabase Storage
 > 다국어: 한국어, 일본어, 영어
 
 ---
@@ -18,7 +18,7 @@
 | **백엔드/DB** | Supabase (PostgreSQL) | 인증, 랭킹, 플레이 기록, 차트 메타데이터 |
 | **파일 스토리지** | Supabase Storage | 음원, 차트 JSON, 자켓 이미지 |
 | **인증** | Supabase Auth | Google OAuth, 비로그인(Anonymous Auth) |
-| **호스팅** | Cloudflare Pages | 정적 사이트 배포, CDN |
+| **호스팅** | Vercel | 정적 사이트 배포, CDN, PR 프리뷰 |
 | **런타임** | Node.js 22 LTS | 개발 도구 실행 환경 (Vite, 빌드) |
 | **패키지 매니저** | pnpm | strict 의존성 해석, 디스크 효율적 |
 | **다국어** | i18next + react-i18next | 한국어, 일본어, 영어 |
@@ -53,7 +53,7 @@ React 19 (DOM)                    PixiJS v8 (WebGL Canvas)
 | 요구사항 | PixiJS v8 대응 |
 |----------|----------------|
 | 노트 스프라이트 렌더링 | Sprite, Container 기본 기능으로 충분 |
-| 60fps 유지 | v8은 100k 스프라이트에서 ~15ms/프레임. not4k는 수십~수백 개의 노트만 화면에 존재하므로 여유 충분 |
+| 60fps 유지 | v8은 100k 스프라이트에서 약 15ms/프레임. not4k는 수십～수백 개의 노트만 화면에 존재하므로 여유 충분 |
 | 판정 이펙트/파티클 | ParticleContainer, Filters로 구현 가능 |
 | 텍스트 렌더링 (콤보, 판정) | BitmapText (고속) 또는 Text (유연) |
 | `trillZone` 배경 | Graphics API로 반투명 영역 렌더링 |
@@ -120,10 +120,10 @@ React 19 (DOM)                    PixiJS v8 (WebGL Canvas)
 
 | 파일 유형 | 크기 (예상) | 로딩 전략 | 타이밍 |
 |----------|------------|----------|--------|
-| **차트 JSON** | 10~100 KB | `fetch()` → JSON 파싱 → 메모리 | 곡 선택 시 |
-| **음원 파일** | 3~10 MB (OGG/MP3) | `fetch()` → `AudioContext.decodeAudioData()` → AudioBuffer | 곡 선택 후 로딩 화면 |
-| **자켓 이미지** | 50~200 KB | `<img>` 또는 PixiJS Asset 로더 | 곡 목록 표시 시 |
-| **프리뷰 음원** | 500 KB~1 MB | `fetch()` → AudioBuffer (짧은 클립) | 곡 선택 화면에서 커서 이동 시 |
+| **차트 JSON** | 10～100 KB | `fetch()` → JSON 파싱 → 메모리 | 곡 선택 시 |
+| **음원 파일** | 3～10 MB (OGG/MP3) | `fetch()` → `AudioContext.decodeAudioData()` → AudioBuffer | 곡 선택 후 로딩 화면 |
+| **자켓 이미지** | 50～200 KB | `<img>` 또는 PixiJS Asset 로더 | 곡 목록 표시 시 |
+| **프리뷰 음원** | 500 KB～1 MB | `fetch()` → AudioBuffer (짧은 클립) | 곡 선택 화면에서 커서 이동 시 |
 
 #### "스트리밍"이 아닌 "전체 로드"를 선택하는 이유
 
@@ -131,7 +131,7 @@ React 19 (DOM)                    PixiJS v8 (WebGL Canvas)
 
 1. **판정 정밀도**: `AudioBufferSourceNode.start(exactTime)`은 샘플 단위의 정확한 재생 시점 제어가 가능하다. `MediaElementAudioSourceNode`(스트리밍)는 이 정밀도를 보장하지 못한다.
 2. **seek 없음**: 리듬게임은 처음부터 끝까지 순차 재생하므로, 스트리밍의 랜덤 접근 이점이 없다.
-3. **메모리**: 4분 스테레오 44.1kHz 곡은 디코딩 후 ~40MB. 현대 기기에서 허용 가능한 수준이다.
+3. **메모리**: 4분 스테레오 44.1kHz 곡은 디코딩 후 약 40MB. 현대 기기에서 허용 가능한 수준이다.
 
 따라서 `game-core.md`의 "스트리밍"은 **"로컬 저장 없이 서버에서 매번 가져온다"**는 의미이며, 기술적으로는 전체 다운로드 + 디코딩이다.
 
@@ -225,17 +225,17 @@ storage/
 | 리소스 | 무료 한도 | not4k 예상 사용량 (프로토타입) | 위험도 |
 |--------|----------|-------------------------------|--------|
 | DB 용량 | 500 MB | 수 MB (유저 수십 명 수준) | 낮음 |
-| Storage | 1 GB | 5곡 × ~15MB = ~75MB | 낮음 |
+| Storage | 1 GB | 5곡 × 약 15MB = 약 75MB | 낮음 |
 | Storage 대역폭 | 2 GB/월 | 유저 수에 따라 빠르게 소진 가능 | **중간** |
 | Auth MAU | 50,000 | 프로토타입 단계에서 충분 | 낮음 |
 | Edge Function | 500,000/월 | 충분 | 낮음 |
 
-**대역폭이 유일한 병목이다.** 한 곡 플레이 시 ~10MB 다운로드가 발생하면, 무료 2GB로는 월 200회 플레이가 한계이다. 대응 방안:
+**대역폭이 유일한 병목이다.** 한 곡 플레이 시 약 10MB 다운로드가 발생하면, 무료 2GB로는 월 200회 플레이가 한계이다. 대응 방안:
 
 1. **프로토타입 단계**: 무료 티어로 시작. 소수 테스터만 접근.
 2. **알파/베타**: Pro 플랜($25/월, 250GB 대역폭)으로 전환. 월 25,000회 플레이 지원.
 3. **브라우저 캐싱 활용**: `cacheControl` 설정으로 반복 접근 시 CDN/브라우저 캐시 적중. 같은 곡 재플레이 시 서버 대역폭 소모 없음.
-4. **음원 압축 최적화**: OGG Vorbis q5 (~128kbps) 기준 4분 곡이 ~3.8MB. 음질과 용량의 균형점.
+4. **음원 압축 최적화**: OGG Vorbis q5 (약 128kbps) 기준 4분 곡이 약 3.8MB. 음질과 용량의 균형점.
 
 ---
 
@@ -407,46 +407,20 @@ locales/
 
 ---
 
-## 6. 배포: Cloudflare Pages
+## 6. 배포: Vercel
 
-### 선택 이유
-
-| 요구사항 | Cloudflare Pages 대응 |
-|----------|----------------------|
-| 무료 대역폭 | **무제한** (다른 플랫폼은 10~100GB/월) |
-| 글로벌 CDN | 330+ 도시, 120+ 국가 (가장 넓은 범위) |
-| 상업적 사용 | 무료 플랜에서 허용 |
-| 커스텀 도메인 | 무료 플랜에서 지원, SSL 자동 |
-| 빌드 | 500회/월 (무료) |
-
-대역폭 무제한이 결정적 이유이다. 리듬게임은 JS 번들 + 음원 + 이미지 등 에셋이 크고, 바이럴 시 트래픽이 급증할 수 있다. Cloudflare Pages는 무료에서도 대역폭 제한이 없으므로 트래픽 폭증에도 과금되거나 서비스가 중단되지 않는다.
-
-### 대안 비교
-
-| 플랫폼 | 무료 대역폭 | 무료 배포 크기 | 상업적 사용 | 불채택 이유 |
-|--------|------------|---------------|------------|------------|
-| **Cloudflare Pages** | **무제한** | 20,000 파일 | 허용 | **(채택)** |
-| Vercel | 100 GB/월 | 100 MB | 불허 (Hobby) | 비상업 제한, 배포 크기 100MB 제한 |
-| Netlify | 100 GB/월 | 10 GB | 허용 | 한도 초과 시 전체 사이트 정지 |
-| GitHub Pages | 100 GB/월 (소프트) | 1 GB | 불허 | 1GB 크기 제한, 정적 전용 |
-| Firebase Hosting | 10 GB/월 | 10 GB | 허용 | 대역폭 10GB 너무 적음, Supabase와 역할 중복 |
-
-### 제약사항과 대응
-
-**파일당 25 MiB 제한**: Cloudflare Pages는 단일 파일 25 MiB 하드 리밋이 있다. not4k의 음원 파일(OGG, 3~10MB)은 이 한도 이내이므로 문제없다. 만약 초과하는 파일이 발생하면 **Supabase Storage** (이미 사용 중)에서 서빙한다.
-
-**파일 수 20,000개 제한**: 빌드 결과물(React 번들 + 에셋)이 이 한도를 초과할 가능성은 낮다. 음원/차트/이미지는 Supabase Storage에 저장하므로 Cloudflare Pages에 포함되지 않는다.
+앱(게임과 에디터)은 GitHub 저장소와 연결한 Vercel 프로젝트로 배포한다(`vercel.json`은 2026-05-22에 추가). 프로덕션 주소는 `https://not4k.vercel.app`이다. 기술 스택을 처음 정할 때는 무료 대역폭이 무제한이라는 이유로 Cloudflare Pages를 골랐지만, 지금은 Vercel을 쓴다. Lab 미리보기는 따로 GitHub Pages에 배포한다([Lab 미리보기 카탈로그](./lab-preview-catalog.md)).
 
 ### 배포 아키텍처
 
 ```
 [GitHub Repository]
     │
-    │  push / PR merge
+    │  push / PR
     ▼
-[Cloudflare Pages]  ──빌드──→  정적 사이트 (React + PixiJS 번들)
+[Vercel]            ──빌드──→  정적 사이트 (React + PixiJS 번들)
     │                          │
-    │  CDN (330+ 도시)         │  클라이언트에서 직접 접근
+    │  CDN                     │  클라이언트에서 직접 접근
     ▼                          ▼
 [유저 브라우저]  ←──────→  [Supabase]
                               ├── Auth (Google OAuth)
@@ -454,26 +428,26 @@ locales/
                               └── Storage (음원, 차트, 이미지)
 ```
 
-Cloudflare Pages는 **정적 사이트만 호스팅**한다. 서버 로직은 Supabase (DB, Auth, Storage, Edge Functions)에서 처리한다. 클라이언트(React 앱)가 Supabase에 직접 접근하며, 별도의 중간 서버가 필요 없다.
+Vercel은 빌드한 **정적 사이트만** 호스팅한다(서버리스 함수 없음). 서버 쪽 일은 Supabase(DB, Auth, Storage)가 맡고, 필요하면 Edge Functions를 쓴다. 클라이언트(React 앱)가 Supabase에 직접 접근하며, 별도의 중간 서버가 필요 없다. 곡 에셋(음원·차트 JSON·자켓 이미지)은 Supabase Storage에 두므로, 배포 결과물에는 앱 번들(코드가 import한 이미지 포함)과 `public/`의 정적 에셋(`public/lab` 제외)만 들어간다.
 
 ### 배포 흐름
 
 1. GitHub 리포지토리에 코드 push
-2. Cloudflare Pages가 자동으로 빌드 (`npm run build`)
-3. 빌드 결과물이 CDN에 배포
-4. PR마다 프리뷰 배포 URL 자동 생성
-5. 커스텀 도메인 연결 (예: `not4k.com`)
+2. Vercel이 자동으로 빌드해 배포
+3. PR마다 프리뷰 배포가 만들어지고, PR 검사에 `Vercel` 결과가 붙는다
+4. `/game`·`/editor` 같은 앱 경로는 `vercel.json`의 rewrite로 모두 `index.html`을 받는다(SPA)
+5. (예정) 커스텀 도메인 연결 (예: `not4k.com`)
 
 ### 환경 변수
 
-Cloudflare Pages 대시보드에서 설정:
+Vercel 프로젝트 설정의 Environment Variables에서 설정:
 
 ```
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJxxxxx
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxx
 ```
 
-서비스 키(service_role)는 클라이언트에 노출하지 않는다. 관리자 전용 작업이 필요하면 Supabase Edge Functions를 사용한다.
+secret 키(`sb_secret_…`, Postgres `service_role` 역할)는 클라이언트에 노출하지 않는다. 관리자 전용 작업이 필요하면 Supabase Edge Functions를 사용한다.
 
 ---
 
@@ -495,7 +469,7 @@ VITE_SUPABASE_ANON_KEY=eyJxxxxx
 | pnpm | 네이티브 지원 |
 | Vite | 공식 지원 |
 | @pixi/react v8 | 검증됨 |
-| Cloudflare Pages 빌드 환경 | Node.js |
+| Vercel 빌드 환경 | Node.js |
 | npm 패키지 호환성 | 100% |
 | LTS 지원 | 2027-04까지 |
 
@@ -503,7 +477,7 @@ VITE_SUPABASE_ANON_KEY=eyJxxxxx
 
 | 대안 | 불채택 이유 |
 |------|------------|
-| **Bun** | pnpm + Vite와 기능이 중복되어 "Bun만의 이점"이 줄어듦. @pixi/react v8이 Bun에서 미검증. Cloudflare Pages 빌드에 별도 설치 필요 |
+| **Bun** | pnpm + Vite와 기능이 중복되어 "Bun만의 이점"이 줄어듦. @pixi/react v8이 Bun에서 미검증 |
 | **Deno** | pnpm 미지원. 도구 체인 전체 재설계 필요 |
 
 ---
@@ -561,12 +535,12 @@ not4k/
 
 ### 에디터 배포
 
-게임과 에디터가 하나의 앱으로 통합되어 있으므로, 에디터도 게임과 함께 배포된다. 에디터 경로(`/editor`)에 대한 접근 제한은 필요 시 Cloudflare Access 등으로 처리한다.
+게임과 에디터가 하나의 앱으로 통합되어 있으므로, 에디터도 게임과 함께 배포된다. 에디터(`/editor`)는 앱 안에서 admin 권한을 확인해 막는다(admin이 아니면 Access Denied 화면, `src/editor/App.tsx`). 이 확인은 화면만 막고, 쓰기는 Supabase RLS가 admin에게만 허용한다(`supabase/RLS_POLICIES.md`).
 
 | 단계 | 배포 방식 | 이유 |
 |------|----------|------|
 | Phase A | 로컬 실행 (`pnpm dev`) + `/editor` 경로 접근 | 개발자만 사용, 배포 불필요 |
-| Phase B+ | Cloudflare Pages에 게임과 함께 배포, `/editor` 경로에 접근 제한 | 필요 시 Cloudflare Access로 제한 |
+| Phase B+ | Vercel에 게임과 함께 배포, `/editor`는 admin만 들어감 | 앱 안의 admin 권한 확인 |
 
 ---
 
@@ -587,4 +561,4 @@ not4k/
 - 게임 코어 설계: `game-core.md`
 - 차트 에디터 (데이터 모델): `chart-editor.md`
 - 프로젝트 에셋 (수급 전략): `project-assets.md`
-- 문서 리뷰 통합: `review.md`
+- 문서 리뷰 통합: `docs/context/review.md`
