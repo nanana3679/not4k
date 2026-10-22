@@ -12,6 +12,101 @@ export type RestPanelPhase = 'up' | 'falling' | 'down' | 'rising';
 /** 판넬 좌우 변 띠와 빗금 경계의 붉은색(Lab 테두리 시안 `붉은 둘레`·`붉은 빗금 경계`). Lab 페이지가 Pixi를 미리 불러오지 않도록 텍스처 모듈이 아니라 여기에 둔다. */
 export const REST_EDGE_RED = 0xff3344;
 
+/**
+ * 게임이 쓰는 판넬 시각 값(RFD 0034 결정 4). Lab `restZone Lane`의 기본 조절값도 이것을 읽으므로 Lab 기본값이 곧 게임 값이다.
+ * 비율 값(hatchBrightness·fadeStart·topBrightness)은 0～1이고, Lab 슬라이더는 %로 바꿔 보여 준다.
+ * cameraDistance·eyeHeight를 그대로 가지고 있어 PanelCamera 자리에 넘길 수 있다.
+ */
+export const REST_PANEL_LOOK = {
+  /** 테두리. 게임은 밝은 레인색 둘레(rimColor)만 쓴다. */
+  edge: 'rim',
+  /** 다 넘어갔을 때의 각도(°). */
+  maxAngleDeg: 60,
+  /** 원근 거리(판넬 높이의 배수). */
+  cameraDistance: 1.5,
+  /** 경첩 위 눈높이(판넬 높이의 배수, Lab 고정값). */
+  eyeHeight: 0.5,
+  /** 넘어감·올라옴 각각의 애니메이션 길이(ms). */
+  animMs: 300,
+  /** 빗금 레인색 밝기(1이면 레인색 그대로). */
+  hatchBrightness: 1,
+  /** 빗금 레인색 줄·검정 줄 각각의 폭(논리 px). */
+  stripeWidth: 8,
+  /** 깊이 어둠이 시작되는 판넬 위치(경첩 0 → 윗변 1). */
+  fadeStart: 0.4,
+  /** 윗변에 남는 밝기(0이면 윗변이 검은 배경과 같다). */
+  topBrightness: 0,
+  /** 시작·끝이 모두 같은 인접 레인을 판넬 하나로 묶는다(groupRestPanels의 merge). */
+  mergeAdjacent: true,
+  /** 함께 넘어가 있는 이웃 판넬과 카메라를 나눠 써 틈을 메운다(sharedCameraLane·neighborProgress). */
+  fillGaps: true,
+} as const;
+
+/** 판넬 좌우 테두리(밝은 레인색 둘레, Lab의 붉은 둘레도 같다)의 폭(논리 px). */
+export const REST_PANEL_OUTLINE_WIDTH = 2;
+/** 밝은 레인색 둘레가 레인색을 밝히는 배수. */
+export const REST_PANEL_RIM_BRIGHTNESS = 2.6;
+
+/** 0xRRGGBB 색의 채널마다 factor를 곱하고 반올림한다. 255를 넘는 채널은 255에서 멈춘다. */
+export function brightenColor(color: number, factor: number): number {
+  return [16, 8, 0]
+    .reduce((sum, shift) => sum | (Math.min(255, Math.round(((color >> shift) & 255) * factor)) << shift), 0);
+}
+
+/** 0xRRGGBB 두 색을 채널마다 from × (1 − t) + to × t로 섞고 반올림한다. t 0이면 from, 1이면 to 그대로다. */
+export function mixColor(from: number, to: number, t: number): number {
+  const channel = (shift: number) => Math.round(((from >> shift) & 255) * (1 - t) + ((to >> shift) & 255) * t);
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
+}
+
+/** 밝은 레인색 둘레의 색. 변이 놓인 레인(왼쪽 변은 판넬 첫 레인, 오른쪽 변은 마지막 레인)의 색을 REST_PANEL_RIM_BRIGHTNESS배 밝힌다. */
+export function rimColor(laneColor: number): number {
+  return brightenColor(laneColor, REST_PANEL_RIM_BRIGHTNESS);
+}
+
+/** 넘어간 판넬 왼쪽 또는 오른쪽 변에 겹쳐 그리는 띠 하나의 모양. */
+export interface PanelEdgeStrip {
+  /** false면 그리지 않는다(테두리가 없고 맞닿은 이웃도 없을 때). */
+  visible: boolean;
+  /** 띠 폭(논리 px). 판넬 바깥 변에서 안쪽으로 잰다. */
+  width: number;
+  /** 띠 색(0xRRGGBB). */
+  tint: number;
+  /** 띠 불투명도. */
+  alpha: number;
+}
+
+/**
+ * 넘어간 판넬의 한쪽 변 띠. 혼자일 때는 테두리(outlineWidth 폭, outlineColor)를 그리고, 그쪽에 맞닿아 넘어가는 이웃이 있으면
+ * 그 이웃의 진행도(seam)만큼 테두리를 빼고 레인 구분선(양쪽 판넬이 절반 폭씩 나눠 그린다)을 넣는다.
+ * 테두리 몫은 1 − seam, 구분선 몫은 seam이고, 폭과 색은 두 몫 중 구분선 쪽 비율만큼 옮겨 가며, 불투명도는
+ * 자기 진행도 × 두 몫의 합이다. outlineColor가 null이면(테두리 없는 스타일) 이웃과 맞닿을 때만 구분선을 그린다.
+ * 게임은 outlineColor에 rimColor를 넣고, Lab은 테두리 시안에 따라 rimColor·REST_EDGE_RED·null을 넣는다.
+ */
+export function panelEdgeStrip(options: {
+  /** 자기 판넬의 진행도(0～1). */
+  progress: number;
+  /** 이 변에 맞닿아 넘어가는 이웃 판넬의 진행도(없으면 0, neighborProgress). */
+  seam: number;
+  outlineColor: number | null;
+  separatorColor: number;
+  outlineWidth: number;
+  /** 레인 구분선 전체 폭. 맞닿은 두 판넬이 절반씩 그린다. */
+  separatorWidth: number;
+}): PanelEdgeStrip {
+  const { progress, seam, outlineColor, separatorColor, outlineWidth, separatorWidth } = options;
+  const outline = outlineColor === null ? 0 : 1 - seam;
+  const strength = outline + seam;
+  if (strength <= 0) return { visible: false, width: 0, tint: separatorColor, alpha: 0 };
+  const toSeam = seam / strength;
+  return {
+    visible: true,
+    width: outlineWidth + (separatorWidth / 2 - outlineWidth) * toSeam,
+    tint: mixColor(outlineColor ?? separatorColor, separatorColor, toSeam),
+    alpha: progress * strength,
+  };
+}
+
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 /**

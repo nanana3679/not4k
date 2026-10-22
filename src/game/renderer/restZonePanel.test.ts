@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { beat } from '../../shared/types/beat';
 import type { RestZone } from '../../shared/types/chart';
 import {
-  ESTIMATED_DWELL_HIGHEST_LEVEL, ESTIMATED_DWELL_LOWEST_LEVEL, depthFadeAlpha, estimatedDwellMs, fallenHeightRatio, groupRestPanels,
-  mergeTouchingRestZones, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState, restPanelTiming, separatorTop,
-  sharedCameraLane,
+  ESTIMATED_DWELL_HIGHEST_LEVEL, ESTIMATED_DWELL_LOWEST_LEVEL, REST_PANEL_LOOK, REST_PANEL_OUTLINE_WIDTH, REST_PANEL_RIM_BRIGHTNESS,
+  brightenColor, depthFadeAlpha, estimatedDwellMs, fallenHeightRatio, groupRestPanels, mergeTouchingRestZones, minRestZoneMs, mixColor,
+  neighborProgress, noteDwellMs, panelCorners, panelEdgeStrip, restPanelState, restPanelTiming, rimColor, separatorTop, sharedCameraLane,
 } from './restZonePanel';
 
 describe('restZone 판넬 시각', () => {
@@ -386,5 +386,70 @@ describe('같은 레인에서 맞닿은 restZone 잇기', () => {
   });
   it('restZone이 없으면 빈 배열이다', () => {
     expect(mergeTouchingRestZones([])).toEqual([]);
+  });
+});
+
+describe('판넬 테두리 색 계산', () => {
+  it('0x26263f를 2.6배 밝히면 채널마다 반올림해 0x6363a4다', () => {
+    expect(brightenColor(0x26263f, 2.6)).toBe(0x6363a4);
+  });
+  it('0x808080을 2.6배 밝히면 채널마다 255에서 멈춰 0xffffff다', () => {
+    expect(brightenColor(0x808080, 2.6)).toBe(0xffffff);
+  });
+  it('0x000000에서 0xffffff로 0.5만큼 섞으면 127.5를 반올림해 0x808080이다', () => {
+    expect(mixColor(0x000000, 0xffffff, 0.5)).toBe(0x808080);
+  });
+  it('0xff3344에서 0x333355로 0만큼 섞으면 0xff3344, 1만큼 섞으면 0x333355 그대로다', () => {
+    expect(mixColor(0xff3344, 0x333355, 0)).toBe(0xff3344);
+    expect(mixColor(0xff3344, 0x333355, 1)).toBe(0x333355);
+  });
+  it('밝은 레인색 둘레는 레인색을 2.6배 밝힌 색이라 짝수 레인 0x26263f → 0x6363a4, 홀수 레인 0x202038 → 0x535392다', () => {
+    expect(REST_PANEL_RIM_BRIGHTNESS).toBe(2.6);
+    expect(rimColor(0x26263f)).toBe(0x6363a4);
+    expect(rimColor(0x202038)).toBe(0x535392);
+  });
+});
+
+describe('판넬 좌우 변 띠', () => {
+  const base = { separatorColor: 0x333355, outlineWidth: 2, separatorWidth: 3 };
+
+  it('판넬 테두리 폭은 2다', () => {
+    expect(REST_PANEL_OUTLINE_WIDTH).toBe(2);
+  });
+  it('테두리가 있고 옆에 맞닿은 판넬이 없으면(seam 0) 진행도 0.5에서 폭 2·테두리 색 그대로·불투명도 0.5다', () => {
+    expect(panelEdgeStrip({ ...base, progress: 0.5, seam: 0, outlineColor: 0x6363a4 })).toEqual({
+      visible: true, width: 2, tint: 0x6363a4, alpha: 0.5,
+    });
+  });
+  it('테두리가 있고 옆 판넬이 다 넘어가 있으면(seam 1) 폭이 구분선 절반 1.5·색이 구분선 0x333355·불투명도는 자기 진행도 0.8이다', () => {
+    expect(panelEdgeStrip({ ...base, progress: 0.8, seam: 1, outlineColor: 0x6363a4 })).toEqual({
+      visible: true, width: 1.5, tint: 0x333355, alpha: 0.8,
+    });
+  });
+  it('테두리가 있고 옆 판넬이 반쯤 넘어가 있으면(seam 0.5) 폭 2와 1.5의 중간 1.75·색은 테두리와 구분선을 반씩 섞는다', () => {
+    expect(panelEdgeStrip({ ...base, progress: 1, seam: 0.5, outlineColor: 0x6363a4 })).toEqual({
+      visible: true, width: 1.75, tint: mixColor(0x6363a4, 0x333355, 0.5), alpha: 1,
+    });
+  });
+  it('테두리가 없고(outlineColor null) 옆 판넬도 없으면 띠를 그리지 않고 불투명도 0이다', () => {
+    const strip = panelEdgeStrip({ ...base, progress: 1, seam: 0, outlineColor: null });
+    expect(strip.visible).toBe(false);
+    expect(strip.alpha).toBe(0);
+  });
+  it('테두리가 없고 옆 판넬이 0.25만큼 넘어가 있으면 구분선 폭 절반 1.5·구분선 색으로 그리고 불투명도는 진행도 0.8 × 0.25 = 0.2다', () => {
+    const strip = panelEdgeStrip({ ...base, progress: 0.8, seam: 0.25, outlineColor: null });
+    expect(strip).toEqual({ visible: true, width: 1.5, tint: 0x333355, alpha: expect.closeTo(0.2, 12) });
+  });
+});
+
+describe('게임 판넬 시각 값', () => {
+  it('RFD 0034 결정 4대로 밝은 레인색 둘레·60°·원근 1.5·눈높이 0.5·300ms·빗금 밝기 1·간격 8·어둠 시작 0.4·윗변 밝기 0·묶기 켬·틈 메우기 켬이다', () => {
+    expect(REST_PANEL_LOOK).toEqual({
+      edge: 'rim', maxAngleDeg: 60, cameraDistance: 1.5, eyeHeight: 0.5, animMs: 300,
+      hatchBrightness: 1, stripeWidth: 8, fadeStart: 0.4, topBrightness: 0, mergeAdjacent: true, fillGaps: true,
+    });
+  });
+  it('게임 값으로 60° 넘어간 판넬의 화면 높이는 원래 높이의 50%다', () => {
+    expect(fallenHeightRatio(REST_PANEL_LOOK.maxAngleDeg * Math.PI / 180, REST_PANEL_LOOK)).toBeCloseTo(0.5, 12);
   });
 });
