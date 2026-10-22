@@ -31,7 +31,7 @@ const DEMO_NOTES = Array.from({ length: LANE_COUNT }, (_, lane) =>
   Array.from({ length: 32 }, (_, beat) => ({ lane, beat, ms: beat * BEAT_MS })),
 ).flat();
 const PHASE_LABEL: Record<RestPanelPhase, string> = {
-  up: '평상', falling: '꺼지는 중', down: '꺼짐', rising: '올라오는 중',
+  up: '평상', falling: '넘어가는 중', down: '넘어가 있음', rising: '올라오는 중',
 };
 const laneColor = (lane: number) => lane % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD;
 const SEPARATOR_WIDTH = playfieldPx(2);
@@ -397,7 +397,7 @@ export default function RestZoneLanePage() {
   const minZoneMs = minRestZoneMs(controls.estimatedDwellMs, controls.animMs);
   const groupStates = groupRestPanels(presetZones, controls.mergeAdjacent).map(group => {
     const timing = groupTiming(group, controls.estimatedDwellMs, controls.animMs);
-    // 빈 레인 창 [시작, 끝 − 추정 녹숫]의 가운데가 가장 많이 꺼진 순간이다.
+    // 빈 레인 창 [시작, 끝 − 추정 녹숫]의 가운데가 가장 많이 넘어간 순간이다.
     const peak = restPanelState((group.beat * BEAT_MS + timing.endMs) / 2, timing).progress;
     return { group, peak, zoneMs: (group.endBeat - group.beat) * BEAT_MS, ...restPanelState(timeMs, timing) };
   });
@@ -411,7 +411,7 @@ export default function RestZoneLanePage() {
       <header className="rest-zone-header">
         <Link to="/lab" aria-label="Preview Archive로 돌아가기">← Lab 목록</Link>
         <h1>restZone 레인 판넬</h1>
-        <p>restZone 동안 뒤로 꺼졌다 차트의 추정 녹숫에 맞춰 올라오는 레인을 확인합니다.</p>
+        <p>restZone 동안 뒤로 넘어갔다 차트의 추정 녹숫에 맞춰 올라오는 레인을 확인합니다.</p>
       </header>
       <div className="rest-zone-workbench">
         <section className="rest-zone-preview" aria-label="레인 미리보기">
@@ -445,19 +445,19 @@ export default function RestZoneLanePage() {
             <input type="range" min={0} max={LOOP_MS} step={1} value={timeMs} onChange={event => seek(Number(event.target.value))} aria-valuetext={`${seconds(timeMs)}초`} />
           </label>
           <p className="rest-zone-hint">
-            판넬은 restZone이 시작되면 {controls.animMs}ms 동안 꺼지고, restZone 끝 {seconds(controls.estimatedDwellMs)}초 전(추정 녹숫)까지 다 올라옵니다.
+            판넬은 restZone이 시작되면 {controls.animMs}ms 동안 넘어가고, restZone 끝 {seconds(controls.estimatedDwellMs)}초 전(추정 녹숫)까지 다 올라옵니다.
             모든 사용자가 같은 시각에 같은 연출을 봅니다.
           </p>
           {shortGroups.map(({ group, peak, zoneMs }) => (
             <p key={`${group.firstLane}:${group.beat}`} className="rest-zone-hint" role="note">
               {laneLabel(group)}: restZone {seconds(zoneMs)}초가 지침 최소 길이 {seconds(minZoneMs)}초(추정 녹숫 + 애니메이션 2번)보다 짧아
-              {peak > 0 ? ` 최대 ${Math.round(peak * 100)}%까지만 꺼집니다.` : ' 꺼지지 않습니다.'}
+              {peak > 0 ? ` 최대 ${Math.round(peak * 100)}%까지만 넘어갑니다.` : ' 넘어가지 않습니다.'}
             </p>
           ))}
         </section>
         <section className="rest-zone-controls" aria-label="판넬 조절">
           <h2>판넬 조절</h2>
-          <label className="rest-zone-control">꺼지는 각도 <span className="rest-zone-value">{controls.maxAngle}° · 꺼진 높이 {heightPercent}%</span>
+          <label className="rest-zone-control">넘어가는 각도 <span className="rest-zone-value">{controls.maxAngle}° · 넘어간 높이 {heightPercent}%</span>
             <input type="range" min={20} max={85} value={controls.maxAngle} onChange={event => update('maxAngle', Number(event.target.value))} />
           </label>
           <label className="rest-zone-control">원근 거리 <span className="rest-zone-value">{controls.cameraDistance.toFixed(1)}배</span>
