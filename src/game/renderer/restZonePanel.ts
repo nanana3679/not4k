@@ -59,8 +59,8 @@ export function restPanelTiming(startMs: number, endMs: number, dwellMs: number,
 
 /**
  * 차트 제작 지침의 restZone 최소 길이(ms). 넘어감(animMs)·올라옴(animMs)과, 다 올라온 뒤 다음 노트가 판정선까지 내려오는
- * 추정 녹숫(estimatedDwellMs)이 모두 restZone 안에 들어가야 판넬이 끝까지 꺼질 수 있다. 이보다 짧아도 restPanelTiming이
- * 올라옴을 (끝 − 추정 녹숫)에 끝내므로 추정 녹숫 이하의 설정에서 애니메이션 중에 노트가 보이지는 않고, 덜 꺼질 뿐이다.
+ * 추정 녹숫(estimatedDwellMs)이 모두 restZone 안에 들어가야 판넬이 끝까지 넘어갈 수 있다. 이보다 짧아도 restPanelTiming이
+ * 올라옴을 (끝 − 추정 녹숫)에 끝내므로 추정 녹숫 이하의 설정에서 애니메이션 중에 노트가 보이지는 않고, 덜 넘어갈 뿐이다.
  */
 export function minRestZoneMs(estimatedDwellMs: number, animMs: number): number {
   return Math.max(0, estimatedDwellMs) + 2 * Math.max(0, animMs);
