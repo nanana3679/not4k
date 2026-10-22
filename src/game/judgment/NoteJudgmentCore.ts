@@ -234,7 +234,12 @@ export class NoteJudgmentCore implements JudgmentCore {
   get combo(): number { return this.currentCombo; }
   /** 레인별 hold 수와 기준별 부족 시각의 읽기 전용 view (RFD 0032 §2-1, §2-2). */
   get laneHolds(): LaneHoldView { return this.holdView; }
-  /** `held`는 시작했고 실패·완료하지 않았으며 등록 키가 있는 unit이다(렌더러가 직접 계산하던 켜짐 조건과 같다). */
+  /**
+   * `held`는 시작했고 실패·완료하지 않았으며 등록 키가 있는 unit이다(렌더러가 직접 계산하던 켜짐 조건과 같다). 이 코어는 등록 키를
+   * 지우지 않고 시작할 때 키를 등록하므로, `held`는 사실상 시작했고 실패·완료하지 않은 unit이다. 키를 떼도 실패·완료가 확정될
+   * 때까지 true로 남는다(doubleLong을 A·B로 잡고 A를 떼면 B를 등록한 뒤 unit이 실패하고, A를 등록한 앞 unit은 true로 남는다). hold 수 코어는 레인
+   * hold 수가 요구보다 모자라면 false로 둘 수 있다(코어마다 유지 판단이 다르다).
+   */
   get unitStates(): readonly NoteJudgmentCoreUnitState[] {
     return this.units.map(u => ({
       noteIndex: u.noteIndex, unitIndex: u.unitIndex, hasStarted: u.active, failed: u.failed, complete: u.complete,

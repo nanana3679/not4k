@@ -47,8 +47,8 @@ export interface JudgmentUnitState {
   readonly failed: boolean;
   readonly complete: boolean;
   /**
-   * 지금 유지되고 있는가. 렌더러는 이 값으로 바디를 켠다(켜짐 표시). 시작했고 실패·완료하지 않았으며 지금 유지 중일 때만 true다.
-   * 유지 중인지는 코어가 정한다. `NoteJudgmentCore`는 이 unit에 등록한 키가 있으면 유지 중이다.
+   * 지금 유지되고 있는가 — 코어가 정한다. 렌더러는 이 값으로 바디를 켠다(켜짐 표시). 실패·완료한 unit은 false다.
+   * 유지 판단은 코어마다 다르다. 예를 들어 `NoteJudgmentCore`는 키를 떼도 실패·완료가 확정될 때까지 true로 둔다.
    */
   readonly held: boolean;
 }

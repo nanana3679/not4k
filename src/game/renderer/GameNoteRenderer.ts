@@ -678,8 +678,8 @@ export class GameNoteRenderer {
       capacity = Math.min(capacity, available.length);
       if (capacity === 0) return 0;
 
-      const held = available.filter((unit) => unit.held).length;
-      if (held > 0) return Math.min(capacity, held);
+      const heldCount = available.filter((unit) => unit.held).length;
+      if (heldCount > 0) return Math.min(capacity, heldCount);
       if (state.units.some((unit) => unit.hasStarted)) return 0;
 
       const predecessor = this.connectedPredecessor.get(current);
