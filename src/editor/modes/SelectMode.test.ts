@@ -744,6 +744,111 @@ describe("SelectMode — 모바일 터치 선택", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 터치 탭 tapAt — 뗀 시점에 발화하는 탭은 down+up 한 쌍이다 (#154)
+// 아래 호출 순서는 useCanvasEvents를 그대로 따른다: 탭 up에서 tapAt, 빈 곳 박스는 move·up마다
+// onPointerDown(시작점 재생) 뒤 onPointerMove/onPointerUp, 노트 위 드래그는 beginBoxSelect 승격.
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — 터치 탭 tapAt (down+up 한 쌍, #154)", () => {
+  // 노트 0 = lane 1·beat 0 → 좌표 (1, 0), 노트 1 = lane 2·beat 1 → 좌표 (2, 1)
+  function setupTwoNotes() {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 2 as Lane, beat: beat(1) },
+      ],
+    });
+    const cb = makeCallbacks({
+      hitTestNote: (x: number, y: number) =>
+        x === 1 && y === 0 ? 0 : x === 2 && y === 1 ? 1 : null,
+      yToBeat: (y: number): Beat => beat(y),
+      yToBeatRaw: (y: number): Beat => beat(y),
+    });
+    const mode = makeMode(chart, cb);
+    const priv = mode as unknown as { chart: Chart };
+    return { cb, mode, priv };
+  }
+
+  it("래치 off에서 미선택 노트 0을 tapAt(1, 0, false)하면 선택이 {0}이 되고 isMoveDragging은 false다", () => {
+    const { cb, mode } = setupTwoNotes();
+
+    mode.tapAt(1, 0, false);
+
+    expect([...cb.getSelectionState().notes]).toEqual([0]);
+    expect(mode.isMoveDragging).toBe(false);
+  });
+
+  it("래치 off에서 이미 선택된 노트 0을 tapAt(1, 0, false)해도 선택 {0}을 유지하고 isMoveDragging은 false다", () => {
+    const { cb, mode } = setupTwoNotes();
+    mode.selectNote(0);
+
+    mode.tapAt(1, 0, false);
+
+    expect([...cb.getSelectionState().notes]).toEqual([0]);
+    expect(mode.isMoveDragging).toBe(false);
+  });
+
+  it("노트 0을 tapAt한 뒤 빈 곳 (3, 5)에서 (2, 0)까지 박스를 끌면 박스가 그려져 노트 1만 선택되고 노트 0은 lane 1·beat 0에 남는다", () => {
+    const { cb, mode, priv } = setupTwoNotes();
+    mode.tapAt(1, 0, false);
+
+    mode.onPointerDown(3, 5, false, false);
+    const result = mode.onPointerMove(2, 0);
+
+    expect(mode.isBoxSelecting).toBe(true);
+    expect(result.preview?.boxSelectRect).toEqual({ startY: 5, startLane: 3, endY: 0, endLane: 2 });
+
+    mode.onPointerDown(3, 5, false, false);
+    mode.onPointerUp(2, 0);
+
+    expect(priv.chart.notes[0]).toMatchObject({ lane: 1, beat: beat(0) });
+    expect(cb.getSelectionState().notes).toEqual(new Set([1])); // lane 2~3 × beat 0~5
+  });
+
+  it("노트 0을 tapAt한 뒤 노트 1 위 (2, 1)에서 시작한 드래그를 beginBoxSelect로 승격하면 박스가 그려져 노트 1만 선택되고 노트 0은 lane 1·beat 0에 남는다", () => {
+    const { cb, mode, priv } = setupTwoNotes();
+    mode.tapAt(1, 0, false);
+
+    mode.beginBoxSelect(2, 1);
+    mode.onPointerDown(2, 1, false, false);
+    const result = mode.onPointerMove(4, 3);
+
+    expect(mode.isBoxSelecting).toBe(true);
+    expect(result.preview?.boxSelectRect).toEqual({ startY: 1, startLane: 2, endY: 3, endLane: 4 });
+
+    mode.onPointerDown(2, 1, false, false);
+    mode.onPointerUp(4, 3);
+
+    expect(priv.chart.notes[0]).toMatchObject({ lane: 1, beat: beat(0) });
+    expect(cb.getSelectionState().notes).toEqual(new Set([1])); // lane 2~4 × beat 1~3
+  });
+
+  it("래치 on에서 선택 {0, 1} 중 노트 0을 tapAt(1, 0, true)하면 선택이 {1}로 줄고 isMoveDragging은 false다", () => {
+    const { cb, mode } = setupTwoNotes();
+    mode.selectNote(0);
+    addNotesToSelection(cb, 1);
+
+    mode.tapAt(1, 0, true);
+
+    expect([...cb.getSelectionState().notes]).toEqual([1]);
+    expect(mode.isMoveDragging).toBe(false);
+  });
+
+  it("마우스 onPointerDown(1, 0)은 이동 드래그를 열고 move·up (3, 2)에서 노트 0을 lane 3·beat 2로 옮긴다(tapAt 도입 전과 동일)", () => {
+    const { mode, priv } = setupTwoNotes();
+
+    mode.onPointerDown(1, 0, false, false);
+    expect(mode.isMoveDragging).toBe(true); // 마우스는 물리 up이 따로 와서 닫는다
+
+    mode.onPointerMove(3, 2);
+    mode.onPointerUp(3, 2);
+
+    expect(mode.isMoveDragging).toBe(false);
+    expect(priv.chart.notes[0]).toMatchObject({ lane: 3, beat: beat(2) });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 롱노트 끝 캡 리사이즈 (미선택 상태에서 한 동작으로)
 // ---------------------------------------------------------------------------
 
