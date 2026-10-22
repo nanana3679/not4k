@@ -424,17 +424,18 @@ export class OverlayRenderer {
     }
 
     // 이벤트: editorLane 좌표계(엑스트라 레인) — 구간 이벤트('endBeat' 보유)는 endMs까지, 시점 이벤트는 포인트 (RFD 0017 §7).
+    // 폭은 이벤트 마커(GridRenderer.renderMarkers)와 같은 칸 폭 EXTRA_LANE_WIDTH.
     for (const idx of this.host.violatingEventIndices) {
       if (idx >= this.host.chart.events.length) continue;
       const evt = this.host.chart.events[idx];
       const rectX = eventLaneToX(evt.editorLane ?? 1);
       const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
       const endMs = "endBeat" in evt ? beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs) : null;
-      this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
+      this.drawViolationHatchAt(rectX, EXTRA_LANE_WIDTH, startMs, endMs, minTimeMs, maxTimeMs);
     }
   }
 
-  /** 한 레인의 [startMs, endMs] 구간(endMs=null이면 포인트)에 빨간 해칭을 그린다. 화면 밖은 건너뛴다. */
+  /** 한 레인의 [startMs, endMs] 구간(endMs=null이면 포인트)에 레인 칸 폭(laneWidth)만큼 빨간 해칭을 그린다. 화면 밖은 건너뛴다. */
   private drawViolationHatch(
     lane: number,
     startMs: number,
@@ -442,19 +443,21 @@ export class OverlayRenderer {
     minTimeMs: number,
     maxTimeMs: number,
   ): void {
-    const rectX = laneToX(lane) + (laneWidth(lane) - NOTE_HEIGHT * 5) / 2;
-    this.drawViolationHatchAt(rectX, startMs, endMs, minTimeMs, maxTimeMs);
+    this.drawViolationHatchAt(laneToX(lane), laneWidth(lane), startMs, endMs, minTimeMs, maxTimeMs);
   }
 
-  /** rectX 기준 해칭 코어 — 메인 레인·엑스트라 레인이 x 계산만 달리해 공유한다. */
+  /**
+   * x=rectX에서 폭 width인 칸을 채우는 해칭 코어 — 레인(laneToX·laneWidth)과 이벤트 editorLane 칸
+   * (eventLaneToX·EXTRA_LANE_WIDTH)이 x와 폭만 달리해 공유한다.
+   */
   private drawViolationHatchAt(
     rectX: number,
+    width: number,
     startMs: number,
     endMs: number | null,
     minTimeMs: number,
     maxTimeMs: number,
   ): void {
-    const w = NOTE_HEIGHT * 5;
     const h = NOTE_HEIGHT;
 
     let topY: number;
@@ -475,17 +478,17 @@ export class OverlayRenderer {
     }
 
     const gfx = new Graphics();
-    gfx.rect(rectX, topY, w, height);
+    gfx.rect(rectX, topY, width, height);
     gfx.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA * 0.5 });
 
     const spacing = Math.max(4, Math.min(8, height * 0.6));
     gfx.setStrokeStyle({ width: 1, color: COLORS.VIOLATION_HATCH, alpha: COLORS.VIOLATION_HATCH_ALPHA });
-    for (let d = -height; d < w; d += spacing) {
+    for (let d = -height; d < width; d += spacing) {
       const x1 = Math.max(0, d);
       const y1 = Math.max(0, -d);
-      const x2 = Math.min(w, d + height);
-      const y2 = Math.min(height, w - d);
-      if (x1 < w && x2 > 0 && y1 < height && y2 > 0) {
+      const x2 = Math.min(width, d + height);
+      const y2 = Math.min(height, width - d);
+      if (x1 < width && x2 > 0 && y1 < height && y2 > 0) {
         gfx.moveTo(rectX + x1, topY + y1);
         gfx.lineTo(rectX + x2, topY + y2);
       }

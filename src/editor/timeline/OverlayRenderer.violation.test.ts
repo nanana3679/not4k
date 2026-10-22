@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { Container } from "pixi.js";
+import type { Graphics, GraphicsPath, Polygon, Rectangle } from "pixi.js";
 import { beat, chartViolationIndices } from "../../shared";
 import type { Chart, BpmMarker, NoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
@@ -27,14 +28,29 @@ function makeChart(
   };
 }
 
-/** private 해칭 코어를 스파이해 rectX·startMs·endMs 인자를 검증한다. */
+/** private 해칭 코어의 시그니처. 인자를 스파이로 검증하거나 임의 폭으로 직접 호출할 때 쓴다. */
+type HatchCore = {
+  drawViolationHatchAt(
+    rectX: number, width: number, startMs: number, endMs: number | null, minTimeMs: number, maxTimeMs: number,
+  ): void;
+};
+
+/** private 해칭 코어를 스파이해 rectX·width·startMs·endMs 인자를 검증한다. */
 function spyHatchCore(r: OverlayRenderer) {
-  return vi.spyOn(
-    r as unknown as {
-      drawViolationHatchAt(rectX: number, startMs: number, endMs: number | null, minTimeMs: number, maxTimeMs: number): void;
-    },
-    "drawViolationHatchAt",
-  );
+  return vi.spyOn(r as unknown as HatchCore, "drawViolationHatchAt");
+}
+
+/** 해칭 Graphics에서 반투명 사각형(fill)과 해칭 선분(stroke, 선분마다 [x1, y1, x2, y2])을 꺼낸다. */
+function hatchShapes(g: Graphics): { rect: Rectangle; segments: number[][] } {
+  const fills = g.context.instructions.filter(instruction => instruction.action === "fill");
+  const strokes = g.context.instructions.filter(instruction => instruction.action === "stroke");
+  // 해칭이 그려지지 않았으면 TypeError 대신 읽을 수 있는 실패로 끝낸다.
+  expect(fills).toHaveLength(1);
+  expect(strokes).toHaveLength(1);
+  const rect = (fills[0].data as { path: GraphicsPath }).path.shapePath.shapePrimitives[0].shape as Rectangle;
+  const segments = (strokes[0].data as { path: GraphicsPath }).path.shapePath.shapePrimitives
+    .map(primitive => (primitive.shape as Polygon).points);
+  return { rect, segments };
 }
 
 function makeHost(
@@ -135,8 +151,8 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     r.renderViolationOverlay();
     // 120 BPM에서 beat 2 = 1000ms, 포인트 이벤트라 endMs=null
     expect(spy).toHaveBeenCalledTimes(2);
-    expect(spy).toHaveBeenNthCalledWith(1, TIMELINE_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
-    expect(spy).toHaveBeenNthCalledWith(2, TIMELINE_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
+    expect(spy).toHaveBeenNthCalledWith(1, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
+    expect(spy).toHaveBeenNthCalledWith(2, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
     expect(host.violationLayer.children.length).toBe(2);
   });
 
@@ -149,7 +165,7 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     const spy = spyHatchCore(r);
     r.renderViolationOverlay();
     expect(spy).toHaveBeenCalledExactlyOnceWith(
-      TIMELINE_WIDTH + EXTRA_LANE_WIDTH, 0, 2000, expect.any(Number), expect.any(Number),
+      TIMELINE_WIDTH + EXTRA_LANE_WIDTH, EXTRA_LANE_WIDTH, 0, 2000, expect.any(Number), expect.any(Number),
     );
     expect(host.violationLayer.children.length).toBe(1);
   });
@@ -163,8 +179,35 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     const spy = spyHatchCore(r);
     r.renderViolationOverlay();
     expect(spy).toHaveBeenCalledExactlyOnceWith(
-      TIMELINE_WIDTH, 0, 1000, expect.any(Number), expect.any(Number),
+      TIMELINE_WIDTH, EXTRA_LANE_WIDTH, 0, 1000, expect.any(Number), expect.any(Number),
     );
+  });
+
+  it("위반 이벤트(editorLane 3) 해칭은 x=TIMELINE_WIDTH+2*EXTRA_LANE_WIDTH에서 폭 EXTRA_LANE_WIDTH로 그려진다", () => {
+    const chart = makeChart([], [], [
+      { type: "text", beat: beat(0), endBeat: beat(2), text: "hi", editorLane: 3 },
+    ]);
+    const host = makeHost(chart, new Set(), new Set(), new Set([0]));
+    const r = new OverlayRenderer(host);
+    const spy = spyHatchCore(r);
+    r.renderViolationOverlay();
+    expect(spy).toHaveBeenCalledExactlyOnceWith(
+      TIMELINE_WIDTH + 2 * EXTRA_LANE_WIDTH, EXTRA_LANE_WIDTH, 0, 1000, expect.any(Number), expect.any(Number),
+    );
+  });
+
+  it("위반 노트 해칭 폭은 laneWidth(lane): 메인 lane 2는 x=LANE_WIDTH·폭 LANE_WIDTH, 보조 lane 5는 x=TIMELINE_WIDTH·폭 EXTRA_LANE_WIDTH (RFD 0018)", () => {
+    const chart = makeChart([
+      { type: "single", lane: 2, beat: beat(0) },
+      { type: "single", lane: 5, beat: beat(0) },
+    ]);
+    const host = makeHost(chart, new Set([0, 1]), new Set());
+    const r = new OverlayRenderer(host);
+    const spy = spyHatchCore(r);
+    r.renderViolationOverlay();
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenNthCalledWith(1, LANE_WIDTH, LANE_WIDTH, 0, null, expect.any(Number), expect.any(Number));
+    expect(spy).toHaveBeenNthCalledWith(2, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, 0, null, expect.any(Number), expect.any(Number));
   });
 
   it("이벤트 위반만 있어도(노트·트릴존 위반 0) 조기 반환 게이트를 통과해 해칭이 그려진다", () => {
@@ -195,9 +238,9 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     const r = new OverlayRenderer(host);
     const spy = spyHatchCore(r);
     r.renderViolationOverlay();
-    // rectX = laneToX(3) + (LANE_WIDTH - NOTE_HEIGHT*5)/2 = 2*LANE_WIDTH + 0
+    // rectX = laneToX(3) = 2*LANE_WIDTH, 폭 = laneWidth(3) = LANE_WIDTH
     expect(spy).toHaveBeenCalledExactlyOnceWith(
-      2 * LANE_WIDTH, 0, 2000, expect.any(Number), expect.any(Number),
+      2 * LANE_WIDTH, LANE_WIDTH, 0, 2000, expect.any(Number), expect.any(Number),
     );
   });
 
@@ -227,5 +270,20 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     const r = new OverlayRenderer(host);
     r.renderViolationOverlay();
     expect(host.violationLayer.children.length).toBe(0);
+  });
+});
+
+describe("OverlayRenderer.drawViolationHatchAt 해칭 기하", () => {
+  it("해칭 코어에 x=100·폭 80을 넘기면 NOTE_HEIGHT*5(60)와 무관하게 사각형(fill)은 x 100~180을 덮고 해칭 선분도 x 100~180 안에서 오른쪽 끝 180까지 닿는다", () => {
+    const host = makeHost(makeChart([]), new Set(), new Set());
+    const r = new OverlayRenderer(host);
+    (r as unknown as HatchCore).drawViolationHatchAt(100, 80, 0, null, -1_000_000, 1_000_000);
+    expect(host.violationLayer.children.length).toBe(1);
+    const { rect, segments } = hatchShapes(host.violationLayer.children[0] as Graphics);
+    expect(rect.x).toBe(100);
+    expect(rect.width).toBe(80);
+    const xs = segments.flatMap(points => points.filter((_, i) => i % 2 === 0));
+    expect(Math.min(...xs)).toBe(100);
+    expect(Math.max(...xs)).toBe(180);
   });
 });
