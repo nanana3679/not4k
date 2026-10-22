@@ -62,8 +62,8 @@ expectedDeltaPxPerFrame = scrollSpeed / targetFps
 
 - `actualDeltaPx`가 `expectedDeltaPxPerFrame`과 일치하면 프레임이 안정적
 - Summary의 `speedConsistency` (표준편차)가 0에 가까울수록 이상적
-  - 0~1px: 매우 안정
-  - 1~3px: 정상
+  - 0～1px: 매우 안정
+  - 1～3px: 정상
   - 3px 초과: 프레임 드랍 또는 렌더링 지연 의심
 
 ### 이상 징후 진단

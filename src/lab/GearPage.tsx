@@ -419,7 +419,7 @@ export default function GearPage() {
               width={stageWidth}
               resolution={screenResolution}
               gearOffsetY={rendererOffsetY}
-              lift={liftPx(liftPercent)}
+              lift={liftPx(liftPercent, rendererOffsetY)}
               altitudeOverride={altitudeOverride}
               keyboardBindings={keyboardBindings}
               sharedSkin={sharedSkin}
@@ -460,7 +460,7 @@ export default function GearPage() {
             <dl>
               <div>
                 <dt>판정선</dt>
-                <dd>{formatLiftPercent(judgment.liftPercent)} · y {judgment.lineY}</dd>
+                <dd>{formatLiftPercent(judgment.liftPercent, gearOffsetY)} · y {judgment.lineY}</dd>
               </div>
               <div>
                 <dt>판정선 · 덱 틈</dt>
@@ -499,7 +499,7 @@ export default function GearPage() {
           <div className="gear-preview-slider">
             <div className="gear-preview-slider-head">
               <label htmlFor="gear-preview-lift">리프트(판정선 높이)</label>
-              <output htmlFor="gear-preview-lift">{formatLiftPercent(liftPercent)}</output>
+              <output htmlFor="gear-preview-lift">{formatLiftPercent(liftPercent, gearOffsetY)}</output>
             </div>
             <input
               id="gear-preview-lift"
@@ -511,7 +511,8 @@ export default function GearPage() {
               onChange={(event) => setLiftPercent(clampLiftPercent(Number(event.currentTarget.value)))}
             />
             <p className="gear-preview-note">
-              게임 설정의 리프트와 같은 값(1% = 6 단위)입니다. 판정선과 딸린 표시만 올라가고 기어와 레인 끝(키 윗면)은 움직이지 않습니다.
+              {`게임 설정의 리프트와 같은 값입니다. 서든과 같이 레인 위끝부터 리프트 0% 판정선까지를 100%로 봐서 지금 y 오프셋에서는 1% = ${liftPx(1, gearOffsetY)} 단위입니다. `}
+              판정선과 딸린 표시만 올라가고 기어와 레인 끝(키 윗면)은 움직이지 않습니다.
               게임 설정은 0~100%를 허용하지만 여기서는 0~{LIFT_PERCENT_MAX}%만 봅니다.
             </p>
           </div>
@@ -758,7 +759,7 @@ function GearPreviewRenderer({
   resolution: number;
   /** 렌더러 생성 옵션 gearOffsetY(기어와 판정선을 함께 내리는 논리 px). key에 들어가 바뀌면 렌더러를 새로 만든다. */
   gearOffsetY: number;
-  /** 리프트(논리 단위). 바뀌면 렌더러를 유지한 채 setLift로 옮긴다. */
+  /** 리프트(논리 단위). 같은 gearOffsetY로 바꾼 값(`liftPx(%, gearOffsetY)`)이라야 판정선이 설명의 `describeGearJudgment`와 맞는다. 바뀌면 렌더러를 유지한 채 setLift로 옮긴다. */
   lift: number;
   /** 고도 고정값(0~1). null이면 렌더러 고도 모델을 따른다. 바뀌면 렌더러를 유지한 채 setAltitudeOverride로 건다. */
   altitudeOverride: number | null;

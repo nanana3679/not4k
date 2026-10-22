@@ -11,7 +11,7 @@
          timeStamp → JS 핸들러                         handlerDelay
 ```
 
-`AudioEngine.currentTimeMs`는 `AudioContext.currentTime` 기반 곡 위치 P다. 실제 경과 시간에 실제 배속 r(`AudioEngine.playbackRate`, 0.1~4.0)을 곱하며, `gameplayRange`의 시작을 0ms로 삼는다. 브라우저가 보고하는 출력 지연과 사용자 오프셋·handlerDelay는 실제 시간 ms이므로 곡 시간에 적용할 때 r을 곱한다.
+`AudioEngine.currentTimeMs`는 `AudioContext.currentTime` 기반 곡 위치 P다. 실제 경과 시간에 실제 배속 r(`AudioEngine.playbackRate`, 0.1～4.0)을 곱하며, `gameplayRange`의 시작을 0ms로 삼는다. 브라우저가 보고하는 출력 지연과 사용자 오프셋·handlerDelay는 실제 시간 ms이므로 곡 시간에 적용할 때 r을 곱한다.
 
 ## 보정 설계
 
@@ -47,7 +47,7 @@ handlerDelay = max(0, performance.now() − event.timeStamp)
 | Input Offset | `inputOffsetMs` | 입력 장치 지연·개인 체감 | SLOW면 음수, FAST면 양수 |
 | Visual Offset | `visualOffsetMs` | 화면 표시 지연 D | 화면이 소리보다 늦으면 양수 |
 
-둘 다 기본 0, 실제 시간 ms로 숫자 입력한다. 포커스를 옮겨 입력을 확정할 때와 저장 설정을 병합할 때 모두 −1000~+1000ms로 제한한다. 유효하지 않거나 유한하지 않은 숫자는 0ms로 둔다. 출력 장치 지연은 L₀가 맡으므로 Audio Offset은 제거했다. 저장 설정의 `audioOffsetMs`·`judgmentOffsetMs`·`offsetMs`를 읽을 때 버리고 이전하지 않는다. 차트 오프셋 `offsetMs`는 음원과 차트의 정렬을 맡으며 그대로다.
+둘 다 기본 0, 실제 시간 ms로 숫자 입력한다. 포커스를 옮겨 입력을 확정할 때와 저장 설정을 병합할 때 모두 −1000～+1000ms로 제한한다. 유효하지 않거나 유한하지 않은 숫자는 0ms로 둔다. 출력 장치 지연은 L₀가 맡으므로 Audio Offset은 제거했다. 저장 설정의 `audioOffsetMs`·`judgmentOffsetMs`·`offsetMs`를 읽을 때 버리고 이전하지 않는다. 차트 오프셋 `offsetMs`는 음원과 차트의 정렬을 맡으며 그대로다.
 
 Calibrate 진입은 새 경로 구현 전까지 숨긴다. PR 2는 비프에 맞춘 탭으로 입력 오프셋을, PR 3은 비프와 떨어지는 노트를 보고 시각 오프셋을 맞춘다. 세부 설계는 RFD 0031을 따른다.
 

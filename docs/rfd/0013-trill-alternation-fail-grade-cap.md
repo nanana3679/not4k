@@ -25,7 +25,7 @@ if (교대 실패) grade = GOOD_TRILL;        // BAD를 Good◇(1점)로 '상향
 
 ## 2. 재현 (확정)
 
-일반 트릴 노트 2개(1000ms, 1200ms). 첫 노트 KeyA(Perfect)로 교대 기록 후, 둘째 노트를 delta=+140ms(Late Bad 윈도우 120~160)에 **같은 KeyA**로 침(교대 실패).
+일반 트릴 노트 2개(1000ms, 1200ms). 첫 노트 KeyA(Perfect)로 교대 기록 후, 둘째 노트를 delta=+140ms(Late Bad 윈도우 120～160)에 **같은 KeyA**로 침(교대 실패).
 
 ```
 기대(스펙 의도): Bad — 타이밍이 Good보다 나쁘므로
@@ -48,7 +48,7 @@ if (교대 실패) grade = GOOD_TRILL;        // BAD를 Good◇(1점)로 '상향
 - 타이밍 등급이 **Good 이상**(Perfect/Great/Good)일 때만 교대 실패가 Good◇로 **끌어내린다**.
 - 타이밍 등급이 **Good보다 나쁘면**(Bad/Miss) 그 타이밍 등급을 **그대로 유지**한다.
 
-Grace 트릴도 동일하다(§486): Grace는 타이밍 부담을 제거해 Good 윈도우 전체를 Perfect로 매핑하지만, Late Bad(120~160)는 여전히 Bad다. 그 Bad에 교대 실패가 겹쳐도 Good◇로 상향되지 않는다.
+Grace 트릴도 동일하다(§486): Grace는 타이밍 부담을 제거해 Good 윈도우 전체를 Perfect로 매핑하지만, Late Bad(120～160)는 여전히 Bad다. 그 Bad에 교대 실패가 겹쳐도 Good◇로 상향되지 않는다.
 
 ## 5. 대안 검토
 

@@ -117,23 +117,24 @@ test.describe("Lab preview catalog", () => {
       }
       await seek('4150');
       await expect(page.getByLabel('현재 판넬 상태')).toContainText('진행도 25%');
-      // 리프트 30%면 사용자 녹숫이 약 711ms로 줄지만 렌더러는 그대로 10.5초에 판넬을 다 올려 둔다.
+      // 리프트 30%(레인 위끝~리프트 0% 판정선 426의 30% = 127.8, #291)면 판정선이 y 298.2로 올라 사용자 녹숫이
+      // (298.2 + 6.25)px ÷ 355px/초 ≈ 858ms로 줄지만 렌더러는 그대로 10.5초에 판넬을 다 올려 둔다.
       await seek('10600');
       await page.getByLabel(/^리프트/).fill('30');
-      await expect(dwell).toHaveAttribute('data-note-dwell-ms', '711');
-      await expect(gap).toContainText('추정보다 0.79초 빠른 설정입니다');
+      await expect(dwell).toHaveAttribute('data-note-dwell-ms', '858');
+      await expect(gap).toContainText('추정보다 0.64초 빠른 설정입니다');
       await expect(phase).toHaveAttribute('data-panel-phase', 'up');
       await expect(stageHost).toHaveAttribute('data-drawn-progress', '0.000');
       // 판넬이 꺼져 있는 7초에서 리프트·서든·테두리를 바꾸면 렌더러가 판넬 텍스처를 그 높이·테두리로 다시 만든다.
       await seek('7000');
       await expect(stageHost).toHaveAttribute('data-drawn-progress', '1.000');
-      await expect(stageHost).toHaveAttribute('data-panel-texture-height', '246'); // 리프트 30%: 판정선 426 − 180
+      await expect(stageHost).toHaveAttribute('data-panel-texture-height', '298'); // 리프트 30%: 판정선 426 − 127.8 = 298.2를 반올림
       await page.getByLabel(/^리프트/).fill('0');
       await expect(stageHost).toHaveAttribute('data-panel-texture-height', '426');
-      // 서든 20%면 위 120px가 가려져 판넬 높이 306, 사용자 녹숫 약 880ms다.
+      // 서든 20%면 위 85.2(426의 20%)가 가려져 판넬 높이 340.8(텍스처 341), 사용자 녹숫 (340.8 + 6.25) ÷ 355 ≈ 978ms다.
       await page.getByLabel(/^서든/).fill('20');
-      await expect(dwell).toHaveAttribute('data-note-dwell-ms', '880');
-      await expect(stageHost).toHaveAttribute('data-panel-texture-height', '306');
+      await expect(dwell).toHaveAttribute('data-note-dwell-ms', '978');
+      await expect(stageHost).toHaveAttribute('data-panel-texture-height', '341');
       await page.getByLabel(/^서든/).fill('0');
       await expect(stageHost).toHaveAttribute('data-panel-texture-height', '426');
       for (const style of ['red-stripe', 'rim', 'none', 'red-outline']) {

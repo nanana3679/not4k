@@ -10,7 +10,7 @@
 
 ### 레인 (Lane)
 
-화면에 표시되는 노트 낙하 경로. not4k에는 항상 4개의 레인(L1~L4)이 존재한다. 레인의 수는 변하지 않으며, 유저가 바인딩하는 키의 수만 변한다.
+화면에 표시되는 노트 낙하 경로. not4k에는 항상 4개의 레인(L1～L4)이 존재한다. 레인의 수는 변하지 않으며, 유저가 바인딩하는 키의 수만 변한다.
 
 ### 레인 분할 (Lane Split)
 
@@ -31,7 +31,7 @@
 - **배치**: [RFD 0029](../rfd/0029-frame-aspect-fit-narrow-lanes.md)에 따라 그림 한 장을 비율 그대로 줄여 그림 속 레인 창을 게임 레인 영역에 정확히 맞추고, 기어 아래끝을 화면 아래보다 [기어 y 오프셋](#오프셋-구분) `GEAR_OFFSET_Y`(10, 화면 y축이라 +가 아래)만큼 아래에 고정한다. 리프트 0%의 판정선도 같은 양만큼 함께 내려(y 426) 판정선과 덱·키 윗면 사이 틈은 y 오프셋 0일 때와 같고, 기어 아래쪽 원본 약 22행은 화면 밖으로 잘린다([#257](https://github.com/nanana3679/not4k/issues/257)). 리프트와 무관하게 움직이지 않는다. 레인은 키 윗면에서 끝난다(레인 끝, `GameRenderer`의 `laneEndY`). 레인 배경은 레인 끝까지만 그리고, 노트·롱노트·마디선·`trillZone`·`restZone`·키빔을 담은 `laneContentLayer`는 레인 끝 위 사각형 클립(`laneEndClip`)으로 자른다([#247](https://github.com/nanana3679/not4k/issues/247)). 판정선·키봄·판정 글자와 기어는 클립 밖이다. 기어를 그리지 않는 렌더러(튜토리얼 재생기·노트 에셋 시연실)의 레인 끝은 판정선 + 노트 반 칸이다.
 - **에셋**: 지금은 스킨 공용 에셋(기어 그림 `public/gear/gear.png`, 스킨 매니페스트 키 `gearImage`와 그 유리관에 겹치는 고도 게이지 빈 유리 `public/gear/gear-gauge-empty.png`, 키 `gearGaugeEmpty`)을 모든 스킨이 함께 쓴다. 그래서 기어 이름에는 Classic 같은 노트 스킨 이름을 붙이지 않는다. 스킨마다 다른 기어를 쓸지는 [PRD §12](../prd.md#12-미정-사항)에서 추적하며, 그렇게 되면 노트 스킨 이름이 아니라 기어 디자인 이름으로 나눈다(예: `public/gear/<디자인>/`).
 - **`gearMotion`**: 기어 위에 추가(`addGearOverlay`)하는 장식 애니메이션이다(광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛, 구 표기: 기어 움직임). 애니메이션 경과 시간(`GearMotionControls.timeMs`)은 곡 시간(`GameClock`)이 아니라 렌더 프레임 간격(`renderFrame`의 `deltaMs`) 누적으로만 나아가 일시정지 중에는 멈춘다. "움직이다"는 위치가 바뀌는 것(노트 스크롤, 리프트로 오르는 판정선)에만 쓰고 이 애니메이션에는 쓰지 않는다. 설정 `Gear Motion`(기본 켬)을 끄면 만들지 않으며, 운영체제의 모션 감소 설정(`prefers-reduced-motion`, macOS·iOS '동작 줄이기', Android '애니메이션 삭제', Windows 11 '애니메이션 효과')은 따르지 않는다([RFD 0030](../rfd/0030-ignore-os-reduced-motion.md)). 에셋(`gear-motion.json`과 텍스처)은 `public/gear/gear-motion/`에 둔다.
-- **유리관 게이지(고도 게이지)**: 기어 양옆 유리관이 `altitude`(0~1)를 아래 기준 채움으로 보여 준다. 두 유리관은 같은 값이고, 비행 배경과 같은 프레임의 같은 고도를 쓴다. 기어 그림의 가득 찬 유리관 위에 빈 유리(스킨 공용 `gearGaugeEmpty`)를 위에서부터 채움 경계까지 덮으며, 경계 8행은 부드럽게 옅어진다(채움 1은 그림 그대로, 0은 전부 빈 유리). 값이 바뀌면 약 300ms ease-out 느낌으로 따라가고(렌더 프레임 간격 `deltaMs`로 나아감, 일시정지 중 멈춤, `prefers-reduced-motion`과 무관), `setChart` 때와 warm-up(`prepareForPlayback`)의 첫 프레임에는 이징 없이 바로 맞춘다. 낮은 고도에서도 색을 바꾸거나 경고하지 않는다([비행 콘셉트](../design/flight-concept.md)). `gearMotion`의 게이지 액체·기포는 채운 부분에서만 보인다. 기어를 그리지 않는 렌더러(튜토리얼·노트 에셋 재생기)에는 없다.
+- **유리관 게이지(고도 게이지)**: 기어 양옆 유리관이 `altitude`(0～1)를 아래 기준 채움으로 보여 준다. 두 유리관은 같은 값이고, 비행 배경과 같은 프레임의 같은 고도를 쓴다. 기어 그림의 가득 찬 유리관 위에 빈 유리(스킨 공용 `gearGaugeEmpty`)를 위에서부터 채움 경계까지 덮으며, 경계 8행은 부드럽게 옅어진다(채움 1은 그림 그대로, 0은 전부 빈 유리). 값이 바뀌면 약 300ms ease-out 느낌으로 따라가고(렌더 프레임 간격 `deltaMs`로 나아감, 일시정지 중 멈춤, `prefers-reduced-motion`과 무관), `setChart` 때와 warm-up(`prepareForPlayback`)의 첫 프레임에는 이징 없이 바로 맞춘다. 낮은 고도에서도 색을 바꾸거나 경고하지 않는다([비행 콘셉트](../design/flight-concept.md)). `gearMotion`의 게이지 액체·기포는 채운 부분에서만 보인다. 기어를 그리지 않는 렌더러(튜토리얼·노트 에셋 재생기)에는 없다.
 - **코드 식별자**: `gearImage`(스킨 매니페스트 키·텍스처, 기어 바탕 그림), `gearGaugeEmpty`(스킨 매니페스트 키·텍스처, 고도 게이지 빈 유리 아틀라스 `public/gear/gear-gauge-empty.png`), `showGear`·`gearOffsetY`(렌더러 옵션, 기어를 그릴 때 기본 `GEAR_OFFSET_Y`), `constants.ts`의 `GEAR_OFFSET_Y`, `GameRenderer`의 `gearLayer`·`buildGear`·`buildGearGauge`, 레인 끝 `laneEndY`·`laneContentLayer`·`laneEndClip`, `gearGeometry.json`·`gearLayout.ts`의 `GearLayout`·`GearGeometry`(`silhouetteBottom`·`gauge` 등)·`GearGaugeGeometry`·`GearStage`(`offsetY`)·`layoutGear`·`clampGearOffsetY`·`GEAR_GEOMETRY`·`GEAR_TEXTURE_OPTIONS`·`GEAR_CLEARANCE`, `GameRenderer.gearLayout`·`addGearOverlay`, 고도 게이지 `gearGauge.ts`의 `GearGauge`·`gaugeEmptyRows`·`easeGaugeLevel`·`GEAR_GAUGE_EASE_TAU_MS`(`GameRenderer.gearGaugeLevel`, Lab 미리보기 고도 고정 `GameRenderer.setAltitudeOverride`), `gearMotion`의 `GearMotionController`·`GearMotionControls`(`GameRenderer.gearMotion`, 옵션 `gearMotion`), `gearMotion*.ts`의 `createGearMotion`·`acquireGearMotionAssets`·`GEAR_MOTION_*`, `gearMotionKeepAlive.ts`의 `keepGearMotionAssets`, 게임 설정 `gearMotion`. 생성기가 만드는 측정 데이터와 `gearMotion` 에셋도 같은 이름을 쓴다(`gearGeometry.json`의 `silhouetteBottom`, `gear-motion.json`의 `image: {width, height}` = `GearMotionData.image`).
 - **쓰지 않는 표현**: 이 뜻으로 "프레임"을 쓰지 않는다. 프레임은 화면 한 장(`renderFrame`, `requestAnimationFrame`, 게임 프레임, 프레임 시간)과 헷갈리기 때문이다. 옛 이름(`classicFrame*`, `FrameMotionController`, 설정 `Frame Motion`, 매니페스트 키 `gearFrame`, 렌더러 옵션 `showGearFrame`, 스킨 이름을 붙인 `classicGear*`·`/lab/classic-gear`)은 [#231](https://github.com/nanana3679/not4k/issues/231)에서 바꿨다. 보관한 Classic 버전의 매니페스트(`assets-lab/classic/versions/*`, `classicSkinVersions.ts`)는 보관 당시 키 `gearFrame`을 그대로 둔다. 결정 기록(RFD 본문·디자인 문서·CHANGELOG 지난 항목)의 "프레임"은 그때의 표기로 남긴다.
 
@@ -53,6 +53,10 @@
 노트가 레인 위끝(서든을 쓰면 서든 커버 아래끝)에 처음 보이고 판정선에 닿기까지 걸리는 시간이다. 비트매니아 IIDX의 녹색 숫자(green number)를 가리키는 한국 리듬게임 커뮤니티 이름이다. IIDX의 녹색 숫자는 60Hz 기준 프레임 수의 10배라(녹숫 300 ≈ 0.5초) 단위가 다르며, not4k는 시간(초·ms)으로 다룬다. 스크롤 속도(`scrollSpeed`, px/초)·리프트(판정선 높이)·서든이 모두 이 값 하나로 모이므로, 사용자마다 다른 설정을 한 숫자로 비교할 때 쓴다. 게임 설정 화면에는 아직 표시하지 않는다. 기본 설정(스크롤 속도 800, 리프트 0%, 판정선 y 426)에서는 약 0.54초다.
 
 **추정 녹숫**은 차트 Lv.마다 정하는 기준 녹숫으로, 그 Lv.를 치는 사용자가 흔히 쓸 녹숫을 추정한 값이다. `restZone` 판넬 연출 시안([Lab `restZone Lane`](../spec/lab-preview-catalog.md#restzone-lane))의 전환 시각과 [`restZone` 최소 길이 지침](chart-design.md#9-restzone은-판넬-연출이-들어갈-만큼-길게-잡는다)의 기준이다. Lv.별 값은 아직 정하지 않았고 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
+
+### 흰숫 (White Number)
+
+서든 커버와 리프트가 노트가 보이는 레인을 얼마나 줄이는지를, 레인 위끝(y 0)부터 리프트 0% 판정선(y 426)까지를 1000으로 놓고 잰 값이다. 비트매니아 IIDX의 흰색 숫자(white number)를 가리키는 한국 리듬게임 커뮤니티 이름이다. IIDX에는 화면 위쪽의 SUD+ 흰숫과 아래쪽의 LIFT 흰숫이 따로 있고, 흰숫을 숫자 하나로 말할 때는 보통 둘을 더한 합계를 뜻한다. not4k 설정은 같은 높이를 100%로 놓고 %로 보여 주므로 위쪽 흰숫은 서든 %의 10배, 아래쪽 흰숫은 리프트(판정선을 올리는 양) %의 10배, 합계 흰숫은 (서든 + 리프트) %의 10배다(서든 30%·리프트 20%면 300 + 200 = 500). 노트가 보이는 레인은 426 × (1000 − 합계 흰숫) / 1000, 곧 426 × (100 − 서든 − 리프트)%이고 합계가 1000(100%)이면 보이는 레인이 없다. not4k의 리프트는 판정선만 올리고 판정선 아래를 덮지 않으므로, 판정선 아래로는 노트가 계속 보인다. [녹숫](#녹숫-green-number)은 이 보이는 높이에 노트 반 칸을 더해 스크롤 속도로 나눈 값이다. 게임 설정 화면에는 흰숫을 표시하지 않는다. 기준과 세부는 [게임 코어 스펙](../spec/game-core.md#리프트--서든-lift--sudden)을 따른다([#291](https://github.com/nanana3679/not4k/issues/291)).
 
 ---
 
@@ -217,7 +221,7 @@ not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4�
 
 ### 피스 (piece)
 
-복수의 노트가 배치를 통해 상호작용하여 난이도를 발생시키는 단위. 개별 노트 타입과 달리, 피스는 각각 고유한 PLv.(피스 레벨)를 가진다. `piece-definition.md`의 피스 카탈로그에서 `PP-001`~`PP-010` 등의 ID로 관리한다.
+복수의 노트가 배치를 통해 상호작용하여 난이도를 발생시키는 단위. 개별 노트 타입과 달리, 피스는 각각 고유한 PLv.(피스 레벨)를 가진다. `piece-definition.md`의 피스 카탈로그에서 `PP-001`～`PP-010` 등의 ID로 관리한다.
 
 **노트 타입과 피스의 관계**: 노트 타입은 개별 요소(싱글, 더블, 트릴, 롱)이며 Lv.1부터 등장한다. 피스는 이 요소들의 배치가 상호작용하여 난이도를 만들어내는 것이다. 예를 들어, 롱노트와 싱글 노트는 각각 Lv.1부터 등장하지만, 롱노트가 끝날 때 키 교대를 요구하는 배치(릴리즈탭)는 PLv.4의 피스이다.
 
@@ -329,11 +333,11 @@ Play에서 **`altitude`** 상태와 클리어/실패를 다루는 비행 규칙.
 
 | 등급   | 레벨 구간 | 키 바인딩 전제             |
 | ------ | --------- | -------------------------- |
-| 입문   | Lv.1~3    | 4키 주로 활용, 드물게 엄지 |
-| 초급   | Lv.4~6    | 엄지 비중 상승 (6키)       |
-| 중급   | Lv.7~10   | 8키 입문 (약지 추가)       |
-| 상급   | Lv.11~13  | 8키 활성화                 |
-| 최상급 | Lv.14~15  | 16키 완전 활용             |
+| 입문   | Lv.1～3    | 4키 주로 활용, 드물게 엄지 |
+| 초급   | Lv.4～6    | 엄지 비중 상승 (6키)       |
+| 중급   | Lv.7～10   | 8키 입문 (약지 추가)       |
+| 상급   | Lv.11～13  | 8키 활성화                 |
+| 최상급 | Lv.14～15  | 16키 완전 활용             |
 
 > **용어 규칙**: 차트 단위의 난이도는 **Lv.**, 피스 단위의 난이도는 **PLv.**, 구간 분류는 **난이도 등급**으로 통일한다.
 > **`flightRule`**은 차트 난이도명에 대응하는 비행 규칙이다. 난이도명의 라벨 역할과 규칙의 동작은 구분하며, `Lv.`·`PLv.`·난이도 등급을 대체하지 않는다.
@@ -369,14 +373,14 @@ Play에서 **`altitude`** 상태와 클리어/실패를 다루는 비행 규칙.
 
 ### 입력 오프셋 (Input Offset)
 
-입력 장치 지연과 개인 체감 타이밍을 보정하는 설정이다(설정 `Input Offset`, 코드 `inputOffsetMs`, 실제 시간 ms, 기본 0). 숫자 입력 확정과 저장 설정 병합 때 −1000~+1000ms로 제한하며, 유한한 숫자가 아닌 저장값은 0ms로 둔다. 배속 r을 곱해 입력 시간에만 더한다(`입력 = J − handlerDelay·r + inputOffsetMs·r`, `J = P − L₀·r`). 판정 시간·시각 시간에는 닿지 않는다. 늦게 눌러 SLOW가 많으면 음수, FAST가 많으면 양수다([PR #242](https://github.com/nanana3679/not4k/pull/242)의 부호 유지).
+입력 장치 지연과 개인 체감 타이밍을 보정하는 설정이다(설정 `Input Offset`, 코드 `inputOffsetMs`, 실제 시간 ms, 기본 0). 숫자 입력 확정과 저장 설정 병합 때 −1000～+1000ms로 제한하며, 유한한 숫자가 아닌 저장값은 0ms로 둔다. 배속 r을 곱해 입력 시간에만 더한다(`입력 = J − handlerDelay·r + inputOffsetMs·r`, `J = P − L₀·r`). 판정 시간·시각 시간에는 닿지 않는다. 늦게 눌러 SLOW가 많으면 음수, FAST가 많으면 양수다([PR #242](https://github.com/nanana3679/not4k/pull/242)의 부호 유지).
 
 현재는 설정 숫자 입력으로 조절한다. 입력 캘리브레이션은 [RFD 0031](../rfd/0031-audio-first-timing-model.md) PR 2에서 게임과 같은 시간 경로의 비프·탭 비교로 구현한다. 옛 설정 `judgmentOffsetMs`·`audioOffsetMs`·`offsetMs`는 읽을 때 버리고 이전하지 않는다.
 _Avoid_: 오디오 오프셋, 판정 오프셋, 이름 없는 "오프셋"
 
 ### 시각 오프셋 (Visual Offset)
 
-화면 표시 지연을 보정하는 설정이다(설정 `Visual Offset`, 코드 `visualOffsetMs`, 실제 시간 ms, 기본 0). 숫자 입력 확정과 저장 설정 병합 때 −1000~+1000ms로 제한하며, 유한한 숫자가 아닌 저장값은 0ms로 둔다. 시각 시간 `V = J + visualOffsetMs·r`로 노트·마디선·구간을 그리며 판정과 입력 시간에는 닿지 않는다. 화면이 소리보다 늦게 보이면 양수로 노트를 앞당겨 그린다. 브라우저의 출력 지연 보고가 정확하면 화면 표시 지연과 같다.
+화면 표시 지연을 보정하는 설정이다(설정 `Visual Offset`, 코드 `visualOffsetMs`, 실제 시간 ms, 기본 0). 숫자 입력 확정과 저장 설정 병합 때 −1000～+1000ms로 제한하며, 유한한 숫자가 아닌 저장값은 0ms로 둔다. 시각 시간 `V = J + visualOffsetMs·r`로 노트·마디선·구간을 그리며 판정과 입력 시간에는 닿지 않는다. 화면이 소리보다 늦게 보이면 양수로 노트를 앞당겨 그린다. 브라우저의 출력 지연 보고가 정확하면 화면 표시 지연과 같다.
 
 현재는 설정 숫자 입력으로 조절한다. 비프와 함께 떨어지는 노트를 보고 맞추는 시각 캘리브레이션은 [RFD 0031](../rfd/0031-audio-first-timing-model.md) PR 3에서 구현한다. 입력 오프셋과 달리 장치가 늦을 때 양수다. 브라우저 지연 보고의 고정 오차는 두 오프셋이 함께 흡수할 수 있다.
 _Avoid_: 화면 오프셋, 디스플레이 딜레이, 이름 없는 "오프셋"
@@ -431,7 +435,7 @@ double에서 두 release를 서로 다른 시점에 수행하는 것. `D=-`에�
 
 필요한 hold 수보다 적어진 짧은 공백 때문에 바디가 바로 유지 실패하는 것을 보호하는 시간이다. [RFD 0032 §2-2](../rfd/0032-body-held-count.md#2-2-유지-유예)의 후속 채택값은 임시 20ms이며 최종값은 플레이테스트 뒤 정한다. double은 각 hold 수 기준을 회복할 때까지 따로 재고 이미 실패한 unit은 되살리지 않는다. head 없는 시작(독립 바디, 1→2 증가로 늘어난 몫)과 head 없는 경계 뒤 바디의 모든 몫([RFD 0032 §8-2](../rfd/0032-body-held-count.md#8-2-head-없는-경계))에서 S+Good 전에 생긴 부족은 [RFD 0032 §8-1](../rfd/0032-body-held-count.md#8-1-시작-직후의-재충전)에 따라 부족 시각에 유예를 더한 시각과 S+Good 중 늦은 쪽에 실패한다. 경계에서 떨어진 바디 중간의 끊김에는 유예만 적용한다. 유지 유예와 release 후보의 처리 시점은 별개의 문제이며, release 정책은 아래 후속 설계 기준에 따라 재검토 중이다. Grace 노트의 타이밍 등급 면제와도 구분한다.
 
-연결 head를 처리한 single 사례에서는 head를 일찍 또는 늦게 처리해도 그 실제 down부터 뒤 바디의 유지를 판단하고 유지 유예를 적용한다. 그전의 공백은 20ms를 넘었다는 이유만으로 뒤 바디의 유지 실패로 삼지 않는다. 따라서 A up 2010 뒤 B down 2100으로 head 2000을 Good 처리하는 90ms 공백은 허용한다. down 시점부터 무조건 타이머를 소진하는 것은 아니며, 이후 필요한 hold 수가 부족해진 때부터 부족 시간을 잰다. head 2000을 1960에 처리하면 뒤 바디의 유지 판정도 1960부터 시작한다. 이후 hold가 1990~2015에 비면 25ms 공백이므로 유지 실패가 되며, 차트상 시작 2000부터 부족을 다시 세지 않는다. head Miss와 계속 유지한 바디의 release는 [RFD 0032 §5-1](../rfd/0032-body-held-count.md#5-1-계속-유지한-뒤-바디)을 따른다. 연결 head 창 안에서 hold가 끊기고 head도 놓친 사례는 [RFD 0032 §5-2](../rfd/0032-body-held-count.md#5-2-head-창-안에서-끊김)에 따라 head Miss 하나와 뒤 끝 종속 0점으로 정리한다. head 기한까지 유지한 뒤 A를 2200에 떼는 사례는 [RFD 0032 §5-3](../rfd/0032-body-held-count.md#5-3-head-창-뒤에-끊김)에 따라 N2 head Miss와 별도로 N3 유지 Miss를 처리한다. 임시 20ms를 적용한 N3 실패 기한은 2220이다. single head가 있는 double 연결에서는 [RFD 0032 §4-3](../rfd/0032-body-held-count.md#4-3-head를-처리한-down부터-뒤-바디-유지)·[§5-4](../rfd/0032-body-held-count.md#5-4-double-연결에서-head가-맡는-몫)에 따라 head가 맡는 몫에 같은 규칙을 적용한다. head가 있는 2→1에도 같은 규칙을 적용하며, 뒤 바디의 끝이 head의 Good 창 안에 있고 head가 아직 처리되지 않았다면 그 끝에서 뗀 up은 연결 release다([RFD 0032 §4-3](../rfd/0032-body-held-count.md#4-3-head를-처리한-down부터-뒤-바디-유지)·[§5-5](../rfd/0032-body-held-count.md#5-5-짧은-뒤-바디)). 나머지 적용 범위는 PRD를 따른다.
+연결 head를 처리한 single 사례에서는 head를 일찍 또는 늦게 처리해도 그 실제 down부터 뒤 바디의 유지를 판단하고 유지 유예를 적용한다. 그전의 공백은 20ms를 넘었다는 이유만으로 뒤 바디의 유지 실패로 삼지 않는다. 따라서 A up 2010 뒤 B down 2100으로 head 2000을 Good 처리하는 90ms 공백은 허용한다. down 시점부터 무조건 타이머를 소진하는 것은 아니며, 이후 필요한 hold 수가 부족해진 때부터 부족 시간을 잰다. head 2000을 1960에 처리하면 뒤 바디의 유지 판정도 1960부터 시작한다. 이후 hold가 1990～2015에 비면 25ms 공백이므로 유지 실패가 되며, 차트상 시작 2000부터 부족을 다시 세지 않는다. head Miss와 계속 유지한 바디의 release는 [RFD 0032 §5-1](../rfd/0032-body-held-count.md#5-1-계속-유지한-뒤-바디)을 따른다. 연결 head 창 안에서 hold가 끊기고 head도 놓친 사례는 [RFD 0032 §5-2](../rfd/0032-body-held-count.md#5-2-head-창-안에서-끊김)에 따라 head Miss 하나와 뒤 끝 종속 0점으로 정리한다. head 기한까지 유지한 뒤 A를 2200에 떼는 사례는 [RFD 0032 §5-3](../rfd/0032-body-held-count.md#5-3-head-창-뒤에-끊김)에 따라 N2 head Miss와 별도로 N3 유지 Miss를 처리한다. 임시 20ms를 적용한 N3 실패 기한은 2220이다. single head가 있는 double 연결에서는 [RFD 0032 §4-3](../rfd/0032-body-held-count.md#4-3-head를-처리한-down부터-뒤-바디-유지)·[§5-4](../rfd/0032-body-held-count.md#5-4-double-연결에서-head가-맡는-몫)에 따라 head가 맡는 몫에 같은 규칙을 적용한다. head가 있는 2→1에도 같은 규칙을 적용하며, 뒤 바디의 끝이 head의 Good 창 안에 있고 head가 아직 처리되지 않았다면 그 끝에서 뗀 up은 연결 release다([RFD 0032 §4-3](../rfd/0032-body-held-count.md#4-3-head를-처리한-down부터-뒤-바디-유지)·[§5-5](../rfd/0032-body-held-count.md#5-5-짧은-뒤-바디)). 나머지 적용 범위는 PRD를 따른다.
 
 엔진은 아직 기존 연결 head의 Good 창을 이용한 보류를 구현하고 있다([RFD 0020 §2.12](../rfd/0020-note-judgment-units-and-inheritance.md#212-경계-뒤-교대-up--후속-채택)). 기존 연결 유지 보류와 새 유지 유예의 상세 이행은 PRD에서 추적한다.
 
@@ -487,7 +491,7 @@ head가 시작에 함께 있으면 해당 head의 down 소비가 담당 unit의 
 
 **연결 release와 감소 release의 배정 순서(2026-10-16):** [RFD 0032 §6-4](../rfd/0032-body-held-count.md#6-4-감소-지점-앞뒤의-head)에 따라 연결 release는 head보다 뒤에 있는 끝의 release보다 먼저 배정하고, head와 같은 시각이거나 그보다 앞선 감소 release보다는 나중에 배정한다. head가 있는 2→1에서 경계 근처의 첫 up이 감소 release를 처리하는 것([§6-3](../rfd/0032-body-held-count.md#6-3-head가-있는-21과-감소-release))이 이 순서의 한 경우다. 엔진 이행 전이며 기존 엔진은 연결 release를 먼저 배정한다.
 
-**연결 head Miss와 유지한 바디(2026-10-16):** [RFD 0032 §5-1](../rfd/0032-body-held-count.md#5-1-계속-유지한-뒤-바디)에 따라 연결 head를 놓쳐도 hold 수를 계속 충족한 뒤 바디의 실제 release를 처리한다. N1 1000~2000 → N2 head 2000 + N3 2000~3000을 A 1000~3000만으로 처리하면 N2는 Miss, A up 3000으로 N3는 Perfect이다. head를 놓쳤다는 이유만으로 정상 유지한 바디의 끝을 종속 0점으로 바꾸지 않는다. 같은 차트에서 A를 2010에 떼고 추가 입력이 없으면 연결 head 창 안에서 유지가 끊긴 경우로, [RFD 0032 §5-2](../rfd/0032-body-held-count.md#5-2-head-창-안에서-끊김)에 따라 N2의 기한 2120에 N2 Miss 하나와 N3 끝 종속 0점을 처리한다. N3의 별도 유지·release Miss를 더하지 않는다. head 기한 2120까지 유지하다가 A를 2200에 떼는 경우는 [RFD 0032 §5-3](../rfd/0032-body-held-count.md#5-3-head-창-뒤에-끊김)에 따라 N3 유지 Miss를 추가하고 그 끝은 종속 0점으로 정산한다. 합계 Miss 2이며 끝에서 별도 release Miss를 더하지 않는다. single head가 있는 double 연결에서는 [RFD 0032 §5-4](../rfd/0032-body-held-count.md#5-4-double-연결에서-head가-맡는-몫)에 따라 head가 맡는 몫에 같은 규칙을 적용한다. head 기한에 hold 수가 그 몫까지 채우면 계속 판정하고, 채우지 못하면 N2 Miss 하나와 그 몫의 종속 0점으로 정산한 뒤 뒤 바디가 요구하는 hold 수를 하나 줄인다. 나머지 적용 범위는 PRD에서 추적한다.
+**연결 head Miss와 유지한 바디(2026-10-16):** [RFD 0032 §5-1](../rfd/0032-body-held-count.md#5-1-계속-유지한-뒤-바디)에 따라 연결 head를 놓쳐도 hold 수를 계속 충족한 뒤 바디의 실제 release를 처리한다. N1 1000～2000 → N2 head 2000 + N3 2000～3000을 A 1000～3000만으로 처리하면 N2는 Miss, A up 3000으로 N3는 Perfect이다. head를 놓쳤다는 이유만으로 정상 유지한 바디의 끝을 종속 0점으로 바꾸지 않는다. 같은 차트에서 A를 2010에 떼고 추가 입력이 없으면 연결 head 창 안에서 유지가 끊긴 경우로, [RFD 0032 §5-2](../rfd/0032-body-held-count.md#5-2-head-창-안에서-끊김)에 따라 N2의 기한 2120에 N2 Miss 하나와 N3 끝 종속 0점을 처리한다. N3의 별도 유지·release Miss를 더하지 않는다. head 기한 2120까지 유지하다가 A를 2200에 떼는 경우는 [RFD 0032 §5-3](../rfd/0032-body-held-count.md#5-3-head-창-뒤에-끊김)에 따라 N3 유지 Miss를 추가하고 그 끝은 종속 0점으로 정산한다. 합계 Miss 2이며 끝에서 별도 release Miss를 더하지 않는다. single head가 있는 double 연결에서는 [RFD 0032 §5-4](../rfd/0032-body-held-count.md#5-4-double-연결에서-head가-맡는-몫)에 따라 head가 맡는 몫에 같은 규칙을 적용한다. head 기한에 hold 수가 그 몫까지 채우면 계속 판정하고, 채우지 못하면 N2 Miss 하나와 그 몫의 종속 0점으로 정산한 뒤 뒤 바디가 요구하는 hold 수를 하나 줄인다. 나머지 적용 범위는 PRD에서 추적한다.
 
 **리뷰 후속 결정(2026-10-17):** [RFD 0032 §2-3](../rfd/0032-body-held-count.md#2-3-release-등급과-자격-판정-창-기준)·[§7-1](../rfd/0032-body-held-count.md#7-1-holdonly-끝은-good-창-안의-up을-가져간다)·[§4-2](../rfd/0032-body-held-count.md#4-2-경계-전에-뗀-연결-release)·[§5-5](../rfd/0032-body-held-count.md#5-5-짧은-뒤-바디)에 따라 바디의 끝 창 안에 든 up은 그 바디가 시작했는지와 관계없이 release 후보이며, 그 release로 바디가 끝나고 이후 시작 실패를 세지 않는다. `holdOnly` 끝은 자기 Good 창 안의 up 하나를 가져가며(등급 Perfect), up이 없으면 유지로 완료한다. 경계 전에 뗀 up은 [연결 release](#연결-release)로 처리하며, 경계에 감소 release가 있으면 첫 up이 감소 release다. 뒤 바디의 끝이 head의 Good 창 안에 있고 head가 아직 처리되지 않았다면 그 끝에서 뗀 up은 연결 release이며, head를 놓치면 끝은 종속 0점이다. 엔진 이행 전이다.
 
@@ -556,7 +560,7 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상)
 
 ### `gameplayRange` (구 표기: 인게임 구간)
 
-원본 음원 중 실제 **플레이 세션**에서 사용할 시작~끝 구간. 곡이 너무 길거나 무음 구간이 길 때, 원본 음원 파일은 보존하면서 플레이 화면에서는 이 구간의 시작을 0ms로 간주해 재생한다. 차트의 박 좌표와 오프셋은 `gameplayRange` 시작점을 기준으로 해석한다. (UI 라벨은 화면 표시 예외로 "인게임 구간"을 유지한다.)
+원본 음원 중 실제 **플레이 세션**에서 사용할 시작～끝 구간. 곡이 너무 길거나 무음 구간이 길 때, 원본 음원 파일은 보존하면서 플레이 화면에서는 이 구간의 시작을 0ms로 간주해 재생한다. 차트의 박 좌표와 오프셋은 `gameplayRange` 시작점을 기준으로 해석한다. (UI 라벨은 화면 표시 예외로 "인게임 구간"을 유지한다.)
 
 ### `gameplayRange` 페이드 인·아웃 (code `fadeInTime`/`fadeOutTime`, 구 표기: 인게임 페이드)
 
@@ -698,7 +702,7 @@ Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 
 
 ### ViewportSlice
 
-에디터 뷰포트 상태(zoom·snapDivision·scrollY·horizontalPanX)의 **단독 소유자**. 쓰기는 `ViewportSlice`의 액션으로만 하며, 클램프(줌 50~2000, 세로 스크롤 범위)와 제스처→값 변환 규칙(휠 ×1.1, 핀치 거리 비율, 스냅 프리셋 사이클)을 순수 함수로 함께 소유한다(구 `SnapZoomController` 승계). 줌·범위·뷰포트 높이가 바뀌면 scrollY를 함께 재클램프한다. 클램프 입력(타임라인 ms 범위, 뷰포트 높이)은 외부 사실로 슬라이스에 입주하며, 콘텐츠 높이는 저장하지 않고 파생 계산한다.
+에디터 뷰포트 상태(zoom·snapDivision·scrollY·horizontalPanX)의 **단독 소유자**. 쓰기는 `ViewportSlice`의 액션으로만 하며, 클램프(줌 50～2000, 세로 스크롤 범위)와 제스처→값 변환 규칙(휠 ×1.1, 핀치 거리 비율, 스냅 프리셋 사이클)을 순수 함수로 함께 소유한다(구 `SnapZoomController` 승계). 줌·범위·뷰포트 높이가 바뀌면 scrollY를 함께 재클램프한다. 클램프 입력(타임라인 ms 범위, 뷰포트 높이)은 외부 사실로 슬라이스에 입주하며, 콘텐츠 높이는 저장하지 않고 파생 계산한다.
 
 렌더러 등 비-React 소비자는 **`ViewportSource`**(읽기 전용 스냅샷 `get()` + 변경 구독 `subscribe()`)로만 읽는다 — 이 통로로는 쓰기가 불가능하고, 테스트는 fake source를 쓴다(adapter 2개 = 실재 seam). 렌더러·컨트롤러·훅에 뷰포트 상태를 복제 저장하지 말 것: 이전에는 3곳 복제 + App useEffect 양방향 동기화가 이중 쓰기 race를 만들었다.
 

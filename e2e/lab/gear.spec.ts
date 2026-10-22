@@ -256,7 +256,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('리프트를 4%로 올리면 렌더러를 다시 만들지 않고 판정선만 y 426에서 402로 움직이며 기어 위치와 덱·키 윗면(456.5)은 그대로다', async ({ page }) => {
+  test('리프트를 4%로 올리면 렌더러를 다시 만들지 않고 판정선만 426의 4%인 17.04 올라 y 426에서 408.96으로 움직이며 기어 위치와 덱·키 윗면(456.5)은 그대로다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -270,12 +270,12 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
 
     await lift.fill('4');
     await expect(stage).toHaveAttribute('data-lift-percent', '4');
-    await expect(stage).toHaveAttribute('data-judgment-line-y', '402.0');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '409.0');
     await expect(stage).toHaveAttribute('data-gear-top', topBefore!);
     await expect(stage).toHaveAttribute('data-key-rim-y', '456.5');
     await expect(stage).toHaveAttribute('data-renderer-key', key!);
     await expect(page.locator('canvas[data-gear-preview-canvas]')).toHaveAttribute('data-probe', 'first');
-    await expect(page.locator('.gear-preview-readout')).toContainText('4% (+24) · y 402');
+    await expect(page.locator('.gear-preview-readout')).toContainText('4% (+17.04) · y 408.96');
     expect(errors).toEqual([]);
   });
 
@@ -307,7 +307,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('기어·판정선 y 오프셋은 게임 값 10에서 시작하고, 슬라이더를 12.5로 옮기면 주소가 ?offsetY=12.5로 바뀌고 렌더러를 새로 만들어 판정선 y 428.5·키 윗면 459.0이 되며, 리프트 4%는 판정선만 404.5로 올리고, 숫자 입력 0이면 ?offsetY=0, 10이면 offsetY가 주소에서 빠지고 방문 기록은 쌓이지 않는다', async ({ page }) => {
+  test('기어·판정선 y 오프셋은 게임 값 10에서 시작하고, 슬라이더를 12.5로 옮기면 주소가 ?offsetY=12.5로 바뀌고 렌더러를 새로 만들어 판정선 y 428.5·키 윗면 459.0이 되며, 리프트 4%는 그 판정선 428.5의 4%인 17.14만큼 판정선만 411.36으로 올리고, 숫자 입력 0이면 ?offsetY=0, 10이면 offsetY가 주소에서 빠지고 방문 기록은 쌓이지 않는다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab');
     await page.goto('/lab/gear');
@@ -332,7 +332,8 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect(stage).toHaveAttribute('data-key-rim-y', '459.0');
 
     await page.locator('#gear-preview-lift').fill('4');
-    await expect(stage).toHaveAttribute('data-judgment-line-y', '404.5');
+    await expect(stage).toHaveAttribute('data-judgment-line-y', '411.4');
+    await expect(page.locator('.gear-preview-readout')).toContainText('4% (+17.14) · y 411.36');
     await expect(stage).toHaveAttribute('data-key-rim-y', '459.0');
 
     await page.locator('#gear-preview-offset-y-value').fill('0');

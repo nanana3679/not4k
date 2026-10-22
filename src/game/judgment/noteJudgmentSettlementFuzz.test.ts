@@ -4,6 +4,7 @@ import { validateChart } from "../../shared/validation";
 import { InputTimeline } from "../input/InputTimeline";
 import { drainPlaySessionInputs } from "../screens/playSessionInput";
 import { compileJudgmentChart } from "./compiledJudgmentChart";
+import type { JudgmentCoreFactory } from "./JudgmentCore";
 import type { JudgmentInput, NoteJudgmentEvent } from "./NoteJudgmentCore";
 import { NoteJudgmentSession } from "./NoteJudgmentSession";
 import { body, point } from "./noteJudgmentTestHarness";
@@ -169,13 +170,14 @@ interface Unsettled {
  * 차트를 끝까지 재생한다. delays가 없으면 각 batch를 raw 시각 그대로 processBatch로 넣는다. delays가 있으면 batch마다
  * 0~MAX_OBSERVED_DELAY ms 늦게 관측한 것으로 보고, 실제 플레이처럼 관측 시각까지 먼저 진행한 뒤 같은 batch를
  * drainPlaySessionInputs로 전달한다(core 시각보다 과거인 raw만 processObservedBatch). 관측 시각은 줄지 않는다.
+ * createCore가 없으면 세션은 실제 게임이 쓰는 기존 코어로 재생한다.
  */
-function play(notes: readonly NoteEntity[], firstKeys: readonly string[], batches: readonly [number, JudgmentInput[]][], firstAt: number, delays?: () => number) {
+function play(notes: readonly NoteEntity[], firstKeys: readonly string[], batches: readonly [number, JudgmentInput[]][], firstAt: number, delays?: () => number, createCore?: JudgmentCoreFactory) {
   const starts = new Map(notes.map((note, index) => [index, note.beat.n] as [number, number]));
   const ends = new Map<number, number>();
   notes.forEach((note, index) => { if ("endBeat" in note) ends.set(index, note.endBeat.n); });
   const compiled = compileJudgmentChart(notes, starts, ends);
-  const session = new NoteJudgmentSession(compiled);
+  const session = new NoteJudgmentSession(compiled, { createCore });
   const timeline = new InputTimeline();
   const deliver = (rawAt: number, inputs: readonly JudgmentInput[]) => {
     if (!delays) { session.processBatch(rawAt, inputs); return; }

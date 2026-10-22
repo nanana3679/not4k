@@ -1,4 +1,4 @@
-import type { NoteJudgmentEvent } from "./NoteJudgmentCore";
+import type { NoteJudgmentEvent } from "./JudgmentCore";
 
 /**
  * Applies already-confirmed judgment batches to the current combo.
