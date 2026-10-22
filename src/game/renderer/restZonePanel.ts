@@ -1,3 +1,4 @@
+import type { ChartTiming } from '../../shared/timing/chartTiming';
 import { beatCompare, beatLte } from '../../shared/types/beat';
 import type { RestZone } from '../../shared/types/chart';
 
@@ -259,29 +260,46 @@ export function mergeTouchingRestZones(zones: readonly RestZone[]): RestZone[] {
   return merged;
 }
 
-/** 판넬 묶기에 쓰는 restZone. lane은 0부터 센다(레인 0이 왼쪽 끝, 차트 `RestZone`의 1～4와 다르다). */
-export interface LaneRestZone { lane: number; beat: number; endBeat: number }
-/** 함께 접히는 판넬 하나. firstLane부터 laneCount개 레인 폭을 덮는다. */
-export interface RestPanelGroup { firstLane: number; laneCount: number; beat: number; endBeat: number }
+/**
+ * 판넬 묶기에 쓰는 restZone. lane은 0부터 센다(레인 0이 왼쪽 끝, 차트 `RestZone`의 1～4와 다르다).
+ * start·end는 단위를 정하지 않은 시작·끝 위치다. Lab은 박을, 게임은 곡 시간 ms(toLaneRestZones)를 넣는다.
+ */
+export interface LaneRestZone { lane: number; start: number; end: number }
+/** 함께 접히는 판넬 하나. firstLane(0부터)부터 laneCount개 레인 폭을 덮는다. start·end는 묶은 LaneRestZone과 같은 단위다. */
+export interface RestPanelGroup { firstLane: number; laneCount: number; start: number; end: number }
 
 /**
- * restZone을 판넬 단위로 묶는다. merge가 켜져 있으면 시작·끝 박이 모두 같고 레인이 붙어 있는 구간끼리
- * 판넬 하나로 묶어 같은 시각에 같이 접히게 한다. 박 범위가 하나라도 다르면 접히는 시각이 달라
- * 중간에 합치면 모양이 튀므로 묶지 않는다. 결과는 firstLane, 그다음 시작 박 순서다.
+ * 차트 restZone을 판넬 묶기 입력으로 바꾼다(RFD 0034 영향 3). 같은 레인에서 맞닿은 구간을 먼저 잇고(mergeTouchingRestZones),
+ * 시작·끝 박을 timing.beatToMs로 곡 시간 ms로 바꾸고, 레인을 1～4에서 0～3으로 옮긴다. 결과를 groupRestPanels에 넣는다.
+ * 잇기를 묶기보다 먼저 해야, 이어서야 박 범위가 같아지는 이웃 레인 구간도 한 판넬로 묶인다.
+ * 같은 박은 같은 beatToMs를 거쳐 같은 ms가 되므로 groupRestPanels의 같음 비교가 박에서와 똑같이 맞는다.
+ * 결과는 레인, 그다음 시작 순서이고 입력 배열과 객체는 바꾸지 않는다.
+ */
+export function toLaneRestZones(restZones: readonly RestZone[], timing: Pick<ChartTiming, 'beatToMs'>): LaneRestZone[] {
+  return mergeTouchingRestZones(restZones).map(zone => ({
+    lane: zone.lane - 1, start: timing.beatToMs(zone.beat), end: timing.beatToMs(zone.endBeat),
+  }));
+}
+
+/**
+ * restZone을 판넬 단위로 묶는다. merge가 켜져 있으면 시작·끝이 모두 같고 레인이 붙어 있는 구간끼리
+ * 판넬 하나로 묶어 같은 시각에 같이 접히게 한다. 범위가 하나라도 다르면 접히는 시각이 달라
+ * 중간에 합치면 모양이 튀므로 묶지 않는다. 결과는 firstLane, 그다음 시작 순서다.
+ * start·end는 같음과 크기 순서만 쓰므로 박(Lab)이든 ms(게임)든 같게 묶는다.
  */
 export function groupRestPanels(zones: readonly LaneRestZone[], merge: boolean): RestPanelGroup[] {
-  const sorted = [...zones].sort((a, b) => a.beat - b.beat || a.endBeat - b.endBeat || a.lane - b.lane);
+  const sorted = [...zones].sort((a, b) => a.start - b.start || a.end - b.end || a.lane - b.lane);
   const groups: RestPanelGroup[] = [];
   for (const zone of sorted) {
     const last = groups[groups.length - 1];
-    if (merge && last && last.beat === zone.beat && last.endBeat === zone.endBeat
+    if (merge && last && last.start === zone.start && last.end === zone.end
       && last.firstLane + last.laneCount === zone.lane) {
       last.laneCount++;
     } else {
-      groups.push({ firstLane: zone.lane, laneCount: 1, beat: zone.beat, endBeat: zone.endBeat });
+      groups.push({ firstLane: zone.lane, laneCount: 1, start: zone.start, end: zone.end });
     }
   }
-  return groups.sort((a, b) => a.firstLane - b.firstLane || a.beat - b.beat);
+  return groups.sort((a, b) => a.firstLane - b.firstLane || a.start - b.start);
 }
 
 /** 지금 접혀 있는(progress > 0) 판넬. 레인 단위 위치를 쓰고 firstLane은 0부터 센다(LaneRestZone과 같다). */

@@ -49,23 +49,23 @@ const outlineColorFor = (style: EdgeStyle, edgeLaneColor: number): number | null
   style === 'rim' ? rimColor(edgeLaneColor) : style === 'red-outline' ? REST_EDGE_RED : null;
 
 type ZonePreset = 'single' | 'pair-same' | 'pair-offset' | 'short';
-// lane은 이 페이지의 0부터 세는 레인 인덱스다(화면 표기 레인 2 = 1).
+// lane은 이 페이지의 0부터 세는 레인 인덱스다(화면 표기 레인 2 = 1). start·end는 박이다(게임은 ms를 넣는다).
 const ZONE_PRESETS: Record<ZonePreset, { label: string; zones: readonly LaneRestZone[] }> = {
-  single: { label: '레인 2만', zones: [{ lane: 1, beat: 8, endBeat: 24 }] },
+  single: { label: '레인 2만', zones: [{ lane: 1, start: 8, end: 24 }] },
   'pair-same': {
     label: '레인 3·4 같은 구간',
-    zones: [{ lane: 2, beat: 8, endBeat: 24 }, { lane: 3, beat: 8, endBeat: 24 }],
+    zones: [{ lane: 2, start: 8, end: 24 }, { lane: 3, start: 8, end: 24 }],
   },
   'pair-offset': {
     label: '레인 3·4 시작 어긋남',
-    zones: [{ lane: 2, beat: 8, endBeat: 24 }, { lane: 3, beat: 12, endBeat: 24 }],
+    zones: [{ lane: 2, start: 8, end: 24 }, { lane: 3, start: 12, end: 24 }],
   },
-  short: { label: '레인 2 짧은 구간(1.5초)', zones: [{ lane: 1, beat: 8, endBeat: 11 }] },
+  short: { label: '레인 2 짧은 구간(1.5초)', zones: [{ lane: 1, start: 8, end: 11 }] },
 };
 const laneLabel = (group: RestPanelGroup) =>
   `레인 ${Array.from({ length: group.laneCount }, (_, index) => group.firstLane + index + 1).join('·')}`;
 const groupTiming = (group: RestPanelGroup, dwellMs: number, animMs: number) =>
-  restPanelTiming(group.beat * BEAT_MS, group.endBeat * BEAT_MS, dwellMs, animMs);
+  restPanelTiming(group.start * BEAT_MS, group.end * BEAT_MS, dwellMs, animMs);
 const seconds = (ms: number) => (ms / 1000).toFixed(2);
 
 interface Controls {
@@ -361,7 +361,7 @@ export default function RestZoneLanePage() {
         notes.clear();
         if (current.showNotes) {
           for (const note of DEMO_NOTES) {
-            if (zones.some(zone => zone.lane === note.lane && note.beat > zone.beat && note.beat < zone.endBeat)) continue;
+            if (zones.some(zone => zone.lane === note.lane && note.beat > zone.start && note.beat < zone.end)) continue;
             // 이전·현재·다음 반복을 함께 확인해 루프 경계에서도 노트가 끊기지 않는다.
             for (const offset of [-LOOP_MS, 0, LOOP_MS]) {
               const y = view.judgeY - (note.ms + offset - timeRef.current) * current.scrollPxPerSecond / 1000;
@@ -412,8 +412,8 @@ export default function RestZoneLanePage() {
   const groupStates = groupRestPanels(presetZones, controls.mergeAdjacent).map(group => {
     const timing = groupTiming(group, controls.estimatedDwellMs, controls.animMs);
     // 빈 레인 창 [시작, 끝 − 추정 녹숫]의 가운데가 가장 많이 넘어간 순간이다.
-    const peak = restPanelState((group.beat * BEAT_MS + timing.endMs) / 2, timing).progress;
-    return { group, peak, zoneMs: (group.endBeat - group.beat) * BEAT_MS, ...restPanelState(timeMs, timing) };
+    const peak = restPanelState((group.start * BEAT_MS + timing.endMs) / 2, timing).progress;
+    return { group, peak, zoneMs: (group.end - group.start) * BEAT_MS, ...restPanelState(timeMs, timing) };
   });
   const shortGroups = groupStates.filter(state => state.zoneMs < minZoneMs);
   // 양수면 사용자 설정이 추정보다 느려 다음 노트가 판넬이 다 올라오기 전에 보인다.
@@ -430,7 +430,7 @@ export default function RestZoneLanePage() {
       <div className="rest-zone-workbench">
         <section className="rest-zone-preview" aria-label="레인 미리보기">
           <p className="rest-zone-chart">
-            120 BPM · 32박 반복 · restZone {presetZones.map(zone => `레인 ${zone.lane + 1} ${zone.beat} → ${zone.endBeat}박`).join(', ')}
+            120 BPM · 32박 반복 · restZone {presetZones.map(zone => `레인 ${zone.lane + 1} ${zone.start} → ${zone.end}박`).join(', ')}
           </p>
           <div className="rest-zone-canvas" ref={hostRef} />
           {!ready && !error && <p role="status">미리보기 준비 중…</p>}
@@ -438,7 +438,7 @@ export default function RestZoneLanePage() {
           <div className="rest-zone-status" aria-label="현재 판넬 상태">
             <span>{seconds(timeMs)} / 16.00초</span>
             {groupStates.map(({ group, phase, progress }, index) => (
-              <span key={`${group.firstLane}:${group.beat}`} className="rest-zone-group-status">
+              <span key={`${group.firstLane}:${group.start}`} className="rest-zone-group-status">
                 {laneLabel(group)}{' '}
                 {/* 첫 판넬의 상태만 data 속성으로 노출해 E2E가 하나를 가리키게 한다. */}
                 <strong data-panel-phase={index === 0 ? phase : undefined}>{PHASE_LABEL[phase]}</strong>
@@ -463,7 +463,7 @@ export default function RestZoneLanePage() {
             모든 사용자가 같은 시각에 같은 연출을 봅니다.
           </p>
           {shortGroups.map(({ group, peak, zoneMs }) => (
-            <p key={`${group.firstLane}:${group.beat}`} className="rest-zone-hint" role="note">
+            <p key={`${group.firstLane}:${group.start}`} className="rest-zone-hint" role="note">
               {laneLabel(group)}: restZone {seconds(zoneMs)}초가 지침 최소 길이 {seconds(minZoneMs)}초(추정 녹숫 + 애니메이션 2번)보다 짧아
               {peak > 0 ? ` 최대 ${Math.round(peak * 100)}%까지만 넘어갑니다.` : ' 넘어가지 않습니다.'}
             </p>
