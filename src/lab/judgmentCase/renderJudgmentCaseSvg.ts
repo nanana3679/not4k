@@ -4,7 +4,7 @@
  * 시간은 게임처럼 아래에서 위로 흐른다. 왼쪽부터 ms 축, 노트 레인(게임 스킨 에셋으로 그린 판정 전 모양),
  * 노트 이름표(N1… · 종류 · 구간), 키별 입력 막대, 확정 시각에 놓인 판정 라벨 열이 있고
  * 아래에 점수·미정산 항목·검증 오류·엔진 표시가 붙는다. 판정 라벨은 노트 이름으로 시작한다.
- * 시작·유지 실패는 엔진 유닛 상태(bodyStates)로 가리고, 사례 데이터·엔진 이벤트·유닛 상태로 확인되는 이유만
+ * 시작·유지 실패는 엔진 유닛 상태(unitStates)로 가리고, 사례 데이터·엔진 이벤트·유닛 상태로 확인되는 이유만
  * 둘째 줄에 단다. 확인할 수 없으면 중립 표기(`실패`)를 쓰고 이유를 뺀다.
  * 여러 패널(사례 × 엔진)을 넘기면 같은 시간 축으로 나란히 그린다.
  *
@@ -384,8 +384,8 @@ const FAILURE_TEXT: Record<FailureKind, string> = { start: "시작 실패", main
 
 /**
  * maintenanceMiss의 유닛이 한 번이라도 시작했는지를 재생 뒤 엔진 유닛 상태로 가린다.
- * 엔진에서 active는 true로만 바뀌므로 failed이면서 active가 아니면 시작하지 못한 유닛이다.
- * 유닛 상태가 없으면(bodyStates가 없는 엔진) 가리지 않는다.
+ * 엔진에서 active(엔진의 hasStarted)는 true로만 바뀌므로 failed이면서 active가 아니면 시작하지 못한 유닛이다.
+ * 유닛 상태가 없으면(unitStates·bodyStates가 없는 엔진) 가리지 않는다.
  */
 function failureKind(event: JudgmentCaseRunEvent, run: JudgmentLabelRun): FailureKind {
   const state = run.unitStates?.find((candidate) => candidate.noteIndex === event.noteIndex && candidate.unitIndex === (event.unitIndex ?? 0));

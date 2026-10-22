@@ -32,6 +32,19 @@ function recordingEngine(behavior: { throwAt?: number } = {}) {
   return { engine: fake, calls };
 }
 
+/** recordingEngine의 세션에 유닛 상태 필드(`unitStates`·`bodyStates`)를 붙인 엔진. `--engine`으로 고른 이전 워크트리 세션 대역 */
+function engineWithSessionFields(fields: Record<string, unknown>): JudgmentEngine {
+  const { engine: fake } = recordingEngine();
+  const Base = (fake as unknown as { NoteJudgmentSession: new () => object }).NoteJudgmentSession;
+  class SessionWithFields extends Base {
+    constructor() {
+      super();
+      Object.assign(this, fields);
+    }
+  }
+  return { ...fake, NoteJudgmentSession: SessionWithFields } as unknown as JudgmentEngine;
+}
+
 describe("runJudgmentCase — 실제 엔진 재현", () => {
   it("NJ-R16: A 0-1015 | B 1020-2000이면 head Perfect 0(A)·head Perfect +20(B)·release Perfect(B↑2000), 유지 Miss 없이 Perfect 3", () => {
     const run = runJudgmentCase(judgmentCaseFromSource(R16), engine);
@@ -137,11 +150,21 @@ describe("runJudgmentCase — 세션 구동 순서", () => {
     expect(run.validationErrors).toEqual([]);
   });
 
-  it("세션에 bodyStates가 없는 엔진이면 unitStates·unitStatesBeforeBatch는 null", () => {
+  it("세션에 unitStates·bodyStates가 모두 없는 엔진이면 unitStates·unitStatesBeforeBatch는 null", () => {
     const { engine: fake } = recordingEngine();
     const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), fake);
     expect(run.unitStates).toBeNull();
     expect(run.unitStatesBeforeBatch).toBeNull();
+  });
+
+  it.each([
+    ["unitStates 없이 bodyStates만 있는", "bodyStates"],
+    ["unitStates가 hasStarted 없이 active만 주는", "unitStates"],
+  ])("%s 이전 엔진이면 active true·등록 키 [A]인 unit을 그대로 읽음", (_, field) => {
+    const legacy = { noteIndex: 1, unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] };
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), engineWithSessionFields({ [field]: [legacy] }));
+    expect(run.unitStates).toEqual([legacy]);
+    expect(run.unitStatesBeforeBatch?.map((batch) => batch.unitStates)).toEqual([[legacy], [legacy]]);
   });
 
   it("프레임 간격은 기본 16ms, frameMs 5를 주면 run.frameMs 5", () => {

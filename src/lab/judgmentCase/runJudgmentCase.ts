@@ -5,7 +5,7 @@
  * 같은 러너로 돌릴 수 있도록, 의존하는 표면은 안정 API(compileJudgmentChart·NoteJudgmentSession·
  * validateChart)로 한정한다. 구동은 기존 프로브와 같다: 입력 시각마다 processBatch, 그 사이는
  * 16ms 프레임 advance, 마지막 노트 + Good 뒤 프레임까지 진행한 다음 finalize.
- * 세션에 bodyStates(유닛별 시작·실패·등록 키)가 있으면 batch 직전과 재생 뒤 상태도 담는다. 없는 엔진이면 null.
+ * 세션에 유닛 상태(`unitStates`, 이전 엔진은 `bodyStates`)가 있으면 batch 직전과 재생 뒤 상태도 담는다. 없는 엔진이면 null.
  */
 
 import type { compileJudgmentChart } from "../../game/judgment/compiledJudgmentChart";
@@ -43,15 +43,18 @@ export interface JudgmentCaseScoreItem {
   timeMs: number;
 }
 
-/** 바디 유닛 하나의 엔진 상태(NoteJudgmentSession.bodyStates 한 항목) */
+/** 바디 유닛 하나의 엔진 상태(NoteJudgmentSession.unitStates 한 항목) */
 export interface JudgmentCaseUnitState {
   noteIndex: number;
   unitIndex: number;
-  /** 한 번이라도 시작했는지. 엔진에서 true로만 바뀌므로 failed && !active = 시작하지 못한 유닛 */
+  /**
+   * 한 번이라도 시작했는지(엔진의 `hasStarted`, 이전 엔진은 `active`). 엔진에서 true로만 바뀌므로 failed && !active = 시작하지
+   * 못한 유닛
+   */
   active: boolean;
   failed: boolean;
   complete: boolean;
-  /** 이 유닛에 등록된 유지 키 */
+  /** 이 유닛에 등록된 유지 키. 기존 코어만 경계 밖 필드로 싣고, 없는 엔진이면 빈 배열 */
   registeredKeys: string[];
 }
 
@@ -86,9 +89,9 @@ export interface JudgmentCaseRun {
   error: { message: string; atMs: number | null } | null;
   /** advance 프레임 간격(ms). 프레임은 0ms에서 시작하는 이 간격의 격자다 */
   frameMs: number;
-  /** 재생을 마친 뒤(finalize 또는 예외 직후) 유닛 상태. 세션에 bodyStates가 없으면 null */
+  /** 재생을 마친 뒤(finalize 또는 예외 직후) 유닛 상태. 세션에 unitStates·bodyStates가 없으면 null */
   unitStates: JudgmentCaseUnitState[] | null;
-  /** 입력 batch마다 processBatch 직전 유닛 상태. 세션에 bodyStates가 없으면 null */
+  /** 입력 batch마다 processBatch 직전 유닛 상태. 세션에 unitStates·bodyStates가 없으면 null */
   unitStatesBeforeBatch: JudgmentCaseBatchUnitStates[] | null;
 }
 
@@ -110,14 +113,30 @@ function batchesOf(actions: readonly JudgmentCaseAction[]): [number, { key: stri
   return batches;
 }
 
-/** 세션의 bodyStates를 읽는다. 이 getter가 없는 엔진(다른 워크트리)이면 null */
+/** 엔진이 주는 유닛 상태 한 항목. 지금 엔진은 `hasStarted`, `--engine`으로 고른 이전 워크트리 엔진은 `active`를 준다. */
+type EngineUnitState = Partial<{
+  noteIndex: number;
+  unitIndex: number;
+  hasStarted: boolean;
+  active: boolean;
+  failed: boolean;
+  complete: boolean;
+  registeredKeys: string[];
+}>;
+
+/**
+ * 세션의 유닛 상태를 읽는다. `unitStates`를 먼저 읽고, 없으면 이전 이름 `bodyStates`를 읽는다. 시작 여부는 `hasStarted`를,
+ * 없으면 `active`를 `active`에 적는다(`unitStates`가 `bodyStates`와 같은 값을 주던 엔진도 있다). 둘 다 없는 엔진이면 null
+ */
 function readUnitStates(session: unknown): JudgmentCaseUnitState[] | null {
-  const states: unknown = (session as { bodyStates?: unknown }).bodyStates;
+  const source = session as { unitStates?: unknown; bodyStates?: unknown };
+  const unitStates = source.unitStates;
+  const states = Array.isArray(unitStates) ? unitStates : source.bodyStates;
   if (!Array.isArray(states)) return null;
-  return states.map((state: Partial<JudgmentCaseUnitState>) => ({
+  return states.map((state: EngineUnitState) => ({
     noteIndex: state.noteIndex ?? -1,
     unitIndex: state.unitIndex ?? 0,
-    active: state.active === true,
+    active: (state.hasStarted ?? state.active) === true,
     failed: state.failed === true,
     complete: state.complete === true,
     registeredKeys: Array.isArray(state.registeredKeys) ? [...state.registeredKeys] : [],
