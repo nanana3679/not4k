@@ -1,5 +1,6 @@
 import type { InputTimeline } from "../input/InputTimeline";
 import type { NoteJudgmentSession } from "../judgment/NoteJudgmentSession";
+import type { JudgmentInputObserver } from "../judgment/JudgmentCore";
 import type { AutoPlayer, AutoInput } from "../input/AutoPlayer";
 import type { GameClock } from "../time/GameClock";
 
@@ -13,10 +14,12 @@ export function drainPlaySessionInputs(
   session: NoteJudgmentSession,
   observedAt: number,
   through = observedAt,
+  observeInput?: JudgmentInputObserver,
 ): number {
   return timeline.flushThrough(through, (rawAt, inputs) => {
-    if (rawAt >= session.core.time) session.processBatch(rawAt, inputs);
-    else session.processObservedBatch(rawAt, inputs, session.core.time);
+    // 같은 시각의 up/down은 core가 재정렬하므로, 관찰도 그 순서대로 실제 적용 직전에 한다.
+    if (rawAt >= session.core.time) session.processBatch(rawAt, inputs, observeInput);
+    else session.processObservedBatch(rawAt, inputs, session.core.time, observeInput);
   });
 }
 
@@ -27,6 +30,7 @@ export function stepPlaySession(
   autoPlayer: Pick<AutoPlayer, "eventsThrough">,
   clock: GameClock,
   frameTimestamp: number,
+  observeInput?: JudgmentInputObserver,
 ): readonly AutoInput[] {
   const songTime = clock.judgmentTimeMs();
   // 이번 프레임에 기한을 진행할 시각. 입력 오프셋이 음수면(늦게 누르는 사람의 보정) 입력 시간이 곡 시간보다 뒤처지므로
@@ -37,7 +41,9 @@ export function stepPlaySession(
   // 양수 오프셋(일찍 누르는 사람의 보정)으로 큐가 앞서 있으면 그 시각까지 만들어, 앞선 합성 입력을 기한보다 먼저 넣는다.
   const autoEvents = autoPlayer.eventsThrough(Math.max(advanceAt, timeline.latestTime));
   enqueueAutoInputs(timeline, autoEvents);
-  drainPlaySessionInputs(timeline, session, songTime, Infinity);
+  // through=Infinity로 오프셋 때문에 곡 시각보다 앞선 입력까지 이번 프레임에 모두 처리한다.
+  // 기어 버튼도 이 관찰 순서로 renderFrame 직전에 재생하므로 핸들러에서 표시하지 않아도 한 프레임의 지연이 추가되지 않는다.
+  drainPlaySessionInputs(timeline, session, songTime, Infinity, observeInput);
   if (advanceAt >= session.core.time) session.advance(advanceAt);
   return autoEvents;
 }

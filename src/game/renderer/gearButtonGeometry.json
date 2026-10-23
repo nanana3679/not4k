@@ -1,0 +1,106 @@
+{
+  "generator": "assets-lab/classic/revisions/frame-keywords-six-20260929/prepare-gear-buttons-v22.mjs",
+  "sources": {
+    "v16": "lab/image-galleries/frame-keywords-six-20260929/53-white-core-frame-v16.svg",
+    "key1": "assets-lab/classic/revisions/frame-keywords-six-20260929/key1-press-insert-v17.png",
+    "idle": "assets-lab/classic/revisions/frame-keywords-six-20260929/press-idle-deck-v17-input.png",
+    "gear": "public/gear/gear.png"
+  },
+  "image": "public/gear/gear-buttons.png",
+  "width": 816,
+  "height": 1344,
+  "align": 16,
+  "gap": 16,
+  "depth": 15,
+  "release": {
+    "capMs": 40,
+    "glowMs": 150,
+    "whiteMs": 53,
+    "capEasing": [0.2, 0.6, 0.3, 1],
+    "glowEasing": [0, 0, 0.58, 1]
+  },
+  "lights": {
+    "single": {
+      "decayTint": [0.25, 0.78, 1]
+    },
+    "double": {
+      "hue": [0.959, 0.643, 0.163],
+      "decayTint": [1, 0.82, 0.44]
+    }
+  },
+  "buttons": [
+    {
+      "lane": 1,
+      "glow": {
+        "single": { "x": 192, "y": 1088, "width": 192, "height": 272, "atlasX": 16, "atlasY": 16 },
+        "double": { "x": 192, "y": 1088, "width": 192, "height": 272, "atlasX": 16, "atlasY": 304 }
+      },
+      "tint": {
+        "single": { "x": 192, "y": 1088, "width": 192, "height": 272, "atlasX": 16, "atlasY": 592 },
+        "double": { "x": 192, "y": 1088, "width": 192, "height": 272, "atlasX": 16, "atlasY": 880 }
+      },
+      "cap": { "x": 208, "y": 1120, "width": 160, "height": 160, "atlasX": 16, "atlasY": 1168 }
+    },
+    {
+      "lane": 2,
+      "glow": {
+        "single": { "x": 352, "y": 1120, "width": 176, "height": 240, "atlasX": 224, "atlasY": 16 },
+        "double": { "x": 352, "y": 1120, "width": 176, "height": 240, "atlasX": 224, "atlasY": 272 }
+      },
+      "tint": {
+        "single": { "x": 352, "y": 1120, "width": 176, "height": 240, "atlasX": 224, "atlasY": 528 },
+        "double": { "x": 352, "y": 1120, "width": 176, "height": 240, "atlasX": 224, "atlasY": 784 }
+      },
+      "cap": { "x": 368, "y": 1120, "width": 144, "height": 160, "atlasX": 224, "atlasY": 1040 }
+    },
+    {
+      "lane": 3,
+      "glow": {
+        "single": { "x": 496, "y": 1120, "width": 176, "height": 240, "atlasX": 416, "atlasY": 16 },
+        "double": { "x": 496, "y": 1120, "width": 176, "height": 240, "atlasX": 416, "atlasY": 272 }
+      },
+      "tint": {
+        "single": { "x": 496, "y": 1120, "width": 176, "height": 240, "atlasX": 416, "atlasY": 528 },
+        "double": { "x": 496, "y": 1120, "width": 176, "height": 240, "atlasX": 416, "atlasY": 784 }
+      },
+      "cap": { "x": 512, "y": 1120, "width": 144, "height": 160, "atlasX": 416, "atlasY": 1040 }
+    },
+    {
+      "lane": 4,
+      "glow": {
+        "single": { "x": 640, "y": 1088, "width": 192, "height": 272, "atlasX": 608, "atlasY": 16 },
+        "double": { "x": 640, "y": 1088, "width": 192, "height": 272, "atlasX": 608, "atlasY": 304 }
+      },
+      "tint": {
+        "single": { "x": 640, "y": 1088, "width": 192, "height": 272, "atlasX": 608, "atlasY": 592 },
+        "double": { "x": 640, "y": 1088, "width": 192, "height": 272, "atlasX": 608, "atlasY": 880 }
+      },
+      "cap": { "x": 656, "y": 1120, "width": 160, "height": 160, "atlasX": 608, "atlasY": 1168 }
+    }
+  ],
+  "stats": {
+    "changedPixels": {
+      "1-glow-single": 41354,
+      "1-glow-double": 41305,
+      "1-tint-single": 37843,
+      "1-tint-double": 37250,
+      "1-cap": 21391,
+      "2-glow-single": 35386,
+      "2-glow-double": 35194,
+      "2-tint-single": 32339,
+      "2-tint-double": 31847,
+      "2-cap": 19035,
+      "3-glow-single": 35698,
+      "3-glow-double": 35687,
+      "3-tint-single": 32339,
+      "3-tint-double": 31847,
+      "3-cap": 19035,
+      "4-glow-single": 41365,
+      "4-glow-double": 41356,
+      "4-tint-single": 37814,
+      "4-tint-double": 37221,
+      "4-cap": 21385
+    },
+    "droppedLaneFloorSpillPixels": 16389
+  }
+}

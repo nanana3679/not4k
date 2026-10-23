@@ -6,10 +6,10 @@ import { LaneHoldTracker, type LaneHoldView } from "./LaneHoldTracker";
 import { compileJudgmentChart, type CompiledJudgmentChart } from "./compiledJudgmentChart";
 import { PointJudgmentState } from "./PointJudgmentState";
 import { ZeroHoldOnlyState } from "./ZeroHoldOnlyState";
-import type { JudgmentBodyState, JudgmentCore, JudgmentCoreFactory, JudgmentCoreOptions, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+import type { JudgmentBodyState, JudgmentCore, JudgmentCoreFactory, JudgmentCoreOptions, JudgmentGrade, JudgmentInput, JudgmentInputObserver, NoteJudgmentEvent } from "./JudgmentCore";
 
 /** 공용 타입을 JudgmentCore.ts로 옮기기 전의 import 경로(`./NoteJudgmentCore`)를 그대로 쓸 수 있게 다시 내보낸다. */
-export type { JudgmentEventKind, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+export type { JudgmentEventKind, JudgmentGrade, JudgmentInput, JudgmentInputObserver, NoteJudgmentEvent } from "./JudgmentCore";
 /** 이 코어의 생성 옵션. 코어 공용 이름은 `JudgmentCoreOptions`이고 이 이름은 기존 import를 위해 남긴다. */
 export type NoteJudgmentCoreOptions = JudgmentCoreOptions;
 
@@ -81,6 +81,7 @@ export class NoteJudgmentCore implements JudgmentCore {
   private readonly windows: JudgmentWindows;
   private readonly onConfirmed?: (event: NoteJudgmentEvent) => void;
   private readonly onBatchConfirmed?: (events: readonly NoteJudgmentEvent[], at: number) => void;
+  private readonly onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
   private currentCombo = 0;
   private readonly confirmationCombo = new ConfirmationCombo();
   private batchingEvents: NoteJudgmentEvent[] | undefined;
@@ -175,6 +176,7 @@ export class NoteJudgmentCore implements JudgmentCore {
     this.zeroHoldState = new ZeroHoldOnlyState(pointCompiled, this.windows.GOOD);
     this.onConfirmed = options.onConfirmed;
     this.onBatchConfirmed = options.onBatchConfirmed;
+    this.onDownConsumed = options.onDownConsumed;
     for (let i = 0; i < this.notes.length; i++) {
       const note = this.notes[i]; const at = timeAt(this.times, i);
       if (at === undefined) continue;
@@ -248,7 +250,7 @@ export class NoteJudgmentCore implements JudgmentCore {
   get confirmed(): readonly NoteJudgmentEvent[] { return this.events; }
   get corrections(): ReadonlyMap<string, ConnectionCorrections> { return this.correctionLedgers; }
 
-  processBatch(at: number, inputs: readonly JudgmentInput[]): void {
+  processBatch(at: number, inputs: readonly JudgmentInput[], observeInput?: JudgmentInputObserver): void {
     this.prepareInputAt(at);
     // Deadlines crossed while moving to this timestamp are a prior logical
     // phase. They must be delivered before the current input batch and never
@@ -260,6 +262,7 @@ export class NoteJudgmentCore implements JudgmentCore {
     this.batchingEvents = [];
     try {
       for (const input of this.orderInputs(inputs)) {
+        observeInput?.(input);
         if (input.type === "press" || input.type === "down") this.press(input.key, at, input.lane);
         else this.release(input.key, at, input.lane);
       }
@@ -280,7 +283,7 @@ export class NoteJudgmentCore implements JudgmentCore {
    * clock is monotonic; rawAt is retained at this seam for adapters that
    * attach raw timing metadata while the state transition is observed now.
    */
-  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void {
+  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number, observeInput?: JudgmentInputObserver): void {
     if (observedAt < this.now) throw new Error("관측 시각은 core 시간보다 과거일 수 없습니다");
     this.sweepBefore(observedAt);
     this.now = observedAt;
@@ -290,6 +293,7 @@ export class NoteJudgmentCore implements JudgmentCore {
     this.batchingEvents = [];
     try {
       for (const selected of this.orderInputs(inputs)) {
+        observeInput?.(selected);
         if (selected.type === "up" || selected.type === "release") this.release(selected.key, rawAt, selected.lane);
         else this.press(selected.key, rawAt, selected.lane);
       }
@@ -318,17 +322,26 @@ export class NoteJudgmentCore implements JudgmentCore {
       predecessor.active && !predecessor.failed && predecessor.end === startCandidate.start &&
       predecessor.lane === startCandidate.lane && predecessor.registered.size >= (this.unitsByNote.get(startCandidate.noteIndex)?.length ?? 0));
     if (startCandidate && (!pointCandidate || startCandidate.start < pointCandidate.timeMs && !preparedSuccessor)) {
-      const token = this.held.get(key)!; token.used = true; token.valid = true; this.startUnit(startCandidate, key, token, at, false); return;
+      const token = this.held.get(key)!; token.used = true; token.valid = true; this.startUnit(startCandidate, key, token, at, false);
+      this.onDownConsumed?.(key, token.lane, startCandidate.noteIndex);
+      return;
     }
     if (pointCandidate && point && !point.keys.has(key)) {
       point.keys.add(key); point.done = point.keys.size >= point.needed; token.used = true; token.valid = true;
       const event = this.pointState.consume(pointCandidate, key, at);
       this.emit(event);
       this.activateForHead(point.noteIndex, key, token, at, point.keys.size - 1);
+      this.onDownConsumed?.(key, token.lane, point.noteIndex);
       return;
     }
     const candidate = startCandidate;
-    if (candidate) { token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false); }
+    // 정상 컴파일된 차트에서는 아래 fallback에 도달할 수 없다. pointCandidate가 없으면 위 start 분기가 이미 반환하고,
+    // 있으면 points에도 같은 노트가 있으며 peek가 이미 사용한 키를 제외하므로 위 point 분기가 반드시 소비하고 반환한다.
+    // 두 키 집합은 point 소비 시 함께 갱신된다. 판정 동작은 유지하고 방어적 fallback을 남긴다.
+    if (candidate) {
+      token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false);
+      this.onDownConsumed?.(key, token.lane, candidate.noteIndex);
+    }
   }
 
   release(key: string, at: number = this.now, lane?: number): void {

@@ -41,27 +41,27 @@ describe('SkinManager', () => {
     manager.dispose();
   });
 
-  it('Classic을 로드하면 getLoadedTextures는 불러온 텍스처 62개(봄 16프레임·켜짐·실패·부분 실패·Grace·터미널 idle·기어 2종·버튼 8장)를 키별로 getTexture와 같은 객체로 돌려준다', async () => {
+  it('Classic을 로드하면 getLoadedTextures는 불러온 텍스처 63개(봄 16프레임·켜짐·실패·부분 실패·Grace·터미널 idle·기어 3종·버튼 8장)를 키별로 getTexture와 같은 객체로 돌려준다', async () => {
     const manager = new SkinManager();
     await manager.loadSkin('classic');
     const loaded = manager.getLoadedTextures();
-    expect(loaded.size).toBe(62);
+    expect(loaded.size).toBe(63);
     for (const key of [
       'bomb0', 'bomb15', 'bodySingleHeld', 'bodyDoublePartialHeldLeft', 'noteDoubleFailed', 'terminalTrillFailed',
-      'bodyDoublePartialFailedRight', 'pointGraceOverlay', 'terminalGraceOverlay', 'terminalSingleIdle', 'gearImage', 'gearGaugeEmpty',
+      'bodyDoublePartialFailedRight', 'pointGraceOverlay', 'terminalGraceOverlay', 'terminalSingleIdle', 'gearImage', 'gearGaugeEmpty', 'gearButtons',
     ]) expect(loaded.has(key), key).toBe(true);
     for (const [key, texture] of loaded) expect(texture, key).toBe(manager.getTexture(key));
     manager.dispose();
   });
 
-  it('heldEffect: false 스킨이면 getLoadedTextures에 켜짐 텍스처 5종이 없고 Classic보다 5개 적은 57개다', async () => {
+  it('heldEffect: false 스킨이면 getLoadedTextures에 켜짐 텍스처 5종이 없고 Classic보다 5개 적은 58개다', async () => {
     const base = getSkinManifest('classic');
     const manifest = { theme: { ...base.theme, id: 'no-effect', heldEffect: false }, assets: withoutHeldAssets(base.assets) } as unknown as typeof base;
     const manager = new SkinManager();
     await manager.loadSkin(manifest);
     const loaded = manager.getLoadedTextures();
     for (const key of HELD_ASSET_KEYS) expect(loaded.has(key), key).toBe(false);
-    expect(loaded.size).toBe(57);
+    expect(loaded.size).toBe(58);
     manager.dispose();
   });
 
@@ -69,21 +69,24 @@ describe('SkinManager', () => {
     expect(() => new SkinManager().getLoadedTextures()).toThrow('no skin loaded');
   });
 
-  it('기어와 고도 게이지 빈 유리만 밉맵·삼선형 설정을 붙여 경로 별칭으로 읽고 나머지 에셋은 경로 그대로 읽는다', async () => {
+  it('기어·고도 게이지 빈 유리·기어 버튼 아틀라스만 밉맵·삼선형 설정을 붙여 경로 별칭으로 읽고 나머지 에셋은 경로 그대로 읽는다', async () => {
     const manager = new SkinManager();
     await manager.loadSkin('classic');
     const objectLoads = assetsLoad.mock.calls.map(([request]) => request as unknown).filter((request) => typeof request !== 'string');
     expect(objectLoads).toEqual([
       { alias: '/gear/gear.png', src: '/gear/gear.png', data: { autoGenerateMipmaps: true, scaleMode: 'linear' } },
-      // 빈 유리는 기어 위에 같은 배율로 겹치므로 기어와 똑같이 거른다(다르면 경계에서 선명도가 달라 보인다).
+      // 빈 유리와 버튼 레이어는 기어 위에 같은 배율로 겹치므로 기어와 똑같이 거른다(다르면 경계에서 선명도가 달라 보인다).
       { alias: '/gear/gear-gauge-empty.png', src: '/gear/gear-gauge-empty.png', data: { autoGenerateMipmaps: true, scaleMode: 'linear' } },
+      { alias: '/gear/gear-buttons.png', src: '/gear/gear-buttons.png', data: { autoGenerateMipmaps: true, scaleMode: 'linear' } },
     ]);
     expect(manager.hasTexture('gearImage')).toBe(true);
     expect(manager.hasTexture('gearGaugeEmpty')).toBe(true);
+    expect(manager.hasTexture('gearButtons')).toBe(true);
     expect(manager.hasTexture('gearGaugeLeft')).toBe(false);
     manager.dispose();
     await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/gear.png'));
     await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/gear-gauge-empty.png'));
+    await vi.waitFor(() => expect(assetsUnload).toHaveBeenCalledWith('/gear/gear-buttons.png'));
   });
 
   it('heldEffect를 생략한 스킨에 bodySingleHeld가 없으면 빠진 에셋 이름을 담은 오류로 로딩이 실패한다', async () => {

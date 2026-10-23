@@ -16,6 +16,8 @@ import {
   parseGearOffsetYParam,
   describeGaugeLevel,
   formatGaugeLevel,
+  formatGearButtonStates,
+  labGearButtonColor,
   manualAltitudeOnUnfollow,
   describeGear,
   describeGearJudgment,
@@ -231,5 +233,21 @@ describe('고도 조절(기어 게이지·비행 배경)', () => {
     expect(describeGaugeLevel(0.3)).toBe('30% · 빈 유리 575/821행');
     expect(describeGaugeLevel(1)).toBe('100% · 그림 그대로');
     expect(describeGaugeLevel(null)).toBe('게이지 없음');
+  });
+});
+
+describe('Gear 미리보기 기어 버튼 표시', () => {
+  const state = (phase: 'idle' | 'pressed' | 'releasing', color: 'single' | 'double' = 'single') => ({ phase, color, heldKeys: phase === 'pressed' ? 1 : 0, releaseMs: 0 });
+
+  it('gear-preview-stage의 data-gear-buttons는 레인 1~4를 쉼표로 이어 대기는 idle, 그 밖에는 단계-색이다("idle,pressed-single,releasing-double,idle")', () => {
+    expect(formatGearButtonStates([state('idle'), state('pressed'), state('releasing', 'double'), state('idle', 'double')])).toBe('idle,pressed-single,releasing-double,idle');
+  });
+
+  it('기어 버튼이 없으면(null) data-gear-buttons 속성을 쓰지 않는다', () => {
+    expect(formatGearButtonStates(null)).toBeUndefined();
+  });
+
+  it('Lab에서 바인딩된 키를 누를 때 Shift를 함께 누르면 더블을 강제하고, 아니면 색을 넘기지 않아(undefined) 게임과 같은 공입력 규칙을 쓴다', () => {
+    expect([labGearButtonColor(true), labGearButtonColor(false)]).toEqual(['double', undefined]);
   });
 });

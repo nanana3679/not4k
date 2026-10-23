@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { NoteEntity } from "../../shared";
 import { JUDGMENT_WINDOWS_EASY } from "../../shared/constants";
 import { compileJudgmentChart } from "./compiledJudgmentChart";
-import type { JudgmentCoreFactory } from "./JudgmentCore";
+import type { JudgmentCoreFactory, JudgmentInputObserver } from "./JudgmentCore";
 import { NoteJudgmentCore } from "./NoteJudgmentCore";
 import { NoteJudgmentSession, type NoteJudgmentSessionView } from "./NoteJudgmentSession";
 import { body, down, point, up } from "./noteJudgmentTestHarness";
@@ -183,6 +183,33 @@ describe("NoteJudgmentSession 곡 끝 대기 기한", () => {
 });
 
 describe("NoteJudgmentSession 판정 코어 생성 함수 주입", () => {
+  it("주입한 코어가 1000ms A down과 늦게 관측한 1010ms B down을 처리하면 각 입력 관찰 직후 노트 0·1 소비를 알리고 Perfect 2건을 정산한다", () => {
+    const compiled = compileJudgmentChart([point(1000), point(1010, "single", 2)], [1000, 1010], new Map());
+    const order: string[] = [];
+    let createdCount = 0;
+    const createCore: JudgmentCoreFactory = (chart, options) => {
+      createdCount += 1;
+      return new NoteJudgmentCore(chart, options);
+    };
+    const s = new NoteJudgmentSession(compiled, {
+      createCore,
+      onDownConsumed: (key, lane, noteIndex) => order.push(`consumed ${key} ${lane} ${noteIndex}`),
+    });
+    const observeInput: JudgmentInputObserver = input => order.push(`${input.type} ${input.key}`);
+
+    s.processBatch(1000, [down("A")], observeInput);
+    s.advance(1080);
+    s.processObservedBatch(1010, [down("B", 2), up("A")], 1080, observeInput);
+
+    expect(createdCount).toBe(1);
+    expect(order).toEqual(["down A", "consumed A 1 0", "up A", "down B", "consumed B 2 1"]);
+    expect(s.events.map(event => ({ inputAt: event.inputAt, confirmedAt: event.confirmedAt }))).toEqual([
+      { inputAt: 1000, confirmedAt: 1000 },
+      { inputAt: 1010, confirmedAt: 1080 },
+    ]);
+    expect(s.finalize()).toMatchObject({ earnedScore: 6, processedNotes: 2, judgmentCounts: { perfect: 2, miss: 0 } });
+  });
+
   it("createCore 없이 만든 세션의 core는 NoteJudgmentCore", () => {
     expect(session([point(1000)]).core).toBeInstanceOf(NoteJudgmentCore);
   });

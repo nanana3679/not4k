@@ -5,7 +5,7 @@ import {
   decideConfirmedJudgmentEffects,
   type ConfirmedJudgmentEffects,
 } from "./confirmedJudgmentEffects";
-import type { JudgmentCore, JudgmentCoreFactory, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+import type { JudgmentCore, JudgmentCoreFactory, JudgmentInput, JudgmentInputObserver, NoteJudgmentEvent } from "./JudgmentCore";
 import { createNoteJudgmentCore } from "./NoteJudgmentCore";
 import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
 
@@ -24,6 +24,8 @@ export interface NoteJudgmentSessionOptions {
    * finalize, 확정 효과)로 시험할 때만 넘긴다.
    */
   readonly createCore?: JudgmentCoreFactory;
+  /** 표시 전용: keydown이 노트에 소비된 순간 키·레인·노트 index(core의 `onDownConsumed`를 그대로 넘긴다). 판정에는 영향이 없다. */
+  readonly onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
 }
 
 /**
@@ -56,17 +58,18 @@ export class NoteJudgmentSession {
       windows: this.windows,
       onConfirmed: (event) => this.applyConfirmedEvent(event),
       onBatchConfirmed: (events, at) => this.publishBatch(events, at),
+      onDownConsumed: options.onDownConsumed,
     });
   }
 
-  processBatch(at: number, inputs: readonly JudgmentInput[]): void {
+  processBatch(at: number, inputs: readonly JudgmentInput[], observeInput?: JudgmentInputObserver): void {
     this.assertOpen();
-    this.core.processBatch(at, inputs);
+    this.core.processBatch(at, inputs, observeInput);
   }
 
-  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void {
+  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number, observeInput?: JudgmentInputObserver): void {
     this.assertOpen();
-    this.core.processObservedBatch(rawAt, inputs, observedAt);
+    this.core.processObservedBatch(rawAt, inputs, observedAt, observeInput);
   }
 
   advance(at: number): void {

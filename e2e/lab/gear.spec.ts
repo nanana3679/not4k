@@ -857,6 +857,96 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
+  test('레인 2 KeyD를 누르는 동안 기어 2번 버튼이 눌려(data-gear-buttons 2번 pressed-single) 키 앞면이 연파랑으로 빛나고 버튼 밖 기둥은 그대로이며, 떼면 대기(idle)로 돌아와 기어 그림 색이 되고, 같은 레인 KeyD·KeyO를 함께 누르면(공입력 두 키) 금색(pressed-double), Shift를 함께 누르면 금색이며, 창이 포커스를 잃으면 대기로 돌아온다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    // `gearMotion`을 끄면 정적 기어만 남아 픽셀이 시간에 따라 바뀌지 않는다.
+    await page.getByLabel('움직임', { exact: true }).uncheck();
+    await expect(stage).toHaveAttribute('data-motion', 'off');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle');
+    const toStage = await gearToStage(page);
+    // 2번 키 앞면(원본 437, 1250): 대기는 어두운 금속, 15px 눌리면 연파랑(싱글)·금색(더블)으로 빛나는 곳이다. 기둥(원본 120, 1200)은 버튼 레이어 밖이다.
+    const face = toStage({ x: 437, y: 1250 });
+    const pillar = toStage({ x: 120, y: 1200 });
+    // 비행 배경과 상관없는 기어 위 점이라 한 점이면 되지만, 확대로 생긴 윤곽에 닿아도 흔들리지 않게 둘레 다섯 점(±1 논리 px)을 평균한다.
+    const area = async (center: { x: number; y: number }) => {
+      const offsets = [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+      const pixels = await pixelsAt(page, offsets.map(([dx, dy]) => ({ x: center.x + dx, y: center.y + dy })));
+      return [0, 1, 2].map((channel) => pixels.reduce((sum, pixel) => sum + pixel[channel], 0) / pixels.length);
+    };
+    const maxDifference = (a: number[], b: number[]) => Math.max(...a.map((value, channel) => Math.abs(value - b[channel])));
+    const idleFace = await area(face);
+    const idlePillar = await area(pillar);
+    expect(Math.max(...idleFace)).toBeLessThan(90);
+
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
+    // swiftshader에서 캔버스 스크린샷 하나가 수 초 걸릴 수 있어 기다림을 넉넉히 둔다.
+    await expect.poll(async () => { const [red, , blue] = await area(face); return blue - red; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    expect(maxDifference(await area(pillar), idlePillar)).toBeLessThan(6);
+
+    await page.keyboard.up('KeyD');
+    // 뗀 뒤 키가 40ms에 돌아오고 빛이 150ms에 꺼지면 대기다.
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle', { timeout: 10_000 });
+    await expect.poll(async () => maxDifference(await area(face), idleFace), { timeout: 30_000 }).toBeLessThan(12);
+
+    // Lab 키 입력은 노트를 치지 않는 공입력이라 게임처럼 같은 레인(2: KeyE·KeyD·KeyC·KeyO)에 키가 둘이면 금색이다.
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
+    await page.keyboard.down('KeyO');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
+    await expect.poll(async () => { const [red, , blue] = await area(face); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    await page.keyboard.up('KeyO');
+    await page.keyboard.up('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle', { timeout: 10_000 });
+
+    // Shift는 Lab 확인용으로 키 하나여도 금색을 강제한다.
+    await page.keyboard.down('Shift');
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
+    await expect.poll(async () => { const [red, , blue] = await area(face); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    await page.keyboard.up('KeyD');
+    await page.keyboard.up('Shift');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle', { timeout: 10_000 });
+
+    // 누른 채 창이 포커스를 잃으면(blur) 키를 떼지 않아도 버튼이 돌아온다.
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle', { timeout: 10_000 });
+    await page.keyboard.up('KeyD');
+    expect(errors).toEqual([]);
+  });
+
+  test('Shift+KeyD 뒤 반복 입력은 금색을 유지하고 TKL에서 넘버패드로 바꿔도 keyup·blur가 원래 레인 2 버튼을 뗀다', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/lab/gear');
+    await waitForRenderer(page);
+    const stage = page.locator(stageSelector);
+    await page.keyboard.down('Shift');
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
+    await page.keyboard.up('Shift');
+    // Playwright는 이미 누른 키의 두 번째 down을 repeat으로 보낸다.
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
+    await page.getByLabel('넘버패드').check();
+    await expect(stage).toHaveAttribute('data-keyboard', 'numpad');
+    await page.keyboard.up('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle');
+
+    await page.getByLabel('TKL').check();
+    await page.keyboard.down('KeyD');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
+    await page.getByLabel('넘버패드').check();
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle');
+    await page.keyboard.up('KeyD');
+    expect(errors).toEqual([]);
+  });
+
   test('gearMotion 에셋(/gear/gear-motion/gear-motion.json) 응답을 보류하면 게임처럼 렌더러 준비도 기다리고(data-renderer-ready false), 응답을 보내면 gearMotion을 추가한 채 준비된다', async ({ page }) => {
     const errors = collectErrors(page);
     let release: () => void = () => {};

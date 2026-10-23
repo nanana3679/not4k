@@ -29,14 +29,25 @@ export interface NoteJudgmentEvent {
   phase?: "input" | "deadline";
 }
 
-/** 판정 코어를 만들 때 넘기는 판정 창과 확정 콜백. */
+/** 판정 코어를 만들 때 넘기는 판정 창과 확정·표시 관찰 콜백. */
 export interface JudgmentCoreOptions {
   windows?: JudgmentWindows;
   onConfirmed?: (event: NoteJudgmentEvent) => void;
   onBatchConfirmed?: (events: readonly NoteJudgmentEvent[], at: number) => void;
+  /**
+   * 표시 전용 관찰: keydown 하나가 노트(Point head 또는 롱노트 시작)에 소비된 순간, 그 키·레인과 소비한 노트의 index를 알린다.
+   * 소비되지 않은 keydown(공입력)은 알리지 않는다. 판정·점수에는 아무 영향이 없고, 기어 버튼 색처럼 누름이 어느 노트를 쳤는지만 필요한 표시가 쓴다.
+   */
+  onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
 }
 
 export interface JudgmentInput { key: string; lane?: number; type: "press" | "release" | "down" | "up" }
+
+/**
+ * 표시 전용: 코어가 정렬한 입력을 적용하기 직전에 관찰한다. down의 소비 알림은 이어지는 press 안에서 동기적으로 발생한다.
+ * 입력을 바꿀 수 없게 읽기 전용으로 받는다. 관찰자가 예외를 던지면 batch가 그 자리에서 끊기므로 던지지 않아야 한다.
+ */
+export type JudgmentInputObserver = (input: Readonly<JudgmentInput>) => void;
 
 /** 렌더러가 켜짐·실패 표시에 쓰는 unit(몫) 하나의 상태. */
 export interface JudgmentBodyState {
@@ -57,9 +68,9 @@ export interface JudgmentCore {
    * 시작 시각이 `-Infinity`라 첫 호출에서는 지난 기한을 입력 뒤에 정산한다. 교체 전까지 두는 알려진 차이다
    * (docs/spec/game-core.md "같은 at 분할과 첫 호출").
    */
-  processBatch(at: number, inputs: readonly JudgmentInput[]): void;
+  processBatch(at: number, inputs: readonly JudgmentInput[], observeInput?: JudgmentInputObserver): void;
   /** raw 시각 `rawAt`의 입력을 `observedAt`에 관측했다. 판정은 raw 시각으로, 확정은 관측 시각으로 한다. */
-  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void;
+  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number, observeInput?: JudgmentInputObserver): void;
   /** 입력 없이 기한만 진행한다. */
   advance(at: number): void;
   readonly time: number;

@@ -28,6 +28,7 @@ import { GEAR_GEOMETRY, GEAR_CLEARANCE, clampGearOffsetY, layoutGear, type GearL
 import { acquireGearMotionAssets } from "./gearMotionAssets";
 import { GearMotionController, type GearMotionControls } from "./GearMotionController";
 import { GearGauge } from "./gearGauge";
+import { GearButtons, type GearButtonColor, type GearButtonStateView } from "./gearButtons";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
 import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
@@ -68,9 +69,13 @@ const TUTORIAL_KEY_GAP = playfieldPx(2);
 const TUTORIAL_KEY_PRESS_DROP = playfieldPx(3);
 const TUTORIAL_BOARD_INSET = playfieldPx(2);
 const TUTORIAL_BOARD_RADIUS = playfieldPx(7);
-/** 스킨의 기어 그림·빈 유리 텍스처 키. buildGear·buildGearGauge가 이 키로 읽고, 곡 시작 전 준비는 이 키를 건너뛰고 실제로 만든 것만 GPU 업로드한다. */
+/**
+ * 스킨의 기어 그림·빈 유리·기어 버튼 누름 레이어 텍스처 키. buildGear·buildGearGauge·buildGearButtons가 이 키로 읽고,
+ * 곡 시작 전 준비는 이 키를 건너뛰고 실제로 만든 것만 GPU 업로드한다.
+ */
 const GEAR_IMAGE_KEY = "gearImage";
 const GEAR_GAUGE_EMPTY_KEY = "gearGaugeEmpty";
+const GEAR_BUTTONS_KEY = "gearButtons";
 
 /** 튜토리얼 프리뷰 키보드 strip 스펙 — 레이아웃/매핑 계산은 React가 하고 렌더러는 그리기만 한다.
  *  (순환 import 방지를 위해 player 쪽 타입을 import하지 않고 자체 선언) */
@@ -101,8 +106,8 @@ export interface GameRendererOptions {
   /** 스킨 기본 키봄 크기의 배율(0~3). 0이면 표시하지 않는다. */
   bombScale?: number;
   /**
-   * 새 기어(스킨 공통 `gearImage`)와 양옆 유리관 고도 게이지(`gearGaugeEmpty`)를 그린다.
-   * 끄면(튜토리얼 미니 렌더러) 둘 다 없고, 레인 끝(`laneEndY`)은 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)이다.
+   * 새 기어(스킨 공통 `gearImage`)와 양옆 유리관 고도 게이지(`gearGaugeEmpty`), 기어 버튼 누름(`gearButtons`)을 그린다.
+   * 끄면(튜토리얼 미니 렌더러) 셋 다 없고, 레인 끝(`laneEndY`)은 판정 순간 노트 칸 아래끝(판정선 + 노트 반 칸)이다.
    */
   showGear?: boolean;
   /**
@@ -211,8 +216,15 @@ export class GameRenderer {
   private keyBeamGradient: FillGradient | null = null;
 
   // Gear (새 기어, RFD 0029) — 판정선·레인 키 라벨 위, 키봄·UI 아래. 리프트로 움직이지 않는다.
+  // 기어 레이어 안의 순서(아래→위): 기어 스프라이트, 기어 버튼, `gearMotion` holder, 고도 게이지.
   private gearLayer: Container;
   private _gearLayout: Readonly<GearLayout> | null = null;
+  /**
+   * 기어 버튼 — 기어 스프라이트 바로 위(`gearMotion`·고도 게이지 아래). 버튼 레이어는 눌린 키 덱 그림 자체라 그림 위에 겹치고,
+   * 그림 위 장식 애니메이션인 `gearMotion`은 그 위에 그대로 둔다(키 덱은 `gearMotion` 마스크에서 빠져 둘은 버튼 영역 가장자리의 옅은 경계에서만 겹친다).
+   * 고도 게이지(유리관)와는 겹치지 않는다. 키빔은 레인 내용이라 기어 레이어 아래이고, 버튼 레이어는 기어가 투명한 곳(열린 덱)에 그리지 않아 레인·키빔을 가리지 않는다.
+   */
+  private gearButtons: GearButtons | null = null;
   // `gearMotion` — 기어 레이어에서 기어 스프라이트 바로 위. 애니메이션 경과 시간은 renderFrame의 deltaMs로만 나아간다.
   private readonly gearMotionEnabled: boolean;
   private gearMotionController: GearMotionController | null = null;
@@ -553,7 +565,24 @@ export class GameRenderer {
     this._gearLayout = Object.freeze(layout);
     this.gearLayer.addChild(sprite);
     this.gearTextures.push(texture);
+    this.buildGearButtons(layout);
     this.buildGearGauge(layout);
+  }
+
+  /**
+   * 기어 버튼 누름(키 덱 네 버튼). 기어와 같은 변환으로 기어 스프라이트 바로 위에 붙인다(나중에 붙는 `gearMotion` holder와 고도 게이지는 그 위).
+   * 아틀라스는 스킨 필수 에셋이지만, 없으면(테스트용 부분 스킨) 버튼 누름 없이 기어만 그린다. 대기 버튼은 그리지 않으므로 Pixi가 아틀라스를
+   * 처음 누를 때 GPU 업로드하지 않도록 곡 시작 전 준비(prepareForPlayback)가 미리 GPU 업로드한다.
+   */
+  private buildGearButtons(layout: Readonly<GearLayout>): void {
+    let texture;
+    try { texture = this.skinManager.getTexture(GEAR_BUTTONS_KEY); } catch { return; }
+    const buttons = new GearButtons({ texture });
+    buttons.container.position.set(layout.x, layout.y);
+    buttons.container.scale.set(layout.scale);
+    this.gearLayer.addChild(buttons.container);
+    this.gearButtons = buttons;
+    this.gearTextures.push(texture);
   }
 
   /**
@@ -623,14 +652,14 @@ export class GameRenderer {
   /**
    * 곡 중 이 렌더러가 그릴 수 있는 텍스처 소스(중복 없음). 여러 텍스처가 나눠 쓰는 소스(터미널에서 잘라 쓴 롱노트 캡, 게이지 행 등)는 한 번만 담는다.
    * - SkinManager가 불러온 텍스처 전부: 노트·바디·터미널과 실패·켜짐·부분 실패·idle 변형, Grace·그림자, 키봄 16프레임 등.
-   *   켜짐 효과 없는 스킨은 켜짐 에셋을 불러오지 않으므로 담기지 않는다. 기어 그림·빈 유리는 이 렌더러가 실제로 만든 것(gearTextures)만 담는다.
+   *   켜짐 효과 없는 스킨은 켜짐 에셋을 불러오지 않으므로 담기지 않는다. 기어 그림·빈 유리·기어 버튼 아틀라스는 이 렌더러가 실제로 만든 것(gearTextures)만 담는다.
    * - `gearMotion` 텍스처 9개: `gearMotion`이 재생 중일 때만(`running`. 설정 끔이면 `gearMotion`을 만들지 않는다).
    * - 키빔 그라데이션: 레인 키를 처음 누르는 프레임에 GPU 업로드되지 않게.
    */
   private collectPlaybackTextureSources(): Set<TextureSource> {
     const sources = new Set<TextureSource>();
     for (const [key, texture] of this.skinManager.getLoadedTextures()) {
-      if (key === GEAR_IMAGE_KEY || key === GEAR_GAUGE_EMPTY_KEY) continue;
+      if (key === GEAR_IMAGE_KEY || key === GEAR_GAUGE_EMPTY_KEY || key === GEAR_BUTTONS_KEY) continue;
       sources.add(texture.source);
     }
     for (const texture of this.gearTextures) sources.add(texture.source);
@@ -650,6 +679,17 @@ export class GameRenderer {
     const render = () => this.renderFrame(songTimeMs, 0);
     if (this.gearMotionController) this.gearMotionController.warmUp(render);
     else render();
+  }
+
+  /**
+   * 기어 버튼 입력: lane(1~4)의 입력 key(물리 키 `KeyboardEvent.code`나 `AutoPlayer`의 합성 키)가 눌렸거나(pressed) 떼어졌다.
+   * 누름은 다음 렌더 프레임에 바로 눌려 빛나는 모습으로 그리고, 같은 레인의 키를 모두 떼면 렌더 프레임 간격으로 돌아온다.
+   * color는 누를 때 쓰는 빛의 색이다. 주지 않으면 공입력 규칙(이 키를 포함해 그 레인에 누르고 있는 키가 둘 이상이면 더블 금색)으로 정하고,
+   * 노트를 친 누름은 호출자가 노트 규칙의 색을 넘긴다(`gearButtonPressColor`). 게임은 판정 적용 순서로 입력을 재생한다.
+   * 기어 버튼을 그리지 않는 렌더러(showGear false·아틀라스 없음·dispose 뒤)에서는 아무것도 하지 않는다.
+   */
+  setGearButtonKey(lane: number, key: string, pressed: boolean, color?: GearButtonColor): void {
+    this.gearButtons?.setKey(lane, key, pressed, color);
   }
 
   setKeyBeam(lane: number, pressed: boolean): void {
@@ -989,6 +1029,8 @@ export class GameRenderer {
     }
     // `gearMotion`의 애니메이션 경과 시간은 곡 시간이 아니라 렌더 프레임 간격으로만 나아간다(일시정지 중에는 이 함수가 불리지 않아 멈춘다).
     this.gearMotionController?.advance(deltaMs);
+    // 뗀 기어 버튼도 렌더 프레임 간격으로만 돌아온다(일시정지 중 멈춤). 누름은 setGearButtonKey가 이미 그렸다.
+    this.gearButtons?.update(deltaMs);
 
     // Hide all pooled graphics
     for (const g of this.measureLinePool) g.visible = false;
@@ -1171,7 +1213,8 @@ export class GameRenderer {
   /**
    * 같은 렌더러로 다른 차트를 이어 그릴 때(튜토리얼 프리뷰 슬롯 재사용) 이전 차트가 남긴 일시 표시를 지운다.
    * 재생 중인 봄, 판정 텍스트, 키빔·레인 키캡·키보드 눌림, 이벤트 문구, 이전 판정 세션의 body 조회가 대상이다.
-   * 노트 풀과 노트 표시 상태는 setChart가 비운다.
+   * 노트 풀과 노트 표시 상태는 setChart가 비운다. 기어 버튼은 차트가 아니라 지금 누르고 있는 키를 보여 주므로 그대로 둔다
+   * (차트를 되감는 Lab 미리보기에서 키를 누른 채여도 버튼이 떨어지지 않고, 뒤에 오는 키 뗌으로 돌아온다).
    */
   resetTransientState(): void {
     if (!this.initialized) return;
@@ -1238,6 +1281,14 @@ export class GameRenderer {
   }
 
   /**
+   * 레인 1~4 기어 버튼의 지금 상태(눌림 단계·색·누른 키 수·뗀 뒤 경과). 기어 버튼을 그리지 않으면(showGear false·아틀라스 없음·dispose 뒤) null.
+   * Lab Gear(`/lab/gear`)가 읽어 `data-gear-buttons`로 알리고 E2E도 읽는다. 새 배열을 만들지 않고 같은 상태 객체를 돌려준다.
+   */
+  get gearButtonStates(): readonly GearButtonStateView[] | null {
+    return this.gearButtons?.states ?? null;
+  }
+
+  /**
    * 미리보기(Lab `/lab/gear`) 전용: 비행 배경과 기어 게이지가 보여 줄 고도를 altitude(0~1로 자름, NaN은 0)로 고정한다.
    * null이면 곡 진행·판정에 따른 고도 모델로 돌아간다. 게임은 부르지 않는다. 게이지는 바뀐 값으로 이징하고,
    * 고도 모델의 상태는 고정하는 동안에도 그대로 나아간다.
@@ -1256,7 +1307,7 @@ export class GameRenderer {
 
   /**
    * 기어 그림 좌표(1024×1536)로 그린 레이어를 기어 위, 같은 깊이(판정선·레인 키 라벨 위, 키봄·UI 아래)에
-   * 기어와 같은 변환으로 붙인다. 내장 `gearMotion`이 쓴다. 고도 게이지가 있으면 그 아래에 넣어 게이지가 늘 맨 위에 남는다
+   * 기어와 같은 변환으로 붙인다. 내장 `gearMotion`이 쓴다. 기어 버튼보다 위에 붙고, 고도 게이지가 있으면 그 아래에 넣어 게이지가 늘 맨 위에 남는다
    * (빈 유리 덮개가 빈 부분의 `gearMotion` 액체·기포를 가린다).
    * 기어가 없으면 붙이지 않고 null을 돌려준다. 붙인 레이어의 정리는 호출자가 한다(기어 레이어와 함께 파괴된다).
    */
@@ -1347,6 +1398,9 @@ export class GameRenderer {
     // 게이지가 만든 행 텍스처만 정리한다(빈 유리 아틀라스는 SkinManager 소유).
     this.gearGauge?.destroy();
     this.gearGauge = null;
+    // 기어 버튼도 자기가 만든 frame 텍스처만 정리한다(아틀라스는 SkinManager 소유).
+    this.gearButtons?.destroy();
+    this.gearButtons = null;
     this.gearTextures = [];
     this.noteRenderer.dispose();
     // Boolean true also clears Pixi's global pools in v8. Other tutorial
