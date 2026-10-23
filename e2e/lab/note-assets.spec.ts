@@ -133,9 +133,9 @@ test.describe("Note Assets Lab", () => {
       renderer.setJudgmentBodyStateQuery((index: number) => index >= 3 ? null : ({
         successorIndex: index < 2 ? index + 1 : undefined,
         units: [{
-          unitIndex: 0, active: index === activeSegment && phase !== 'idle', complete: index < activeSegment,
+          unitIndex: 0, hasStarted: index === activeSegment && phase !== 'idle', complete: index < activeSegment,
           failed: index === activeSegment && phase === 'failed',
-          registeredKeys: index === activeSegment && phase === 'held' ? ['KeyF'] : [],
+          held: index === activeSegment && phase === 'held',
         }],
       }));
       const texturesMatch = (layer: typeof renderer.longNoteBodyLayer, keys: string[]) =>

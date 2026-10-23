@@ -211,7 +211,7 @@ export function PlayScreen() {
           },
         };
         const session = new NoteJudgmentSession(compiled, { windows, onBatchConfirmed: view => adapter.apply(view) });
-        const adapter = new SessionRendererAdapter({ notes: compiled.rawNotes, connections: compiled.connections, bodyStates: () => session.bodyStates, scoreAccuracy: () => session.score.getState().achievementRate, port: rendererPort });
+        const adapter = new SessionRendererAdapter({ notes: compiled.rawNotes, connections: compiled.connections, unitStates: () => session.unitStates, scoreAccuracy: () => session.score.getState().achievementRate, port: rendererPort });
         sessionRef.current = session;
         inputTimelineRef.current = new InputTimeline();
 
