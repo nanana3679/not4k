@@ -24,8 +24,6 @@ export interface NoteJudgmentSessionOptions {
    * finalize, 확정 효과)로 시험할 때만 넘긴다.
    */
   readonly createCore?: JudgmentCoreFactory;
-  /** 표시 전용: keydown이 노트에 소비된 순간 키·레인·노트 index(core의 `onDownConsumed`를 그대로 넘긴다). 판정에는 영향이 없다. */
-  readonly onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
 }
 
 /**
@@ -58,7 +56,6 @@ export class NoteJudgmentSession {
       windows: this.windows,
       onConfirmed: (event) => this.applyConfirmedEvent(event),
       onBatchConfirmed: (events, at) => this.publishBatch(events, at),
-      onDownConsumed: options.onDownConsumed,
     });
   }
 

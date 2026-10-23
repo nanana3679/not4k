@@ -17,7 +17,6 @@ import {
   describeGaugeLevel,
   formatGaugeLevel,
   formatGearButtonStates,
-  labGearButtonColor,
   manualAltitudeOnUnfollow,
   describeGear,
   describeGearJudgment,
@@ -245,9 +244,5 @@ describe('Gear 미리보기 기어 버튼 표시', () => {
 
   it('기어 버튼이 없으면(null) data-gear-buttons 속성을 쓰지 않는다', () => {
     expect(formatGearButtonStates(null)).toBeUndefined();
-  });
-
-  it('Lab에서 바인딩된 키를 누를 때 Shift를 함께 누르면 더블을 강제하고, 아니면 색을 넘기지 않아(undefined) 게임과 같은 공입력 규칙을 쓴다', () => {
-    expect([labGearButtonColor(true), labGearButtonColor(false)]).toEqual(['double', undefined]);
   });
 });

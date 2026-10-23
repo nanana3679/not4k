@@ -81,7 +81,6 @@ export class NoteJudgmentCore implements JudgmentCore {
   private readonly windows: JudgmentWindows;
   private readonly onConfirmed?: (event: NoteJudgmentEvent) => void;
   private readonly onBatchConfirmed?: (events: readonly NoteJudgmentEvent[], at: number) => void;
-  private readonly onDownConsumed?: (key: string, lane: number, noteIndex: number) => void;
   private currentCombo = 0;
   private readonly confirmationCombo = new ConfirmationCombo();
   private batchingEvents: NoteJudgmentEvent[] | undefined;
@@ -176,7 +175,6 @@ export class NoteJudgmentCore implements JudgmentCore {
     this.zeroHoldState = new ZeroHoldOnlyState(pointCompiled, this.windows.GOOD);
     this.onConfirmed = options.onConfirmed;
     this.onBatchConfirmed = options.onBatchConfirmed;
-    this.onDownConsumed = options.onDownConsumed;
     for (let i = 0; i < this.notes.length; i++) {
       const note = this.notes[i]; const at = timeAt(this.times, i);
       if (at === undefined) continue;
@@ -322,26 +320,17 @@ export class NoteJudgmentCore implements JudgmentCore {
       predecessor.active && !predecessor.failed && predecessor.end === startCandidate.start &&
       predecessor.lane === startCandidate.lane && predecessor.registered.size >= (this.unitsByNote.get(startCandidate.noteIndex)?.length ?? 0));
     if (startCandidate && (!pointCandidate || startCandidate.start < pointCandidate.timeMs && !preparedSuccessor)) {
-      const token = this.held.get(key)!; token.used = true; token.valid = true; this.startUnit(startCandidate, key, token, at, false);
-      this.onDownConsumed?.(key, token.lane, startCandidate.noteIndex);
-      return;
+      const token = this.held.get(key)!; token.used = true; token.valid = true; this.startUnit(startCandidate, key, token, at, false); return;
     }
     if (pointCandidate && point && !point.keys.has(key)) {
       point.keys.add(key); point.done = point.keys.size >= point.needed; token.used = true; token.valid = true;
       const event = this.pointState.consume(pointCandidate, key, at);
       this.emit(event);
       this.activateForHead(point.noteIndex, key, token, at, point.keys.size - 1);
-      this.onDownConsumed?.(key, token.lane, point.noteIndex);
       return;
     }
     const candidate = startCandidate;
-    // 정상 컴파일된 차트에서는 아래 fallback에 도달할 수 없다. pointCandidate가 없으면 위 start 분기가 이미 반환하고,
-    // 있으면 points에도 같은 노트가 있으며 peek가 이미 사용한 키를 제외하므로 위 point 분기가 반드시 소비하고 반환한다.
-    // 두 키 집합은 point 소비 시 함께 갱신된다. 판정 동작은 유지하고 방어적 fallback을 남긴다.
-    if (candidate) {
-      token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false);
-      this.onDownConsumed?.(key, token.lane, candidate.noteIndex);
-    }
+    if (candidate) { token.used = true; token.valid = true; this.startUnit(candidate, key, token, at, false); }
   }
 
   release(key: string, at: number = this.now, lane?: number): void {

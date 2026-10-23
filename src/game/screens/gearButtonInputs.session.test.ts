@@ -7,15 +7,15 @@ import { NoteJudgmentSession } from '../judgment/NoteJudgmentSession';
 import { body, point } from '../judgment/noteJudgmentTestHarness';
 import { GEAR_BUTTON_GEOMETRY, GearButtonState, type GearButtonColor } from '../renderer/gearButtons';
 import { GameClock } from '../time/GameClock';
-import { GearButtonPressColors } from './gearButtonPressColors';
+import { GearButtonInputs } from './gearButtonInputs';
 import { stepPlaySession } from './playSessionInput';
 
 function play(notes: readonly NoteEntity[], auto = false, offset = 0) {
   const starts = notes.map(note => note.beat.n / note.beat.d);
   const ends = new Map(notes.flatMap((note, index) => 'endBeat' in note ? [[index, note.endBeat.n / note.endBeat.d] as const] : []));
   const compiled = compileJudgmentChart(notes, starts, ends);
-  const colors = new GearButtonPressColors(notes);
-  const session = new NoteJudgmentSession(compiled, { onDownConsumed: colors.onDownConsumed });
+  const inputs = new GearButtonInputs();
+  const session = new NoteJudgmentSession(compiled);
   const timeline = new InputTimeline();
   const player = new AutoPlayer(notes, new Map(starts.map((at, index) => [index, at])), ends, auto ? [{ startMs: 0, endMs: 5000 }] : [], compiled);
   const audio = { currentTimeMs: 0, playbackRate: 1, getOutputLatencyMs: () => 0 };
@@ -23,8 +23,8 @@ function play(notes: readonly NoteEntity[], auto = false, offset = 0) {
   const state = new GearButtonState();
   const applied: [string, boolean, GearButtonColor][] = [];
   const target = {
-    setGearButtonKey(_lane: number, key: string, pressed: boolean, color?: GearButtonColor) {
-      if (pressed) state.press(key, color);
+    setGearButtonKey(_lane: number, key: string, pressed: boolean) {
+      if (pressed) state.press(key);
       else state.release(key);
       applied.push([key, pressed, state.color]);
     },
@@ -36,14 +36,39 @@ function play(notes: readonly NoteEntity[], auto = false, offset = 0) {
     },
     frame(at: number) {
       audio.currentTimeMs = at;
-      stepPlaySession(timeline, session, player, clock, at, colors.onInput);
-      colors.flush(target);
+      stepPlaySession(timeline, session, player, clock, at, inputs.onInput);
+      inputs.flush(target);
       state.advance(16, GEAR_BUTTON_GEOMETRY.release);
     },
   };
 }
 
-describe('GearButtonPressColors — 실제 입력 큐·Session·버튼 통합', () => {
+describe('GearButtonInputs — 실제 입력 큐·Session·버튼 통합', () => {
+  it('1000ms 더블을 A 하나로 누르면 연파랑, B도 누르면 금색, B를 떼면 A 하나의 연파랑으로 돌아온다', () => {
+    const p = play([point(1000, 'double')]);
+    p.input(1000, 'A', 'down');
+    p.frame(1000);
+    expect(p.state).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
+    p.input(1005, 'B', 'down');
+    p.frame(1005);
+    expect(p.state).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 2 });
+    p.input(1010, 'B', 'up');
+    p.frame(1010);
+    expect(p.state).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
+  });
+
+  it('1000～3000ms 롱노트를 A로 잡고 2000ms 싱글을 B로 치면 키 2개로 금색이고 B를 떼면 연파랑이다', () => {
+    const p = play([body(1000, 3000), point(2000)]);
+    p.input(1000, 'A', 'down');
+    p.frame(1000);
+    p.input(2000, 'B', 'down');
+    p.frame(2000);
+    expect(p.state).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 2 });
+    p.input(2010, 'B', 'up');
+    p.frame(2010);
+    expect(p.state).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
+  });
+
   it.each([1000, 1010])('1000ms에 공입력 A·B를 누르고 %ims에 B를 떼면 같은 프레임·다음 프레임 모두 A만 남아 연파랑이다', (releasedAt) => {
     const p = play([]);
     p.input(1000, 'A', 'down');
@@ -58,13 +83,13 @@ describe('GearButtonPressColors — 실제 입력 큐·Session·버튼 통합', 
     expect(p.state).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
   });
 
-  it('한 프레임에 A가 1000ms 더블을 치고 1001ms에 뗀 뒤 1005ms에 공입력으로 다시 눌리면 마지막 누름은 키 1개라 연파랑이다', () => {
+  it('한 프레임에 A가 1000ms 더블을 치고 1001ms에 뗀 뒤 1005ms에 다시 눌려도 각 누름은 hold 1개라 모두 연파랑이다', () => {
     const p = play([point(1000, 'double')]);
     p.input(1000, 'A', 'down');
     p.input(1001, 'A', 'up');
     p.input(1005, 'A', 'down');
     p.frame(1010);
-    expect(p.applied).toEqual([['A', true, 'double'], ['A', false, 'double'], ['A', true, 'single']]);
+    expect(p.applied).toEqual([['A', true, 'single'], ['A', false, 'single'], ['A', true, 'single']]);
     expect(p.state).toMatchObject({ phase: 'pressed', heldKeys: 1, color: 'single' });
   });
 
@@ -76,13 +101,13 @@ describe('GearButtonPressColors — 실제 입력 큐·Session·버튼 통합', 
     expect(p.state).toMatchObject({ phase: 'pressed', heldKeys: 2, color: 'double' });
   });
 
-  it('같은 1000ms에 A down→up→down을 처리해도 첫 소비만 금색이고 마지막 공입력은 연파랑이다', () => {
+  it('같은 1000ms에 A down→up→down을 처리하면 노트 소비 여부와 관계없이 모든 누름은 hold 1개로 연파랑이다', () => {
     const p = play([point(1000, 'double')]);
     p.input(1000, 'A', 'down');
     p.input(1000, 'A', 'up');
     p.input(1000, 'A', 'down');
     p.frame(1010);
-    expect(p.applied).toEqual([['A', true, 'double'], ['A', false, 'double'], ['A', true, 'single']]);
+    expect(p.applied).toEqual([['A', true, 'single'], ['A', false, 'single'], ['A', true, 'single']]);
   });
 
   it.each([1000, 1080])('core 시각 %ims에서 1000ms 큐가 B down·A up 순서여도 실제 적용 순서 A up·B down으로 재생해 B는 연파랑이다', coreAt => {
@@ -179,7 +204,7 @@ describe('GearButtonPressColors — 실제 입력 큐·Session·버튼 통합', 
     expect(p.state).toMatchObject({ phase: 'pressed', heldKeys: 1, color: 'single' });
   });
 
-  it('1000ms single 헤드·doubleLong 바디에 A·B를 누르면 A는 연파랑, 남은 unit을 시작한 B는 금색으로 재생한다', () => {
+  it('1000ms single 헤드·doubleLong 바디에 A·B를 누르면 hold 1개인 A는 연파랑, hold 2개가 되는 B는 금색으로 재생한다', () => {
     const p = play([point(1000), body(1000, 2000, 'doubleLong')]);
     p.input(1000, 'A', 'down');
     p.input(1005, 'B', 'down');

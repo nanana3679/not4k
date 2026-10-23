@@ -16,7 +16,7 @@ import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '.
 import { DebugLogger } from '../debug/DebugLogger';
 import { canFinishPlaySession, finishPlaySession, stepPlaySession } from './playSessionInput';
 import { keepGearMotionAssets } from './gearMotionKeepAlive';
-import { GearButtonPressColors } from './gearButtonPressColors';
+import { GearButtonInputs } from './gearButtonInputs';
 
 export function PlayScreen() {
   const { setScreen, setResult, chartData, audioBuffer, selectedPlaybackRange, startTimeMs, editorReturnUrl, setStartTimeMs, setEditorReturnUrl } = useGameStore();
@@ -211,12 +211,11 @@ export function PlayScreen() {
             debugLogger.recordJudgment(event.noteIndex, noteCenterY, event.grade, event.deltaMs, event.unitIndex, isBody);
           },
         };
-        // 기어 버튼: 수동·합성 입력을 판정 적용 순서로 기록하고 소비된 노트를 붙여, 그리기 직전에 같은 순서로 누르고 뗀다.
-        const gearPressColors = new GearButtonPressColors(compiled.rawNotes);
+        // 기어 버튼: 수동·합성 입력을 판정 적용 순서로 기록해, 그리기 직전에 같은 순서로 누르고 뗀다.
+        const gearButtonInputs = new GearButtonInputs();
         const session = new NoteJudgmentSession(compiled, {
           windows,
           onBatchConfirmed: view => adapter.apply(view),
-          onDownConsumed: gearPressColors.onDownConsumed,
         });
         const adapter = new SessionRendererAdapter({ notes: compiled.rawNotes, connections: compiled.connections, bodyStates: () => session.bodyStates, scoreAccuracy: () => session.score.getState().achievementRate, port: rendererPort });
         sessionRef.current = session;
@@ -292,12 +291,12 @@ export function PlayScreen() {
             }
             lastFrameTime = timestamp;
 
-            const autoEvents = stepPlaySession(inputTimelineRef.current!, session, autoPlayer, gameClock, timestamp, gearPressColors.onInput);
+            const autoEvents = stepPlaySession(inputTimelineRef.current!, session, autoPlayer, gameClock, timestamp, gearButtonInputs.onInput);
             for (const event of autoEvents) {
               renderer.setKeyBeam(event.lane, event.type === 'press');
             }
-            // 이번 프레임의 누름·뗌을 그대로 재생해 각 누름 당시의 키 수와 소비된 노트로 색을 정한다.
-            gearPressColors.flush(renderer);
+            // 이번 프레임의 누름·뗌을 그대로 재생해 현재 hold 수로 색을 정한다.
+            gearButtonInputs.flush(renderer);
 
             // 소리 기준 시각 시간 V로 노트·마디선·구간을 그린다.
             renderer.renderFrame(visualTimeMs, frameDeltaMs);

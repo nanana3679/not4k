@@ -28,7 +28,7 @@ import { GEAR_GEOMETRY, GEAR_CLEARANCE, clampGearOffsetY, layoutGear, type GearL
 import { acquireGearMotionAssets } from "./gearMotionAssets";
 import { GearMotionController, type GearMotionControls } from "./GearMotionController";
 import { GearGauge } from "./gearGauge";
-import { GearButtons, type GearButtonColor, type GearButtonStateView } from "./gearButtons";
+import { GearButtons, type GearButtonStateView } from "./gearButtons";
 import { JudgmentUI } from "./JudgmentUI";
 import { GameNoteRenderer, type JudgmentBodyStateQuery } from "./GameNoteRenderer";
 import type { NoteDisplayEffect } from "../judgment/judgmentEffects";
@@ -684,12 +684,11 @@ export class GameRenderer {
   /**
    * 기어 버튼 입력: lane(1~4)의 입력 key(물리 키 `KeyboardEvent.code`나 `AutoPlayer`의 합성 키)가 눌렸거나(pressed) 떼어졌다.
    * 누름은 다음 렌더 프레임에 바로 눌려 빛나는 모습으로 그리고, 같은 레인의 키를 모두 떼면 렌더 프레임 간격으로 돌아온다.
-   * color는 누를 때 쓰는 빛의 색이다. 주지 않으면 공입력 규칙(이 키를 포함해 그 레인에 누르고 있는 키가 둘 이상이면 더블 금색)으로 정하고,
-   * 노트를 친 누름은 호출자가 노트 규칙의 색을 넘긴다(`gearButtonPressColor`). 게임은 판정 적용 순서로 입력을 재생한다.
+   * 노트 종류와 관계없이 같은 레인의 hold 수가 1개면 연파랑, 2개 이상이면 금색이다. 게임은 판정 적용 순서로 입력을 재생한다.
    * 기어 버튼을 그리지 않는 렌더러(showGear false·아틀라스 없음·dispose 뒤)에서는 아무것도 하지 않는다.
    */
-  setGearButtonKey(lane: number, key: string, pressed: boolean, color?: GearButtonColor): void {
-    this.gearButtons?.setKey(lane, key, pressed, color);
+  setGearButtonKey(lane: number, key: string, pressed: boolean): void {
+    this.gearButtons?.setKey(lane, key, pressed);
   }
 
   setKeyBeam(lane: number, pressed: boolean): void {

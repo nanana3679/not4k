@@ -857,7 +857,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('레인 2 KeyD를 누르면 기어 2번 버튼만 연파랑, KeyO도 누르면 금색, 하나를 떼면 연파랑으로 돌아오고 Shift는 금색을 강제하며 blur는 대기로 돌린다', async ({ page }) => {
+  test('레인 2 KeyD를 누르면 기어 2번 버튼만 연파랑, KeyO도 누르면 금색, 하나를 떼면 연파랑으로 돌아오고 Shift도 hold 수를 따르며 blur는 대기로 돌린다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -892,7 +892,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle', { timeout: 10_000 });
     await expect.poll(async () => maxDifference(await area(face), idleFace), { timeout: 30_000 }).toBeLessThan(12);
 
-    // Lab 키 입력은 노트를 치지 않는 공입력이라 게임처럼 같은 레인(2: KeyE·KeyD·KeyC·KeyO)에 키가 둘이면 금색이다.
+    // Lab 키 입력도 게임처럼 같은 레인(2: KeyE·KeyD·KeyC·KeyO)에 키가 둘이면 금색이다.
     await page.keyboard.down('KeyD');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
     await page.keyboard.down('KeyO');
@@ -909,11 +909,11 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await page.keyboard.up('KeyO');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle', { timeout: 10_000 });
 
-    // Shift는 Lab 확인용으로 키 하나여도 금색을 강제한다.
+    // Shift는 색을 강제하지 않으므로 바인딩된 키 하나는 연파랑이다.
     await page.keyboard.down('Shift');
     await page.keyboard.down('KeyD');
-    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
-    await expect.poll(async () => { const [red, , blue] = await area(face); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
+    await expect.poll(async () => { const [red, , blue] = await area(face); return blue - red; }, { timeout: 30_000 }).toBeGreaterThan(80);
     await page.keyboard.up('KeyD');
     await page.keyboard.up('Shift');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle', { timeout: 10_000 });
@@ -927,18 +927,18 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('Shift+KeyD 뒤 반복 입력은 금색을 유지하고 TKL에서 넘버패드로 바꿔도 keyup·blur가 원래 레인 2 버튼을 뗀다', async ({ page }) => {
+  test('Shift+KeyD 뒤 반복 입력은 hold 1개의 연파랑을 유지하고 TKL에서 넘버패드로 바꿔도 keyup·blur가 원래 레인 2 버튼을 뗀다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
     const stage = page.locator(stageSelector);
     await page.keyboard.down('Shift');
     await page.keyboard.down('KeyD');
-    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
     await page.keyboard.up('Shift');
     // Playwright는 이미 누른 키의 두 번째 down을 repeat으로 보낸다.
     await page.keyboard.down('KeyD');
-    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
+    await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
     await page.getByLabel('넘버패드').check();
     await expect(stage).toHaveAttribute('data-keyboard', 'numpad');
     await page.keyboard.up('KeyD');

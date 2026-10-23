@@ -1,9 +1,8 @@
 import type { GameRenderer } from '../game/renderer/GameRenderer';
-import { labGearButtonColor } from './gearPreview';
 
-type KeyEvent = Pick<KeyboardEvent, 'type' | 'code' | 'repeat' | 'shiftKey'>;
+type KeyEvent = Pick<KeyboardEvent, 'type' | 'code' | 'repeat'>;
 
-/** Lab 입력은 공입력이다. 눌렀을 때의 레인을 기억해 프리셋 변경 뒤에도 keyup·blur가 같은 버튼을 뗀다. */
+/** Lab도 게임처럼 같은 레인의 hold 수로 버튼 색을 정한다. 눌렀을 때의 레인을 기억해 프리셋 변경 뒤에도 keyup·blur가 같은 버튼을 뗀다. */
 export function createGearPreviewInput(
   target: Pick<GameRenderer, 'setKeyState' | 'setGearButtonKey'>,
   bindings: () => ReadonlyMap<string, number>,
@@ -21,12 +20,12 @@ export function createGearPreviewInput(
         releaseKey(event.code);
         return;
       }
-      // 키 반복으로 마지막 누름 색을 덮거나, 바뀐 바인딩의 다른 레인까지 누르지 않는다.
+      // 키 반복으로 hold 수를 늘리거나, 바뀐 바인딩의 다른 레인까지 누르지 않는다.
       if (event.repeat || pressedLanes.has(event.code)) return;
       const lane = bindings().get(event.code);
       pressedLanes.set(event.code, lane);
       target.setKeyState(event.code, true);
-      if (lane !== undefined) target.setGearButtonKey(lane, event.code, true, labGearButtonColor(event.shiftKey));
+      if (lane !== undefined) target.setGearButtonKey(lane, event.code, true);
     },
     releaseAll(): void {
       for (const code of pressedLanes.keys()) releaseKey(code);

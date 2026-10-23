@@ -117,27 +117,32 @@ describe('GameRenderer 기어 버튼 — 배치와 레이어 순서', () => {
 });
 
 describe('GameRenderer 기어 버튼 — 입력과 렌더 프레임', () => {
-  it('setGearButtonKey(2, KeyD, 누름)는 색을 주지 않으면 싱글로 버튼 2를 renderFrame 없이 바로 pressed로 바꾼다', async () => {
+  it('setGearButtonKey(2, KeyD, 누름)는 hold 1개의 연파랑으로 버튼 2를 renderFrame 없이 바로 pressed로 바꾼다', async () => {
     const { renderer } = await createRenderer();
     renderer.setGearButtonKey(2, 'KeyD', true);
     expect(phases(renderer)).toEqual(['idle', 'pressed', 'idle', 'idle']);
     expect(renderer.gearButtonStates![1]).toMatchObject({ color: 'single', heldKeys: 1 });
   });
 
-  it('색을 주지 않고 레인 2에 KeyD를 누른 채 KeyO를 누르면 공입력 규칙으로 더블이 되고, 세 번째 KeyC를 싱글로 누르면 첫 렌더 프레임부터 싱글이다', async () => {
+  it('레인 2에 KeyD·KeyO·KeyC를 누르면 hold 3개로 금색이고 KeyC·KeyO를 떼면 hold 1개로 연파랑이다', async () => {
     const { renderer } = await createRenderer();
     renderer.setGearButtonKey(2, 'KeyD', true);
     renderer.setGearButtonKey(2, 'KeyO', true);
     expect(renderer.gearButtonStates![1]).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 2 });
-    renderer.setGearButtonKey(2, 'KeyC', true, 'single');
+    renderer.setGearButtonKey(2, 'KeyC', true);
     renderer.renderFrame(0, 16);
-    expect(renderer.gearButtonStates![1]).toMatchObject({ phase: 'pressed', color: 'single' });
+    expect(renderer.gearButtonStates![1]).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 3 });
+    renderer.setGearButtonKey(2, 'KeyC', false);
+    expect(renderer.gearButtonStates![1]).toMatchObject({ color: 'double', heldKeys: 2 });
+    renderer.setGearButtonKey(2, 'KeyO', false);
+    expect(renderer.gearButtonStates![1]).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
   });
 
-  it('setGearButtonKey에 더블을 넘기면 그 색으로 누른다(Lab 확인용 경로)', async () => {
+  it('서로 다른 레인 1·4에 키를 하나씩 누르면 각 레인의 hold 1개로 모두 연파랑이다', async () => {
     const { renderer } = await createRenderer();
-    renderer.setGearButtonKey(4, 'BracketLeft', true, 'double');
-    expect(renderer.gearButtonStates![3]).toMatchObject({ phase: 'pressed', color: 'double' });
+    renderer.setGearButtonKey(4, 'BracketLeft', true);
+    renderer.setGearButtonKey(1, 'KeyQ', true);
+    for (const lane of [0, 3]) expect(renderer.gearButtonStates![lane]).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
   });
 
   it('그리기 전에 눌렀다 뗀 버튼은 renderFrame(…, 16)의 렌더 프레임 간격으로만 돌아와 뗀 뒤 첫 프레임 경과 0, 이후 16ms씩 쌓여 150ms에 idle이 된다', async () => {

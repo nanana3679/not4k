@@ -1,5 +1,4 @@
 import { Container, Rectangle, Sprite, Texture } from 'pixi.js';
-import type { NoteEntity } from '../../shared';
 import buttonJson from './gearButtonGeometry.json';
 import { cubicBezierProgress, type CubicBezier } from './gearMotionTiming';
 
@@ -15,8 +14,7 @@ import { cubicBezierProgress, type CubicBezier } from './gearMotionTiming';
  * - 뗌: 렌더 프레임 간격 `deltaMs`(`renderFrame`의 인자)로만 나아가 일시정지 중에는 멈춘다. cap이 `capMs`(40ms)에 걸쳐 덮이고,
  *   흰빛(glow)이 `whiteMs`(53ms)에, 남는 빛(tint)이 `glowMs`(150ms)에 걸쳐 꺼진다(시연의 CSS 전환과 같은 곡선).
  *   누른 뒤 한 번도 그리기 전에 뗀 경우만 첫 렌더 프레임을 경과 0으로 그려 짧은 누름도 보이게 한다.
- * - 색: 누를 때마다 정한다(RFD 0027: 싱글 연파랑·더블 금색, 중간 단계 없이 바로 바뀜, 게임 규칙은 `gearButtonPressColor`). 노트를 친 누름은
- *   노트 규칙의 색을 받아 유지하고, 마지막 누름에 색을 주지 않았으면 공입력 규칙(레인에 남은 키 수)으로 누름·뗌마다 갱신한다.
+ * - 색: 같은 레인의 hold 수만 따른다. 1개는 연파랑, 2개 이상은 금색이며 누름·뗌마다 즉시 갱신한다.
  *   마지막 키를 떼면 직전 표시 색으로 잔광을 진행한다. 게임은 판정 적용 순서로 입력을 재생한다.
  * - 비용: 스프라이트와 텍스처는 만들 때 한 번만 만들고, 이후에는 보이기·알파·텍스처 교체만 한다. 렌더 프레임마다 객체를 만들지 않는다.
  */
@@ -24,16 +22,9 @@ import { cubicBezierProgress, type CubicBezier } from './gearMotionTiming';
 export type GearButtonColor = 'single' | 'double';
 export const GEAR_BUTTON_COLORS: readonly GearButtonColor[] = ['single', 'double'];
 
-/**
- * 게임에서 레인 키 누름 하나의 빛 색([RFD 0027](../../../docs/rfd/0027-single-aperture-thrust-feedback.md)의 게임 적용, 2026-10-14 사용자 결정).
- * - 노트를 친 누름(keydown이 Point head나 롱노트 시작에 소비됨): 그 노트가 더블(`double`·`doubleLong`)이면 더블 금색, 아니면 싱글 연파랑.
- *   레인에 키를 몇 개 누르고 있든 노트 종류가 정한다.
- * - 공입력(어떤 노트에도 소비되지 않은 keydown): 그 순간 그 레인에 누르고 있는 키가 둘 이상이면(이 키 포함) 더블 금색, 하나면 싱글 연파랑.
- * hitNoteType은 친 노트의 종류, 공입력이면 null. heldKeysInLane은 공입력일 때만 본다.
- */
-export function gearButtonPressColor(hitNoteType: NoteEntity['type'] | null, heldKeysInLane: number): GearButtonColor {
-  if (hitNoteType !== null) return hitNoteType === 'double' || hitNoteType === 'doubleLong' ? 'double' : 'single';
-  return heldKeysInLane >= 2 ? 'double' : 'single';
+/** 같은 레인에서 현재 눌린 서로 다른 키의 수로 색을 정한다. hold 수가 0이면 이 색 대신 복귀 상태를 표시한다. */
+export function gearButtonColorForHoldCount(holdCount: number): GearButtonColor {
+  return holdCount >= 2 ? 'double' : 'single';
 }
 
 /** idle: 대기(레이어를 그리지 않음) · pressed: 눌림 · releasing: 뗀 뒤 돌아오는 중. */
@@ -123,8 +114,6 @@ export class GearButtonState implements GearButtonStateView {
   private readonly keys = new Set<string>();
   private currentPhase: GearButtonPhase = 'idle';
   private currentColor: GearButtonColor = 'single';
-  /** 마지막 누름이 공입력이면 뗀 뒤에도 남은 키 수를 색에 반영한다. */
-  private colorFollowsHeldKeys = true;
   private elapsedMs = 0;
   /** 마지막 누름 이후 아직 렌더 프레임이 없으면 짧은 탭도 한 번은 눌린 모습으로 그린다. */
   private pressFresh = false;
@@ -135,13 +124,12 @@ export class GearButtonState implements GearButtonStateView {
   get releaseMs(): number { return this.currentPhase === 'releasing' ? this.elapsedMs : 0; }
 
   /**
-   * key를 누른다. 누를 때마다 버튼 색을 이 누름의 색으로 바꾼다. color를 주지 않으면 공입력 규칙(이 키를 포함해 지금 누르고 있는 키 수)으로 정한다.
+   * key를 누르고 현재 hold 수로 버튼 색을 정한다. 같은 키의 중복 누름은 hold 수를 늘리지 않는다.
    * 상태나 색이 바뀌었으면 true.
    */
-  press(key: string, color?: GearButtonColor): boolean {
+  press(key: string): boolean {
     this.keys.add(key);
-    this.colorFollowsHeldKeys = color === undefined;
-    const pressColor = color ?? gearButtonPressColor(null, this.keys.size);
+    const pressColor = gearButtonColorForHoldCount(this.keys.size);
     const changed = this.currentPhase !== 'pressed' || this.currentColor !== pressColor;
     this.currentColor = pressColor;
     this.currentPhase = 'pressed';
@@ -150,12 +138,11 @@ export class GearButtonState implements GearButtonStateView {
     return changed;
   }
 
-  /** key를 뗀다. 공입력은 남은 키 수로 색을 갱신하고, 마지막 키면 돌아오기 시작한다. 상태나 색이 바뀌었으면 true. */
+  /** key를 뗀다. 남은 hold 수로 색을 갱신하고, 마지막 키면 돌아오기 시작한다. 상태나 색이 바뀌었으면 true. */
   release(key: string): boolean {
     if (!this.keys.delete(key)) return false;
     if (this.keys.size > 0) {
-      if (!this.colorFollowsHeldKeys) return false;
-      const color = gearButtonPressColor(null, this.keys.size);
+      const color = gearButtonColorForHoldCount(this.keys.size);
       const changed = this.currentColor !== color;
       this.currentColor = color;
       return changed;
@@ -276,13 +263,13 @@ export class GearButtons {
   }
 
   /**
-   * lane(1~4)의 입력 key가 눌렸거나(pressed) 떼어졌다. 누름은 color(주지 않으면 공입력 규칙의 색)로 바로 그린다. 같은 레인에 다른 키가 눌려 있으면
+   * lane(1~4)의 입력 key가 눌렸거나(pressed) 떼어졌다. 누름·뗌은 현재 hold 수에 맞는 색으로 바로 그린다. 같은 레인에 다른 키가 눌려 있으면
    * 하나를 떼도 눌림이 이어진다. 범위 밖 레인과 누른 적 없는 키의 뗌은 무시한다.
    */
-  setKey(lane: number, key: string, pressed: boolean, color?: GearButtonColor): void {
+  setKey(lane: number, key: string, pressed: boolean): void {
     const view = this.views[lane - 1];
     if (this.destroyed || !view) return;
-    const changed = pressed ? view.state.press(key, color) : view.state.release(key);
+    const changed = pressed ? view.state.press(key) : view.state.release(key);
     if (changed) this.apply(view);
   }
 

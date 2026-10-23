@@ -202,7 +202,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(markup).toContain('픽셀 단위 계단');
   });
 
-  it('바인딩된 키를 누르는 동안 키보드 표시를 밝히고 그 레인의 기어 버튼을 누르도록 window keydown·keyup을 렌더러 공개 API setKeyState·setGearButtonKey로만 넘기고(공입력 규칙, Shift는 더블 금색 강제), 창이 포커스를 잃으면 눌렀던 키를 모두 떼며, 키보드 표시 조절에 그 안내를 둔다', () => {
+  it('바인딩된 키를 누르는 동안 키보드 표시를 밝히고 그 레인의 기어 버튼을 누르도록 window keydown·keyup을 렌더러 공개 API setKeyState·setGearButtonKey로만 넘기고(hold 1개는 연파랑, 2개 이상은 금색), 창이 포커스를 잃으면 눌렀던 키를 모두 떼며, 키보드 표시 조절에 그 안내를 둔다', () => {
     expect(pageSource).toContain("window.addEventListener('keydown', onStageKey)");
     expect(pageSource).toContain("window.addEventListener('keyup', onStageKey)");
     expect(pageSource).toContain("window.addEventListener('blur', releaseStageKeys)");
@@ -213,7 +213,7 @@ describe('GearPage — 새 기어가 들어간 실제 게임 화면 미리보기
     expect(pageSource).toContain("window.removeEventListener('blur', releaseStageKeys)");
     expect(pageSource).not.toMatch(/as unknown as \{[^}]*keyboardDisplay/);
     expect(render()).toContain('바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아지고, 기어에서 그 레인의 버튼이 게임처럼 눌려 빛납니다');
-    expect(render()).toContain('한 레인에 키 하나면 연파랑, 둘 이상이면 더블 금색입니다. Shift를 함께 누르면 Lab 확인용으로 금색이 됩니다');
+    expect(render()).toContain('게임처럼 같은 레인의 hold 수가 1개면 연파랑, 2개 이상이면 금색입니다. 하나를 떼어 1개만 남으면 바로 연파랑으로 돌아옵니다.');
   });
 
   it('전체화면이 꺼져 있으면 오른쪽 위 막대(gear-preview-fullscreen-bar)에 전체화면 버튼이 있다', () => {

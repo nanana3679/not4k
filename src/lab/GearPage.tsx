@@ -611,7 +611,7 @@ export default function GearPage() {
             value={keyboard}
             options={KEYBOARD_OPTIONS}
             onChange={setKeyboard}
-            note="바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아지고, 기어에서 그 레인의 버튼이 게임처럼 눌려 빛납니다. 키 입력은 노트를 치지 않는 공입력이라 게임처럼 한 레인에 키 하나면 연파랑, 둘 이상이면 더블 금색입니다. Shift를 함께 누르면 Lab 확인용으로 금색이 됩니다. 데모 노트 판정과 키빔은 그대로입니다."
+            note="바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아지고, 기어에서 그 레인의 버튼이 게임처럼 눌려 빛납니다. 게임처럼 같은 레인의 hold 수가 1개면 연파랑, 2개 이상이면 금색입니다. 하나를 떼어 1개만 남으면 바로 연파랑으로 돌아옵니다. 데모 노트 판정과 키빔은 그대로입니다."
           />
           <fieldset className="gear-preview-group gear-preview-motion">
             <legend>움직임</legend>
@@ -946,8 +946,7 @@ function GearPreviewRenderer({
         restart.current = restartMotion;
 
         // 키보드 표시·기어 버튼 눌림: 게임처럼 바인딩된 키를 누르는 동안 그 키를 밝히고 그 레인의 기어 버튼을 누른다.
-        // 데모 노트 판정·키빔에는 넣지 않으므로 키 입력은 모두 공입력이고, 게임처럼 한 레인에 키를 둘 이상 누르면 더블 금색이다.
-        // Shift를 함께 누르면 Lab 확인용으로 더블 금색을 강제한다.
+        // 데모 노트 판정·키빔과 별개로, 게임처럼 같은 레인의 hold 수가 1개면 연파랑, 2개 이상이면 금색이다.
         const { onKey: onStageKey, releaseAll: releaseStageKeys } = createGearPreviewInput(active, () => keyboardRef.current);
         window.addEventListener('keydown', onStageKey);
         window.addEventListener('keyup', onStageKey);

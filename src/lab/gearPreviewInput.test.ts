@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { GearButtonState, type GearButtonColor } from '../game/renderer/gearButtons';
+import { GearButtonState } from '../game/renderer/gearButtons';
 import { createGearPreviewInput } from './gearPreviewInput';
 
 function setup() {
@@ -7,8 +7,8 @@ function setup() {
   const states = Array.from({ length: 4 }, () => new GearButtonState());
   const target = {
     setKeyState: vi.fn(),
-    setGearButtonKey: vi.fn((lane: number, key: string, pressed: boolean, color?: GearButtonColor) => {
-      if (pressed) states[lane - 1].press(key, color);
+    setGearButtonKey: vi.fn((lane: number, key: string, pressed: boolean) => {
+      if (pressed) states[lane - 1].press(key);
       else states[lane - 1].release(key);
     }),
   };
@@ -16,17 +16,17 @@ function setup() {
   return {
     ...input, target, states,
     bind(next: [string, number][]) { bindings = new Map(next); },
-    down(code = 'KeyD', shiftKey = false, repeat = false) { input.onKey({ type: 'keydown', code, shiftKey, repeat }); },
-    up(code = 'KeyD') { input.onKey({ type: 'keyup', code, shiftKey: false, repeat: false }); },
+    down(code = 'KeyD', shiftKey = false, repeat = false) { const event = { type: 'keydown', code, shiftKey, repeat }; input.onKey(event); },
+    up(code = 'KeyD') { input.onKey({ type: 'keyup', code, repeat: false }); },
   };
 }
 
 describe('Lab Gear 키 입력', () => {
-  it('Shift+KeyD의 금색 누름 뒤 Shift 없는 repeat keydown은 무시해 금색과 누름 호출 1회를 유지한다', () => {
+  it('Shift+KeyD도 hold 1개라 연파랑이고 Shift 없는 repeat keydown은 무시해 hold 1개와 누름 호출 1회를 유지한다', () => {
     const p = setup();
     p.down('KeyD', true);
     p.down('KeyD', false, true);
-    expect(p.states[1]).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 1 });
+    expect(p.states[1]).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
     expect(p.target.setGearButtonKey).toHaveBeenCalledTimes(1);
     expect(p.target.setKeyState).toHaveBeenCalledTimes(1);
   });
