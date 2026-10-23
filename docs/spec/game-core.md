@@ -2,6 +2,8 @@
 
 > 판정 규칙은 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)와 [판정 사례 명세](note-judgment-cases.md)를 우선한다. 현재 플레이·자동 입력·튜토리얼은 이 모델을 공통으로 사용하며, 세부 검증 기록은 [PRD §12](../prd.md#12-미정-사항)를 따른다.
 
+> **후속 설계(엔진 이행 전):** [RFD 0035](../rfd/0035-release-presence-and-grace.md)에서 `holdOnly`를 폐지하고 릴리즈 없음·일반 릴리즈·그레이스 릴리즈를 구분했다. 그레이스 릴리즈도 실제 뗌은 필수이며 타이밍 등급만 면제한다. 아래 `holdOnly` 설명은 현재 구현의 기록이고, 새 정의는 [glossary](../context/glossary.md#release-판정)를 따른다.
+
 ## 현재 채택 판정 경계
 
 정적 차트 해석이 Beat 기반 연결 topology와 score item을 한 번 계산한다. 런타임은 그 결과를 소비하며 ms threshold로 차트 관계를 다시 추정하지 않는다. unit별 시작·유지·release 상태를 독립적으로 처리하고, 유효한 head 또는 시작 입력으로 승계된 unit은 추가 down을 소비하지 않는다. 일반 connection 성공은 점수·콤보를 증가시키지 않으며, head·실제 release·`holdOnly`만 ScoreManager에 정산한다. 실패한 unit은 부활하지 않고 다른 건강한 unit으로 전파하지 않는다.

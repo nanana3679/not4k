@@ -78,10 +78,10 @@ _Avoid_: 노트 타임맵, 시간 맵
 - **시점 마커**는 한 시점 이후에 영향을 주고, **구간 이벤트**는 시작과 끝 사이에 영향을 준다.
 - **`TextEvent`**, **`AutoEvent`**, **`StopEvent`**은 모두 **구간 이벤트**이다.
 - **구간 노트**는 시작 박과 끝 박을 가지며, **포인트 노트**는 특정 박 하나에 놓인다.
-- **구간 노트**는 끝점에 **`holdOnly`**(떼는 판정 면제) 속성을 가질 수 있으며, 이 속성은 차트에 저장된다.
+- **구간 노트** 끝의 릴리즈 유무와 Grace의 타이밍 등급 면제는 별개이다. 일반·그레이스 릴리즈 모두 실제 뗌을 요구한다([glossary](../../docs/context/glossary.md#release-판정)). 기존 저장 필드 `holdOnly`는 새 설계에서 폐지했으며 차트 포맷 이행 전이다([RFD 0035](../../docs/rfd/0035-release-presence-and-grace.md)).
 - 하나의 **차트**는 **`trillZone`** 목록을 가진다. **`trillZone`**과 **트릴 노트**는 상호 배타적이다 — 트릴 노트는 `trillZone` 안에만, 일반 노트는 밖에만 놓인다.
-- **트릴 롱노트**는 head가 필요하며, 양수 길이의 **`holdOnly`**는 허용하고 길이 0 조합은 금지한다.
-- 양수 길이 바디 끝과 별도 길이 0 롱노트를 같은 시각에 배치하지 않는다. 같은 unit 수로 이어지는 경계에는 head 또는 `holdOnly`가 필요하다. 풀 정의는 [glossary](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트), 배치 대조는 [사례 NJ-C01～C03](../../docs/spec/note-judgment-cases.md#nj-c01)을 따른다. validator의 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
+- 같은 레인의 양수 길이 바디 끝과 별도 길이 0 롱노트의 동시 배치는 금지한다([NJ-C01](../../docs/spec/note-judgment-cases.md#nj-c01)). 이 중복 금지는 일반 바디·일반 릴리즈에도 적용하며 `holdOnly` 폐지와 무관하게 유지한다.
+- **트릴 롱노트**는 head가 필요하다. 이행 전 포맷의 양수 길이 `holdOnly` 허용·길이 0 금지 등 `holdOnly` 관련 배치 제약은 [glossary의 이전 규칙](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)에 남긴다. 새 릴리즈 표현의 저장·검증 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 - **차트 에셋**은 게임에서 소비되고 에디터에서 생성된다.
 - **제작 보조 정보**는 에디터를 위한 정보이며 플레이 세션에는 등장하지 않는다.
 - Gameplay는 **`ChartTiming`**을 통해 차트의 시간 파생을 읽는다.

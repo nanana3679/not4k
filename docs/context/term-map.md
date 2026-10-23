@@ -22,7 +22,7 @@
 | 휴지 구간 | `restZone` | `restZone`/`RestZone`/`restZones` |
 | 공릴리즈 — **폐지** (RFD 0015, 역사적 언급만) | `emptyRelease` | 없음 (도장 구현 삭제됨) |
 | 흡수·소비 | `consume` | `consumedLongKeys`/`markLongConsumed`/`requiredConsumeCount`/`consumeReleaseTarget`/`executeReleaseJudgment` |
-| 유지 전용 롱노트(hold-only) | `holdOnly` | `holdOnly`/`isHoldOnlyNote` |
+| 유지 전용 롱노트(hold-only) — **새 설계에서 폐지** ([RFD 0035](../rfd/0035-release-presence-and-grace.md), 이행 전 코드·차트의 언급에만 사용) | `holdOnly` | `holdOnly`/`isHoldOnlyNote` |
 | 연결 판정 | `connection` | `isConnection`/`Connection` |
 | 종결 판정 | `termination` | `executeTerminationJudgment`/`terminationGrade` |
 | 인게임 구간 | `gameplayRange` (UI 라벨은 화면 표시 예외로 "인게임 구간" 유지) | `gameplayRange` |
@@ -55,6 +55,9 @@
 | 용어 | 캐논(구어 이름) | 정의에 명시할 표기 |
 |---|---|---|
 | 릴리즈탭 | 릴리즈탭 | `-o` (`-` 떼며 `o` 탭) |
+| 릴리즈 노트 | 릴리즈 노트 | 뗌을 요구하는 노트. 바디 끝과 길이 0 모두 포함. 사용자에게 내부 식별자 후보 `hasRelease`로 설명하지 않음 ([RFD 0035](../rfd/0035-release-presence-and-grace.md), 이행 전) |
+| 그레이스 릴리즈 | 그레이스 릴리즈 | 실제 뗌은 필수, 허용 창 안이면 Perfect. `holdOnly`와 구분. 코드 필드·표기법은 이행 전 |
+| 릴리즈 없음 | 릴리즈 없음 | 바디 유지 요구는 남고 해당 끝의 뗌은 요구하지 않는 상태. 그레이스 릴리즈와 구분 |
 | 홀드 중 탭 | 홀드 중 탭 | 키 라벨층 `a-- / .b.` |
 | 홀드 교대 (← 홀드 이어잡기 개명) | 홀드 교대 | (보면 비가시 — 표기 없음) |
 | 다중키 바인딩 | 다중키 바인딩 | 구현: `keyBindings`/`KeyBinding`/`laneBindings` — 배열명이 "다중" 의미를 못 담아 캐논 부적합 (2026-07-06 A에서 재분류) |
@@ -73,7 +76,7 @@
 | 손 이동 | 손이 담당 레인/키 위치를 옮기는 **동작**. **수평 이동**(레인 좌우, =구 건너가기)·**수직 이동**(키보드 상하, 연속 동시치기-트릴)으로 나뉨 | 손이 주체라 모호함 없음. bare "이동"은 에디터 엔티티 이동과 충돌하므로 "손 이동"으로 한정 |
 | 파지 | 특정 패턴 파훼를 위한 **손배치 전략** (응용, 손 이동을 동원) | 기존(파지법). "양손 교대" 대체 |
 | 키 교대 | 한 레인 내 **활성 키 전환** (다중키 바인딩) | primitive. `구현: alternation`/`trillAlternation` |
-| 의도된 연주 | 박자에 맞춰 치며 경계 뒤 바디가 요구하는 수만큼만 키가 남고 창 안의 모든 up이 쓰이며 Perfect 창 안 오차에도 손해가 없는 연주 (기본 기준. 창 밖 up은 중립, 같은 키 재타격은 탈출구. `holdOnly` 끝의 up은 그 끝이 가져가며, 여분 홀드를 일부러 쓰게 짠 차트는 차트 의도 우선. 전체 정의는 glossary) | 2026-10-16, RFD 0032 §7-1·§7-2·§9-1·§9-2. 코드 식별자 없음 |
+| 의도된 연주 | 차트의 박자와 손배치 의도에 맞으며 허용된 타이밍 오차에도 점수 손해 없이 처리해야 하는 연주. 패턴별 기준은 glossary를 따름 | RFD 0032 §9-1·§9-2. `holdOnly`의 이전 예외는 RFD 0035로 대체. 코드 식별자 없음 |
 | 연결 release | 연결 경계에서 앞 바디의 몫이 끝날 때 떠나는 up 하나를 등급·점수 항목 없이 처리하는 release. 경계 전이면 그때 앞 바디가 끝나고, 경계 뒤·head 뒤면 이미 끝난 몫의 release. 기존 엔진의 연결 보정(구 표기 앞 바디 종료 포함) | 2026-10-17, RFD 0032 §4-1·§4-2. 코드 식별자 없음 |
 | 허용 입력(탈출구) | 의도된 연주는 아니지만 판정이 손해 없이 처리하도록 허용한 연주(같은 키 재타격 `a-a-`·`ab-ab-`) | 2026-10-17, RFD 0032 §9-2. 코드 식별자 없음 |
 

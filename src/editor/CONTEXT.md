@@ -3,7 +3,7 @@
 Chart editor 컨텍스트는 차트 제작자가 차트를 만들고 수정하는 작업 언어를 다룬다.
 차트 자체의 도메인 구조는 `src/shared/CONTEXT.md`의 Shared chart model을 따른다.
 
-연결 보정에 배정되지 않는 교대 up이 이른 release를 만들고 그 손해가 차트의 의도가 아니라면 해당 끝에 Grace(`holdOnly`)를 적용한다. 패턴별 합의 범위와 속성의 영향은 [glossary](../../docs/context/glossary.md#release-판정)를 따르며, 자동 배치 금지는 별도 결정 없이 추가하지 않는다.
+뗌을 요구하면서 타이밍 등급만 면제할 때는 **그레이스 릴리즈**, 뗌 자체를 요구하지 않을 때는 **릴리즈 없음**으로 구분한다([RFD 0035](../../docs/rfd/0035-release-presence-and-grace.md), 엔진·에디터 이행 전). 교대 up의 점수 손해를 Grace(`holdOnly`)로 면제하던 제작 지침은 이전 결정이다. 정의는 [glossary](../../docs/context/glossary.md#release-판정)를, 패턴별 적용 범위와 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)를 따르며, 자동 배치 금지는 별도 결정 없이 추가하지 않는다.
 
 ## Language
 
@@ -104,7 +104,7 @@ Select 모드에서 **`trillZone`**의 끝점을 신축하는 **리사이즈 캡
 _Avoid_: 이동 필
 
 **Grace 모드**:
-Create 모드에서 배치하는 노트에 타이밍 면제 플래그를 부여하는 토글 상태이다. 포인트 노트에는 Grace, 롱노트에는 `holdOnly`가 부여된다. 플래그의 판정 의미는 glossary의 "Grace 노트"·`holdOnly`를 따른다.
+노트가 요구하는 누름·뗌은 유지하면서 타이밍 등급만 면제하도록 배치하는 토글 상태이다. 릴리즈 유무와 별개이며, 그레이스 릴리즈도 실제 뗌을 요구한다([glossary](../../docs/context/glossary.md#grace-노트-grace-note)). 현재 롱노트에 `holdOnly`를 부여하는 편집기는 이행 전이다([RFD 0035](../../docs/rfd/0035-release-presence-and-grace.md)).
 _Avoid_: Grace 노트
 
 **`GestureRecognizer`**:
@@ -134,10 +134,10 @@ _Avoid_: 뷰포트 제스처
 - **Select 모드**는 이동을 포함하므로 별도의 Move 모드를 두지 않는다.
 - **Create 모드**로 배치하는 엔티티에는 노트·마커·이벤트와 함께 **`trillZone`**도 포함된다.
 - **`trillZone` 선택**은 몸통 탭이나 박스 감쌈으로 구간을 유닛 선택하고, 선택 후 **몸통 드래그로 이동**·끝점 **리사이즈 캡으로 신축**하며, 유닛 이동·삭제 시 내부 노트가 동반된다(RFD 0016 §6-2·§6-6).
-- **Grace 모드**는 배치 시 노트에 면제 플래그를 부여하며, 어떤 위치·조합이 허용되는지는 **배치 제약**이 정한다.
-- 차트 제작 시 손 선택을 미리 암시하고 탭·교대 up과 가까운 release의 간섭을 피한다. 연결 head에서 소비하는 up과 실제 release에 쓰는 up을 구별하며, 실제 release의 정밀도를 요구하지 않을 교대 구간의 끝에는 `holdOnly`를 배치한다. Point의 `grace`와 구분하며 세부는 [차트 디자인의 주의사항](../../docs/context/chart-design.md#차트-설계-시-주의사항)을 따른다.
+- **Grace 모드**는 배치 시 타이밍 등급만 면제하며, 어떤 위치·조합이 허용되는지는 **배치 제약**이 정한다.
+- 차트 제작 시 손 선택을 미리 암시하고 탭·교대 up과 가까운 release의 간섭을 피한다. 뗌을 요구하면서 타이밍 등급을 면제할 때는 **그레이스 릴리즈**, 뗌 자체를 요구하지 않을 때는 **릴리즈 없음**으로 구분한다. 기존 `holdOnly`를 이용한 제작 지침은 [이전 규칙의 기록](../../docs/context/chart-design.md#차트-설계-시-주의사항)이며, 새 적용 범위는 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 - **고스트 프리뷰**는 확정 전 상태이고 실제 차트 엔티티가 아니다.
-- **배치 제약**은 차트 모델이 성립하지 않는 배치를 막는다 — 트릴 노트는 `trillZone` 안에만·일반 노트는 밖에만 배치하며, `StopEvent` 내 배치와 `restZone`이 덮은 레인·구간의 노트·`trillZone` 공존을 금지한다(의미 위반, 역방향 대칭 — RFD 0019). 트릴 롱노트는 head가 필요하고 양수 길이의 `holdOnly`는 허용하되 길이 0 조합은 금지한다. 양수 길이 끝점과 별도 길이 0 롱노트의 중복, 같은 unit 수로 이어지는 경계 규칙은 [glossary](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [사례 NJ-C01～C03](../../docs/spec/note-judgment-cases.md#nj-c01)을 따른다(RFD 0020). validator·편집기의 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
+- **배치 제약**은 차트 모델이 성립하지 않는 배치를 막는다 — 트릴 노트는 `trillZone` 안에만·일반 노트는 밖에만 배치하며, `StopEvent` 내 배치와 `restZone`이 덮은 레인·구간의 노트·`trillZone` 공존을 금지한다(의미 위반, 역방향 대칭 — RFD 0019). 트릴 롱노트는 head가 필요하다. 같은 레인의 양수 길이 바디 끝과 별도 길이 0 롱노트의 동시 배치는 금지한다([NJ-C01](../../docs/spec/note-judgment-cases.md#nj-c01)). 이 중복 금지는 일반 바디·일반 릴리즈에도 적용하며 `holdOnly` 폐지와 무관하게 유지한다. 이행 전 `holdOnly` 조합과 같은 unit 수 경계의 `holdOnly` 조건은 [glossary의 이전 규칙](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)에 남긴다. 새 모델의 validator·편집기 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 
 ## Example dialogue
 
