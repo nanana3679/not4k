@@ -206,16 +206,39 @@ describe('GearButtonState — 버튼 하나의 누름 상태', () => {
     expect(state.press('KeyD', 'single')).toBe(false);
   });
 
-  it('색을 주지 않은 누름은 공입력 규칙이다: KeyD만 누르면 싱글, KeyD를 누른 채 KeyO를 누르면 더블, KeyD를 떼고 KeyO만 다시 누르면 싱글', () => {
+  it('공입력 KeyD·KeyO·KeyC는 3개→2개에서 금색을 유지하고, 2개→1개에서 연파랑으로 바뀌며 마지막 키의 잔광도 연파랑이다', () => {
     const state = new GearButtonState();
     state.press('KeyD');
     expect(state.color).toBe('single');
     state.press('KeyO');
     expect(state.color).toBe('double');
-    state.release('KeyD');
-    state.release('KeyO');
+    state.press('KeyC');
+    expect(state.release('KeyC')).toBe(false);
+    expect(state).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 2 });
+    expect(state.release('KeyD')).toBe(true);
+    expect(state).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1, releaseMs: 0 });
+    expect(state.look(RELEASE, look())).toEqual({ glow: 1, tint: 0, cap: 0 });
+    expect(state.release('KeyO')).toBe(true);
+    expect(state).toMatchObject({ phase: 'releasing', color: 'single', heldKeys: 0 });
+  });
+
+  it.each(['single', 'double'] as const)('마지막 누름에 %s를 지정하면 키 수가 바뀌어도 노트·Lab 지정색을 유지한다', (color) => {
+    const state = new GearButtonState();
+    state.press('KeyD');
     state.press('KeyO');
-    expect(state.color).toBe('single');
+    if (color === 'single') state.press('KeyC');
+    state.press('KeyO', color);
+    expect(state.release('KeyO')).toBe(false);
+    expect(state).toMatchObject({ phase: 'pressed', color, heldKeys: color === 'single' ? 2 : 1 });
+  });
+
+  it('더블 지정색 뒤 같은 키를 공입력으로 다시 누르면 금색은 그대로지만 하나를 뗐을 때는 연파랑으로 바뀐다', () => {
+    const state = new GearButtonState();
+    state.press('KeyD');
+    state.press('KeyO', 'double');
+    expect(state.press('KeyO')).toBe(false);
+    expect(state.release('KeyO')).toBe(true);
+    expect(state).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
   });
 });
 
@@ -303,6 +326,23 @@ describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
     buttons.setKey(2, 'KeyC', true, 'single');
     expect(layers(buttons, 2).glow.texture.frame.y).toBe(16);
     expect(buttons.state(2)).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 3 });
+  });
+
+  it('공입력 KeyD·KeyO에서 KeyO만 떼면 다음 update 전부터 glow·tint가 연파랑 텍스처이고 눌림 밝기와 높이를 유지한다', () => {
+    const buttons = new GearButtons({ texture: atlas() });
+    buttons.setKey(2, 'KeyD', true);
+    const { glow, tint, cap } = layers(buttons, 2);
+    const singleGlow = glow.texture;
+    const singleTint = tint.texture;
+    buttons.setKey(2, 'KeyO', true);
+    expect(glow.texture).not.toBe(singleGlow);
+    expect(tint.texture).not.toBe(singleTint);
+    buttons.update(16);
+    buttons.setKey(2, 'KeyO', false);
+    expect(glow.texture).toBe(singleGlow);
+    expect(tint.texture).toBe(singleTint);
+    expect([glow.visible, glow.alpha, tint.visible, cap.visible]).toEqual([true, 1, false, false]);
+    expect(buttons.state(2)).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
   });
 
   it('범위 밖 레인 0·5의 입력은 무시하고 어떤 버튼도 보이지 않는다', () => {

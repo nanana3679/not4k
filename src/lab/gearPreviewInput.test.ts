@@ -31,13 +31,14 @@ describe('Lab Gear 키 입력', () => {
     expect(p.target.setKeyState).toHaveBeenCalledTimes(1);
   });
 
-  it('KeyD·KeyO 공입력은 같은 레인 키 2개로 금색이고 KeyO를 떼어도 금색을 유지한다', () => {
+  it.each(['KeyD', 'KeyO'])('KeyD·KeyO 공입력은 키 2개로 금색이고 %s를 떼면 남은 키 1개로 연파랑이 된다', (releasedKey) => {
     const p = setup();
     p.down();
     expect(p.states[1].color).toBe('single');
     p.down('KeyO');
-    p.up('KeyO');
-    expect(p.states[1]).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 1 });
+    expect(p.states[1]).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 2 });
+    p.up(releasedKey);
+    expect(p.states[1]).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
   });
 
   it.each([

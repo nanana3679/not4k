@@ -44,6 +44,20 @@ function play(notes: readonly NoteEntity[], auto = false, offset = 0) {
 }
 
 describe('GearButtonPressColors — 실제 입력 큐·Session·버튼 통합', () => {
+  it.each([1000, 1010])('1000ms에 공입력 A·B를 누르고 %ims에 B를 떼면 같은 프레임·다음 프레임 모두 A만 남아 연파랑이다', (releasedAt) => {
+    const p = play([]);
+    p.input(1000, 'A', 'down');
+    p.input(1000, 'B', 'down');
+    if (releasedAt > 1000) {
+      p.frame(1000);
+      expect(p.state).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 2 });
+    }
+    p.input(releasedAt, 'B', 'up');
+    p.frame(releasedAt);
+    expect(p.applied).toEqual([['A', true, 'single'], ['B', true, 'double'], ['B', false, 'single']]);
+    expect(p.state).toMatchObject({ phase: 'pressed', color: 'single', heldKeys: 1 });
+  });
+
   it('한 프레임에 A가 1000ms 더블을 치고 1001ms에 뗀 뒤 1005ms에 공입력으로 다시 눌리면 마지막 누름은 키 1개라 연파랑이다', () => {
     const p = play([point(1000, 'double')]);
     p.input(1000, 'A', 'down');

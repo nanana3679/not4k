@@ -15,9 +15,9 @@ import { cubicBezierProgress, type CubicBezier } from './gearMotionTiming';
  * - 뗌: 렌더 프레임 간격 `deltaMs`(`renderFrame`의 인자)로만 나아가 일시정지 중에는 멈춘다. cap이 `capMs`(40ms)에 걸쳐 덮이고,
  *   흰빛(glow)이 `whiteMs`(53ms)에, 남는 빛(tint)이 `glowMs`(150ms)에 걸쳐 꺼진다(시연의 CSS 전환과 같은 곡선).
  *   누른 뒤 한 번도 그리기 전에 뗀 경우만 첫 렌더 프레임을 경과 0으로 그려 짧은 누름도 보이게 한다.
- * - 색: 누를 때마다 정한다(RFD 0027: 싱글 연파랑·더블 금색, 중간 단계 없이 바로 바뀜, 게임 규칙은 `gearButtonPressColor`). 버튼 색은 그 레인에서
- *   마지막 누름의 색이고, 떼는 동안은 그 색을 유지한다. 노트를 친 누름은 노트 규칙의 색을 받아 누르고,
- *   색을 주지 않은 누름은 공입력 규칙(이 키를 포함해 레인에 누른 키 수)으로 칠한다. 게임은 판정 적용 순서로 입력을 재생한다.
+ * - 색: 누를 때마다 정한다(RFD 0027: 싱글 연파랑·더블 금색, 중간 단계 없이 바로 바뀜, 게임 규칙은 `gearButtonPressColor`). 노트를 친 누름은
+ *   노트 규칙의 색을 받아 유지하고, 마지막 누름에 색을 주지 않았으면 공입력 규칙(레인에 남은 키 수)으로 누름·뗌마다 갱신한다.
+ *   마지막 키를 떼면 직전 표시 색으로 잔광을 진행한다. 게임은 판정 적용 순서로 입력을 재생한다.
  * - 비용: 스프라이트와 텍스처는 만들 때 한 번만 만들고, 이후에는 보이기·알파·텍스처 교체만 한다. 렌더 프레임마다 객체를 만들지 않는다.
  */
 
@@ -123,6 +123,8 @@ export class GearButtonState implements GearButtonStateView {
   private readonly keys = new Set<string>();
   private currentPhase: GearButtonPhase = 'idle';
   private currentColor: GearButtonColor = 'single';
+  /** 마지막 누름이 공입력이면 뗀 뒤에도 남은 키 수를 색에 반영한다. */
+  private colorFollowsHeldKeys = true;
   private elapsedMs = 0;
   /** 마지막 누름 이후 아직 렌더 프레임이 없으면 짧은 탭도 한 번은 눌린 모습으로 그린다. */
   private pressFresh = false;
@@ -138,6 +140,7 @@ export class GearButtonState implements GearButtonStateView {
    */
   press(key: string, color?: GearButtonColor): boolean {
     this.keys.add(key);
+    this.colorFollowsHeldKeys = color === undefined;
     const pressColor = color ?? gearButtonPressColor(null, this.keys.size);
     const changed = this.currentPhase !== 'pressed' || this.currentColor !== pressColor;
     this.currentColor = pressColor;
@@ -147,9 +150,16 @@ export class GearButtonState implements GearButtonStateView {
     return changed;
   }
 
-  /** key를 뗀다. 누른 적 없는 키는 무시한다. 마지막 키를 떼면 돌아오기 시작하고 true. */
+  /** key를 뗀다. 공입력은 남은 키 수로 색을 갱신하고, 마지막 키면 돌아오기 시작한다. 상태나 색이 바뀌었으면 true. */
   release(key: string): boolean {
-    if (!this.keys.delete(key) || this.keys.size > 0) return false;
+    if (!this.keys.delete(key)) return false;
+    if (this.keys.size > 0) {
+      if (!this.colorFollowsHeldKeys) return false;
+      const color = gearButtonPressColor(null, this.keys.size);
+      const changed = this.currentColor !== color;
+      this.currentColor = color;
+      return changed;
+    }
     this.currentPhase = 'releasing';
     this.elapsedMs = 0;
     return true;

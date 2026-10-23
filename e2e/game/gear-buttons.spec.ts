@@ -174,7 +174,7 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     expect(errors).toEqual([]);
   });
 
-  test('레인 2 KeyD를 누른 채 같은 레인 KeyO를 누르면(노트를 치지 않은 공입력, 키 2개) 그 뒤 첫 렌더 프레임부터 2번 버튼이 pressed-double이고 키 앞면이 금색이며, KeyO를 떼도 마지막 누름의 금색을 유지한다', async ({ page }) => {
+  test('레인 2 KeyD·KeyO 공입력은 첫 렌더 프레임부터 금색이고 KeyO를 떼면 KeyD만 남아 연파랑으로 돌아온다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, QUIET_CHART);
@@ -188,7 +188,8 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     await expect.poll(async () => { const [red, , blue] = await gearColor(page, KEY_TWO_FACE); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
     await page.keyboard.up('KeyO');
     await waitAnimationFrames(page, 2);
-    expect((await readProbe(page)).states?.[1]).toMatchObject({ phase: 'pressed', color: 'double' });
+    expect((await readProbe(page)).states?.[1]).toMatchObject({ phase: 'pressed', color: 'single' });
+    await expect.poll(async () => blueOverRed(await gearColor(page, KEY_TWO_FACE)), { timeout: 30_000 }).toBeGreaterThan(80);
     await page.keyboard.up('KeyD');
     await expect.poll(async () => (await readProbe(page)).states?.[1].phase, { timeout: 10_000 }).toBe('idle');
     expect(errors).toEqual([]);
