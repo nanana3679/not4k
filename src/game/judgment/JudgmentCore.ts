@@ -38,6 +38,12 @@ export interface JudgmentCoreOptions {
 
 export interface JudgmentInput { key: string; lane?: number; type: "press" | "release" | "down" | "up" }
 
+/**
+ * 표시 전용: 코어가 정렬한 입력을 적용하기 직전에 관찰한다.
+ * 입력을 바꿀 수 없게 읽기 전용으로 받는다. 관찰자가 예외를 던지면 batch가 그 자리에서 끊기므로 던지지 않아야 한다.
+ */
+export type JudgmentInputObserver = (input: Readonly<JudgmentInput>) => void;
+
 /** 렌더러가 켜짐·실패 표시에 쓰는 unit(몫) 하나의 상태. */
 export interface JudgmentBodyState {
   readonly noteIndex: number;
@@ -57,9 +63,9 @@ export interface JudgmentCore {
    * 시작 시각이 `-Infinity`라 첫 호출에서는 지난 기한을 입력 뒤에 정산한다. 교체 전까지 두는 알려진 차이다
    * (docs/spec/game-core.md "같은 at 분할과 첫 호출").
    */
-  processBatch(at: number, inputs: readonly JudgmentInput[]): void;
+  processBatch(at: number, inputs: readonly JudgmentInput[], observeInput?: JudgmentInputObserver): void;
   /** raw 시각 `rawAt`의 입력을 `observedAt`에 관측했다. 판정은 raw 시각으로, 확정은 관측 시각으로 한다. */
-  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void;
+  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number, observeInput?: JudgmentInputObserver): void;
   /** 입력 없이 기한만 진행한다. */
   advance(at: number): void;
   readonly time: number;

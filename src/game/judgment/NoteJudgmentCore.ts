@@ -6,10 +6,10 @@ import { LaneHoldTracker, type LaneHoldView } from "./LaneHoldTracker";
 import { compileJudgmentChart, type CompiledJudgmentChart } from "./compiledJudgmentChart";
 import { PointJudgmentState } from "./PointJudgmentState";
 import { ZeroHoldOnlyState } from "./ZeroHoldOnlyState";
-import type { JudgmentBodyState, JudgmentCore, JudgmentCoreFactory, JudgmentCoreOptions, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+import type { JudgmentBodyState, JudgmentCore, JudgmentCoreFactory, JudgmentCoreOptions, JudgmentGrade, JudgmentInput, JudgmentInputObserver, NoteJudgmentEvent } from "./JudgmentCore";
 
 /** 공용 타입을 JudgmentCore.ts로 옮기기 전의 import 경로(`./NoteJudgmentCore`)를 그대로 쓸 수 있게 다시 내보낸다. */
-export type { JudgmentEventKind, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+export type { JudgmentEventKind, JudgmentGrade, JudgmentInput, JudgmentInputObserver, NoteJudgmentEvent } from "./JudgmentCore";
 /** 이 코어의 생성 옵션. 코어 공용 이름은 `JudgmentCoreOptions`이고 이 이름은 기존 import를 위해 남긴다. */
 export type NoteJudgmentCoreOptions = JudgmentCoreOptions;
 
@@ -248,7 +248,7 @@ export class NoteJudgmentCore implements JudgmentCore {
   get confirmed(): readonly NoteJudgmentEvent[] { return this.events; }
   get corrections(): ReadonlyMap<string, ConnectionCorrections> { return this.correctionLedgers; }
 
-  processBatch(at: number, inputs: readonly JudgmentInput[]): void {
+  processBatch(at: number, inputs: readonly JudgmentInput[], observeInput?: JudgmentInputObserver): void {
     this.prepareInputAt(at);
     // Deadlines crossed while moving to this timestamp are a prior logical
     // phase. They must be delivered before the current input batch and never
@@ -260,6 +260,7 @@ export class NoteJudgmentCore implements JudgmentCore {
     this.batchingEvents = [];
     try {
       for (const input of this.orderInputs(inputs)) {
+        observeInput?.(input);
         if (input.type === "press" || input.type === "down") this.press(input.key, at, input.lane);
         else this.release(input.key, at, input.lane);
       }
@@ -280,7 +281,7 @@ export class NoteJudgmentCore implements JudgmentCore {
    * clock is monotonic; rawAt is retained at this seam for adapters that
    * attach raw timing metadata while the state transition is observed now.
    */
-  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void {
+  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number, observeInput?: JudgmentInputObserver): void {
     if (observedAt < this.now) throw new Error("관측 시각은 core 시간보다 과거일 수 없습니다");
     this.sweepBefore(observedAt);
     this.now = observedAt;
@@ -290,6 +291,7 @@ export class NoteJudgmentCore implements JudgmentCore {
     this.batchingEvents = [];
     try {
       for (const selected of this.orderInputs(inputs)) {
+        observeInput?.(selected);
         if (selected.type === "up" || selected.type === "release") this.release(selected.key, rawAt, selected.lane);
         else this.press(selected.key, rawAt, selected.lane);
       }

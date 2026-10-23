@@ -1,0 +1,289 @@
+import { test, expect, type Page } from '@playwright/test';
+
+test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
+
+type Renderer = import('../../src/game/renderer/GameRenderer').GameRenderer;
+interface ButtonInput {
+  lane: number;
+  pressed: boolean;
+  holdCount: number;
+  color: 'single' | 'double';
+}
+
+/**
+ * 실제 PlayScreen이 만든 GameRenderer를 renderFrame 관찰로 잡는다. renderFrame이 끝날 때마다 그 프레임에 그린
+ * 기어 버튼 상태(레인 1~4를 쉼표로, 대기는 idle, 그 밖에는 단계-색 pressed-single·releasing-double 등)와 그 프레임의 곡 시각(renderFrame의 첫 인자, ms)을 기록한다.
+ *
+ * 렌더러에 넘기는 deltaMs만 16ms 이하로 묶는다(곡 시각과 판정은 그대로). 뗌 곡선은 deltaMs만큼 나아가 150ms에 끝나는데, 부하가 걸린
+ * swiftshader에서는 프레임 간격이 150~350ms까지 벌어져 뗀 뒤 첫 프레임에 곡선이 끝나고 releasing 프레임이 남지 않는다.
+ * 곡선이 나아가는 양을 벽시계 대신 그린 프레임 수로 정해 releasing을 거치는지 부하와 상관없이 확인한다.
+ */
+async function installProbe(page: Page) {
+  await page.evaluate(async () => {
+    const win = window as unknown as Record<string, unknown>;
+    if (win.__gearButtonRenderer !== undefined) return;
+    win.__gearButtonRenderer = null;
+    win.__gearButtonLog = [];
+    win.__gearButtonTimes = [];
+    win.__gearButtonInputs = [];
+    win.__gearButtonHolds = [];
+    const rendererPath = performance.getEntriesByType('resource').map(entry => entry.name)
+      .find(url => new URL(url).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
+    const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
+    // 같은 프레임에서 누르고 떼는 AutoPlayer의 짧은 입력도 실제 렌더러 적용 직후 확인한다.
+    const setGearButtonKey = GameRenderer.prototype.setGearButtonKey;
+    GameRenderer.prototype.setGearButtonKey = function (lane, key, pressed) {
+      setGearButtonKey.call(this, lane, key, pressed);
+      const state = this.gearButtonStates?.[lane - 1];
+      if (state) (win.__gearButtonInputs as ButtonInput[]).push({ lane, pressed, holdCount: state.heldKeys, color: state.color });
+    };
+    const renderFrame = GameRenderer.prototype.renderFrame;
+    const maxFrameDeltaMs = 16;
+    GameRenderer.prototype.renderFrame = function (songTimeMs, deltaMs = maxFrameDeltaMs) {
+      const result = renderFrame.call(this, songTimeMs, Math.min(deltaMs, maxFrameDeltaMs));
+      win.__gearButtonRenderer = this;
+      (win.__gearButtonLog as (string | null)[]).push(this.gearButtonStates?.map(state => (state.phase === 'idle' ? 'idle' : `${state.phase}-${state.color}`)).join(',') ?? null);
+      (win.__gearButtonTimes as number[]).push(songTimeMs);
+      (win.__gearButtonHolds as number[][]).push(this.gearButtonStates?.map(state => state.heldKeys) ?? []);
+      return result;
+    };
+  });
+}
+
+async function readProbe(page: Page) {
+  return page.evaluate(() => {
+    const win = window as unknown as Record<string, unknown>;
+    const renderer = win.__gearButtonRenderer as Renderer | null;
+    const log = win.__gearButtonLog as (string | null)[];
+    return {
+      frames: log.length,
+      log: [...log],
+      times: [...(win.__gearButtonTimes as number[])],
+      inputs: [...(win.__gearButtonInputs as ButtonInput[])],
+      depths: renderer?.gearButtonStates?.map(state => state.pressDepth) ?? null,
+      holds: [...(win.__gearButtonHolds as number[][])],
+      states: renderer?.gearButtonStates?.map(state => ({ phase: state.phase, color: state.color, releaseMs: state.releaseMs })) ?? null,
+    };
+  });
+}
+
+/** 누름과 프레임 경계를 같은 브라우저 작업에서 잡아 다음 renderFrame이 첫 입력 프레임인지 확인한다. */
+async function pressBeforeNextFrame(page: Page, code: string) {
+  return page.evaluate(code => {
+    const win = window as unknown as Record<string, unknown>;
+    const frame = (win.__gearButtonLog as (string | null)[]).length;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code, bubbles: true }));
+    return frame;
+  }, code);
+}
+
+/** 브라우저 requestAnimationFrame을 count번 기다린다(벽시계 대기 대신 화면 프레임 수로 기다린다). */
+async function waitAnimationFrames(page: Page, count: number) {
+  await page.evaluate((frames) => new Promise<void>((resolve) => {
+    let left = frames;
+    const step = () => { left -= 1; if (left <= 0) resolve(); else requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }), count);
+}
+
+/**
+ * 기어 그림 좌표(원본 px) 둘레 다섯 점(±1 논리 px)의 화면 RGB 평균. 살아 있는 렌더러의 기어 배치(gearLayout)로 논리 좌표를 구하고,
+ * 게임 캔버스 스크린샷에서 그 점을 읽는다.
+ */
+async function gearColor(page: Page, point: { x: number; y: number }): Promise<number[]> {
+  const canvas = page.getByTestId('gameplay-canvas');
+  const shot = (await canvas.screenshot()).toString('base64');
+  return page.evaluate(async ({ shot, point }) => {
+    const win = window as unknown as Record<string, unknown>;
+    const renderer = win.__gearButtonRenderer as Renderer;
+    const layout = renderer.gearLayout!;
+    const logicalWidth = (renderer as unknown as { width: number }).width;
+    const image = new Image();
+    image.src = `data:image/png;base64,${shot}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true })!;
+    context.drawImage(image, 0, 0);
+    const perLogical = image.naturalWidth / logicalWidth;
+    const centerX = layout.x + point.x * layout.scale;
+    const centerY = layout.y + point.y * layout.scale;
+    const offsets = [[0, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+    const sum = [0, 0, 0];
+    for (const [dx, dy] of offsets) {
+      const data = context.getImageData(Math.round((centerX + dx) * perLogical), Math.round((centerY + dy) * perLogical), 1, 1).data;
+      for (let channel = 0; channel < 3; channel++) sum[channel] += data[channel];
+    }
+    return sum.map(value => value / offsets.length);
+  }, { shot, point });
+}
+
+interface PlayChart {
+  notes: unknown[];
+  events: unknown[];
+}
+
+async function startLocalPlay(page: Page, chart: PlayChart) {
+  await page.goto('/game');
+  await page.getByRole('button', { name: 'Start', exact: true }).waitFor();
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await installProbe(page);
+  await page.evaluate(async (chart) => {
+    const storePath = performance.getEntriesByType('resource').map(entry => entry.name)
+      .find(url => new URL(url).pathname === '/src/game/stores/gameStore.ts') ?? '/src/game/stores/gameStore.ts';
+    const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
+    const state = useGameStore.getState();
+    // 기본 TKL 바인딩: 레인 2는 KeyE·KeyD·KeyC·KeyO. 기어 버튼 픽셀이 시간에 따라 바뀌지 않게 gearMotion은 끈다.
+    state.updateSettings({ isFirstLaunch: false, renderHeight: 720, masterVolume: 0, gearMotion: false });
+    state.setChartData({
+      meta: { title: 'Gear button check', artist: 'Local', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
+      notes: chart.notes as never,
+      trillZones: [],
+      events: chart.events as never,
+    });
+    state.setAudioBuffer(new AudioBuffer({ length: 44100 * 90, sampleRate: 44100, numberOfChannels: 1 }));
+    useGameStore.setState({ screen: 'play', startTimeMs: 0, editorReturnUrl: null });
+  }, chart);
+  await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
+  await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+}
+
+const BPM_EVENTS = [
+  { type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 },
+  { type: 'timeSignature', beat: { n: 0, d: 1 }, beatPerMeasure: { n: 4, d: 1 } },
+];
+/** 노트가 50초 뒤에 하나뿐인 차트(입력해도 판정할 노트가 없다). */
+const QUIET_CHART: PlayChart = { notes: [{ type: 'single', lane: 1, beat: { n: 100, d: 1 } }], events: BPM_EVENTS };
+// 2번 키 아래 광원(원본 479, 1290): 대기는 어둡고 눌림 깊이와 무관하게 입력 색으로 빛난다.
+const KEY_TWO_LIGHT = { x: 479, y: 1290 };
+// 15px에서는 흰 키캡이고 30px에서는 그 위 뒷벽인 위치.
+const KEY_TWO_UPPER_CAP = { x: 437, y: 1159 };
+const blueOverRed = ([red, , blue]: number[]) => blue - red;
+const maxDifference = (a: number[], b: number[]) => Math.max(...a.map((value, channel) => Math.abs(value - b[channel])));
+
+test.describe('실제 플레이의 기어 버튼 누름', () => {
+  test.describe.configure({ timeout: 90_000 });
+
+  test('레인 2 KeyD를 누르면 누른 뒤 첫 렌더 프레임부터 기어 2번 버튼이 pressed·싱글이고 키 앞면이 연파랑으로 빛나며, 떼면 releasing을 거쳐 대기(idle)로 돌아와 기어 그림 색이 된다', async ({ page }) => {
+    const errors: string[] = [];
+    const requested: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('request', request => requested.push(new URL(request.url()).pathname));
+    await startLocalPlay(page, QUIET_CHART);
+    // 기어 버튼 아틀라스는 기어 그림·빈 유리처럼 스킨과 함께 받는 스킨 공통 에셋이다.
+    expect(requested).toContain('/gear/gear-buttons.png');
+    expect((await readProbe(page)).states?.map(state => state.phase)).toEqual(['idle', 'idle', 'idle', 'idle']);
+    const idleFace = await gearColor(page, KEY_TWO_LIGHT);
+    expect(Math.max(...idleFace)).toBeLessThan(90);
+
+    const atPress = await pressBeforeNextFrame(page, 'KeyD');
+    // 세션이 큐를 모두 처리한 뒤 그린 첫 프레임부터 맞는 색이다.
+    await waitAnimationFrames(page, 3);
+    const afterPress = await readProbe(page);
+    expect(afterPress.states?.[1]).toEqual({ phase: 'pressed', color: 'single', releaseMs: 0 });
+    expect(afterPress.log[atPress]).toBe('idle,pressed-single,idle,idle');
+    await expect.poll(async () => blueOverRed(await gearColor(page, KEY_TWO_LIGHT)), { timeout: 30_000 }).toBeGreaterThan(80);
+
+    const beforeRelease = await readProbe(page);
+    await page.keyboard.up('KeyD');
+    await expect.poll(async () => (await readProbe(page)).states?.[1].phase, { timeout: 10_000 }).toBe('idle');
+    const released = (await readProbe(page)).log.slice(beforeRelease.frames);
+    expect(released).toContain('idle,releasing-single,idle,idle');
+    expect(released.at(-1)).toBe('idle,idle,idle,idle');
+    await expect.poll(async () => maxDifference(await gearColor(page, KEY_TWO_LIGHT), idleFace), { timeout: 30_000 }).toBeLessThan(12);
+    expect(errors).toEqual([]);
+  });
+
+  test('레인 2 KeyD·KeyO 공입력은 첫 렌더 프레임부터 금색이고 30px로 더 들어가며 KeyO를 떼면 연파랑·15px로 돌아온다', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await startLocalPlay(page, QUIET_CHART);
+    await page.keyboard.down('KeyD');
+    await expect.poll(async () => (await readProbe(page)).states?.[1].color).toBe('single');
+    await expect.poll(async () => (await readProbe(page)).depths?.[1]).toBe(15);
+    expect(Math.min(...await gearColor(page, KEY_TWO_UPPER_CAP))).toBeGreaterThan(230);
+    const atSecond = await pressBeforeNextFrame(page, 'KeyO');
+    await waitAnimationFrames(page, 3);
+    const afterSecond = await readProbe(page);
+    expect(afterSecond.states?.[1]).toEqual({ phase: 'pressed', color: 'double', releaseMs: 0 });
+    expect(afterSecond.log[atSecond]).toBe('idle,pressed-double,idle,idle');
+    await expect.poll(async () => { const [red, , blue] = await gearColor(page, KEY_TWO_LIGHT); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect.poll(async () => (await readProbe(page)).depths?.[1]).toBe(30);
+    expect(Math.min(...await gearColor(page, KEY_TWO_UPPER_CAP))).toBeLessThan(200);
+    await page.keyboard.up('KeyO');
+    await waitAnimationFrames(page, 2);
+    expect((await readProbe(page)).states?.[1]).toMatchObject({ phase: 'pressed', color: 'single' });
+    await expect.poll(async () => blueOverRed(await gearColor(page, KEY_TWO_LIGHT)), { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect.poll(async () => (await readProbe(page)).depths?.[1]).toBe(15);
+    expect(Math.min(...await gearColor(page, KEY_TWO_UPPER_CAP))).toBeGreaterThan(230);
+    await page.keyboard.up('KeyD');
+    await expect.poll(async () => (await readProbe(page)).states?.[1].phase, { timeout: 10_000 }).toBe('idle');
+    expect(errors).toEqual([]);
+  });
+
+  test('KeyD를 누른 채 일시정지(Esc)하고 떼면 기어 2번 버튼은 pressed로 멈춰 있고, Resume 뒤 큐의 up을 처리한 첫 프레임부터 돌아와 대기가 된다', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await startLocalPlay(page, QUIET_CHART);
+    await page.keyboard.down('KeyD');
+    await expect.poll(async () => (await readProbe(page)).states?.[1].phase).toBe('pressed');
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeVisible();
+    await page.keyboard.up('KeyD');
+    const paused = await readProbe(page);
+    expect(paused.states?.[1]).toEqual({ phase: 'pressed', color: 'single', releaseMs: 0 });
+    await waitAnimationFrames(page, 30);
+    const stillPaused = await readProbe(page);
+    expect(stillPaused.frames).toBe(paused.frames);
+    expect(stillPaused.states?.[1]).toEqual({ phase: 'pressed', color: 'single', releaseMs: 0 });
+
+    await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    await expect.poll(async () => (await readProbe(page)).states?.[1].phase, { timeout: 10_000 }).toBe('idle');
+    expect((await readProbe(page)).log[paused.frames]).toBe('idle,releasing-single,idle,idle');
+    expect(errors).toEqual([]);
+  });
+
+  test('AutoPlayer도 hold 1개는 연파랑, 2개는 금색이며 더블·롱노트 중 싱글 모두 하나를 떼면 연파랑으로 돌아온다', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await startLocalPlay(page, {
+      notes: [
+        { type: 'single', lane: 1, beat: { n: 3, d: 1 } },
+        { type: 'double', lane: 2, beat: { n: 4, d: 1 } },
+        { type: 'long', lane: 3, beat: { n: 5, d: 1 }, endBeat: { n: 9, d: 1 } },
+        { type: 'single', lane: 3, beat: { n: 7, d: 1 } },
+      ],
+      events: [...BPM_EVENTS, { type: 'auto', beat: { n: 0, d: 1 }, endBeat: { n: 12, d: 1 } }],
+    });
+    // 4.5초(롱노트 끝) 뒤 150ms가 지나면 모두 대기다.
+    await expect.poll(async () => {
+      const { log, times } = await readProbe(page);
+      return log.some(entry => entry?.split(',')[2] !== 'idle') && times.at(-1)! > 4800 && log.at(-1) === 'idle,idle,idle,idle';
+    }, { timeout: 30_000 }).toBe(true);
+    const { log, inputs, holds } = await readProbe(page);
+    const laneInputs = (lane: number) => inputs.filter(input => input.lane === lane)
+      .map(({ pressed, holdCount, color }) => [pressed, holdCount, color]);
+    expect(laneInputs(1)).toEqual([[true, 1, 'single'], [false, 0, 'single']]);
+    // 더블 노트도 첫 키는 연파랑, 둘째 키는 금색, 하나를 떼면 다시 연파랑이다.
+    expect(laneInputs(2)).toEqual([
+      [true, 1, 'single'], [true, 2, 'double'], [false, 1, 'single'], [false, 0, 'single'],
+    ]);
+    // 롱노트 중 싱글 탭은 두 키가 함께 눌려 있는 동안 금색이다.
+    expect(laneInputs(3)).toEqual([
+      [true, 1, 'single'], [true, 2, 'double'], [false, 1, 'single'], [false, 0, 'single'],
+    ]);
+    expect(laneInputs(4)).toEqual([]);
+    expect(log.some(entry => entry?.split(',')[2] === 'pressed-single')).toBe(true);
+    // 모든 실제 렌더 프레임에서도 현재 hold 수에 맞는 색이다. 0개일 때는 잔광이 남을 수 있다.
+    for (let frame = 0; frame < log.length; frame++) {
+      const states = log[frame]?.split(',');
+      for (let lane = 0; lane < 4; lane++) {
+        if (holds[frame][lane] > 0) expect(states?.[lane]).toBe(holds[frame][lane] >= 2 ? 'pressed-double' : 'pressed-single');
+      }
+      expect(states?.[3]).toBe('idle');
+    }
+    expect(errors).toEqual([]);
+  });
+});

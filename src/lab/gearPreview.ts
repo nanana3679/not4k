@@ -1,5 +1,6 @@
 import { GEAR_GEOMETRY, resolvePlayLogicalWidth, type GearGeometry, type GearLayout } from '../game/renderer/gearLayout';
 import { gaugeEmptyRows } from '../game/renderer/gearGauge';
+import type { GearButtonStateView } from '../game/renderer/gearButtons';
 import { clampFlightAltitude } from '../game/renderer/flightAltitude';
 import { GAME_HEIGHT, GEAR_OFFSET_Y, NOTE_HEIGHT, judgmentLineYAtLift, liftPx } from '../game/renderer/constants';
 import { PRESET_BINDINGS } from '../game/stores/gameStore';
@@ -114,6 +115,15 @@ export function manualAltitudeOnUnfollow(gaugeLevel: number | null, current: num
 /** `gear-preview-stage`의 data-gear-gauge-level 값(소수 셋째 자리). 게이지가 없으면 undefined(속성을 쓰지 않는다). */
 export function formatGaugeLevel(level: number | null): string | undefined {
   return level === null ? undefined : level.toFixed(3);
+}
+
+/**
+ * `gear-preview-stage`의 data-gear-buttons 값: 레인 1~4 기어 버튼을 쉼표로 이어, 대기는 `idle`, 그 밖에는 `단계-색`
+ * (`pressed-single`·`releasing-double` 등)이다. 기어 버튼이 없으면 undefined(속성을 쓰지 않는다).
+ */
+export function formatGearButtonStates(states: readonly GearButtonStateView[] | null): string | undefined {
+  if (states === null) return undefined;
+  return states.map((state) => (state.phase === 'idle' ? 'idle' : `${state.phase}-${state.color}`)).join(',');
 }
 
 /** 설명의 게이지 채움: 채움 %와 위에서 덮은 빈 유리 행(채움 구간 821행 중). */

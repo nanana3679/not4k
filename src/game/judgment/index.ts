@@ -25,6 +25,7 @@ export type {
   JudgmentCoreFactory,
   JudgmentCoreOptions,
   JudgmentInput,
+  JudgmentInputObserver,
   JudgmentEventKind,
   JudgmentGrade as NoteJudgmentGrade,
   NoteJudgmentEvent,

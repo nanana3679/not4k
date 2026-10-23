@@ -7,6 +7,7 @@ FORM: 게임 렌더러를 그대로 띄우는 Operate형 미리보기이며 정�
 */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { createGearPreviewInput } from './gearPreviewInput';
 import type { GameRenderer } from '../game/renderer';
 import type { SkinManager } from '../game/skin';
 import { GEAR_GEOMETRY, GEAR_CLEARANCE, layoutGear } from '../game/renderer/gearLayout';
@@ -27,6 +28,7 @@ import {
   GEAR_PREVIEW_KEYBOARDS,
   GEAR_PREVIEW_STAGE_WIDTH,
   formatGaugeLevel,
+  formatGearButtonStates,
   formatGearOffsetY,
   formatLiftPercent,
   GEAR_OFFSET_Y_MAX,
@@ -42,6 +44,7 @@ import {
 import { buildGearPreviewDemo, buildGearPreviewSchedule, initialGearPreviewLoopState, stepGearPreviewLoop } from './gearPreviewChart';
 import { createSharedSkin, type SharedSkin } from './gearPreviewSkin';
 import type { GearMotionResources } from '../game/renderer/gearMotionAssets';
+import type { GearButtonStateView } from '../game/renderer/gearButtons';
 import {
   ALL_GEAR_MOTION_LAYERS_ON,
   GEAR_MOTION_LAYERS,
@@ -239,6 +242,34 @@ export default function GearPage() {
     if (gaugeReadoutRef.current) gaugeReadoutRef.current.textContent = describeGaugeLevel(level);
   }, []);
 
+  // 매 프레임 렌더러가 기어 버튼 상태를 알린다. 단계·색·깊이가 바뀐 프레임에만 `gear-preview-stage`의 data-gear-buttons를 고친다(React 상태를 거치지 않는다).
+  const reportedButtonsRef = useRef<{ present: boolean; phases: string[]; colors: string[]; depths: number[] }>({ present: false, phases: [], colors: [], depths: [] });
+  const handleGearButtons = useCallback((states: readonly GearButtonStateView[] | null) => {
+    const last = reportedButtonsRef.current;
+    let changed = (states !== null) !== last.present;
+    if (states) {
+      for (let index = 0; index < states.length; index++) {
+        const { phase, color, pressDepth } = states[index];
+        const depth = Math.round(pressDepth);
+        if (last.phases[index] === phase && last.colors[index] === color && last.depths[index] === depth) continue;
+        last.phases[index] = phase;
+        last.colors[index] = color;
+        last.depths[index] = depth;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    last.present = states !== null;
+    if (!states) last.phases.length = last.colors.length = last.depths.length = 0;
+    const stageElement = stageRef.current;
+    const value = formatGearButtonStates(states);
+    if (!stageElement) return;
+    if (value === undefined) delete stageElement.dataset.gearButtons;
+    else stageElement.dataset.gearButtons = value;
+    if (states === null) delete stageElement.dataset.gearButtonDepths;
+    else stageElement.dataset.gearButtonDepths = last.depths.join(',');
+  }, []);
+
   // 전체화면: 화면을 채운 캔버스 영역(`viewportRef`) 크기에서 게임 PlayScreen과 같은 규칙으로 논리 폭을 정해 렌더러를 다시 만든다.
   const [fullscreen, setFullscreen] = useState<FullscreenMode>('off');
   const [fullscreenSize, setFullscreenSize] = useState<{ width: number; height: number } | null>(null);
@@ -432,6 +463,7 @@ export default function GearPage() {
               onMotionTime={handleMotionTime}
               onMotionAttached={setMotionAttachedKey}
               onGaugeLevel={handleGaugeLevel}
+              onGearButtons={handleGearButtons}
             />
             {rendererState.status === 'error' && <p className="gear-preview-error" role="alert">{rendererState.message}</p>}
             <div className="gear-preview-fullscreen-bar">
@@ -583,7 +615,7 @@ export default function GearPage() {
             value={keyboard}
             options={KEYBOARD_OPTIONS}
             onChange={setKeyboard}
-            note="바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아집니다. 데모 노트 판정과 키빔은 그대로입니다."
+            note="바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아지고, 기어에서 그 레인의 버튼이 게임처럼 눌려 빛납니다. 게임처럼 같은 레인의 hold 수가 1개면 연파랑, 2개 이상이면 금색입니다. 하나를 떼어 1개만 남으면 바로 연파랑으로 돌아옵니다. 두 번째 키를 누르면 버튼이 한 단계 더 깊이 들어가고, 하나를 떼면 다시 올라옵니다. 데모 노트 판정과 키빔은 그대로입니다."
           />
           <fieldset className="gear-preview-group gear-preview-motion">
             <legend>움직임</legend>
@@ -750,7 +782,7 @@ function useDevicePixelRatio(): number {
  */
 function GearPreviewRenderer({
   rendererKey, scenario, width, resolution, gearOffsetY, lift, altitudeOverride, keyboardBindings, sharedSkin, hostStyle,
-  motionSettings, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached, onGaugeLevel,
+  motionSettings, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached, onGaugeLevel, onGearButtons,
 }: {
   rendererKey: string;
   scenario: Scenario;
@@ -779,6 +811,8 @@ function GearPreviewRenderer({
   onMotionAttached: (key: string) => void;
   /** 프레임마다 지금 보이는 게이지 채움(gearGaugeLevel), 렌더러를 정리하면 null. */
   onGaugeLevel: (level: number | null) => void;
+  /** 프레임마다 기어 버튼 상태(gearButtonStates), 렌더러를 정리하면 null. */
+  onGearButtons: (states: readonly GearButtonStateView[] | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // 리프트·키보드·`gearMotion` 설정 effect가 쓰는 살아 있는 렌더러와 그 값을 다시 적용하는 함수.
@@ -798,6 +832,7 @@ function GearPreviewRenderer({
   motionSettingsRef.current = motionSettings;
   const options = useRef({
     rendererKey, scenario, width, resolution, gearOffsetY, sharedSkin, restartRef, frameWindows, onState, onView, onMotionTime, onMotionAttached, onGaugeLevel,
+    onGearButtons,
   });
 
   useEffect(() => {
@@ -806,7 +841,7 @@ function GearPreviewRenderer({
     const {
       rendererKey: key, scenario: label, width: logicalWidth, resolution: rendererResolution, gearOffsetY: offsetY, sharedSkin: skins,
       restartRef: restart, frameWindows: windows, onState, onView: reportView, onMotionTime: reportMotionTime, onMotionAttached: reportMotionAttached,
-      onGaugeLevel: reportGaugeLevel,
+      onGaugeLevel: reportGaugeLevel, onGearButtons: reportGearButtons,
     } = options.current;
     const report = (state: DistributiveOmit<RendererState, 'key'>) => onState({ ...state, key } as RendererState);
     let disposed = false;
@@ -826,6 +861,7 @@ function GearPreviewRenderer({
       if (reportedMotion) reportMotionTime(null);
       reportedMotion = false;
       reportGaugeLevel(null);
+      reportGearButtons(null);
       if (restart.current === restartMotion) restart.current = null;
       removeStageKeyListeners?.();
       removeStageKeyListeners = null;
@@ -913,12 +949,9 @@ function GearPreviewRenderer({
         liveRef.current = { applyLift, applyAltitude, applyKeyboard, applyMotion };
         restart.current = restartMotion;
 
-        // 키보드 표시 눌림: 게임처럼 바인딩된 키를 누르는 동안 그 키만 밝힌다. 데모 노트 판정·키빔에는 넣지 않는다.
-        const onStageKey = (event: KeyboardEvent) => active.setKeyState(event.code, event.type === 'keydown');
-        // 누른 채 창을 떠나면 keyup이 오지 않으므로 바인딩된 키를 모두 뗀다.
-        const releaseStageKeys = () => {
-          for (const code of keyboardRef.current.keys()) active.setKeyState(code, false);
-        };
+        // 키보드 표시·기어 버튼 눌림: 게임처럼 바인딩된 키를 누르는 동안 그 키를 밝히고 그 레인의 기어 버튼을 누른다.
+        // 데모 노트 판정·키빔과 별개로, 게임처럼 같은 레인의 hold 수가 1개면 연파랑, 2개 이상이면 금색이다.
+        const { onKey: onStageKey, releaseAll: releaseStageKeys } = createGearPreviewInput(active, () => keyboardRef.current);
         window.addEventListener('keydown', onStageKey);
         window.addEventListener('keyup', onStageKey);
         window.addEventListener('blur', releaseStageKeys);
@@ -976,6 +1009,7 @@ function GearPreviewRenderer({
           // 애니메이션 경과 시간은 renderFrame의 deltaMs(렌더 프레임)로만 나아간다. 차트를 되감아도(setChart) 이어 간다.
           active.renderFrame(songMs, deltaMs);
           reportGaugeLevel(active.gearGaugeLevel);
+          reportGearButtons(active.gearButtonStates);
           if (motion) {
             if (motion.running) {
               reportMotionTime(motion.timeMs);
@@ -1001,6 +1035,7 @@ function GearPreviewRenderer({
         };
         active.renderFrame(0, 0);
         reportGaugeLevel(active.gearGaugeLevel);
+        reportGearButtons(active.gearButtonStates);
         report({ status: 'ready', backingWidth: canvas.width, backingHeight: canvas.height });
         frame = requestAnimationFrame(loop);
       } catch (error) {

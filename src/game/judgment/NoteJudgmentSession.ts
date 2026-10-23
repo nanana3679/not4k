@@ -5,7 +5,7 @@ import {
   decideConfirmedJudgmentEffects,
   type ConfirmedJudgmentEffects,
 } from "./confirmedJudgmentEffects";
-import type { JudgmentCore, JudgmentCoreFactory, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+import type { JudgmentCore, JudgmentCoreFactory, JudgmentInput, JudgmentInputObserver, NoteJudgmentEvent } from "./JudgmentCore";
 import { createNoteJudgmentCore } from "./NoteJudgmentCore";
 import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
 
@@ -59,14 +59,14 @@ export class NoteJudgmentSession {
     });
   }
 
-  processBatch(at: number, inputs: readonly JudgmentInput[]): void {
+  processBatch(at: number, inputs: readonly JudgmentInput[], observeInput?: JudgmentInputObserver): void {
     this.assertOpen();
-    this.core.processBatch(at, inputs);
+    this.core.processBatch(at, inputs, observeInput);
   }
 
-  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number): void {
+  processObservedBatch(rawAt: number, inputs: readonly JudgmentInput[], observedAt: number, observeInput?: JudgmentInputObserver): void {
     this.assertOpen();
-    this.core.processObservedBatch(rawAt, inputs, observedAt);
+    this.core.processObservedBatch(rawAt, inputs, observedAt, observeInput);
   }
 
   advance(at: number): void {
