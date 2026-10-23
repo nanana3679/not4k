@@ -2,7 +2,7 @@
 
 > 판정 규칙은 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)와 [판정 사례 명세](note-judgment-cases.md)를 우선한다. 현재 플레이·자동 입력·튜토리얼은 이 모델을 공통으로 사용하며, 세부 검증 기록은 [PRD §12](../prd.md#12-미정-사항)를 따른다.
 
-> **후속 설계(엔진 이행 전):** [RFD 0035](../rfd/0035-release-presence-and-grace.md)에서 `holdOnly`를 폐지하고 릴리즈 없음·일반 릴리즈·그레이스 릴리즈를 구분했다. 그레이스 릴리즈도 실제 뗌은 필수이며 타이밍 등급만 면제한다. 아래 `holdOnly` 설명은 현재 구현의 기록이고, 새 정의는 [glossary](../context/glossary.md#release-판정)를 따른다.
+> **후속 설계(엔진 이행 전):** [RFD 0035](../rfd/0035-release-presence-and-grace.md)에서 롱노트의 유지와 별도 릴리즈 노트의 뗌을 분리하고 `holdOnly`를 폐지했다. 바디 끝에 릴리즈 노트를 명시하는 조합을 허용하며, 릴리즈 없음·일반 릴리즈·그레이스 릴리즈를 구분한다. 바디는 점수 항목·가중치에서 제외하고 유지 판정으로 콤보와 고도에만 관여하되, 유지 실패 시 연결된 릴리즈 기회도 잃는다. 그레이스 릴리즈도 실제 뗌은 필수이며 타이밍 등급만 면제한다. 아래 `holdOnly` 설명은 현재 구현의 기록이고, 새 정의는 [glossary](../context/glossary.md#release-판정)를 따른다.
 
 ## 현재 채택 판정 경계
 

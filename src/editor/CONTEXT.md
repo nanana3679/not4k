@@ -137,7 +137,7 @@ _Avoid_: 뷰포트 제스처
 - **Grace 모드**는 배치 시 타이밍 등급만 면제하며, 어떤 위치·조합이 허용되는지는 **배치 제약**이 정한다.
 - 차트 제작 시 손 선택을 미리 암시하고 탭·교대 up과 가까운 release의 간섭을 피한다. 뗌을 요구하면서 타이밍 등급을 면제할 때는 **그레이스 릴리즈**, 뗌 자체를 요구하지 않을 때는 **릴리즈 없음**으로 구분한다. 기존 `holdOnly`를 이용한 제작 지침은 [이전 규칙의 기록](../../docs/context/chart-design.md#차트-설계-시-주의사항)이며, 새 적용 범위는 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 - **고스트 프리뷰**는 확정 전 상태이고 실제 차트 엔티티가 아니다.
-- **배치 제약**은 차트 모델이 성립하지 않는 배치를 막는다 — 트릴 노트는 `trillZone` 안에만·일반 노트는 밖에만 배치하며, `StopEvent` 내 배치와 `restZone`이 덮은 레인·구간의 노트·`trillZone` 공존을 금지한다(의미 위반, 역방향 대칭 — RFD 0019). 트릴 롱노트는 head가 필요하다. 같은 레인의 양수 길이 바디 끝과 별도 길이 0 롱노트의 동시 배치는 금지한다([NJ-C01](../../docs/spec/note-judgment-cases.md#nj-c01)). 이 중복 금지는 일반 바디·일반 릴리즈에도 적용하며 `holdOnly` 폐지와 무관하게 유지한다. 이행 전 `holdOnly` 조합과 같은 unit 수 경계의 `holdOnly` 조건은 [glossary의 이전 규칙](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)에 남긴다. 새 모델의 validator·편집기 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
+- **배치 제약**은 차트 모델이 성립하지 않는 배치를 막는다 — 트릴 노트는 `trillZone` 안에만·일반 노트는 밖에만 배치하며, `StopEvent` 내 배치와 `restZone`이 덮은 레인·구간의 노트·`trillZone` 공존을 금지한다(의미 위반, 역방향 대칭 — RFD 0019). 트릴 롱노트는 head가 필요하다. 새 롱노트는 release를 내장하지 않으므로 같은 레인·시각의 바디 끝과 별도 릴리즈 노트를 조합할 수 있다([RFD 0035](../../docs/rfd/0035-release-presence-and-grace.md)). 기존 [NJ-C01](../../docs/spec/note-judgment-cases.md#nj-c01)의 중복 금지는 이전 엔진의 기록이며 이 조합을 금지하는 근거가 아니다. 이행 전 `holdOnly` 조합과 같은 unit 수 경계의 `holdOnly` 조건은 [glossary의 이전 규칙](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)에 남긴다. 새 모델의 validator·편집기 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 
 ## Example dialogue
 
