@@ -5,6 +5,8 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 
 ## 판정 모델의 전제
 
+롱노트는 유지 구간을 담당하고 release를 내장하지 않는다. 바디는 점수 항목·가중치 없이 유지 판정으로 콤보와 고도에만 관여하되, 유지 실패 시 연결된 릴리즈 기회도 잃는다. 바디 끝에 별도로 명시한 릴리즈 노트는 일반·Grace 모두 실제 뗌이 필요하다. 그레이스 릴리즈는 허용 창 안이면 Perfect이고 FAST/SLOW를 집계하지 않으며, 릴리즈 없는 끝은 뗌을 요구하지 않는다([glossary](../../docs/context/glossary.md#release-판정)). `holdOnly`는 새 설계에서 폐지했고 아래 기존 엔진 설명에만 남는다([RFD 0035](../../docs/rfd/0035-release-presence-and-grace.md), 엔진 이행 전).
+
 아래 등록 키·연결 보류는 기존 엔진 기준이다. 후속 설계는 패턴별 허용 입력·기대 결과를 먼저 정하며, release와 Grace의 역할 및 현재 합의 범위는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다. 연결 head를 처리한 single 사례는 이르거나 늦은 실제 head down부터 뒤 바디의 유지를 판단하고 임시 20ms 유지 유예를 적용한다([glossary](../../docs/context/glossary.md#유예-시간-grace-period)). head를 놓쳐도 계속 유지한 뒤 바디의 실제 release는 처리한다([glossary](../../docs/context/glossary.md#release-판정)). 연결 head 창 안에서 hold가 끊기고 head도 놓친 사례는 head Miss 하나와 뒤 끝 종속 0점으로 정리한다. head 기한까지 유지한 뒤 새로 유지가 끊기면 20ms 유예 후 유지 Miss를 추가하고 끝은 종속 0점으로 정산한다. 같은 double 끝의 두 release는 서로 다른 키를 요구하되, 같은 키를 다시 눌러 그 double 바디가 시작하는 연결 head를 처리했다면 그 누름의 up으로 남은 release를 처리할 수 있다. 나머지 적용 범위와 엔진 이행은 아직 남아 있다.
 
 - 같은 레인의 바디 열린 구간은 겹치지 않는다. 다중 unit 구간은 `doubleLong`, 순차 구간은 `connection`으로 표현한다. 판정 창은 겹칠 수 있어 앞 release 대기와 뒤 시작 준비가 함께 존재할 수 있다.
@@ -49,8 +51,8 @@ _Avoid_: 키 이벤트 처리
 _Avoid_: 가장 가까운 노트 매칭
 
 **release 판정과 keyup 소비**:
-같은 double 끝의 두 실제 release는 서로 다른 물리 키를 요구하며 처음 유지한 키와 달라도 된다. 그 double에서 쓴 키도 뒤 독립 노트의 release에는 다시 쓸 수 있다. 연결 head의 교대·유지 중 탭에서 연결 release에 배정한 up은 뒤 실제 release에 쓰지 않는다. 연결 release는 head보다 뒤 끝의 release보다 먼저, head와 같거나 앞선 감소 release보다 나중에 배정한다(RFD 0032 §6-4). 연결 head 전에 경계보다 먼저 뗀 up은 앞 바디를 끝낸다(RFD 0032 §4-2·§8-2). 나머지 up은 끝 창 안의 적격 대상(바디의 시작 여부와 무관) 중 차트상 끝 시각이 가장 이른 것 하나를 처리하며, `holdOnly` 끝도 자기 Good 창 안의 up 하나를 가져간다(RFD 0032 §2-3·§7-1). 입력 자격·소비와 Grace의 역할, 사례별 합의와 이행 상태는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다.
-_Avoid_: 익명 keyup, 실제 release의 이진 판정
+적격한 up을 실제 release 요구에 배정하는 판정이다. 일반 릴리즈는 타이밍 등급을 나누고 그레이스 릴리즈는 허용 창 안이면 Perfect이며, 입력 자격·배정 순서와 이행 상태는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다.
+_Avoid_: 익명 keyup, 모든 release의 일괄 이진 판정
 
 **빈 레인 입력**:
 시각적으로 비어 보이는 레인에 입력했지만 판정 윈도우 안의 노트와 연결될 수 있는 입력이다.
