@@ -10,11 +10,11 @@ import { cubicBezierProgress, type CubicBezier } from './gearMotionTiming';
  * - 레이어: 버튼마다 tint(뗀 뒤 남는 빛, 더하기 블렌드)·glow(눌려 내려간 키와 빛, 보통 블렌드)·cap(대기 키캡 픽셀, 보통 블렌드)을
  *   이 순서로 겹친다. 시연의 tint 캔버스는 대기 + 남는 빛을 대기 위에 그린 것이라, 남는 빛만 더하는 것과 같다.
  *   레이어는 기어 그림 좌표로 그리고 기어가 투명한 곳(레인 창·열린 덱)은 비어 있어 게임 레인을 가리지 않는다.
- * - 누름: 누르는 순간(`setKey`) 다음 렌더 프레임에 바로 보이도록 표시를 바꾼다. 전환 시간을 두지 않는다.
+ * - 누름: 입력 상태와 색은 즉시 바꾸며 1단(0→15px)과 2단(15→30px)은 같은 곡선·30ms로 전환한다.
  * - 뗌: 렌더 프레임 간격 `deltaMs`(`renderFrame`의 인자)로만 나아가 일시정지 중에는 멈춘다. cap이 `capMs`(40ms)에 걸쳐 덮이고,
  *   흰빛(glow)이 `whiteMs`(53ms)에, 남는 빛(tint)이 `glowMs`(150ms)에 걸쳐 꺼진다(시연의 CSS 전환과 같은 곡선).
  *   누른 뒤 한 번도 그리기 전에 뗀 경우만 첫 렌더 프레임을 경과 0으로 그려 짧은 누름도 보이게 한다.
- * - 깊이: 첫 키는 15px, 두 번째 키에서 60ms 동안 30px로 더 들어가며 하나만 남으면 40ms 동안 15px로 올라온다.
+ * - 깊이: 1단은 대기 키캡 덮개를 30ms에 걸쳐 걷어 내고, 2단은 30ms 동안 30px로 더 들어간다. 하나만 남으면 40ms 동안 15px로 올라온다.
  *   깊이별 glow를 아틀라스에 미리 준비해 텍스처만 바꾼다. 전체 뗌에서는 그때의 깊이를 대기 키캡으로 덮는다.
  * - 색: 같은 레인의 hold 수만 따른다. 1개는 연파랑, 2개 이상은 금색이며 누름·뗌마다 즉시 갱신한다.
  *   마지막 키를 떼면 직전 표시 색으로 잔광을 진행한다. 게임은 판정 적용 순서로 입력을 재생한다.
@@ -90,7 +90,7 @@ export const GEAR_BUTTON_GEOMETRY: GearButtonGeometry = {
   buttons: buttonJson.buttons.map(({ glow, tint, cap }) => ({ glow, tint, cap })),
 };
 
-/** 레이어 세 개의 불투명도(0~1). 눌림은 glow 1·tint 0·cap 0이다. */
+/** 레이어 세 개의 불투명도(0~1). 눌림은 glow 1·tint 0이며, 1단 전환 중 cap이 1→0으로 걷힌다. */
 export interface GearButtonLook {
   tint: number;
   glow: number;
@@ -114,7 +114,7 @@ export interface GearButtonStateView {
   readonly color: GearButtonColor;
   /** 이 레인에서 지금 누르고 있는 입력 키 수. */
   readonly heldKeys: number;
-  /** 눌림 레이어의 깊이(원본 px). 대기는 0이며, 전체 뗌의 키캡 덮개는 별도로 복귀한다. */
+  /** 눌림 전환의 깊이(원본 px). 1단은 키캡 덮개로 표현하고 전체 뗌 복귀는 별도로 진행한다. */
   readonly pressDepth: number;
   /** 뗀 뒤 지난 시간(ms). releasing이 아니면 0. */
   readonly releaseMs: number;
@@ -129,7 +129,8 @@ export class GearButtonState implements GearButtonStateView {
   private currentPhase: GearButtonPhase = 'idle';
   private currentColor: GearButtonColor = 'single';
   private elapsedMs = 0;
-  /** 마지막 누름 이후 아직 렌더 프레임이 없으면 짧은 탭도 한 번은 눌린 모습으로 그린다. */
+  private releaseCapProgress = 0;
+  /** 마지막 누름 이후 아직 렌더 프레임이 없으면 짧은 탭의 빛도 한 번은 그린다. */
   private pressFresh = false;
   private currentDepth: number;
   private depthFrom: number;
@@ -143,7 +144,7 @@ export class GearButtonState implements GearButtonStateView {
     private readonly depths = GEAR_BUTTON_GEOMETRY.depths,
     private readonly pressMotion = GEAR_BUTTON_GEOMETRY.pressMotion,
   ) {
-    this.currentDepth = this.depthFrom = this.depthTarget = depths[0];
+    this.currentDepth = this.depthFrom = this.depthTarget = 0;
   }
 
   get phase(): GearButtonPhase { return this.currentPhase; }
@@ -160,10 +161,15 @@ export class GearButtonState implements GearButtonStateView {
     const firstHold = this.keys.size === 0;
     this.keys.add(key);
     if (firstHold) {
-      this.currentDepth = this.depthFrom = this.depthTarget = this.depths[0];
+      // 첫 키로 다시 누르면 1단 깊이를 기준으로, 복귀 중 남은 키캡 덮개를 이어서 걷어 낸다.
+      const depth = this.currentPhase === 'releasing'
+        ? Math.min(this.currentDepth, this.depths[0]) * (1 - this.releaseCapProgress)
+        : 0;
+      this.currentDepth = this.depthFrom = this.depthTarget = depth;
       this.depthFresh = false;
     }
     this.targetDepthForHoldCount();
+    if (firstHold) this.depthDurationMs = this.pressMotion.downMs;
     const pressColor = gearButtonColorForHoldCount(this.keys.size);
     const changed = this.currentPhase !== 'pressed' || this.currentColor !== pressColor;
     this.currentColor = pressColor;
@@ -185,6 +191,7 @@ export class GearButtonState implements GearButtonStateView {
     }
     this.currentPhase = 'releasing';
     this.elapsedMs = 0;
+    this.releaseCapProgress = 0;
     return true;
   }
 
@@ -209,6 +216,7 @@ export class GearButtonState implements GearButtonStateView {
     if (this.currentPhase !== 'releasing' || fresh) return false;
     if (!(deltaMs > 0)) return false;
     this.elapsedMs += deltaMs;
+    this.releaseCapProgress = cubicBezierProgress(release.capEasing, this.elapsedMs / release.capMs);
     if (this.elapsedMs >= release.glowMs) {
       this.currentPhase = 'idle';
       this.elapsedMs = 0;
@@ -231,7 +239,7 @@ export class GearButtonState implements GearButtonStateView {
     if (this.currentPhase === 'pressed') {
       out.tint = 0;
       out.glow = 1;
-      out.cap = 0;
+      out.cap = 1 - Math.min(1, this.currentDepth / this.depths[0]);
       return out;
     }
     if (this.currentPhase === 'idle') {
@@ -240,7 +248,11 @@ export class GearButtonState implements GearButtonStateView {
       out.cap = 0;
       return out;
     }
-    return gearButtonReleaseLook(this.elapsedMs, release, out);
+    gearButtonReleaseLook(this.elapsedMs, release, out);
+    // 1단 누름을 마치기 전에 떼면 남아 있던 대기 키캡에서 복귀한다.
+    const revealed = Math.min(1, this.currentDepth / this.depths[0]);
+    out.cap = 1 - revealed * (1 - out.cap);
+    return out;
   }
 }
 

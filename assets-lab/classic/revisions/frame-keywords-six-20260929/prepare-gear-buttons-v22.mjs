@@ -286,7 +286,7 @@ const geometry = {
   gap: FRAME_GAP,
   // First hold keeps the approved 15px press; the second hold goes to 30px.
   depths: DEPTHS,
-  pressMotion: { downMs: 60, upMs: 40, easing: CAP_EASING },
+  pressMotion: { downMs: 30, upMs: 40, easing: CAP_EASING },
   // Release: the cap returns in capMs (capEasing), the white glow leaves in whiteMs and the afterglow in glowMs (glowEasing).
   release: { capMs: RELEASE.capMs, glowMs: RELEASE.glowMs, whiteMs: whiteMs(), capEasing: CAP_EASING, glowEasing: GLOW_EASING },
   lights: LIGHTS,

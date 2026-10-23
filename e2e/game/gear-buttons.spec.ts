@@ -201,7 +201,7 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     await startLocalPlay(page, QUIET_CHART);
     await page.keyboard.down('KeyD');
     await expect.poll(async () => (await readProbe(page)).states?.[1].color).toBe('single');
-    expect((await readProbe(page)).depths?.[1]).toBe(15);
+    await expect.poll(async () => (await readProbe(page)).depths?.[1]).toBe(15);
     expect(Math.min(...await gearColor(page, KEY_TWO_UPPER_CAP))).toBeGreaterThan(230);
     const atSecond = await pressBeforeNextFrame(page, 'KeyO');
     await waitAnimationFrames(page, 3);

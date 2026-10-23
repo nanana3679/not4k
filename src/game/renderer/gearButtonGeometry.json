@@ -13,7 +13,7 @@
   "gap": 16,
   "depths": [15, 20, 25, 30],
   "pressMotion": {
-    "downMs": 60,
+    "downMs": 30,
     "upMs": 40,
     "easing": [0.2, 0.6, 0.3, 1]
   },

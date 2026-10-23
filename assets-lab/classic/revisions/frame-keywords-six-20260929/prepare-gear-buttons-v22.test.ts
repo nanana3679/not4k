@@ -140,9 +140,9 @@ describe('생성기 산출물 — public/gear/gear-buttons.png와 gearButtonGeom
     });
   });
 
-  it('JSON의 깊이 15·20·25·30과 전환 60·40ms·떼는 시간(cap 40ms·흰빛 53ms·남는 빛 150ms)·곡선·빛 색은 공유 모듈 값과 같다', () => {
+  it('JSON의 깊이 15·20·25·30과 전환 30·40ms·떼는 시간(cap 40ms·흰빛 53ms·남는 빛 150ms)·곡선·빛 색은 공유 모듈 값과 같다', () => {
     expect(geometry.depths).toEqual([DEPTH, 20, 25, 30]);
-    expect(geometry.pressMotion).toEqual({ downMs: 60, upMs: 40, easing: CAP_EASING });
+    expect(geometry.pressMotion).toEqual({ downMs: 30, upMs: 40, easing: CAP_EASING });
     expect(geometry.release).toEqual({ capMs: 40, glowMs: 150, whiteMs: 53, capEasing: CAP_EASING, glowEasing: GLOW_EASING });
     expect(geometry.lights).toEqual(LIGHTS);
   });
