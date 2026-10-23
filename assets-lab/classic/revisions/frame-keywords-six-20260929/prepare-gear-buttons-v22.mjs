@@ -8,12 +8,12 @@ import {
 } from './button-press-shared.mjs';
 import { ALIGN, FRAME_GAP, alignedCrop, packColumns } from './gear-buttons-atlas.mjs';
 
-// Bakes the accepted gear button press (press-depth.html, PR #271: every key 15px deep, single pale cyan,
-// double gold, cap back in 40ms, glow out in 150ms with the white leaving first) into layers for the game gear.
-// Every value and the pixel math come from button-press-shared.mjs, the same code the demo runs in the browser.
+// Bakes the accepted 15px press plus hold-count depth steps (15/20/25/30px, RFD 0027), single pale cyan,
+// double gold, cap back in 40ms, glow out in 150ms with the white leaving first into layers for the game gear.
+// Base measurements and pixel math come from button-press-shared.mjs; depth steps extend the approved 15px press.
 // Writes the only copies the game and /lab/gear read:
 //   public/gear/gear-buttons.png             RGBA atlas (skin-shared manifest key `gearButtons`). For each of the four
-//                                            keys: glow single/double (the pressed, lit pixels, drawn normally),
+//                                            keys: glow single/double at four depths (pressed, lit pixels, drawn normally),
 //                                            tint single/double (the afterglow light: the light the press adds over
 //                                            idle times the colour's channel gains, drawn additively) and the cap
 //                                            cover (the key's own idle pixels, drawn normally).
@@ -51,7 +51,7 @@ const debugIndex = process.argv.indexOf('--debug');
 const debugTarget = debugIndex === -1 ? null : process.argv[debugIndex + 1];
 if (debugIndex !== -1 && !debugTarget) throw new Error('--debug needs a folder path.');
 const debugDir = debugTarget ? resolve(debugTarget) : null;
-const LAYERS = ['glow', 'tint'];
+const DEPTHS = [DEPTH, 20, 25, 30];
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
@@ -111,20 +111,20 @@ for (let pixel = 0; pixel < WIDTH * HEIGHT; pixel++) {
 if (rasterMismatch > 0) throw new Error(`The v16 raster does not reproduce press-idle-deck-v17-input.png (${rasterMismatch} pixels differ).`);
 if (gearMismatch > 0) throw new Error(`public/gear/gear.png differs from press-idle-deck-v17-input.png in ${gearMismatch} opaque pixels.`);
 
-const pressed = { 1: pressedPixels(1, sources), 2: pressedPixels(2, sources) };
+const pressedByDepth = new Map(DEPTHS.map(depth => [depth, { 1: pressedPixels(1, sources, depth), 2: pressedPixels(2, sources, depth) }]));
 
 /**
  * One layer of one key on the gear canvas: for each pixel (x, y) the colour and alpha the demo draws there, with the
  * alpha clipped by the gear's alpha. Mirrored keys read their base key's pixel at 1022 - x, like the demo's flipped canvas.
  */
-function layerSampler(key, layer, color) {
+function layerSampler(key, layer, color, depth = DEPTH) {
   if (layer === 'cap') {
     const region = keyRegion(key, 'cap');
     return { region, sample: (x, y) => ({ index: offset(x, y), pixels: idle, alpha: regionAlpha(region, x, y) }) };
   }
   const base = baseKey(key);
   const mirrored = key !== base;
-  const lit = litAt(pressed[base], idle, color);
+  const lit = litAt(pressedByDepth.get(depth)[base], idle, color);
   const colorAt = layer === 'glow' ? lit : afterglowLight(lit, idle, LIGHTS[color].decayTint);
   const baseRegion = PRESSED_KEYS[base].glow;
   return {
@@ -137,8 +137,8 @@ function layerSampler(key, layer, color) {
 }
 
 // Renders a layer into canvas-sized RGBA rows inside its region and finds the box of pixels it changes.
-function renderLayer(key, layer, color) {
-  const { region, sample } = layerSampler(key, layer, color);
+function renderLayer(key, layer, color, depth = DEPTH) {
+  const { region, sample } = layerSampler(key, layer, color, depth);
   const pixels = new Map();
   let box = null;
   for (let y = region.y0; y <= region.y1; y++) {
@@ -161,16 +161,18 @@ function renderLayer(key, layer, color) {
     }
   }
   if (!box) throw new Error(`Key ${key} ${layer} ${color ?? ''} changes no gear pixel.`);
-  return { key, layer, color, pixels, crop: alignedCrop(box), changed: pixels.size };
+  return { key, layer, color, depth, pixels, crop: alignedCrop(box), changed: pixels.size };
 }
 
 const frames = [];
 for (const key of [1, 2, 3, 4]) {
-  for (const layer of LAYERS) for (const color of COLORS) frames.push(renderLayer(key, layer, color));
+  for (const color of COLORS) for (const depth of DEPTHS) frames.push(renderLayer(key, 'glow', color, depth));
+  // The cap returns to idle; its lingering light uses the original 15px pattern.
+  for (const color of COLORS) frames.push(renderLayer(key, 'tint', color));
   frames.push(renderLayer(key, 'cap', null));
 }
 
-// Atlas: one column per key (glow single, glow double, tint single, tint double, cap from top to bottom).
+// Atlas: one column per key (four depths of each glow color, tint single/double, cap).
 const columns = [1, 2, 3, 4].map((key) => frames.filter((frame) => frame.key === key));
 const { width: atlasWidth, height: atlasHeight, places } = packColumns(columns.map((column) => column.map((frame) => frame.crop)));
 const atlas = new Uint8ClampedArray(atlasWidth * atlasHeight * 4);
@@ -187,10 +189,10 @@ columns.forEach((column, columnIndex) => column.forEach((frame, rowIndex) => {
 
 const frameJson = (frame) => ({ x: frame.crop.x, y: frame.crop.y, width: frame.crop.width, height: frame.crop.height, atlasX: frame.place.atlasX, atlasY: frame.place.atlasY });
 const buttons = [1, 2, 3, 4].map((key) => {
-  const find = (layer, color) => frames.find((frame) => frame.key === key && frame.layer === layer && frame.color === color);
+  const find = (layer, color, depth = DEPTH) => frames.find((frame) => frame.key === key && frame.layer === layer && frame.color === color && frame.depth === depth);
   return {
     lane: key,
-    glow: Object.fromEntries(COLORS.map((color) => [color, frameJson(find('glow', color))])),
+    glow: Object.fromEntries(COLORS.map((color) => [color, DEPTHS.map(depth => frameJson(find('glow', color, depth)))])),
     tint: Object.fromEntries(COLORS.map((color) => [color, frameJson(find('tint', color))])),
     cap: frameJson(find('cap', null)),
   };
@@ -252,10 +254,10 @@ if (debugDir) {
     }
     return out;
   };
-  const find = (key, layer, color) => frames.find((frame) => frame.key === key && frame.layer === layer && frame.color === color);
+  const find = (key, layer, color, depth = DEPTH) => frames.find((frame) => frame.key === key && frame.layer === layer && frame.color === color && frame.depth === depth);
   const images = { idle: compose(() => {}) };
   for (const color of COLORS) {
-    images[`pressed-${color}`] = compose((draw) => { for (const key of [1, 2, 3, 4]) draw(find(key, 'glow', color), 1); });
+    for (const depth of DEPTHS) images[`pressed-${color}-${depth}px`] = compose((draw) => { for (const key of [1, 2, 3, 4]) draw(find(key, 'glow', color, depth), 1); });
     // Release steps with the demo's linear-time opacities sampled at a few times (exact easing lives in the game code).
     for (const [name, tint, glow, cap] of [['release-20ms', 0.93, 0.55, 0.7], ['release-60ms', 0.62, 0, 1], ['release-120ms', 0.12, 0, 1]]) {
       images[`${name}-${color}`] = compose((draw) => {
@@ -282,15 +284,16 @@ const geometry = {
   height: atlasHeight,
   align: ALIGN,
   gap: FRAME_GAP,
-  // Every key sinks this many gear pixels below its idle top (press-depth.html, chosen 2026-10-13).
-  depth: DEPTH,
+  // First hold keeps the approved 15px press; the second hold goes to 30px.
+  depths: DEPTHS,
+  pressMotion: { downMs: 60, upMs: 40, easing: CAP_EASING },
   // Release: the cap returns in capMs (capEasing), the white glow leaves in whiteMs and the afterglow in glowMs (glowEasing).
   release: { capMs: RELEASE.capMs, glowMs: RELEASE.glowMs, whiteMs: whiteMs(), capEasing: CAP_EASING, glowEasing: GLOW_EASING },
   lights: LIGHTS,
   // Draw order per key: tint, glow, cap. Frames are in gear pixels (x, y, width, height) and atlas pixels (atlasX, atlasY).
   buttons,
   stats: {
-    changedPixels: Object.fromEntries(frames.map((frame) => [`${frame.key}-${frame.layer}${frame.color ? `-${frame.color}` : ''}`, frame.changed])),
+    changedPixels: Object.fromEntries(frames.map((frame) => [`${frame.key}-${frame.layer}${frame.color ? `-${frame.color}` : ''}${frame.layer === 'glow' ? `-${frame.depth}px` : ''}`, frame.changed])),
     droppedLaneFloorSpillPixels: droppedSpill,
   },
 };

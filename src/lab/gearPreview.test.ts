@@ -236,7 +236,7 @@ describe('고도 조절(기어 게이지·비행 배경)', () => {
 });
 
 describe('Gear 미리보기 기어 버튼 표시', () => {
-  const state = (phase: 'idle' | 'pressed' | 'releasing', color: 'single' | 'double' = 'single') => ({ phase, color, heldKeys: phase === 'pressed' ? 1 : 0, releaseMs: 0 });
+  const state = (phase: 'idle' | 'pressed' | 'releasing', color: 'single' | 'double' = 'single') => ({ phase, color, heldKeys: phase === 'pressed' ? 1 : 0, releaseMs: 0, pressDepth: phase === 'idle' ? 0 : 15 });
 
   it('gear-preview-stage의 data-gear-buttons는 레인 1~4를 쉼표로 이어 대기는 idle, 그 밖에는 단계-색이다("idle,pressed-single,releasing-double,idle")', () => {
     expect(formatGearButtonStates([state('idle'), state('pressed'), state('releasing', 'double'), state('idle', 'double')])).toBe('idle,pressed-single,releasing-double,idle');

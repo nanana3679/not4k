@@ -857,7 +857,7 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     expect(errors).toEqual([]);
   });
 
-  test('레인 2 KeyD를 누르면 기어 2번 버튼만 연파랑, KeyO도 누르면 금색, 하나를 떼면 연파랑으로 돌아오고 Shift도 hold 수를 따르며 blur는 대기로 돌린다', async ({ page }) => {
+  test('레인 2 KeyD를 누르면 기어 2번 버튼만 연파랑, KeyO도 누르면 금색, 30px로 더 들어가며 하나를 떼면 연파랑·15px로 돌아오고 Shift도 hold 수를 따르며 blur는 대기로 돌린다', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/lab/gear');
     await waitForRenderer(page);
@@ -867,8 +867,9 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     await expect(stage).toHaveAttribute('data-motion', 'off');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,idle,idle,idle');
     const toStage = await gearToStage(page);
-    // 2번 키 앞면(원본 437, 1250): 대기는 어두운 금속, 15px 눌리면 연파랑(싱글)·금색(더블)으로 빛나는 곳이다. 기둥(원본 120, 1200)은 버튼 레이어 밖이다.
-    const face = toStage({ x: 437, y: 1250 });
+    // 2번 키 아래 광원(원본 479, 1290)은 깊이와 무관하게 연파랑·금색으로 빛난다. 기둥(원본 120, 1200)은 버튼 레이어 밖이다.
+    const face = toStage({ x: 479, y: 1290 });
+    const upperCap = toStage({ x: 437, y: 1159 });
     const pillar = toStage({ x: 120, y: 1200 });
     // 비행 배경과 상관없는 기어 위 점이라 한 점이면 되지만, 확대로 생긴 윤곽에 닿아도 흔들리지 않게 둘레 다섯 점(±1 논리 px)을 평균한다.
     const area = async (center: { x: number; y: number }) => {
@@ -895,12 +896,18 @@ test.describe('Gear Lab — 새 기어가 들어간 실제 게임 화면', () =>
     // Lab 키 입력도 게임처럼 같은 레인(2: KeyE·KeyD·KeyC·KeyO)에 키가 둘이면 금색이다.
     await page.keyboard.down('KeyD');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
+    await expect(stage).toHaveAttribute('data-gear-button-depths', '0,15,0,0');
+    expect(Math.min(...await area(upperCap))).toBeGreaterThan(230);
     await page.keyboard.down('KeyO');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');
     await expect.poll(async () => { const [red, , blue] = await area(face); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect(stage).toHaveAttribute('data-gear-button-depths', '0,30,0,0');
+    expect(Math.min(...await area(upperCap))).toBeLessThan(200);
     await page.keyboard.up('KeyO');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-single,idle,idle');
     await expect.poll(async () => { const [red, , blue] = await area(face); return blue - red; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect(stage).toHaveAttribute('data-gear-button-depths', '0,15,0,0');
+    expect(Math.min(...await area(upperCap))).toBeGreaterThan(230);
     // 먼저 누른 KeyD를 떼어도 남은 KeyO 하나의 연파랑으로 돌아온다.
     await page.keyboard.down('KeyO');
     await expect(stage).toHaveAttribute('data-gear-buttons', 'idle,pressed-double,idle,idle');

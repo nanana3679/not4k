@@ -60,6 +60,7 @@ async function readProbe(page: Page) {
       log: [...log],
       times: [...(win.__gearButtonTimes as number[])],
       inputs: [...(win.__gearButtonInputs as ButtonInput[])],
+      depths: renderer?.gearButtonStates?.map(state => state.pressDepth) ?? null,
       holds: [...(win.__gearButtonHolds as number[][])],
       states: renderer?.gearButtonStates?.map(state => ({ phase: state.phase, color: state.color, releaseMs: state.releaseMs })) ?? null,
     };
@@ -154,8 +155,10 @@ const BPM_EVENTS = [
 ];
 /** 노트가 50초 뒤에 하나뿐인 차트(입력해도 판정할 노트가 없다). */
 const QUIET_CHART: PlayChart = { notes: [{ type: 'single', lane: 1, beat: { n: 100, d: 1 } }], events: BPM_EVENTS };
-// 2번 키 앞면(원본 437, 1250): 대기는 어두운 금속, 15px 눌리면 연파랑(싱글)으로 빛나는 곳이다.
-const KEY_TWO_FACE = { x: 437, y: 1250 };
+// 2번 키 아래 광원(원본 479, 1290): 대기는 어둡고 눌림 깊이와 무관하게 입력 색으로 빛난다.
+const KEY_TWO_LIGHT = { x: 479, y: 1290 };
+// 15px에서는 흰 키캡이고 30px에서는 그 위 뒷벽인 위치.
+const KEY_TWO_UPPER_CAP = { x: 437, y: 1159 };
 const blueOverRed = ([red, , blue]: number[]) => blue - red;
 const maxDifference = (a: number[], b: number[]) => Math.max(...a.map((value, channel) => Math.abs(value - b[channel])));
 
@@ -171,7 +174,7 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     // 기어 버튼 아틀라스는 기어 그림·빈 유리처럼 스킨과 함께 받는 스킨 공통 에셋이다.
     expect(requested).toContain('/gear/gear-buttons.png');
     expect((await readProbe(page)).states?.map(state => state.phase)).toEqual(['idle', 'idle', 'idle', 'idle']);
-    const idleFace = await gearColor(page, KEY_TWO_FACE);
+    const idleFace = await gearColor(page, KEY_TWO_LIGHT);
     expect(Math.max(...idleFace)).toBeLessThan(90);
 
     const atPress = await pressBeforeNextFrame(page, 'KeyD');
@@ -180,7 +183,7 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     const afterPress = await readProbe(page);
     expect(afterPress.states?.[1]).toEqual({ phase: 'pressed', color: 'single', releaseMs: 0 });
     expect(afterPress.log[atPress]).toBe('idle,pressed-single,idle,idle');
-    await expect.poll(async () => blueOverRed(await gearColor(page, KEY_TWO_FACE)), { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect.poll(async () => blueOverRed(await gearColor(page, KEY_TWO_LIGHT)), { timeout: 30_000 }).toBeGreaterThan(80);
 
     const beforeRelease = await readProbe(page);
     await page.keyboard.up('KeyD');
@@ -188,26 +191,32 @@ test.describe('실제 플레이의 기어 버튼 누름', () => {
     const released = (await readProbe(page)).log.slice(beforeRelease.frames);
     expect(released).toContain('idle,releasing-single,idle,idle');
     expect(released.at(-1)).toBe('idle,idle,idle,idle');
-    await expect.poll(async () => maxDifference(await gearColor(page, KEY_TWO_FACE), idleFace), { timeout: 30_000 }).toBeLessThan(12);
+    await expect.poll(async () => maxDifference(await gearColor(page, KEY_TWO_LIGHT), idleFace), { timeout: 30_000 }).toBeLessThan(12);
     expect(errors).toEqual([]);
   });
 
-  test('레인 2 KeyD·KeyO 공입력은 첫 렌더 프레임부터 금색이고 KeyO를 떼면 KeyD만 남아 연파랑으로 돌아온다', async ({ page }) => {
+  test('레인 2 KeyD·KeyO 공입력은 첫 렌더 프레임부터 금색이고 30px로 더 들어가며 KeyO를 떼면 연파랑·15px로 돌아온다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, QUIET_CHART);
     await page.keyboard.down('KeyD');
     await expect.poll(async () => (await readProbe(page)).states?.[1].color).toBe('single');
+    expect((await readProbe(page)).depths?.[1]).toBe(15);
+    expect(Math.min(...await gearColor(page, KEY_TWO_UPPER_CAP))).toBeGreaterThan(230);
     const atSecond = await pressBeforeNextFrame(page, 'KeyO');
     await waitAnimationFrames(page, 3);
     const afterSecond = await readProbe(page);
     expect(afterSecond.states?.[1]).toEqual({ phase: 'pressed', color: 'double', releaseMs: 0 });
     expect(afterSecond.log[atSecond]).toBe('idle,pressed-double,idle,idle');
-    await expect.poll(async () => { const [red, , blue] = await gearColor(page, KEY_TWO_FACE); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect.poll(async () => { const [red, , blue] = await gearColor(page, KEY_TWO_LIGHT); return red - blue; }, { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect.poll(async () => (await readProbe(page)).depths?.[1]).toBe(30);
+    expect(Math.min(...await gearColor(page, KEY_TWO_UPPER_CAP))).toBeLessThan(200);
     await page.keyboard.up('KeyO');
     await waitAnimationFrames(page, 2);
     expect((await readProbe(page)).states?.[1]).toMatchObject({ phase: 'pressed', color: 'single' });
-    await expect.poll(async () => blueOverRed(await gearColor(page, KEY_TWO_FACE)), { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect.poll(async () => blueOverRed(await gearColor(page, KEY_TWO_LIGHT)), { timeout: 30_000 }).toBeGreaterThan(80);
+    await expect.poll(async () => (await readProbe(page)).depths?.[1]).toBe(15);
+    expect(Math.min(...await gearColor(page, KEY_TWO_UPPER_CAP))).toBeGreaterThan(230);
     await page.keyboard.up('KeyD');
     await expect.poll(async () => (await readProbe(page)).states?.[1].phase, { timeout: 10_000 }).toBe('idle');
     expect(errors).toEqual([]);

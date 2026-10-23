@@ -14,11 +14,11 @@ const RELEASE = GEAR_BUTTON_GEOMETRY.release;
 const look = (): GearButtonLook => ({ tint: 0, glow: 0, cap: 0 });
 
 describe('GEAR_BUTTON_GEOMETRY — 생성기(prepare-gear-buttons-v22.mjs)가 적은 기어 버튼 atlas frame', () => {
-  it('네 버튼 모두 glow·tint의 싱글·더블과 cap atlas frame이 있고, 기어 그림 좌표·아틀라스 좌표·크기가 모두 16px 정렬이며 아틀라스 816×1344 안이다', () => {
+  it('네 버튼 모두 glow·tint의 싱글·더블과 cap atlas frame이 있고, 기어 그림 좌표·아틀라스 좌표·크기가 모두 16px 정렬이며 아틀라스 816×3072 안이다', () => {
     expect(GEAR_BUTTON_GEOMETRY.buttons).toHaveLength(4);
-    expect([GEAR_BUTTON_GEOMETRY.atlasWidth, GEAR_BUTTON_GEOMETRY.atlasHeight]).toEqual([816, 1344]);
+    expect([GEAR_BUTTON_GEOMETRY.atlasWidth, GEAR_BUTTON_GEOMETRY.atlasHeight]).toEqual([816, 3072]);
     for (const button of GEAR_BUTTON_GEOMETRY.buttons) {
-      const frames = [...GEAR_BUTTON_COLORS.flatMap((color) => [button.glow[color], button.tint[color]]), button.cap];
+      const frames = [...GEAR_BUTTON_COLORS.flatMap((color) => [...button.glow[color], button.tint[color]]), button.cap];
       for (const frame of frames) {
         for (const value of [frame.x, frame.y, frame.width, frame.height, frame.atlasX, frame.atlasY]) expect(value % 16).toBe(0);
         expect(frame.atlasX + frame.width).toBeLessThanOrEqual(GEAR_BUTTON_GEOMETRY.atlasWidth);
@@ -28,16 +28,18 @@ describe('GEAR_BUTTON_GEOMETRY — 생성기(prepare-gear-buttons-v22.mjs)가 �
   });
 
   it('버튼은 왼쪽부터 레인 1~4 순서로 위치하고(1번 glow x 192, 4번 x 640), 키 덱 위끝(1088행)보다 위로 나가지 않는다', () => {
-    const glowX = GEAR_BUTTON_GEOMETRY.buttons.map((button) => button.glow.single.x);
+    const glowX = GEAR_BUTTON_GEOMETRY.buttons.map((button) => button.glow.single[0].x);
     expect(glowX).toEqual([192, 352, 496, 640]);
-    for (const button of GEAR_BUTTON_GEOMETRY.buttons) expect(button.glow.single.y).toBeGreaterThanOrEqual(1088);
+    for (const button of GEAR_BUTTON_GEOMETRY.buttons) expect(button.glow.single[0].y).toBeGreaterThanOrEqual(1088);
   });
 
-  it('네 버튼의 glow·tint는 더블과 싱글의 기어 좌표·크기가 같아 싱글 기준 스프라이트에서 텍스처만 바꿀 수 있다', () => {
+  it('네 버튼은 두 색 각각 15·20·25·30px glow를 가지며 모든 깊이의 기어 좌표·크기가 같다', () => {
+    expect(GEAR_BUTTON_GEOMETRY.depths).toEqual([15, 20, 25, 30]);
     for (const button of GEAR_BUTTON_GEOMETRY.buttons) {
-      for (const layer of [button.glow, button.tint]) {
-        const { x, y, width, height } = layer.single;
-        expect(layer.double).toMatchObject({ x, y, width, height });
+      const { x, y, width, height } = button.glow.single[0];
+      for (const color of GEAR_BUTTON_COLORS) {
+        expect(button.glow[color]).toHaveLength(4);
+        for (const frame of button.glow[color]) expect(frame).toMatchObject({ x, y, width, height });
       }
     }
   });
@@ -223,8 +225,80 @@ describe('GearButtonState — 버튼 하나의 누름 상태', () => {
   });
 });
 
+describe('GearButtonState — hold 수에 따른 두 단계 깊이', () => {
+  it('첫 키는 즉시 15px이고 두 번째 키는 즉시 금색, 첫 프레임 뒤 60ms에 30px까지 들어간다', () => {
+    const state = new GearButtonState();
+    expect(state.pressDepth).toBe(0);
+    state.press('D');
+    expect(state.pressDepth).toBe(15);
+    state.press('O');
+    expect(state).toMatchObject({ pressDepth: 15, color: 'double' });
+    state.advance(500, RELEASE);
+    expect(state.pressDepth).toBe(15);
+    state.advance(20, RELEASE);
+    expect(state.pressDepth).toBeGreaterThan(15);
+    expect(state.pressDepth).toBeLessThan(30);
+    state.advance(40, RELEASE);
+    expect(state.pressDepth).toBe(30);
+    expect(state.advance(16, RELEASE)).toBe(false);
+  });
+
+  it.each(['D', 'O'])('두 키로 30px까지 누른 뒤 %s를 떼면 즉시 연파랑이고 40ms에 15px로 올라온다', (key) => {
+    const state = new GearButtonState();
+    state.press('D'); state.press('O');
+    state.advance(16, RELEASE); state.advance(60, RELEASE);
+    state.release(key);
+    expect(state).toMatchObject({ pressDepth: 30, color: 'single', heldKeys: 1 });
+    state.advance(16, RELEASE); state.advance(20, RELEASE);
+    expect(state.pressDepth).toBeGreaterThan(15);
+    expect(state.pressDepth).toBeLessThan(30);
+    state.advance(20, RELEASE);
+    expect(state).toMatchObject({ pressDepth: 15, phase: 'pressed' });
+  });
+
+  it('30px로 들어가는 도중 두 번째 키를 떼면 현재 깊이에서 돌아오고, 다시 누르면 현재 깊이에서 30px로 향한다', () => {
+    const state = new GearButtonState();
+    state.press('D'); state.press('O');
+    state.advance(16, RELEASE); state.advance(20, RELEASE);
+    const downDepth = state.pressDepth;
+    state.release('O');
+    expect(state.pressDepth).toBe(downDepth);
+    state.advance(16, RELEASE); state.advance(10, RELEASE);
+    const upDepth = state.pressDepth;
+    expect(upDepth).toBeLessThan(downDepth);
+    state.press('O');
+    expect(state.pressDepth).toBe(upDepth);
+    state.advance(16, RELEASE); state.advance(60, RELEASE);
+    expect(state.pressDepth).toBe(30);
+  });
+
+  it('3번째 키·중복 down·3개→2개는 진행 중 60ms 전환을 다시 시작하지 않고 30px까지만 누른다', () => {
+    const state = new GearButtonState();
+    state.press('D'); state.press('O');
+    state.advance(16, RELEASE); state.advance(20, RELEASE);
+    state.press('E'); state.press('O'); state.release('E');
+    state.advance(40, RELEASE);
+    expect(state).toMatchObject({ pressDepth: 30, heldKeys: 2 });
+  });
+
+  it('깊이 전환 중 모두 떼면 현재 깊이에서 잔광 복귀하고, 새 첫 키는 즉시 15px로 누른다', () => {
+    const state = new GearButtonState();
+    state.press('D'); state.press('O');
+    state.advance(16, RELEASE); state.advance(20, RELEASE);
+    const depth = state.pressDepth;
+    state.release('O'); state.release('D');
+    state.advance(16, RELEASE);
+    expect(state).toMatchObject({ pressDepth: depth, phase: 'releasing', heldKeys: 0 });
+    state.press('D');
+    expect(state).toMatchObject({ pressDepth: 15, phase: 'pressed', color: 'single' });
+    state.release('D');
+    state.advance(16, RELEASE); state.advance(150, RELEASE);
+    expect(state).toMatchObject({ pressDepth: 0, phase: 'idle' });
+  });
+});
+
 describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
-  const atlas = () => new Texture({ source: new TextureSource({ width: 816, height: 1344 }) });
+  const atlas = () => new Texture({ source: new TextureSource({ width: 816, height: 3072 }) });
   const holder = (buttons: GearButtons, lane: number) => buttons.container.children[lane - 1] as Container;
   const layers = (buttons: GearButtons, lane: number) => {
     const [tint, glow, cap] = holder(buttons, lane).children as Sprite[];
@@ -243,13 +317,13 @@ describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
     }
   });
 
-  it('1번 버튼 glow는 기어 그림 (192, 1088)에 위치하고 아틀라스 (16, 16)의 192×272 frame을, cap은 (208, 1120)에 아틀라스 (16, 1168)의 160×160 frame을 쓴다', () => {
+  it('1번 버튼 glow는 기어 그림 (192, 1088)에 위치하고 아틀라스 (16, 16)의 192×272 frame을, cap은 (208, 1120)에 아틀라스 (16, 2896)의 160×160 frame을 쓴다', () => {
     const buttons = new GearButtons({ texture: atlas() });
     const { glow, cap } = layers(buttons, 1);
     expect([glow.x, glow.y]).toEqual([192, 1088]);
     expect([glow.texture.frame.x, glow.texture.frame.y, glow.texture.frame.width, glow.texture.frame.height]).toEqual([16, 16, 192, 272]);
     expect([cap.x, cap.y]).toEqual([208, 1120]);
-    expect([cap.texture.frame.x, cap.texture.frame.y, cap.texture.frame.width, cap.texture.frame.height]).toEqual([16, 1168, 160, 160]);
+    expect([cap.texture.frame.x, cap.texture.frame.y, cap.texture.frame.width, cap.texture.frame.height]).toEqual([16, 2896, 160, 160]);
   });
 
   it('레인 2 KeyD를 싱글로 누르면 버튼 2만 보이고 glow 알파 1, tint·cap은 숨긴다(다음 렌더 프레임에 바로 보임)', () => {
@@ -286,28 +360,47 @@ describe('GearButtons — 네 버튼의 Pixi 레이어', () => {
     expect(buttons.state(3)?.phase).toBe('idle');
   });
 
-  it('레인 1에 두 키를 누르면 같은 glow·tint 스프라이트가 금색 frame(y 304·880)으로 바뀌고 하나를 떼면 연파랑 frame으로 돌아온다', () => {
+  it('레인 1에 두 키를 누르면 같은 glow·tint 스프라이트가 금색 frame(y 1168·2608)으로 바뀌고 하나를 떼면 연파랑 frame으로 돌아온다', () => {
     const buttons = new GearButtons({ texture: atlas() });
     const before = layers(buttons, 1);
     buttons.setKey(1, 'KeyQ', true);
     buttons.setKey(1, 'KeyW', true);
     const after = layers(buttons, 1);
     expect(after.glow).toBe(before.glow);
-    expect(after.glow.texture.frame.y).toBe(304);
-    expect(after.tint.texture.frame.y).toBe(880);
+    expect(after.glow.texture.frame.y).toBe(1168);
+    expect(after.tint.texture.frame.y).toBe(2608);
     buttons.setKey(1, 'KeyW', false);
     expect(layers(buttons, 1).glow.texture.frame.y).toBe(16);
   });
 
-  it('레인 2에 KeyD·KeyO를 누르면 hold 2개로 금색 frame(y 272)이고 세 번째 KeyC도 금색을 유지한다', () => {
+  it('레인 2에 KeyD·KeyO를 누르면 hold 2개로 금색 frame(y 1040)이고 세 번째 KeyC도 금색을 유지한다', () => {
     const buttons = new GearButtons({ texture: atlas() });
     buttons.setKey(2, 'KeyD', true);
     expect(layers(buttons, 2).glow.texture.frame.y).toBe(16);
     buttons.setKey(2, 'KeyO', true);
-    expect(layers(buttons, 2).glow.texture.frame.y).toBe(272);
+    expect(layers(buttons, 2).glow.texture.frame.y).toBe(1040);
     buttons.setKey(2, 'KeyC', true);
-    expect(layers(buttons, 2).glow.texture.frame.y).toBe(272);
+    expect(layers(buttons, 2).glow.texture.frame.y).toBe(1040);
     expect(buttons.state(2)).toMatchObject({ phase: 'pressed', color: 'double', heldKeys: 3 });
+  });
+
+  it('두 번째 키의 60ms 눌림과 하나를 뗀 40ms 복귀는 같은 glow 스프라이트에서 깊이별 텍스처만 바꾼다', () => {
+    const buttons = new GearButtons({ texture: atlas() });
+    const glow = layers(buttons, 2).glow;
+    const frames = GEAR_BUTTON_GEOMETRY.buttons[1].glow;
+    buttons.setKey(2, 'D', true); buttons.setKey(2, 'O', true);
+    expect(glow.texture.frame.y).toBe(frames.double[0].atlasY);
+    buttons.update(16); buttons.update(20);
+    expect(glow.texture.frame.y).not.toBe(frames.double[0].atlasY);
+    expect(glow.texture.frame.y).not.toBe(frames.double[3].atlasY);
+    buttons.update(40);
+    expect(glow.texture.frame.y).toBe(frames.double[3].atlasY);
+    buttons.setKey(2, 'O', false);
+    expect(glow.texture.frame.y).toBe(frames.single[3].atlasY);
+    buttons.update(16); buttons.update(40);
+    expect(glow.texture.frame.y).toBe(frames.single[0].atlasY);
+    expect(layers(buttons, 2).glow).toBe(glow);
+    expect(holder(buttons, 2).children).toHaveLength(3);
   });
 
   it('KeyD·KeyO에서 KeyO만 떼면 다음 update 전부터 glow·tint가 연파랑 텍스처이고 눌림 밝기와 높이를 유지한다', () => {

@@ -242,28 +242,32 @@ export default function GearPage() {
     if (gaugeReadoutRef.current) gaugeReadoutRef.current.textContent = describeGaugeLevel(level);
   }, []);
 
-  // 매 프레임 렌더러가 기어 버튼 상태를 알린다. 단계나 색이 바뀐 프레임에만 `gear-preview-stage`의 data-gear-buttons를 고친다(React 상태를 거치지 않는다).
-  const reportedButtonsRef = useRef<{ present: boolean; phases: string[]; colors: string[] }>({ present: false, phases: [], colors: [] });
+  // 매 프레임 렌더러가 기어 버튼 상태를 알린다. 단계·색·깊이가 바뀐 프레임에만 `gear-preview-stage`의 data-gear-buttons를 고친다(React 상태를 거치지 않는다).
+  const reportedButtonsRef = useRef<{ present: boolean; phases: string[]; colors: string[]; depths: number[] }>({ present: false, phases: [], colors: [], depths: [] });
   const handleGearButtons = useCallback((states: readonly GearButtonStateView[] | null) => {
     const last = reportedButtonsRef.current;
     let changed = (states !== null) !== last.present;
     if (states) {
       for (let index = 0; index < states.length; index++) {
-        const { phase, color } = states[index];
-        if (last.phases[index] === phase && last.colors[index] === color) continue;
+        const { phase, color, pressDepth } = states[index];
+        const depth = Math.round(pressDepth);
+        if (last.phases[index] === phase && last.colors[index] === color && last.depths[index] === depth) continue;
         last.phases[index] = phase;
         last.colors[index] = color;
+        last.depths[index] = depth;
         changed = true;
       }
     }
     if (!changed) return;
     last.present = states !== null;
-    if (!states) last.phases.length = last.colors.length = 0;
+    if (!states) last.phases.length = last.colors.length = last.depths.length = 0;
     const stageElement = stageRef.current;
     const value = formatGearButtonStates(states);
     if (!stageElement) return;
     if (value === undefined) delete stageElement.dataset.gearButtons;
     else stageElement.dataset.gearButtons = value;
+    if (states === null) delete stageElement.dataset.gearButtonDepths;
+    else stageElement.dataset.gearButtonDepths = last.depths.join(',');
   }, []);
 
   // 전체화면: 화면을 채운 캔버스 영역(`viewportRef`) 크기에서 게임 PlayScreen과 같은 규칙으로 논리 폭을 정해 렌더러를 다시 만든다.
@@ -611,7 +615,7 @@ export default function GearPage() {
             value={keyboard}
             options={KEYBOARD_OPTIONS}
             onChange={setKeyboard}
-            note="바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아지고, 기어에서 그 레인의 버튼이 게임처럼 눌려 빛납니다. 게임처럼 같은 레인의 hold 수가 1개면 연파랑, 2개 이상이면 금색입니다. 하나를 떼어 1개만 남으면 바로 연파랑으로 돌아옵니다. 데모 노트 판정과 키빔은 그대로입니다."
+            note="바인딩된 키를 누르는 동안 오른쪽 아래 키보드 표시에서 그 키가 강조색으로 밝아지고, 기어에서 그 레인의 버튼이 게임처럼 눌려 빛납니다. 게임처럼 같은 레인의 hold 수가 1개면 연파랑, 2개 이상이면 금색입니다. 하나를 떼어 1개만 남으면 바로 연파랑으로 돌아옵니다. 두 번째 키를 누르면 버튼이 한 단계 더 깊이 들어가고, 하나를 떼면 다시 올라옵니다. 데모 노트 판정과 키빔은 그대로입니다."
           />
           <fieldset className="gear-preview-group gear-preview-motion">
             <legend>움직임</legend>

@@ -14,6 +14,8 @@ import { cubicBezierProgress, type CubicBezier } from './gearMotionTiming';
  * - 뗌: 렌더 프레임 간격 `deltaMs`(`renderFrame`의 인자)로만 나아가 일시정지 중에는 멈춘다. cap이 `capMs`(40ms)에 걸쳐 덮이고,
  *   흰빛(glow)이 `whiteMs`(53ms)에, 남는 빛(tint)이 `glowMs`(150ms)에 걸쳐 꺼진다(시연의 CSS 전환과 같은 곡선).
  *   누른 뒤 한 번도 그리기 전에 뗀 경우만 첫 렌더 프레임을 경과 0으로 그려 짧은 누름도 보이게 한다.
+ * - 깊이: 첫 키는 15px, 두 번째 키에서 60ms 동안 30px로 더 들어가며 하나만 남으면 40ms 동안 15px로 올라온다.
+ *   깊이별 glow를 아틀라스에 미리 준비해 텍스처만 바꾼다. 전체 뗌에서는 그때의 깊이를 대기 키캡으로 덮는다.
  * - 색: 같은 레인의 hold 수만 따른다. 1개는 연파랑, 2개 이상은 금색이며 누름·뗌마다 즉시 갱신한다.
  *   마지막 키를 떼면 직전 표시 색으로 잔광을 진행한다. 게임은 판정 적용 순서로 입력을 재생한다.
  * - 비용: 스프라이트와 텍스처는 만들 때 한 번만 만들고, 이후에는 보이기·알파·텍스처 교체만 한다. 렌더 프레임마다 객체를 만들지 않는다.
@@ -41,7 +43,7 @@ export interface GearButtonFrame {
 }
 
 export interface GearButtonFrames {
-  glow: Readonly<Record<GearButtonColor, GearButtonFrame>>;
+  glow: Readonly<Record<GearButtonColor, readonly GearButtonFrame[]>>;
   tint: Readonly<Record<GearButtonColor, GearButtonFrame>>;
   cap: GearButtonFrame;
 }
@@ -58,9 +60,17 @@ export interface GearButtonRelease {
 export interface GearButtonGeometry {
   atlasWidth: number;
   atlasHeight: number;
+  depths: readonly number[];
+  pressMotion: GearButtonPressMotion;
   release: GearButtonRelease;
   /** 레인 1~4의 버튼. */
   buttons: readonly GearButtonFrames[];
+}
+
+export interface GearButtonPressMotion {
+  downMs: number;
+  upMs: number;
+  easing: CubicBezier;
 }
 
 const easing = (values: readonly number[]): CubicBezier => [values[0], values[1], values[2], values[3]];
@@ -68,6 +78,8 @@ const easing = (values: readonly number[]): CubicBezier => [values[0], values[1]
 export const GEAR_BUTTON_GEOMETRY: GearButtonGeometry = {
   atlasWidth: buttonJson.width,
   atlasHeight: buttonJson.height,
+  depths: buttonJson.depths,
+  pressMotion: { ...buttonJson.pressMotion, easing: easing(buttonJson.pressMotion.easing) },
   release: {
     capMs: buttonJson.release.capMs,
     whiteMs: buttonJson.release.whiteMs,
@@ -102,6 +114,8 @@ export interface GearButtonStateView {
   readonly color: GearButtonColor;
   /** 이 레인에서 지금 누르고 있는 입력 키 수. */
   readonly heldKeys: number;
+  /** 눌림 레이어의 깊이(원본 px). 대기는 0이며, 전체 뗌의 키캡 덮개는 별도로 복귀한다. */
+  readonly pressDepth: number;
   /** 뗀 뒤 지난 시간(ms). releasing이 아니면 0. */
   readonly releaseMs: number;
 }
@@ -117,10 +131,25 @@ export class GearButtonState implements GearButtonStateView {
   private elapsedMs = 0;
   /** 마지막 누름 이후 아직 렌더 프레임이 없으면 짧은 탭도 한 번은 눌린 모습으로 그린다. */
   private pressFresh = false;
+  private currentDepth: number;
+  private depthFrom: number;
+  private depthTarget: number;
+  private depthElapsedMs = 0;
+  private depthDurationMs = 0;
+  /** 입력 직전까지의 deltaMs를 새 전환에 더하지 않고 시작 깊이를 첫 프레임에 보인다. */
+  private depthFresh = false;
+
+  constructor(
+    private readonly depths = GEAR_BUTTON_GEOMETRY.depths,
+    private readonly pressMotion = GEAR_BUTTON_GEOMETRY.pressMotion,
+  ) {
+    this.currentDepth = this.depthFrom = this.depthTarget = depths[0];
+  }
 
   get phase(): GearButtonPhase { return this.currentPhase; }
   get color(): GearButtonColor { return this.currentColor; }
   get heldKeys(): number { return this.keys.size; }
+  get pressDepth(): number { return this.currentPhase === 'idle' ? 0 : this.currentDepth; }
   get releaseMs(): number { return this.currentPhase === 'releasing' ? this.elapsedMs : 0; }
 
   /**
@@ -128,7 +157,13 @@ export class GearButtonState implements GearButtonStateView {
    * 상태나 색이 바뀌었으면 true.
    */
   press(key: string): boolean {
+    const firstHold = this.keys.size === 0;
     this.keys.add(key);
+    if (firstHold) {
+      this.currentDepth = this.depthFrom = this.depthTarget = this.depths[0];
+      this.depthFresh = false;
+    }
+    this.targetDepthForHoldCount();
     const pressColor = gearButtonColorForHoldCount(this.keys.size);
     const changed = this.currentPhase !== 'pressed' || this.currentColor !== pressColor;
     this.currentColor = pressColor;
@@ -142,6 +177,7 @@ export class GearButtonState implements GearButtonStateView {
   release(key: string): boolean {
     if (!this.keys.delete(key)) return false;
     if (this.keys.size > 0) {
+      this.targetDepthForHoldCount();
       const color = gearButtonColorForHoldCount(this.keys.size);
       const changed = this.currentColor !== color;
       this.currentColor = color;
@@ -153,12 +189,23 @@ export class GearButtonState implements GearButtonStateView {
   }
 
   /**
-   * 돌아오는 중이면 렌더 프레임 하나(deltaMs)만큼 나아가고, glowMs를 지나면 대기로 돌아간다.
+   * 깊이 전환 또는 전체 뗌 복귀를 렌더 프레임 하나(deltaMs)만큼 진행한다. 전체 뗌은 glowMs 뒤 대기로 돌아간다.
    * 누른 뒤 한 번도 그리지 못한 경우만 경과 0으로 그린다. 이미 눌림을 그렸으면 뗀 뒤 첫 프레임부터 나아간다.
    */
   advance(deltaMs: number, release: GearButtonRelease): boolean {
     const fresh = this.pressFresh;
     this.pressFresh = false;
+    if (this.currentPhase === 'pressed') {
+      if (this.depthFresh) {
+        this.depthFresh = false;
+        return false;
+      }
+      if (!(deltaMs > 0) || this.currentDepth === this.depthTarget) return false;
+      this.depthElapsedMs = Math.min(this.depthDurationMs, this.depthElapsedMs + deltaMs);
+      const progress = cubicBezierProgress(this.pressMotion.easing, this.depthElapsedMs / this.depthDurationMs);
+      this.currentDepth = this.depthFrom + (this.depthTarget - this.depthFrom) * progress;
+      return true;
+    }
     if (this.currentPhase !== 'releasing' || fresh) return false;
     if (!(deltaMs > 0)) return false;
     this.elapsedMs += deltaMs;
@@ -167,6 +214,16 @@ export class GearButtonState implements GearButtonStateView {
       this.elapsedMs = 0;
     }
     return true;
+  }
+
+  private targetDepthForHoldCount(): void {
+    const target = this.keys.size >= 2 ? this.depths[this.depths.length - 1] : this.depths[0];
+    if (target === this.depthTarget) return;
+    this.depthFrom = this.currentDepth;
+    this.depthTarget = target;
+    this.depthElapsedMs = 0;
+    this.depthDurationMs = target > this.currentDepth ? this.pressMotion.downMs : this.pressMotion.upMs;
+    this.depthFresh = true;
   }
 
   /** 지금 상태의 레이어 불투명도를 out에 쓴다. */
@@ -199,9 +256,11 @@ interface ButtonView {
   readonly tint: Sprite;
   readonly glow: Sprite;
   readonly cap: Sprite;
-  readonly glowTextures: Readonly<Record<GearButtonColor, Texture>>;
+  readonly glowTextures: Readonly<Record<GearButtonColor, readonly Texture[]>>;
+  readonly frames: GearButtonFrames;
   readonly tintTextures: Readonly<Record<GearButtonColor, Texture>>;
   shownColor: GearButtonColor;
+  shownDepthIndex: number;
 }
 
 /**
@@ -212,6 +271,7 @@ export class GearButtons {
   /** 기어 그림 좌표의 루트(버튼 네 개). */
   readonly container: Container;
   private readonly release: GearButtonRelease;
+  private readonly depths: readonly number[];
   private readonly views: ButtonView[];
   private readonly stateViews: readonly GearButtonStateView[];
   private readonly ownedTextures: Texture[] = [];
@@ -220,6 +280,7 @@ export class GearButtons {
 
   constructor({ texture, geometry = GEAR_BUTTON_GEOMETRY }: GearButtonsOptions) {
     this.release = geometry.release;
+    this.depths = geometry.depths;
     this.container = new Container({ label: 'gear-buttons' });
     const frameTexture = (frame: GearButtonFrame) => {
       const owned = new Texture({
@@ -238,16 +299,16 @@ export class GearButtons {
     this.views = geometry.buttons.map((frames, index) => {
       const lane = index + 1;
       const holder = new Container({ label: `gear-button-${lane}` });
-      const glowTextures = { single: frameTexture(frames.glow.single), double: frameTexture(frames.glow.double) };
+      const glowTextures = { single: frames.glow.single.map(frameTexture), double: frames.glow.double.map(frameTexture) };
       const tintTextures = { single: frameTexture(frames.tint.single), double: frameTexture(frames.tint.double) };
       const tint = sprite(`gear-button-${lane}-tint`, frames.tint.single, tintTextures.single);
       tint.blendMode = 'add';
-      const glow = sprite(`gear-button-${lane}-glow`, frames.glow.single, glowTextures.single);
+      const glow = sprite(`gear-button-${lane}-glow`, frames.glow.single[0], glowTextures.single[0]);
       const cap = sprite(`gear-button-${lane}-cap`, frames.cap, frameTexture(frames.cap));
       holder.addChild(tint, glow, cap);
       holder.visible = false;
       this.container.addChild(holder);
-      return { state: new GearButtonState(), holder, tint, glow, cap, glowTextures, tintTextures, shownColor: 'single' as GearButtonColor };
+      return { state: new GearButtonState(geometry.depths, geometry.pressMotion), holder, tint, glow, cap, glowTextures, tintTextures, frames, shownColor: 'single' as GearButtonColor, shownDepthIndex: 0 };
     });
     this.stateViews = this.views.map((view) => view.state);
   }
@@ -273,7 +334,7 @@ export class GearButtons {
     if (changed) this.apply(view);
   }
 
-  /** 렌더 프레임 하나(deltaMs)만큼 돌아오는 버튼을 나아가게 한다. 돌아오는 버튼이 없으면 아무것도 바꾸지 않는다. */
+  /** 렌더 프레임 하나(deltaMs)만큼 깊이 전환·뗌 복귀를 진행한다. 정지한 버튼은 갱신하지 않는다. */
   update(deltaMs: number): void {
     if (this.destroyed) return;
     for (const view of this.views) {
@@ -300,9 +361,16 @@ export class GearButtons {
       view.holder.visible = false;
       return;
     }
-    if (view.shownColor !== state.color) {
+    let depthIndex = 0;
+    for (let index = 1; index < this.depths.length; index++) {
+      if (Math.abs(this.depths[index] - state.pressDepth) < Math.abs(this.depths[depthIndex] - state.pressDepth)) depthIndex = index;
+    }
+    if (view.shownColor !== state.color || view.shownDepthIndex !== depthIndex) {
       view.shownColor = state.color;
-      view.glow.texture = view.glowTextures[state.color];
+      view.shownDepthIndex = depthIndex;
+      view.glow.texture = view.glowTextures[state.color][depthIndex];
+      const frame = view.frames.glow[state.color][depthIndex];
+      view.glow.position.set(frame.x, frame.y);
       view.tint.texture = view.tintTextures[state.color];
     }
     const look = state.look(this.release, this.scratch);

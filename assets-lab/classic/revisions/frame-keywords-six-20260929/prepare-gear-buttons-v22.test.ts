@@ -19,8 +19,8 @@ type Frame = { x: number; y: number; width: number; height: number; atlasX: numb
 const regionText = (region: Region) => `{ x0: ${region.x0}, x1: ${region.x1}, y0: ${region.y0}, y1: ${region.y1}, left: ${region.left}, right: ${region.right}, top: ${region.top}, bottom: ${region.bottom} }`;
 const pointsText = (points: number[][]) => `[${points.map(([x, y]) => `[${x}, ${y}]`).join(', ')}]`;
 const listText = (values: number[]) => `[${values.map(decimal).join(', ')}]`;
-const frames = (): Frame[] => geometry.buttons.flatMap((button: { glow: Record<string, Frame>; tint: Record<string, Frame>; cap: Frame }) => [
-  button.glow.single, button.glow.double, button.tint.single, button.tint.double, button.cap,
+const frames = (): Frame[] => geometry.buttons.flatMap((button: { glow: Record<string, Frame[]>; tint: Record<string, Frame>; cap: Frame }) => [
+  ...button.glow.single, ...button.glow.double, button.tint.single, button.tint.double, button.cap,
 ]);
 
 describe('공유 모듈(button-press-shared.mjs) — 버튼 누름 깊이 비교 시연과 같은 값', () => {
@@ -140,25 +140,26 @@ describe('생성기 산출물 — public/gear/gear-buttons.png와 gearButtonGeom
     });
   });
 
-  it('JSON의 깊이 15·떼는 시간(cap 40ms·흰빛 53ms·남는 빛 150ms)·곡선·빛 색은 공유 모듈 값과 같다', () => {
-    expect(geometry.depth).toBe(DEPTH);
+  it('JSON의 깊이 15·20·25·30과 전환 60·40ms·떼는 시간(cap 40ms·흰빛 53ms·남는 빛 150ms)·곡선·빛 색은 공유 모듈 값과 같다', () => {
+    expect(geometry.depths).toEqual([DEPTH, 20, 25, 30]);
+    expect(geometry.pressMotion).toEqual({ downMs: 60, upMs: 40, easing: CAP_EASING });
     expect(geometry.release).toEqual({ capMs: 40, glowMs: 150, whiteMs: 53, capEasing: CAP_EASING, glowEasing: GLOW_EASING });
     expect(geometry.lights).toEqual(LIGHTS);
   });
 
-  it('아틀라스는 JSON이 적은 816×1344 RGBA PNG(색 형식 6)이고 sha256 고정값과 같다', () => {
+  it('아틀라스는 JSON이 적은 816×3072 RGBA PNG(색 형식 6)이고 sha256 고정값과 같다', () => {
     const png = read('public/gear/gear-buttons.png');
     expect(geometry.image).toBe('public/gear/gear-buttons.png');
     expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([geometry.width, geometry.height]);
-    expect([geometry.width, geometry.height]).toEqual([816, 1344]);
+    expect([geometry.width, geometry.height]).toEqual([816, 3072]);
     expect(png[25]).toBe(6);
     // 생성기를 다시 돌려 그림이 바뀌면 이 해시를 함께 바꾼다.
-    expect(createHash('sha256').update(png).digest('hex')).toBe('dd08413ea2a48237e41b5d51bcc78942b903e06a3c597e2a0e516139e5e80d69');
+    expect(createHash('sha256').update(png).digest('hex')).toBe('55535bddaa631e80a8844b79f624f2a5abfc22346c8935de5efc46421543ab35');
   });
 
-  it('20개 frame(버튼 4개 × glow·tint 싱글·더블과 cap)은 아틀라스 안에서 서로 16px 이상 떨어져 겹치지 않는다', () => {
+  it('44개 frame(버튼 4개 × glow 4깊이·2색, tint 2색, cap)은 아틀라스 안에서 서로 16px 이상 떨어져 겹치지 않는다', () => {
     const boxes = frames();
-    expect(boxes).toHaveLength(20);
+    expect(boxes).toHaveLength(44);
     for (const [index, a] of boxes.entries()) {
       expect(a.atlasX + a.width + FRAME_GAP).toBeLessThanOrEqual(geometry.width);
       expect(a.atlasY + a.height + FRAME_GAP).toBeLessThanOrEqual(geometry.height);
@@ -171,7 +172,7 @@ describe('생성기 산출물 — public/gear/gear-buttons.png와 gearButtonGeom
   });
 
   it('각 버튼 atlas frame의 기어 그림 좌표 범위는 그 키의 시연 영역(glow·cap, 3·4번은 x → 1022 − x 반전)을 16px 정렬한 범위 안에 있다', () => {
-    geometry.buttons.forEach((button: { lane: number; glow: Record<string, Frame>; tint: Record<string, Frame>; cap: Frame }, index: number) => {
+    geometry.buttons.forEach((button: { lane: number; glow: Record<string, Frame[]>; tint: Record<string, Frame>; cap: Frame }, index: number) => {
       const key = index + 1;
       expect(button.lane).toBe(key);
       const within = (frame: Frame, region: Region) => {
@@ -181,7 +182,7 @@ describe('생성기 산출물 — public/gear/gear-buttons.png와 gearButtonGeom
         expect(frame.x + frame.width).toBeLessThanOrEqual(box.x + box.width);
         expect(frame.y + frame.height).toBeLessThanOrEqual(box.y + box.height);
       };
-      for (const frame of [button.glow.single, button.glow.double, button.tint.single, button.tint.double]) within(frame, keyRegion(key, 'glow'));
+      for (const frame of [...button.glow.single, ...button.glow.double, button.tint.single, button.tint.double]) within(frame, keyRegion(key, 'glow'));
       within(button.cap, keyRegion(key, 'cap'));
     });
   });
