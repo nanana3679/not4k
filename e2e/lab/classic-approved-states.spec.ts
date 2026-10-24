@@ -59,6 +59,32 @@ test('유지·릴리즈 좌우 레이어를 합치면 원래 PNG가 복원되고
   }
 });
 
+for (const side of ['left', 'right'] as const) for (const suffix of ['.svg', '@2x.png']) {
+  test(`더블 유지 ${side} 실패 몫의 ${suffix}를 400×80에 그리면 표식이 보이고 반대편 알파는 0이다`, async ({ page }) => {
+    await page.goto(route);
+    const result = await page.evaluate(async ({ side, suffix }) => {
+      const image = new Image();
+      image.src = `assets/sustain-double-unit-${side}-failed${suffix}`;
+      await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, 400, 80);
+      const { data } = context.getImageData(0, 0, 400, 80);
+      let visiblePixels = 0, hiddenAlpha = 0;
+      for (let y = 0; y < 80; y++) for (let x = 0; x < 400; x++) {
+        const alpha = data[(y * 400 + x) * 4 + 3];
+        if ((side === 'left' && x < 200) || (side === 'right' && x >= 200)) {
+          if (alpha > 0) visiblePixels++;
+        } else hiddenAlpha = Math.max(hiddenAlpha, alpha);
+      }
+      const centerX = side === 'left' ? 168 : 232;
+      return { visiblePixels, hiddenAlpha, centerAlpha: data[(40 * 400 + centerX) * 4 + 3] };
+    }, { side, suffix });
+    expect(result.visiblePixels).toBeGreaterThan(0);
+    expect(result.centerAlpha).toBeGreaterThan(128);
+    expect(result.hiddenAlpha).toBe(0);
+  });
+}
+
 test('Lab 목록에서 상태별 에셋을 열어 200×40·400×80 유지 실패본을 받고 390px에서도 길이 0 바디 위 표식만 본다', async ({ page }) => {
   await page.goto('/lab');
   const opened = page.waitForEvent('popup');

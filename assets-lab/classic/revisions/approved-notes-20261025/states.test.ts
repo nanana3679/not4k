@@ -35,6 +35,14 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     }
   });
 
+  it('각 SVG 안의 id가 중복되지 않아 필터·클립·도안 참조가 다른 요소를 가리키지 않는다', () => {
+    for (const asset of manifest.assets.filter(asset => asset.file.endsWith('.svg'))) {
+      const source = readFileSync(new URL(asset.file, here), 'utf8');
+      const ids = [...source.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+      expect(new Set(ids).size, asset.file).toBe(ids.length);
+    }
+  });
+
   it('더블 바디는 광선 x=84·116과 대기·전체 유지·좌우 미충족·전체 실패·좌우 실패 7개 상태를 구별한다', () => {
     expect(group('body-double').beamCenters).toEqual([84, 116]);
     expect(group('body-double').states.map(state => state.id).sort()).toEqual(['failed', 'held', 'idle', 'partial-failed-left', 'partial-failed-right', 'partial-held-left', 'partial-held-right']);

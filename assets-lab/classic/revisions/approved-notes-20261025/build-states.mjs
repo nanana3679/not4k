@@ -116,10 +116,14 @@ try {
       const inputName = `${role}-double${failed ? '-failed' : ''}`;
       // Mask the exact base PNG so native-size halves recombine byte-for-byte.
       const nativeSource = stateArtwork(rasterArtwork(await read(`${inputName}.png`)), { onlySide: side });
-      const source = stateArtwork(await svg(inputName), { onlySide: side });
+      // Sustain failures already use stateArtwork: start from the normal SVG so IDs do not nest.
+      const applyFailureToSource = role === 'sustain' && failed;
+      const vectorInputName = applyFailureToSource ? `${role}-double` : inputName;
+      const vectorTreatment = { onlySide: side, ...(applyFailureToSource ? { failedSide: 'all' } : {}) };
+      const source = stateArtwork(await svg(vectorInputName), vectorTreatment);
       const id = `unit-${side}${failed ? '-failed' : ''}`;
       const label = `${side === 'left' ? '왼쪽' : '오른쪽'} 몫만${failed ? ' · 실패' : ''}`;
-      states.push(state(id, label, await emit(`${role}-double-${id}`, source, { nativeSource, role: `${role} · ${label}`, sourceFiles: [`assets/${inputName}.png`, `assets/${inputName}.svg`], operation: { onlySide: side, nativePixels: '기본 PNG에서 분리', highResolution: 'SVG에서 재렌더링' }, skinKey: null }), { unitIndex: side === 'left' ? 0 : 1 }));
+      states.push(state(id, label, await emit(`${role}-double-${id}`, source, { nativeSource, role: `${role} · ${label}`, sourceFiles: [`assets/${inputName}.png`, `assets/${vectorInputName}.svg`], operation: { ...vectorTreatment, nativePixels: '기본 PNG에서 분리', highResolution: 'SVG에서 재렌더링' }, skinKey: null }), { unitIndex: side === 'left' ? 0 : 1 }));
     }
     group(`${role}-layers`, `${role === 'release' ? '릴리즈' : '유지'} · 남은 몫 분리`, states, { note: '기본 200×40 좌표와 투명 여백을 유지. 표시 수명은 미확정이며 성공한 몫을 숨기는 안의 자료.' });
   }
