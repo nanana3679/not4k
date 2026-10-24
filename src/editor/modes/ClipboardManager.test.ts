@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
-import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import { makeFakeSpace } from "../timeline/makeFakeSpace.test-utils";
 import { beat, beatToFloat } from "../../shared";
 import type { Chart, ChartEvent, Lane, NoteEntity, TrillZone, RestZone } from "../../shared";
 

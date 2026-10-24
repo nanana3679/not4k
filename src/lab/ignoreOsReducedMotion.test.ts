@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-// Lab 소스의 원문. 테스트 파일은 뺀다. 보관 기록(lab/image-galleries 등)은 src/lab 밖이라 대상이 아니다.
+// Lab 소스의 원문. 테스트 파일과 테스트 전용 도우미(*.test-utils.ts)는 뺀다. 보관 기록(lab/image-galleries 등)은 src/lab 밖이라 대상이 아니다.
 // 주석은 term-map의 첫 언급 형태로 `prefers-reduced-motion`을 적을 수 있으므로, 원문 문자열이 아니라 설정을 읽는 코드 형태만 찾는다.
-const scripts = import.meta.glob<string>(['./**/*.{ts,tsx}', '!./**/*.test.ts'], { query: '?raw', import: 'default', eager: true });
+const scripts = import.meta.glob<string>(['./**/*.{ts,tsx}', '!./**/*.test.ts', '!./**/*.test-utils.ts'], { query: '?raw', import: 'default', eager: true });
 const styles = import.meta.glob<string>('./**/*.css', { query: '?raw', import: 'default', eager: true });
 
 describe('Lab은 운영체제의 모션 감소 설정을 읽지 않는다(RFD 0030)', () => {

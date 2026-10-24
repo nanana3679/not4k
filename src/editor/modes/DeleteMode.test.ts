@@ -12,7 +12,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DeleteMode } from "./DeleteMode";
 import { SelectMode } from "./SelectMode";
 import { ClipboardManager } from "./ClipboardManager";
-import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import { makeFakeSpace } from "../timeline/makeFakeSpace.test-utils";
 import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
 import { beat } from "../../shared";
