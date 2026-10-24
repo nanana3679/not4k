@@ -2,14 +2,14 @@
  * useCanvasEvents — 캔버스 포인터 이벤트 핸들러들
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { CreateMode, SelectMode, EntityType, EditResult } from '../modes';
-import { DeleteMode, isEventEntityType, activeEditorMode } from '../modes';
+import { DeleteMode, isEventEntityType, activeEditorMode, createSelectDragControl } from '../modes';
 import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
-import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
+import { clampScreenPointToViewport, isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
 import { noteExistsAtSnap } from '../timeline/hitTest';
 import { beatToMs, fromAuxIndex } from '../../shared';
 import { useEditorStore } from '../stores';
@@ -106,6 +106,8 @@ export function useCanvasEvents(
   const touchMultiSelectRef = useRef(false);
   const touchTapToggleRef = useRef<TouchTapToggleCandidate | null>(null);
   const suppressContextMenuUntilRef = useRef(0);
+  // select 모드 마우스·펜 down에서 캡처한 포인터 — 그 포인터의 move·up 좌표는 캔버스 안으로 클램프한다.
+  const selectCapturePointerIdRef = useRef<number | null>(null);
 
   const clearHoldTimer = useCallback(() => {
     if (holdTimerRef.current !== null) {
@@ -218,13 +220,32 @@ export function useCanvasEvents(
     };
   }, [canvasRef, rendererRef]);
 
+  // 포인터의 캔버스 기준 좌표. clampToCanvas면 캔버스 안으로 클램프한다 — 캡처한 select 드래그는 밖에서
+  // 버튼을 떼도 가장 가까운 캔버스 안 위치에 드롭된다(y→시간이 선형이라 그대로면 화면 밖 박이 된다).
+  const canvasPointOf = useCallback((
+    e: React.PointerEvent<HTMLCanvasElement>,
+    rect: DOMRect,
+    clampToCanvas: boolean,
+  ): { screenX: number; screenY: number } => {
+    const point = { screenX: e.clientX - rect.left, screenY: e.clientY - rect.top };
+    if (!clampToCanvas) return point;
+    return clampScreenPointToViewport({ ...point, viewportWidth: rect.width, viewportHeight: rect.height });
+  }, []);
+
+  // 편집이 가로채져 끝날 때(두 손가락 내비 editCancel·store가 부른 select 드래그 취소) 롱프레스 타이머와
+  // 남은 터치 후보(empty-select/tap-toggle)를 버린다 — 남기면 그 손가락의 다음 move·up이 후보를 재생해
+  // 박스·토글·롱프레스로 편집을 다시 시작한다.
+  const clearPendingTouchEdits = useCallback(() => {
+    clearHoldTimer();
+    touchEmptySelectCandidateRef.current = null;
+    touchTapToggleRef.current = null;
+  }, [clearHoldTimer]);
+
   // 두 손가락 내비가 편집을 가로챌 때(editCancel) 진행 중이던 편집 후보를 폐기한다.
   // recognizer는 2번째 손가락 down에서 자기 hold를 이미 버렸다(editCancel 방출). 훅은 타이머와
   // 남은 후보(empty-select/tap-toggle)만 정리하고, 발화했을 수 있는 create 드래그를 취소한다.
   const handleEditCancel = useCallback(() => {
-    clearHoldTimer();
-    touchEmptySelectCandidateRef.current = null;
-    touchTapToggleRef.current = null;
+    clearPendingTouchEdits();
     createModeRef.current?.cancelDrag();
     // 발화했을 수 있는 select 드래그(이동/리사이즈/박스)도 폐기하고 프리뷰를 걷는다.
     const selectResult = selectModeRef.current?.cancel();
@@ -233,7 +254,23 @@ export function useCanvasEvents(
       rendererRef.current?.clearBoxSelectRect();
     }
     rendererRef.current?.hideGhostNote();
-  }, [clearHoldTimer, createModeRef, selectModeRef, rendererRef]);
+  }, [clearPendingTouchEdits, createModeRef, selectModeRef, rendererRef]);
+
+  // store 액션(Esc·모드 전환·undo/redo·차트 교체·삭제·붙여넣기(Ctrl+V)·Enter)이 진행 중 select 드래그를 먼저 끝내도록
+  // selectDragControl을 등록한다. 끝낼 때 렌더러 프리뷰와 이 훅의 터치 후보도 함께 버린다.
+  useEffect(() => {
+    const control = createSelectDragControl(
+      () => selectModeRef.current,
+      () => rendererRef.current,
+      clearPendingTouchEdits,
+    );
+    useEditorStore.getState().setSelectDragControl(control);
+    return () => {
+      if (useEditorStore.getState().selectDragControl === control) {
+        useEditorStore.getState().setSelectDragControl(null);
+      }
+    };
+  }, [selectModeRef, rendererRef, clearPendingTouchEdits]);
 
   const routeViewportGestures = useCallback((gestures: Gesture[], rect: DOMRect) => {
     for (const g of gestures) {
@@ -393,6 +430,14 @@ export function useCanvasEvents(
       }
     }
 
+    // 마우스·펜 select 드래그는 캔버스 밖에서 버튼을 떼도 up이 캔버스로 오도록 포인터를 캡처한다 — 안 그러면
+    // up을 잃어 드래그가 열린 채 남는다(터치는 down 첫머리에서 이미 캡처한다).
+    selectCapturePointerIdRef.current = null;
+    if (mode === 'select' && e.pointerType !== 'touch') {
+      canvasRef.current?.setPointerCapture(e.pointerId);
+      selectCapturePointerIdRef.current = e.pointerId;
+    }
+
     // 마우스 down(및 레인지 타입 아닌 터치 create)은 모드 다형 디스패치로 통합한다.
     activeEditorMode(mode, createModeRef.current, selectModeRef.current, deleteModeRef.current)
       ?.handlePointerDown({ x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false });
@@ -442,8 +487,11 @@ export function useCanvasEvents(
       return;
     }
 
-    const rawX = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // 캡처한 select 드래그는 캔버스 밖으로 나가도 가장 가까운 캔버스 안 위치를 따라간다(드래그 중 모드를 바꾸면
+    // 더 이상 클램프하지 않는다 — create 고스트 등은 실제 포인터 위치를 따른다).
+    const { screenX: rawX, screenY: y } = canvasPointOf(
+      e, rect, mode === 'select' && selectCapturePointerIdRef.current === e.pointerId,
+    );
 
     if (rendererRef.current?.handleMinimapPointerMove(rawX, y)) {
       onNavigationInteraction?.();
@@ -596,6 +644,8 @@ export function useCanvasEvents(
 
     // 우클릭 드래그 삭제 — 메인·보조 모두 통합 lane으로 chart.notes에서 제자리 삭제 (RFD 0018 ④d)
     if (e.buttons & 2) {
+      // 진행 중 select 드래그는 먼저 드래그 직전 상태로 되돌린다 — 지운 노트의 옛 인덱스가 드래그에 남지 않게.
+      useEditorStore.getState().cancelSelectDrag();
       const rawBeatDel = space.yToBeatRaw(y);
       const beatFloat = rawBeatDel.n / rawBeatDel.d;
 
@@ -680,7 +730,7 @@ export function useCanvasEvents(
     routeViewportGestures, canvasRef, createModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, deleteAtPoint,
-    onNavigationInteraction, applyEditResult,
+    onNavigationInteraction, applyEditResult, canvasPointOf,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -690,6 +740,9 @@ export function useCanvasEvents(
     let holdMoved = false;
     let holdDown: { x: number; y: number } | null = null; // 있으면 = 이 pointer에 hold가 있었음
     let touchEmptySelectCandidate: TouchEmptySelectCandidate | null = null;
+    // 캡처한 select 포인터의 up이면 좌표를 캔버스 안으로 클램프하고, 캡처 기록은 여기서 끝낸다.
+    const selectCaptured = selectCapturePointerIdRef.current === e.pointerId;
+    if (selectCaptured) selectCapturePointerIdRef.current = null;
     if (e.pointerType === 'touch') {
       e.preventDefault();
       updateTouchMovement(e);
@@ -726,9 +779,8 @@ export function useCanvasEvents(
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    const rawX = e.clientX - rect.left;
+    const { screenX: rawX, screenY: y } = canvasPointOf(e, rect, mode === 'select' && selectCaptured);
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
-    const y = e.clientY - rect.top;
 
     // 드래그 삭제(발화) / 탭 삭제(무이동). delete 모드에서 hold가 있었을 때만.
     if (mode === 'delete' && holdDown) {
@@ -818,7 +870,7 @@ export function useCanvasEvents(
   }, [
     mode, entityType, isTimeInBounds, toSample, clearHoldTimer,
     updateTouchMovement, canvasRef, createModeRef, deleteModeRef, isDraggingCursorRef,
-    deleteAtPoint, rendererRef, selectModeRef, applyEditResult,
+    deleteAtPoint, rendererRef, selectModeRef, applyEditResult, canvasPointOf,
   ]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -830,11 +882,15 @@ export function useCanvasEvents(
       clearTouchEmptySelectCandidate();
       touchTapToggleRef.current = null;
     }
+    if (selectCapturePointerIdRef.current === e.pointerId) selectCapturePointerIdRef.current = null;
     rendererRef.current?.handleMinimapPointerUp();
+    // 진행 중 select 드래그(이동·박스·리사이즈)도 커밋 없이 드래그 직전 상태로 되돌린다 — 안 그러면 드래그가
+    // 열린 채 남아 다음 move가 드래그를 잇고, 다음 down은 SelectMode의 재진입 가드에 막힌다.
+    selectModeRef.current?.cancel();
     rendererRef.current?.clearMoveOrigins();
     rendererRef.current?.clearBoxSelectRect();
     createModeRef.current?.cancelDrag();
-  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, toSample, rendererRef]);
+  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, selectModeRef, toSample, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();
@@ -866,6 +922,10 @@ export function useCanvasEvents(
     const rawX = e.clientX - rect.left;
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
+
+    // 진행 중 select 드래그는 먼저 드래그 직전 상태로 되돌린 뒤 그 차트에서 지운다 — 지운 노트의 옛 인덱스가
+    // 드래그에 남으면 다음 move·취소가 다른 노트를 옮기거나 throw한다.
+    useEditorStore.getState().cancelSelectDrag();
 
     // 통합 히트테스트 — 메인·보조 노트를 chart.notes 통합 인덱스로 한 경로에서 삭제 (RFD 0018 ④d)
     const currentChart = useEditorStore.getState().chart;

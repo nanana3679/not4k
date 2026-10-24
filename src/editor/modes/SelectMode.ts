@@ -45,6 +45,16 @@ export interface SelectModeCallbacks {
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) */
   setExtraLaneCount?: (count: number) => void;
   onWarn?: (msg: string) => void;
+  /**
+   * 드래그의 첫 프레임 직전 상태(store의 dragCheckpoint). 이동·리사이즈가 첫 프레임을 쓰기 직전에
+   * capture하고, 그 드래그를 취소하면 restore가 차트·history를 한 번에 되돌린 차트를 돌려준다.
+   * 드롭·폐기로 끝나면 discard한다. 없으면 취소가 원위치를 onChartUpdate로 다시 쓴다.
+   */
+  dragCheckpoint?: {
+    capture: () => void;
+    restore: () => Chart | null;
+    discard: () => void;
+  };
 }
 
 export class SelectMode implements EditorMode {
@@ -99,6 +109,10 @@ export class SelectMode implements EditorMode {
 
   // 포인터가 레인 밖에 있는 동안 레인 오프셋을 고정하기 위한 마지막 유효값.
   private _lastMoveLaneOffset = 0;
+
+  // 진행 중 드래그(이동·리사이즈)가 프레임을 차트에 쓴 적이 있는지 — 첫 프레임 직전에 dragCheckpoint를
+  // 잡고, cancel은 프레임을 쓴 드래그만 되돌린다(안 움직인 드래그의 취소는 차트·history를 건드리지 않는다).
+  private chartChangedByDrag = false;
 
   constructor(chart: Chart, callbacks: SelectModeCallbacks) {
     this.chart = chart;
@@ -328,6 +342,9 @@ export class SelectMode implements EditorMode {
 
   /** Begin a touch long-press move from a note without collapsing an existing multi-selection. */
   beginTouchMoveDragFromNote(index: number, x: number, y: number): boolean {
+    // 붙여넣기 대기 중에는 드래그를 시작하지 않는다(마우스 down과 같다) — 붙여넣은 사본을 끌던 드래그가
+    // 붙여넣기 취소 뒤에도 살아 옛 인덱스로 차트를 옮기거나 취소가 사본을 되살린다.
+    if (this.clipboardManager.isPendingPaste) return false;
     if (index < 0 || index >= this.chart.notes.length) return false;
 
     // 이미 선택된 노트면 혼합 선택(구간 포함)을 유지한 채 전체를 이동한다.
@@ -350,6 +367,7 @@ export class SelectMode implements EditorMode {
 
   /** Begin resizing a main range note end, used by touch long-press handles. */
   beginNoteEndResizeDrag(index: number): boolean {
+    if (this.clipboardManager.isPendingPaste) return false; // 붙여넣기 대기 중에는 드래그를 시작하지 않는다
     const note = this.chart.notes[index];
     if (!note || !this.isRangeNote(note)) return false;
 
@@ -387,6 +405,7 @@ export class SelectMode implements EditorMode {
    * 기존 혼합 선택(일반 노트·다른 구간 포함)을 유지한 채 전체를 이동한다.
    */
   beginTouchMoveDragFromZone(index: number, x: number, y: number): boolean {
+    if (this.clipboardManager.isPendingPaste) return false; // 붙여넣기 대기 중에는 드래그를 시작하지 않는다
     if (index < 0 || index >= this.chart.trillZones.length) return false;
     if (!this.sel.zones.has(index)) {
       // §3-5 게이트가 유닛 선택 교체를 거부하면 이동을 시작하지 않는다(stale 선택 오이동 방지)
@@ -635,7 +654,8 @@ export class SelectMode implements EditorMode {
    * 빈 곳 박스와 동일하게 기존 선택을 비우고 시작한다. 진행 중 드래그가 있으면 무시.
    */
   beginBoxSelect(x: number, y: number): void {
-    if (this.isDragging) return;
+    // 진행 중 드래그가 있거나 붙여넣기 대기 중이면 시작하지 않는다(마우스 down과 같다)
+    if (this.isDragging || this.clipboardManager.isPendingPaste) return;
     this.startBoxSelect(x, y);
   }
 
@@ -725,6 +745,7 @@ export class SelectMode implements EditorMode {
         // 낙관적 편집(RFD 0017 §3-3): 프리뷰는 위반 위치도 그대로 표시한다.
         if (tentativeChart !== null) {
           this.chart = tentativeChart;
+          this.captureDragCheckpointBeforeFirstFrame();
           this.callbacks.onChartUpdate(this.chart);
         }
       }
@@ -797,6 +818,7 @@ export class SelectMode implements EditorMode {
           trillZones: newZones,
           ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
         };
+        this.captureDragCheckpointBeforeFirstFrame();
         this.callbacks.onChartUpdate(this.chart);
       }
     } else if (this.dragType === "boxSelect") {
@@ -864,6 +886,8 @@ export class SelectMode implements EditorMode {
     this.dragType = null;
     this.dragStartBeat = null;
     this.dragStartLane = null;
+    // 드롭은 프레임의 history를 그대로 남긴다 — 되돌릴 일이 없어진 dragCheckpoint만 버린다.
+    this.discardDragCheckpoint();
   }
 
   /**
@@ -881,37 +905,101 @@ export class SelectMode implements EditorMode {
   }
 
   /**
-   * 진행 중 드래그를 폐기한다 — editCancel(두 손가락 내비가 편집을 가로챌 때)처럼
-   * 커밋 없이 끊길 때 호출한다. onPointerUp(커밋 시도)과 달리 무조건 드래그 시작
-   * 시점으로 되돌린다. 드래그 중이 아니면 아무것도 하지 않는다.
+   * 진행 중 드래그를 폐기한다 — editCancel(두 손가락 내비가 편집을 가로챌 때)·pointercancel·Esc·
+   * 모드 전환·undo/redo처럼 커밋 없이 끊길 때 호출한다. onPointerUp(커밋 시도)과 달리 무조건 드래그
+   * 시작 시점으로 되돌린다. 프레임을 쓴 드래그는 dragCheckpoint로 차트와 history까지 첫 프레임 직전으로
+   * 되돌리고, 프레임이 없으면 차트를 다시 쓰지 않는다. 드래그 중이 아니면 아무것도 하지 않는다.
    */
   cancel(): EditResult {
     if (!this.isDragging) return {};
 
-    if (this.dragType === "resize") {
-      this.rollbackResize();
-      this.resizingEntityType = null;
-      this.resizingIndex = null;
-      this.resizingOriginalEndBeat = null;
-      this.resizingOriginalBeat = null;
-    } else if (this.dragType === "move") {
-      this.rollbackMove();
+    if (this.chartChangedByDrag) {
+      // 프레임마다 쌓인 history·비워진 redo 스택·옮겨진 lastValidSnapshot이 남지 않도록 store가
+      // 첫 프레임 직전 상태를 한 번에 되돌린다. dragCheckpoint가 없으면 원위치만 다시 쓴다.
+      const restored = this.callbacks.dragCheckpoint?.restore() ?? null;
+      if (restored) {
+        this.chart = restored;
+      } else if (this.dragType === "resize") {
+        this.rollbackResize();
+      } else if (this.dragType === "move") {
+        this.rollbackMove();
+      }
     }
     // boxSelect는 차트를 변이하지 않지만 프리뷰(transient) 선택은 시작 전으로 복원한다(§3-5).
     if (this.dragType === "boxSelect" && this.preDragSelection) {
       this.callbacks.setSelectionTransient(this.preDragSelection);
     }
+    this.resetDragState();
+    return { clearDragPreview: true };
+  }
+
+  /**
+   * 진행 중 드래그를 차트·선택에 쓰지 않고 버린다 — 차트를 통째로 바꾸기 직전(loadChart) 전용.
+   * cancel과 달리 원위치를 되돌려 쓰지 않는다: 곧 버려질 차트에 쓸 이유가 없고, 바뀐 뒤에 쓰면 옛
+   * 차트의 인덱스로 새 차트를 덮어쓴다. 드래그 중이 아니면 아무것도 하지 않는다.
+   */
+  discardDrag(): EditResult {
+    if (!this.isDragging) return {};
+    this.discardDragCheckpoint();
+    this.resetDragState();
+    return { clearDragPreview: true };
+  }
+
+  /**
+   * 삭제·잘라내기 직전에 진행 중 드래그를 끝낸다. 박스 선택은 지금 강조된 선택을 확정하고(포인터 up처럼
+   * §3-5 게이트를 지난다 — 탭 후보는 쓰지 않는다), 이동·리사이즈는 cancel로 드래그 직전 상태로 되돌린다.
+   * 박스는 옛 인덱스를 들고 있지 않아 취소할 이유가 없고, 취소하면 강조된 선택 대신 박스 전 선택을 지우게
+   * 된다. 박스 확정이 게이트에 거부되면 canDelete가 false — 호출자는 지우지 않는다.
+   */
+  endDragBeforeDelete(): EditResult & { canDelete: boolean } {
+    if (!this.isDragging) return { canDelete: true };
+    if (this.dragType !== "boxSelect") return { ...this.cancel(), canDelete: true };
+
+    let canDelete = true;
+    if (this.preDragSelection) {
+      const highlighted = this.sel;
+      this.callbacks.setSelectionTransient(this.preDragSelection);
+      canDelete = this.callbacks.setSelection(highlighted);
+    }
+    this.resetDragState();
+    return { clearDragPreview: true, canDelete };
+  }
+
+  /**
+   * 드래그가 첫 프레임을 차트에 쓰기 직전(onChartUpdate보다 먼저)에 부른다 — 그 직전 상태를 store의
+   * dragCheckpoint로 잡는다(드래그당 한 번).
+   */
+  private captureDragCheckpointBeforeFirstFrame(): void {
+    if (this.chartChangedByDrag) return;
+    this.callbacks.dragCheckpoint?.capture();
+    this.chartChangedByDrag = true;
+  }
+
+  /** 프레임을 쓴 드래그가 드롭·Enter 확정·폐기로 끝날 때 dragCheckpoint를 버린다(프레임의 history는 남는다). */
+  private discardDragCheckpoint(): void {
+    if (!this.chartChangedByDrag) return;
+    this.chartChangedByDrag = false;
+    this.callbacks.dragCheckpoint?.discard();
+  }
+
+  /** 드래그 상태(이동 원본·리사이즈 대상·박스·탭 후보)를 전부 비운다. 차트·선택은 건드리지 않는다. */
+  private resetDragState(): void {
+    this.resizingEntityType = null;
+    this.resizingIndex = null;
+    this.resizingOriginalEndBeat = null;
+    this.resizingOriginalBeat = null;
+    this.clearMoveOrigins();
+    this._trillMoveZone = null;
     this.preDragSelection = null;
     this._pendingZoneSelect = null;
     this._pendingRestZoneSelect = null;
-
     this._boxEndBeat = null;
     this._boxEndLane = null;
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
     this.dragStartLane = null;
-    return { clearDragPreview: true };
+    this.chartChangedByDrag = false;
   }
 
   // --- Box select helper ---
@@ -1141,7 +1229,7 @@ export class SelectMode implements EditorMode {
   }
 
   /** Confirm placement (Enter key or empty click) */
-  confirmPlacement(): void {
+  confirmPlacement(): EditResult {
     if (this.clipboardManager.isPendingPaste) {
       // 낙관적 편집(RFD 0017 §2): 붙여넣기 확정도 이동과 동형 — 구조 위반만 거부.
       this.clipboardManager.confirmPaste(
@@ -1157,19 +1245,31 @@ export class SelectMode implements EditorMode {
           return errors.map((e) => String(e));
         },
       );
-      return;
+      return {};
     }
 
-    if (
-      this.originalPositions.size === 0 &&
-      this.originalZonePositions.size === 0 &&
-      this.originalRestZonePositions.size === 0
-    ) {
-      return;
+    const hasMoveOrigins =
+      this.originalPositions.size > 0 ||
+      this.originalZonePositions.size > 0 ||
+      this.originalRestZonePositions.size > 0;
+
+    // 진행 중 이동 드래그를 확정(Enter)하면 지금 위치를 남기고 드래그를 끝낸다. 방향키가 이동 원본을 비웠어도
+    // dragCheckpoint를 버려야 이어진 취소가 확정한 위치를 되돌리지 않는다.
+    if (this.isDragging && this.dragType === "move") {
+      if (hasMoveOrigins) {
+        this.commitMove();
+      } else {
+        this.discardDragCheckpoint();
+      }
+      this.resetDragState();
+      return { clearDragPreview: true };
     }
+
+    if (!hasMoveOrigins) return {};
 
     // Move mode: 낙관 커밋 (RFD 0017)
     this.commitMove();
+    return {};
   }
 
   /**
@@ -1181,6 +1281,8 @@ export class SelectMode implements EditorMode {
     this.callbacks.onChartUpdate(this.chart);
     this.clearMoveOrigins();
     this._trillMoveZone = null;
+    // 커밋한 이동은 취소 대상이 아니다 — 드래그 중 Enter로 확정해도 이후 취소가 이 커밋을 되돌리지 않는다.
+    this.discardDragCheckpoint();
   }
 
   // ---------------------------------------------------------------------------

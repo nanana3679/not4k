@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clampHorizontalPan,
+  clampScreenPointToViewport,
   clampVerticalScroll,
   getContentCenterShiftX,
   getFixedTimelineOverlayOffsetX,
@@ -209,5 +210,24 @@ describe("center-shift를 적용한 오프셋/레일 계산", () => {
     expect(isPlaybackCursorSeekArea({
       screenX: 500, timelineX: 100, timelineWidth: 240, leftRailWidth: 32, railStartX: 348,
     })).toBe(false);
+  });
+});
+
+describe("clampScreenPointToViewport — 포인터를 캡처한 select 드래그의 좌표를 캔버스 안으로", () => {
+  it("800×600 캔버스 위쪽 밖(y −55)은 위쪽 끝(y 0)으로, x는 그대로 둔다", () => {
+    expect(clampScreenPointToViewport({ screenX: 300, screenY: -55, viewportWidth: 800, viewportHeight: 600 }))
+      .toEqual({ screenX: 300, screenY: 0 });
+  });
+
+  it("800×600 캔버스 오른쪽 아래 밖(x 900·y 700)은 오른쪽 아래 모서리(x 800·y 600)로 붙인다", () => {
+    expect(clampScreenPointToViewport({ screenX: 900, screenY: 700, viewportWidth: 800, viewportHeight: 600 }))
+      .toEqual({ screenX: 800, screenY: 600 });
+  });
+
+  it("800×600 캔버스 왼쪽 밖(x −10)은 x 0으로 붙이고, 안쪽 점(x 120·y 340)은 바꾸지 않는다", () => {
+    expect(clampScreenPointToViewport({ screenX: -10, screenY: 340, viewportWidth: 800, viewportHeight: 600 }))
+      .toEqual({ screenX: 0, screenY: 340 });
+    expect(clampScreenPointToViewport({ screenX: 120, screenY: 340, viewportWidth: 800, viewportHeight: 600 }))
+      .toEqual({ screenX: 120, screenY: 340 });
   });
 });

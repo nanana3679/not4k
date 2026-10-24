@@ -696,16 +696,15 @@ export function EditorToolbar({
     ...(disabled ? styles.compactButtonDisabled : {}),
   });
 
+  // undo/redo는 실제로 되돌렸을 때만 true다 — 드래그 중이면 store가 드래그만 취소하고 false를 준다.
   const runUndo = () => {
     if (historyPastCount === 0) return;
-    undo();
-    addToast('Undo', 'info');
+    if (undo()) addToast('Undo', 'info');
   };
 
   const runRedo = () => {
     if (historyFutureCount === 0) return;
-    redo();
-    addToast('Redo', 'info');
+    if (redo()) addToast('Redo', 'info');
   };
 
   const requestBackToSongs = () => {

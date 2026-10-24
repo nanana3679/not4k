@@ -52,6 +52,25 @@ describe('editorStore history', () => {
     expect(useEditorStore.getState().chart.notes).toHaveLength(1);
   });
 
+  it('되돌릴 history가 없으면 undo()·redo()는 false, 한 단계 되돌리거나 다시 적용하면 true를 반환한다', () => {
+    expect(useEditorStore.getState().undo()).toBe(false);
+    expect(useEditorStore.getState().redo()).toBe(false);
+
+    useEditorStore.getState().setChart(makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]));
+
+    expect(useEditorStore.getState().undo()).toBe(true);
+    expect(useEditorStore.getState().redo()).toBe(true);
+  });
+
+  it('selectDragControl이 등록되지 않았으면 cancelSelectDrag()는 false이고 undo()는 그대로 되돌린다', () => {
+    useEditorStore.setState({ selectDragControl: null });
+    useEditorStore.getState().setChart(makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]));
+
+    expect(useEditorStore.getState().cancelSelectDrag()).toBe(false);
+    expect(useEditorStore.getState().undo()).toBe(true);
+    expect(useEditorStore.getState().chart.notes).toHaveLength(0);
+  });
+
   it('clears history when a chart load resets the baseline', () => {
     useEditorStore.getState().setChart(makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]));
     expect(useEditorStore.getState().historyPast).toHaveLength(1);

@@ -340,6 +340,9 @@ function ChartEditorPage() {
       addToast('삭제할 노트를 선택하세요', 'warn');
       return;
     }
+    // 진행 중 select 드래그를 먼저 끝낸다 — 박스는 강조된 선택을 확정하고 이동·리사이즈는 드래그 직전 상태로
+    // 되돌린다(지운 노트의 옛 인덱스가 드래그에 남지 않게). 박스 확정이 거부되면 지우지 않는다.
+    if (!useEditorStore.getState().endSelectDragBeforeDelete().canDelete) return;
     selectModeRef.current?.deleteSelected();
     addToast(`${total}개 선택 항목 삭제됨`, 'info');
   }, [addToast, selectedNotes.size]);
@@ -521,6 +524,12 @@ function ChartEditorPage() {
       // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
       setExtraLaneCount: (count) => useEditorStore.getState().setExtraLaneCount(count),
       onWarn: (msg) => addToast(msg, 'warn'),
+      // 프레임을 쓴 드래그를 취소하면 차트·history·lastValidSnapshot을 첫 프레임 직전으로 한 번에 되돌린다.
+      dragCheckpoint: {
+        capture: () => useEditorStore.getState().captureDragCheckpoint(),
+        restore: () => useEditorStore.getState().restoreDragCheckpoint(),
+        discard: () => useEditorStore.getState().discardDragCheckpoint(),
+      },
     });
     selectModeRef.current = selectMode;
 

@@ -2754,6 +2754,384 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
 
     expect(result.clearDragPreview).toBeUndefined();
   });
+
+  // 안 움직인 드래그의 취소가 같은 차트를 다시 커밋하면 그 쓰기가 history를 건드린다
+  // (redo 스택을 비우고, 병합창이 지났으면 빈 undo 단계를 남긴다).
+  it("노트를 잡기만 하고 움직이지 않은 이동 드래그를 cancel하면 차트를 다시 쓰지 않고(onChartUpdate 0회) clearDragPreview를 반환", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(chart, cb);
+    mode.onPointerDown(1, 0, false, false); // 미선택 노트 클릭 = 단독 선택 + 이동 드래그 시작
+    expect(mode.isMoveDragging).toBe(true);
+
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(mode.isMoveDragging).toBe(false);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+  });
+
+  it("trillZone 끝을 잡기만 하고 움직이지 않은 리사이즈를 cancel하면 차트를 다시 쓰지 않는다", () => {
+    const chart = makeChart({
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+    mode.onPointerDown(9, 6, false, false); // 리사이즈 시작, 움직임 없음
+
+    const result = mode.cancel();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+  });
+
+  it("레인 1→2 이동을 드롭한 뒤 새로 잡기만 한 드래그를 cancel하면 드롭 커밋 외에 차트를 다시 쓰지 않는다", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 || x === 2 ? 0 : null) });
+    const mode = makeMode(chart, cb);
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(2, 0);
+    mode.onPointerUp(2, 0); // 드롭 — 노트가 lane 2로 커밋
+    const writesAfterDrop = cb.onChartUpdate.mock.calls.length;
+
+    mode.onPointerDown(2, 0, false, false); // 같은 노트를 다시 잡기만 한다
+    mode.cancel();
+
+    expect(cb.onChartUpdate.mock.calls.length).toBe(writesAfterDrop);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// discardDrag — 차트를 통째로 바꾸기 직전(loadChart) 드래그 상태만 버린다.
+// cancel과 달리 원위치를 차트에 다시 쓰지 않는다(곧 버려질 차트라 쓸 이유가 없다).
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — discardDrag (차트 교체 직전 드래그 폐기)", () => {
+  function startLaneMove() {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(chart, cb);
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerMove(2, 0); // 레인 1 → 2로 이동(라이브 적용)
+    return { cb, mode };
+  }
+
+  it("레인 1→2 이동 드래그 중 discardDrag는 차트를 다시 쓰지 않고 드래그를 끝내며 clearDragPreview를 반환", () => {
+    const { cb, mode } = startLaneMove();
+    const writesBefore = cb.onChartUpdate.mock.calls.length;
+
+    const result = mode.discardDrag();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(mode.isMoveDragging).toBe(false);
+    expect(cb.onChartUpdate.mock.calls.length).toBe(writesBefore); // 원위치 복원 쓰기 없음
+  });
+
+  it("discardDrag로 끝낸 이동 드래그는 이후 레인 3으로 포인터를 옮겨도 노트를 옮기지 않는다", () => {
+    const { cb, mode } = startLaneMove();
+    mode.discardDrag();
+    const writesBefore = cb.onChartUpdate.mock.calls.length;
+
+    const result = mode.onPointerMove(3, 0);
+
+    expect(cb.onChartUpdate.mock.calls.length).toBe(writesBefore);
+    expect(result.preview?.moveOrigins).toBeUndefined(); // 원위치 고스트도 다시 나오지 않는다
+  });
+
+  it("trillZone 끝 리사이즈(endBeat 6→10) 중 discardDrag는 endBeat를 되돌리지 않고 리사이즈 래치를 푼다", () => {
+    const chart = makeChart({
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
+    mode.onPointerDown(9, 6, false, false);
+    mode.onPointerMove(9, 10);
+    expect(mode.computeHoveredTrillZone(99, 99)).toBe(0); // 리사이즈 중 래치
+    const writesBefore = cb.onChartUpdate.mock.calls.length;
+
+    const result = mode.discardDrag();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(cb.onChartUpdate.mock.calls.length).toBe(writesBefore); // endBeat 6 복원 쓰기 없음
+    expect(mode.computeHoveredTrillZone(99, 99)).toBeNull(); // 래치 해제
+  });
+
+  it("박스 선택 중 discardDrag는 시작 전 선택을 다시 쓰지 않고 박스를 닫는다", () => {
+    const cb = makeCallbacks(); // 빈 영역 → 박스 셀렉트
+    const mode = makeMode(makeChart(), cb);
+    mode.onPointerDown(1, 0, false, false);
+    mode.onPointerMove(2, 5);
+    expect(mode.isBoxSelecting).toBe(true);
+    const transientSpy = vi.spyOn(cb, "setSelectionTransient");
+
+    const result = mode.discardDrag();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(mode.isBoxSelecting).toBe(false);
+    expect(mode.boxSelectPixelRect).toBeNull();
+    expect(transientSpy).not.toHaveBeenCalled(); // 선택 복원 쓰기 없음 — 교체가 선택을 새로 정한다
+  });
+
+  it("미선택 존 몸통 박스를 discardDrag하면 탭 후보가 소멸해, 이후 빈 곳 탭이 그 존을 선택하지 않는다", () => {
+    const chart = makeChart({
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({ hitTestTrillZone: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(chart, cb);
+
+    mode.onPointerDown(1, 0, false, false); // 몸통 탭 후보로 박스 시작
+    mode.discardDrag();
+
+    mode.onPointerDown(3, 0, false, false); // 빈 곳(노트·존 없음) 박스
+    mode.onPointerUp(3, 0);                 // 탭 — stale 후보가 남았다면 존이 선택된다
+
+    expect([...cb.getSelectionState().zones]).toEqual([]);
+  });
+
+  it("드래그 중이 아니면 discardDrag는 아무것도 하지 않고 빈 결과를 반환한다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChart(), cb);
+
+    const result = mode.discardDrag();
+
+    expect(result.clearDragPreview).toBeUndefined();
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// dragCheckpoint — 이동·리사이즈가 첫 프레임을 쓰기 직전에 잡고, 취소는 그리로 되돌리고,
+// 드롭·확정·폐기는 버린다(store 결합 검증은 SelectMode.dragCancel.integration.test.ts).
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — dragCheckpoint (첫 프레임 직전 상태)", () => {
+  function setupLaneMove() {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const restoredChart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const dragCheckpoint = {
+      capture: vi.fn(),
+      restore: vi.fn((): Chart | null => restoredChart),
+      discard: vi.fn(),
+    };
+    const cb = { ...makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) }), dragCheckpoint };
+    const mode = makeMode(chart, cb);
+    mode.onPointerDown(1, 0, false, false); // 미선택 노트 클릭 = 단독 선택 + 이동 드래그 시작
+    return { cb, mode, dragCheckpoint, restoredChart };
+  }
+
+  it("이동 드래그가 레인 2·3으로 프레임을 두 번 써도 capture는 첫 프레임을 쓰기 직전에 한 번만 불린다", () => {
+    const { cb, mode, dragCheckpoint } = setupLaneMove();
+    expect(dragCheckpoint.capture).not.toHaveBeenCalled(); // down만으로는 잡지 않는다
+
+    mode.onPointerMove(2, 0);
+    mode.onPointerMove(3, 0);
+
+    expect(dragCheckpoint.capture).toHaveBeenCalledTimes(1);
+    expect(dragCheckpoint.capture.mock.invocationCallOrder[0])
+      .toBeLessThan(cb.onChartUpdate.mock.invocationCallOrder[0]);
+  });
+
+  it("레인 2로 프레임을 쓴 이동 드래그를 cancel하면 restore가 돌려준 차트로 바꾸고 원위치를 onChartUpdate로 다시 쓰지 않는다", () => {
+    const { cb, mode, dragCheckpoint, restoredChart } = setupLaneMove();
+    mode.onPointerMove(2, 0);
+    const writesBefore = cb.onChartUpdate.mock.calls.length;
+
+    mode.cancel();
+
+    expect(dragCheckpoint.restore).toHaveBeenCalledTimes(1);
+    expect(cb.onChartUpdate.mock.calls.length).toBe(writesBefore);
+    expect((mode as unknown as { chart: Chart }).chart).toBe(restoredChart);
+  });
+
+  it("레인 2로 끈 이동을 드롭하면 discard를 한 번 부르고 restore는 부르지 않는다", () => {
+    const { mode, dragCheckpoint } = setupLaneMove();
+    mode.onPointerMove(2, 0);
+
+    mode.onPointerUp(2, 0);
+
+    expect(dragCheckpoint.discard).toHaveBeenCalledTimes(1);
+    expect(dragCheckpoint.restore).not.toHaveBeenCalled();
+  });
+
+  it("레인 2로 끈 이동을 드래그 중 Enter(confirmPlacement)로 확정하면 discard를 불러, 이어진 cancel이 확정을 되돌리지 않는다", () => {
+    const { mode, dragCheckpoint } = setupLaneMove();
+    mode.onPointerMove(2, 0);
+
+    mode.confirmPlacement();
+    mode.cancel();
+
+    expect(dragCheckpoint.discard).toHaveBeenCalledTimes(1);
+    expect(dragCheckpoint.restore).not.toHaveBeenCalled();
+  });
+
+  it("레인 2로 프레임을 쓴 이동 드래그를 discardDrag하면 discard를 부르고 restore는 부르지 않는다", () => {
+    const { mode, dragCheckpoint } = setupLaneMove();
+    mode.onPointerMove(2, 0);
+
+    mode.discardDrag();
+
+    expect(dragCheckpoint.discard).toHaveBeenCalledTimes(1);
+    expect(dragCheckpoint.restore).not.toHaveBeenCalled();
+  });
+
+  it("잡기만 하고 움직이지 않은 드래그는 cancel·드롭 어느 쪽이든 capture·restore·discard를 하나도 부르지 않는다", () => {
+    const first = setupLaneMove();
+    first.mode.cancel();
+    const second = setupLaneMove();
+    second.mode.onPointerUp(1, 0);
+
+    for (const { dragCheckpoint } of [first, second]) {
+      expect(dragCheckpoint.capture).not.toHaveBeenCalled();
+      expect(dragCheckpoint.restore).not.toHaveBeenCalled();
+      expect(dragCheckpoint.discard).not.toHaveBeenCalled();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// endDragBeforeDelete — 삭제·잘라내기 직전에 드래그를 끝낸다. 박스는 강조된 선택을 확정하고
+// (포인터 up처럼), 이동·리사이즈는 cancel로 드래그 직전 상태로 되돌린다.
+// ---------------------------------------------------------------------------
+
+describe("SelectMode — endDragBeforeDelete (삭제·잘라내기 직전 드래그 끝내기)", () => {
+  it("노트 1을 선택한 채 노트 0만 감싼 박스 중 endDragBeforeDelete는 강조된 {0}을 setSelection으로 확정하고 canDelete true·clearDragPreview를 반환", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "single", lane: 3 as Lane, beat: beat(4) },
+      ],
+    });
+    const cb = makeCallbacks({ yToBeatRaw: (y: number): Beat => beat(y) });
+    const mode = makeMode(chart, cb);
+    mode.selectNote(1);
+    mode.onPointerDown(1, 2, false, false); // 빈 곳 → 박스
+    mode.onPointerMove(1, -1); // lane 1 × beat −1~2 → 노트 0만
+    expect([...cb.getSelectionState().notes]).toEqual([0]);
+    const setSelectionSpy = vi.spyOn(cb, "setSelection");
+
+    const result = mode.endDragBeforeDelete();
+
+    expect(result).toEqual({ clearDragPreview: true, canDelete: true });
+    expect(mode.isBoxSelecting).toBe(false);
+    expect([...setSelectionSpy.mock.calls.at(-1)![0].notes]).toEqual([0]);
+    expect([...cb.getSelectionState().notes]).toEqual([0]);
+  });
+
+  it("레인 1→2 이동 드래그 중 endDragBeforeDelete는 cancel처럼 노트를 레인 1로 되돌리고 canDelete true를 반환", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(chart, cb);
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerMove(2, 0);
+
+    const result = mode.endDragBeforeDelete();
+
+    expect(result).toEqual({ clearDragPreview: true, canDelete: true });
+    expect(mode.isMoveDragging).toBe(false);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(1);
+  });
+
+  it("드래그 중이 아니면 endDragBeforeDelete는 canDelete true만 돌려주고 차트·선택을 쓰지 않는다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChart(), cb);
+    const setSelectionSpy = vi.spyOn(cb, "setSelection");
+
+    expect(mode.endDragBeforeDelete()).toEqual({ canDelete: true });
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+    expect(setSelectionSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("SelectMode — 붙여넣기 대기 중에는 터치 드래그를 시작하지 않는다(마우스 down과 같다)", () => {
+  // 노트 0 = single lane 1·beat 0, 노트 1 = long lane 2·beat 0~4, 구간 0 = trillZone lane 3·beat 2~6.
+  // 노트 0을 복사해 beat 8에 붙여넣어 대기시킨다(붙여넣은 사본 = 노트 2).
+  function setupPendingPaste() {
+    const chart = makeChart({
+      notes: [
+        { type: "single", lane: 1 as Lane, beat: beat(0) },
+        { type: "long", lane: 2 as Lane, beat: beat(0), endBeat: beat(4) },
+      ],
+      trillZones: [{ lane: 3 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks();
+    const mode = makeMode(chart, cb);
+    mode.selectNote(0);
+    mode.copy();
+    expect(mode.paste(beat(8))).toBe(1);
+    expect(mode.isPendingPaste).toBe(true);
+    const selectionBefore = cb.getSelectionState();
+    return { cb, mode, selectionBefore };
+  }
+
+  it("붙여넣기 대기 중 beginLongPressDrag가 붙여넣은 사본(노트 2)·노트 끝(노트 1)·구간 몸통(구간 0) 어느 히트든 false를 반환하고 드래그·선택을 바꾸지 않는다", () => {
+    const { cb, mode, selectionBefore } = setupPendingPaste();
+
+    expect(mode.beginLongPressDrag(1, 8, { noteEndHit: null, noteHit: 2 })).toBe(false);
+    expect(mode.beginLongPressDrag(2, 4, { noteEndHit: 1, noteHit: null })).toBe(false);
+    expect(mode.beginLongPressDrag(3, 3, { noteEndHit: null, noteHit: null, zoneHit: 0 })).toBe(false);
+
+    expect(mode.isMoveDragging).toBe(false);
+    expect(mode.isPendingPaste).toBe(true);
+    expect(cb.getSelectionState()).toBe(selectionBefore);
+  });
+
+  it("붙여넣기 대기 중 beginBoxSelect(4, 0)는 박스를 시작하지 않아 선택이 붙여넣은 사본 그대로다", () => {
+    const { cb, mode, selectionBefore } = setupPendingPaste();
+
+    mode.beginBoxSelect(4, 0);
+
+    expect(mode.isBoxSelecting).toBe(false);
+    expect(cb.getSelectionState()).toBe(selectionBefore);
+  });
+});
+
+describe("SelectMode — confirmPlacement가 진행 중 이동 드래그를 끝낸다 (Enter)", () => {
+  it("레인 1→2 이동 드래그 중 confirmPlacement는 레인 2를 커밋하고 드래그를 끝내며 clearDragPreview를 반환", () => {
+    const chart = makeChart({
+      notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
+    });
+    const cb = makeCallbacks({ hitTestNote: (x: number) => (x === 1 ? 0 : null) });
+    const mode = makeMode(chart, cb);
+    mode.selectNote(0);
+    mode.beginMoveDrag(1, 0);
+    mode.onPointerMove(2, 0);
+
+    const result = mode.confirmPlacement();
+
+    expect(result.clearDragPreview).toBe(true);
+    expect(mode.isMoveDragging).toBe(false);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(2);
+  });
+
+  it("드래그도 붙여넣기 대기도 없으면 confirmPlacement는 빈 결과를 돌려주고 차트를 쓰지 않는다", () => {
+    const cb = makeCallbacks();
+    const mode = makeMode(makeChart(), cb);
+
+    expect(mode.confirmPlacement()).toEqual({});
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
