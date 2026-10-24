@@ -277,4 +277,25 @@ describe("MinimapRenderer", () => {
       minimapLayer.getChildIndex(internals(renderer)._viewport!),
     );
   });
+
+  it("노트 4개·위반 노트 2개 차트를 render한 뒤 다시 render하면 첫 render의 자식(뷰포트·위반 틱 포함)이 전부 destroyed=true", () => {
+    const chart = makeChart(4);
+    const minimapLayer = new Container();
+    const renderer = new MinimapRenderer(makeHost(chart, minimapLayer, {
+      violatingNoteIndices: new Set([0, 2]),
+    }));
+
+    renderer.render();
+    const firstChildren = [...minimapLayer.children];
+    const { _viewport: firstViewport, _violationTicks: firstTicks } = internals(renderer);
+    expect(firstChildren).toContain(firstViewport);
+    expect(firstChildren).toContain(firstTicks);
+
+    renderer.render();
+
+    expect(firstChildren.filter((c) => !c.destroyed).length).toBe(0);
+    expect(firstViewport!.destroyed).toBe(true);
+    expect(firstTicks!.destroyed).toBe(true);
+    expect(firstChildren.some((c) => minimapLayer.children.includes(c))).toBe(false);
+  });
 });

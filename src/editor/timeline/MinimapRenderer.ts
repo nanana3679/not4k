@@ -15,6 +15,7 @@ import { isRightRailX } from "./timelineViewport";
 import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
 import { computeMinimapRestZoneRects } from "./minimapRestZone";
 import { computeMinimapViolationRects, type MinimapViolationRect } from "./minimapViolation";
+import { destroyChildren } from "./utils";
 import type { Chart } from "../../shared";
 
 /** MinimapRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
@@ -157,11 +158,7 @@ export class MinimapRenderer {
    */
   render(): void {
     const { minimapLayer } = this.host;
-    // destroyChildren equivalent
-    for (const child of minimapLayer.children) {
-      child.destroy();
-    }
-    minimapLayer.removeChildren();
+    destroyChildren(minimapLayer);
     this._viewport = null; // destroyed above, will be recreated
     this._violationTicks = null; // destroyed above, will be recreated by renderViolationTicks()
 
