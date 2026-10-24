@@ -5,13 +5,15 @@
  * 얽힌 동작 — select→move 가드, 삭제/붙여넣기 취소의 커밋 순서, 박스 프리뷰 확정 —
  * 을 검증할 수 없다. 여기서는 진짜 store에 배선해 그 사각지대를 커버한다.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SelectMode } from "./SelectMode";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SelectMode, type SelectModeCallbacks } from "./SelectMode";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import { createTimelineSpace } from "../timeline/TimelineSpace";
+import { scheduleFromGrabTarget } from "../hooks/touchEditRouting";
 import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
-import { beat, beatToFloat, auxNotesAsExtra, withAuxNotes } from "../../shared";
-import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity } from "../../shared";
+import { beat, beatToFloat, auxNotesAsExtra, withAuxNotes, chartViolationIndices } from "../../shared";
+import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity, ChartEvent } from "../../shared";
 
 vi.mock("../../shared/toast", () => ({ showToast: vi.fn() }));
 
@@ -212,5 +214,268 @@ describe("박스 드래그 × §3-5 — 프레임은 프리뷰, 확정은 (시�
     mode.onPointerUp(2, 1);
 
     expect(store.getState().selection.notes).toEqual(new Set([1])); // 교체 확정
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 보조 레인 롱노트 끝 캡 리사이즈 × 실제 TimelineSpace·store (#100)
+// ---------------------------------------------------------------------------
+
+/**
+ * useTimelineSpace와 같은 배선(store 라이브 읽기)으로 실제 TimelineSpace를 조립한다. 렌더러 대신
+ * y(px)=시간(ms) 항등 매핑과 타임라인 8000ms를 쓴다 — 120 BPM이라 y=500이 1박, snap=4는 1박 격자,
+ * x=250은 보조 레인 1(lane 5)이다(LANE_WIDTH=60·TIMELINE_WIDTH=240·EXTRA_LANE_WIDTH=60).
+ */
+function makeRealSpaceIntegration(
+  notes: NoteEntity[],
+  opts: { events?: ChartEvent[]; snapDivision?: number } = {},
+) {
+  const chart = fullChart(notes);
+  useEditorStore.setState({
+    chart: opts.events ? { ...chart, events: opts.events } : chart,
+    selection: emptySelection(),
+    extraLaneCount: 2,
+    snapDivision: opts.snapDivision ?? 4,
+    historyPast: [],
+    historyFuture: [],
+    historyLastCaptureAt: 0,
+  });
+  const space = createTimelineSpace({
+    getChart: () => useEditorStore.getState().chart,
+    getSnapDivision: () => useEditorStore.getState().snapDivision,
+    getSelectedNotes: () => useEditorStore.getState().selection.notes,
+    getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
+    yToTime: (y) => y,
+    getTotalTimelineMs: () => 8000,
+  });
+  const cb: SelectModeCallbacks = {
+    onChartUpdate: (c: Chart) => {
+      useEditorStore.getState().setChart(c);
+      mode.setChart(useEditorStore.getState().chart);
+    },
+    getSelection: () => useEditorStore.getState().selection,
+    setSelection: (s: Selection) => useEditorStore.getState().setSelection(s),
+    setSelectionTransient: (s: Selection) => useEditorStore.getState().setSelectionTransient(s),
+    space,
+    getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
+    onWarn: vi.fn(),
+  };
+  const mode = new SelectMode(useEditorStore.getState().chart, cb);
+  return { mode, space, store: useEditorStore };
+}
+
+/** 노트의 lane과 박을 실수로 바꿔 비교한다 — 스냅 결과의 분모({n:12,d:4} 등)와 무관하게 읽는다. */
+function laneAndBeats(n: NoteEntity) {
+  return {
+    lane: n.lane,
+    beat: beatToFloat(n.beat),
+    endBeat: "endBeat" in n ? beatToFloat(n.endBeat) : null,
+  };
+}
+
+describe("보조 레인 롱노트 끝 캡 리사이즈 × 실제 TimelineSpace·store (#100)", () => {
+  const auxLong: NoteEntity = { type: "long", lane: 5, beat: beat(0), endBeat: beat(2) };
+  // 보조 lane 5 칸 = 이벤트 editorLane 1 칸. idx 2의 auto 구간 이벤트 끝(2박)이 auxLong 끝과 겹친다.
+  const eventsWithAutoEndAt2: ChartEvent[] = [
+    { type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 },
+    { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    { type: "auto", beat: beat(0), endBeat: beat(2), editorLane: 1 },
+  ];
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("미선택 보조 lane 5 롱노트(0→2박) 끝 캡(x=250·y=1000)을 y=1400(2.8박)까지 끌면 이동이 아니라 리사이즈 — lane 5·시작 0박 유지, endBeat는 snap=4로 3박, 그 노트가 단독 선택된다", () => {
+    const { mode, store } = makeRealSpaceIntegration([auxLong]);
+
+    mode.onPointerDown(250, 1000, false, false);
+    mode.onPointerMove(250, 1400);
+    mode.onPointerUp(250, 1400);
+
+    expect(laneAndBeats(store.getState().chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 3 });
+    expect(store.getState().selection.notes).toEqual(new Set([0]));
+  });
+
+  it("보조 롱노트 끝 캡을 시작점 아래 y=-500(-1박)까지 끌면 endBeat가 시작 0박에 클램프돼 길이 0이 된다 (메인과 같은 최소 길이)", () => {
+    const { mode, store } = makeRealSpaceIntegration([auxLong]);
+
+    mode.onPointerDown(250, 1000, false, false);
+    mode.onPointerMove(250, -500);
+    mode.onPointerUp(250, -500);
+
+    expect(laneAndBeats(store.getState().chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 0 });
+  });
+
+  it("병합창 600ms(HISTORY_COALESCE_MS) 안에서 끝 캡을 3박→4박으로 끌면 히스토리 1건으로 남아 undo 한 번에 0→2박으로 복원된다", () => {
+    // 병합 검사는 Date.now()를 읽는다 — 시각을 고정해 기계 부하와 무관하게 한 창 안에 둔다
+    vi.useFakeTimers();
+    vi.setSystemTime(10_000);
+    const { mode, store } = makeRealSpaceIntegration([auxLong]);
+
+    mode.onPointerDown(250, 1000, false, false);
+    mode.onPointerMove(250, 1500);
+    mode.onPointerMove(250, 2000);
+    mode.onPointerUp(250, 2000);
+    expect(laneAndBeats(store.getState().chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 4 });
+    expect(store.getState().historyPast).toHaveLength(1);
+
+    store.getState().undo();
+
+    expect(laneAndBeats(store.getState().chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 2 });
+  });
+
+  it("lane 5의 0→1박 롱노트 끝을 3박까지 늘려 2→4박 롱노트와 겹쳐도 낙관 커밋되고 두 노트(0·1)가 위반으로 잡힌다", () => {
+    const { mode, store } = makeRealSpaceIntegration([
+      { type: "long", lane: 5, beat: beat(0), endBeat: beat(1) },
+      { type: "long", lane: 5, beat: beat(2), endBeat: beat(4) },
+    ]);
+
+    mode.onPointerDown(250, 500, false, false); // 0번 끝(1박)
+    mode.onPointerMove(250, 1500);
+    mode.onPointerUp(250, 1500);
+
+    const chart = store.getState().chart;
+    expect(laneAndBeats(chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 3 });
+    expect(chartViolationIndices(chart).notes).toEqual(new Set([0, 1]));
+  });
+
+  it("터치 select down: 보조 롱노트 끝 캡(x=250·y=1000)은 탭 토글이 아니라 지연 드래그(emptySelectBox)로 스케줄된다", () => {
+    const { mode } = makeRealSpaceIntegration([auxLong]);
+
+    expect(scheduleFromGrabTarget(mode.resolveGrabAt(250, 1000))).toBe("emptySelectBox");
+  });
+
+  it("터치 롱프레스: 보조 롱노트 끝(x=250·y=1000)에서 롱프레스 발화와 같은 히트로 beginLongPressDrag하면 리사이즈가 시작돼 y=1400에서 endBeat 3박", () => {
+    const { mode, space, store } = makeRealSpaceIntegration([auxLong]);
+
+    // useCanvasEvents의 롱프레스 발화(armHoldTimer)가 만드는 히트 조합과 같다
+    const started = mode.beginLongPressDrag(250, 1000, {
+      noteEndHit: space.hitTestNoteEnd(250, 1000),
+      noteHit: space.hitTestUnifiedNote(250, 1000),
+      zoneHit: space.hitTestTrillZone(250, 1000),
+    });
+    mode.onPointerMove(250, 1400);
+    mode.onPointerUp(250, 1400);
+
+    expect(started).toBe(true);
+    expect(laneAndBeats(store.getState().chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 3 });
+  });
+
+  it("snap=32에서 미선택 보조 롱노트 끝과 구간 이벤트(idx 2) 끝이 2박에서 겹치면 끌기가 이벤트 끝을 3박으로 늘리고 노트는 0→2박 그대로", () => {
+    const { mode, store } = makeRealSpaceIntegration([auxLong], {
+      events: eventsWithAutoEndAt2,
+      snapDivision: 32,
+    });
+
+    mode.onPointerDown(250, 1000, false, false);
+    mode.onPointerMove(250, 1500);
+    mode.onPointerUp(250, 1500);
+
+    const chart = store.getState().chart;
+    const auto = chart.events[2];
+    expect("endBeat" in auto ? beatToFloat(auto.endBeat) : null).toBe(3);
+    expect(laneAndBeats(chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 2 });
+  });
+
+  it("snap=32에서 같은 겹침이라도 보조 롱노트를 먼저 선택하고 끌면 노트 끝이 3박으로 늘고 이벤트 끝은 2박 그대로", () => {
+    const { mode, store } = makeRealSpaceIntegration([auxLong], {
+      events: eventsWithAutoEndAt2,
+      snapDivision: 32,
+    });
+    store.getState().setSelection(sel({ notes: new Set([0]) }));
+
+    mode.onPointerDown(250, 1000, false, false);
+    mode.onPointerMove(250, 1500);
+    mode.onPointerUp(250, 1500);
+
+    const chart = store.getState().chart;
+    const auto = chart.events[2];
+    expect(laneAndBeats(chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 3 });
+    expect("endBeat" in auto ? beatToFloat(auto.endBeat) : null).toBe(2);
+  });
+
+  it("hover 커서 resolveNoteEndCapAt: 보조 롱노트 끝(x=250·y=1000)은 0, 같은 2박에 구간 이벤트 끝이 겹치면(snap=32) 미선택일 때 null·노트를 선택하면 0", () => {
+    expect(makeRealSpaceIntegration([auxLong]).mode.resolveNoteEndCapAt(250, 1000)).toBe(0);
+
+    const { mode, store } = makeRealSpaceIntegration([auxLong], {
+      events: eventsWithAutoEndAt2,
+      snapDivision: 32,
+    });
+    expect(mode.resolveNoteEndCapAt(250, 1000)).toBeNull();
+    store.getState().setSelection(sel({ notes: new Set([0]) }));
+    expect(mode.resolveNoteEndCapAt(250, 1000)).toBe(0);
+  });
+
+  // 끝이 2.25박인 보조 롱노트 — 2박에서 끝나는 구간 이벤트와 같은 칸이지만 두 끝은 다른 위치다.
+  // snap=4면 이벤트 끝 히트 영역(스냅한 박 기준 ±0.5박)이 노트 끝 캡(y=1125)까지 덮는다.
+  const auxLongEndAt225: NoteEntity = { type: "long", lane: 5, beat: beat(0), endBeat: beat(9, 4) };
+
+  it("snap=4에서 보조 롱노트 끝(2.25박)이 구간 이벤트 끝(2박)의 히트 영역 안이어도 끝 캡(y=1125)을 y=1500까지 끌면 노트 끝이 3박으로 늘고 이벤트 끝은 2박 그대로", () => {
+    const { mode, store } = makeRealSpaceIntegration([auxLongEndAt225], { events: eventsWithAutoEndAt2 });
+
+    expect(mode.resolveNoteEndCapAt(250, 1125)).toBe(0); // 커서도 ns-resize
+    mode.onPointerDown(250, 1125, false, false);
+    mode.onPointerMove(250, 1500);
+    mode.onPointerUp(250, 1500);
+
+    const chart = store.getState().chart;
+    const auto = chart.events[2];
+    expect(laneAndBeats(chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 3 });
+    expect("endBeat" in auto ? beatToFloat(auto.endBeat) : null).toBe(2);
+  });
+
+  it("hover 리사이즈 캡 computeResizeHoverNote: snap=32에서 두 끝이 같은 2박이면 미선택 보조 롱노트의 끝 캡 위(y=1000)는 null로 캡을 숨기고, 몸통 위(y=500)는 0, 노트를 선택하면 끝 캡 위도 0", () => {
+    const { mode, store } = makeRealSpaceIntegration([auxLong], {
+      events: eventsWithAutoEndAt2,
+      snapDivision: 32,
+    });
+
+    expect(mode.computeResizeHoverNote(250, 1000)).toBeNull();
+    expect(mode.computeResizeHoverNote(250, 500)).toBe(0);
+    store.getState().setSelection(sel({ notes: new Set([0]) }));
+    expect(mode.computeResizeHoverNote(250, 1000)).toBe(0);
+  });
+
+  it("hover 리사이즈 캡 computeResizeHoverNote: 두 끝이 다른 위치(노트 2.25박·이벤트 2박, snap=4)면 끝 캡 위(y=1125)도 0, 이벤트 없는 보조 롱노트 끝(y=1000)도 0", () => {
+    expect(
+      makeRealSpaceIntegration([auxLongEndAt225], { events: eventsWithAutoEndAt2 }).mode.computeResizeHoverNote(250, 1125),
+    ).toBe(0);
+    expect(makeRealSpaceIntegration([auxLong]).mode.computeResizeHoverNote(250, 1000)).toBe(0);
+  });
+
+  it("hover 리사이즈 캡 computeResizeHoverNote: 겹친 노트 위반 상태(lane 5 doubleLong 1→2박 idx 0, long 0→2박 idx 1, 2박에 끝나는 구간 이벤트, snap=32)에서 끝(y=1000)은 최상위 long(1)의 캡도 숨긴다 — down은 eventEndCap", () => {
+    const { mode } = makeRealSpaceIntegration(
+      [
+        { type: "doubleLong", lane: 5, beat: beat(1), endBeat: beat(2) },
+        { type: "long", lane: 5, beat: beat(0), endBeat: beat(2) },
+      ],
+      { events: eventsWithAutoEndAt2, snapDivision: 32 },
+    );
+
+    expect(mode.resolveGrabAt(250, 1000)).toEqual({ kind: "eventEndCap", index: 2 });
+    expect(mode.computeResizeHoverNote(250, 1000)).toBeNull();
+  });
+
+  it("터치 롱프레스는 끝 캡 양보가 없다: snap=32에서 미선택 보조 롱노트 끝과 구간 이벤트 끝이 같은 2박이어도 롱프레스 히트로 y=1500까지 끌면 노트 끝이 3박으로 늘고 이벤트 끝은 2박 그대로", () => {
+    const { mode, space, store } = makeRealSpaceIntegration([auxLong], {
+      events: eventsWithAutoEndAt2,
+      snapDivision: 32,
+    });
+
+    // useCanvasEvents의 롱프레스 발화(armHoldTimer)가 만드는 히트 조합과 같다
+    const started = mode.beginLongPressDrag(250, 1000, {
+      noteEndHit: space.hitTestNoteEnd(250, 1000),
+      noteHit: space.hitTestUnifiedNote(250, 1000),
+      zoneHit: space.hitTestTrillZone(250, 1000),
+    });
+    mode.onPointerMove(250, 1500);
+    mode.onPointerUp(250, 1500);
+
+    const chart = store.getState().chart;
+    const auto = chart.events[2];
+    expect(started).toBe(true);
+    expect(laneAndBeats(chart.notes[0])).toEqual({ lane: 5, beat: 0, endBeat: 3 });
+    expect("endBeat" in auto ? beatToFloat(auto.endBeat) : null).toBe(2);
   });
 });

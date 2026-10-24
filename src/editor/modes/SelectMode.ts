@@ -7,7 +7,7 @@ import {
 } from "../editing/editApplication";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
 import { resolveLongPressAction } from "./longPressRouting";
-import { resolveGrab, type GrabTarget } from "./resolveGrab";
+import { resolveGrab, resolveNoteEndCap, type GrabTarget } from "./resolveGrab";
 import { TOUCH_MOVE_CANCEL_PX } from "../hooks/touchGesture";
 import {
   classifySelection,
@@ -20,6 +20,7 @@ import { clampRestBeatOffset, translateRestZone } from "./restZoneSelection";
 import type { TrillZone, RestZone } from "../../shared";
 import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
+import { eventEndMeetsNoteEnd, isWithinNoteEndCap } from "../timeline/hitTest";
 import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
 
 /**
@@ -268,6 +269,23 @@ export class SelectMode implements EditorMode {
     return this.callbacks.space.hitTestRestZone(x, y);
   }
 
+  /**
+   * 롱노트 리사이즈 캡을 hover로 보일 노트 — (x, y)의 최상위 노트. 단 포인터가 그 노트의 끝 캡 히트 영역
+   * 위인데 down이 바로 그 노트의 끝 캡을 잡지 않으면(같은 위치의 구간 이벤트 끝에 양보, 겹친 노트 위반 상태)
+   * null로 캡을 숨겨 커서·down과 맞춘다. 몸통 위에서는 끝에 캡을 그대로 보인다 — 끝이 다른 노트에 가려진
+   * o-o- 패턴과 같다(#100).
+   */
+  computeResizeHoverNote(x: number, y: number): number | null {
+    const hovered = this.callbacks.space.hitTestUnifiedNote(x, y);
+    if (hovered === null) return null;
+    const note = this.chart.notes[hovered];
+    if (note === undefined || !this.isRangeNote(note)) return hovered; // 포인트 노트는 캡이 없다
+    const raw = this.callbacks.space.yToBeatRaw(y);
+    const onItsEndCap = isWithinNoteEndCap(raw.n / raw.d, beatToFloat(note.endBeat));
+    if (onItsEndCap && this.resolveNoteEndCapAt(x, y) !== hovered) return null;
+    return hovered;
+  }
+
   /** Whether a box select drag is currently in progress */
   get isBoxSelecting(): boolean {
     return this.isDragging && this.dragType === "boxSelect";
@@ -348,7 +366,7 @@ export class SelectMode implements EditorMode {
     this.startMainMoveDrag(x, y);
   }
 
-  /** Begin resizing a main range note end, used by touch long-press handles. */
+  /** Begin resizing a range note end (main or aux lane), used by touch long-press handles. */
   beginNoteEndResizeDrag(index: number): boolean {
     const note = this.chart.notes[index];
     if (!note || !this.isRangeNote(note)) return false;
@@ -456,16 +474,27 @@ export class SelectMode implements EditorMode {
    * 게이트용)는 SelectMode가 소유한 사실이라 훅이 shadow하지 않도록 여기서 주입한다.
    */
   resolveGrabAt(x: number, y: number): GrabTarget {
-    return resolveGrab({
-      x,
-      y,
+    return resolveGrab({ x, y, ...this.grabFacts() });
+  }
+
+  /**
+   * hover 리사이즈 캡·커서용 끝 캡 결정 — down이 (x, y)에서 잡을 롱노트 끝 캡의 노트 인덱스, 없으면 null.
+   * resolveGrabAt과 같은 사실로 resolveNoteEndCap(1단계)을 실행하므로 ns-resize 커서·hover 캡이
+   * 실제 grab과 갈라지지 않는다(#100).
+   */
+  resolveNoteEndCapAt(x: number, y: number): number | null {
+    return resolveNoteEndCap({ x, y, ...this.grabFacts() });
+  }
+
+  /** resolveGrab·resolveNoteEndCap에 주입하는 SelectMode 소유 사실 — 호출 시점 값(사본 금지). */
+  private grabFacts() {
+    return {
       space: this.callbacks.space,
       sel: this.sel, // getSelection() 라이브 getter — 사본 금지, 캡 게이트가 이 값을 읽는다.
-      isRangeNote: (i) => {
-        const n = this.chart.notes[i];
-        return n !== undefined && this.isRangeNote(n);
-      },
-    });
+      isRangeNote: (i: number) => this.isRangeNoteAt(i),
+      eventEndMeetsNoteEnd: (eventIndex: number, noteIndex: number) =>
+        eventEndMeetsNoteEnd(this.chart, eventIndex, noteIndex),
+    };
   }
 
   onPointerDown(x: number, y: number, shiftKey: boolean, altKey: boolean, toggleSelection = false): void {
@@ -1574,6 +1603,12 @@ export class SelectMode implements EditorMode {
 
   private isRangeNote(note: NoteEntity): note is RangeNote {
     return "endBeat" in note;
+  }
+
+  /** 끝 캡 게이트용 chart 사실 — chart.notes[i]가 RangeNote인가(범위 밖이면 false). */
+  private isRangeNoteAt(index: number): boolean {
+    const note = this.chart.notes[index];
+    return note !== undefined && this.isRangeNote(note);
   }
 
   /** Check if all notes in the array are within timeline bounds [0, maxBeat] */

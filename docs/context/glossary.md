@@ -694,7 +694,7 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 정하는 순수 우선순위 사다리. z-order 8단계(끝 리사이즈 캡 4종 `noteEndCap`·`eventEndCap`·`trillZoneEndCap`·`restZoneEndCap` > 통합 `note` > 몸통 `trillZoneBody`·`restZoneBody` > `empty`)를 **단독으로 소유**한다. 캡 게이트(사다리 1·3·4)는 down 시점 선택(`sel`)을 읽어, 미선택 구간의 끝 캡은 리사이즈로 잡지 않고 겹친 노트/몸통으로 하강한다(RFD 0016 §6-6). 수식자(shift/alt/toggle)는 대상 확정 "후"의 동작이라 사다리에 나타나지 않는다.
 
-**불변식**: grab 우선순위를 아는 코드는 `resolveGrab` 한 곳뿐이다. 마우스(`SelectMode.onPointerDown`)와 터치(`useCanvasEvents` → `scheduleFromGrabTarget`)는 `SelectMode.resolveGrabAt(x, y)`라는 **같은 seam**을 소비하므로 두 경로로 갈라질 코드 위치가 없다. 터치 스케줄은 `GrabTarget`을 "`note`면 탭 토글, 그 외 전부 지연-드래그(재생 위임)"의 2택으로 접기만 한다. 롱프레스 발화 사다리(`resolveLongPressAction`)는 선택 게이트 없는 별개 "직접 조작" 축이라 흡수하지 않는다(#143). 구현은 `src/editor/modes/resolveGrab.ts`.
+**불변식**: grab 우선순위를 아는 코드는 `resolveGrab` 한 곳뿐이다. 마우스(`SelectMode.onPointerDown`)와 터치(`useCanvasEvents` → `scheduleFromGrabTarget`)는 `SelectMode.resolveGrabAt(x, y)`라는 **같은 seam**을 소비하므로 두 경로로 갈라질 코드 위치가 없다. hover 리사이즈 캡(`SelectMode.computeResizeHoverNote`)과 커서 `ns-resize`(`SelectMode.resolveNoteEndCapAt`)도 1단계(`noteEndCap`) 결정 `resolveNoteEndCap`을 따르므로, 선택·최상위 게이트와 보조 칸에서 같은 위치에 끝나는 구간 이벤트가 있으면 미선택 노트 캡이 `eventEndCap`에 양보하는 규칙([스펙](../spec/chart-editor.md#한-동작-리사이즈-미선택-상태))이 grab과 같다. 터치 스케줄은 `GrabTarget`을 "`note`면 탭 토글, 그 외 전부 지연-드래그(재생 위임)"의 2택으로 접기만 한다. 롱프레스 발화 사다리(`resolveLongPressAction`)는 선택 게이트 없는 별개 "직접 조작" 축이라 흡수하지 않는다(#143). 구현은 `src/editor/modes/resolveGrab.ts`.
 
 ### 차트 변이 게이트 (Chart Mutation Gate)
 

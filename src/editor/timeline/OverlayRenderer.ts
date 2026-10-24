@@ -363,15 +363,15 @@ export class OverlayRenderer {
 
     // 롱노트 리사이즈 캡: 선택된 롱노트 + (select 모드) hover 중인 롱노트의 끝(위)에 표시.
     // 트릴 롱노트(trillLong)도 끝점 리사이즈가 가능하므로 캡을 그린다.
+    // 메인·보조 공통 — 노트 몸통과 같은 lane 투영(laneToX·laneWidth)을 쓴다 (RFD 0018, #100).
     const notes = this.host.chart.notes;
     const drawnCaps = new Set<number>();
     const drawNoteCap = (index: number, selected: boolean): void => {
       if (index < 0 || index >= notes.length || drawnCaps.has(index)) return;
       const note = notes[index];
       if (!("endBeat" in note)) return;
-      const x = (note.lane - 1) * LANE_WIDTH;
       const endY = this.host.timeToY(beatToMs(note.endBeat, bpmMarkers, meta.offsetMs));
-      drawNoteResizeHandle(this.host.hoverLayer, x, LANE_WIDTH, endY, selected);
+      drawNoteResizeHandle(this.host.hoverLayer, laneToX(note.lane), laneWidth(note.lane), endY, selected);
       drawnCaps.add(index);
     };
     for (const idx of this.host.selectedNotes) drawNoteCap(idx, true);
