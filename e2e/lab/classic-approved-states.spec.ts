@@ -2,13 +2,13 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
-test('더블 릴리즈 일부 성공은 단색·바디 위에서 같은 200×40 원본의 양쪽을 50%로 남기고 모두 성공하면 숨긴다', async ({ page }) => {
+test('더블 릴리즈 일부 성공은 단색·바디 위에서 같은 200×40 원본의 양쪽을 70%로 남기고 모두 성공하면 숨긴다', async ({ page }) => {
   await page.goto(route);
   await page.getByRole('link', { name: '릴리즈 일부 성공', exact: true }).click();
   const section = page.locator('#release-success');
   await expect(section.getByRole('heading', { name: '더블 릴리즈 · 일부 성공 비교' })).toBeVisible();
   const progression = section.locator('[data-comparison="progression"]');
-  for (const [id, alpha] of [['pending', '1'], ['partial-success', '0.5'], ['success', '0']] as const) {
+  for (const [id, alpha] of [['pending', '1'], ['partial-success', '0.7'], ['success', '0']] as const) {
     for (const background of ['solid', 'body']) {
       const stage = progression.locator(`[data-state="${id}"] [data-background="${background}"]`);
       const image = stage.locator('img');
@@ -37,7 +37,7 @@ test('더블 릴리즈 일부 성공은 단색·바디 위에서 같은 200×40 
     const normal = render('pending'), partial = render('partial-success'), hidden = render('success');
     let alphaError = 0, hiddenAlpha = 0, leftAlpha = 0, rightAlpha = 0;
     for (let i = 3; i < normal.length; i += 4) {
-      alphaError = Math.max(alphaError, Math.abs(partial[i] - normal[i] * 0.5));
+      alphaError = Math.max(alphaError, Math.abs(partial[i] - normal[i] * 0.7));
       hiddenAlpha = Math.max(hiddenAlpha, hidden[i]);
       if (((i - 3) / 4) % 200 < 100) leftAlpha = Math.max(leftAlpha, partial[i]);
       else rightAlpha = Math.max(rightAlpha, partial[i]);

@@ -19,7 +19,7 @@ const assembly = (kind, state = '') => {
   const mark = `sustain-${kind}${state === 'partial-failed-left' ? '-partial-failed-left' : ''}`;
   return `<div class="assembly" style="--body:url('assets/${body}.png')"><div class="beam"></div><img class="end" src="assets/${terminal}.png" alt="끝 마감" width="200" height="40"><img class="mark" src="assets/${mark}.png" alt="바디 위 유지 표식" width="200" height="40"><img class="start" src="assets/${terminal}.png" alt="상하반전한 시작 마감" width="200" height="40"></div>`;
 };
-// THESIS: 일부 성공의 전체 50% 시안을 반쪽 숨김·일부 실패와 직접 비교한다.
+// THESIS: 일부 성공의 전체 70% 시안을 반쪽 숨김·일부 실패와 직접 비교한다.
 // OWN-WORLD: 기존 어두운 Lab, 원본 200×40 크기, 설명보다 에셋이 먼저 보이는 구성.
 // STORY: 성공 단계 확인 → 같은 자리의 세 표시 방식 비교 → 단색/바디 가독성 판단.
 // FIRST VIEWPORT: 헤더 다음에 3열 성공 단계, 그 아래에 같은 3열 대안 비교.
@@ -28,9 +28,9 @@ const releasePreview = manifest.releaseSuccessPreview;
 const releaseSample = item => `<article data-state="${item.id}"><h4>${escape(item.label)}</h4>${releasePreview.backgrounds.map(background => `<figure><figcaption>${escape(background.label)}</figcaption><div class="release-stage" data-background="${background.id}" style="background-color:${background.color}${background.file ? `;background-image:url('${background.file}')` : ''}"><img src="${item.file}" width="${releasePreview.targetSize[0]}" height="${releasePreview.targetSize[1]}" style="opacity:${item.alpha}" alt="${escape(item.label)}" loading="lazy"></div></figure>`).join('')}</article>`;
 const releaseSuccess = `<section id="release-success" aria-labelledby="release-success-title">
 <h2 id="release-success-title">더블 릴리즈 · 일부 성공 비교</h2>
-<p>마지막에 선택한 C안(J2-C)으로 일부 성공 때 전체를 50%로 흐리게 하는 시안입니다. 모양·색·위치를 유지하고 불투명도만 낮춥니다. 50%는 아직 확정하지 않았습니다.</p>
+<p>마지막에 선택한 C안(J2-C)으로 일부 성공 때 전체를 70%로 흐리게 하는 시안입니다. 모양·색·위치를 유지하고 불투명도만 낮춥니다. 70%는 아직 확정하지 않았습니다.</p>
 <h3>성공 단계 · 전체 알파 시안</h3><div class="release-comparison" data-comparison="progression">${releasePreview.progression.map(releaseSample).join('')}</div>
-<h3>전체 50% · 반쪽 숨김 · 일부 실패</h3><p>왼쪽 몫을 기준으로 비교합니다. 앞의 두 칸은 일부 성공, 마지막 칸은 일부 실패입니다.</p>
+<h3>전체 70% · 반쪽 숨김 · 일부 실패</h3><p>왼쪽 몫을 기준으로 비교합니다. 앞의 두 칸은 일부 성공, 마지막 칸은 일부 실패입니다.</p>
 <div class="release-comparison" data-comparison="alternatives">${[releasePreview.progression.find(item => item.id === 'partial-success'), ...releasePreview.alternatives].map(releaseSample).join('')}</div>
 <p>일반 릴리즈만 비교합니다. Grace 외곽의 표시와 실패 그림을 남기는 시간은 별도 검토 항목입니다.</p>
 </section>`;

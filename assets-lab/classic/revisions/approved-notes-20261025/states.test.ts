@@ -78,12 +78,12 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     }
   });
 
-  it('더블 릴리즈 성공 시안은 같은 200×40 원본에 alpha 1→0.5→0을 적용하고 반쪽 숨김·일부 실패와 구별한다', () => {
+  it('더블 릴리즈 성공 시안은 같은 200×40 원본에 alpha 1→0.7→0을 적용하고 반쪽 숨김·일부 실패와 구별한다', () => {
     const preview = manifest.releaseSuccessPreview;
     expect(preview).toMatchObject({ approval: 'proposed-display-treatment', targetSize: [200, 40], grace: false });
     expect(preview.progression.map(({ id, file, alpha }) => ({ id, file, alpha }))).toEqual([
       { id: 'pending', file: 'assets/release-double.png', alpha: 1 },
-      { id: 'partial-success', file: 'assets/release-double.png', alpha: 0.5 },
+      { id: 'partial-success', file: 'assets/release-double.png', alpha: 0.7 },
       { id: 'success', file: 'assets/release-double.png', alpha: 0 },
     ]);
     expect(preview.alternatives).toMatchObject([
@@ -91,7 +91,7 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
       { id: 'left-failed', file: 'assets/release-double-partial-failed-left.png', alpha: 1 },
     ]);
     expect(preview.backgrounds).toMatchObject([{ id: 'solid' }, { id: 'body', file: 'assets/body-double-center-dual-beam.png' }]);
-    expect(manifest.buildContract.unapproved).toContain('더블 릴리즈 일부 성공의 전체 alpha 0.5');
+    expect(manifest.buildContract.unapproved).toContain('더블 릴리즈 일부 성공의 전체 alpha 0.7');
     for (const item of [...preview.progression, ...preview.alternatives, ...preview.backgrounds]) {
       if (item.file) expect(manifest.assets.some(asset => asset.file === item.file), item.file).toBe(true);
     }

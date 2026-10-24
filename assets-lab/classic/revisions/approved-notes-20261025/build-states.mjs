@@ -171,14 +171,14 @@ try {
     ],
     progression: [
       state('pending', '대기 · 전체 100%', 'assets/release-double.png', { alpha: 1 }),
-      state('partial-success', '일부 성공 · 전체 50%', 'assets/release-double.png', { alpha: 0.5 }),
+      state('partial-success', '일부 성공 · 전체 70%', 'assets/release-double.png', { alpha: 0.7 }),
       state('success', '모두 성공 · 숨김', 'assets/release-double.png', { alpha: 0 }),
     ],
     alternatives: [
       state('hide-left-success', '왼쪽 성공 · 오른쪽만 남김', 'assets/release-double-unit-right.png', { alpha: 1 }),
       state('left-failed', '왼쪽 실패 · 일부 실패색', 'assets/release-double-partial-failed-left.png', { alpha: 1 }),
     ],
-    note: '일반 더블 릴리즈의 일부 성공 비교 시안. 원본에 표시 알파만 적용하며 반투명 PNG를 만들지 않음. 50%·성공 몫 숨김·Grace 외곽·실패 표시 수명은 미확정.',
+    note: '일반 더블 릴리즈의 일부 성공 비교 시안. 원본에 표시 알파만 적용하며 반투명 PNG를 만들지 않음. 70%·성공 몫 숨김·Grace 외곽·실패 표시 수명은 미확정.',
   };
 
   // Original artwork is regenerated at explicit target sizes, or copied for raster masters.
@@ -192,7 +192,7 @@ try {
     grace: { sourcePadding: 24, releaseSilhouette: 'J2-C의 alpha >= 0.5인 전체 200×40 직사각 외곽', referenceOnly: ['terminal-grace-overlay'], composeOnce: true },
     failureStyle: '무채색 + 밝기 45%; 시각 시안이며 표시 수명·판정 정책은 구현하지 않음',
     missingRequestedStates: [],
-    unapproved: ['새 상태별 색·강도', 'J2-C 유지/부분 충족의 대기 그림 재사용', '더블 릴리즈 일부 성공의 전체 alpha 0.5', '한 몫 성공 후 나머지 몫만 표시', '실패·종속 0점 표시 수명'],
+    unapproved: ['새 상태별 색·강도', 'J2-C 유지/부분 충족의 대기 그림 재사용', '더블 릴리즈 일부 성공의 전체 alpha 0.7', '한 몫 성공 후 나머지 몫만 표시', '실패·종속 0점 표시 수명'],
   };
   const assetsByFile = new Map(manifest.assets.map(asset => [asset.file, asset]));
   for (const asset of manifest.assets) {
