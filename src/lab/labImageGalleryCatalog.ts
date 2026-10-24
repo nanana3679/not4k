@@ -17,6 +17,12 @@ function registerImageGallery(registration: LabImageGalleryRegistration): LabIma
 
 export const labImageGalleryCatalog = Object.freeze<readonly LabImageGalleryEntry[]>([
   registerImageGallery({
+    id: "classic-approved-states-20261025",
+    title: "Classic 확정 도안 · 상태별 에셋",
+    description: "바디·J2-C·M6·D 유지 표식의 실패와 부분 상태, 릴리즈의 남은 몫을 비교합니다.",
+    createdAt: "2026-10-25",
+  }),
+  registerImageGallery({
     id: "module-size-distance-20260910",
     title: "Module Size × Distance",
     description: "건축 모듈의 소형·중형·거대 크기를 근거리·중거리·원거리에서 비교합니다.",

@@ -1,0 +1,59 @@
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+interface Asset { file: string; bytes: number; sha256: string; width: number; height: number; targetSize?: number[]; generator?: string; sourceFiles?: string[] }
+interface State { id: string; file: string; aliasOf?: string; waitingSide?: string }
+interface Group { id: string; states: State[]; beamCenters?: number[] }
+const here = new URL('./', import.meta.url);
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; stateGroups: Group[]; buildContract: { missingRequestedStates: string[] } };
+const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
+
+describe('Classic 확정 도안의 상태별 전달 자료', () => {
+  it('에셋 127개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
+    expect(manifest.assets).toHaveLength(127);
+    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(127);
+    for (const asset of manifest.assets) {
+      const bytes = readFileSync(new URL(asset.file, here));
+      expect(bytes.length, asset.file).toBe(asset.bytes);
+      expect(createHash('sha256').update(bytes).digest('hex'), asset.file).toBe(asset.sha256);
+      if (asset.file.endsWith('.png')) {
+        expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)], asset.file).toEqual([asset.width, asset.height]);
+        if (asset.targetSize) {
+          const scale = asset.file.endsWith('@2x.png') ? 2 : 1;
+          expect([asset.width, asset.height], asset.file).toEqual(asset.targetSize.map(value => value * scale));
+        }
+      }
+    }
+  });
+
+  it('200×40 유지 SVG로 만든 실패본은 200×40·400×80이며 40×8로 축소되지 않는다', () => {
+    for (const kind of ['single', 'double']) {
+      const file = `assets/sustain-${kind}-failed`;
+      expect(manifest.assets.find(asset => asset.file === `${file}.png`)).toMatchObject({ width: 200, height: 40, targetSize: [200, 40] });
+      expect(manifest.assets.find(asset => asset.file === `${file}@2x.png`)).toMatchObject({ width: 400, height: 80 });
+    }
+  });
+
+  it('더블 바디는 광선 x=84·116과 대기·전체 유지·좌우 미충족·전체 실패·좌우 실패 7개 상태를 구별한다', () => {
+    expect(group('body-double').beamCenters).toEqual([84, 116]);
+    expect(group('body-double').states.map(state => state.id).sort()).toEqual(['failed', 'held', 'idle', 'partial-failed-left', 'partial-failed-right', 'partial-held-left', 'partial-held-right']);
+    expect(new Set(group('body-double').states.map(state => state.file)).size).toBe(7);
+  });
+
+  it('J2-C는 대기·유지·부분 충족이 같은 그림을 참조해도 상태를 분리하며 좌우 실패와 합치지 않는다', () => {
+    const states = group('terminal-double').states;
+    const idle = states.find(state => state.id === 'idle')!;
+    for (const side of ['left', 'right']) {
+      expect(states.find(state => state.id === `partial-held-${side}`)).toMatchObject({ file: idle.file, aliasOf: 'idle', waitingSide: side });
+      expect(states.find(state => state.id === `partial-failed-${side}`)!.file).not.toBe(idle.file);
+    }
+  });
+
+  it('릴리즈·유지는 좌우 정상/실패 분리 파일을 제공하고 생성물의 입력은 같은 묶음 안에서 모두 찾을 수 있다', () => {
+    for (const role of ['release', 'sustain']) expect(group(`${role}-layers`).states.map(state => state.id).sort()).toEqual(['unit-left', 'unit-left-failed', 'unit-right', 'unit-right-failed']);
+    for (const asset of manifest.assets) for (const source of asset.sourceFiles ?? []) expect(readFileSync(new URL(source, here)).length).toBeGreaterThan(0);
+    expect(manifest.buildContract.missingRequestedStates).toEqual([]);
+    for (const asset of manifest.assets.filter(asset => asset.file.endsWith('.svg'))) expect(readFileSync(new URL(asset.file, here), 'utf8'), asset.file).not.toMatch(/\b(?:href|xlink:href)="(?!#|data:)/);
+  });
+});
