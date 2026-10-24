@@ -3,10 +3,15 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 interface Asset { file: string; bytes: number; sha256: string; width: number; height: number; targetSize?: number[]; generator?: string; sourceFiles?: string[] }
-interface State { id: string; file: string; aliasOf?: string; waitingSide?: string }
+interface State { id: string; file: string; aliasOf?: string; waitingSide?: string; alpha?: number }
 interface Group { id: string; states: State[]; beamCenters?: number[] }
+interface ReleaseSuccessPreview {
+  approval: string; targetSize: number[]; grace: boolean;
+  backgrounds: { id: string; file?: string }[];
+  progression: State[]; alternatives: State[];
+}
 const here = new URL('./', import.meta.url);
-const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; stateGroups: Group[]; buildContract: { missingRequestedStates: string[] } };
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; stateGroups: Group[]; releaseSuccessPreview: ReleaseSuccessPreview; buildContract: { missingRequestedStates: string[]; unapproved: string[] } };
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
@@ -55,6 +60,25 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     for (const side of ['left', 'right']) {
       expect(states.find(state => state.id === `partial-held-${side}`)).toMatchObject({ file: idle.file, aliasOf: 'idle', waitingSide: side });
       expect(states.find(state => state.id === `partial-failed-${side}`)!.file).not.toBe(idle.file);
+    }
+  });
+
+  it('더블 릴리즈 성공 시안은 같은 200×40 원본에 alpha 1→0.5→0을 적용하고 반쪽 숨김·일부 실패와 구별한다', () => {
+    const preview = manifest.releaseSuccessPreview;
+    expect(preview).toMatchObject({ approval: 'proposed-display-treatment', targetSize: [200, 40], grace: false });
+    expect(preview.progression.map(({ id, file, alpha }) => ({ id, file, alpha }))).toEqual([
+      { id: 'pending', file: 'assets/release-double.png', alpha: 1 },
+      { id: 'partial-success', file: 'assets/release-double.png', alpha: 0.5 },
+      { id: 'success', file: 'assets/release-double.png', alpha: 0 },
+    ]);
+    expect(preview.alternatives).toMatchObject([
+      { id: 'hide-left-success', file: 'assets/release-double-unit-right.png', alpha: 1 },
+      { id: 'left-failed', file: 'assets/release-double-partial-failed-left.png', alpha: 1 },
+    ]);
+    expect(preview.backgrounds).toMatchObject([{ id: 'solid' }, { id: 'body', file: 'assets/body-double-center-dual-beam.png' }]);
+    expect(manifest.buildContract.unapproved).toContain('더블 릴리즈 일부 성공의 전체 alpha 0.5');
+    for (const item of [...preview.progression, ...preview.alternatives, ...preview.backgrounds]) {
+      if (item.file) expect(manifest.assets.some(asset => asset.file === item.file), item.file).toBe(true);
     }
   });
 

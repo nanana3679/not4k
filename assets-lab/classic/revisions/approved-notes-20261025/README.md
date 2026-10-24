@@ -52,7 +52,7 @@
 | 중앙 두 광선 더블 바디 | 대기, 전체 유지, 좌/우 미충족, 전체 실패, 좌/우 실패 | 광선 중심 x=84·116 유지. 미충족 쪽은 대기색, 충족 쪽만 흰 코어. 실패한 쪽은 무채색 |
 | J2-C 싱글 | 대기, 전체 유지, 전체 실패 | 대기/유지는 같은 승인 PNG를 참조하는 시안 |
 | J2-C 더블 | 대기, 전체 유지, 좌/우 미충족, 전체 실패, 좌/우 실패 | 대기/유지/미충족은 같은 PNG를 참조하되 상태 레코드는 구별. 실패는 별도 이미지 |
-| M6 더블 누름 | 미처리, 전체 실패, 좌/우 일부 처리 | 일부 처리는 기존 렌더러처럼 정상 그림 + 전체 alpha 0.5를 참고. 두 기존 일부 실패 키가 정상 그림을 공유하는 제안이며 바디의 좌/우 실패 그림과 다름 |
+| M6 더블 누름 | 미처리, 전체 실패, 좌/우 일부 처리 | 이 자료의 일부 처리 시안은 정상 그림 + 전체 alpha 0.5. 실제 일반 더블 `Point`의 일부 성공 alpha 0.7과 구별하며 런타임 값은 바꾸지 않음. 두 기존 일부 실패 키가 정상 그림을 공유하는 제안이며 바디의 좌/우 실패 그림과 다름 |
 | D 유지 표식 | 싱글 전체 실패, 더블 전체 실패·좌/우 실패 | 정상 매듭의 좌표·투명 여백 유지. 별도 켜짐/Grace/트릴 유지 도안 없음 |
 | 릴리즈·유지 몫별 레이어 | 더블 좌/우 정상, 좌/우 실패를 각각 분리 | 한 몫 성공 뒤 나머지만 표시할 수 있는 자료. 기본 PNG는 두 레이어를 합치면 원본과 일치 |
 | 몫별 마스크 | 왼쪽, 오른쪽 200×40 알파 마스크 | 잘라낸 절반도 전체 바디 좌표를 유지하며 x 위치를 다시 중앙 정렬하지 않음 |
@@ -62,6 +62,17 @@
 새 상태 파일은 `body-double-held`, `body-double-partial-held-{left,right}`, `body-double-failed`, `body-double-partial-failed-{left,right}`, `terminal-{single,double}-failed`, `terminal-double-partial-failed-{left,right}`, `note-double-failed`, `sustain-{single,double}-failed`, `sustain-double-partial-failed-{left,right}`, `{sustain,release}-double-unit-{left,right}[-failed]`, `unit-mask-{left,right}` 이름으로 찾을 수 있다.
 
 ## 재생성 및 미리보기
+
+### 더블 릴리즈 일부 성공 · 전체 50% 시안
+
+[일부 성공 표시 검토 요청](https://github.com/nanana3679/not4k/pull/339#issuecomment-6390513121)에 따라 갤러리의 `#release-success`에서 일반 더블 릴리즈를 비교한다. `manifest.releaseSuccessPreview`에 원본·목표 크기·표시 알파·배경을 기록했다.
+
+- 성공 단계는 `assets/release-double.png` 하나에 표시 alpha **1 → 0.5 → 0**을 적용한다. 대기 → 일부 성공 → 모두 성공 숨김이며, 색·모양·위치·200×40 크기는 같다. 반투명 PNG를 중복 제작하지 않는다.
+- 대안 비교에서는 같은 전체 50% 시안 옆에 `release-double-unit-right.png`(왼쪽 성공 후 오른쪽만 남김)와 `release-double-partial-failed-left.png`(왼쪽 실패)를 각각 alpha 1로 놓는다. 일부 성공과 일부 실패는 별도 상태다.
+- 각 상태를 단색 배경 `#080c12`와 실제 `body-double-center-dual-beam.png` 바디 위에서 확인한다. 바디의 알파는 낮추지 않는다.
+- **50%는 미승인 시안**이다. 기존 `Point`·유지·바디 표시를 변경하는 결정이 아니며, Grace 외곽의 알파·표시 범위와 실패 표시 수명도 확정하지 않는다.
+
+### 생성 명령
 
 ```sh
 node assets-lab/classic/revisions/approved-notes-20261025/build-states.mjs
@@ -84,4 +95,4 @@ pnpm build:lab
 - 바디 완료, 각 릴리즈·유지 몫의 미처리/성공/실패/종속 0점을 구별한다. 성공한 몫을 숨기는 제안과 일부 실패는 다른 표시다. 실패 이미지의 존재가 입력 기회 유지나 새 Miss를 뜻하지 않는다.
 - 더블 바디 한 몫 실패 후 릴리즈가 하나라면 건강한 몫의 **싱글** 릴리즈를 사용한다. 바디가 더블이라고 무조건 더블 일부 실패 그림을 고르지 않는다. 2→1 감소에서 실패한 몫의 릴리즈는 별도 계약을 따른다.
 
-매니페스트의 `buildContract.missingRequestedStates`는 요청 자료 기준 빈 목록이다. `buildContract.unapproved`에는 새 색·강도, J2-C 그림 공유, 성공 몫 숨김, 실패·종속 0점의 표시 수명을 미승인 사항으로 구별했다. 실제 정책은 판정 문서와 새 모델 구현에서 결정하며 이 자료에서 바꾸지 않는다.
+매니페스트의 `buildContract.missingRequestedStates`는 요청 자료 기준 빈 목록이다. `buildContract.unapproved`에는 새 색·강도, J2-C 그림 공유, 더블 릴리즈 일부 성공의 전체 alpha 0.5, 성공 몫 숨김, 실패·종속 0점의 표시 수명을 미승인 사항으로 구별했다. 실제 정책은 판정 문서와 새 모델 구현에서 결정하며 이 자료에서 바꾸지 않는다.

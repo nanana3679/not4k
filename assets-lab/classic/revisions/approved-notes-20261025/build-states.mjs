@@ -131,6 +131,26 @@ try {
   for (const side of ['left', 'right']) masks.push(state(side, `${side === 'left' ? '왼쪽' : '오른쪽'} 몫 마스크`, await emit(`unit-mask-${side}`, halfMask(side), { role: '200×40 절반 알파 마스크', sourceFiles: [], operation: { side, alphaMask: true } })));
   group('unit-masks', '몫별 알파 마스크', masks);
 
+  manifest.releaseSuccessPreview = {
+    approval: 'proposed-display-treatment',
+    targetSize: [200, 40],
+    grace: false,
+    backgrounds: [
+      { id: 'solid', label: '단색 배경', color: '#080c12' },
+      { id: 'body', label: '더블 바디 위', color: '#080c12', file: 'assets/body-double-center-dual-beam.png' },
+    ],
+    progression: [
+      state('pending', '대기 · 전체 100%', 'assets/release-double.png', { alpha: 1 }),
+      state('partial-success', '일부 성공 · 전체 50%', 'assets/release-double.png', { alpha: 0.5 }),
+      state('success', '모두 성공 · 숨김', 'assets/release-double.png', { alpha: 0 }),
+    ],
+    alternatives: [
+      state('hide-left-success', '왼쪽 성공 · 오른쪽만 남김', 'assets/release-double-unit-right.png', { alpha: 1 }),
+      state('left-failed', '왼쪽 실패 · 일부 실패색', 'assets/release-double-partial-failed-left.png', { alpha: 1 }),
+    ],
+    note: '일반 더블 릴리즈의 일부 성공 비교 시안. 원본에 표시 알파만 적용하며 반투명 PNG를 만들지 않음. 50%·성공 몫 숨김·Grace 외곽·실패 표시 수명은 미확정.',
+  };
+
   // Original artwork is regenerated at explicit target sizes, or copied for raster masters.
   manifest.buildContract = {
     command: 'node assets-lab/classic/revisions/approved-notes-20261025/build-states.mjs',
@@ -142,7 +162,7 @@ try {
     grace: { sourcePadding: 24, referenceOnly: ['terminal-grace-overlay'], composeOnce: true },
     failureStyle: '무채색 + 밝기 45%; 시각 시안이며 표시 수명·판정 정책은 구현하지 않음',
     missingRequestedStates: [],
-    unapproved: ['새 상태별 색·강도', 'J2-C 유지/부분 충족의 대기 그림 재사용', '한 몫 성공 후 나머지 몫만 표시', '실패·종속 0점 표시 수명'],
+    unapproved: ['새 상태별 색·강도', 'J2-C 유지/부분 충족의 대기 그림 재사용', '더블 릴리즈 일부 성공의 전체 alpha 0.5', '한 몫 성공 후 나머지 몫만 표시', '실패·종속 0점 표시 수명'],
   };
   const assetsByFile = new Map(manifest.assets.map(asset => [asset.file, asset]));
   for (const asset of manifest.assets) {
