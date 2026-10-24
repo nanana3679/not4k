@@ -5,6 +5,8 @@ Chart editor 컨텍스트는 차트 제작자가 차트를 만들고 수정하�
 
 뗌을 요구하면서 타이밍 등급만 면제할 때는 **그레이스 릴리즈**, 뗌 자체를 요구하지 않을 때는 **릴리즈 없음**으로 구분한다([RFD 0035](../../docs/rfd/0035-release-presence-and-grace.md), 엔진·에디터 이행 전). 교대 up의 점수 손해를 Grace(`holdOnly`)로 면제하던 제작 지침은 이전 결정이다. 정의는 [glossary](../../docs/context/glossary.md#release-판정)를, 패턴별 적용 범위와 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)를 따르며, 자동 배치 금지는 별도 결정 없이 추가하지 않는다.
 
+유지 노트는 길이가 있는 바디와 길이 0 바디 위에 놓고, 싱글 표식 1개·더블 2개로 요구 수를 드러내며 바디와 같은 유지 조건을 충족하면 항상 Perfect인 점수 노트다. 정확한 배치 제약·편집 조작은 아직 구현하지 않았다([glossary](../../docs/context/glossary.md#유지-노트), [RFD 0036](../../docs/rfd/0036-sustain-notes.md)).
+
 ## Language
 
 **차트 편집기**:
