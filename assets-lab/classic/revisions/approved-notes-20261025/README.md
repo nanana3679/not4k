@@ -1,6 +1,6 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 확정 원본 46개와 상태별 시안 81개, 총 127개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 114개, 총 138개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
@@ -11,14 +11,15 @@
 | 누름 | ![기존 싱글](assets/note-single.png) | ![M6 70% 더블](assets/note-double-anodized-contrast-070.png) |
 | 대기 바디 | ![싱글 바디](assets/body-single.png) | ![중앙 두 광선 더블 바디](assets/body-double-center-dual-beam.png) |
 | 터미널 J2-C | ![싱글 터미널](assets/terminal-j2-shadow-3-single.png) | ![더블 터미널](assets/terminal-j2-shadow-3-double.png) |
-| 일반 릴리즈 | ![싱글 릴리즈](assets/release-single.png) | ![더블 릴리즈](assets/release-double.png) |
+| 일반 릴리즈 J2-C | ![싱글 릴리즈](assets/release-single.png) | ![더블 릴리즈](assets/release-double.png) |
 | 유지 노트 D | ![싱글 유지](assets/sustain-single.png) | ![더블 유지](assets/sustain-double.png) |
 
 - 싱글 누름은 기존 디자인을 유지한다. 더블 누름은 **M6 아노다이징 대비 70%**다.
 - 더블 바디는 바깥 면을 유지하고 중앙 영역만 넓혀 **42%·58%**에 두 광선을 둔다.
-- 터미널은 **J2-C**다. 광선 끝을 덮는 마감부이며 릴리즈 노트와 다른 에셋이다. PNG와 2배 PNG를 제공한다. 래스터 생성본이므로 벡터 원본은 없다. 새 실패 SVG는 PNG를 내장한 래퍼다.
+- **릴리즈도 마지막에 선택한 C안(J2-C)**으로 맞췄다. 초기 릴리즈 도안은 교체했다. `terminal-j2-shadow-3-{single,double}`에 보존된 선택 PNG를 `release-{single,double}.png`와 `@2x.png`로 바이트 그대로 복사한다. 릴리즈 SVG는 2배 PNG를 내장한 래퍼이며 벡터 원본이 아니다.
+- 바디 마감 자료도 같은 J2-C 도안을 참조하되 바디 마감과 명시적인 릴리즈의 역할·상태는 구별한다. 그림 공유가 일반 바디 끝에 릴리즈를 자동으로 붙이는 뜻은 아니다.
 - 유지 노트는 **D 매듭 1.8배**다. 싱글은 x=100, 더블은 x=84·116에 매듭을 둔다(200×40 기준). 투명 표식만 들어 있으므로 바디 위에 얹는다. 길이 0도 길이 0 바디 위에 같은 표식을 얹는 디자인이다.
-- Grace는 실제 윤곽을 따르는 별도 overlay다. 더블 릴리즈 일부 실패도 **전체 외곽**에 Grace를 둔다.
+- Grace는 실제 윤곽을 따르는 별도 overlay다. J2-C 원본의 모든 픽셀이 alpha 0.5 이상인 것을 검사하고, 그 **200×40 직사각 외곽 전체**에 검정 1px·흰색 1px·바깥 10px 번짐을 둔다. 더블 일부 실패도 반쪽이나 내부 이음선에 새 윤곽을 만들지 않는다.
 
 ## 파일과 제안 적용 경로
 
@@ -40,7 +41,7 @@
 | `trill-grace-overlay.png` | 같은 이름 / 트릴용 별도 키 검토 | 248×88, 마름모 윤곽 |
 | `terminal-grace-overlay.png` | 같은 이름 / `terminalGraceOverlay` | 248×88, 직사각형 윤곽 |
 
-`*-grace.png`는 overlay를 본체에 합친 참고본이다. 실제 렌더러에서 별도 overlay를 사용할 경우 합성본을 다시 겹쳐 그리지 않는다. `@2x.png`는 400×80이며 기본 PNG와 같은 비율로 배치한다. SVG는 기존 제작 좌표계인 1000×200 또는 1060×200을 주로 사용하고, 유지 노트 SVG의 표시 크기만 200×40이다. 개별 크기는 매니페스트를 따른다.
+`*-grace.png`는 overlay를 본체에 합친 참고본이다. 실제 렌더러에서 별도 overlay를 사용할 경우 합성본을 다시 겹쳐 그리지 않는다. 일반 `@2x.png`는 400×80, Grace의 2배 PNG는 496×176이며 기본 PNG와 같은 논리 크기로 배치한다. 릴리즈·유지 SVG의 표시 크기는 200×40, 릴리즈 Grace SVG는 248×88이다. 다른 SVG는 기존 제작 좌표계를 보존하므로 개별 크기는 매니페스트를 따른다.
 
 ## 상태별 보완 · 검토 중인 시안
 
@@ -57,7 +58,7 @@
 | 릴리즈·유지 몫별 레이어 | 더블 좌/우 정상, 좌/우 실패를 각각 분리 | 한 몫 성공 뒤 나머지만 표시할 수 있는 자료. 기본 PNG는 두 레이어를 합치면 원본과 일치 |
 | 몫별 마스크 | 왼쪽, 오른쪽 200×40 알파 마스크 | 잘라낸 절반도 전체 바디 좌표를 유지하며 x 위치를 다시 중앙 정렬하지 않음 |
 
-모든 새 시안은 기본 PNG·2배 PNG·SVG를 제공한다. 기본 크기는 바디·터미널·릴리즈·유지 200×40, M6 누름 212×40이다. 분리 레이어의 기본 PNG는 승인 PNG의 픽셀을 그대로 나누고, 2배 PNG와 SVG는 벡터 원본을 사용한다. 매니페스트의 `stateGroups`에 상태별 파일·공유 관계·미충족 방향을 기록했다. `PartialHeldLeft/Right`는 **미충족 쪽**, `PartialFailedLeft/Right`는 **실패한 쪽**이다. 물리 키나 손 소유권을 뜻하지 않는다.
+모든 새 시안은 기본 PNG·2배 PNG·SVG를 제공한다. 기본 크기는 바디·터미널·릴리즈·유지 200×40, M6 누름 212×40이다. 분리 레이어의 기본 PNG는 승인 PNG의 픽셀을 그대로 나누고, 유지의 2배 PNG와 SVG는 벡터 원본을 사용하고, 릴리즈는 J2-C 2배 PNG를 내장한 SVG에서 만든다. 매니페스트의 `stateGroups`에 상태별 파일·공유 관계·미충족 방향을 기록했다. `PartialHeldLeft/Right`는 **미충족 쪽**, `PartialFailedLeft/Right`는 **실패한 쪽**이다. 물리 키나 손 소유권을 뜻하지 않는다.
 
 새 상태 파일은 `body-double-held`, `body-double-partial-held-{left,right}`, `body-double-failed`, `body-double-partial-failed-{left,right}`, `terminal-{single,double}-failed`, `terminal-double-partial-failed-{left,right}`, `note-double-failed`, `sustain-{single,double}-failed`, `sustain-double-partial-failed-{left,right}`, `{sustain,release}-double-unit-{left,right}[-failed]`, `unit-mask-{left,right}` 이름으로 찾을 수 있다.
 
@@ -80,9 +81,9 @@ node assets-lab/classic/revisions/approved-notes-20261025/build-preview.mjs
 pnpm build:lab
 ```
 
-`build-states.mjs`는 이 묶음 안의 확정 원본만 읽는다. `state-artwork.mjs`는 SVG 필터·클립·흰 코어로 상태를 만들고, 출력할 때 **목표 크기를 직접 지정**한다. 기존 빌더의 SVG 자연 크기 ÷ 5 규칙을 쓰지 않으므로 200×40인 유지 SVG가 40×8로 줄어들지 않는다. J2-C 기본/유지는 PNG 복사 대상이며 실패 상태는 고해상도 PNG를 SVG 안에 포함한다. 확정 원본 46개는 재생성하지 않는다.
+`build-states.mjs`는 이 묶음 안의 확정 원본만 읽는다. `state-artwork.mjs`는 SVG 필터·클립·흰 코어로 상태를 만들고, 출력할 때 **목표 크기를 직접 지정**한다. 기존 빌더의 SVG 자연 크기 ÷ 5 규칙을 쓰지 않으므로 200×40인 유지 SVG가 40×8로 줄어들지 않는다. J2-C 릴리즈 정상본은 기본·2배 PNG를 그대로 복사하고, 실패·일부 실패·분리 레이어·Grace는 같은 원본에서 재생성한다. 보존 원본 24개는 재생성하지 않는다.
 
-더블 유지의 실패 몫 SVG는 정상 원본에 실패색과 좌우 클립을 한 번에 적용한다. 이미 생성한 실패 SVG를 다시 감싸면 내부 ID가 중복되어 투명하게 렌더링될 수 있다. 단위 테스트로 SVG별 ID 중복을 검사하고, 브라우저 테스트로 실패 몫의 SVG·2배 PNG에 표식이 보이며 반대편 알파는 0인지 확인한다. 기본 PNG의 좌우 재합성 검사도 유지한다.
+더블 릴리즈·유지의 실패 몫 SVG는 정상 원본에 실패색과 좌우 클립을 한 번에 적용한다. 이미 생성한 실패 SVG를 다시 감싸면 내부 ID가 중복되어 투명하게 렌더링될 수 있다. 단위 테스트로 SVG별 ID 중복을 검사하고, 브라우저 테스트로 실패 몫의 SVG·2배 PNG에 표식이 보이며 반대편 알파는 0인지 확인한다. 기본 PNG의 좌우 재합성 검사도 유지한다.
 
 `build-preview.mjs`가 `/lab/images/classic-approved-states-20261025/` 비교 화면과 다운로드 파일을 만든다. 바디 연결·시작 마감 반전·길이 0 바디+유지, 상태별 이미지, 한 몫만 남긴 모습과 전체 Grace 윤곽을 확인할 수 있다. 짧은 바디의 마감 겹침과 실패 그림의 수명은 새 모델의 실제 렌더러 연결 때 검증할 항목이다.
 

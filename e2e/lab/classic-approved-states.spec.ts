@@ -119,12 +119,12 @@ test('유지·릴리즈 좌우 레이어를 합치면 원래 PNG가 복원되고
   }
 });
 
-for (const side of ['left', 'right'] as const) for (const suffix of ['.svg', '@2x.png']) {
-  test(`더블 유지 ${side} 실패 몫의 ${suffix}를 400×80에 그리면 표식이 보이고 반대편 알파는 0이다`, async ({ page }) => {
+for (const role of ['sustain', 'release']) for (const side of ['left', 'right'] as const) for (const suffix of ['.svg', '@2x.png']) {
+  test(`더블 ${role} ${side} 실패 몫의 ${suffix}를 400×80에 그리면 표식이 보이고 반대편 알파는 0이다`, async ({ page }) => {
     await page.goto(route);
-    const result = await page.evaluate(async ({ side, suffix }) => {
+    const result = await page.evaluate(async ({ role, side, suffix }) => {
       const image = new Image();
-      image.src = `assets/sustain-double-unit-${side}-failed${suffix}`;
+      image.src = `assets/${role}-double-unit-${side}-failed${suffix}`;
       await image.decode();
       const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80;
       const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, 400, 80);
@@ -138,12 +138,75 @@ for (const side of ['left', 'right'] as const) for (const suffix of ['.svg', '@2
       }
       const centerX = side === 'left' ? 168 : 232;
       return { visiblePixels, hiddenAlpha, centerAlpha: data[(40 * 400 + centerX) * 4 + 3] };
-    }, { side, suffix });
+    }, { role, side, suffix });
     expect(result.visiblePixels).toBeGreaterThan(0);
     expect(result.centerAlpha).toBeGreaterThan(128);
     expect(result.hiddenAlpha).toBe(0);
   });
 }
+
+test('J2-C 릴리즈 실패는 알파·정상 절반을 보존하고 Grace는 실제 직사각 외곽 전체에만 남는다', async ({ page }) => {
+  await page.goto(route);
+  const results = await page.evaluate(async () => {
+    const read = async (file: string, width: number, height: number) => {
+      const image = new Image(); image.src = `assets/${file}`; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, width, height);
+      return context.getImageData(0, 0, width, height).data;
+    };
+    const results = [];
+    for (const suffix of ['.png', '.svg', '@2x.png']) {
+      const scale = suffix === '.png' ? 1 : 2, width = 200 * scale, height = 40 * scale;
+      for (const kind of ['single', 'double']) {
+        const original = await read(`release-${kind}${suffix}`, width, height);
+        let minimumAlpha = 255;
+        for (let i = 3; i < original.length; i += 4) minimumAlpha = Math.min(minimumAlpha, original[i]);
+        for (const side of ['all', ...(kind === 'double' ? ['left', 'right'] : [])]) {
+          const state = side === 'all' ? 'failed' : `partial-failed-${side}`;
+          const failed = await read(`release-${kind}-${state}${suffix}`, width, height);
+          let alphaError = 0, healthyError = 0, failedChroma = 0, failedBrightness = 0;
+          for (let i = 0; i < original.length; i += 4) {
+            alphaError = Math.max(alphaError, Math.abs(original[i + 3] - failed[i + 3]));
+            const left = (i / 4) % width < width / 2;
+            if (side === 'all' || (side === 'left' ? left : !left)) {
+              const rgb = failed.slice(i, i + 3);
+              failedChroma = Math.max(failedChroma, Math.max(...rgb) - Math.min(...rgb));
+              failedBrightness = Math.max(failedBrightness, ...rgb);
+            } else for (let channel = 0; channel < 3; channel++) healthyError = Math.max(healthyError, Math.abs(original[i + channel] - failed[i + channel]));
+          }
+          results.push({ file: `${kind}-${state}${suffix}`, minimumAlpha, alphaError, healthyError, failedChroma, failedBrightness });
+        }
+      }
+    }
+    const overlay = await read('release-grace-overlay.png', 248, 88);
+    const normalGrace = await read('release-double-grace.png', 248, 88);
+    let interiorAlpha = 0;
+    for (let y = 24; y < 64; y++) for (let x = 24; x < 224; x++) interiorAlpha = Math.max(interiorAlpha, overlay[(y * 248 + x) * 4 + 3]);
+    const edgeAlpha = [[22, 44], [225, 44], [124, 22], [124, 65]].map(([x, y]) => overlay[(y * 248 + x) * 4 + 3]);
+    let outlineDifference = 0, bodyDifference = 0;
+    for (const side of ['left', 'right']) {
+      const composite = await read(`release-double-partial-failed-${side}-grace.png`, 248, 88);
+      const body = await read(`release-double-partial-failed-${side}.png`, 200, 40);
+      for (let y = 0; y < 88; y++) for (let x = 0; x < 248; x++) for (let channel = 0; channel < 4; channel++) {
+        const pixel = composite[(y * 248 + x) * 4 + channel];
+        if (x >= 24 && x < 224 && y >= 24 && y < 64) bodyDifference = Math.max(bodyDifference, Math.abs(pixel - body[((y - 24) * 200 + x - 24) * 4 + channel]));
+        else outlineDifference = Math.max(outlineDifference, Math.abs(pixel - normalGrace[(y * 248 + x) * 4 + channel]));
+      }
+    }
+    return { states: results, interiorAlpha, edgeAlpha, outlineDifference, bodyDifference };
+  });
+  for (const result of results.states) {
+    expect(result.minimumAlpha, result.file).toBeGreaterThanOrEqual(128);
+    expect(result.alphaError, result.file).toBeLessThanOrEqual(1);
+    expect(result.healthyError, result.file).toBeLessThanOrEqual(1);
+    expect(result.failedChroma, result.file).toBeLessThanOrEqual(1);
+    expect(result.failedBrightness, result.file).toBeLessThan(120);
+  }
+  expect(results.interiorAlpha).toBe(0);
+  for (const alpha of results.edgeAlpha) expect(alpha).toBeGreaterThan(128);
+  expect(results.outlineDifference).toBeLessThanOrEqual(1);
+  expect(results.bodyDifference).toBeLessThanOrEqual(1);
+});
 
 test('Lab 목록에서 상태별 에셋을 열어 200×40·400×80 유지 실패본을 받고 390px에서도 길이 0 바디 위 표식만 본다', async ({ page }) => {
   await page.goto('/lab');

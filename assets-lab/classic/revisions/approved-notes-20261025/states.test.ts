@@ -15,9 +15,9 @@ const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
-  it('에셋 127개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
-    expect(manifest.assets).toHaveLength(127);
-    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(127);
+  it('에셋 138개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
+    expect(manifest.assets).toHaveLength(138);
+    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(138);
     for (const asset of manifest.assets) {
       const bytes = readFileSync(new URL(asset.file, here));
       expect(bytes.length, asset.file).toBe(asset.bytes);
@@ -29,6 +29,21 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
           expect([asset.width, asset.height], asset.file).toEqual(asset.targetSize.map(value => value * scale));
         }
       }
+    }
+  });
+
+  it('싱글·더블 릴리즈의 기본/2배 PNG는 최종 J2-C 원본과 바이트가 같고 SVG도 같은 2배 원본을 내장한다', () => {
+    for (const kind of ['single', 'double']) {
+      for (const suffix of ['.png', '@2x.png']) {
+        const original = readFileSync(new URL(`assets/terminal-j2-shadow-3-${kind}${suffix}`, here));
+        expect(readFileSync(new URL(`assets/release-${kind}${suffix}`, here)).equals(original)).toBe(true);
+      }
+      const original2x = readFileSync(new URL(`assets/terminal-j2-shadow-3-${kind}@2x.png`, here));
+      expect(readFileSync(new URL(`assets/release-${kind}.svg`, here), 'utf8')).toContain(`data:image/png;base64,${original2x.toString('base64')}`);
+    }
+    for (const asset of manifest.assets.filter(asset => asset.file.startsWith('assets/release-'))) {
+      expect(asset.generator, asset.file).toBe('build-states.mjs');
+      expect(asset.sourceFiles?.length, asset.file).toBeGreaterThan(0);
     }
   });
 

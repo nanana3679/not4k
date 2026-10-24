@@ -24,3 +24,16 @@ export function rasterArtwork(bytes, width = 200, height = 40) {
 export function halfMask(side, width = 200, height = 40) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect x="${side === 'left' ? 0 : width / 2}" width="${width / 2}" height="${height}" fill="#fff"/></svg>\n`;
 }
+
+// J2-C's alpha silhouette fills its 200×40 rectangular bounds (verified by pixel tests).
+// Keep the established 1px black + 1px white border and 10px fading halo outside it.
+export function rectangularGraceArtwork(source, { overlayOnly = false } = {}) {
+  const stroke = (distance, color, opacity = 1) => `<use href="#release-grace-shape" fill="none" stroke="${color}" stroke-width="${distance * 2}" stroke-linejoin="round" opacity="${opacity}"/>`;
+  let halo = '', previousAlpha = 0;
+  for (let step = 50; step >= 1; step--) {
+    const alpha = .8 * (1 - (step - .5) / 50);
+    halo += stroke(2 + step * .2, '#fff', ((alpha - previousAlpha) / (1 - previousAlpha)).toFixed(6));
+    previousAlpha = alpha;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="248" height="88" viewBox="0 0 248 88" role="img" aria-label="J2-C 릴리즈 전체 외곽 Grace"><defs><rect id="release-grace-shape" width="200" height="40"/><mask id="release-grace-outside" maskUnits="userSpaceOnUse" x="-24" y="-24" width="248" height="88" style="mask-type:luminance"><rect x="-24" y="-24" width="248" height="88" fill="#fff"/><use href="#release-grace-shape" fill="#000"/></mask></defs><g transform="translate(24 24)"><g mask="url(#release-grace-outside)">${halo}${stroke(2, '#fff')}${stroke(1, '#000')}</g>${overlayOnly ? '' : source}</g></svg>\n`;
+}
