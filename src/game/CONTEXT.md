@@ -20,6 +20,8 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 
 풀 정의는 [glossary](../../docs/context/glossary.md#롱노트-판정-모델), 채택 근거는 [RFD 0020](../../docs/rfd/0020-note-judgment-units-and-inheritance.md), 입력별 기대 결과는 [판정 사례 명세](../../docs/spec/note-judgment-cases.md)를 따른다. 현재 엔진과 상세 구현 명세의 이행 상태는 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 
+유지 노트는 바디 위 특정 시점의 유지 상태를 확인하기 위해 설계 중인 별도 노트다. 판정·점수·실패 후 복구 계약은 아직 정하지 않았으며 기존 엔진에 구현하지 않았다([glossary](../../docs/context/glossary.md#유지-노트), [RFD 0036](../../docs/rfd/0036-sustain-notes.md)).
+
 ## Language
 
 **플레이 세션**:
