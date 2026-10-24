@@ -2,6 +2,38 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('더블 포인트는 200px 바디 중심에 212px로 놓이며 일부 성공 70%·모두 성공 숨김에도 바디는 그대로다', async ({ page }) => {
+  await page.goto(route);
+  await page.getByRole('link', { name: '포인트 일부 성공', exact: true }).click();
+  const section = page.locator('#point-success');
+  await expect(section.getByRole('heading', { name: '더블 포인트 · 일부 성공 비교' })).toBeVisible();
+  for (const [id, alpha] of [['pending', '1'], ['partial-success', '0.7'], ['success', '0']] as const) {
+    for (const background of ['solid', 'body']) {
+      const stage = section.locator(`[data-state="${id}"] [data-background="${background}"]`);
+      const image = stage.locator('img');
+      await image.scrollIntoViewIfNeeded();
+      await image.evaluate((image: HTMLImageElement) => image.decode());
+      await expect(image).toHaveAttribute('src', 'assets/note-double-anodized-contrast-070.png');
+      await expect(image).toHaveCSS('opacity', alpha);
+      await expect(image).toHaveCSS('filter', 'none');
+      await expect(stage).toHaveCSS('opacity', '1');
+      await expect(stage).toHaveCSS('background-size', '200px 40px');
+      await expect(stage).toHaveCSS('background-position', '50% 0%');
+      await expect(stage).toHaveCSS('background-repeat', 'repeat-y');
+      await expect(stage).toHaveCSS('background-image', background === 'solid' ? 'none' : /body-double-center-dual-beam\.png/);
+      expect(await image.evaluate(image => {
+        const rect = image.getBoundingClientRect(), parent = image.parentElement!.getBoundingClientRect();
+        return [rect.width, rect.height, parent.width, rect.left - parent.left, rect.top - parent.top];
+      })).toEqual([212, 40, 212, 0, 32]);
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await section.scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  const columns = await section.locator('article').evaluateAll(articles => articles.map(article => article.getBoundingClientRect().left));
+  expect(new Set(columns).size).toBe(1);
+});
+
 test('더블 릴리즈 일부 성공은 단색·바디 위에서 같은 200×40 원본의 양쪽을 70%로 남기고 모두 성공하면 숨긴다', async ({ page }) => {
   await page.goto(route);
   await page.getByRole('link', { name: '릴리즈 일부 성공', exact: true }).click();

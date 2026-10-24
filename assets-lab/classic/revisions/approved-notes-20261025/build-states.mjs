@@ -101,9 +101,9 @@ try {
   group('point-double', 'M6 70% 더블 누름', [
     state('pending', '미처리', 'assets/note-double-anodized-contrast-070.png', { skinKey: 'noteDouble' }),
     state('failed', '전체 실패', failedM6, { skinKey: 'noteDoubleFailed' }),
-    state('partial-left', '일부 처리 · 전체 alpha 0.5', 'assets/note-double-anodized-contrast-070.png', { skinKey: 'noteDoublePartialFailedLeft', aliasOf: 'pending', alpha: 0.5 }),
-    state('partial-right', '일부 처리 · 전체 alpha 0.5', 'assets/note-double-anodized-contrast-070.png', { skinKey: 'noteDoublePartialFailedRight', aliasOf: 'pending', alpha: 0.5 }),
-  ], { targetSize: [212, 40], note: '기존 누름 렌더러의 일부 처리 alpha 방식을 참고한 도안 공유. 좌우 실패 바디와 다른 표시.' });
+    state('partial-left', '일부 처리 · 전체 70%', 'assets/note-double-anodized-contrast-070.png', { skinKey: 'noteDoublePartialFailedLeft', aliasOf: 'pending', alpha: 0.7 }),
+    state('partial-right', '일부 처리 · 전체 70%', 'assets/note-double-anodized-contrast-070.png', { skinKey: 'noteDoublePartialFailedRight', aliasOf: 'pending', alpha: 0.7 }),
+  ], { targetSize: [212, 40], note: '일반 더블 포인트의 일부 성공과 같은 전체 alpha 0.7로 표시. 기존 일부 실패 키의 정상 도안 공유는 제안이며 좌우 실패 바디와 다른 표시.' });
 
   for (const kind of ['single', 'double']) {
     const cap = kind === 'single' ? 'Single' : 'Double';
@@ -160,6 +160,21 @@ try {
   const masks = [];
   for (const side of ['left', 'right']) masks.push(state(side, `${side === 'left' ? '왼쪽' : '오른쪽'} 몫 마스크`, await emit(`unit-mask-${side}`, halfMask(side), { role: '200×40 절반 알파 마스크', sourceFiles: [], operation: { side, alphaMask: true } })));
   group('unit-masks', '몫별 알파 마스크', masks);
+
+  manifest.pointSuccessPreview = {
+    targetSize: [212, 40],
+    bodySize: [200, 40],
+    backgrounds: [
+      { id: 'solid', label: '단색 배경', color: '#080c12' },
+      { id: 'body', label: '더블 바디 위', color: '#080c12', file: 'assets/body-double-center-dual-beam.png' },
+    ],
+    progression: [
+      state('pending', '대기 · 전체 100%', 'assets/note-double-anodized-contrast-070.png', { alpha: 1 }),
+      state('partial-success', '일부 성공 · 전체 70%', 'assets/note-double-anodized-contrast-070.png', { alpha: 0.7 }),
+      state('success', '모두 성공 · 숨김', 'assets/note-double-anodized-contrast-070.png', { alpha: 0 }),
+    ],
+    note: '선택한 M6 도안에 일반 더블 포인트의 표시 alpha 1→0.7→0을 적용. 바디와 중심을 맞추고 포인트가 양옆으로 6px씩 나오며 바디 알파는 유지.',
+  };
 
   manifest.releaseSuccessPreview = {
     approval: 'proposed-display-treatment',

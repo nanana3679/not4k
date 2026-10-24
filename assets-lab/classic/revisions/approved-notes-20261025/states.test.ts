@@ -10,8 +10,13 @@ interface ReleaseSuccessPreview {
   backgrounds: { id: string; file?: string }[];
   progression: State[]; alternatives: State[];
 }
+interface PointSuccessPreview {
+  targetSize: number[]; bodySize: number[];
+  backgrounds: { id: string; file?: string }[];
+  progression: State[];
+}
 const here = new URL('./', import.meta.url);
-const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; stateGroups: Group[]; releaseSuccessPreview: ReleaseSuccessPreview; buildContract: { missingRequestedStates: string[]; unapproved: string[] } };
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; buildContract: { missingRequestedStates: string[]; unapproved: string[] } };
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
@@ -76,6 +81,21 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
       expect(states.find(state => state.id === `partial-held-${side}`)).toMatchObject({ file: idle.file, aliasOf: 'idle', waitingSide: side });
       expect(states.find(state => state.id === `partial-failed-${side}`)!.file).not.toBe(idle.file);
     }
+  });
+
+  it('더블 포인트는 M6 212×40 원본에 alpha 1→0.7→0을 적용하고 바디 폭 200을 유지한다', () => {
+    const preview = manifest.pointSuccessPreview;
+    expect(preview).toMatchObject({ targetSize: [212, 40], bodySize: [200, 40] });
+    expect(preview.progression.map(({ id, file, alpha }) => ({ id, file, alpha }))).toEqual([
+      { id: 'pending', file: 'assets/note-double-anodized-contrast-070.png', alpha: 1 },
+      { id: 'partial-success', file: 'assets/note-double-anodized-contrast-070.png', alpha: 0.7 },
+      { id: 'success', file: 'assets/note-double-anodized-contrast-070.png', alpha: 0 },
+    ]);
+    expect(preview.backgrounds).toMatchObject([{ id: 'solid' }, { id: 'body', file: 'assets/body-double-center-dual-beam.png' }]);
+    for (const item of [...preview.progression, ...preview.backgrounds]) {
+      if (item.file) expect(manifest.assets.some(asset => asset.file === item.file), item.file).toBe(true);
+    }
+    for (const side of ['left', 'right']) expect(group('point-double').states.find(state => state.id === `partial-${side}`)).toMatchObject({ aliasOf: 'pending', alpha: 0.7 });
   });
 
   it('더블 릴리즈 성공 시안은 같은 200×40 원본에 alpha 1→0.7→0을 적용하고 반쪽 숨김·일부 실패와 구별한다', () => {
