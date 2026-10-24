@@ -20,7 +20,7 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 
 풀 정의는 [glossary](../../docs/context/glossary.md#롱노트-판정-모델), 채택 근거는 [RFD 0020](../../docs/rfd/0020-note-judgment-units-and-inheritance.md), 입력별 기대 결과는 [판정 사례 명세](../../docs/spec/note-judgment-cases.md)를 따른다. 현재 엔진과 상세 구현 명세의 이행 상태는 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 
-유지 노트는 바디 위 특정 시점의 유지 상태를 확인하기 위해 설계 중인 별도 노트다. 바디 실패 시 해당 바디의 미처리 유지 노트 기회가 사라지고 노트 없는 재누름으로 복구되지 않으며, 해당 유지 노트에서 실패 페널티를 중복 적용하지 않는다. 뒤 포인트를 유효하게 처리해 새 바디를 시작하면 그 뒤 유지 노트는 판정할 수 있다. 나머지 판정·점수 계약은 미정이며 기존 엔진에 구현하지 않았다([glossary](../../docs/context/glossary.md#유지-노트), [RFD 0036](../../docs/rfd/0036-sustain-notes.md)).
+유지 노트는 바디와 같은 유지 조건을 이른 down·해당 위치에서의 유지·늦은 down으로 확인해 항상 Perfect로 정산하는 별도 점수 노트다. 바디 실패로 기회가 소멸한 미처리 유지 노트는 재누름으로 복구되지 않고 추가 실패 페널티 없이 0점으로 정산하며, 뒤 포인트로 시작한 새 바디의 유지 노트는 판정할 수 있다([glossary](../../docs/context/glossary.md#유지-노트), [RFD 0036](../../docs/rfd/0036-sustain-notes.md), 엔진 이행 전).
 
 ## Language
 
