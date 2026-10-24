@@ -3,7 +3,7 @@ import { supabase } from '../../supabase';
 import { useGameStore } from '../stores';
 import type { PlaybackRange } from '../../shared';
 import type { DbSong } from '../screens/songSelect/types';
-import { filterVisibleSongs, findRestoredFocus, resolveGameplayRange, shouldBlockSongNavKey, sortChartsByDifficulty } from '../screens/songSelect/helpers';
+import { filterVisibleSongs, findRestoredFocus, resolveGameplayRange, shouldBlockSongNavKey, shouldPreventSongNavKeyDefault, sortChartsByDifficulty } from '../screens/songSelect/helpers';
 
 const NAV_COOLDOWN = 100; // ms
 
@@ -163,7 +163,13 @@ export function useSongNavigation(options: {
         hasPendingChartTarget: newChartTarget !== null,
         songsEmpty: songs.length === 0,
         key: e.key,
-      })) return;
+        defaultPrevented: e.defaultPrevented,
+        repeat: e.repeat,
+      })) {
+        // 자동 반복이라 막은 Enter는 포커스된 버튼을 다시 누르는 브라우저 기본 동작도 막는다(Escape는 그대로 둔다).
+        if (shouldPreventSongNavKeyDefault({ key: e.key, repeat: e.repeat, target: e.target })) e.preventDefault();
+        return;
+      }
 
       if (e.key === 'ArrowUp') {
         e.preventDefault();

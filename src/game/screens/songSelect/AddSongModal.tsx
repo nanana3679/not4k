@@ -14,6 +14,7 @@ import type { PreviewRangeState } from '../../../editor/components/PreviewRangeS
 import { font, color, surface, radius } from '../../../shared/theme';
 import { modalStyles } from './modalStyles';
 import { generateSongId } from './helpers';
+import { useEscapeToClose } from './useEscapeToClose';
 
 const filePickerStyles: Record<string, React.CSSProperties> = {
   field: {
@@ -162,6 +163,7 @@ export function AddSongModal({ onDone, onClose, addToast }: AddSongModalProps) {
   const [previewRange, setPreviewRange] = useState<PreviewRangeState | null>(null);
   const [gameplayRange, setGameplayRange] = useState<PreviewRangeState | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  useEscapeToClose(onClose, { disabled: submitting });
 
   const handleAudioChange = async (file: File | null) => {
     setAudioFile(file);

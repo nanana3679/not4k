@@ -109,22 +109,54 @@ export function getCircularDistance(a: number, b: number, total: number): number
 }
 
 /**
- * 곡 선택 키보드 네비게이션(화살표/Enter/Escape)을 무시해야 하는지 판정한다.
+ * 곡 선택 키보드 네비게이션(화살표/Enter/Escape)을 무시해야 하는지 정한다.
  *
  * 곡 선택 위에 차단성 오버레이(설정 모달, 추가/삭제/난이도 모달 등)가 떠 있으면
  * 그 아래 곡 네비가 살아있으면 안 된다. 특히 모달 안에서 누른 Enter가 게임을 시작하거나
  * Escape가 타이틀로 이탈하는 회귀를 막는다. 곡이 없을 때는 Escape(뒤로가기)만 허용한다.
+ *
+ * 다른 리스너가 이미 처리한(`defaultPrevented`) 키는 리스너 등록 순서와 상관없이 무시한다.
+ * 모달이 Escape로 닫히며 처리한 같은 이벤트가 타이틀 이탈로 이어지지 않게 한다.
+ * Escape·Enter 자동 반복(`repeat`)도 무시한다. 모달을 닫은 Escape나 모달의 Close·Cancel을 누른 Enter를
+ * 누르고 있으면 반복 keydown이 곡 선택에 닿아 타이틀로 나가거나 게임을 시작하기 때문이다. 첫 Enter가 이미
+ * 화면을 떠나므로 Enter 반복은 곡 선택에서 쓸 일이 없다. 방향키 반복은 곡을 계속 넘기도록 그대로 둔다.
  */
 export function shouldBlockSongNavKey(params: {
   blockingModalOpen: boolean;
   hasPendingChartTarget: boolean;
   songsEmpty: boolean;
   key: string;
+  defaultPrevented: boolean;
+  repeat: boolean;
 }): boolean {
-  const { blockingModalOpen, hasPendingChartTarget, songsEmpty, key } = params;
+  const { blockingModalOpen, hasPendingChartTarget, songsEmpty, key, defaultPrevented, repeat } = params;
+  if (defaultPrevented) return true;
+  if (repeat && (key === 'Escape' || key === 'Enter')) return true;
   if (blockingModalOpen || hasPendingChartTarget) return true;
   if (songsEmpty && key !== 'Escape') return true;
   return false;
+}
+
+/**
+ * 곡 선택 네비가 자동 반복이라 막은 Enter의 브라우저 기본 동작(포커스된 버튼 누르기)도 막아야 하는지 정한다.
+ *
+ * 모달을 닫으면 포커스가 모달을 연 버튼으로 돌아오므로, Cancel에서 누르고 있던 Enter의 반복 keydown이
+ * 그 버튼을 다시 눌러 모달을 다시 열 수 있다. 같은 이유로 모달 안 버튼도 Enter를 누르고 있어도 한 번만 눌린다.
+ * 여러 줄 글 입력(textarea·contenteditable)에서는 Enter가 줄바꿈이라 막지 않는다. 한 줄 input에서는 반복되는
+ * 암묵적 제출만 생기므로 막는다. `target`은 keydown의 `event.target`이다.
+ *
+ * Escape 반복은 막지 않는다. 버튼은 Escape에 기본 동작이 없고, 막으면 곡 선택 네비 뒤에 다시 등록된 모달
+ * 리스너(`useEscapeToClose`는 처리된 키를 무시한다)가 누르고 있는 Escape로 모달을 닫지 못한다.
+ */
+export function shouldPreventSongNavKeyDefault(params: { key: string; repeat: boolean; target: unknown }): boolean {
+  return params.repeat && params.key === 'Enter' && !isMultilineTextTarget(params.target);
+}
+
+/** Enter가 줄바꿈인 여러 줄 글 입력 요소(textarea·contenteditable)인지. */
+function isMultilineTextTarget(target: unknown): boolean {
+  if (typeof target !== 'object' || target === null) return false;
+  const element = target as { tagName?: unknown; isContentEditable?: unknown };
+  return element.tagName === 'TEXTAREA' || element.isContentEditable === true;
 }
 
 export interface SongCardFocusState {
