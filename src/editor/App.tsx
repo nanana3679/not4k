@@ -16,7 +16,7 @@ import { useAuth } from '../shared/hooks/useAuth';
 import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { serializeExtraNotes, parseExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
-import { hiddenViolationLanes } from './stores/unifiedNotes';
+import { hiddenViolationLaneMessages, hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex, mainNotes, maxAuxLane, auxNotesAsExtra, withAuxNotes } from '../shared';
 import { supabase } from '../supabase';
 import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
@@ -32,7 +32,7 @@ import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
-import { getEditorAudioLoadingSurface } from './editorLoading';
+import { extraLaneCountCoveringTrillZones, getEditorAudioLoadingSurface } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
@@ -161,6 +161,11 @@ export default function EditorApp() {
         // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
         useEditorStore.getState().loadChart(merged);
         if (mergedExtraLaneCount > 0) useEditorStore.getState().setExtraLaneCount(mergedExtraLaneCount);
+        // 보조 레인 trillZone(#102)은 숨으면 선택·삭제할 수 없어 저장이 막힌 채 남는다 — 보조 파일이
+        // 없어도 존이 보이게 보조 레인 수를 넓힌다(줄이지 않음).
+        const loadedExtraLaneCount = useEditorStore.getState().extraLaneCount;
+        const zoneExtraLaneCount = extraLaneCountCoveringTrillZones(loadedExtraLaneCount, merged.trillZones);
+        if (zoneExtraLaneCount !== loadedExtraLaneCount) useEditorStore.getState().setExtraLaneCount(zoneExtraLaneCount);
         setActiveSongId(songId);
         resetHistory();
 
@@ -957,23 +962,19 @@ function ChartEditorPage() {
             <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#ccc' }}>
               차트에 {validationErrors.length}건의 제약 조건 위반이 발견되어 저장할 수 없습니다.
             </p>
-            {(() => {
-              // 숨은 보조 레인 위반 안내 (RFD 0018 §8-7): 레인 수 축소로 화면에 없는
-              // 노트가 저장을 막을 때, 그 사실과 필요한 보조 레인 수를 명시한다.
-              const hidden = hiddenViolationLanes(
-                validationErrors,
-                chart.notes,
-                extraLaneCount,
-              );
-              if (hidden.length === 0) return null;
-              const needed = toAuxIndex(Math.max(...hidden));
-              return (
-                <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#e8a33d' }}>
-                  숨은 보조 레인({hidden.map((l) => toAuxIndex(l)).join(', ')})의 위반이 포함되어
-                  있습니다 — 보조 레인 수를 {needed} 이상으로 늘리면 보입니다.
-                </p>
-              );
-            })()}
+            {/* 숨은 보조 레인 위반 안내 (RFD 0018 §8-7): 레인 수 축소로 화면에 없는 노트·보조 레인
+                trillZone이 저장을 막을 때 필요한 보조 레인 수를 알리고, 보조 레인 수 상한(10) 너머
+                레인은 차트 파일을 직접 고치라고 알린다(#102). */}
+            {hiddenViolationLaneMessages(hiddenViolationLanes(
+              validationErrors,
+              chart.notes,
+              extraLaneCount,
+              chart.trillZones,
+            )).map((message) => (
+              <p key={message} style={{ fontSize: '13px', margin: '0 0 12px', color: '#e8a33d' }}>
+                {message}
+              </p>
+            ))}
             <div style={{ overflow: 'auto', flex: 1, marginBottom: '16px' }}>
               {validationErrors.map((err, i) => (
                 <div key={i} style={{ padding: '6px 8px', marginBottom: '4px', backgroundColor: '#1a1a1a', borderRadius: '4px', fontSize: '12px', borderLeft: '3px solid #cc3333' }}>

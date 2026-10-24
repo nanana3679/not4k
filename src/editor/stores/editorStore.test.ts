@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { beat } from '../../shared';
+import { beat, validateChart } from '../../shared';
 import type { Chart, Lane } from '../../shared';
 import { useEditorStore } from './editorStore';
 import { emptySelection } from './selectionSlice';
@@ -151,6 +151,28 @@ describe('editorStore 차트 변이 게이트', () => {
     expect(useEditorStore.getState().chart.restZones).toHaveLength(1); // 낙관적으로 커밋됨
     expect(useEditorStore.getState().historyPast).toHaveLength(1); // undo로 복귀 가능
     expect(useEditorStore.getState().lastValidSnapshot).toBeNull(); // 전체 valid 아님 — 씨앗 미갱신 (게이트가 restZones를 봄)
+  });
+
+  it('보조 레인(lane 5) trillZone 차트 setChart는 구조 거부 없이 커밋되고 lastValidSnapshot은 null 유지, validateChart는 trillZoneMainOnly 1건', () => {
+    // 외부·레거시 파일로만 들어오는 값(TrillZone.lane 타입은 1..4) — RFD 0018 §3-2, #102
+    const auxZoneChart: Chart = {
+      ...makeChart(),
+      trillZones: [{ lane: 5, beat: beat(0, 1), endBeat: beat(4) }] as unknown as Chart['trillZones'],
+    };
+
+    useEditorStore.getState().setChart(auxZoneChart);
+
+    const { chart, historyPast, lastValidSnapshot } = useEditorStore.getState();
+    expect(chart).toBe(auxZoneChart); // 구조 위반 아님 — 낙관적으로 커밋됨
+    expect(historyPast).toHaveLength(1); // undo로 복귀 가능
+    expect(lastValidSnapshot).toBeNull(); // 전체 valid 아님 — 씨앗 미갱신
+    // 저장 게이트(useFileOperations)와 플레이 진입 게이트가 호출하는 같은 검증이 위반을 낸다
+    expect(validateChart({
+      notes: chart.notes,
+      trillZones: chart.trillZones,
+      restZones: chart.restZones,
+      events: chart.events,
+    }).map((e) => e.rule)).toEqual(['trillZoneMainOnly']);
   });
 
   it('loadChart는 위반 차트도 수용한다 — 열람·수리용 예외 통로', () => {

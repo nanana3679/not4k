@@ -27,7 +27,7 @@ import type {
   StopEvent,
 } from "../types/chart";
 import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
-import { isMainLane } from "../chart/laneAxis";
+import { isAuxLane, isMainLane, MAIN_LANE_COUNT } from "../chart/laneAxis";
 
 export interface ValidationError {
   rule:
@@ -36,6 +36,7 @@ export interface ValidationError {
     | "trillExclusive"
     | "trillLongInvalid"
     | "trillZoneOverlap"
+    | "trillZoneMainOnly"
     | "restZoneOverlap"
     | "restZoneExclusive"
     | "eventOverlap"
@@ -519,6 +520,36 @@ export function validateRestZoneExclusive(
         });
       }
     }
+  }
+
+  return errors;
+}
+
+// ---------------------------------------------------------------------------
+// 규칙 4-3: trillZone 메인 레인 전용 (RFD 0018 §3-2)
+// ---------------------------------------------------------------------------
+
+/**
+ * trillZone은 메인 레인(1..4)에만 존재할 수 있다. 보조 레인(5+)은 판정 없는 표시 전용이라
+ * 트릴 계열 규칙도 메인 레인만 본다(RFD 0018 §3-2).
+ *
+ * `TrillZone.lane` 타입(`Lane`)과 에디터 생성·이동 경로가 막으므로 보조 레인 존은 외부·레거시
+ * 파일로만 새로 들어오고, 복사·붙여넣기는 이미 있는 것을 같은 레인에 복제할 수 있다. 데이터로는
+ * 성립하고 크래시도 없어 구조가 아니라 의미 위반이다(RFD 0017 §3-1) — 편집 중에는 transient로
+ * 허용해 고칠 수 있게 하고, 저장·플레이 진입 게이트가 막는다. 정수 보조 레인(`isAuxLane`)만
+ * 잡고, 하한 이탈·비정수 lane은 구조 검증(`laneMalformed`)에 맡겨 두 번 보고하지 않는다.
+ */
+export function validateTrillZoneMainOnly(trillZones: readonly TrillZone[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  for (let i = 0; i < trillZones.length; i++) {
+    const z = trillZones[i];
+    if (!isAuxLane(z.lane)) continue;
+    errors.push({
+      rule: "trillZoneMainOnly",
+      message: `Trill zone (${z.beat.n}/${z.beat.d}~${z.endBeat.n}/${z.endBeat.d}) on lane ${z.lane} is outside the main lanes (1-${MAIN_LANE_COUNT})`,
+      refs: [zoneRef(i)],
+    });
   }
 
   return errors;
@@ -1011,8 +1042,10 @@ export function validateLaneWellFormed(
     }
   }
 
-  // restZone은 가시 레인 1~4 전용(RFD 0019 §4-1) — 노트·트릴존과 달리 보조 레인
-  // 확장이 없으므로 상한(lane > 4)도 구조 수준에서 거부한다.
+  // restZone은 가시 레인 1~4 전용(RFD 0019 §4-1) — 노트와 달리 보조 레인
+  // 확장이 없으므로 상한(lane > 4)도 구조 수준에서 거부한다(RFD 0019 Phase 2).
+  // 같은 메인 레인 전용인 trillZone의 lane > 4는 구조가 아니라 의미 위반(`trillZoneMainOnly`, #102)이라
+  // 편집 중 허용된다.
   for (let i = 0; i < restZones.length; i++) {
     const lane = restZones[i].lane;
     if (!Number.isInteger(lane) || lane < 1 || lane > 4) {
@@ -1069,6 +1102,7 @@ export function validateChartSemantic(input: ChartValidationInput): ValidationEr
     ...validateTrillLong(input.notes),
     ...validateNoteJudgmentConstraints(input.notes),
     ...validateNoTrillZoneOverlap(input.trillZones),
+    ...validateTrillZoneMainOnly(input.trillZones),
     ...validateNoRestZoneOverlap(restZones),
     ...validateRestZoneExclusive(input.notes, input.trillZones, restZones),
     ...validateNoEventDuplicate(input.events),

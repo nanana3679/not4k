@@ -9,7 +9,7 @@ import {
   type Selection,
   type SelectionSlice,
 } from './selectionSlice';
-import { beat } from '../../shared';
+import { beat, validateChart } from '../../shared';
 import type { Chart, NoteEntity, TrillZone, RestZone } from '../../shared';
 
 // ---------------------------------------------------------------------------
@@ -449,6 +449,24 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
     });
     useEditorStore.getState().setSelection(sel({ zones: new Set([0]) }));
     useEditorStore.getState().clearSelection();
+    expect(useEditorStore.getState().selection.zones).toEqual(new Set([0]));
+  });
+
+  it('lane 5 trillZone 유닛 선택(zones {0})에서 clearSelection은 trillZoneMainOnly로 거부되어 zones {0} 유지', () => {
+    const auxZoneChart: Chart = {
+      ...makeFullChart([]),
+      trillZones: [{ lane: 5, beat: beat(0), endBeat: beat(4) }] as unknown as TrillZone[],
+    };
+    useEditorStore.setState({ chart: auxZoneChart, selection: emptySelection() });
+    // 차트의 유일한 위반이 trillZoneMainOnly — 거부 사유가 이 규칙임을 고정한다 (#102)
+    expect(validateChart({
+      notes: auxZoneChart.notes,
+      trillZones: auxZoneChart.trillZones,
+      events: auxZoneChart.events,
+    }).map((e) => e.rule)).toEqual(['trillZoneMainOnly']);
+
+    expect(useEditorStore.getState().setSelection(sel({ zones: new Set([0]) }))).toBe(true); // ∅→{0}
+    expect(useEditorStore.getState().clearSelection()).toBe(false); // 위반 존 놓기 = 거부
     expect(useEditorStore.getState().selection.zones).toEqual(new Set([0]));
   });
 
