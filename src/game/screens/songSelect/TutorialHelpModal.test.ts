@@ -1,6 +1,7 @@
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { useGameStore } from '../../stores';
 import { TutorialHelpModal } from './TutorialHelpModal';
 import {
   TUTORIAL_VIEWED_STORAGE_KEY,
@@ -16,6 +17,13 @@ import tutorialViewedCacheSource from './tutorialViewedCache.ts?raw';
 function countOccurrences(source: string, pattern: string): number {
   return source.split(pattern).length - 1;
 }
+
+const defaultSettings = useGameStore.getInitialState().settings;
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  useGameStore.getInitialState().settings = defaultSettings;
+});
 
 describe('TutorialHelpModal', () => {
   it('팝업을 열면 Basic 탭과 연결된 패널을 선택하고 Advanced 탭은 비선택으로 표시한다', () => {
@@ -95,7 +103,8 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('Close');
   });
 
-  it('튜토리얼 팝업은 실제 프리뷰 플레이어 캔버스 자리를 렌더링', () => {
+  it('배포 빌드(import.meta.env.DEV=false)에서 튜토리얼 팝업은 첫 렌더부터 실제 프리뷰 플레이어 캔버스 2개를 렌더링', () => {
+    vi.stubEnv('DEV', false);
     const html = renderToStaticMarkup(
       React.createElement(TutorialHelpModal, { onClose: () => {} }),
     );
@@ -110,6 +119,59 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('data-tutorial-preview-slot="active"');
     expect(html).toContain('data-tutorial-preview-slot="standby"');
     expect(html).toContain('data-tutorial-transition-phase="idle"');
+  });
+
+  it('배포 빌드에서 저장된 skinId가 crystal이면 두 재생기 슬롯 모두 data-tutorial-skin-id="crystal"로 렌더링하고 기본값 classic을 쓰지 않음', () => {
+    vi.stubEnv('DEV', false);
+    // renderToStaticMarkup은 zustand의 서버 스냅샷(getInitialState()가 돌려주는 초기 상태 객체)을 읽는다.
+    // 저장된 설정을 흉내 내려고 그 객체의 settings를 잠시 바꾸고 afterEach에서 되돌린다.
+    useGameStore.getInitialState().settings = { ...defaultSettings, skinId: 'crystal' };
+    const html = renderToStaticMarkup(
+      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+    );
+
+    expect(countOccurrences(html, 'data-tutorial-skin-id="crystal"')).toBe(2);
+    expect(html).not.toContain('data-tutorial-skin-id="classic"');
+  });
+
+  it('배포 빌드에서 저장된 skinId가 등록되지 않은 removed-skin이면 두 재생기 슬롯 모두 기본 스킨 data-tutorial-skin-id="classic"으로 렌더링', () => {
+    vi.stubEnv('DEV', false);
+    // 위 테스트와 같이 서버 스냅샷의 settings를 바꿔 지워진 스킨이 저장된 설정을 흉내 낸다.
+    useGameStore.getInitialState().settings = { ...defaultSettings, skinId: 'removed-skin' };
+    const html = renderToStaticMarkup(
+      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+    );
+
+    expect(countOccurrences(html, 'data-tutorial-skin-id="classic"')).toBe(2);
+    expect(html).not.toContain('removed-skin');
+  });
+
+  it.each([
+    ['null', null],
+    ['숫자 42', 42],
+    ['manifest 모양 객체', { theme: { id: 'hand-made' }, assets: {} }],
+  ])('배포 빌드에서 손으로 고쳐 저장된 skinId가 문자열이 아닌 값(%s)이어도 팝업이 예외 없이 두 재생기 슬롯 모두 기본 스킨 data-tutorial-skin-id="classic"으로 렌더링', (_label, skinId) => {
+    vi.stubEnv('DEV', false);
+    useGameStore.getInitialState().settings = { ...defaultSettings, skinId: skinId as unknown as string };
+    const html = renderToStaticMarkup(
+      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+    );
+
+    expect(countOccurrences(html, 'data-tutorial-skin-id="classic"')).toBe(2);
+    expect(html).not.toContain('hand-made');
+  });
+
+  it('개발 환경에서는 개발용 스킨 선택을 불러오기 전 첫 렌더에 재생기를 마운트하지 않고 로딩 placeholder만 렌더링', () => {
+    // 설정 스킨으로 먼저 만든 렌더러를 개발용 스킨으로 다시 만들지 않도록, 스킨을 정한 뒤에 재생기 2개를 마운트한다.
+    vi.stubEnv('DEV', true);
+    const html = renderToStaticMarkup(
+      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+    );
+
+    expect(countOccurrences(html, 'data-tutorial-preview-canvas="true"')).toBe(0);
+    expect(html).not.toContain('data-tutorial-skin-id=');
+    expect(html).toContain('data-tutorial-player-placeholder="true"');
+    expect(html).toContain('data-tutorial-driver-visible="false"');
   });
 
   it('튜토리얼 팝업은 이전/다음 화살표 버튼과 현재 튜토리얼 번호를 렌더링', () => {
@@ -193,11 +255,13 @@ describe('TutorialHelpModal', () => {
   });
 
   it('390px 모바일 폭에서는 프리뷰 플레이어 래퍼가 폭을 줄일 수 있는 스타일을 포함', () => {
+    // 개발 환경의 첫 렌더에는 재생기가 없으므로 배포 빌드로 렌더링해 두 슬롯의 래퍼 요소까지 확인한다.
+    vi.stubEnv('DEV', false);
     const html = renderToStaticMarkup(
       React.createElement(TutorialHelpModal, { onClose: () => {} }),
     );
 
-    expect(html).toContain('not4k-tutorial-player-wrap');
+    expect(countOccurrences(html, 'class="not4k-tutorial-player-wrap"')).toBe(2);
     expect(html).toContain('@media (max-width: 560px)');
     expect(html).toContain('min-width: 0 !important');
   });

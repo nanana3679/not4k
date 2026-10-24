@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const SONG_ID = 'dev-skin-song';
 // 플레이하는 첫 테스트의 제한 시간. 플레이를 네 번(v012·재시도·v001·기본 스킨) 시작하며, 부하가 큰 기계에서는 첫 프레임까지 매번 수 초가 넘게 걸린다.
@@ -68,6 +68,64 @@ async function openSkinSettings(page: Page) {
 
 async function closeSettings(page: Page) {
   await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
+}
+
+type TutorialSkinRecord = { canvasSkinIds: string[]; rendererInitSkinIds: string[] };
+
+/**
+ * 새 튜토리얼 재생기 캔버스가 DOM에 붙을 때마다 그 재생기의 data-tutorial-skin-id를, GameRenderer.init마다 실제로 불러온 스킨을 기록한다.
+ * 재생기는 스킨이 바뀌면 캔버스와 렌더러를 새로 만들므로, 처음부터 정한 스킨으로 마운트했다면 둘 다 슬롯 수(2)만큼만 쌓인다.
+ * 레슨을 넘길 때 캐러셀이 슬롯 순서를 바꾸면 같은 캔버스가 옮겨져 addedNodes에 다시 나오므로, 캔버스 요소마다 한 번만 센다.
+ */
+async function recordTutorialSkins(page: Page) {
+  await page.evaluate(async () => {
+    const url = performance.getEntriesByType('resource').map(entry => entry.name)
+      .find(name => new URL(name).pathname === '/src/game/renderer/GameRenderer.ts') ?? '/src/game/renderer/GameRenderer.ts';
+    const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(url);
+    const state = window as unknown as { __tutorialSkins: TutorialSkinRecord };
+    state.__tutorialSkins = { canvasSkinIds: [], rendererInitSkinIds: [] };
+    const init = GameRenderer.prototype.init;
+    GameRenderer.prototype.init = function () {
+      state.__tutorialSkins.rendererInitSkinIds.push((this as unknown as { skinManager: { skinId: string } }).skinManager.skinId);
+      return init.call(this);
+    };
+    const seenCanvases = new WeakSet<Element>();
+    new MutationObserver(records => {
+      for (const node of records.flatMap(record => [...record.addedNodes])) {
+        if (!(node instanceof Element)) continue;
+        const selector = '[data-tutorial-preview-canvas="true"]';
+        for (const canvas of node.matches(selector) ? [node] : [...node.querySelectorAll(selector)]) {
+          if (seenCanvases.has(canvas)) continue;
+          seenCanvases.add(canvas);
+          state.__tutorialSkins.canvasSkinIds.push(canvas.closest('[data-tutorial-skin-id]')?.getAttribute('data-tutorial-skin-id') ?? '');
+        }
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+}
+
+async function readTutorialSkins(page: Page): Promise<TutorialSkinRecord> {
+  return page.evaluate(() => (window as unknown as { __tutorialSkins: TutorialSkinRecord }).__tutorialSkins);
+}
+
+async function resetTutorialSkins(page: Page) {
+  await page.evaluate(() => { (window as unknown as { __tutorialSkins: TutorialSkinRecord }).__tutorialSkins = { canvasSkinIds: [], rendererInitSkinIds: [] }; });
+}
+
+async function openTutorialHelp(page: Page) {
+  await page.getByRole('button', { name: 'Open tutorial help' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Tutorial' });
+  await expect(dialog.locator('[data-tutorial-driver-visible="true"]')).toBeVisible({ timeout: 15_000 });
+  return dialog;
+}
+
+async function closeTutorialHelp(page: Page) {
+  await page.getByRole('button', { name: 'Close tutorial help' }).click();
+  await expect(page.getByRole('dialog', { name: 'Tutorial' })).toHaveCount(0);
+}
+
+function tutorialSkinIds(dialog: Locator) {
+  return dialog.locator('[data-tutorial-skin-id]').evaluateAll(elements => elements.map(element => element.getAttribute('data-tutorial-skin-id')));
 }
 
 test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하며 포인트 위아래 접촉 그림자를 그리고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
@@ -216,4 +274,38 @@ test('Settings 탭 전환·재열기에서 v002를 유지하고 선택기에서 
   await page.getByRole('button', { name: 'Start', exact: true }).click();
   await openSkinSettings(page);
   await expect(select).toHaveValue('settings');
+});
+
+test('저장 스킨이 crystal이면 곡 선택 튜토리얼 재생기 2개가 crystal로 재생하고, dev Settings에서 v012를 고른 뒤 다시 열면 처음부터 classic-v012로 캔버스·렌더러를 2개씩만 만들어 레슨을 넘겨도 유지한다', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await openSongs(page);
+  await recordTutorialSkins(page);
+
+  let dialog = await openTutorialHelp(page);
+  await expect.poll(() => readTutorialSkins(page)).toEqual({ canvasSkinIds: ['crystal', 'crystal'], rendererInitSkinIds: ['crystal', 'crystal'] });
+  expect(await tutorialSkinIds(dialog)).toEqual(['crystal', 'crystal']);
+  await closeTutorialHelp(page);
+
+  await openSkinSettings(page);
+  await page.getByLabel('개발용 스킨').selectOption('v012');
+  await closeSettings(page);
+  await resetTutorialSkins(page);
+
+  dialog = await openTutorialHelp(page);
+  // 설정 스킨(crystal)으로 먼저 마운트했다가 다시 만들면 crystal 캔버스가 앞에 쌓인다.
+  // 렌더러 init 전에 개발용 스킨이 정해지면 렌더러 수는 2로 같아서, 캔버스 기록으로만 드러난다.
+  await expect.poll(() => readTutorialSkins(page)).toEqual({ canvasSkinIds: ['classic-v012', 'classic-v012'], rendererInitSkinIds: ['classic-v012', 'classic-v012'] });
+  expect(await tutorialSkinIds(dialog)).toEqual(['classic-v012', 'classic-v012']);
+
+  const activeSlot = dialog.locator('[data-tutorial-preview-slot="active"]');
+  const firstId = await activeSlot.getAttribute('data-tutorial-preview-id');
+  await dialog.getByRole('button', { name: 'Next tutorial' }).click();
+  await expect(activeSlot).not.toHaveAttribute('data-tutorial-preview-id', firstId ?? '', { timeout: 15_000 });
+  await expect(dialog.locator('[data-tutorial-carousel-track="true"]')).toHaveAttribute('data-tutorial-transition-phase', 'idle', { timeout: 15_000 });
+  await expect(activeSlot.locator('[data-tutorial-skin-id]')).toHaveAttribute('data-tutorial-skin-id', 'classic-v012');
+  expect(await readTutorialSkins(page)).toEqual({ canvasSkinIds: ['classic-v012', 'classic-v012'], rendererInitSkinIds: ['classic-v012', 'classic-v012'] });
+  await closeTutorialHelp(page);
+  expect(errors).toEqual([]);
 });
