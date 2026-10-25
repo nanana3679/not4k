@@ -3139,6 +3139,111 @@
       "sha256": "646547fa6cf7919dd4f1f9f8f43a4aea115f693ece12493ec23f6b6278dc5281"
     },
     {
+      "file": "assets/release-single-palette-point.svg",
+      "role": "single 릴리즈 · 포인트 팔레트에 맞춘 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "palette-reference/single.png",
+        "palette-reference/prompts.json"
+      ],
+      "operation": {
+        "paletteReference": "palette-reference/single.png",
+        "paletteReferenceSha256": "60cc0f488079682dcdad571c0ad0d071dfae00891b8c6294e0145aebf9330620",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry, selected chevrons",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 78557,
+      "sha256": "a11ac95ad23dc681bf97dba3326464aafb09fea022c64f6b071141bfc4bc3cf7"
+    },
+    {
+      "file": "assets/release-single-palette-point.png",
+      "role": "single 릴리즈 · 포인트 팔레트에 맞춘 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "palette-reference/single.png",
+        "palette-reference/prompts.json"
+      ],
+      "operation": {
+        "paletteReference": "palette-reference/single.png",
+        "paletteReferenceSha256": "60cc0f488079682dcdad571c0ad0d071dfae00891b8c6294e0145aebf9330620",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry, selected chevrons",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17234,
+      "sha256": "8184af54a8e09b26e45883a6d0681ecf04f39a241c3ed12f8d253fc7bc661a1a"
+    },
+    {
+      "file": "assets/release-single-palette-point@2x.png",
+      "role": "single 릴리즈 · 포인트 팔레트에 맞춘 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "palette-reference/single.png",
+        "palette-reference/prompts.json"
+      ],
+      "operation": {
+        "paletteReference": "palette-reference/single.png",
+        "paletteReferenceSha256": "60cc0f488079682dcdad571c0ad0d071dfae00891b8c6294e0145aebf9330620",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry, selected chevrons",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 56281,
+      "sha256": "d29325bf1c00bcf4f063305000e446de815a6d57f9cacf4fbdf1dca5f7c705a2"
+    },
+    {
       "file": "assets/release-single-failed.svg",
       "role": "J2-C single 릴리즈 · 전체 실패",
       "generator": "build-states.mjs",
@@ -4403,6 +4508,111 @@
       ],
       "bytes": 66217,
       "sha256": "b6a833130cde10e1882e3571393b7b0c86bb6c37bd92f98225e8bd5beedf62f7"
+    },
+    {
+      "file": "assets/release-double-palette-point.svg",
+      "role": "double 릴리즈 · 포인트 팔레트에 맞춘 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "palette-reference/double.png",
+        "palette-reference/prompts.json"
+      ],
+      "operation": {
+        "paletteReference": "palette-reference/double.png",
+        "paletteReferenceSha256": "1d343998a0cea6b32555675152ae762a03a7f67e2974fe403f476021e3bd6943",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry, selected chevrons",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 87399,
+      "sha256": "9e268decf4f3b9d7fe2cf48edaa622a100d0c16ed3838e41270611137f110baa"
+    },
+    {
+      "file": "assets/release-double-palette-point.png",
+      "role": "double 릴리즈 · 포인트 팔레트에 맞춘 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "palette-reference/double.png",
+        "palette-reference/prompts.json"
+      ],
+      "operation": {
+        "paletteReference": "palette-reference/double.png",
+        "paletteReferenceSha256": "1d343998a0cea6b32555675152ae762a03a7f67e2974fe403f476021e3bd6943",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry, selected chevrons",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18332,
+      "sha256": "e1a1a65999013b6adb0c2b4b1c4ede13ea8440fdf3928079410101bc044d6ef7"
+    },
+    {
+      "file": "assets/release-double-palette-point@2x.png",
+      "role": "double 릴리즈 · 포인트 팔레트에 맞춘 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "palette-reference/double.png",
+        "palette-reference/prompts.json"
+      ],
+      "operation": {
+        "paletteReference": "palette-reference/double.png",
+        "paletteReferenceSha256": "1d343998a0cea6b32555675152ae762a03a7f67e2974fe403f476021e3bd6943",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry, selected chevrons",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 59820,
+      "sha256": "39085876954404ab9bfa647c505957f4d2e2545da7269be16b2ffd158480f957"
     },
     {
       "file": "assets/release-double-failed.svg",
@@ -6785,6 +6995,34 @@
             "lineJoin": "round"
           }
         ]
+      }
+    ]
+  },
+  "releasePalettePreview": {
+    "approval": "proposed-artwork",
+    "targetSize": [
+      200,
+      40
+    ],
+    "note": "ImageGen은 포인트·바디를 참고한 색 방향만 제공. 생성본에서 색을 추출해 원래 J2-C의 sRGB 가중 밝기·알파에 적용하고 선택한 3단을 다시 합성. 포인트·바디는 원본 그대로 비교.",
+    "kinds": [
+      {
+        "kind": "single",
+        "original": "assets/release-single-chevron-triple-tight-large.png",
+        "candidate": "assets/release-single-palette-point.png",
+        "point": "assets/note-single.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png",
+        "paletteReference": "palette-reference/single.png"
+      },
+      {
+        "kind": "double",
+        "original": "assets/release-double-chevron-triple-tight-large.png",
+        "candidate": "assets/release-double-palette-point.png",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png",
+        "paletteReference": "palette-reference/double.png"
       }
     ]
   }

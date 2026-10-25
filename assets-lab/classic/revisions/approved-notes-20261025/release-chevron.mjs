@@ -16,5 +16,6 @@ export function releaseChevron(source, { strokeWidth, kind, pathWidth = 16, chev
   // Fade each complete chevron, including its outline, so a dark lower border cannot linger.
   const artwork = layerAlphas ? paths.map((path, i) => `<g data-chevron-layer="${i}" opacity="${layerAlphas[i]}">${paint(path)}</g>`).join('') : paint(paths.join(''));
   const symbol = centers.map(center => `<g data-release-symbol="stacked-up-chevrons" transform="translate(${center} 0)" fill="none" stroke-linecap="${lineCap}" stroke-linejoin="${lineJoin}">${artwork}</g>`).join('');
-  return source.replace('</svg>', `${symbol}</svg>`);
+  // Append outside any nested source SVG/filter so symbol colors and alpha stay exact.
+  return source.replace(/<\/svg>\s*$/, `${symbol}</svg>`);
 }

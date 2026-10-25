@@ -2,6 +2,59 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('릴리즈 팔레트 전후는 같은 포인트·바디를 쓰고 모든 PNG·SVG에서 원래 명암과 알파 및 3단 표식을 보존한다', async ({ page }) => {
+  await page.goto(route + '#release-palette');
+  const section = page.locator('#release-palette');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(2);
+    await expect(comparison.locator('[data-variant="candidate"] nav a')).toHaveCount(3);
+    const shared = await comparison.evaluate(element => [...element.querySelectorAll('article')].map(article => ({
+      points: [...article.querySelectorAll('.palette-point')].map(image => image.getAttribute('src')),
+      bodies: [...article.querySelectorAll('.palette-body')].map(body => body.getAttribute('style')),
+    })));
+    expect(shared[0]).toEqual(shared[1]);
+  }
+  const results = await page.evaluate(async () => {
+    const pixels = async (file: string, scale: number) => {
+      const image = new Image(); image.src = file; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 200 * scale; canvas.height = 40 * scale;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return context.getImageData(0, 0, canvas.width, canvas.height).data;
+    };
+    const results = [];
+    for (const kind of ['single', 'double']) {
+      const names = [`release-${kind}-chevron-triple-tight-large`, `release-${kind}-palette-point`];
+      const docs = await Promise.all(names.map(async name => new DOMParser().parseFromString(await (await fetch(`assets/${name}.svg`)).text(), 'image/svg+xml')));
+      const symbols = docs.map(doc => [...doc.querySelectorAll('[data-release-symbol]')].map(symbol => new XMLSerializer().serializeToString(symbol)));
+      for (const suffix of ['.png', '@2x.png', '.svg']) {
+        const scale = suffix === '.png' ? 1 : 2;
+        const [original, candidate] = await Promise.all(names.map(name => pixels(`assets/${name}${suffix}`, scale)));
+        let alphaChanges = 0, colorChanges = 0, maxIntensityDifference = 0;
+        for (let i = 0; i < original.length; i += 4) {
+          if (original[i + 3] !== candidate[i + 3]) alphaChanges++;
+          if (Math.max(...[0, 1, 2].map(channel => Math.abs(original[i + channel] - candidate[i + channel]))) > 5) colorChanges++;
+          const difference = Math.abs([.2126, .7152, .0722].reduce((sum, weight, channel) => sum + weight * (original[i + channel] - candidate[i + channel]), 0));
+          maxIntensityDifference = Math.max(maxIntensityDifference, difference);
+        }
+        results.push({ kind, suffix, symbols, symbolParents: [...docs[1].querySelectorAll('[data-release-symbol]')].map(symbol => symbol.parentElement?.tagName),
+          alphaChanges, colorFraction: colorChanges / (200 * 40 * scale ** 2), maxIntensityDifference });
+      }
+    }
+    return results;
+  });
+  for (const row of results) {
+    expect(row.symbols[0]).toEqual(row.symbols[1]);
+    expect(row.symbolParents).toEqual(row.kind === 'single' ? ['svg'] : ['svg', 'svg']);
+    expect(row.alphaChanges, `${row.kind} ${row.suffix}`).toBe(0);
+    // 8-bit grayscale/filter output and symbol compositing each introduce rounding.
+    expect(row.maxIntensityDifference, `${row.kind} ${row.suffix}`).toBeLessThanOrEqual(3);
+    expect(row.colorFraction, `${row.kind} ${row.suffix}`).toBeGreaterThan(.6);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('3단 표식의 실제 알파는 위부터 100%·80%·50%이며 꼭짓점 x는 활성 광선 픽셀 중심과 일치한다', async ({ page }) => {
   await page.goto(route + '#release-symbol');
   const guides = page.locator('#release-symbol .release-beam-guide');

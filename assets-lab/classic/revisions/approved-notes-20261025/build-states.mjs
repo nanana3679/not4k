@@ -4,6 +4,7 @@ import { chromium } from '@playwright/test';
 import { halfMask, rasterArtwork, rectangularGraceArtwork, stateArtwork } from './state-artwork.mjs';
 import { outlinedSustain } from './sustain-visibility.mjs';
 import { releaseChevron } from './release-chevron.mjs';
+import { paletteMappedArtwork, sampleReleasePalette } from './release-palette.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -34,6 +35,11 @@ manifest.releaseSymbolPreview = {
   selectedVariant: 'triple-tight-large',
   comparisonIds: ['triple-tight', 'triple-tight-large'],
   reference: 'https://lucide.dev/icons/chevrons-up',
+  kinds: [],
+};
+manifest.releasePalettePreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: 'ImageGen은 포인트·바디를 참고한 색 방향만 제공. 생성본에서 색을 추출해 원래 J2-C의 sRGB 가중 밝기·알파에 적용하고 선택한 3단을 다시 합성. 포인트·바디는 원본 그대로 비교.',
   kinds: [],
 };
 const browser = await chromium.launch({ headless: true });
@@ -168,6 +174,23 @@ try {
       symbolVariants.push({ id, label, file, ...geometry });
     }
     manifest.releaseSymbolPreview.kinds.push({ kind, symbolCenters, heldBody: `assets/body-${kind}-held.png`, variants: symbolVariants });
+    const paletteReference = `palette-reference/${kind}.png`;
+    const referenceBytes = await readFile(new URL(paletteReference, here));
+    const paletteTable = await page.evaluate(sampleReleasePalette, `data:image/png;base64,${referenceBytes.toString('base64')}`);
+    const selectedSymbol = symbolVariants.find(variant => variant.id === manifest.releaseSymbolPreview.selectedVariant);
+    const candidate = await emit(`release-${kind}-palette-point`, releaseChevron(paletteMappedArtwork(source, paletteTable), { kind, centers: symbolCenters, ...selectedSymbol }), {
+      nativeSource: releaseChevron(paletteMappedArtwork(nativeSource, paletteTable), { kind, centers: symbolCenters, ...selectedSymbol }),
+      role: `${kind} 릴리즈 · 포인트 팔레트에 맞춘 색 시안`,
+      sourceFiles: [...sourceFiles, paletteReference, 'palette-reference/prompts.json'],
+      operation: { paletteReference, paletteReferenceSha256: createHash('sha256').update(referenceBytes).digest('hex'), paletteSamples: paletteTable.length,
+        preserve: 'sRGB weighted intensity, alpha, geometry, selected chevrons', symbolVariant: selectedSymbol.id },
+      approval: 'proposed-artwork',
+    });
+    manifest.releasePalettePreview.kinds.push({ kind, original: selectedSymbol.file, candidate,
+      point: kind === 'single' ? 'assets/note-single.png' : 'assets/note-double-anodized-contrast-070.png',
+      idleBody: kind === 'single' ? 'assets/body-single.png' : 'assets/body-double-center-dual-beam.png',
+      heldBody: `assets/body-${kind}-held.png`, paletteReference,
+    });
     const states = [state('pending', '미처리 · J2-C', `assets/release-${kind}.png`)];
     for (const side of ['all', ...(kind === 'double' ? ['left', 'right'] : [])]) {
       const id = side === 'all' ? 'failed' : `partial-failed-${side}`;

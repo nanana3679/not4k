@@ -25,6 +25,16 @@
 .sustain-game{width:59px;height:34px;margin:auto}
 .sustain-game .sustain-stage,.sustain-game .release-symbol-stage{transform:scale(0.29481132);transform-origin:top left}
 .release-symbol-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}
+.palette-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}
+.palette-assembly{position:relative;width:212px;height:184px;margin:auto}
+.palette-body{position:absolute;left:6px;top:20px;width:200px;height:144px;background-size:200px 40px}
+.palette-release{position:absolute;left:6px;top:0;width:200px;height:40px}
+.palette-point{position:absolute;left:0;top:144px;width:212px;height:40px}
+.palette-game-pair{display:flex;justify-content:center;gap:24px}
+.palette-game{width:62.5px;height:55px}
+.palette-game .palette-assembly{transform:scale(0.29481132);transform-origin:top left}
+.palette-detail{margin-inline:0}
+.palette-detail img{display:block;width:400px;max-width:100%;height:auto;margin:auto}
 @media(max-width:1040px){.release-symbol-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .release-guide-control{display:inline-flex;align-items:center;gap:8px;min-height:40px;font-size:14px;color:#b5c4d5;cursor:pointer}
 .release-guide-control input{accent-color:#f493ca}
