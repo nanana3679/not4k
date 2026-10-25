@@ -2,6 +2,62 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('싱글·더블의 기존 교차 사선을 면의 색으로 메우고 접점 밖 픽셀과 알파를 보존한다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '세 면의 꼭짓점' }).click();
+  await expect(page).toHaveURL(/#release-clean-junctions$/);
+  const section = page.locator('#release-clean-junctions');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(2);
+    await expect(comparison.locator('[data-variant="previous"] .palette-release').first()).toHaveAttribute('src', `assets/release-${kind}-forked-junctions.png`);
+    await expect(comparison.locator('[data-variant="candidate"] nav a')).toHaveCount(3);
+  }
+  const results = await page.evaluate(async () => {
+    const results = [];
+    for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
+      const scale = suffix === '.png' ? 1 : 2, width = 200 * scale, height = 40 * scale;
+      const pixels = async (name: string, extension: string) => {
+        const image = new Image(); image.src = `assets/release-${kind}-${name}${extension}`; await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, width, height);
+        return context.getImageData(0, 0, width, height).data;
+      };
+      const before = await pixels('forked-junctions', scale === 1 ? '.png' : '@2x.png');
+      const after = await pixels('clean-junctions', suffix);
+      let outsideDifference = 0, alphaDifference = 0;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        alphaDifference = Math.max(alphaDifference, Math.abs(after[i + 3] - before[i + 3]));
+        const inPatch = y >= 13 * scale && y < 25 * scale && [[82, 109], [291, 318]].some(([start, end]) => x >= Math.floor(start * scale / 2) && x < Math.ceil(end * scale / 2));
+        if (!inPatch) for (let c = 0; c < 3; c++) outsideDifference = Math.max(outsideDifference, Math.abs(after[i + c] - before[i + c]));
+      }
+      // Locate the old dark edge in each row, then verify it was filled, not merely crossed by a new highlight.
+      const filledEdges = [];
+      for (const side of [0, 1]) for (let y = 18 * scale; y <= Math.floor(43 * scale / 2); y++) {
+        const luminance = (data: Uint8ClampedArray, x: number) => {
+          const i = (y * width + (side ? width - 1 - x : x)) * 4;
+          return .2126 * data[i] + .7152 * data[i + 1] + .0722 * data[i + 2];
+        };
+        const x = Math.round((90 + (y * 2 / scale - 30) * .59) * scale / 2);
+        let edgeX = x;
+        for (let dx = -scale; dx <= scale; dx++) if (luminance(before, x + dx) < luminance(before, edgeX)) edgeX = x + dx;
+        filledEdges.push(luminance(after, edgeX) - luminance(before, edgeX));
+      }
+      results.push({ kind, suffix, outsideDifference, alphaDifference, filledEdges });
+    }
+    return results;
+  });
+  for (const result of results) {
+    const label = result.kind + result.suffix;
+    expect(result.outsideDifference, label).toBe(0);
+    expect(result.alphaDifference, label).toBe(0);
+    for (const increase of result.filledEdges) expect(increase, label).toBeGreaterThan(20);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('아래 접점 분기는 위쪽 흰 띠·중앙 도안·알파를 유지하고 좌우 상승 경계에 새 밝은 선을 표시한다', async ({ page }) => {
   await page.goto(route);
   await page.locator('.jump').getByRole('link', { name: '아래 접점 분기' }).click();

@@ -10,6 +10,7 @@ import { splitReleaseHighlight, releaseWideMaterialArtwork } from './release-hig
 import { releaseBeamEndsArtwork } from './release-beam-ends.mjs';
 import { releaseSteppedJunctionArtwork } from './release-stepped-junctions.mjs';
 import { releaseForkedJunctionArtwork } from './release-forked-junctions.mjs';
+import { releaseCleanJunctionArtwork } from './release-clean-junctions.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -77,7 +78,13 @@ manifest.releaseJunctionPreview = {
 };
 manifest.releaseForkPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
+  feedback: '위·바깥쪽의 기존 사선이 남아 X처럼 보인다는 사용자 확인. releaseCleanForkPreview에서 기존 사선을 제거해 세 면의 꼭짓점으로 수정.',
   note: '직전 시안은 흰 띠 끝만 사선으로 바뀌고 아래 접점은 갈라지지 않았다는 사용자 피드백 반영. y=47의 낮은 수평 경계에서 위·아래 가지가 실제로 갈라지는 구조. y<32의 흰 띠와 중앙 도안은 원본 유지.',
+  kinds: [],
+};
+manifest.releaseCleanForkPreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '앞면·윗면·옆면을 잇는 꼭짓점. 기존 위·바깥쪽 사선을 지워 세 경계만 한 점에서 만나도록 수정. 중앙 도안·광선 끝 흰빛·외곽·알파 유지.',
   kinds: [],
 };
 const page = await browser.newPage();
@@ -345,6 +352,16 @@ try {
       approval: 'proposed-artwork',
     });
     manifest.releaseForkPreview.kinds.push({ kind, original: junctionOriginal, previous: junctionCandidate, candidate: forkCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
+    const cleanReference = `clean-fork-reference/${kind}.png`;
+    const cleanBytes = await readFile(new URL(cleanReference, here));
+    const cleanCandidate = await emit(`release-${kind}-clean-junctions`, releaseCleanJunctionArtwork(await readFile(new URL(forkCandidate.replace('.png', '@2x.png'), here)), cleanBytes), {
+      nativeSource: releaseCleanJunctionArtwork(await readFile(new URL(forkCandidate, here)), cleanBytes),
+      role: `${kind} 릴리즈 · 세 면의 꼭짓점에서 기존 교차 사선 제거`,
+      sourceFiles: [forkCandidate, forkCandidate.replace('.png', '@2x.png'), cleanReference, 'clean-fork-reference/prompts.json', `clean-fork-reference/${kind}-target.png`],
+      operation: { crop2x: [80, 20, 50, 50], patchBounds2x: [[82, 26, 27, 24], [291, 26, 27, 24]], mirroredRight: true, referenceSha256: createHash('sha256').update(cleanBytes).digest('hex'), preserve: 'original pixels outside obsolete diagonal edges, icons, beam-end highlights, outline and alpha' },
+      approval: 'proposed-artwork',
+    });
+    manifest.releaseCleanForkPreview.kinds.push({ kind, previous: forkCandidate, candidate: cleanCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
       { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },
