@@ -16,7 +16,7 @@ interface PointSuccessPreview {
   progression: State[];
 }
 const here = new URL('./', import.meta.url);
-const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; releaseSymbolPreview: { approval: string; kinds: { kind: string; variants: { id: string; file: string; strokeWidth?: number }[] }[] }; sustainVisibilityPreview: { approval: string; outlineWidth: number; selected: { single: string }; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; railCandidate?: string; railMarkerWidth?: number; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; releaseSymbolPreview: { approval: string; kinds: { kind: string; symbolCenters: number[]; variants: { id: string; file: string; strokeWidth?: number }[] }[] }; sustainVisibilityPreview: { approval: string; outlineWidth: number; selected: { single: string }; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; railCandidate?: string; railMarkerWidth?: number; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
@@ -146,10 +146,11 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     }
   });
 
-  it('릴리즈 중앙 표시 2px·3px 시안은 싱글·더블에 같은 이중 꺾쇠를 쓰며 기존 J2-C 상태를 교체하지 않는다', () => {
+  it('좁힌 릴리즈 이중 꺾쇠는 싱글 x=100에 1개·더블 x=84와 116에 2개이며 기존 J2-C 상태를 교체하지 않는다', () => {
     expect(manifest.releaseSymbolPreview.approval).toBe('proposed-artwork');
     expect(manifest.releaseSymbolPreview.kinds.map(item => item.kind)).toEqual(['single', 'double']);
     for (const item of manifest.releaseSymbolPreview.kinds) {
+      expect(item.symbolCenters).toEqual(item.kind === 'single' ? [100] : [84, 116]);
       expect(item.variants.map(({ id, strokeWidth }) => ({ id, strokeWidth }))).toEqual([
         { id: 'original', strokeWidth: undefined }, { id: 'thin', strokeWidth: 2 }, { id: 'bold', strokeWidth: 3 },
       ]);
@@ -157,7 +158,8 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
       for (const variant of item.variants.slice(1)) {
         expect(manifest.assets.find(asset => asset.file === variant.file)).toMatchObject({ width: 200, height: 40, skinKey: null, proposedRuntimePath: null });
         const source = readFileSync(new URL(variant.file.replace('.png', '.svg'), here), 'utf8');
-        expect(source.match(/data-release-symbol="stacked-up-chevrons"/g)).toHaveLength(1);
+        expect(source.match(/data-release-symbol="stacked-up-chevrons"/g)).toHaveLength(item.kind === 'single' ? 1 : 2);
+        for (const center of item.symbolCenters) expect(source).toContain(`transform="translate(${center} 0)"`);
       }
     }
   });

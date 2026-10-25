@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
-test('릴리즈 이중 꺾쇠 2px·3px는 PNG·2배 PNG·SVG의 중앙만 바꾸며 원본과 게임 배율로 비교한다', async ({ page }) => {
+test('좁힌 릴리즈 표시는 PNG·2배 PNG·SVG에서 싱글 1개·더블 좌우 2개이며 아이콘 밖 도안을 보존한다', async ({ page }) => {
   await page.goto(route + '#release-symbol');
   const section = page.locator('#release-symbol');
   for (const kind of ['single', 'double']) {
@@ -26,15 +26,19 @@ test('릴리즈 이중 꺾쇠 2px·3px는 PNG·2배 PNG·SVG의 중앙만 바꾸
       const original = await pixels(`assets/release-${kind}${suffix === '.svg' ? '@2x.png' : suffix}`, scale);
       for (const variant of ['thin', 'bold']) {
         const candidate = await pixels(`assets/release-${kind}-chevron-${variant}${suffix}`, scale);
-        let changedCenter = 0, changedOutside = 0;
+        let changedCenter = 0, changedOutside = 0, changedLeft = 0, changedRight = 0, changedGap = 0;
+        const bounds = kind === 'single' ? [80, 120] : [70, 130];
         for (let y = 0; y < 40 * scale; y++) for (let x = 0; x < 200 * scale; x++) {
           const i = (y * 200 * scale + x) * 4;
           const difference = Math.max(...[0, 1, 2, 3].map(channel => Math.abs(candidate[i + channel] - original[i + channel])));
           if (difference <= 1) continue;
-          if (x >= 80 * scale && x < 120 * scale && y >= 2 * scale && y < 31 * scale) changedCenter++;
+          if (x >= bounds[0] * scale && x < bounds[1] * scale && y >= 2 * scale && y < 31 * scale) changedCenter++;
           else changedOutside++;
+          if (x < 100 * scale) changedLeft++; else changedRight++;
+          if (x >= 98 * scale && x < 102 * scale) changedGap++;
         }
-        results.push({ kind, variant, suffix, changedCenter: changedCenter / scale ** 2, changedOutside });
+        results.push({ kind, variant, suffix, changedCenter: changedCenter / scale ** 2, changedOutside,
+          changedLeft: changedLeft / scale ** 2, changedRight: changedRight / scale ** 2, changedGap });
       }
     }
     return results;
@@ -42,6 +46,11 @@ test('릴리즈 이중 꺾쇠 2px·3px는 PNG·2배 PNG·SVG의 중앙만 바꾸
   for (const result of results) {
     expect(result.changedCenter, `${result.kind} ${result.variant} ${result.suffix}`).toBeGreaterThan(100);
     expect(result.changedOutside, `${result.kind} ${result.variant} ${result.suffix}`).toBe(0);
+    if (result.kind === 'double') {
+      expect(result.changedLeft).toBeGreaterThan(100);
+      expect(result.changedRight).toBeGreaterThan(100);
+      expect(result.changedGap).toBe(0);
+    }
   }
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);

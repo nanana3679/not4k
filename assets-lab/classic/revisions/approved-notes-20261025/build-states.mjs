@@ -30,7 +30,8 @@ manifest.sustainVisibilityPreview = {
 };
 manifest.releaseSymbolPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
-  note: '싱글·더블 모두 중앙에 위쪽 꺾쇠 두 개를 세로로 배치. 릴리즈 동작의 공통 표시이며 몫 수나 뗌 횟수를 뜻하지 않음. 2px·3px 선 두께 비교.',
+  note: '이중 꺾쇠의 경로 폭을 28px에서 16px, 위아래 중심선 간격을 12px에서 8px로 축소. 싱글 x=100에 1개, 더블 x=84·116에 2개를 나란히 배치. 2px·3px 선 두께 비교.',
+  reference: 'https://lucide.dev/icons/chevrons-up',
   kinds: [],
 };
 const browser = await chromium.launch({ headless: true });
@@ -141,17 +142,18 @@ try {
     await emit(`release-${kind}`, source, { role: `J2-C ${kind} 릴리즈`, sourceFiles,
       operation: { artwork: 'J2-C', png: '선택 PNG를 바이트 그대로 복사', svg: '@2x PNG 내장 래퍼' },
       pngSources, approval: 'approved-artwork', skinKey: `release${cap}` });
+    const symbolCenters = kind === 'single' ? [100] : [84, 116];
     const symbolVariants = [{ id: 'original', label: '기존', file: `assets/release-${kind}.png` }];
     for (const [id, label, strokeWidth] of [['thin', '가는 표시', 2], ['bold', '굵은 표시', 3]]) {
       const file = await emit(`release-${kind}-chevron-${id}`, releaseChevron(source, { kind, strokeWidth }), {
         nativeSource: releaseChevron(nativeSource, { kind, strokeWidth }),
         role: `J2-C ${kind} 릴리즈 · 이중 꺾쇠 ${label} 시안`, sourceFiles,
-        operation: { symbol: 'stacked-up-chevrons', centerX: 100, strokeWidth, indicates: 'release-action', unitCount: false },
+        operation: { symbol: 'stacked-up-chevrons', symbolCenters, pathWidth: 16, chevronOffset: 8, strokeWidth, indicates: 'release-action' },
         approval: 'proposed-artwork',
       });
       symbolVariants.push({ id, label, file, strokeWidth });
     }
-    manifest.releaseSymbolPreview.kinds.push({ kind, heldBody: `assets/body-${kind}-held.png`, variants: symbolVariants });
+    manifest.releaseSymbolPreview.kinds.push({ kind, symbolCenters, heldBody: `assets/body-${kind}-held.png`, variants: symbolVariants });
     const states = [state('pending', '미처리 · J2-C', `assets/release-${kind}.png`)];
     for (const side of ['all', ...(kind === 'double' ? ['left', 'right'] : [])]) {
       const id = side === 'all' ? 'failed' : `partial-failed-${side}`;

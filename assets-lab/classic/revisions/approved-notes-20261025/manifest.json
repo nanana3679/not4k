@@ -2176,10 +2176,13 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          100
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 2,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2196,8 +2199,8 @@
         0,
         0
       ],
-      "bytes": 75820,
-      "sha256": "7ea6459a699f2ca4ced4a7ae5a16034cfc8306398f42b124d63a933203ffadf7"
+      "bytes": 75833,
+      "sha256": "37074281b98be7d6902772bb311455a37a07820e8b5730ed035e83d38f1eb203"
     },
     {
       "file": "assets/release-single-chevron-thin.png",
@@ -2209,10 +2212,13 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          100
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 2,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2229,8 +2235,8 @@
         0,
         0
       ],
-      "bytes": 17553,
-      "sha256": "be84d53be4847222d6ecbdb88273b4d84f276aa2c4e8e6048376da2989bcc641"
+      "bytes": 17091,
+      "sha256": "c6fc9453cad47755a4d2f78581ca381630deeda533aa2bda9798e8cf60ef1c70"
     },
     {
       "file": "assets/release-single-chevron-thin@2x.png",
@@ -2242,10 +2248,13 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          100
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 2,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2262,8 +2271,8 @@
         0,
         0
       ],
-      "bytes": 58793,
-      "sha256": "b43988dbc9faecee60eb19d4ff1741dacd767252c3ce66b84b592c34c001bcbf"
+      "bytes": 57913,
+      "sha256": "bac0e38b7b82c4afca11c55dacba5351b287ce65ae8b7ac56dd90e596cc210a2"
     },
     {
       "file": "assets/release-single-chevron-bold.svg",
@@ -2275,10 +2284,13 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          100
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 3,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2295,8 +2307,8 @@
         0,
         0
       ],
-      "bytes": 75820,
-      "sha256": "2f383ccc7d10a5aeb74357bd2dfe9f49422e6ec27f5451818cbaa3476ab22219"
+      "bytes": 75833,
+      "sha256": "e3c395e7ec189c5dd5f0a9a749d4013f68d2ccd667f7923946c85046b24ce364"
     },
     {
       "file": "assets/release-single-chevron-bold.png",
@@ -2308,10 +2320,13 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          100
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 3,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2328,8 +2343,8 @@
         0,
         0
       ],
-      "bytes": 17534,
-      "sha256": "810341f1a605d60305f40a311e8b9df283f5928494b5ffbf37af7718be43ddef"
+      "bytes": 17102,
+      "sha256": "2ac6b4e1a0ff84cd5ae06267bfe8ff253bf3e0416d3db8ed23fe7bbf63b767bf"
     },
     {
       "file": "assets/release-single-chevron-bold@2x.png",
@@ -2341,10 +2356,13 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          100
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 3,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2361,8 +2379,8 @@
         0,
         0
       ],
-      "bytes": 58650,
-      "sha256": "e9b3002981440d0f8744317d96540ad745bdca2382775a14a045ac7499c3eb6c"
+      "bytes": 57400,
+      "sha256": "db25e60bc592ece8f8e797330217ef12c82bdfdb6c93c518149db0437d439461"
     },
     {
       "file": "assets/release-single-failed.svg",
@@ -2644,10 +2662,14 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 2,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2664,8 +2686,8 @@
         0,
         0
       ],
-      "bytes": 83728,
-      "sha256": "2783d4a558c894b6a1d81aa5086482a5bf6bc6405913c8cd026b9e79df4fd67f"
+      "bytes": 84032,
+      "sha256": "541c89e859cae19e6c2da0f41c7fba8b1755d779f2f8d052f4fea7c6e4ec57fc"
     },
     {
       "file": "assets/release-double-chevron-thin.png",
@@ -2677,10 +2699,14 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 2,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2697,8 +2723,8 @@
         0,
         0
       ],
-      "bytes": 18655,
-      "sha256": "a0648c38b5e9d001d69e419df8d89f268bcac7ceebb7d55c8d9eb3935ec62e70"
+      "bytes": 18647,
+      "sha256": "98edef13925638744ce045671b762efbdbfefebd6ffbfc420a37c4ebc53ecd5f"
     },
     {
       "file": "assets/release-double-chevron-thin@2x.png",
@@ -2710,10 +2736,14 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 2,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2730,8 +2760,8 @@
         0,
         0
       ],
-      "bytes": 64734,
-      "sha256": "d2d87aebdd53c00911bea433cc51677ff55ffc675334934a8fd2241b0003e9c9"
+      "bytes": 64185,
+      "sha256": "1fd353862416810ec812ab89d66f722663ff8c7e6b6c8cfefd5f32d3cc519823"
     },
     {
       "file": "assets/release-double-chevron-bold.svg",
@@ -2743,10 +2773,14 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 3,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2763,8 +2797,8 @@
         0,
         0
       ],
-      "bytes": 83728,
-      "sha256": "118c1f6e22e1c5c61739c306c6bd1fb246a391ac8993e43b006d2a2096f1edc1"
+      "bytes": 84032,
+      "sha256": "d19b24e9b2bbdd31d446c1c1df476935f7acf6cd2aa0560e6d56f4eb807150b3"
     },
     {
       "file": "assets/release-double-chevron-bold.png",
@@ -2776,10 +2810,14 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 3,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2796,8 +2834,8 @@
         0,
         0
       ],
-      "bytes": 18633,
-      "sha256": "0dbbbfd5cb46b5dd1f8b801b1ad1fa29080ace7aeeccec9b117f861930391317"
+      "bytes": 18561,
+      "sha256": "1654848b78dc8b023d29e0e3f347719f472d07beb37554e0e3899c94672b0c1d"
     },
     {
       "file": "assets/release-double-chevron-bold@2x.png",
@@ -2809,10 +2847,14 @@
       ],
       "operation": {
         "symbol": "stacked-up-chevrons",
-        "centerX": 100,
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "pathWidth": 16,
+        "chevronOffset": 8,
         "strokeWidth": 3,
-        "indicates": "release-action",
-        "unitCount": false
+        "indicates": "release-action"
       },
       "approval": "proposed-artwork",
       "skinKey": null,
@@ -2829,8 +2871,8 @@
         0,
         0
       ],
-      "bytes": 64487,
-      "sha256": "9559d5bca025f088f11a564a309f5fd0f85439e82974a22d828c17cde2656191"
+      "bytes": 63288,
+      "sha256": "869cd01040d8eb3ae4e21619d9c0c7707072931e65322571db6ef8179949d105"
     },
     {
       "file": "assets/release-double-failed.svg",
@@ -4977,10 +5019,14 @@
       200,
       40
     ],
-    "note": "싱글·더블 모두 중앙에 위쪽 꺾쇠 두 개를 세로로 배치. 릴리즈 동작의 공통 표시이며 몫 수나 뗌 횟수를 뜻하지 않음. 2px·3px 선 두께 비교.",
+    "note": "이중 꺾쇠의 경로 폭을 28px에서 16px, 위아래 중심선 간격을 12px에서 8px로 축소. 싱글 x=100에 1개, 더블 x=84·116에 2개를 나란히 배치. 2px·3px 선 두께 비교.",
+    "reference": "https://lucide.dev/icons/chevrons-up",
     "kinds": [
       {
         "kind": "single",
+        "symbolCenters": [
+          100
+        ],
         "heldBody": "assets/body-single-held.png",
         "variants": [
           {
@@ -5004,6 +5050,10 @@
       },
       {
         "kind": "double",
+        "symbolCenters": [
+          84,
+          116
+        ],
         "heldBody": "assets/body-double-held.png",
         "variants": [
           {
