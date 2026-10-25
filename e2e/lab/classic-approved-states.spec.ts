@@ -2,6 +2,36 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('릴리즈와 바디 색 비교는 원래 포인트·바디 위에 원본과 바디색 릴리즈만 바꿔 표시한다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '릴리즈·바디 색' }).click();
+  await expect(page).toHaveURL(/#release-body-color$/);
+  const section = page.locator('#release-body-color');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(2);
+    const point = kind === 'single' ? 'note-single' : 'note-double-anodized-contrast-070';
+    const idleBody = kind === 'single' ? 'body-single' : 'body-double-center-dual-beam';
+    for (const variant of ['original', 'candidate']) {
+      const card = comparison.locator(`[data-variant="${variant}"]`);
+      const release = variant === 'original' ? `release-${kind}-chevron-triple-tight-large` : `release-${kind}-palette-body`;
+      const sources = await card.evaluate(element => ({
+        points: [...element.querySelectorAll('.palette-point')].map(image => image.getAttribute('src')),
+        releases: [...element.querySelectorAll('.palette-release')].map(image => image.getAttribute('src')),
+        bodies: [...element.querySelectorAll<HTMLElement>('.palette-body')].map(body => body.style.backgroundImage.match(/[^/]+\.png/)?.[0]),
+      }));
+      expect(sources.points).toEqual(Array(3).fill(`assets/${point}.png`));
+      expect(sources.releases).toEqual(Array(3).fill(`assets/${release}.png`));
+      expect(sources.bodies).toEqual([`body-${kind}-held`, idleBody, `body-${kind}-held`].map(file => `${file}.png`));
+      await expect(card.locator('nav a')).toHaveCount(3);
+      await expect(card.locator('nav a').first()).toHaveAttribute('href', `assets/${release}.png`);
+    }
+  }
+  await section.locator('img').evaluateAll(images => Promise.all(images.map(image => (image as HTMLImageElement).decode())));
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('넓은 중앙 면은 어두워지고 5번 100%·50%·0%는 같은 레이어의 알파만 바뀌어 폭과 바탕을 유지한다', async ({ page }) => {
   await page.goto(route + '#release-material-corrected');
   const section = page.locator('#release-material-corrected');
