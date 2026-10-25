@@ -2,6 +2,48 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('유지 확대안은 활성 바디 위에 싱글 36px·더블 64px 전체 폭으로 보이며 SVG·PNG 모두 어두운 윤곽이 있다', async ({ page }) => {
+  await page.goto(route + '#sustain-visibility');
+  const section = page.locator('#sustain-visibility');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    for (const variant of ['original', 'candidate']) {
+      const stage = comparison.locator(`[data-variant="${variant}"] [data-body-state="held"]`);
+      await expect(stage).toHaveCSS('background-image', new RegExp(`body-${kind}-held\\.png`));
+      await expect(stage).toHaveCSS('opacity', '1');
+      await expect(stage.locator('img')).toHaveCSS('opacity', '1');
+    }
+  }
+  const results = await page.evaluate(async () => {
+    const results = [];
+    for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
+      const scale = suffix === '.png' ? 1 : 2;
+      const image = new Image(); image.src = `assets/sustain-${kind}-channel-outline${suffix}`; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 200 * scale; canvas.height = 40 * scale;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+      let minX = canvas.width, maxX = -1, minY = canvas.height, maxY = -1, darkPixels = 0;
+      for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+        const i = (y * canvas.width + x) * 4;
+        if (data[i + 3] < 128) continue;
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+        if (Math.max(data[i], data[i + 1], data[i + 2]) < 90) darkPixels++;
+      }
+      results.push({ kind, suffix, width: (maxX - minX + 1) / scale, center: (minX + maxX + 1) / (2 * scale), minY: minY / scale, maxY: (maxY + 1) / scale, darkPixels: darkPixels / scale ** 2 });
+    }
+    return results;
+  });
+  for (const result of results) {
+    expect(Math.abs(result.width - (result.kind === 'single' ? 36 : 64)), result.suffix).toBeLessThanOrEqual(1);
+    expect(result.center).toBe(100);
+    expect(result.minY).toBeGreaterThan(0);
+    expect(result.maxY).toBeLessThan(40);
+    expect(result.darkPixels).toBeGreaterThan(40);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('더블 포인트는 200px 바디 중심에 212px로 놓이며 일부 성공 70%·모두 성공 숨김에도 바디는 그대로다', async ({ page }) => {
   await page.goto(route);
   await page.getByRole('link', { name: '포인트 일부 성공', exact: true }).click();

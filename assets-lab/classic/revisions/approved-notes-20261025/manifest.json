@@ -883,6 +883,108 @@
       "sha256": "999e6e4b3637deaed93e21956b3d1a7ffbf16752f45a338185295428f50ef0f2"
     },
     {
+      "file": "assets/sustain-single-channel-outline.svg",
+      "role": "single 유지 · 광선 홈 폭 + 어두운 윤곽선 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single.svg"
+      ],
+      "operation": {
+        "markerWidth": 36,
+        "outlineWidth": 2.4,
+        "outlineColor": "#05243a",
+        "beamCenters": [
+          100
+        ],
+        "grace": false
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1054,
+      "sha256": "559df837007f4b6ccdc52affb4c8712a59b15cf63c4b0a989fa6f443d955bceb"
+    },
+    {
+      "file": "assets/sustain-single-channel-outline.png",
+      "role": "single 유지 · 광선 홈 폭 + 어두운 윤곽선 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single.svg"
+      ],
+      "operation": {
+        "markerWidth": 36,
+        "outlineWidth": 2.4,
+        "outlineColor": "#05243a",
+        "beamCenters": [
+          100
+        ],
+        "grace": false
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2467,
+      "sha256": "6968fc47b12b18ad9506b02fd6d69a2b87dab597e63507ad0b90f56577af827a"
+    },
+    {
+      "file": "assets/sustain-single-channel-outline@2x.png",
+      "role": "single 유지 · 광선 홈 폭 + 어두운 윤곽선 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single.svg"
+      ],
+      "operation": {
+        "markerWidth": 36,
+        "outlineWidth": 2.4,
+        "outlineColor": "#05243a",
+        "beamCenters": [
+          100
+        ],
+        "grace": false
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6313,
+      "sha256": "fb81a62627c0b661e811f3fa62a69d0172ae07451df803939b2602a65e256a8f"
+    },
+    {
       "file": "assets/body-double-held.svg",
       "role": "double 바디 · 전체 유지",
       "generator": "build-states.mjs",
@@ -1679,6 +1781,111 @@
       ],
       "bytes": 5604,
       "sha256": "dff35af82438a553fd88d86853926f1ab43ab96f277f19726c0e3494c09097a0"
+    },
+    {
+      "file": "assets/sustain-double-channel-outline.svg",
+      "role": "double 유지 · 광선 홈 폭 + 어두운 윤곽선 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "markerWidth": 32,
+        "outlineWidth": 2.4,
+        "outlineColor": "#3b2906",
+        "beamCenters": [
+          84,
+          116
+        ],
+        "grace": false
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1608,
+      "sha256": "4c9f49f9dfa52812a209721b66b92b764246aafb56c6624e9e2821c772df706d"
+    },
+    {
+      "file": "assets/sustain-double-channel-outline.png",
+      "role": "double 유지 · 광선 홈 폭 + 어두운 윤곽선 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "markerWidth": 32,
+        "outlineWidth": 2.4,
+        "outlineColor": "#3b2906",
+        "beamCenters": [
+          84,
+          116
+        ],
+        "grace": false
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2347,
+      "sha256": "75e72c8e0bad949b977e8c81e0f985f6c1ed63f50f45c7008e497d25db986618"
+    },
+    {
+      "file": "assets/sustain-double-channel-outline@2x.png",
+      "role": "double 유지 · 광선 홈 폭 + 어두운 윤곽선 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "markerWidth": 32,
+        "outlineWidth": 2.4,
+        "outlineColor": "#3b2906",
+        "beamCenters": [
+          84,
+          116
+        ],
+        "grace": false
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6018,
+      "sha256": "2414f28e2400115e4b3af991753ba3850e9ee43f8cba540484fd54669771cfc6"
     },
     {
       "file": "assets/note-double-failed.svg",
@@ -4067,7 +4274,8 @@
     "unapproved": [
       "새 상태별 색·강도",
       "일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성",
-      "유지 노트의 성공·실패 표시 방식과 수명"
+      "유지 노트의 성공·실패 표시 방식과 수명",
+      "유지 표식 홈 폭 확대·어두운 윤곽선"
     ]
   },
   "releaseSuccessPreview": {
@@ -4224,5 +4432,39 @@
       }
     ],
     "note": "위는 끝, 아래는 시작. 바디 자체의 경계는 같고 명시된 Point·릴리즈만 추가. 시작·끝 마감은 없음."
+  },
+  "sustainVisibilityPreview": {
+    "approval": "proposed-display-treatment",
+    "targetSize": [
+      200,
+      40
+    ],
+    "outlineWidth": 2.4,
+    "note": "D 매듭의 형태와 광선 중심을 유지하고 윤곽 포함 폭을 싱글 36px·더블 각 32px로 확대. 활성 바디 가독성 비교용이며 기존 승인 원본은 유지.",
+    "kinds": [
+      {
+        "kind": "single",
+        "markerWidth": 36,
+        "beamCenters": [
+          100
+        ],
+        "original": "assets/sustain-single.png",
+        "candidate": "assets/sustain-single-channel-outline.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png"
+      },
+      {
+        "kind": "double",
+        "markerWidth": 32,
+        "beamCenters": [
+          84,
+          116
+        ],
+        "original": "assets/sustain-double.png",
+        "candidate": "assets/sustain-double-channel-outline.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png"
+      }
+    ]
   }
 }

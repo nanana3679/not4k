@@ -47,9 +47,12 @@ const releaseSuccess = `<section id="release-success" aria-labelledby="release-s
 <p>Grace 일부 성공은 본체 70%·전체 외곽 100%입니다. 모두 성공하면 본체와 외곽을 함께 숨깁니다. 반쪽 숨김 시안은 전체 70% 표시로 대체했습니다.</p>
 <p>실패가 확정된 릴리즈는 실패색으로 바꾸고 스크롤되어 화면 밖으로 나갈 때까지 남깁니다. 바디 실패로 기회를 잃은 릴리즈도 포함하며, 판정 가능·유예 대기 중에는 먼저 실패색으로 바꾸지 않습니다. 성공·실패가 섞인 더블의 최종 합성과 유지 노트 표시는 별도 검토입니다.</p>
 </section>`;
+const sustainPreview = manifest.sustainVisibilityPreview;
+const sustainVisibility = `<section id="sustain-visibility" aria-labelledby="sustain-visibility-title"><h2 id="sustain-visibility-title">유지 표식 · 광선 홈 폭 + 윤곽선</h2><p>활성 바디 위에서 기존 표식과 확대안을 비교합니다. D 매듭의 모양과 중심을 유지하고, 광선과 구분되는 어두운 윤곽선을 넣었습니다.</p>${sustainPreview.kinds.map(entry => `<h3>${entry.kind === 'single' ? '싱글 · 36px' : '더블 · 각 32px'}</h3><div class="sustain-comparison" data-kind="${entry.kind}">${[['original', '기존'], ['candidate', '홈 폭 + 윤곽선']].map(([key, label]) => `<article data-variant="${key}"><h4>${label}</h4>${[['held', '바디 활성화', entry.heldBody], ['idle', '바디 대기', entry.idleBody]].map(([state, title, body]) => `<figure><figcaption>${title}</figcaption><div class="sustain-stage" data-body-state="${state}" style="background-image:url('${body}')"><img src="${entry[key]}" width="200" height="40" alt="${entry.kind === 'single' ? '싱글' : '더블'} 유지 ${label}"></div></figure>`).join('')}<figure><figcaption>게임 배율 · 활성 바디</figcaption><div class="sustain-game"><div class="sustain-stage" data-body-state="game-held" style="background-image:url('${entry.heldBody}')"><img src="${entry[key]}" width="200" height="40" alt="게임 배율 유지 ${label}"></div></div></figure><nav aria-label="${entry.kind} ${label} 다운로드">${links(entry[key])}</nav></article>`).join('')}</div>`).join('')}<p>윤곽선은 표식 자체의 경계를 구분하는 선입니다. Grace 외곽이나 별도 발광 효과가 아닙니다. 싱글·더블 원본과 기존 실패 표시는 유지하며, 이 확대안은 비교용입니다.</p></section>`;
 const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Classic 상태별 에셋 검토</title><link rel="stylesheet" href="style.css"></head>
-<body><main><header><a href="../../">← Lab 목록</a><p class="edition">Classic · 판정 연결 준비</p><h1>상태별 에셋 검토</h1><p>확정 도안으로 만든 유지·실패·몫별 표시 시안입니다. 확정한 성공·실패 표시와 검토 중인 색의 강도를 구분해 확인합니다.</p><p>릴리즈도 최종 C안(J2-C)을 사용합니다. D 매듭은 유지 표식입니다. 바디와 유지 표식에는 Grace를 붙이지 않습니다.</p><nav class="jump"><a href="#point-success">포인트 일부 성공</a><a href="#release-success">릴리즈 일부 성공</a><a href="#body-double">바디</a><a href="#body-boundaries">바디 시작·끝</a><a href="#point-double">누름</a><a href="#sustain-double">유지</a><a href="#release-double">릴리즈</a><a href="#sustain-layers">남은 몫</a></nav></header>
+<body><main><header><a href="../../">← Lab 목록</a><p class="edition">Classic · 판정 연결 준비</p><h1>상태별 에셋 검토</h1><p>확정 도안으로 만든 유지·실패·몫별 표시 시안입니다. 확정한 성공·실패 표시와 검토 중인 색의 강도를 구분해 확인합니다.</p><p>릴리즈도 최종 C안(J2-C)을 사용합니다. D 매듭은 유지 표식입니다. 바디와 유지 표식에는 Grace를 붙이지 않습니다.</p><nav class="jump"><a href="#sustain-visibility">유지 가독성</a><a href="#point-success">포인트 일부 성공</a><a href="#release-success">릴리즈 일부 성공</a><a href="#body-double">바디</a><a href="#body-boundaries">바디 시작·끝</a><a href="#point-double">누름</a><a href="#sustain-double">유지</a><a href="#release-double">릴리즈</a><a href="#sustain-layers">남은 몫</a></nav></header>
+${sustainVisibility}
 ${pointSuccess}
 ${releaseSuccess}
 ${bodyBoundaries}
@@ -76,6 +79,16 @@ await writeFile(new URL('style.css', gallery), `:root{color-scheme:dark;font-fam
 .boundary-stage img{position:absolute;height:40px}
 .boundary-point{left:0;top:160px;width:212px}
 .boundary-release{left:6px;top:0;width:200px}
+.sustain-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+#sustain-visibility>h3{font-size:17px;min-height:0;margin:32px 0 14px}
+.sustain-comparison h4{font-size:15px;margin:0 0 22px}
+.sustain-comparison figure{margin:0 0 22px}
+.sustain-comparison figcaption{font-size:12px;color:#b5c4d5;text-align:center;margin-bottom:8px}
+.sustain-stage{position:relative;width:200px;height:112px;margin:auto;background-size:200px 40px}
+.sustain-stage img{position:absolute;top:36px;left:0;width:200px;height:40px}
+.sustain-game{width:59px;height:34px;margin:auto}
+.sustain-game .sustain-stage{transform:scale(0.29481132);transform-origin:top left}
+@media(max-width:600px){.sustain-comparison{grid-template-columns:1fr}}
 @media(max-width:880px){.success-comparison{grid-template-columns:1fr}.success-comparison article{max-width:440px;width:100%;margin:auto}}
 @media(max-width:600px){.boundary-comparison{grid-template-columns:1fr}}
 @media(max-width:760px){.success-comparison{grid-template-columns:1fr}.success-comparison article{max-width:440px;width:100%;margin:auto}}

@@ -2,6 +2,7 @@ import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { chromium } from '@playwright/test';
 import { halfMask, rasterArtwork, rectangularGraceArtwork, stateArtwork } from './state-artwork.mjs';
+import { outlinedSustain } from './sustain-visibility.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -20,6 +21,11 @@ for (const asset of manifest.assets.filter(asset => asset.file.startsWith('asset
   asset.role = asset.file.includes('terminal-j2-') ? 'J2-C 릴리즈 선택 원본 · 출처 파일명 보존' : '과거 바디 끝 Grace 참고본 · 새 모델 미사용';
 }
 manifest.stateGroups = [];
+manifest.sustainVisibilityPreview = {
+  approval: 'proposed-display-treatment', targetSize: [200, 40], outlineWidth: 2.4,
+  note: 'D 매듭의 형태와 광선 중심을 유지하고 윤곽 포함 폭을 싱글 36px·더블 각 32px로 확대. 활성 바디 가독성 비교용이며 기존 승인 원본은 유지.',
+  kinds: [],
+};
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
 const read = name => readFile(new URL(`assets/${name}`, here));
@@ -90,6 +96,15 @@ try {
       sustainStates.push(state(id, label, await emit(`${sustainName}-${id}`, stateArtwork(sustainSource, { failedSide: side }), { role: `유지 ${kind} · ${label}`, sourceFiles: [`assets/${sustainName}.svg`], operation: { failedSide: side }, skinKey: side === 'all' ? `sustain${cap}Failed` : `sustainDoublePartialFailed${side === 'left' ? 'Left' : 'Right'}` })));
     }
     group(sustainName, `${kind === 'single' ? '싱글' : '더블'} 유지 표식`, sustainStates, { beamCenters: centers, grace: false });
+    const markerWidth = kind === 'single' ? 36 : 32;
+    const outlineColor = kind === 'single' ? '#05243a' : '#3b2906';
+    const candidate = await emit(`${sustainName}-channel-outline`, outlinedSustain(sustainSource, { markerWidth, outlineColor }), {
+      role: `${kind} 유지 · 광선 홈 폭 + 어두운 윤곽선 시안`, sourceFiles: [`assets/${sustainName}.svg`],
+      operation: { markerWidth, outlineWidth: 2.4, outlineColor, beamCenters: centers, grace: false },
+    });
+    manifest.sustainVisibilityPreview.kinds.push({ kind, markerWidth, beamCenters: centers,
+      original: `assets/${sustainName}.png`, candidate, idleBody: `assets/${bodyName}.png`, heldBody: `assets/body-${kind}-held.png`,
+    });
   }
 
   const m6 = await svg('note-double-anodized-contrast-070');
@@ -222,7 +237,7 @@ try {
       bodyStartCap: false, bodyEndCap: false, implicitPoint: false, implicitRelease: false,
     },
     missingRequestedStates: [],
-    unapproved: ['새 상태별 색·강도', '일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성', '유지 노트의 성공·실패 표시 방식과 수명'],
+    unapproved: ['새 상태별 색·강도', '일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성', '유지 노트의 성공·실패 표시 방식과 수명', '유지 표식 홈 폭 확대·어두운 윤곽선'],
   };
   const assetsByFile = new Map(manifest.assets.map(asset => [asset.file, asset]));
   for (const asset of manifest.assets) {
