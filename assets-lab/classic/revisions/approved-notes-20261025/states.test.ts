@@ -20,9 +20,9 @@ const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
-  it('에셋 273개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
-    expect(manifest.assets).toHaveLength(273);
-    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(273);
+  it('에셋 291개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
+    expect(manifest.assets).toHaveLength(291);
+    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(291);
     for (const asset of manifest.assets) {
       const bytes = readFileSync(new URL(asset.file, here));
       expect(bytes.length, asset.file).toBe(asset.bytes);

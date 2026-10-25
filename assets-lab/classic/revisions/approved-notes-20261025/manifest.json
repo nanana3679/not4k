@@ -3289,6 +3289,375 @@
       "sha256": "86271d0c225ed03078a0253bc02eb60febb6e19cd8875722ee1ad4f867276b24"
     },
     {
+      "file": "assets/release-single-material-wide-light-100.svg",
+      "role": "single 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 100%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/body-single.png",
+        "material-reference/single.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "whiteOpacity": 1,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3085315,
+      "sha256": "a27a6272d840d900d6583ec9959ff92cbeda2a7776a6f42fc41ade1c4546a16b"
+    },
+    {
+      "file": "assets/release-single-material-wide-light-100.png",
+      "role": "single 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 100%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/body-single.png",
+        "material-reference/single.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "whiteOpacity": 1,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15299,
+      "sha256": "b444bd6638199b4718e31e062707a906f641d410a55cf0bd584783b9d0de3e72"
+    },
+    {
+      "file": "assets/release-single-material-wide-light-100@2x.png",
+      "role": "single 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 100%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/body-single.png",
+        "material-reference/single.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "whiteOpacity": 1,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 50501,
+      "sha256": "1f96c3c00628ca2ce0c14b5a447cdc0ba813d8a6de46c3c4ccccf7f21749d745"
+    },
+    {
+      "file": "assets/release-single-material-wide-light-050.svg",
+      "role": "single 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 50%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/body-single.png",
+        "material-reference/single.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "whiteOpacity": 0.5,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3085317,
+      "sha256": "0cbf38bce29394876228c996b69a7ac26c8ffff2ca0cbe485143be79f08ec57b"
+    },
+    {
+      "file": "assets/release-single-material-wide-light-050.png",
+      "role": "single 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 50%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/body-single.png",
+        "material-reference/single.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "whiteOpacity": 0.5,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15250,
+      "sha256": "41fe0dd74ce96a71883c0e0487b4630994182566918dc6c83d488725449e26b9"
+    },
+    {
+      "file": "assets/release-single-material-wide-light-050@2x.png",
+      "role": "single 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 50%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/body-single.png",
+        "material-reference/single.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "whiteOpacity": 0.5,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 50543,
+      "sha256": "6b2ca3754c35e89641c5c2fcf715070703cd83a3ff48ba12cb16750e74af1ae8"
+    },
+    {
+      "file": "assets/release-single-material-wide-light-000.svg",
+      "role": "single 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 0%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/body-single.png",
+        "material-reference/single.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "whiteOpacity": 0,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3085315,
+      "sha256": "45b58f3854d36a4736565a3c776b5e03e1662b546e1fa7aeacc4ec8bdce896b2"
+    },
+    {
+      "file": "assets/release-single-material-wide-light-000.png",
+      "role": "single 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 0%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/body-single.png",
+        "material-reference/single.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "whiteOpacity": 0,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15308,
+      "sha256": "1026a46acee66cd55ffe876aada5176300831464de2f8cadca521913327ad74a"
+    },
+    {
+      "file": "assets/release-single-material-wide-light-000@2x.png",
+      "role": "single 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 0%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/body-single.png",
+        "material-reference/single.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "whiteOpacity": 0,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 50593,
+      "sha256": "18a07505761c510c1bd92e2b046ee8eb7a42b0a10af3715f51cbb15fc4f0cbbe"
+    },
+    {
       "file": "assets/release-single-palette-point.svg",
       "role": "single 릴리즈 · 포인트 팔레트에 맞춘 색 시안",
       "generator": "build-states.mjs",
@@ -6212,6 +6581,375 @@
       ],
       "bytes": 63708,
       "sha256": "8615d288b91f441bad723e89a939110f371da23362e0f7cb7a1231886d502eca"
+    },
+    {
+      "file": "assets/release-double-material-wide-light-100.svg",
+      "role": "double 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 100%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/body-double-center-dual-beam.png",
+        "material-reference/double.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
+        "whiteOpacity": 1,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3347391,
+      "sha256": "ed9eba537f48dbcc9c21a448829519a5d1aff4c921ce6b37a89149cfd0405481"
+    },
+    {
+      "file": "assets/release-double-material-wide-light-100.png",
+      "role": "double 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 100%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/body-double-center-dual-beam.png",
+        "material-reference/double.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
+        "whiteOpacity": 1,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16613,
+      "sha256": "5c477aab1e3c3a359afa64f40a51c2dd9bb27277b06df91c8d728eef35ef9793"
+    },
+    {
+      "file": "assets/release-double-material-wide-light-100@2x.png",
+      "role": "double 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 100%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/body-double-center-dual-beam.png",
+        "material-reference/double.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
+        "whiteOpacity": 1,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 55330,
+      "sha256": "69599bb606921cb8179697dc67820775edaf25ce09a8d4058294ec6d9ae55956"
+    },
+    {
+      "file": "assets/release-double-material-wide-light-050.svg",
+      "role": "double 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 50%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/body-double-center-dual-beam.png",
+        "material-reference/double.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
+        "whiteOpacity": 0.5,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3347393,
+      "sha256": "1997001ac3f8fef95dab73ceeebc9bccd5ace2da65cddf3b39507434d0051c11"
+    },
+    {
+      "file": "assets/release-double-material-wide-light-050.png",
+      "role": "double 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 50%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/body-double-center-dual-beam.png",
+        "material-reference/double.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
+        "whiteOpacity": 0.5,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16669,
+      "sha256": "cf7709338fd92a615d888563840068f1ce8f0a6ed5575029350b4d13aafaf295"
+    },
+    {
+      "file": "assets/release-double-material-wide-light-050@2x.png",
+      "role": "double 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 50%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/body-double-center-dual-beam.png",
+        "material-reference/double.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
+        "whiteOpacity": 0.5,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 55412,
+      "sha256": "f32e502a45a702a423b2d066d8843de2e5a54bec5f66ccc0d5ad2c6b37f962f5"
+    },
+    {
+      "file": "assets/release-double-material-wide-light-000.svg",
+      "role": "double 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 0%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/body-double-center-dual-beam.png",
+        "material-reference/double.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
+        "whiteOpacity": 0,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3347391,
+      "sha256": "9d4036b73acaf0c69290578aef23f9fedd98762be01e0d17ef499228b735c21d"
+    },
+    {
+      "file": "assets/release-double-material-wide-light-000.png",
+      "role": "double 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 0%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/body-double-center-dual-beam.png",
+        "material-reference/double.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
+        "whiteOpacity": 0,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16671,
+      "sha256": "8c935c70d2616517e4d23c49bcf8a7a080262a56cc565cb8f0291d21bb1d8973"
+    },
+    {
+      "file": "assets/release-double-material-wide-light-000@2x.png",
+      "role": "double 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 0%",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/body-double-center-dual-beam.png",
+        "material-reference/double.png",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "darkSurface": "central-face",
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
+        "whiteOpacity": 0,
+        "whiteLight": "estimated source-over layer from original flattened pixels; fixed image and geometry",
+        "preserve": "selected chevron geometry and 100/80/50 alpha; original stripe dimensions",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 55115,
+      "sha256": "a0b8b91d318c886c2552d17ef7359b4fe467fb0082b4ec7a636b64d9fc4ba8be"
     },
     {
       "file": "assets/release-double-palette-point.svg",
@@ -10316,6 +11054,88 @@
         "kind": "double",
         "original": "assets/release-double-chevron-triple-tight-large.png",
         "candidate": "assets/release-double-material-body.png",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png"
+      }
+    ]
+  },
+  "releaseWideMaterialPreview": {
+    "approval": "proposed-artwork",
+    "targetSize": [
+      200,
+      40
+    ],
+    "note": "넓은 부분은 꺾쇠 뒤 중앙 바탕면으로 해석한 시안. 바디 광선 주변의 어두운 색을 적용. 5번은 합쳐진 원본에서 추정 분리한 흰빛 레이어의 위치·크기를 고정하고 alpha 1·0.5·0만 바꾼다. 4번 셀채색 유지.",
+    "darkSurface": "central-face",
+    "whiteLightAlphas": [
+      1,
+      0.5,
+      0
+    ],
+    "kinds": [
+      {
+        "kind": "single",
+        "original": "assets/release-single-chevron-triple-tight-large.png",
+        "previous": "assets/release-single-material-body.png",
+        "variants": [
+          {
+            "id": "100",
+            "label": "흰빛 100%",
+            "whiteOpacity": 1,
+            "file": "assets/release-single-material-wide-light-100.png"
+          },
+          {
+            "id": "050",
+            "label": "흰빛 50%",
+            "whiteOpacity": 0.5,
+            "file": "assets/release-single-material-wide-light-050.png"
+          },
+          {
+            "id": "000",
+            "label": "흰빛 0%",
+            "whiteOpacity": 0,
+            "file": "assets/release-single-material-wide-light-000.png"
+          }
+        ],
+        "darkColor": [
+          0,
+          52,
+          118
+        ],
+        "point": "assets/note-single.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png"
+      },
+      {
+        "kind": "double",
+        "original": "assets/release-double-chevron-triple-tight-large.png",
+        "previous": "assets/release-double-material-body.png",
+        "variants": [
+          {
+            "id": "100",
+            "label": "흰빛 100%",
+            "whiteOpacity": 1,
+            "file": "assets/release-double-material-wide-light-100.png"
+          },
+          {
+            "id": "050",
+            "label": "흰빛 50%",
+            "whiteOpacity": 0.5,
+            "file": "assets/release-double-material-wide-light-050.png"
+          },
+          {
+            "id": "000",
+            "label": "흰빛 0%",
+            "whiteOpacity": 0,
+            "file": "assets/release-double-material-wide-light-000.png"
+          }
+        ],
+        "darkColor": [
+          83,
+          56,
+          1
+        ],
         "point": "assets/note-double-anodized-contrast-070.png",
         "idleBody": "assets/body-double-center-dual-beam.png",
         "heldBody": "assets/body-double-held.png"

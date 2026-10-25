@@ -1,6 +1,6 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 보존 원본 24개와 복사·상태별 생성물 249개, 총 273개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 267개, 총 291개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
@@ -61,6 +61,14 @@
 새 상태 파일은 `body-double-held`, `body-double-partial-held-{left,right}`, `body-double-failed`, `body-double-partial-failed-{left,right}`, `note-double-failed`, `sustain-{single,double}-failed`, `sustain-double-partial-failed-{left,right}`, `{sustain,release}-double-unit-{left,right}[-failed]`, `unit-mask-{left,right}` 이름으로 찾을 수 있다.
 
 ## 재생성 및 미리보기
+
+### 넓은 중앙 면 · 흰빛 레이어 알파
+
+`#release-material-corrected`는 "가는 선이 아니라 넓은 부분을 어둡게", "5번은 흰 영역을 좁히지 말고 흰빛만 알파를 낮추기"라는 정정을 반영한 후속 시안이다. **넓은 부분은 꺾쇠 뒤 중앙 바탕면 전체로 해석**했다. 기존 번호 1에 해당하는 면까지 바디의 광선 주변 색으로 어둡게 하며 4번 명암 면은 직전 생성 참고를 재사용한다. 싱글은 바디 (92, 20), 더블은 (100, 20)의 색을 사용하고 원래 중앙 면의 밝기 차이는 좁은 어두운 범위 안에 남긴다. 원래 꺾쇠 경로·중심·100%·80%·50%는 다시 합성한다. 이 면 범위와 강도는 미선택 시안이다.
+
+J2-C는 흰빛까지 합쳐진 PNG라 원래 흰빛 레이어가 존재하지 않는다. `release-highlight.mjs`는 5번 아래 인접 면의 색으로 흰빛 아래 바탕을 추정한 후, 원본 색을 재구성하는 source-over 레이어를 계산한다. 이는 숨겨진 원본 레이어 복원이 아닌 보정용 분리다. 세 안은 **동일한 바탕·흰빛 이미지·크기·위치·클립**에 흰빛 `opacity` **1·0.5·0**만 적용한다. SVG `atop` 합성은 에셋 전체의 알파를 보존한다. 0%는 추정 바탕을 확인하는 진단용이며 50%를 비교 중심으로 둔다. 새로운 ImageGen 호출은 하지 않는다.
+
+`release-{single,double}-material-wide-light-{100,050,000}`의 PNG·2배 PNG·SVG **18개**를 추가한다. `manifest.releaseWideMaterialPreview`에 조합과 바디에서 가져온 색을 기록한다. 갤러리는 같은 포인트·바디 연결, 게임 배율 대기/활성과 펼쳐 보는 원본·직전 시안을 제공한다. 이전 273개 파일은 그대로 유지하며 실제 스킨·실패·Grace 적용은 별도다.
 
 ### 릴리즈 3·4·5번 재질 수정
 

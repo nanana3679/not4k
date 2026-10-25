@@ -2,6 +2,77 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('넓은 중앙 면은 어두워지고 5번 100%·50%·0%는 같은 레이어의 알파만 바뀌어 폭과 바탕을 유지한다', async ({ page }) => {
+  await page.goto(route + '#release-material-corrected');
+  const section = page.locator('#release-material-corrected');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(3);
+    await expect(comparison.locator('article nav a')).toHaveCount(9);
+  }
+  const results = await page.evaluate(async () => {
+    const pixels = async (file: string) => {
+      const image = new Image(); image.src = file; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, 400, 80);
+      return context.getImageData(0, 0, 400, 80).data;
+    };
+    const results = [];
+    for (const kind of ['single', 'double']) {
+      const prefix = `assets/release-${kind}-material-wide-light-`;
+      const sources = await Promise.all(['100', '050', '000'].map(async id => (await fetch(prefix + id + '.svg')).text()));
+      const normalized = sources.map(source => {
+        const doc = new DOMParser().parseFromString(source, 'image/svg+xml');
+        doc.querySelector('[data-release-white-light]')!.setAttribute('opacity', '1');
+        return new XMLSerializer().serializeToString(doc);
+      });
+      const originalSymbols = new DOMParser().parseFromString(await (await fetch(`assets/release-${kind}-chevron-triple-tight-large.svg`)).text(), 'image/svg+xml');
+      const candidateSymbols = new DOMParser().parseFromString(sources[0], 'image/svg+xml');
+      const symbols = (doc: Document) => [...doc.querySelectorAll('[data-release-symbol]')].map(node => new XMLSerializer().serializeToString(node));
+      for (const suffix of ['.png', '@2x.png', '.svg']) {
+        const [full, half, zero, original] = await Promise.all([
+          ...['100', '050', '000'].map(id => pixels(prefix + id + suffix)),
+          pixels(`assets/release-${kind}-chevron-triple-tight-large${suffix === '.png' ? '.png' : '@2x.png'}`),
+        ]);
+        let midpointError = 0, alphaDifference = 0, otherPartsDifference = 0, restoredStripeError = 0;
+        let darkIntensity = 0, originalIntensity = 0;
+        for (let y = 0; y < 80; y++) for (let x = 0; x < 400; x++) {
+          const i = (y * 400 + x) * 4;
+          alphaDifference = Math.max(alphaDifference, Math.abs(full[i + 3] - half[i + 3]), Math.abs(full[i + 3] - zero[i + 3]));
+          for (let c = 0; c < 3; c++) {
+            midpointError = Math.max(midpointError, Math.abs(half[i + c] - (full[i + c] + zero[i + c]) / 2));
+            if (x > 115 && x < 285 || y > 46 || y < 18) otherPartsDifference = Math.max(otherPartsDifference, Math.abs(full[i + c] - zero[i + c]));
+            if (x >= 35 && x < 85 && y >= 25 && y < 30) restoredStripeError = Math.max(restoredStripeError, Math.abs(full[i + c] - original[i + c]));
+          }
+          if (x >= 128 && x < 144 && y >= 5 && y < 40) {
+            darkIntensity += .2126 * half[i] + .7152 * half[i + 1] + .0722 * half[i + 2];
+            originalIntensity += .2126 * original[i] + .7152 * original[i + 1] + .0722 * original[i + 2];
+          }
+        }
+        results.push({ kind, suffix, normalized, originalSymbols: symbols(originalSymbols), candidateSymbols: symbols(candidateSymbols),
+          midpointError, alphaDifference, otherPartsDifference, restoredStripeError, darkRatio: darkIntensity / originalIntensity });
+      }
+    }
+    return results;
+  });
+  for (const result of results) {
+    const label = result.kind + result.suffix;
+    expect(result.normalized[0]).toBe(result.normalized[1]);
+    expect(result.normalized[0]).toBe(result.normalized[2]);
+    expect(result.candidateSymbols).toEqual(result.originalSymbols);
+    // Layer alpha, SVG filtering and PNG resampling each round to 8-bit values.
+    expect(result.midpointError, label).toBeLessThanOrEqual(3);
+    expect(result.alphaDifference, label).toBe(0);
+    expect(result.otherPartsDifference, label).toBe(0);
+    expect(result.restoredStripeError, label).toBeLessThanOrEqual(2);
+    expect(result.darkRatio, label).toBeLessThan(.45);
+  }
+  await section.locator('summary').first().click();
+  await expect(section.getByAltText('싱글 릴리즈 원본')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('릴리즈 재질 수정은 3번 홈과 5번 빛을 낮추고 4번 명암·원래 꺾쇠와 바디 조합을 유지한다', async ({ page }) => {
   await page.goto(route + '#release-material');
   const section = page.locator('#release-material');

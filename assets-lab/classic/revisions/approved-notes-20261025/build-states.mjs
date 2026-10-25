@@ -6,6 +6,7 @@ import { outlinedSustain } from './sustain-visibility.mjs';
 import { releaseChevron } from './release-chevron.mjs';
 import { paletteMappedArtwork, sampleArtworkPalette } from './release-palette.mjs';
 import { releaseMaterialArtwork } from './release-material.mjs';
+import { splitReleaseHighlight, releaseWideMaterialArtwork } from './release-highlight.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -58,6 +59,11 @@ manifest.releaseMaterialPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
   note: '3번은 어두운 홈, 4번은 바디처럼 명암을 나눈 면, 5번은 약한 가로빛. ImageGen 결과에서 지정 영역만 합성하고 원래 중앙 면·꺾쇠·아랫면·양끝 띠를 유지. 8번 중앙 흰빛의 코어도 보존.',
   parts: [3, 4, 5], kinds: [],
+};
+manifest.releaseWideMaterialPreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '넓은 부분은 꺾쇠 뒤 중앙 바탕면으로 해석한 시안. 바디 광선 주변의 어두운 색을 적용. 5번은 합쳐진 원본에서 추정 분리한 흰빛 레이어의 위치·크기를 고정하고 alpha 1·0.5·0만 바꾼다. 4번 셀채색 유지.',
+  darkSurface: 'central-face', whiteLightAlphas: [1, .5, 0], kinds: [],
 };
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
@@ -210,6 +216,32 @@ try {
     manifest.releaseMaterialPreview.kinds.push({ kind, original: selectedSymbol.file, candidate: materialCandidate,
       point: kind === 'single' ? 'assets/note-single.png' : 'assets/note-double-anodized-contrast-070.png',
       idleBody: kind === 'single' ? 'assets/body-single.png' : 'assets/body-double-center-dual-beam.png', heldBody: `assets/body-${kind}-held.png`,
+    });
+    const bodyFile = kind === 'single' ? 'body-single.png' : 'body-double-center-dual-beam.png';
+    const bodyBytes = await read(bodyFile);
+    const darkColor = await page.evaluate(async ({ dataUrl, x }) => {
+      const image = new Image(); image.src = dataUrl; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 200; canvas.height = 40;
+      const context = canvas.getContext('2d'); context.drawImage(image, 0, 0, 200, 40);
+      return [...context.getImageData(x, 20, 1, 1).data].slice(0, 3);
+    }, { dataUrl: `data:image/png;base64,${bodyBytes.toString('base64')}`, x: kind === 'single' ? 92 : 100 });
+    const whiteLayers = await page.evaluate(splitReleaseHighlight, `data:image/png;base64,${pngSources[2].toString('base64')}`);
+    const nativeWhiteLayers = await page.evaluate(splitReleaseHighlight, `data:image/png;base64,${pngSources[1].toString('base64')}`);
+    const wideVariants = [];
+    for (const whiteOpacity of manifest.releaseWideMaterialPreview.whiteLightAlphas) {
+      const id = String(whiteOpacity * 100).padStart(3, '0');
+      const options = { ...materialCrop, darkColor, whiteOpacity };
+      const file = await emit(`release-${kind}-material-wide-light-${id}`, releaseChevron(releaseWideMaterialArtwork(pngSources[2], materialBytes, whiteLayers, options), { kind, centers: symbolCenters, ...selectedSymbol }), {
+        nativeSource: releaseChevron(releaseWideMaterialArtwork(pngSources[1], materialBytes, nativeWhiteLayers, options), { kind, centers: symbolCenters, ...selectedSymbol }),
+        role: `${kind} 릴리즈 · 넓은 중앙 면 어둡게 + 원래 폭의 흰빛 ${whiteOpacity * 100}%`,
+        sourceFiles: [...sourceFiles, `assets/${bodyFile}`, materialReference, 'material-reference/crops.json'],
+        operation: { darkSurface: 'central-face', darkColor, whiteOpacity, whiteLight: 'estimated source-over layer from original flattened pixels; fixed image and geometry', preserve: 'selected chevron geometry and 100/80/50 alpha; original stripe dimensions', symbolVariant: selectedSymbol.id },
+        approval: 'proposed-artwork',
+      });
+      wideVariants.push({ id, label: `흰빛 ${whiteOpacity * 100}%`, whiteOpacity, file });
+    }
+    manifest.releaseWideMaterialPreview.kinds.push({ kind, original: selectedSymbol.file, previous: materialCandidate, variants: wideVariants, darkColor,
+      point: kind === 'single' ? 'assets/note-single.png' : 'assets/note-double-anodized-contrast-070.png', idleBody: `assets/${bodyFile}`, heldBody: `assets/body-${kind}-held.png`,
     });
     const candidate = await emit(`release-${kind}-palette-point`, releaseChevron(paletteMappedArtwork(source, paletteTable), { kind, centers: symbolCenters, ...selectedSymbol }), {
       nativeSource: releaseChevron(paletteMappedArtwork(nativeSource, paletteTable), { kind, centers: symbolCenters, ...selectedSymbol }),
