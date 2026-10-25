@@ -1,0 +1,4228 @@
+{
+  "schemaVersion": 1,
+  "purpose": "판정 에이전트 검토용 확정 에셋 묶음. proposedRuntimePath와 skinKey는 제안이며 런타임에 아직 연결하지 않음.",
+  "selections": {
+    "doublePoint": "M6 anodized contrast 70%",
+    "sustain": "D knot scale 1.8",
+    "doubleBodyCenters": [
+      0.42,
+      0.58
+    ],
+    "release": "J2-C"
+  },
+  "assets": [
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/note-single.png",
+      "file": "assets/note-single.png",
+      "role": "누름 · 싱글 · 기존 유지",
+      "skinKey": "noteSingle",
+      "proposedRuntimePath": "public/skins/classic/note-single.png",
+      "width": 212,
+      "height": 40,
+      "bytes": 5740,
+      "sha256": "49c6b45cd6c5692b70516479d2f9a77c615d1f0c3aa274a300c0ee34b66bdf61",
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/note-single.png"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/note-single.svg",
+      "file": "assets/note-single.svg",
+      "role": "누름 · 싱글 · 기존 유지",
+      "skinKey": "noteSingle",
+      "proposedRuntimePath": null,
+      "width": 1060,
+      "height": 200,
+      "bytes": 15504,
+      "sha256": "a90ca65307538fe14a8c5d67655fa2f5146b4397b7cfdd20fcf0f87e44a75d01",
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/note-single.svg"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/note-double-anodized-contrast-070.png",
+      "file": "assets/note-double-anodized-contrast-070.png",
+      "role": "누름 · 더블 · M6 대비 70%",
+      "skinKey": "noteDouble",
+      "proposedRuntimePath": "public/skins/classic/note-double.png",
+      "width": 212,
+      "height": 40,
+      "bytes": 11467,
+      "sha256": "ab66a0be35809110a9ea68b5326e168308eb4b49860fb87939c5d24b6682b329",
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/note-double-anodized-contrast-070.svg",
+      "file": "assets/note-double-anodized-contrast-070.svg",
+      "role": "누름 · 더블 · M6 대비 70%",
+      "skinKey": "noteDouble",
+      "proposedRuntimePath": null,
+      "width": 1060,
+      "height": 200,
+      "bytes": 157268,
+      "sha256": "2e53a773d8728706a03581f1edacc3306c00d696887403822d95f14763420f74",
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.svg"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/body-single.png",
+      "file": "assets/body-single.png",
+      "role": "바디 · 싱글 · 대기",
+      "skinKey": "bodySingle",
+      "proposedRuntimePath": "public/skins/classic/body-single.png",
+      "width": 200,
+      "height": 40,
+      "bytes": 927,
+      "sha256": "80655da690f6612b8dca32ea3b79e1b38f58123e94cb5c127c296335d90f674e",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/body-single.png"
+      ]
+    },
+    {
+      "source": "public/lab/note-assets/classic/body-single-idle.svg",
+      "file": "assets/body-single.svg",
+      "role": "바디 · 싱글 · 대기 원본",
+      "skinKey": "bodySingle",
+      "proposedRuntimePath": null,
+      "width": 1000,
+      "height": 200,
+      "bytes": 3362,
+      "sha256": "3a228a5b8366492384d95b8c7629c516a52cc77e21265caa1d92bb5e3891dd5b",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/body-single.svg"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/body-double-center-dual-beam.png",
+      "file": "assets/body-double-center-dual-beam.png",
+      "role": "바디 · 더블 · 중앙 광선 42%·58%",
+      "skinKey": "bodyDouble",
+      "proposedRuntimePath": "public/skins/classic/body-double.png",
+      "width": 200,
+      "height": 40,
+      "bytes": 810,
+      "sha256": "a625b7e95f55d3d42319d6b1699be3ceb48b51e02e657a83add44f4c056eb808",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/body-double-center-dual-beam.svg",
+      "file": "assets/body-double-center-dual-beam.svg",
+      "role": "바디 · 더블 · 중앙 광선 42%·58%",
+      "skinKey": "bodyDouble",
+      "proposedRuntimePath": null,
+      "width": 1000,
+      "height": 200,
+      "bytes": 4014,
+      "sha256": "483d384ce89c4c6a0c33862a9dc88caee553690bf6d01f5c40a07e2db882405f",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/terminal-j2-shadow-3-single.png",
+      "file": "assets/terminal-j2-shadow-3-single.png",
+      "role": "J2-C 릴리즈 선택 원본 · 출처 파일명 보존",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "bytes": 16511,
+      "sha256": "2092e33ad0d37e321a21336a544105ae17a5e55963a4c5f158fde48b8b14be9a",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png"
+      ],
+      "usage": "release-source"
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/terminal-j2-shadow-3-single@2x.png",
+      "file": "assets/terminal-j2-shadow-3-single@2x.png",
+      "role": "J2-C 릴리즈 선택 원본 · 출처 파일명 보존",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "bytes": 56541,
+      "sha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png"
+      ],
+      "usage": "release-source"
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/sustain-single.png",
+      "file": "assets/sustain-single.png",
+      "role": "유지 노트 · single · D 매듭 1.8배",
+      "skinKey": "sustainSingle",
+      "proposedRuntimePath": "public/skins/classic/sustain-single.png",
+      "width": 200,
+      "height": 40,
+      "bytes": 1510,
+      "sha256": "67bea757a4a6463b233c3721de649d64fdfa25d805d903cc1ab0c28fa36fec12",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/sustain-single.png"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/sustain-single.svg",
+      "file": "assets/sustain-single.svg",
+      "role": "유지 노트 · single · D 매듭 1.8배",
+      "skinKey": "sustainSingle",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "bytes": 819,
+      "sha256": "1d678d092cbe1d7c24af9a707ac415e54c1f6d255ef21fc2b484cb4539c34783",
+      "sourceSha256": "8fb393425e2b91c4e002528dd2898a60ff72fa5f54d63506854bcd372048b7da",
+      "normalization": "줄 끝 공백만 제거",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/sustain-single.svg"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/sustain-single@2x.png",
+      "file": "assets/sustain-single@2x.png",
+      "role": "유지 노트 · single · 2배",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "bytes": 3619,
+      "sha256": "8f92271b086a4e35d7f1c51d584bd259a8ac3d51982ff85c3901a2d9c5ba1d95",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/sustain-single.png"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/terminal-j2-shadow-3-double.png",
+      "file": "assets/terminal-j2-shadow-3-double.png",
+      "role": "J2-C 릴리즈 선택 원본 · 출처 파일명 보존",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "bytes": 17704,
+      "sha256": "caea0ae0028ae120998c4e3ac653a4f025ddf15068f0fb9508fa7e20c57fd8bd",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png"
+      ],
+      "usage": "release-source"
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/terminal-j2-shadow-3-double@2x.png",
+      "file": "assets/terminal-j2-shadow-3-double@2x.png",
+      "role": "J2-C 릴리즈 선택 원본 · 출처 파일명 보존",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "bytes": 62472,
+      "sha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png"
+      ],
+      "usage": "release-source"
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/sustain-double.png",
+      "file": "assets/sustain-double.png",
+      "role": "유지 노트 · double · D 매듭 1.8배",
+      "skinKey": "sustainDouble",
+      "proposedRuntimePath": "public/skins/classic/sustain-double.png",
+      "width": 200,
+      "height": 40,
+      "bytes": 1653,
+      "sha256": "4ec26a21370e66b1b3228b1dc0f3930e096c81a6d5c09b5e3c5850280d03ca73",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/sustain-double.png"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/sustain-double.svg",
+      "file": "assets/sustain-double.svg",
+      "role": "유지 노트 · double · D 매듭 1.8배",
+      "skinKey": "sustainDouble",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "bytes": 1184,
+      "sha256": "30ee9c407c671bebd37a2eaafa1d06f8bb85fc1c89a618f0ac28f6c75245f7a3",
+      "sourceSha256": "679c31de807811ee7182d3774a624a4b16d4d894cb497a10b19ff6d6e1aa6fcc",
+      "normalization": "줄 끝 공백만 제거",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/sustain-double@2x.png",
+      "file": "assets/sustain-double@2x.png",
+      "role": "유지 노트 · double · 2배",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "bytes": 3986,
+      "sha256": "659a1df7642ddd33adee15138db40935ebd93e8de36b17f90310c099229bf4fd",
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/sustain-double.png"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/point-grace-overlay.png",
+      "file": "assets/point-grace-overlay.png",
+      "role": "Grace · 누름 모따기 윤곽",
+      "skinKey": "pointGraceOverlay",
+      "proposedRuntimePath": "public/skins/classic/point-grace-overlay.png",
+      "width": 260,
+      "height": 88,
+      "bytes": 4242,
+      "sha256": "517c94785eabbf024b26dbb504a9cba4ce65e6922de6d719e81971c3e9fa8e0d",
+      "targetSize": [
+        260,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/point-grace-overlay.png"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/point-grace-overlay.svg",
+      "file": "assets/point-grace-overlay.svg",
+      "role": "Grace · 누름 모따기 윤곽",
+      "skinKey": "pointGraceOverlay",
+      "proposedRuntimePath": null,
+      "width": 1300,
+      "height": 440,
+      "bytes": 7114,
+      "sha256": "9637f86c16cb0e9f576d174cc3ac1c6bf53f26d161bec0eff613569310af77db",
+      "targetSize": [
+        260,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/point-grace-overlay.svg"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/trill-grace-overlay.png",
+      "file": "assets/trill-grace-overlay.png",
+      "role": "Grace · 트릴 마름모 윤곽",
+      "skinKey": "trillGraceOverlay",
+      "proposedRuntimePath": "public/skins/classic/trill-grace-overlay.png",
+      "width": 248,
+      "height": 88,
+      "bytes": 9207,
+      "sha256": "4dc12da5cbe10a623684fe828553a6b35dbbd44bf5b3067f0a128470e342edcf",
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/trill-grace-overlay.png"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/trill-grace-overlay.svg",
+      "file": "assets/trill-grace-overlay.svg",
+      "role": "Grace · 트릴 마름모 윤곽",
+      "skinKey": "trillGraceOverlay",
+      "proposedRuntimePath": null,
+      "width": 1240,
+      "height": 440,
+      "bytes": 7101,
+      "sha256": "a7350bc7c1912174492f0768cf079b9b4f58ac424be3dbf31755cca506e3a758",
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/trill-grace-overlay.svg"
+      ]
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/terminal-grace-overlay.png",
+      "file": "assets/terminal-grace-overlay.png",
+      "role": "과거 바디 끝 Grace 참고본 · 새 모델 미사용",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "bytes": 3261,
+      "sha256": "3e839e60c21e1cdb7b683f4d72c5b8c7cce7fe68ccea290a3cf39b6566820d23",
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/terminal-grace-overlay.png"
+      ],
+      "usage": "historical-reference"
+    },
+    {
+      "source": "lab/image-galleries/release-notes-20261023/assets/terminal-grace-overlay.svg",
+      "file": "assets/terminal-grace-overlay.svg",
+      "role": "과거 바디 끝 Grace 참고본 · 새 모델 미사용",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 1240,
+      "height": 440,
+      "bytes": 7092,
+      "sha256": "042d3595aff55b9634650d5787232d00dfe31531da84f38ed4430ce7263d668f",
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "approval": "approved-artwork",
+      "sourceFiles": [
+        "assets/terminal-grace-overlay.svg"
+      ],
+      "usage": "historical-reference"
+    },
+    {
+      "file": "assets/body-single-held.svg",
+      "role": "single 바디 · 전체 유지",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          100
+        ],
+        "spill": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodySingleHeld",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 4318,
+      "sha256": "3f9ea4a11a38247dc59547377a545c27dd50311beeae504578e47da061f40ca7"
+    },
+    {
+      "file": "assets/body-single-held.png",
+      "role": "single 바디 · 전체 유지",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          100
+        ],
+        "spill": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodySingleHeld",
+      "proposedRuntimePath": "public/skins/classic/body-single-held.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3053,
+      "sha256": "09ed16ca9851dece42f69bbe004a1dfdf1706243d153c7a91844c7401600af22"
+    },
+    {
+      "file": "assets/body-single-held@2x.png",
+      "role": "single 바디 · 전체 유지",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          100
+        ],
+        "spill": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodySingleHeld",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10870,
+      "sha256": "513b1150838658c7eac63d8a1dbddca5b0dda42df889cb0a424db9468382fef1"
+    },
+    {
+      "file": "assets/body-single-failed.svg",
+      "role": "single 바디 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodySingleFailed",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 4189,
+      "sha256": "b73452ddf920c6ef55bc3a7bce228c0972372b05762721e532a4787533769352"
+    },
+    {
+      "file": "assets/body-single-failed.png",
+      "role": "single 바디 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodySingleFailed",
+      "proposedRuntimePath": "public/skins/classic/body-single-failed.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 703,
+      "sha256": "84d24b864eb9f2abcb7d8cac769f4d14ff07e22efd1ea2eeb66f563c80e9b41e"
+    },
+    {
+      "file": "assets/body-single-failed@2x.png",
+      "role": "single 바디 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodySingleFailed",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1556,
+      "sha256": "93ceed80c77fb107b86c9f41ac51bbff6cf8ef3c4bdd72ebef57acb256d71016"
+    },
+    {
+      "file": "assets/sustain-single-failed.svg",
+      "role": "유지 single · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainSingleFailed",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1648,
+      "sha256": "7e7ee10667654f2bd45879314d6013e1d9df15d8775ff87fda520d935c92858e"
+    },
+    {
+      "file": "assets/sustain-single-failed.png",
+      "role": "유지 single · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainSingleFailed",
+      "proposedRuntimePath": "public/skins/classic/sustain-single-failed.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1375,
+      "sha256": "e448c8df244955435eb778185de27563565b865f43f6e117482c0aa0ce39a744"
+    },
+    {
+      "file": "assets/sustain-single-failed@2x.png",
+      "role": "유지 single · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainSingleFailed",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3418,
+      "sha256": "999e6e4b3637deaed93e21956b3d1a7ffbf16752f45a338185295428f50ef0f2"
+    },
+    {
+      "file": "assets/body-double-held.svg",
+      "role": "double 바디 · 전체 유지",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          84,
+          116
+        ],
+        "spill": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoubleHeld",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5125,
+      "sha256": "706247b2410a30337e8f2056fd99a9f19c0f057313fbf824f5cc0b240d32c88b"
+    },
+    {
+      "file": "assets/body-double-held.png",
+      "role": "double 바디 · 전체 유지",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          84,
+          116
+        ],
+        "spill": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoubleHeld",
+      "proposedRuntimePath": "public/skins/classic/body-double-held.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3968,
+      "sha256": "db9f195225d5380c4c2df2ca54f95cabb4e7c8b143bb35e99aae57fec2f75eea"
+    },
+    {
+      "file": "assets/body-double-held@2x.png",
+      "role": "double 바디 · 전체 유지",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          84,
+          116
+        ],
+        "spill": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoubleHeld",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15504,
+      "sha256": "72a8aee678d36d13600a63912c7cd1783518748a7b7ce696db85c65f708b04d7"
+    },
+    {
+      "file": "assets/body-double-failed.svg",
+      "role": "double 바디 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoubleFailed",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 4841,
+      "sha256": "8164ef638c5a589e830ec94045b97a82c4decada73d99aeef2a978f22496db8c"
+    },
+    {
+      "file": "assets/body-double-failed.png",
+      "role": "double 바디 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoubleFailed",
+      "proposedRuntimePath": "public/skins/classic/body-double-failed.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 683,
+      "sha256": "7b9264f6db74e650d7768c9a12d0596e384d3ed30d6402b40ac7e3dd65fa2597"
+    },
+    {
+      "file": "assets/body-double-failed@2x.png",
+      "role": "double 바디 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoubleFailed",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1551,
+      "sha256": "527131fa04d2c1358604fe9f128f80783dc148b0681c16872ffbbbd08231ba65"
+    },
+    {
+      "file": "assets/body-double-partial-held-left.svg",
+      "role": "double 바디 · 왼쪽 미충족",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          116
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialHeldLeft",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 4909,
+      "sha256": "0eaaf51bdfcf3340fd3aa4b0d3747ef32f9f1f6d1ff9680df7713aeefc3b5a44"
+    },
+    {
+      "file": "assets/body-double-partial-held-left.png",
+      "role": "double 바디 · 왼쪽 미충족",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          116
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialHeldLeft",
+      "proposedRuntimePath": "public/skins/classic/body-double-partial-held-left.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 825,
+      "sha256": "a2c8f6cc37bb9609b3a5fb44d9b91b708981f25739d85f81df25807bce92c0fa"
+    },
+    {
+      "file": "assets/body-double-partial-held-left@2x.png",
+      "role": "double 바디 · 왼쪽 미충족",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          116
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialHeldLeft",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1815,
+      "sha256": "cb4089d4ced26b7397129be0dedc1d976990ab11d942908e9be6cf016777e990"
+    },
+    {
+      "file": "assets/body-double-partial-failed-left.svg",
+      "role": "double 바디 · 왼쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "failedSide": "left",
+        "heldCenters": [
+          116
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialFailedLeft",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5018,
+      "sha256": "1f55e6a6ce55a9c812cd449c964d66e7e7b70ed421488d10874fdc4b574a719a"
+    },
+    {
+      "file": "assets/body-double-partial-failed-left.png",
+      "role": "double 바디 · 왼쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "failedSide": "left",
+        "heldCenters": [
+          116
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialFailedLeft",
+      "proposedRuntimePath": "public/skins/classic/body-double-partial-failed-left.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 855,
+      "sha256": "073cf8e08e68cc29470939b17dea10a344ec10989021456d14e10aac23858701"
+    },
+    {
+      "file": "assets/body-double-partial-failed-left@2x.png",
+      "role": "double 바디 · 왼쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "failedSide": "left",
+        "heldCenters": [
+          116
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialFailedLeft",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1843,
+      "sha256": "319dd2c5fd2742798c413c70743b951b524e51a6a1708b34ef2313c0fb44d7e6"
+    },
+    {
+      "file": "assets/body-double-partial-held-right.svg",
+      "role": "double 바디 · 오른쪽 미충족",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          84
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialHeldRight",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 4907,
+      "sha256": "75af959ed2b3e767b1427fa98ee1f63bb023c7afc56366528ca8b186deb0c783"
+    },
+    {
+      "file": "assets/body-double-partial-held-right.png",
+      "role": "double 바디 · 오른쪽 미충족",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          84
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialHeldRight",
+      "proposedRuntimePath": "public/skins/classic/body-double-partial-held-right.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 825,
+      "sha256": "c3f6171d87cf5a5d1a9303eb5f919aa0f905c624d7a93d9df364eac53e00ece0"
+    },
+    {
+      "file": "assets/body-double-partial-held-right@2x.png",
+      "role": "double 바디 · 오른쪽 미충족",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "heldCenters": [
+          84
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialHeldRight",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1815,
+      "sha256": "df30126501b7cfae50a8465dfa08d7e97e4b769c2124fb3d7e603df22355d20d"
+    },
+    {
+      "file": "assets/body-double-partial-failed-right.svg",
+      "role": "double 바디 · 오른쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "failedSide": "right",
+        "heldCenters": [
+          84
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialFailedRight",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5016,
+      "sha256": "971a36b3d30321e36c2ab6cef07e9c54aaf4cf579c379eba3e758f76694cfa9f"
+    },
+    {
+      "file": "assets/body-double-partial-failed-right.png",
+      "role": "double 바디 · 오른쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "failedSide": "right",
+        "heldCenters": [
+          84
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialFailedRight",
+      "proposedRuntimePath": "public/skins/classic/body-double-partial-failed-right.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 858,
+      "sha256": "81be63693e78f0a8b83cf80f37e027b453ee1bdda272760c5bbf62ac5cbb3583"
+    },
+    {
+      "file": "assets/body-double-partial-failed-right@2x.png",
+      "role": "double 바디 · 오른쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.svg"
+      ],
+      "operation": {
+        "failedSide": "right",
+        "heldCenters": [
+          84
+        ]
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "bodyDoublePartialFailedRight",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1850,
+      "sha256": "c331df566e975d2e3bd787f66f12e64213f867d02d4dd61200aa8a6a384bc963"
+    },
+    {
+      "file": "assets/sustain-double-failed.svg",
+      "role": "유지 double · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainDoubleFailed",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2013,
+      "sha256": "23c3127b9295dadfd9a90a5a3cfb1e9f9d326a7ecd759a25cd77a8ee80484616"
+    },
+    {
+      "file": "assets/sustain-double-failed.png",
+      "role": "유지 double · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainDoubleFailed",
+      "proposedRuntimePath": "public/skins/classic/sustain-double-failed.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1549,
+      "sha256": "6cbc7e509f215c5c058fd82592c3e1b7da91c138bd848804b1f28ab01d43d56e"
+    },
+    {
+      "file": "assets/sustain-double-failed@2x.png",
+      "role": "유지 double · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainDoubleFailed",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3685,
+      "sha256": "7c74e373a80765cb6bdd081f42ffcaa13f269ff773cbbd8c6de70fa3323c9647"
+    },
+    {
+      "file": "assets/sustain-double-partial-failed-left.svg",
+      "role": "유지 double · 왼쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "failedSide": "left"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainDoublePartialFailedLeft",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2096,
+      "sha256": "fb08183a64030137a5d4d8b2a77128a756bce2ae39acb06a7feae05b21628be0"
+    },
+    {
+      "file": "assets/sustain-double-partial-failed-left.png",
+      "role": "유지 double · 왼쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "failedSide": "left"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainDoublePartialFailedLeft",
+      "proposedRuntimePath": "public/skins/classic/sustain-double-partial-failed-left.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2336,
+      "sha256": "52164d88bf10e17ce1d3f21fe0928c6989a838b611adb4f311209ebafaca9768"
+    },
+    {
+      "file": "assets/sustain-double-partial-failed-left@2x.png",
+      "role": "유지 double · 왼쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "failedSide": "left"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainDoublePartialFailedLeft",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5585,
+      "sha256": "ff16237c209e9a2c8f4c43101bfc293e077377c86f06eae79c52fd3bb83a530f"
+    },
+    {
+      "file": "assets/sustain-double-partial-failed-right.svg",
+      "role": "유지 double · 오른쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "failedSide": "right"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainDoublePartialFailedRight",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2096,
+      "sha256": "6659c71f06ce2373d0c842f0b77bf74f2112fd3b610671d75a96357bca1a5339"
+    },
+    {
+      "file": "assets/sustain-double-partial-failed-right.png",
+      "role": "유지 double · 오른쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "failedSide": "right"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainDoublePartialFailedRight",
+      "proposedRuntimePath": "public/skins/classic/sustain-double-partial-failed-right.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2356,
+      "sha256": "fc3889a996c91b12c4395841126c882ff5e8ac516cc51b2c04647217e69bbb71"
+    },
+    {
+      "file": "assets/sustain-double-partial-failed-right@2x.png",
+      "role": "유지 double · 오른쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "failedSide": "right"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "sustainDoublePartialFailedRight",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5604,
+      "sha256": "dff35af82438a553fd88d86853926f1ab43ab96f277f19726c0e3494c09097a0"
+    },
+    {
+      "file": "assets/note-double-failed.svg",
+      "role": "M6 70% 더블 누름 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "noteDoubleFailed",
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 158095,
+      "sha256": "01aed5ad54d98e207b1077e5347e07722a210668dab576336215cb6892eee6b0"
+    },
+    {
+      "file": "assets/note-double-failed.png",
+      "role": "M6 70% 더블 누름 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "noteDoubleFailed",
+      "proposedRuntimePath": "public/skins/classic/note-double-failed.png",
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5246,
+      "sha256": "cecf2792f1ce69ece65bb31a0ad1869fd729d437edbfbf2186dce7d505dfe7da"
+    },
+    {
+      "file": "assets/note-double-failed@2x.png",
+      "role": "M6 70% 더블 누름 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.svg"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "noteDoubleFailed",
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17477,
+      "sha256": "573cb387314af3f19a400b5a9f9b3298c4a9621a27d9c27a88c0db81db4f5c36"
+    },
+    {
+      "file": "assets/release-single.svg",
+      "role": "J2-C single 릴리즈",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "artwork": "J2-C",
+        "png": "선택 PNG를 바이트 그대로 복사",
+        "svg": "@2x PNG 내장 래퍼"
+      },
+      "approval": "approved-artwork",
+      "skinKey": "releaseSingle",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 75541,
+      "sha256": "139434f68cd1411aab61bace9b323fd83aa73b704cb24ad04595d818cfe27a26"
+    },
+    {
+      "file": "assets/release-single.png",
+      "role": "J2-C single 릴리즈",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "artwork": "J2-C",
+        "png": "선택 PNG를 바이트 그대로 복사",
+        "svg": "@2x PNG 내장 래퍼"
+      },
+      "approval": "approved-artwork",
+      "skinKey": "releaseSingle",
+      "proposedRuntimePath": "public/skins/classic/release-single.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16511,
+      "sha256": "2092e33ad0d37e321a21336a544105ae17a5e55963a4c5f158fde48b8b14be9a"
+    },
+    {
+      "file": "assets/release-single@2x.png",
+      "role": "J2-C single 릴리즈",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "artwork": "J2-C",
+        "png": "선택 PNG를 바이트 그대로 복사",
+        "svg": "@2x PNG 내장 래퍼"
+      },
+      "approval": "approved-artwork",
+      "skinKey": "releaseSingle",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 56541,
+      "sha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448"
+    },
+    {
+      "file": "assets/release-single-failed.svg",
+      "role": "J2-C single 릴리즈 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseSingleFailed",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 76370,
+      "sha256": "87fa219ab882a402770ef54d6b3a1460e7232d33e36b2aa7104402d7d080adce"
+    },
+    {
+      "file": "assets/release-single-failed.png",
+      "role": "J2-C single 릴리즈 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseSingleFailed",
+      "proposedRuntimePath": "public/skins/classic/release-single-failed.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8580,
+      "sha256": "86ae60d9d6cdbe91383255da1367b8d77fa973f1fd42f0ceb2494b5f1b26cde4"
+    },
+    {
+      "file": "assets/release-single-failed@2x.png",
+      "role": "J2-C single 릴리즈 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseSingleFailed",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 28408,
+      "sha256": "fa9d1d138c938d0ff56cd2a572bb39b60d3667cb72c19443842787941902dc09"
+    },
+    {
+      "file": "assets/release-single-grace.svg",
+      "role": "J2-C single 릴리즈 · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single.png",
+        "assets/release-single.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 82589,
+      "sha256": "59a0930692f5a1e65122907fe3f4e9af66ecb5d925d15ca6bf039cd26a612efe"
+    },
+    {
+      "file": "assets/release-single-grace.png",
+      "role": "J2-C single 릴리즈 · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single.png",
+        "assets/release-single.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 19283,
+      "sha256": "ab4a0d4806f53bc6057932829052ef47eda7973e84e41c33c565e906a3914661"
+    },
+    {
+      "file": "assets/release-single-grace@2x.png",
+      "role": "J2-C single 릴리즈 · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single.png",
+        "assets/release-single.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 496,
+      "height": 176,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 63829,
+      "sha256": "0ca1479988e5dda27a1f5deb2956fc2e579b741bc283690ddf441c486c344ab6"
+    },
+    {
+      "file": "assets/release-double.svg",
+      "role": "J2-C double 릴리즈",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "artwork": "J2-C",
+        "png": "선택 PNG를 바이트 그대로 복사",
+        "svg": "@2x PNG 내장 래퍼"
+      },
+      "approval": "approved-artwork",
+      "skinKey": "releaseDouble",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 83449,
+      "sha256": "bdc151943b3770fa5aca2a4d6d6d9301d33623ba2a3bfeb2ba1ef4c6bdde064c"
+    },
+    {
+      "file": "assets/release-double.png",
+      "role": "J2-C double 릴리즈",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "artwork": "J2-C",
+        "png": "선택 PNG를 바이트 그대로 복사",
+        "svg": "@2x PNG 내장 래퍼"
+      },
+      "approval": "approved-artwork",
+      "skinKey": "releaseDouble",
+      "proposedRuntimePath": "public/skins/classic/release-double.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17704,
+      "sha256": "caea0ae0028ae120998c4e3ac653a4f025ddf15068f0fb9508fa7e20c57fd8bd"
+    },
+    {
+      "file": "assets/release-double@2x.png",
+      "role": "J2-C double 릴리즈",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "artwork": "J2-C",
+        "png": "선택 PNG를 바이트 그대로 복사",
+        "svg": "@2x PNG 내장 래퍼"
+      },
+      "approval": "approved-artwork",
+      "skinKey": "releaseDouble",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 62472,
+      "sha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc"
+    },
+    {
+      "file": "assets/release-double-failed.svg",
+      "role": "J2-C double 릴리즈 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseDoubleFailed",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 84278,
+      "sha256": "0d5b881a7a1c9baaa3cb1cd935f07d091ee7fec1d2e9e43e94b20783678db8f9"
+    },
+    {
+      "file": "assets/release-double-failed.png",
+      "role": "J2-C double 릴리즈 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseDoubleFailed",
+      "proposedRuntimePath": "public/skins/classic/release-double-failed.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 9205,
+      "sha256": "390d674af827c0f79bcb1a5b0ed12698abc9b43abd2b62c1e745d935bfa95711"
+    },
+    {
+      "file": "assets/release-double-failed@2x.png",
+      "role": "J2-C double 릴리즈 · 전체 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "failedSide": "all"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseDoubleFailed",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 28780,
+      "sha256": "047688ca6d6e1035dd9ee6be203ed9dd7ceacb76487126a6532d7ac750e237b6"
+    },
+    {
+      "file": "assets/release-double-partial-failed-left.svg",
+      "role": "J2-C double 릴리즈 · 왼쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "failedSide": "left"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseDoublePartialFailedLeft",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 84361,
+      "sha256": "e0b3c3110489eee25cb8bd1f72bc17ea1e665333e593d8ac103c3db38baf99b2"
+    },
+    {
+      "file": "assets/release-double-partial-failed-left.png",
+      "role": "J2-C double 릴리즈 · 왼쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "failedSide": "left"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseDoublePartialFailedLeft",
+      "proposedRuntimePath": "public/skins/classic/release-double-partial-failed-left.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14342,
+      "sha256": "40a71e1e202038ba69ab16cabe67656ca4bc7cbb73589fa0af75409926c7adbf"
+    },
+    {
+      "file": "assets/release-double-partial-failed-left@2x.png",
+      "role": "J2-C double 릴리즈 · 왼쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "failedSide": "left"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseDoublePartialFailedLeft",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 48393,
+      "sha256": "1b28a17954522c3d2723d3c77869db4d8a52739e66335143a839e095ffa83e8a"
+    },
+    {
+      "file": "assets/release-double-partial-failed-right.svg",
+      "role": "J2-C double 릴리즈 · 오른쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "failedSide": "right"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseDoublePartialFailedRight",
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 84361,
+      "sha256": "6dcfe27e71b6983031059c7346d274de546f95eb55e82f8c85a9cedddfdcdb9b"
+    },
+    {
+      "file": "assets/release-double-partial-failed-right.png",
+      "role": "J2-C double 릴리즈 · 오른쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "failedSide": "right"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseDoublePartialFailedRight",
+      "proposedRuntimePath": "public/skins/classic/release-double-partial-failed-right.png",
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14506,
+      "sha256": "8eb78d8c69b027fb8340d1e15db4e5fbd8ad652cfa5f9591a830a73a02a3ae21"
+    },
+    {
+      "file": "assets/release-double-partial-failed-right@2x.png",
+      "role": "J2-C double 릴리즈 · 오른쪽 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "failedSide": "right"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseDoublePartialFailedRight",
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 48602,
+      "sha256": "6696135f6fc7675dc4a9e22604eb130b092e1f1e0b97a379e02658aeb53db546"
+    },
+    {
+      "file": "assets/release-double-grace.svg",
+      "role": "J2-C double 릴리즈 · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 90497,
+      "sha256": "05c54c2650f871dec6dd9744b849bf043f4876c7c856a7053a39dd94435d9fb1"
+    },
+    {
+      "file": "assets/release-double-grace.png",
+      "role": "J2-C double 릴리즈 · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 20484,
+      "sha256": "fe74da922b182260bf30ef4e908e29460f0086097142eaf46a868f9f672eeb74"
+    },
+    {
+      "file": "assets/release-double-grace@2x.png",
+      "role": "J2-C double 릴리즈 · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 496,
+      "height": 176,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 69965,
+      "sha256": "19f3a81e4d3398074b0b97c0a021b1c6971251bdc083fcb411ae4926c400bee5"
+    },
+    {
+      "file": "assets/release-double-partial-failed-left-grace.svg",
+      "role": "J2-C double 릴리즈-partial-failed-left · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-partial-failed-left.png",
+        "assets/release-double-partial-failed-left.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 91409,
+      "sha256": "32ec9577e279bb7ddff75451db39692a15ed1446822575ffe26d44ab0fca73aa"
+    },
+    {
+      "file": "assets/release-double-partial-failed-left-grace.png",
+      "role": "J2-C double 릴리즈-partial-failed-left · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-partial-failed-left.png",
+        "assets/release-double-partial-failed-left.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 16897,
+      "sha256": "2381cf0cd2a8754e6242cf31a8046e6127e3106d2bcb381bf12e34a0ad0df42e"
+    },
+    {
+      "file": "assets/release-double-partial-failed-left-grace@2x.png",
+      "role": "J2-C double 릴리즈-partial-failed-left · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-partial-failed-left.png",
+        "assets/release-double-partial-failed-left.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 496,
+      "height": 176,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 55061,
+      "sha256": "d9646d605a52e972de8453447a61abe08b26a52b7e6a88035f5cdea64a5258f8"
+    },
+    {
+      "file": "assets/release-double-partial-failed-right-grace.svg",
+      "role": "J2-C double 릴리즈-partial-failed-right · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-partial-failed-right.png",
+        "assets/release-double-partial-failed-right.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 91409,
+      "sha256": "197d36dba72b4baec8ac0c4a7c912947c381d8785e3d30d0150b9eb09f45d15b"
+    },
+    {
+      "file": "assets/release-double-partial-failed-right-grace.png",
+      "role": "J2-C double 릴리즈-partial-failed-right · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-partial-failed-right.png",
+        "assets/release-double-partial-failed-right.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 17094,
+      "sha256": "6f45f507950e5ed834c4d07135b787822207617451f1ccd597826cd36f91c271"
+    },
+    {
+      "file": "assets/release-double-partial-failed-right-grace@2x.png",
+      "role": "J2-C double 릴리즈-partial-failed-right · Grace 합성 참고본",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-partial-failed-right.png",
+        "assets/release-double-partial-failed-right.svg"
+      ],
+      "operation": {
+        "grace": "전체 200×40 외곽",
+        "compositeOnce": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 496,
+      "height": 176,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 55413,
+      "sha256": "fb696d0b58bb4587390cf39b06f5c5da8ad3c1f92b1827134e3b772fd7b2cd73"
+    },
+    {
+      "file": "assets/release-grace-overlay.svg",
+      "role": "J2-C 릴리즈 전체 외곽 Grace overlay",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "silhouette": "J2-C 전체 픽셀의 alpha >= 0.5인 직사각 외곽",
+        "overlayOnly": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseGraceOverlay",
+      "proposedRuntimePath": null,
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 7048,
+      "sha256": "59b9466452d11336a5514f178fa1c10f827ec0a1f725dba6c8933efbc50276a3"
+    },
+    {
+      "file": "assets/release-grace-overlay.png",
+      "role": "J2-C 릴리즈 전체 외곽 Grace overlay",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "silhouette": "J2-C 전체 픽셀의 alpha >= 0.5인 직사각 외곽",
+        "overlayOnly": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseGraceOverlay",
+      "proposedRuntimePath": "public/skins/classic/release-grace-overlay.png",
+      "width": 248,
+      "height": 88,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 1943,
+      "sha256": "7b6cc9d2b451ca915ad082519e53f8edc692665e084e59ad7a8c8e37ee7b1715"
+    },
+    {
+      "file": "assets/release-grace-overlay@2x.png",
+      "role": "J2-C 릴리즈 전체 외곽 Grace overlay",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "silhouette": "J2-C 전체 픽셀의 alpha >= 0.5인 직사각 외곽",
+        "overlayOnly": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": "releaseGraceOverlay",
+      "proposedRuntimePath": null,
+      "width": 496,
+      "height": 176,
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": [
+        24,
+        24,
+        24,
+        24
+      ],
+      "bytes": 5464,
+      "sha256": "b1cebdd0b5f28f4f4072c504f029006ded55c80c4303cde9671573910eb7c78c"
+    },
+    {
+      "file": "assets/release-double-unit-left.svg",
+      "role": "release · 왼쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 84288,
+      "sha256": "7eaaa9fd633714cd3618eb608200d410d97bef4f19df53bb8841f50f309de79a"
+    },
+    {
+      "file": "assets/release-double-unit-left.png",
+      "role": "release · 왼쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 9424,
+      "sha256": "abe7f7384e6bd30b5cd93383b0367678f7f82a06d5a4eb2cdb565c4c3f495423"
+    },
+    {
+      "file": "assets/release-double-unit-left@2x.png",
+      "role": "release · 왼쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 32867,
+      "sha256": "059e028d307b4e3b670360738020b693fec5dffec84f35f9e9b99c9bd17af3a4"
+    },
+    {
+      "file": "assets/release-double-unit-left-failed.svg",
+      "role": "release · 왼쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-failed.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 84314,
+      "sha256": "e2dbfc5e18ad0e005edc0d1eeebfb13090592d300097798214da1f9c33b76950"
+    },
+    {
+      "file": "assets/release-double-unit-left-failed.png",
+      "role": "release · 왼쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-failed.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5199,
+      "sha256": "288709b72eaa7686bdb9990882c29496d5518473a9158e642e2e66efc9f4bf4d"
+    },
+    {
+      "file": "assets/release-double-unit-left-failed@2x.png",
+      "role": "release · 왼쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-failed.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15781,
+      "sha256": "64b74648733aa0bb4819b7a1ced102cf020559c6a243b47dde5972aedfb311a0"
+    },
+    {
+      "file": "assets/release-double-unit-right.svg",
+      "role": "release · 오른쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 84289,
+      "sha256": "0d8d4685a1ba867c65f7219513f63dadea3eff65f6f3ff7e1be30806d109fa65"
+    },
+    {
+      "file": "assets/release-double-unit-right.png",
+      "role": "release · 오른쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 9373,
+      "sha256": "9897adb54772209c3a23f2b55edb2f4a44417445bbda946f7f4bb58b04a63100"
+    },
+    {
+      "file": "assets/release-double-unit-right@2x.png",
+      "role": "release · 오른쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 32877,
+      "sha256": "9eb8aba0449f20874401622f8c6d6c1e5caef74159b9b48b8ad46a4fc03886de"
+    },
+    {
+      "file": "assets/release-double-unit-right-failed.svg",
+      "role": "release · 오른쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-failed.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 84315,
+      "sha256": "a549a21283abcfcb032cf4eaa7a3e0dd33dd744a0e136187c7f8d50c04228896"
+    },
+    {
+      "file": "assets/release-double-unit-right-failed.png",
+      "role": "release · 오른쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-failed.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5262,
+      "sha256": "77383a5e8b083d5dd82d5c92ca40122faf60eb57b2d380aaca5918c1d3628156"
+    },
+    {
+      "file": "assets/release-double-unit-right-failed@2x.png",
+      "role": "release · 오른쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-failed.png",
+        "assets/release-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "J2-C @2x PNG를 내장한 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15878,
+      "sha256": "b3955d14cd68609a2664f5f15a9974fd795ebf15bb6036b63ac6ac7bbb0039c0"
+    },
+    {
+      "file": "assets/sustain-double-unit-left.svg",
+      "role": "sustain · 왼쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2023,
+      "sha256": "29cf6a12932e49c89430c5df765c2894cef0142538ec4c9c2f614bdfb3fdaf40"
+    },
+    {
+      "file": "assets/sustain-double-unit-left.png",
+      "role": "sustain · 왼쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1474,
+      "sha256": "bd50f617db9d51524f23e3eece581f5989a59f23a197f0602dbe540f5f1f6e8b"
+    },
+    {
+      "file": "assets/sustain-double-unit-left@2x.png",
+      "role": "sustain · 왼쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3651,
+      "sha256": "1512ebd64eeaef9e3899c74f963584767c8d376258ebcd0a5159db71ffc749da"
+    },
+    {
+      "file": "assets/sustain-double-unit-left-failed.svg",
+      "role": "sustain · 왼쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double-failed.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2049,
+      "sha256": "aa2e99295e982c1594da20780b1d7c09ccbe2ebdca38ddaa1cdfd601930d7c93"
+    },
+    {
+      "file": "assets/sustain-double-unit-left-failed.png",
+      "role": "sustain · 왼쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double-failed.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1308,
+      "sha256": "ca8d82bc79e4625f2b5aee897f3649562ac33d3402e043bb1bd1f6469be92cef"
+    },
+    {
+      "file": "assets/sustain-double-unit-left-failed@2x.png",
+      "role": "sustain · 왼쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double-failed.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "left",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3322,
+      "sha256": "cee9d8900b5056db057c4ad050aea47f93850bf8ca5e79333ccd2cfe72b8c413"
+    },
+    {
+      "file": "assets/sustain-double-unit-right.svg",
+      "role": "sustain · 오른쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2024,
+      "sha256": "807d383653f69cf2f0141efdffaec5ab05e9781acaf8fa60cd57ce979eecd2c7"
+    },
+    {
+      "file": "assets/sustain-double-unit-right.png",
+      "role": "sustain · 오른쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1517,
+      "sha256": "30f0325be661e83a8fc2332ced11ee453713d214f18f9d2c6bfe283fa1315e51"
+    },
+    {
+      "file": "assets/sustain-double-unit-right@2x.png",
+      "role": "sustain · 오른쪽 몫만",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3638,
+      "sha256": "145728630cc978c7e48cd88e00107a6cd2943b81149144c26115fb6dc9c76173"
+    },
+    {
+      "file": "assets/sustain-double-unit-right-failed.svg",
+      "role": "sustain · 오른쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double-failed.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2050,
+      "sha256": "fb7533f2ea9358f974313b1b4d2b788b86d736afde348c38290be3b524e95090"
+    },
+    {
+      "file": "assets/sustain-double-unit-right-failed.png",
+      "role": "sustain · 오른쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double-failed.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1360,
+      "sha256": "023e1d284afece4cf4d1e53d250206f66b7dae53e871a453bbe0fd7a97c65c41"
+    },
+    {
+      "file": "assets/sustain-double-unit-right-failed@2x.png",
+      "role": "sustain · 오른쪽 몫만 · 실패",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double-failed.png",
+        "assets/sustain-double.svg"
+      ],
+      "operation": {
+        "onlySide": "right",
+        "failedSide": "all",
+        "nativePixels": "기본 PNG에서 분리",
+        "highResolution": "벡터 SVG에서 렌더링"
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3331,
+      "sha256": "51484f495859770a71997ad435df818536176fa5a7e68623712671b00a3bc8f2"
+    },
+    {
+      "file": "assets/unit-mask-left.svg",
+      "role": "200×40 절반 알파 마스크",
+      "generator": "build-states.mjs",
+      "sourceFiles": [],
+      "operation": {
+        "side": "left",
+        "alphaMask": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 141,
+      "sha256": "481ce0fe967904ea2e13697943068c81ee440dda3094702d0b41ee351a91f9d6"
+    },
+    {
+      "file": "assets/unit-mask-left.png",
+      "role": "200×40 절반 알파 마스크",
+      "generator": "build-states.mjs",
+      "sourceFiles": [],
+      "operation": {
+        "side": "left",
+        "alphaMask": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 413,
+      "sha256": "6d220d46e26c1952ebc8766e709235533e74d2c3d0432958f400dc583532eb20"
+    },
+    {
+      "file": "assets/unit-mask-left@2x.png",
+      "role": "200×40 절반 알파 마스크",
+      "generator": "build-states.mjs",
+      "sourceFiles": [],
+      "operation": {
+        "side": "left",
+        "alphaMask": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1045,
+      "sha256": "9aa6585e9310f4f6bedfa77659a1778111e4acbd70f0dc52d2a945507f845d91"
+    },
+    {
+      "file": "assets/unit-mask-right.svg",
+      "role": "200×40 절반 알파 마스크",
+      "generator": "build-states.mjs",
+      "sourceFiles": [],
+      "operation": {
+        "side": "right",
+        "alphaMask": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 143,
+      "sha256": "45eb38ea98b1774067113e4bf6b1b0f30130bd2acfb1d8a7942a98e9ecb83cce"
+    },
+    {
+      "file": "assets/unit-mask-right.png",
+      "role": "200×40 절반 알파 마스크",
+      "generator": "build-states.mjs",
+      "sourceFiles": [],
+      "operation": {
+        "side": "right",
+        "alphaMask": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 414,
+      "sha256": "553544dcbc8e103383bc36d89b0e63c56d7f603d856d9160b2892a0b4faccb73"
+    },
+    {
+      "file": "assets/unit-mask-right@2x.png",
+      "role": "200×40 절반 알파 마스크",
+      "generator": "build-states.mjs",
+      "sourceFiles": [],
+      "operation": {
+        "side": "right",
+        "alphaMask": true
+      },
+      "approval": "proposed-state-treatment",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1045,
+      "sha256": "9106870671465659f21815ef1dada69973d57270b57f3b852cca138bb68faacc"
+    }
+  ],
+  "stateGroups": [
+    {
+      "id": "body-single",
+      "label": "싱글 바디",
+      "targetSize": [
+        200,
+        40
+      ],
+      "states": [
+        {
+          "id": "idle",
+          "label": "대기",
+          "file": "assets/body-single.png",
+          "skinKey": "bodySingle"
+        },
+        {
+          "id": "held",
+          "label": "전체 유지",
+          "file": "assets/body-single-held.png",
+          "skinKey": "bodySingleHeld"
+        },
+        {
+          "id": "failed",
+          "label": "전체 실패",
+          "file": "assets/body-single-failed.png",
+          "skinKey": "bodySingleFailed"
+        }
+      ],
+      "beamCenters": [
+        100
+      ]
+    },
+    {
+      "id": "sustain-single",
+      "label": "싱글 유지 표식",
+      "targetSize": [
+        200,
+        40
+      ],
+      "states": [
+        {
+          "id": "pending",
+          "label": "미처리",
+          "file": "assets/sustain-single.png"
+        },
+        {
+          "id": "failed",
+          "label": "전체 실패",
+          "file": "assets/sustain-single-failed.png"
+        }
+      ],
+      "beamCenters": [
+        100
+      ],
+      "grace": false
+    },
+    {
+      "id": "body-double",
+      "label": "더블 바디",
+      "targetSize": [
+        200,
+        40
+      ],
+      "states": [
+        {
+          "id": "idle",
+          "label": "대기",
+          "file": "assets/body-double-center-dual-beam.png",
+          "skinKey": "bodyDouble"
+        },
+        {
+          "id": "held",
+          "label": "전체 유지",
+          "file": "assets/body-double-held.png",
+          "skinKey": "bodyDoubleHeld"
+        },
+        {
+          "id": "failed",
+          "label": "전체 실패",
+          "file": "assets/body-double-failed.png",
+          "skinKey": "bodyDoubleFailed"
+        },
+        {
+          "id": "partial-held-left",
+          "label": "왼쪽 미충족",
+          "file": "assets/body-double-partial-held-left.png",
+          "skinKey": "bodyDoublePartialHeldLeft"
+        },
+        {
+          "id": "partial-failed-left",
+          "label": "왼쪽 실패",
+          "file": "assets/body-double-partial-failed-left.png",
+          "skinKey": "bodyDoublePartialFailedLeft"
+        },
+        {
+          "id": "partial-held-right",
+          "label": "오른쪽 미충족",
+          "file": "assets/body-double-partial-held-right.png",
+          "skinKey": "bodyDoublePartialHeldRight"
+        },
+        {
+          "id": "partial-failed-right",
+          "label": "오른쪽 실패",
+          "file": "assets/body-double-partial-failed-right.png",
+          "skinKey": "bodyDoublePartialFailedRight"
+        }
+      ],
+      "beamCenters": [
+        84,
+        116
+      ]
+    },
+    {
+      "id": "sustain-double",
+      "label": "더블 유지 표식",
+      "targetSize": [
+        200,
+        40
+      ],
+      "states": [
+        {
+          "id": "pending",
+          "label": "미처리",
+          "file": "assets/sustain-double.png"
+        },
+        {
+          "id": "failed",
+          "label": "전체 실패",
+          "file": "assets/sustain-double-failed.png"
+        },
+        {
+          "id": "partial-failed-left",
+          "label": "왼쪽 실패",
+          "file": "assets/sustain-double-partial-failed-left.png"
+        },
+        {
+          "id": "partial-failed-right",
+          "label": "오른쪽 실패",
+          "file": "assets/sustain-double-partial-failed-right.png"
+        }
+      ],
+      "beamCenters": [
+        84,
+        116
+      ],
+      "grace": false
+    },
+    {
+      "id": "point-double",
+      "label": "M6 70% 더블 누름",
+      "targetSize": [
+        212,
+        40
+      ],
+      "states": [
+        {
+          "id": "pending",
+          "label": "미처리",
+          "file": "assets/note-double-anodized-contrast-070.png",
+          "skinKey": "noteDouble"
+        },
+        {
+          "id": "failed",
+          "label": "전체 실패",
+          "file": "assets/note-double-failed.png",
+          "skinKey": "noteDoubleFailed"
+        },
+        {
+          "id": "partial-left",
+          "label": "일부 처리 · 전체 70%",
+          "file": "assets/note-double-anodized-contrast-070.png",
+          "skinKey": "noteDoublePartialFailedLeft",
+          "aliasOf": "pending",
+          "alpha": 0.7
+        },
+        {
+          "id": "partial-right",
+          "label": "일부 처리 · 전체 70%",
+          "file": "assets/note-double-anodized-contrast-070.png",
+          "skinKey": "noteDoublePartialFailedRight",
+          "aliasOf": "pending",
+          "alpha": 0.7
+        }
+      ],
+      "note": "일반 더블 포인트의 일부 성공과 같은 전체 alpha 0.7로 표시. 기존 일부 실패 키의 정상 도안 공유는 제안이며 좌우 실패 바디와 다른 표시."
+    },
+    {
+      "id": "release-single",
+      "label": "J2-C 싱글 릴리즈",
+      "targetSize": [
+        200,
+        40
+      ],
+      "states": [
+        {
+          "id": "pending",
+          "label": "미처리 · J2-C",
+          "file": "assets/release-single.png"
+        },
+        {
+          "id": "failed",
+          "label": "전체 실패",
+          "file": "assets/release-single-failed.png"
+        }
+      ]
+    },
+    {
+      "id": "release-double",
+      "label": "J2-C 더블 릴리즈",
+      "targetSize": [
+        200,
+        40
+      ],
+      "states": [
+        {
+          "id": "pending",
+          "label": "미처리 · J2-C",
+          "file": "assets/release-double.png"
+        },
+        {
+          "id": "failed",
+          "label": "전체 실패",
+          "file": "assets/release-double-failed.png"
+        },
+        {
+          "id": "partial-failed-left",
+          "label": "왼쪽 실패",
+          "file": "assets/release-double-partial-failed-left.png"
+        },
+        {
+          "id": "partial-failed-right",
+          "label": "오른쪽 실패",
+          "file": "assets/release-double-partial-failed-right.png"
+        }
+      ]
+    },
+    {
+      "id": "release-layers",
+      "label": "릴리즈 · 남은 몫 분리",
+      "targetSize": [
+        200,
+        40
+      ],
+      "states": [
+        {
+          "id": "unit-left",
+          "label": "왼쪽 몫만",
+          "file": "assets/release-double-unit-left.png",
+          "unitIndex": 0
+        },
+        {
+          "id": "unit-left-failed",
+          "label": "왼쪽 몫만 · 실패",
+          "file": "assets/release-double-unit-left-failed.png",
+          "unitIndex": 0
+        },
+        {
+          "id": "unit-right",
+          "label": "오른쪽 몫만",
+          "file": "assets/release-double-unit-right.png",
+          "unitIndex": 1
+        },
+        {
+          "id": "unit-right-failed",
+          "label": "오른쪽 몫만 · 실패",
+          "file": "assets/release-double-unit-right-failed.png",
+          "unitIndex": 1
+        }
+      ],
+      "note": "기본 200×40 좌표를 보존한 참고 레이어. 일부 성공의 반쪽 숨김은 전체 70%로 대체됐으며 성공·실패 혼합의 최종 합성은 미확정."
+    },
+    {
+      "id": "sustain-layers",
+      "label": "유지 · 남은 몫 분리",
+      "targetSize": [
+        200,
+        40
+      ],
+      "states": [
+        {
+          "id": "unit-left",
+          "label": "왼쪽 몫만",
+          "file": "assets/sustain-double-unit-left.png",
+          "unitIndex": 0
+        },
+        {
+          "id": "unit-left-failed",
+          "label": "왼쪽 몫만 · 실패",
+          "file": "assets/sustain-double-unit-left-failed.png",
+          "unitIndex": 0
+        },
+        {
+          "id": "unit-right",
+          "label": "오른쪽 몫만",
+          "file": "assets/sustain-double-unit-right.png",
+          "unitIndex": 1
+        },
+        {
+          "id": "unit-right-failed",
+          "label": "오른쪽 몫만 · 실패",
+          "file": "assets/sustain-double-unit-right-failed.png",
+          "unitIndex": 1
+        }
+      ],
+      "note": "기본 200×40 좌표와 투명 여백을 유지. 유지 표식의 표시 방식·수명은 별도 검토."
+    },
+    {
+      "id": "unit-masks",
+      "label": "몫별 알파 마스크",
+      "targetSize": [
+        200,
+        40
+      ],
+      "states": [
+        {
+          "id": "left",
+          "label": "왼쪽 몫 마스크",
+          "file": "assets/unit-mask-left.png"
+        },
+        {
+          "id": "right",
+          "label": "오른쪽 몫 마스크",
+          "file": "assets/unit-mask-right.png"
+        }
+      ]
+    }
+  ],
+  "buildContract": {
+    "command": "node assets-lab/classic/revisions/approved-notes-20261025/build-states.mjs",
+    "generatedFrom": "동일 폴더 assets/의 확정 원본; build-states.mjs + state-artwork.mjs",
+    "rasterMasters": [
+      "assets/terminal-j2-shadow-3-single.png",
+      "assets/terminal-j2-shadow-3-double.png"
+    ],
+    "rasterCopy": "J2-C 릴리즈 정상본은 선택 PNG를 그대로 사용. 릴리즈 기본/2배 PNG는 해당 원본을 바이트 그대로 복사하며 릴리즈 SVG·실패 SVG는 @2x PNG를 내장한 래퍼다.",
+    "targets": [
+      {
+        "key": "point",
+        "width": 212,
+        "height": 40
+      },
+      {
+        "key": "body",
+        "width": 200,
+        "height": 40
+      },
+      {
+        "key": "release",
+        "width": 200,
+        "height": 40
+      },
+      {
+        "key": "sustain",
+        "width": 200,
+        "height": 40
+      },
+      {
+        "key": "pointGrace",
+        "width": 260,
+        "height": 88
+      },
+      {
+        "key": "releaseGrace",
+        "width": 248,
+        "height": 88
+      }
+    ],
+    "scale": "PNG 기본 크기는 targetSize, @2x는 각 변 2배. SVG 자연 크기 / 5 규칙을 사용하지 않음.",
+    "grace": {
+      "sourcePadding": 24,
+      "releaseSilhouette": "J2-C의 alpha >= 0.5인 전체 200×40 직사각 외곽",
+      "referenceOnly": [
+        "terminal-grace-overlay"
+      ],
+      "composeOnce": true
+    },
+    "failureStyle": "무채색 + 밝기 45%; 실패색의 구체 강도는 시안. 확정된 표시 수명은 confirmedDisplay를 따름.",
+    "confirmedDisplay": {
+      "sourceComments": [
+        "https://github.com/nanana3679/not4k/pull/339#issuecomment-6390804166",
+        "https://github.com/nanana3679/not4k/pull/339#issuecomment-6390954414"
+      ],
+      "releasePartialSuccessAlpha": 0.7,
+      "gracePartialSuccessOverlayAlpha": 1,
+      "releaseSuccessHidden": true,
+      "failedRelease": {
+        "when": "failure-confirmed",
+        "includesDependentZero": true,
+        "hideWhen": "scrolled-out",
+        "pendingFailureStyle": false
+      },
+      "bodyStartCap": false,
+      "bodyEndCap": false,
+      "implicitPoint": false,
+      "implicitRelease": false
+    },
+    "missingRequestedStates": [],
+    "unapproved": [
+      "새 상태별 색·강도",
+      "일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성",
+      "유지 노트의 성공·실패 표시 방식과 수명"
+    ]
+  },
+  "releaseSuccessPreview": {
+    "approval": "approved-display-treatment",
+    "targetSize": [
+      200,
+      40
+    ],
+    "grace": false,
+    "backgrounds": [
+      {
+        "id": "solid",
+        "label": "단색 배경",
+        "color": "#080c12"
+      },
+      {
+        "id": "body",
+        "label": "더블 바디 위",
+        "color": "#080c12",
+        "file": "assets/body-double-center-dual-beam.png"
+      }
+    ],
+    "progression": [
+      {
+        "id": "pending",
+        "label": "대기 · 전체 100%",
+        "file": "assets/release-double.png",
+        "alpha": 1
+      },
+      {
+        "id": "partial-success",
+        "label": "일부 성공 · 전체 70%",
+        "file": "assets/release-double.png",
+        "alpha": 0.7
+      },
+      {
+        "id": "success",
+        "label": "모두 성공 · 숨김",
+        "file": "assets/release-double.png",
+        "alpha": 0
+      }
+    ],
+    "graceOverlay": {
+      "file": "assets/release-grace-overlay.png",
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": 24
+    },
+    "graceProgression": [
+      {
+        "id": "pending",
+        "label": "대기 · 본체·외곽 100%",
+        "file": "assets/release-double.png",
+        "alpha": 1,
+        "overlayAlpha": 1
+      },
+      {
+        "id": "partial-success",
+        "label": "일부 성공 · 본체 70% · 외곽 100%",
+        "file": "assets/release-double.png",
+        "alpha": 0.7,
+        "overlayAlpha": 1
+      },
+      {
+        "id": "success",
+        "label": "모두 성공 · 본체·외곽 숨김",
+        "file": "assets/release-double.png",
+        "alpha": 0,
+        "overlayAlpha": 0
+      }
+    ],
+    "note": "일부 성공은 정상 도안 전체 70%로 확정. Grace 외곽은 원래 밝기를 유지하며 모두 성공하면 본체·외곽을 함께 숨김. 반쪽 숨김은 대체됨. 원본과 별도 overlay에 표시 알파만 적용."
+  },
+  "pointSuccessPreview": {
+    "targetSize": [
+      212,
+      40
+    ],
+    "bodySize": [
+      200,
+      40
+    ],
+    "backgrounds": [
+      {
+        "id": "solid",
+        "label": "단색 배경",
+        "color": "#080c12"
+      },
+      {
+        "id": "body",
+        "label": "더블 바디 위",
+        "color": "#080c12",
+        "file": "assets/body-double-center-dual-beam.png"
+      }
+    ],
+    "progression": [
+      {
+        "id": "pending",
+        "label": "대기 · 전체 100%",
+        "file": "assets/note-double-anodized-contrast-070.png",
+        "alpha": 1
+      },
+      {
+        "id": "partial-success",
+        "label": "일부 성공 · 전체 70%",
+        "file": "assets/note-double-anodized-contrast-070.png",
+        "alpha": 0.7
+      },
+      {
+        "id": "success",
+        "label": "모두 성공 · 숨김",
+        "file": "assets/note-double-anodized-contrast-070.png",
+        "alpha": 0
+      }
+    ],
+    "note": "선택한 M6 도안에 일반 더블 포인트의 표시 alpha 1→0.7→0을 적용. 바디와 중심을 맞추고 포인트가 양옆으로 6px씩 나오며 바디 알파는 유지."
+  },
+  "bodyCompositionPreview": {
+    "bodyFile": "assets/body-double-center-dual-beam.png",
+    "bodySize": [
+      200,
+      160
+    ],
+    "stageSize": [
+      212,
+      200
+    ],
+    "cases": [
+      {
+        "id": "bare",
+        "label": "Point 없음 · 릴리즈 없음",
+        "point": null,
+        "release": null
+      },
+      {
+        "id": "point",
+        "label": "Point 있음 · 릴리즈 없음",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "release": null
+      },
+      {
+        "id": "release",
+        "label": "Point 없음 · 릴리즈 있음",
+        "point": null,
+        "release": "assets/release-double.png"
+      },
+      {
+        "id": "both",
+        "label": "Point 있음 · 릴리즈 있음",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "release": "assets/release-double.png"
+      }
+    ],
+    "note": "위는 끝, 아래는 시작. 바디 자체의 경계는 같고 명시된 Point·릴리즈만 추가. 시작·끝 마감은 없음."
+  }
+}
