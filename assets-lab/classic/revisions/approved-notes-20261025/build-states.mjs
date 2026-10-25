@@ -30,8 +30,9 @@ manifest.sustainVisibilityPreview = {
 };
 manifest.releaseSymbolPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
-  note: '2단 B와 아래로 흐려지는 3단 두 안을 비교. 3단은 14px 경로 폭·2.2px 선, 위부터 alpha 1·0.8·0.5. 윤곽도 함께 흐려짐. 아이콘 중심은 바디 광선 좌표를 공유.',
-  comparisonIds: ['ratio-b', 'triple-fade', 'triple-tight'],
+  note: '촘촘한 3단을 선택하고 중심을 고정한 채 경로·선·윤곽을 10% 확대. 확대 전과 비교하며 위부터 alpha 1·0.8·0.5를 유지. 아이콘 중심은 바디 광선 좌표를 공유.',
+  selectedVariant: 'triple-tight-large',
+  comparisonIds: ['triple-tight', 'triple-tight-large'],
   reference: 'https://lucide.dev/icons/chevrons-up',
   kinds: [],
 };
@@ -155,6 +156,8 @@ try {
         layerAlphas: [1, 0.8, 0.5], outlineWidth: 0.6, outlineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' },
       { id: 'triple-tight', label: '3단 · 촘촘하게', strokeWidth: 2.2, pathWidth: 14, chevronRise: 4.5, chevronOffset: 5,
         layerAlphas: [1, 0.8, 0.5], outlineWidth: 0.6, outlineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' },
+      { id: 'triple-tight-large', label: '선택 · 10% 확대', sizeScale: 1.1, strokeWidth: 2.42, pathWidth: 15.4, chevronRise: 4.95, chevronOffset: 5.5,
+        layerAlphas: [1, 0.8, 0.5], outlineWidth: 0.66, outlineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' },
     ]) {
       const file = await emit(`release-${kind}-chevron-${id}`, releaseChevron(source, { kind, centers: symbolCenters, ...geometry }), {
         nativeSource: releaseChevron(nativeSource, { kind, centers: symbolCenters, ...geometry }),

@@ -25,7 +25,7 @@ test('3단 표식의 실제 알파는 위부터 100%·80%·50%이며 꼭짓점 x
         if (white && start < 0) start = x;
         if (!white && start >= 0) { centers.push((start + x) / 4); start = -1; }
       }
-      for (const variant of ['triple-fade', 'triple-tight']) {
+      for (const variant of ['triple-fade', 'triple-tight', 'triple-tight-large']) {
         const text = await (await fetch(`assets/release-${kind}-chevron-${variant}.svg`)).text();
         const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
         const symbols = [...doc.querySelectorAll('[data-release-symbol]')];
@@ -55,14 +55,14 @@ test('3단 표식의 실제 알파는 위부터 100%·80%·50%이며 꼭짓점 x
   await expect(guides.first()).toBeHidden();
 });
 
-test('릴리즈 2단 B와 3단 두 안은 싱글 1개·더블 2개로 비교하며 모든 파일에서 아이콘 밖 도안을 보존한다', async ({ page }) => {
+test('선택한 촘촘한 릴리즈 3단은 10% 확대 전후를 비교하고 광선 중심과 아이콘 밖 도안을 보존한다', async ({ page }) => {
   await page.goto(route + '#release-symbol');
   const section = page.locator('#release-symbol');
   for (const kind of ['single', 'double']) {
     const comparison = section.locator(`[data-kind="${kind}"]`);
-    await expect(comparison.locator('article')).toHaveCount(3);
-    await expect(comparison.locator('.sustain-game img')).toHaveCount(3);
-    for (const variant of ['ratio-b', 'triple-fade', 'triple-tight']) {
+    await expect(comparison.locator('article')).toHaveCount(2);
+    await expect(comparison.locator('.sustain-game img')).toHaveCount(2);
+    for (const variant of ['triple-tight', 'triple-tight-large']) {
       await expect(comparison.locator(`[data-variant="${variant}"] nav a`)).toHaveCount(3);
     }
   }
@@ -77,7 +77,7 @@ test('릴리즈 2단 B와 3단 두 안은 싱글 1개·더블 2개로 비교하�
     for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
       const scale = suffix === '.png' ? 1 : 2;
       const original = await pixels(`assets/release-${kind}${suffix === '.svg' ? '@2x.png' : suffix}`, scale);
-      for (const variant of ['thin', 'bold', 'ratio-a', 'ratio-b', 'ratio-c', 'triple-fade', 'triple-tight']) {
+      for (const variant of ['thin', 'bold', 'ratio-a', 'ratio-b', 'ratio-c', 'triple-fade', 'triple-tight', 'triple-tight-large']) {
         const candidate = await pixels(`assets/release-${kind}-chevron-${variant}${suffix}`, scale);
         let changedCenter = 0, changedOutside = 0, changedLeft = 0, changedRight = 0, changedGap = 0;
         const bounds = kind === 'single' ? [80, 120] : [70, 130];

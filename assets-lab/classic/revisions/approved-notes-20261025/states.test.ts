@@ -16,13 +16,13 @@ interface PointSuccessPreview {
   progression: State[];
 }
 const here = new URL('./', import.meta.url);
-const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; releaseSymbolPreview: { approval: string; comparisonIds: string[]; kinds: { kind: string; symbolCenters: number[]; variants: { id: string; file: string; strokeWidth?: number; layerAlphas?: number[] }[] }[] }; sustainVisibilityPreview: { approval: string; outlineWidth: number; selected: { single: string }; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; railCandidate?: string; railMarkerWidth?: number; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; releaseSymbolPreview: { approval: string; selectedVariant: string; comparisonIds: string[]; kinds: { kind: string; symbolCenters: number[]; variants: { id: string; file: string; strokeWidth?: number; layerAlphas?: number[] }[] }[] }; sustainVisibilityPreview: { approval: string; outlineWidth: number; selected: { single: string }; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; railCandidate?: string; railMarkerWidth?: number; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
-  it('에셋 177개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
-    expect(manifest.assets).toHaveLength(177);
-    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(177);
+  it('에셋 183개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
+    expect(manifest.assets).toHaveLength(183);
+    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(183);
     for (const asset of manifest.assets) {
       const bytes = readFileSync(new URL(asset.file, here));
       expect(bytes.length, asset.file).toBe(asset.bytes);
@@ -148,7 +148,8 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
 
   it('릴리즈 3단은 alpha 1·0.8·0.5로 흐려지고 표식 중심은 바디 광선과 일치하며 기존 J2-C 상태를 보존한다', () => {
     expect(manifest.releaseSymbolPreview.approval).toBe('proposed-artwork');
-    expect(manifest.releaseSymbolPreview.comparisonIds).toEqual(['ratio-b', 'triple-fade', 'triple-tight']);
+    expect(manifest.releaseSymbolPreview.selectedVariant).toBe('triple-tight-large');
+    expect(manifest.releaseSymbolPreview.comparisonIds).toEqual(['triple-tight', 'triple-tight-large']);
     expect(manifest.releaseSymbolPreview.kinds.map(item => item.kind)).toEqual(['single', 'double']);
     for (const item of manifest.releaseSymbolPreview.kinds) {
       expect(item.symbolCenters).toEqual(item.kind === 'single' ? [100] : [84, 116]);
@@ -157,6 +158,7 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
         { id: 'original', strokeWidth: undefined }, { id: 'thin', strokeWidth: 2 }, { id: 'bold', strokeWidth: 3 },
         { id: 'ratio-a', strokeWidth: 2.5 }, { id: 'ratio-b', strokeWidth: 2.5 }, { id: 'ratio-c', strokeWidth: 2.5 },
         { id: 'triple-fade', strokeWidth: 2.2 }, { id: 'triple-tight', strokeWidth: 2.2 },
+        { id: 'triple-tight-large', strokeWidth: 2.42 },
       ]);
       expect(group(`release-${item.kind}`).states.find(state => state.id === 'pending')!.file).toBe(item.variants[0].file);
       for (const variant of item.variants.slice(1)) {
