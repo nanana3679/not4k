@@ -30,7 +30,8 @@ manifest.sustainVisibilityPreview = {
 };
 manifest.releaseSymbolPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
-  note: '이중 꺾쇠의 경로 폭을 28px에서 16px, 위아래 중심선 간격을 12px에서 8px로 축소. 싱글 x=100에 1개, 더블 x=84·116에 2개를 나란히 배치. 2px·3px 선 두께 비교.',
+  note: '직전 16×16 경로 비율과 높이를 낮춘 A 16×12, B 18×11, C 16×9.5 비율을 비교. 새 3안은 같은 2.5px 선 두께. 싱글 x=100에 1개, 더블 x=84·116에 2개를 나란히 배치.',
+  comparisonIds: ['bold', 'ratio-a', 'ratio-b', 'ratio-c'],
   reference: 'https://lucide.dev/icons/chevrons-up',
   kinds: [],
 };
@@ -144,14 +145,20 @@ try {
       pngSources, approval: 'approved-artwork', skinKey: `release${cap}` });
     const symbolCenters = kind === 'single' ? [100] : [84, 116];
     const symbolVariants = [{ id: 'original', label: '기존', file: `assets/release-${kind}.png` }];
-    for (const [id, label, strokeWidth] of [['thin', '가는 표시', 2], ['bold', '굵은 표시', 3]]) {
-      const file = await emit(`release-${kind}-chevron-${id}`, releaseChevron(source, { kind, strokeWidth }), {
-        nativeSource: releaseChevron(nativeSource, { kind, strokeWidth }),
+    for (const { id, label, ...geometry } of [
+      { id: 'thin', label: '가는 표시', strokeWidth: 2, pathWidth: 16, chevronRise: 8, chevronOffset: 8 },
+      { id: 'bold', label: '직전 안', strokeWidth: 3, pathWidth: 16, chevronRise: 8, chevronOffset: 8 },
+      { id: 'ratio-a', label: 'A · 높이만 낮춤', strokeWidth: 2.5, pathWidth: 16, chevronRise: 6, chevronOffset: 6 },
+      { id: 'ratio-b', label: 'B · 완만한 각도', strokeWidth: 2.5, pathWidth: 18, chevronRise: 5, chevronOffset: 6 },
+      { id: 'ratio-c', label: 'C · 납작하게', strokeWidth: 2.5, pathWidth: 16, chevronRise: 4, chevronOffset: 5.5 },
+    ]) {
+      const file = await emit(`release-${kind}-chevron-${id}`, releaseChevron(source, { kind, ...geometry }), {
+        nativeSource: releaseChevron(nativeSource, { kind, ...geometry }),
         role: `J2-C ${kind} 릴리즈 · 이중 꺾쇠 ${label} 시안`, sourceFiles,
-        operation: { symbol: 'stacked-up-chevrons', symbolCenters, pathWidth: 16, chevronOffset: 8, strokeWidth, indicates: 'release-action' },
+        operation: { symbol: 'stacked-up-chevrons', symbolCenters, ...geometry, indicates: 'release-action' },
         approval: 'proposed-artwork',
       });
-      symbolVariants.push({ id, label, file, strokeWidth });
+      symbolVariants.push({ id, label, file, ...geometry });
     }
     manifest.releaseSymbolPreview.kinds.push({ kind, symbolCenters, heldBody: `assets/body-${kind}-held.png`, variants: symbolVariants });
     const states = [state('pending', '미처리 · J2-C', `assets/release-${kind}.png`)];

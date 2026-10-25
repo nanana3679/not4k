@@ -2,14 +2,14 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
-test('좁힌 릴리즈 표시는 PNG·2배 PNG·SVG에서 싱글 1개·더블 좌우 2개이며 아이콘 밖 도안을 보존한다', async ({ page }) => {
+test('릴리즈 직전 안과 비율 3안은 싱글 1개·더블 2개로 비교하며 모든 파일에서 아이콘 밖 도안을 보존한다', async ({ page }) => {
   await page.goto(route + '#release-symbol');
   const section = page.locator('#release-symbol');
   for (const kind of ['single', 'double']) {
     const comparison = section.locator(`[data-kind="${kind}"]`);
-    await expect(comparison.locator('article')).toHaveCount(3);
-    await expect(comparison.locator('.sustain-game img')).toHaveCount(3);
-    for (const variant of ['thin', 'bold']) {
+    await expect(comparison.locator('article')).toHaveCount(4);
+    await expect(comparison.locator('.sustain-game img')).toHaveCount(4);
+    for (const variant of ['bold', 'ratio-a', 'ratio-b', 'ratio-c']) {
       await expect(comparison.locator(`[data-variant="${variant}"] nav a`)).toHaveCount(3);
     }
   }
@@ -24,7 +24,7 @@ test('좁힌 릴리즈 표시는 PNG·2배 PNG·SVG에서 싱글 1개·더블 �
     for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
       const scale = suffix === '.png' ? 1 : 2;
       const original = await pixels(`assets/release-${kind}${suffix === '.svg' ? '@2x.png' : suffix}`, scale);
-      for (const variant of ['thin', 'bold']) {
+      for (const variant of ['thin', 'bold', 'ratio-a', 'ratio-b', 'ratio-c']) {
         const candidate = await pixels(`assets/release-${kind}-chevron-${variant}${suffix}`, scale);
         let changedCenter = 0, changedOutside = 0, changedLeft = 0, changedRight = 0, changedGap = 0;
         const bounds = kind === 'single' ? [80, 120] : [70, 130];
