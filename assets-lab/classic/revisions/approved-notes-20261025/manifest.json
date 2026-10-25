@@ -4729,6 +4729,213 @@
       "sha256": "d4e8de6a0b995f1a3dfc468adec16183b0da5b0c55245309dc49f1c3b86f33b7"
     },
     {
+      "file": "assets/release-single-forked-junctions.svg",
+      "role": "single 릴리즈 · 아래 수평 경계의 실제 두 갈래 접점",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-palette-body.png",
+        "assets/release-single-palette-body@2x.png",
+        "fork-reference/single.png",
+        "fork-reference/prompts.json",
+        "fork-reference/crops.json",
+        "fork-reference/guide.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          130,
+          2048,
+          410
+        ],
+        "offsetX": 2,
+        "vertices2x": [
+          [
+            99,
+            47
+          ],
+          [
+            301,
+            47
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            87,
+            32,
+            43,
+            47
+          ],
+          [
+            270,
+            32,
+            43,
+            47
+          ]
+        ],
+        "referenceSha256": "e571ad7843afdd65beb3f9bb82b100c4b25637de36468338b34b9747971ae6bf",
+        "preserve": "original upper white bar, central icons, beam-end highlights, pixels outside lower junctions and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1648995,
+      "sha256": "61e6fda61b5dd0bfffaa0b75e0a9abbb27e9cd724af2677312f8eb90d4266487"
+    },
+    {
+      "file": "assets/release-single-forked-junctions.png",
+      "role": "single 릴리즈 · 아래 수평 경계의 실제 두 갈래 접점",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-palette-body.png",
+        "assets/release-single-palette-body@2x.png",
+        "fork-reference/single.png",
+        "fork-reference/prompts.json",
+        "fork-reference/crops.json",
+        "fork-reference/guide.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          130,
+          2048,
+          410
+        ],
+        "offsetX": 2,
+        "vertices2x": [
+          [
+            99,
+            47
+          ],
+          [
+            301,
+            47
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            87,
+            32,
+            43,
+            47
+          ],
+          [
+            270,
+            32,
+            43,
+            47
+          ]
+        ],
+        "referenceSha256": "e571ad7843afdd65beb3f9bb82b100c4b25637de36468338b34b9747971ae6bf",
+        "preserve": "original upper white bar, central icons, beam-end highlights, pixels outside lower junctions and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18127,
+      "sha256": "1f2e716db05cf8fd15d29c4b212ad451a2281c795f3e0abcb07e869ea6f68081"
+    },
+    {
+      "file": "assets/release-single-forked-junctions@2x.png",
+      "role": "single 릴리즈 · 아래 수평 경계의 실제 두 갈래 접점",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-palette-body.png",
+        "assets/release-single-palette-body@2x.png",
+        "fork-reference/single.png",
+        "fork-reference/prompts.json",
+        "fork-reference/crops.json",
+        "fork-reference/guide.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          130,
+          2048,
+          410
+        ],
+        "offsetX": 2,
+        "vertices2x": [
+          [
+            99,
+            47
+          ],
+          [
+            301,
+            47
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            87,
+            32,
+            43,
+            47
+          ],
+          [
+            270,
+            32,
+            43,
+            47
+          ]
+        ],
+        "referenceSha256": "e571ad7843afdd65beb3f9bb82b100c4b25637de36468338b34b9747971ae6bf",
+        "preserve": "original upper white bar, central icons, beam-end highlights, pixels outside lower junctions and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 59786,
+      "sha256": "d2eab982ca90d310f5063598b2d1cff0b24f282f7a73238c67415b103f2319c9"
+    },
+    {
       "file": "assets/body-single-balance-gentle.svg",
       "role": "single idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -8392,6 +8599,213 @@
       "sha256": "89ed04bfe460b9a37bb52dc09d19228516258f189331b48c32efe3372c2866d6"
     },
     {
+      "file": "assets/release-double-forked-junctions.svg",
+      "role": "double 릴리즈 · 아래 수평 경계의 실제 두 갈래 접점",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-palette-body-dual-ends.png",
+        "assets/release-double-palette-body-dual-ends@2x.png",
+        "fork-reference/double.png",
+        "fork-reference/prompts.json",
+        "fork-reference/crops.json",
+        "fork-reference/guide.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          124,
+          2048,
+          410
+        ],
+        "offsetX": 5,
+        "vertices2x": [
+          [
+            99,
+            47
+          ],
+          [
+            301,
+            47
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            87,
+            32,
+            43,
+            47
+          ],
+          [
+            270,
+            32,
+            43,
+            47
+          ]
+        ],
+        "referenceSha256": "e21944c80d58051972a6850ba5b5588bbdbdb15ee043ffc948240f4caf829535",
+        "preserve": "original upper white bar, central icons, beam-end highlights, pixels outside lower junctions and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1830179,
+      "sha256": "5da343d89b983f053903a310526b231483db3e72504c8d66db396f8382eb303e"
+    },
+    {
+      "file": "assets/release-double-forked-junctions.png",
+      "role": "double 릴리즈 · 아래 수평 경계의 실제 두 갈래 접점",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-palette-body-dual-ends.png",
+        "assets/release-double-palette-body-dual-ends@2x.png",
+        "fork-reference/double.png",
+        "fork-reference/prompts.json",
+        "fork-reference/crops.json",
+        "fork-reference/guide.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          124,
+          2048,
+          410
+        ],
+        "offsetX": 5,
+        "vertices2x": [
+          [
+            99,
+            47
+          ],
+          [
+            301,
+            47
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            87,
+            32,
+            43,
+            47
+          ],
+          [
+            270,
+            32,
+            43,
+            47
+          ]
+        ],
+        "referenceSha256": "e21944c80d58051972a6850ba5b5588bbdbdb15ee043ffc948240f4caf829535",
+        "preserve": "original upper white bar, central icons, beam-end highlights, pixels outside lower junctions and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 19423,
+      "sha256": "1fbc6ac37d84c95426fb7b420e50e50fcb2190b184045ac2e3aad5ec907b89ac"
+    },
+    {
+      "file": "assets/release-double-forked-junctions@2x.png",
+      "role": "double 릴리즈 · 아래 수평 경계의 실제 두 갈래 접점",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-palette-body-dual-ends.png",
+        "assets/release-double-palette-body-dual-ends@2x.png",
+        "fork-reference/double.png",
+        "fork-reference/prompts.json",
+        "fork-reference/crops.json",
+        "fork-reference/guide.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          124,
+          2048,
+          410
+        ],
+        "offsetX": 5,
+        "vertices2x": [
+          [
+            99,
+            47
+          ],
+          [
+            301,
+            47
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            87,
+            32,
+            43,
+            47
+          ],
+          [
+            270,
+            32,
+            43,
+            47
+          ]
+        ],
+        "referenceSha256": "e21944c80d58051972a6850ba5b5588bbdbdb15ee043ffc948240f4caf829535",
+        "preserve": "original upper white bar, central icons, beam-end highlights, pixels outside lower junctions and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 64799,
+      "sha256": "c20d1fceefa51d58270072a4aa5a59954e9f13aa11a30d121cd05d7223b9e8d9"
+    },
+    {
       "file": "assets/body-double-balance-gentle.svg",
       "role": "double idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -11738,6 +12152,7 @@
       200,
       40
     ],
+    "feedback": "사용자 확인: 아래 접점이 갈라지지 않았음. 흰 띠 끝만 바뀐 직전 시안으로 보존하며 releaseForkPreview에서 하단 분기를 재수정.",
     "note": "사용자가 확인한 양옆 가로 띠와 중앙 경사 테두리 접점에 짧은 옆면을 추가. 경계가 두 갈래로 나뉘어 낮은 어두운 면과 높은 면의 단차를 표현하며 기존 색·꺾쇠·싱글 한 빛·더블 두 빛을 유지.",
     "kinds": [
       {
@@ -11752,6 +12167,34 @@
         "kind": "double",
         "original": "assets/release-double-palette-body-dual-ends.png",
         "candidate": "assets/release-double-stepped-junctions.png",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png"
+      }
+    ]
+  },
+  "releaseForkPreview": {
+    "approval": "proposed-artwork",
+    "targetSize": [
+      200,
+      40
+    ],
+    "note": "직전 시안은 흰 띠 끝만 사선으로 바뀌고 아래 접점은 갈라지지 않았다는 사용자 피드백 반영. y=47의 낮은 수평 경계에서 위·아래 가지가 실제로 갈라지는 구조. y<32의 흰 띠와 중앙 도안은 원본 유지.",
+    "kinds": [
+      {
+        "kind": "single",
+        "original": "assets/release-single-palette-body.png",
+        "previous": "assets/release-single-stepped-junctions.png",
+        "candidate": "assets/release-single-forked-junctions.png",
+        "point": "assets/note-single.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png"
+      },
+      {
+        "kind": "double",
+        "original": "assets/release-double-palette-body-dual-ends.png",
+        "previous": "assets/release-double-stepped-junctions.png",
+        "candidate": "assets/release-double-forked-junctions.png",
         "point": "assets/note-double-anodized-contrast-070.png",
         "idleBody": "assets/body-double-center-dual-beam.png",
         "heldBody": "assets/body-double-held.png"

@@ -9,6 +9,7 @@ import { releaseMaterialArtwork } from './release-material.mjs';
 import { splitReleaseHighlight, releaseWideMaterialArtwork } from './release-highlight.mjs';
 import { releaseBeamEndsArtwork } from './release-beam-ends.mjs';
 import { releaseSteppedJunctionArtwork } from './release-stepped-junctions.mjs';
+import { releaseForkedJunctionArtwork } from './release-forked-junctions.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -70,7 +71,13 @@ manifest.releaseWideMaterialPreview = {
 const browser = await chromium.launch({ headless: true });
 manifest.releaseJunctionPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
+  feedback: '사용자 확인: 아래 접점이 갈라지지 않았음. 흰 띠 끝만 바뀐 직전 시안으로 보존하며 releaseForkPreview에서 하단 분기를 재수정.',
   note: '사용자가 확인한 양옆 가로 띠와 중앙 경사 테두리 접점에 짧은 옆면을 추가. 경계가 두 갈래로 나뉘어 낮은 어두운 면과 높은 면의 단차를 표현하며 기존 색·꺾쇠·싱글 한 빛·더블 두 빛을 유지.',
+  kinds: [],
+};
+manifest.releaseForkPreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '직전 시안은 흰 띠 끝만 사선으로 바뀌고 아래 접점은 갈라지지 않았다는 사용자 피드백 반영. y=47의 낮은 수평 경계에서 위·아래 가지가 실제로 갈라지는 구조. y<32의 흰 띠와 중앙 도안은 원본 유지.',
   kinds: [],
 };
 const page = await browser.newPage();
@@ -327,6 +334,17 @@ try {
       approval: 'proposed-artwork',
     });
     manifest.releaseJunctionPreview.kinds.push({ kind, original: junctionOriginal, candidate: junctionCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
+    const forkReference = `fork-reference/${kind}.png`;
+    const forkBytes = await readFile(new URL(forkReference, here));
+    const forkGeometry = JSON.parse(await readFile(new URL('fork-reference/crops.json', here), 'utf8'))[kind];
+    const forkCandidate = await emit(`release-${kind}-forked-junctions`, releaseForkedJunctionArtwork(await readFile(new URL(junctionOriginal.replace('.png', '@2x.png'), here)), forkBytes, forkGeometry), {
+      nativeSource: releaseForkedJunctionArtwork(await readFile(new URL(junctionOriginal, here)), forkBytes, forkGeometry),
+      role: `${kind} 릴리즈 · 아래 수평 경계의 실제 두 갈래 접점`,
+      sourceFiles: [junctionOriginal, junctionOriginal.replace('.png', '@2x.png'), forkReference, 'fork-reference/prompts.json', 'fork-reference/crops.json', 'fork-reference/guide.png'],
+      operation: { ...forkGeometry, vertices2x: [[99, 47], [301, 47]], patchBounds2x: [[87, 32, 43, 47], [270, 32, 43, 47]], referenceSha256: createHash('sha256').update(forkBytes).digest('hex'), preserve: 'original upper white bar, central icons, beam-end highlights, pixels outside lower junctions and alpha' },
+      approval: 'proposed-artwork',
+    });
+    manifest.releaseForkPreview.kinds.push({ kind, original: junctionOriginal, previous: junctionCandidate, candidate: forkCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
       { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },

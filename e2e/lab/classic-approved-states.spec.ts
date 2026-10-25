@@ -2,6 +2,58 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('아래 접점 분기는 위쪽 흰 띠·중앙 도안·알파를 유지하고 좌우 상승 경계에 새 밝은 선을 표시한다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '아래 접점 분기' }).click();
+  await expect(page).toHaveURL(/#release-forked-junctions$/);
+  const section = page.locator('#release-forked-junctions');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(2);
+    await expect(comparison.locator('[data-variant="previous"] .palette-release').first()).toHaveAttribute('src', `assets/release-${kind}-stepped-junctions.png`);
+    await expect(comparison.locator('[data-variant="candidate"] nav a')).toHaveCount(3);
+  }
+  const results = await page.evaluate(async () => {
+    const results = [];
+    for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
+      const scale = suffix === '.png' ? 1 : 2, width = 200 * scale, height = 40 * scale;
+      const pixels = async (file: string) => {
+        const image = new Image(); image.src = `assets/${file}`; await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, width, height);
+        return context.getImageData(0, 0, width, height).data;
+      };
+      const originalName = kind === 'single' ? 'release-single-palette-body' : 'release-double-palette-body-dual-ends';
+      const original = await pixels(originalName + (scale === 1 ? '.png' : '@2x.png'));
+      const candidate = await pixels(`release-${kind}-forked-junctions${suffix}`);
+      let outsideDifference = 0, alphaDifference = 0;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        alphaDifference = Math.max(alphaDifference, Math.abs(candidate[i + 3] - original[i + 3]));
+        const inPatch = y >= 16 * scale && y < Math.ceil(79 * scale / 2) && [[87, 130], [270, 313]].some(([start, end]) => x >= Math.floor(start * scale / 2) && x < Math.ceil(end * scale / 2));
+        if (!inPatch) for (let c = 0; c < 3; c++) outsideDifference = Math.max(outsideDifference, Math.abs(candidate[i + c] - original[i + c]));
+      }
+      // Check the previously missing rising edges below the white bars, not changes to the caps above.
+      const risingEdges = [0, 0];
+      for (let y = 18 * scale; y < 24 * scale; y++) for (let x = 49 * scale; x < Math.ceil(109 * scale / 2); x++) for (let side = 0; side < 2; side++) {
+        const i = (y * width + (side ? width - 1 - x : x)) * 4;
+        const addedWhite = Math.min(candidate[i], candidate[i + 1], candidate[i + 2]) - Math.min(original[i], original[i + 1], original[i + 2]);
+        if (addedWhite > 25) risingEdges[side]++;
+      }
+      results.push({ kind, suffix, outsideDifference, alphaDifference, risingEdges });
+    }
+    return results;
+  });
+  for (const result of results) {
+    const label = result.kind + result.suffix;
+    expect(result.outsideDifference, label).toBe(0);
+    expect(result.alphaDifference, label).toBe(0);
+    for (const count of result.risingEdges) expect(count, label).toBeGreaterThanOrEqual(6);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('싱글·더블 단차 수정은 좌우 접점만 바꾸고 화살표·광선 끝 흰빛·알파를 PNG와 SVG에서 보존한다', async ({ page }) => {
   await page.goto(route);
   await page.locator('.jump').getByRole('link', { name: '단차 수정 전후' }).click();
