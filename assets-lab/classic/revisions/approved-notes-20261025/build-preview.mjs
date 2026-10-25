@@ -63,9 +63,16 @@ const paletteAnchors = `<section id="palette-anchors" aria-labelledby="palette-a
 ${manifest.paletteAnchorPreview.kinds.map(entry => `<h3>${entry.kind === 'single' ? '싱글' : '더블'}</h3><div class="sustain-comparison palette-anchor-comparison" data-kind="${entry.kind}">${entry.variants.map(variant => `<article data-anchor="${variant.id}"><h4>${variant.label}</h4><figure><figcaption>바디 활성</figcaption>${paletteAssembly(variant, variant.release, variant.heldBody)}</figure><figure><figcaption>게임 배율 · 대기 / 활성</figcaption><div class="palette-game-pair">${[variant.idleBody, variant.heldBody].map(body => `<div class="palette-game">${paletteAssembly(variant, variant.release, body)}</div>`).join('')}</div></figure><details><summary>에셋 다운로드</summary>${[['point', '포인트'], ['idleBody', '바디 대기'], ['heldBody', '바디 활성'], ['release', '릴리즈']].map(([key, label]) => `<nav aria-label="${entry.kind} ${variant.label} ${label} 다운로드"><span>${label}</span>${links(variant[key])}</nav>`).join('')}</details></article>`).join('')}</div>`).join('')}
 <p>어느 기준을 선택할지 비교하는 시안입니다. 릴리즈의 3단 표시와 광선 중심 정렬은 같습니다.</p>
 </section>`;
+const paletteBalance = `<section id="palette-balance" aria-labelledby="palette-balance-title">
+<h2 id="palette-balance-title">포인트 유지 · 중간 강도 2안</h2>
+<p>포인트의 밝은 하늘색·크림 골드는 그대로 둡니다. 바디는 조금, 릴리즈는 그보다 더 색을 조정해 원래의 선명함을 살리면서 연결감을 맞췄습니다.</p>
+${manifest.paletteBalancePreview.kinds.map(entry => `<h3>${entry.kind === 'single' ? '싱글' : '더블'}</h3><div class="sustain-comparison palette-balance-comparison" data-kind="${entry.kind}">${entry.variants.map(variant => `<article data-balance="${variant.id}"><h4>${variant.label}</h4><figure><figcaption>바디 활성 · 포인트 원본 유지</figcaption>${paletteAssembly(variant, variant.release, variant.heldBody)}</figure><figure><figcaption>게임 배율 · 대기 / 활성</figcaption><div class="palette-game-pair">${[variant.idleBody, variant.heldBody].map(body => `<div class="palette-game">${paletteAssembly(variant, variant.release, body)}</div>`).join('')}</div></figure><details><summary>에셋 다운로드</summary>${[['idleBody', '바디 대기'], ['heldBody', '바디 활성'], ['release', '릴리즈']].map(([key, label]) => `<nav aria-label="${entry.kind} ${variant.label} ${label} 다운로드"><span>${label}</span>${links(variant[key])}</nav>`).join('')}</details></article>`).join('')}</div>`).join('')}
+<p>A는 원색이 더 남고, B는 포인트 쪽 색감에 조금 더 가까워집니다. 두 안 모두 같은 모양·명암 배치·3단 표시를 사용합니다.</p>
+</section>`;
 const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Classic 상태별 에셋 검토</title><link rel="stylesheet" href="style.css"></head>
-<body><main><header><a href="../../">← Lab 목록</a><p class="edition">Classic · 판정 연결 준비</p><h1>상태별 에셋 검토</h1><p>확정 도안으로 만든 유지·실패·몫별 표시 시안입니다. 확정한 성공·실패 표시와 검토 중인 색의 강도를 구분해 확인합니다.</p><p>릴리즈도 최종 C안(J2-C)을 사용합니다. D 매듭은 유지 표식입니다. 바디와 유지 표식에는 Grace를 붙이지 않습니다.</p><nav class="jump"><a href="#palette-anchors">색 기준 3안</a><a href="#release-palette">릴리즈 색 전후</a><a href="#release-symbol">릴리즈 표식</a><a href="#sustain-visibility">유지 가독성</a><a href="#point-success">포인트 일부 성공</a><a href="#release-success">릴리즈 일부 성공</a><a href="#body-double">바디</a><a href="#body-boundaries">바디 시작·끝</a><a href="#point-double">누름</a><a href="#sustain-double">유지</a><a href="#release-double">릴리즈</a><a href="#sustain-layers">남은 몫</a></nav></header>
+<body><main><header><a href="../../">← Lab 목록</a><p class="edition">Classic · 판정 연결 준비</p><h1>상태별 에셋 검토</h1><p>확정 도안으로 만든 유지·실패·몫별 표시 시안입니다. 확정한 성공·실패 표시와 검토 중인 색의 강도를 구분해 확인합니다.</p><p>릴리즈도 최종 C안(J2-C)을 사용합니다. D 매듭은 유지 표식입니다. 바디와 유지 표식에는 Grace를 붙이지 않습니다.</p><nav class="jump"><a href="#palette-balance">중간 강도 2안</a><a href="#palette-anchors">이전 색 기준 3안</a><a href="#release-palette">릴리즈 색 전후</a><a href="#release-symbol">릴리즈 표식</a><a href="#sustain-visibility">유지 가독성</a><a href="#point-success">포인트 일부 성공</a><a href="#release-success">릴리즈 일부 성공</a><a href="#body-double">바디</a><a href="#body-boundaries">바디 시작·끝</a><a href="#point-double">누름</a><a href="#sustain-double">유지</a><a href="#release-double">릴리즈</a><a href="#sustain-layers">남은 몫</a></nav></header>
+${paletteBalance}
 ${paletteAnchors}
 ${releasePalette}
 ${releaseSymbol}
@@ -111,6 +118,10 @@ await writeFile(new URL('style.css', gallery), `:root{color-scheme:dark;font-fam
 .palette-anchor-comparison figure{margin-inline:0}
 .palette-anchor-comparison details nav{gap:8px}
 .palette-anchor-comparison details nav span{width:100%;color:#b5c4d5}
+.palette-balance-comparison{grid-template-columns:repeat(3,minmax(0,1fr))}
+.palette-balance-comparison details nav{gap:8px}
+.palette-balance-comparison details nav span{width:100%;color:#b5c4d5}
+@media(max-width:820px){.palette-balance-comparison{grid-template-columns:1fr}}
 @media(max-width:1080px){.palette-anchor-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .palette-assembly{position:relative;width:212px;height:184px;margin:auto}
 .palette-body{position:absolute;left:6px;top:20px;width:200px;height:144px;background-size:200px 40px}

@@ -45,6 +45,12 @@ manifest.releasePalettePreview = {
 manifest.paletteAnchorPreview = {
   approval: 'proposed-artwork',
   note: '기존 조합과 포인트·기존 릴리즈·기존 바디 기준의 3안을 비교. 기준 에셋은 원본을 유지하고 나머지 둘만 같은 팔레트로 변환. 포인트 기준은 앞선 색 방향을 바디까지 확장.',
+  feedback: { point: '너무 칙칙함', release: '너무 쨍함', body: '포인트가 너무 많이 바뀜' },
+  kinds: [],
+};
+manifest.paletteBalancePreview = {
+  approval: 'proposed-artwork',
+  note: '포인트 원본은 고정. 바디는 20%·35%, 릴리즈는 45%·65%만 앞선 포인트 팔레트로 이동해 원색을 살린 중간 강도 비교. 명암 배치·알파·3단 표식은 유지.',
   kinds: [],
 };
 const browser = await chromium.launch({ headless: true });
@@ -230,6 +236,33 @@ try {
       anchorVariants.push(variant);
     }
     manifest.paletteAnchorPreview.kinds.push({ kind, variants: anchorVariants });
+    const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
+    for (const treatment of [
+      { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },
+      { id: 'unified', label: 'B · 색 차이를 더 줄임', bodyAmount: .35, releaseAmount: .65 },
+    ]) {
+      const variant = { ...treatment, ...originals };
+      for (const [role, prefix] of [['idleBody', 'body'], ['heldBody', 'body-held'], ['release', 'release']]) {
+        const amount = role === 'release' ? treatment.releaseAmount : treatment.bodyAmount;
+        const sourceFile = originals[role];
+        const svgFile = sourceFile.replace('.png', '.svg');
+        const originalSource = role === 'release' ? source : (await readFile(new URL(svgFile, here))).toString();
+        const native = role === 'release' ? nativeSource : rasterArtwork(await readFile(new URL(sourceFile, here)));
+        const recolor = input => {
+          const artwork = paletteMappedArtwork(input, paletteTable, { amount });
+          return role === 'release' ? releaseChevron(artwork, { kind, centers: symbolCenters, ...selectedSymbol }) : artwork;
+        };
+        variant[role] = await emit(`${prefix}-${kind}-balance-${treatment.id}`, recolor(originalSource), {
+          nativeSource: recolor(native), role: `${kind} ${role} · 포인트 고정 ${treatment.label}`,
+          sourceFiles: [...(role === 'release' ? sourceFiles : []), sourceFile, svgFile, paletteReference],
+          operation: { balance: treatment.id, role, amount, paletteReference,
+            preserve: 'point original, sRGB weighted intensity, alpha, geometry', symbolVariant: role === 'release' ? selectedSymbol.id : null },
+          approval: 'proposed-artwork',
+        });
+      }
+      balanceVariants.push(variant);
+    }
+    manifest.paletteBalancePreview.kinds.push({ kind, variants: balanceVariants });
     const states = [state('pending', '미처리 · J2-C', `assets/release-${kind}.png`)];
     for (const side of ['all', ...(kind === 'double' ? ['left', 'right'] : [])]) {
       const id = side === 'all' ? 'failed' : `partial-failed-${side}`;

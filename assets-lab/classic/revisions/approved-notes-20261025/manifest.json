@@ -4006,6 +4006,648 @@
       "sha256": "5aedafe7063a7df19f876f59b8866e8a6171d92f8066822a8215fcb495e90e1b"
     },
     {
+      "file": "assets/body-single-balance-gentle.svg",
+      "role": "single idleBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "idleBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5558,
+      "sha256": "ddcb98cc6d0171721d7899cdde48ec7bde65da80aaa600b9460f85f16023fac9"
+    },
+    {
+      "file": "assets/body-single-balance-gentle.png",
+      "role": "single idleBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "idleBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 942,
+      "sha256": "b1213e5574243aa6c9503dde8cff33812fe85c34407e427a2ed0f726ec716999"
+    },
+    {
+      "file": "assets/body-single-balance-gentle@2x.png",
+      "role": "single idleBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "idleBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2100,
+      "sha256": "a01ab02f1255eb7b022a9170821eb1755c04e16230ff649e694ab48643f94029"
+    },
+    {
+      "file": "assets/body-held-single-balance-gentle.svg",
+      "role": "single heldBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "heldBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6516,
+      "sha256": "121ce66c6002149b7f5f7878e12d6926a05a2cad0a8582a0ed0f6658fb7589a4"
+    },
+    {
+      "file": "assets/body-held-single-balance-gentle.png",
+      "role": "single heldBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "heldBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3022,
+      "sha256": "ca38704e0dd15318d9afe864ffe0c038be6c3d9959828c49d0ab70912cae9cb9"
+    },
+    {
+      "file": "assets/body-held-single-balance-gentle@2x.png",
+      "role": "single heldBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "heldBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10857,
+      "sha256": "2c16be9945085865535ed881e3338f1be876359e3457a646cf7f177435e40934"
+    },
+    {
+      "file": "assets/release-single-balance-gentle.svg",
+      "role": "single release · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "release",
+        "amount": 0.45,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 78633,
+      "sha256": "b3687953ae0fafc7871156c3bd7420b44317ba0ee8331c5669aef53be276385e"
+    },
+    {
+      "file": "assets/release-single-balance-gentle.png",
+      "role": "single release · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "release",
+        "amount": 0.45,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18383,
+      "sha256": "307a4bc256c6cbf1d3039ce8fa931c71e56c5c2c397209ce099cdc2dda5a9da4"
+    },
+    {
+      "file": "assets/release-single-balance-gentle@2x.png",
+      "role": "single release · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "release",
+        "amount": 0.45,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 61836,
+      "sha256": "e2b249ba9aa7fa8c9d9fba0e2c52f142b9d996a12fb8241604bad054c2eac0c1"
+    },
+    {
+      "file": "assets/body-single-balance-unified.svg",
+      "role": "single idleBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "idleBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5560,
+      "sha256": "ab80282cf749c537a3008a02f5c638d8428e91d2bc7f5d2b58ab3fc50cadbebb"
+    },
+    {
+      "file": "assets/body-single-balance-unified.png",
+      "role": "single idleBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "idleBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 947,
+      "sha256": "bf133752f569d613a759e8cd5b9b8bf4ea189c0b4d253aa65c4356bc7595d0b8"
+    },
+    {
+      "file": "assets/body-single-balance-unified@2x.png",
+      "role": "single idleBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "idleBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2057,
+      "sha256": "c5610870939d43b42b626fecf170977a2d82ec4b2436b813af453a673ac5fb16"
+    },
+    {
+      "file": "assets/body-held-single-balance-unified.svg",
+      "role": "single heldBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "heldBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6518,
+      "sha256": "859c6d1a8991ab0f64723b8525dae83254d65f967b1343864b1ad46c9cd658c9"
+    },
+    {
+      "file": "assets/body-held-single-balance-unified.png",
+      "role": "single heldBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "heldBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2691,
+      "sha256": "3e2bd1f8a06ce7b1ee9a2c2e772dd87a7fb04bd7fbd6cb622d2ab00312c16350"
+    },
+    {
+      "file": "assets/body-held-single-balance-unified@2x.png",
+      "role": "single heldBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "heldBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10344,
+      "sha256": "a1fa572494b87b6c440f0be669b7088c131cccf79ad1231d7da4dbc2b7f23a0d"
+    },
+    {
+      "file": "assets/release-single-balance-unified.svg",
+      "role": "single release · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "release",
+        "amount": 0.65,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 78633,
+      "sha256": "7a28a4b0df4afcaaa4983009d4eb9e09ace21a277899de9b81a9ff34946acbf1"
+    },
+    {
+      "file": "assets/release-single-balance-unified.png",
+      "role": "single release · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "release",
+        "amount": 0.65,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18378,
+      "sha256": "4af78e35bb8bd0f7799c4d27f56370fea7ac34697bf0acbbb6ac2dfc21616bf6"
+    },
+    {
+      "file": "assets/release-single-balance-unified@2x.png",
+      "role": "single release · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "release",
+        "amount": 0.65,
+        "paletteReference": "palette-reference/single.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 61570,
+      "sha256": "c6cd148d7bf84896e2a24e82775f7529cf7a30d61e0d8d0eade257c71bb249ef"
+    },
+    {
       "file": "assets/release-single-failed.svg",
       "role": "J2-C single 릴리즈 · 전체 실패",
       "generator": "build-states.mjs",
@@ -6137,6 +6779,648 @@
       ],
       "bytes": 61698,
       "sha256": "5d43a0a79e2e4987db2acb7c83214ac617cfc6bbdf0d0285b75d34b40a3b287b"
+    },
+    {
+      "file": "assets/body-double-balance-gentle.svg",
+      "role": "double idleBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "idleBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6253,
+      "sha256": "dd6f97e8d8920339beaf888cfc9d438345a6017676afee191329fc451d6ce742"
+    },
+    {
+      "file": "assets/body-double-balance-gentle.png",
+      "role": "double idleBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "idleBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 819,
+      "sha256": "013f7f712ce37f4b2d4791a3721924de3a6acfe384b79a8cf1ad5b17ddba5b47"
+    },
+    {
+      "file": "assets/body-double-balance-gentle@2x.png",
+      "role": "double idleBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "idleBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1802,
+      "sha256": "2bcded855dab808c50628aa99152b199a4c0df891f7f0b6a65269eda60362741"
+    },
+    {
+      "file": "assets/body-held-double-balance-gentle.svg",
+      "role": "double heldBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "heldBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 7366,
+      "sha256": "e77a1cc17576247dfaf62638ff68b8413748dafdb964bbe6b7dfc59a43b0fb49"
+    },
+    {
+      "file": "assets/body-held-double-balance-gentle.png",
+      "role": "double heldBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "heldBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3873,
+      "sha256": "bd36b9b590f9db49ddba7ce774dfca648146239184e885c49aa3a601881dbda6"
+    },
+    {
+      "file": "assets/body-held-double-balance-gentle@2x.png",
+      "role": "double heldBody · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "heldBody",
+        "amount": 0.2,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14493,
+      "sha256": "025be9f97c0b0b0c09b4e843a9258e9ac390b8a93d062f2d57f00e71fba3d46d"
+    },
+    {
+      "file": "assets/release-double-balance-gentle.svg",
+      "role": "double release · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "release",
+        "amount": 0.45,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 87475,
+      "sha256": "6694c9082c0d513def0d07e992626fc1ce81ab82e4eb4ee3ca58b1eb9f99983a"
+    },
+    {
+      "file": "assets/release-double-balance-gentle.png",
+      "role": "double release · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "release",
+        "amount": 0.45,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 19569,
+      "sha256": "d990eb611c43443247c7545b5293918e5c8b04da27ebf2db618aff7e2e312b89"
+    },
+    {
+      "file": "assets/release-double-balance-gentle@2x.png",
+      "role": "double release · 포인트 고정 A · 원색을 더 살림",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "gentle",
+        "role": "release",
+        "amount": 0.45,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 66799,
+      "sha256": "67f80ae69cfa73f2242895850c4a74e7fe8efc1d37af877515f65f72bae57630"
+    },
+    {
+      "file": "assets/body-double-balance-unified.svg",
+      "role": "double idleBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "idleBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6255,
+      "sha256": "32ec356325fb8f089f81584ccc9adeb38cdaaeb5f1d94ed3a3431cb30c431d5c"
+    },
+    {
+      "file": "assets/body-double-balance-unified.png",
+      "role": "double idleBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "idleBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 822,
+      "sha256": "7d8ce6245886e9008a81332fe25f361f8987218c70764933d8c97fe79c4af062"
+    },
+    {
+      "file": "assets/body-double-balance-unified@2x.png",
+      "role": "double idleBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "idleBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1803,
+      "sha256": "abe6aef9fb267629bb15ba32657b5baa5dbec725e161dc7be3bc879c883b5252"
+    },
+    {
+      "file": "assets/body-held-double-balance-unified.svg",
+      "role": "double heldBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "heldBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 7368,
+      "sha256": "26a15d91393eea6660cfada7dbaf916876e27a741e2c5c2ab9d64994fceaebdf"
+    },
+    {
+      "file": "assets/body-held-double-balance-unified.png",
+      "role": "double heldBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "heldBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3677,
+      "sha256": "0ef2d844624c9e42bc5152833d9fa7a86bac5f116ca6bb7ecd0918378e31a5af"
+    },
+    {
+      "file": "assets/body-held-double-balance-unified@2x.png",
+      "role": "double heldBody · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "heldBody",
+        "amount": 0.35,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14584,
+      "sha256": "d74b21ba6b1f14cf157b2d4daa2d035f82f361da61a079a9f3e32b07f21c42d7"
+    },
+    {
+      "file": "assets/release-double-balance-unified.svg",
+      "role": "double release · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "release",
+        "amount": 0.65,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 87475,
+      "sha256": "ec4bd596b0b3148e3507737d7ff57b3c19c1ed1a6ef0c0d51d4c2d80cbbe867d"
+    },
+    {
+      "file": "assets/release-double-balance-unified.png",
+      "role": "double release · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "release",
+        "amount": 0.65,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 19592,
+      "sha256": "390d7fabeebc86b3f59d452512236f0901a546bcba43646e7af61491466f37fd"
+    },
+    {
+      "file": "assets/release-double-balance-unified@2x.png",
+      "role": "double release · 포인트 고정 B · 색 차이를 더 줄임",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "balance": "unified",
+        "role": "release",
+        "amount": 0.65,
+        "paletteReference": "palette-reference/double.png",
+        "preserve": "point original, sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 65690,
+      "sha256": "c9b456aba0ee68be2a72c857159c4aeea895a85525e14c6fddc4dc20d427e897"
     },
     {
       "file": "assets/release-double-failed.svg",
@@ -8553,6 +9837,11 @@
   "paletteAnchorPreview": {
     "approval": "proposed-artwork",
     "note": "기존 조합과 포인트·기존 릴리즈·기존 바디 기준의 3안을 비교. 기준 에셋은 원본을 유지하고 나머지 둘만 같은 팔레트로 변환. 포인트 기준은 앞선 색 방향을 바디까지 확장.",
+    "feedback": {
+      "point": "너무 칙칙함",
+      "release": "너무 쨍함",
+      "body": "포인트가 너무 많이 바뀜"
+    },
     "kinds": [
       {
         "kind": "single",
@@ -8625,6 +9914,78 @@
             "idleBody": "assets/body-double-center-dual-beam.png",
             "heldBody": "assets/body-double-held.png",
             "release": "assets/release-double-palette-body.png"
+          }
+        ]
+      }
+    ]
+  },
+  "paletteBalancePreview": {
+    "approval": "proposed-artwork",
+    "note": "포인트 원본은 고정. 바디는 20%·35%, 릴리즈는 45%·65%만 앞선 포인트 팔레트로 이동해 원색을 살린 중간 강도 비교. 명암 배치·알파·3단 표식은 유지.",
+    "kinds": [
+      {
+        "kind": "single",
+        "variants": [
+          {
+            "id": "original",
+            "label": "기존 조합",
+            "point": "assets/note-single.png",
+            "idleBody": "assets/body-single.png",
+            "heldBody": "assets/body-single-held.png",
+            "release": "assets/release-single-chevron-triple-tight-large.png"
+          },
+          {
+            "id": "gentle",
+            "label": "A · 원색을 더 살림",
+            "bodyAmount": 0.2,
+            "releaseAmount": 0.45,
+            "point": "assets/note-single.png",
+            "idleBody": "assets/body-single-balance-gentle.png",
+            "heldBody": "assets/body-held-single-balance-gentle.png",
+            "release": "assets/release-single-balance-gentle.png"
+          },
+          {
+            "id": "unified",
+            "label": "B · 색 차이를 더 줄임",
+            "bodyAmount": 0.35,
+            "releaseAmount": 0.65,
+            "point": "assets/note-single.png",
+            "idleBody": "assets/body-single-balance-unified.png",
+            "heldBody": "assets/body-held-single-balance-unified.png",
+            "release": "assets/release-single-balance-unified.png"
+          }
+        ]
+      },
+      {
+        "kind": "double",
+        "variants": [
+          {
+            "id": "original",
+            "label": "기존 조합",
+            "point": "assets/note-double-anodized-contrast-070.png",
+            "idleBody": "assets/body-double-center-dual-beam.png",
+            "heldBody": "assets/body-double-held.png",
+            "release": "assets/release-double-chevron-triple-tight-large.png"
+          },
+          {
+            "id": "gentle",
+            "label": "A · 원색을 더 살림",
+            "bodyAmount": 0.2,
+            "releaseAmount": 0.45,
+            "point": "assets/note-double-anodized-contrast-070.png",
+            "idleBody": "assets/body-double-balance-gentle.png",
+            "heldBody": "assets/body-held-double-balance-gentle.png",
+            "release": "assets/release-double-balance-gentle.png"
+          },
+          {
+            "id": "unified",
+            "label": "B · 색 차이를 더 줄임",
+            "bodyAmount": 0.35,
+            "releaseAmount": 0.65,
+            "point": "assets/note-double-anodized-contrast-070.png",
+            "idleBody": "assets/body-double-balance-unified.png",
+            "heldBody": "assets/body-held-double-balance-unified.png",
+            "release": "assets/release-double-balance-unified.png"
           }
         ]
       }

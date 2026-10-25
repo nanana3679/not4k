@@ -2,6 +2,65 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('중간 강도 2안은 포인트 원본을 유지하고 바디·릴리즈 색을 원본과 전체 변환 사이에서 조절한다', async ({ page }) => {
+  await page.goto(route + '#palette-balance');
+  const section = page.locator('#palette-balance');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(3);
+    const expectedPoint = kind === 'single' ? 'assets/note-single.png' : 'assets/note-double-anodized-contrast-070.png';
+    for (const point of await comparison.locator('.palette-point').all()) await expect(point).toHaveAttribute('src', expectedPoint);
+    for (const balance of ['gentle', 'unified']) {
+      await comparison.locator(`[data-balance="${balance}"] summary`).click();
+      await expect(comparison.locator(`[data-balance="${balance}"] nav a`)).toHaveCount(9);
+    }
+  }
+  const results = await page.evaluate(async () => {
+    const pixels = async (file: string, scale: number) => {
+      const image = new Image(); image.src = file; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 200 * scale; canvas.height = 40 * scale;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return context.getImageData(0, 0, canvas.width, canvas.height).data;
+    };
+    const results = [];
+    for (const kind of ['single', 'double']) for (const role of ['body', 'body-held', 'release']) {
+      const originalName = role === 'body' ? (kind === 'single' ? 'body-single' : 'body-double-center-dual-beam')
+        : role === 'body-held' ? `body-${kind}-held` : `release-${kind}-chevron-triple-tight-large`;
+      for (const balance of ['gentle', 'unified']) for (const suffix of ['.png', '@2x.png', '.svg']) {
+        const scale = suffix === '.png' ? 1 : 2;
+        const amount = role === 'release' ? (balance === 'gentle' ? .45 : .65) : (balance === 'gentle' ? .2 : .35);
+        const file = `assets/${role}-${kind}-balance-${balance}${suffix}`;
+        const original = await pixels(`assets/${originalName}${scale === 1 ? '.png' : '.svg'}`, scale);
+        const full = await pixels(`assets/${role}-${kind}-palette-point${suffix}`, scale);
+        const candidate = await pixels(file, scale);
+        let maxAlphaDifference = 0, maxBlendDifference = 0, maxIntensityDifference = 0, changedPixels = 0;
+        for (let i = 0; i < original.length; i += 4) {
+          maxAlphaDifference = Math.max(maxAlphaDifference, Math.abs(candidate[i + 3] - original[i + 3]));
+          for (let channel = 0; channel < 3; channel++) {
+            const expected = original[i + channel] * (1 - amount) + full[i + channel] * amount;
+            maxBlendDifference = Math.max(maxBlendDifference, Math.abs(candidate[i + channel] - expected));
+          }
+          maxIntensityDifference = Math.max(maxIntensityDifference, Math.abs([.2126, .7152, .0722].reduce((sum, weight, channel) => sum + weight * (candidate[i + channel] - original[i + channel]), 0)));
+          if (Math.max(...[0, 1, 2].map(channel => Math.abs(candidate[i + channel] - original[i + channel]))) > 3) changedPixels++;
+        }
+        results.push({ file, maxAlphaDifference, maxBlendDifference, maxIntensityDifference, changedPixels });
+      }
+    }
+    return results;
+  });
+  expect(results).toHaveLength(36);
+  for (const row of results) {
+    expect(row.maxAlphaDifference, row.file).toBe(0);
+    expect(row.maxBlendDifference, row.file).toBeLessThanOrEqual(3);
+    expect(row.maxIntensityDifference, row.file).toBeLessThanOrEqual(3);
+    expect(row.changedPixels, row.file).toBeGreaterThan(100);
+  }
+  for (const width of [820, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  }
+});
+
 test('색 기준 3안은 기준 에셋을 유지하고 나머지 포인트·바디·릴리즈의 크기와 명암 및 알파를 보존한다', async ({ page }) => {
   await page.goto(route + '#palette-anchors');
   const section = page.locator('#palette-anchors');
