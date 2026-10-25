@@ -15,7 +15,7 @@
 .boundary-stage img{position:absolute;height:40px}
 .boundary-point{left:0;top:160px;width:212px}
 .boundary-release{left:6px;top:0;width:200px}
-.sustain-comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.sustain-comparison{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px}
 #sustain-visibility>h3{font-size:17px;min-height:0;margin:32px 0 14px}
 .sustain-comparison h4{font-size:15px;margin:0 0 22px}
 .sustain-comparison figure{margin:0 0 22px}

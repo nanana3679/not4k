@@ -23,7 +23,7 @@ for (const asset of manifest.assets.filter(asset => asset.file.startsWith('asset
 manifest.stateGroups = [];
 manifest.sustainVisibilityPreview = {
   approval: 'proposed-display-treatment', targetSize: [200, 40], outlineWidth: 2.4,
-  note: 'D 매듭의 형태와 광선 중심을 유지하고 윤곽 포함 폭을 싱글 36px·더블 각 32px로 확대. 활성 바디 가독성 비교용이며 기존 승인 원본은 유지.',
+  note: 'D 매듭의 형태와 광선 중심을 유지하고 윤곽 포함 폭을 싱글 36px·더블 각 32px로 확대. 싱글은 다음 파란선까지 닿는 44px 안도 비교. 활성 바디 가독성 비교용이며 기존 승인 원본은 유지.',
   kinds: [],
 };
 const browser = await chromium.launch({ headless: true });
@@ -102,8 +102,16 @@ try {
       role: `${kind} 유지 · 광선 홈 폭 + 어두운 윤곽선 시안`, sourceFiles: [`assets/${sustainName}.svg`],
       operation: { markerWidth, outlineWidth: 2.4, outlineColor, beamCenters: centers, grace: false },
     });
+    const railPreview = kind === 'single' ? {
+      railMarkerWidth: 44,
+      railCandidate: await emit(`${sustainName}-rail-outline`, outlinedSustain(sustainSource, { markerWidth: 44, outlineColor }), {
+        role: 'single 유지 · 다음 파란선 폭 + 어두운 윤곽선 시안', sourceFiles: [`assets/${sustainName}.svg`],
+        operation: { markerWidth: 44, outlineWidth: 2.4, outlineColor, beamCenters: centers, grace: false },
+      }),
+    } : {};
     manifest.sustainVisibilityPreview.kinds.push({ kind, markerWidth, beamCenters: centers,
       original: `assets/${sustainName}.png`, candidate, idleBody: `assets/${bodyName}.png`, heldBody: `assets/body-${kind}-held.png`,
+      ...railPreview,
     });
   }
 

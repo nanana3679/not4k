@@ -2,12 +2,12 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
-test('유지 확대안은 활성 바디 위에 싱글 36px·더블 64px 전체 폭으로 보이며 SVG·PNG 모두 어두운 윤곽이 있다', async ({ page }) => {
+test('유지 확대안은 활성 바디 위에 싱글 36px·44px·더블 전체 64px로 보이며 SVG·PNG 모두 어두운 윤곽이 있다', async ({ page }) => {
   await page.goto(route + '#sustain-visibility');
   const section = page.locator('#sustain-visibility');
   for (const kind of ['single', 'double']) {
     const comparison = section.locator(`[data-kind="${kind}"]`);
-    for (const variant of ['original', 'candidate']) {
+    for (const variant of ['original', 'candidate', ...(kind === 'single' ? ['railCandidate'] : [])]) {
       const stage = comparison.locator(`[data-variant="${variant}"] [data-body-state="held"]`);
       await expect(stage).toHaveCSS('background-image', new RegExp(`body-${kind}-held\\.png`));
       await expect(stage).toHaveCSS('opacity', '1');
@@ -16,9 +16,13 @@ test('유지 확대안은 활성 바디 위에 싱글 36px·더블 64px 전체 �
   }
   const results = await page.evaluate(async () => {
     const results = [];
-    for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
+    for (const { kind, treatment, expectedWidth } of [
+      { kind: 'single', treatment: 'channel', expectedWidth: 36 },
+      { kind: 'single', treatment: 'rail', expectedWidth: 44 },
+      { kind: 'double', treatment: 'channel', expectedWidth: 64 },
+    ]) for (const suffix of ['.png', '@2x.png', '.svg']) {
       const scale = suffix === '.png' ? 1 : 2;
-      const image = new Image(); image.src = `assets/sustain-${kind}-channel-outline${suffix}`; await image.decode();
+      const image = new Image(); image.src = `assets/sustain-${kind}-${treatment}-outline${suffix}`; await image.decode();
       const canvas = document.createElement('canvas'); canvas.width = 200 * scale; canvas.height = 40 * scale;
       const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, canvas.width, canvas.height);
       const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -29,15 +33,21 @@ test('유지 확대안은 활성 바디 위에 싱글 36px·더블 64px 전체 �
         minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
         if (Math.max(data[i], data[i + 1], data[i + 2]) < 90) darkPixels++;
       }
-      results.push({ kind, suffix, width: (maxX - minX + 1) / scale, center: (minX + maxX + 1) / (2 * scale), minY: minY / scale, maxY: (maxY + 1) / scale, darkPixels: darkPixels / scale ** 2 });
+      results.push({ kind, treatment, expectedWidth, suffix, width: (maxX - minX + 1) / scale, center: (minX + maxX + 1) / (2 * scale), minY: minY / scale, maxY: (maxY + 1) / scale, darkPixels: darkPixels / scale ** 2 });
     }
     return results;
   });
   for (const result of results) {
-    expect(Math.abs(result.width - (result.kind === 'single' ? 36 : 64)), result.suffix).toBeLessThanOrEqual(1);
+    expect(Math.abs(result.width - result.expectedWidth), `${result.kind} ${result.treatment} ${result.suffix}`).toBeLessThanOrEqual(1);
     expect(result.center).toBe(100);
-    expect(result.minY).toBeGreaterThan(0);
-    expect(result.maxY).toBeLessThan(40);
+    if (result.treatment === 'rail') {
+      expect(result.maxY - result.minY).toBeGreaterThanOrEqual(39);
+      expect(result.minY).toBeGreaterThanOrEqual(0);
+      expect(result.maxY).toBeLessThanOrEqual(40);
+    } else {
+      expect(result.minY).toBeGreaterThan(0);
+      expect(result.maxY).toBeLessThan(40);
+    }
     expect(result.darkPixels).toBeGreaterThan(40);
   }
   await page.setViewportSize({ width: 390, height: 844 });

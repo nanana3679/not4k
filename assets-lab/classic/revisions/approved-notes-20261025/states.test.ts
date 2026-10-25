@@ -16,13 +16,13 @@ interface PointSuccessPreview {
   progression: State[];
 }
 const here = new URL('./', import.meta.url);
-const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; sustainVisibilityPreview: { approval: string; outlineWidth: number; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; sustainVisibilityPreview: { approval: string; outlineWidth: number; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; railCandidate?: string; railMarkerWidth?: number; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
-  it('에셋 132개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
-    expect(manifest.assets).toHaveLength(132);
-    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(132);
+  it('에셋 135개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
+    expect(manifest.assets).toHaveLength(135);
+    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(135);
     for (const asset of manifest.assets) {
       const bytes = readFileSync(new URL(asset.file, here));
       expect(bytes.length, asset.file).toBe(asset.bytes);
@@ -125,18 +125,22 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     }
   });
 
-  it('유지 확대안은 싱글 36px·더블 각 32px와 2.4px 윤곽을 제안하며 기존 정상 도안과 스킨 연결을 보존한다', () => {
+  it('유지 확대안은 싱글 36px·44px와 더블 각 32px를 비교하며 기존 정상 도안과 스킨 연결을 보존한다', () => {
     const preview = manifest.sustainVisibilityPreview;
     expect(preview).toMatchObject({ approval: 'proposed-display-treatment', outlineWidth: 2.4 });
     expect(preview.kinds.map(({ kind, markerWidth, beamCenters }) => ({ kind, markerWidth, beamCenters }))).toEqual([
       { kind: 'single', markerWidth: 36, beamCenters: [100] },
       { kind: 'double', markerWidth: 32, beamCenters: [84, 116] },
     ]);
+    expect(preview.kinds[0]).toMatchObject({ railMarkerWidth: 44, railCandidate: 'assets/sustain-single-rail-outline.png' });
+    expect(preview.kinds[1].railCandidate).toBeUndefined();
     for (const item of preview.kinds) {
       expect(group(`sustain-${item.kind}`).states.find(state => state.id === 'pending')!.file).toBe(item.original);
       expect(item.candidate).not.toBe(item.original);
-      const candidate = manifest.assets.find(asset => asset.file === item.candidate)!;
-      expect(candidate).toMatchObject({ width: 200, height: 40, skinKey: null, proposedRuntimePath: null });
+      for (const file of [item.candidate, ...(item.railCandidate ? [item.railCandidate] : [])]) {
+        const candidate = manifest.assets.find(asset => asset.file === file)!;
+        expect(candidate).toMatchObject({ width: 200, height: 40, skinKey: null, proposedRuntimePath: null });
+      }
       for (const file of [item.original, item.candidate, item.heldBody]) expect(manifest.assets.some(asset => asset.file === file)).toBe(true);
     }
   });
