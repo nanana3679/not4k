@@ -1,6 +1,22 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Classic 상태별 에셋 검토</title><link rel="stylesheet" href="style.css"></head>
-<body><main><header><a href="../../">← Lab 목록</a><p class="edition">Classic · 판정 연결 준비</p><h1>상태별 에셋 검토</h1><p>확정 도안으로 만든 유지·실패·몫별 표시 시안입니다. 확정한 성공·실패 표시와 검토 중인 색의 강도를 구분해 확인합니다.</p><p>릴리즈도 최종 C안(J2-C)을 사용합니다. D 매듭은 유지 표식입니다. 바디와 유지 표식에는 Grace를 붙이지 않습니다.</p><nav class="jump"><a href="#release-beam-ends">더블 빛 두 지점</a><a href="#release-body-color">릴리즈·바디 색</a><a href="#release-material-corrected">넓은 면·흰빛 알파</a><a href="#release-material">3·4·5번 수정안</a><a href="#release-parts">릴리즈 부위 번호</a><a href="#palette-balance">중간 강도 2안</a><a href="#palette-anchors">이전 색 기준 3안</a><a href="#release-palette">릴리즈 색 전후</a><a href="#release-symbol">릴리즈 표식</a><a href="#sustain-visibility">유지 가독성</a><a href="#point-success">포인트 일부 성공</a><a href="#release-success">릴리즈 일부 성공</a><a href="#body-double">바디</a><a href="#body-boundaries">바디 시작·끝</a><a href="#point-double">누름</a><a href="#sustain-double">유지</a><a href="#release-double">릴리즈</a><a href="#sustain-layers">남은 몫</a></nav></header>
+<body><main><header><a href="../../">← Lab 목록</a><p class="edition">Classic · 판정 연결 준비</p><h1>상태별 에셋 검토</h1><p>확정 도안으로 만든 유지·실패·몫별 표시 시안입니다. 확정한 성공·실패 표시와 검토 중인 색의 강도를 구분해 확인합니다.</p><p>릴리즈도 최종 C안(J2-C)을 사용합니다. D 매듭은 유지 표식입니다. 바디와 유지 표식에는 Grace를 붙이지 않습니다.</p><nav class="jump"><a href="#release-junction">단차 접점</a><a href="#release-beam-ends">더블 빛 두 지점</a><a href="#release-body-color">릴리즈·바디 색</a><a href="#release-material-corrected">넓은 면·흰빛 알파</a><a href="#release-material">3·4·5번 수정안</a><a href="#release-parts">릴리즈 부위 번호</a><a href="#palette-balance">중간 강도 2안</a><a href="#palette-anchors">이전 색 기준 3안</a><a href="#release-palette">릴리즈 색 전후</a><a href="#release-symbol">릴리즈 표식</a><a href="#sustain-visibility">유지 가독성</a><a href="#point-success">포인트 일부 성공</a><a href="#release-success">릴리즈 일부 성공</a><a href="#body-double">바디</a><a href="#body-boundaries">바디 시작·끝</a><a href="#point-double">누름</a><a href="#sustain-double">유지</a><a href="#release-double">릴리즈</a><a href="#sustain-layers">남은 몫</a></nav></header>
+<section id="release-junction" aria-labelledby="release-junction-title">
+<h2 id="release-junction-title">릴리즈 · 단차가 만나는 접점</h2>
+<p>가로 띠가 중앙의 경사진 테두리와 만나는 두 곳을 짚었습니다. 아래 그림은 위치를 확인하기 위한 원본 표시입니다.</p>
+<svg class="release-junction-diagram" viewBox="0 0 700 240" role="img" aria-labelledby="release-junction-diagram-title" aria-describedby="release-junction-diagram-desc">
+<title id="release-junction-diagram-title">가로 띠와 중앙 경사 테두리의 좌우 접점</title>
+<desc id="release-junction-diagram-desc">더블 릴리즈의 왼쪽과 오른쪽 가로 띠 안쪽 끝을 분홍 원으로 표시했습니다. 아래 수평 테두리의 모서리보다 위에 있는 두 접점입니다.</desc>
+<image href="assets/release-double-palette-body-dual-ends@2x.png" x="50" y="85" width="600" height="120"/>
+<g fill="none" stroke="#ffaad8" stroke-width="2.5"><circle cx="206" cy="148" r="17"/><circle cx="494" cy="148" r="17"/><path d="M206 131V56H125M494 131V56H575"/></g>
+<g fill="#ffcadf" font-family="system-ui,sans-serif" font-size="18" text-anchor="middle"><text x="125" y="37">왼쪽 접점</text><text x="575" y="37">오른쪽 접점</text></g>
+</svg>
+<div class="sustain-comparison palette-comparison release-junction-sketches">
+<figure><figcaption>지금 설명한 연결 · 선 하나로 이어짐</figcaption><svg viewBox="0 0 280 130" role="img" aria-label="수평선 끝에서 아래로만 꺾이는 연결"><path d="M35 52H140L210 112"/></svg></figure>
+<figure><figcaption>제안한 연결 · 위·아래 경계가 갈라짐</figcaption><svg viewBox="0 0 280 130" role="img" aria-label="수평선 끝에서 위아래 두 경계로 갈라져 작은 옆면이 생기는 연결"><path class="junction-side-face" d="M140 52L210 18V112Z"/><path d="M35 52H140L210 112M140 52L210 18"/></svg></figure>
+</div>
+<p>해석: 낮은 어두운 면의 경계와 높은 면의 경계를 접점에서 나누고, 그 사이에 짧은 옆면을 보여 줍니다. 선 그림은 연결 구조를 설명하며 실제 에셋의 최종 모양·두께를 뜻하지 않습니다.</p>
+</section>
 <section id="release-beam-ends" aria-labelledby="release-beam-ends-title">
 <h2 id="release-beam-ends-title">더블 릴리즈 · 두 광선 끝에 빛 맞추기</h2>
 <p>화살표 아래 띠의 밝은 지점을 각 광선 끝에 하나씩 놓았습니다. 가운데는 얇은 빛의 띠로 이어집니다.</p>

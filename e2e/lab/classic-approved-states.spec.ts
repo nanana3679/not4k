@@ -2,6 +2,20 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('단차 접점 안내에서 더블 도안의 좌우 접점과 한 경계·두 경계 연결을 모바일에서도 확인한다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '단차 접점' }).click();
+  await expect(page).toHaveURL(/#release-junction$/);
+  const section = page.locator('#release-junction');
+  await expect(section.getByRole('img', { name: '가로 띠와 중앙 경사 테두리의 좌우 접점', exact: true })).toBeVisible();
+  await expect(section.getByRole('img', { name: '수평선 끝에서 아래로만 꺾이는 연결' })).toBeVisible();
+  await expect(section.getByRole('img', { name: '수평선 끝에서 위아래 두 경계로 갈라져 작은 옆면이 생기는 연결' })).toBeVisible();
+  const source = await section.locator('image').getAttribute('href');
+  expect((await page.request.get(new URL(source!, page.url()).href)).ok()).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('더블 릴리즈는 광선 x=84·116에 두 밝은 지점을 만들고 중앙 띠 밖 도안과 알파를 유지한다', async ({ page }) => {
   await page.goto(route);
   await page.locator('.jump').getByRole('link', { name: '더블 빛 두 지점' }).click();

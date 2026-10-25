@@ -58,6 +58,12 @@
 @media(max-width:760px){.success-comparison{grid-template-columns:1fr}.success-comparison article{max-width:440px;width:100%;margin:auto}}
 @media(max-width:600px){main{padding:24px 16px}.states{grid-template-columns:1fr}article{padding-inline:8px}h3{min-height:0}}
 
+.release-junction-diagram{display:block;width:100%;max-width:800px;margin:18px auto}
+.release-junction-sketches{max-width:720px;margin:auto}
+.release-junction-sketches svg{display:block;width:100%;max-width:280px;margin:auto}
+.release-junction-sketches path{fill:none;stroke:#ffcadf;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.release-junction-sketches .junction-side-face{fill:#65502b;stroke:none}
+
 .release-parts-controls{border:0;margin:24px 0;padding:0}
 .release-parts-controls legend{font-size:13px;color:#b5c4d5;margin-bottom:12px}
 .release-parts-controls label{cursor:pointer}
