@@ -11,6 +11,7 @@ import { releaseBeamEndsArtwork } from './release-beam-ends.mjs';
 import { releaseSteppedJunctionArtwork } from './release-stepped-junctions.mjs';
 import { releaseForkedJunctionArtwork } from './release-forked-junctions.mjs';
 import { releaseCleanJunctionArtwork } from './release-clean-junctions.mjs';
+import { releaseStraightJunctionArtwork, straightJunctionGeometry } from './release-straight-junctions.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -84,7 +85,13 @@ manifest.releaseForkPreview = {
 };
 manifest.releaseCleanForkPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
+  feedback: '세 면의 꼭짓점은 맞지만 주변 공간이 찌그러졌다는 사용자 확인. releaseStraightJunctionPreview에서 원본 테두리와 면의 폭을 복원.',
   note: '앞면·윗면·옆면을 잇는 꼭짓점. 기존 위·바깥쪽 사선을 지워 세 경계만 한 점에서 만나도록 수정. 중앙 도안·광선 끝 흰빛·외곽·알파 유지.',
+  kinds: [],
+};
+manifest.releaseStraightJunctionPreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '변형 전 원본 위에 꼭짓점 안쪽 면만 합성. 긴 대각선 테두리·가로 흰 띠·아래 사선을 원본 좌표로 보존하며 세 면의 꼭짓점 유지.',
   kinds: [],
 };
 const page = await browser.newPage();
@@ -362,6 +369,16 @@ try {
       approval: 'proposed-artwork',
     });
     manifest.releaseCleanForkPreview.kinds.push({ kind, previous: forkCandidate, candidate: cleanCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
+    const straightReference = `straight-junction-reference/${kind}.png`;
+    const straightBytes = await readFile(new URL(straightReference, here));
+    const straightCandidate = await emit(`release-${kind}-straight-junctions`, releaseStraightJunctionArtwork(await readFile(new URL(junctionOriginal.replace('.png', '@2x.png'), here)), straightBytes, kind), {
+      nativeSource: releaseStraightJunctionArtwork(await readFile(new URL(junctionOriginal, here)), straightBytes, kind),
+      role: `${kind} 릴리즈 · 세 면의 꼭짓점과 원본 직선 테두리`,
+      sourceFiles: [junctionOriginal, junctionOriginal.replace('.png', '@2x.png'), straightReference, 'straight-junction-reference/prompts.json', `straight-junction-reference/${kind}-original.png`, `straight-junction-reference/${kind}-previous.png`],
+      operation: { ...straightJunctionGeometry[kind], crop2x: [80, 20, 50, 50], patchBounds2x: [[82, 30, 30, 19], [288, 30, 30, 19]], mirroredRight: true, referenceSha256: createHash('sha256').update(straightBytes).digest('hex'), preserve: 'original straight inner rim, upper white bar, lower diagonal below y=49, pixels outside local face, icons, highlights and alpha' },
+      approval: 'proposed-artwork',
+    });
+    manifest.releaseStraightJunctionPreview.kinds.push({ kind, original: junctionOriginal, previous: cleanCandidate, candidate: straightCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
       { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },

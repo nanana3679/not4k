@@ -13,7 +13,7 @@ export const releaseJunctionHtml = `<section id="release-junction" aria-labelled
 <figure><figcaption>지금 설명한 연결 · 선 하나로 이어짐</figcaption><svg viewBox="0 0 280 130" role="img" aria-label="수평선 끝에서 아래로만 꺾이는 연결"><path d="M35 52H140L210 112"/></svg></figure>
 <figure><figcaption>제안한 연결 · 위·아래 경계가 갈라짐</figcaption><svg viewBox="0 0 280 130" role="img" aria-label="수평선 끝에서 위아래 두 경계로 갈라져 작은 옆면이 생기는 연결"><path class="junction-side-face" d="M140 52L210 18V112Z"/><path d="M35 52H140L210 112M140 52L210 18"/></svg></figure>
 </div>
-<p>확인한 구조: 낮은 어두운 면의 경계와 높은 면의 경계를 접점에서 나누고, 그 사이에 짧은 옆면을 보여 줍니다. 선 그림은 연결 구조를 설명하며 실제 적용 모습은 <a href="#release-clean-junctions">아래 접점 수정안</a>에서 비교합니다.</p>
+<p>확인한 구조: 낮은 어두운 면의 경계와 높은 면의 경계를 접점에서 나누고, 그 사이에 짧은 옆면을 보여 줍니다. 선 그림은 연결 구조를 설명하며 실제 적용 모습은 <a href="#release-straight-junctions">아래 접점 수정안</a>에서 비교합니다.</p>
 </section>`;
 
 export const releaseJunctionCss = `
