@@ -57,3 +57,49 @@
 @media(max-width:600px){.boundary-comparison{grid-template-columns:1fr}}
 @media(max-width:760px){.success-comparison{grid-template-columns:1fr}.success-comparison article{max-width:440px;width:100%;margin:auto}}
 @media(max-width:600px){main{padding:24px 16px}.states{grid-template-columns:1fr}article{padding-inline:8px}h3{min-height:0}}
+
+.release-parts-controls{border:0;margin:24px 0;padding:0}
+.release-parts-controls legend{font-size:13px;color:#b5c4d5;margin-bottom:12px}
+.release-parts-controls label{cursor:pointer}
+.release-part-reset{display:flex;align-items:center;gap:8px;min-height:44px;width:fit-content;font-size:14px}
+.release-parts-controls input{accent-color:#f7b2d8}
+.release-parts-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.release-parts-options label{position:relative;display:flex;align-items:center;gap:10px;padding:10px 8px;border:1px solid #303945;border-radius:4px;min-height:72px}
+.release-parts-options input{position:absolute;opacity:0;width:1px;height:1px}
+.release-parts-options label:has(input:focus-visible){outline:2px solid #f7b2d8;outline-offset:3px}
+.release-parts-options label:has(input:checked){border-color:#f7b2d8;background:#2d202c}
+.part-option-number{flex:none;display:grid;place-items:center;width:26px;height:26px;border:1px solid #8995a4;border-radius:50%;font-size:14px;font-weight:700}
+.release-parts-options strong{display:block;font-size:13px}
+.release-parts-options small{display:block;color:#b5c4d5;font-size:11px;line-height:1.6;margin-top:4px}
+.release-parts-row{padding-inline:0}
+.release-parts-row h3{min-height:0;margin-bottom:0;font-size:16px}
+.release-parts-pair{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1fr);gap:20px;align-items:center}
+.release-parts-diagram{display:block;width:100%;height:auto;overflow:visible}
+.release-parts-original{margin:0}
+.release-parts-original figcaption{color:#b5c4d5;font-size:12px;margin-bottom:12px}
+.release-parts-original img{display:block;width:100%;height:auto}
+.release-part-region{opacity:0;fill:#ffaad8;fill-opacity:.18;stroke:#ffaad8;stroke-width:1.5;stroke-linejoin:round}
+.release-part-region .part-line{fill:none;stroke-width:4}
+.part-leader{fill:none;stroke:#f4f5f8;stroke-width:1.6;paint-order:stroke;filter:drop-shadow(0 1px 1px #03050b)}
+.part-tip{fill:#fff;stroke:#0b0e13;stroke-width:1.5}
+.part-badge{fill:#151c27;stroke:#b5c4d5;stroke-width:1.5}
+.release-part-callout text{fill:#fff;font:700 22px system-ui,sans-serif}
+#release-parts:has(input:not([value="all"]):checked) .release-part-callout{opacity:.2}
+#release-parts:has(input[value="1"]:checked) [data-part="1"]{opacity:1}
+#release-parts:has(input[value="1"]:checked) .release-part-callout[data-part="1"] .part-badge{stroke:#ffaad8;fill:#402638}
+#release-parts:has(input[value="2"]:checked) [data-part="2"]{opacity:1}
+#release-parts:has(input[value="2"]:checked) .release-part-callout[data-part="2"] .part-badge{stroke:#ffaad8;fill:#402638}
+#release-parts:has(input[value="3"]:checked) [data-part="3"]{opacity:1}
+#release-parts:has(input[value="3"]:checked) .release-part-callout[data-part="3"] .part-badge{stroke:#ffaad8;fill:#402638}
+#release-parts:has(input[value="4"]:checked) [data-part="4"]{opacity:1}
+#release-parts:has(input[value="4"]:checked) .release-part-callout[data-part="4"] .part-badge{stroke:#ffaad8;fill:#402638}
+#release-parts:has(input[value="5"]:checked) [data-part="5"]{opacity:1}
+#release-parts:has(input[value="5"]:checked) .release-part-callout[data-part="5"] .part-badge{stroke:#ffaad8;fill:#402638}
+#release-parts:has(input[value="6"]:checked) [data-part="6"]{opacity:1}
+#release-parts:has(input[value="6"]:checked) .release-part-callout[data-part="6"] .part-badge{stroke:#ffaad8;fill:#402638}
+#release-parts:has(input[value="7"]:checked) [data-part="7"]{opacity:1}
+#release-parts:has(input[value="7"]:checked) .release-part-callout[data-part="7"] .part-badge{stroke:#ffaad8;fill:#402638}
+#release-parts:has(input[value="8"]:checked) [data-part="8"]{opacity:1}
+#release-parts:has(input[value="8"]:checked) .release-part-callout[data-part="8"] .part-badge{stroke:#ffaad8;fill:#402638}
+@media(max-width:850px){.release-parts-options{grid-template-columns:repeat(2,minmax(0,1fr))}.release-parts-pair{grid-template-columns:1fr;gap:0}.release-parts-original{width:200px;margin:0 auto 20px}.release-parts-original figcaption{text-align:center}}
+@media(max-width:450px){.release-parts-options label{padding:8px 6px;gap:6px}.release-parts-options small{font-size:10px}.release-parts-options strong{font-size:12px}.release-part-callout text{font-size:28px}.part-badge{r:24px}}

@@ -2,6 +2,39 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('릴리즈 1～8번을 선택하면 싱글·더블의 같은 부위가 강조되고 전체 보기에서 원래 번호가 돌아온다', async ({ page }) => {
+  await page.goto(route + '#release-parts');
+  const section = page.locator('#release-parts');
+  await expect(section.getByRole('radio')).toHaveCount(9);
+  for (const kind of ['single', 'double']) {
+    const row = section.locator(`[data-kind="${kind}"]`);
+    await expect(row.locator('.release-part-callout')).toHaveCount(8);
+    await expect(row.locator('.release-parts-original img')).toHaveAttribute('src', `assets/release-${kind}-chevron-triple-tight-large@2x.png`);
+    await expect(row.locator('svg image')).toHaveAttribute('href', `assets/release-${kind}-chevron-triple-tight-large@2x.png`);
+  }
+  for (let id = 1; id <= 8; id++) {
+    await section.locator(`input[value="${id}"]`).check();
+    for (const kind of ['single', 'double']) {
+      const row = section.locator(`[data-kind="${kind}"]`);
+      await expect(row.locator(`.release-part-region[data-part="${id}"]`)).toHaveCSS('opacity', '1');
+      await expect(row.locator(`.release-part-callout[data-part="${id}"]`)).toHaveCSS('opacity', '1');
+      await expect(row.locator(`.release-part-callout:not([data-part="${id}"])`).first()).toHaveCSS('opacity', '0.2');
+    }
+  }
+  await section.getByRole('radio', { name: '전체 보기' }).check();
+  for (const callout of await section.locator('.release-part-callout').all()) await expect(callout).toHaveCSS('opacity', '1');
+  for (const region of await section.locator('.release-part-region').all()) await expect(region).toHaveCSS('opacity', '0');
+  await section.getByRole('radio', { name: '전체 보기' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(section.locator('input[value="1"]')).toBeChecked();
+  await page.keyboard.press('ArrowRight');
+  await expect(section.locator('input[value="2"]')).toBeChecked();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await section.locator('input[value="5"]').check();
+  await expect(section.locator('input[value="5"]')).toBeChecked();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('중간 강도 2안은 포인트 원본을 유지하고 바디·릴리즈 색을 원본과 전체 변환 사이에서 조절한다', async ({ page }) => {
   await page.goto(route + '#palette-balance');
   const section = page.locator('#palette-balance');
