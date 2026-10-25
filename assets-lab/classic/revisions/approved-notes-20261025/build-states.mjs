@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { chromium } from '@playwright/test';
 import { halfMask, rasterArtwork, rectangularGraceArtwork, stateArtwork } from './state-artwork.mjs';
 import { outlinedSustain } from './sustain-visibility.mjs';
+import { releaseChevron } from './release-chevron.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -23,7 +24,13 @@ for (const asset of manifest.assets.filter(asset => asset.file.startsWith('asset
 manifest.stateGroups = [];
 manifest.sustainVisibilityPreview = {
   approval: 'proposed-display-treatment', targetSize: [200, 40], outlineWidth: 2.4,
-  note: 'D 매듭의 형태와 광선 중심을 유지하고 윤곽 포함 폭을 싱글 36px·더블 각 32px로 확대. 싱글은 다음 파란선까지 닿는 44px 안도 비교. 활성 바디 가독성 비교용이며 기존 승인 원본은 유지.',
+  selected: { single: 'assets/sustain-single-rail-outline.png' },
+  note: '싱글은 다음 파란선까지 닿는 44px·어두운 윤곽선 안을 사용자 선택. 36px와 기존 원본을 비교용으로 보존. 더블 각 32px는 시안이며 런타임은 별도 적용.',
+  kinds: [],
+};
+manifest.releaseSymbolPreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '싱글·더블 모두 중앙에 위쪽 꺾쇠 두 개를 세로로 배치. 릴리즈 동작의 공통 표시이며 몫 수나 뗌 횟수를 뜻하지 않음. 2px·3px 선 두께 비교.',
   kinds: [],
 };
 const browser = await chromium.launch({ headless: true });
@@ -134,6 +141,17 @@ try {
     await emit(`release-${kind}`, source, { role: `J2-C ${kind} 릴리즈`, sourceFiles,
       operation: { artwork: 'J2-C', png: '선택 PNG를 바이트 그대로 복사', svg: '@2x PNG 내장 래퍼' },
       pngSources, approval: 'approved-artwork', skinKey: `release${cap}` });
+    const symbolVariants = [{ id: 'original', label: '기존', file: `assets/release-${kind}.png` }];
+    for (const [id, label, strokeWidth] of [['thin', '가는 표시', 2], ['bold', '굵은 표시', 3]]) {
+      const file = await emit(`release-${kind}-chevron-${id}`, releaseChevron(source, { kind, strokeWidth }), {
+        nativeSource: releaseChevron(nativeSource, { kind, strokeWidth }),
+        role: `J2-C ${kind} 릴리즈 · 이중 꺾쇠 ${label} 시안`, sourceFiles,
+        operation: { symbol: 'stacked-up-chevrons', centerX: 100, strokeWidth, indicates: 'release-action', unitCount: false },
+        approval: 'proposed-artwork',
+      });
+      symbolVariants.push({ id, label, file, strokeWidth });
+    }
+    manifest.releaseSymbolPreview.kinds.push({ kind, heldBody: `assets/body-${kind}-held.png`, variants: symbolVariants });
     const states = [state('pending', '미처리 · J2-C', `assets/release-${kind}.png`)];
     for (const side of ['all', ...(kind === 'double' ? ['left', 'right'] : [])]) {
       const id = side === 'all' ? 'failed' : `partial-failed-${side}`;
@@ -245,7 +263,7 @@ try {
       bodyStartCap: false, bodyEndCap: false, implicitPoint: false, implicitRelease: false,
     },
     missingRequestedStates: [],
-    unapproved: ['새 상태별 색·강도', '일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성', '유지 노트의 성공·실패 표시 방식과 수명', '유지 표식 홈 폭 확대·어두운 윤곽선'],
+    unapproved: ['새 상태별 색·강도', '일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성', '유지 노트의 성공·실패 표시 방식과 수명', '더블 유지 표식 각 32px 확대·어두운 윤곽선', '릴리즈 중앙 이중 꺾쇠 표시'],
   };
   const assetsByFile = new Map(manifest.assets.map(asset => [asset.file, asset]));
   for (const asset of manifest.assets) {

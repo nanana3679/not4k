@@ -2,6 +2,51 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('릴리즈 이중 꺾쇠 2px·3px는 PNG·2배 PNG·SVG의 중앙만 바꾸며 원본과 게임 배율로 비교한다', async ({ page }) => {
+  await page.goto(route + '#release-symbol');
+  const section = page.locator('#release-symbol');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(3);
+    await expect(comparison.locator('.sustain-game img')).toHaveCount(3);
+    for (const variant of ['thin', 'bold']) {
+      await expect(comparison.locator(`[data-variant="${variant}"] nav a`)).toHaveCount(3);
+    }
+  }
+  const results = await page.evaluate(async () => {
+    const pixels = async (file: string, scale: number) => {
+      const image = new Image(); image.src = file; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 200 * scale; canvas.height = 40 * scale;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return context.getImageData(0, 0, canvas.width, canvas.height).data;
+    };
+    const results = [];
+    for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
+      const scale = suffix === '.png' ? 1 : 2;
+      const original = await pixels(`assets/release-${kind}${suffix === '.svg' ? '@2x.png' : suffix}`, scale);
+      for (const variant of ['thin', 'bold']) {
+        const candidate = await pixels(`assets/release-${kind}-chevron-${variant}${suffix}`, scale);
+        let changedCenter = 0, changedOutside = 0;
+        for (let y = 0; y < 40 * scale; y++) for (let x = 0; x < 200 * scale; x++) {
+          const i = (y * 200 * scale + x) * 4;
+          const difference = Math.max(...[0, 1, 2, 3].map(channel => Math.abs(candidate[i + channel] - original[i + channel])));
+          if (difference <= 1) continue;
+          if (x >= 80 * scale && x < 120 * scale && y >= 2 * scale && y < 31 * scale) changedCenter++;
+          else changedOutside++;
+        }
+        results.push({ kind, variant, suffix, changedCenter: changedCenter / scale ** 2, changedOutside });
+      }
+    }
+    return results;
+  });
+  for (const result of results) {
+    expect(result.changedCenter, `${result.kind} ${result.variant} ${result.suffix}`).toBeGreaterThan(100);
+    expect(result.changedOutside, `${result.kind} ${result.variant} ${result.suffix}`).toBe(0);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('유지 확대안은 활성 바디 위에 싱글 36px·44px·더블 전체 64px로 보이며 SVG·PNG 모두 어두운 윤곽이 있다', async ({ page }) => {
   await page.goto(route + '#sustain-visibility');
   const section = page.locator('#sustain-visibility');

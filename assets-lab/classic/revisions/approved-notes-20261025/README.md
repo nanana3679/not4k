@@ -1,6 +1,6 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 보존 원본 24개와 복사·상태별 생성물 111개, 총 135개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 123개, 총 147개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
@@ -11,13 +11,13 @@
 | 누름 | ![기존 싱글](assets/note-single.png) | ![M6 70% 더블](assets/note-double-anodized-contrast-070.png) |
 | 대기 바디 | ![싱글 바디](assets/body-single.png) | ![중앙 두 광선 더블 바디](assets/body-double-center-dual-beam.png) |
 | 일반 릴리즈 J2-C | ![싱글 릴리즈](assets/release-single.png) | ![더블 릴리즈](assets/release-double.png) |
-| 유지 노트 D | ![싱글 유지](assets/sustain-single.png) | ![더블 유지](assets/sustain-double.png) |
+| 유지 노트 D | ![싱글 유지 · 44px 선택](assets/sustain-single-rail-outline.png) | ![더블 유지](assets/sustain-double.png) |
 
 - 싱글 누름은 기존 디자인을 유지한다. 더블 누름은 **M6 아노다이징 대비 70%**다.
 - 더블 바디는 바깥 면을 유지하고 중앙 영역만 넓혀 **42%·58%**에 두 광선을 둔다.
 - **릴리즈도 마지막에 선택한 C안(J2-C)**으로 맞췄다. 초기 릴리즈 도안은 교체했다. `terminal-j2-shadow-3-{single,double}`에 보존된 선택 PNG를 `release-{single,double}.png`와 `@2x.png`로 바이트 그대로 복사한다. 릴리즈 SVG는 2배 PNG를 내장한 래퍼이며 벡터 원본이 아니다.
 - **바디 시작·끝에는 별도 마감이 없다.** 시작에는 명시한 `Point`만, 끝에는 명시한 릴리즈만 추가한다. 릴리즈 없는 끝은 바디 자체로 끝난다. `terminal-j2-*`는 릴리즈 선택 원본의 출처 파일명이며 새 모델의 terminal 역할을 뜻하지 않는다([정정 댓글](https://github.com/nanana3679/not4k/pull/339#issuecomment-6390954414)).
-- 유지 노트는 **D 매듭 1.8배**다. 싱글은 x=100, 더블은 x=84·116에 매듭을 둔다(200×40 기준). 투명 표식만 들어 있으므로 바디 위에 얹는다. 길이 0도 길이 0 바디 위에 같은 표식을 얹는 디자인이다.
+- 유지 노트의 보존 원본은 **D 매듭 1.8배**이며, 이후 싱글은 **44px·어두운 윤곽선 안을 선택**했다. 아래 가독성 비교에서 선택본과 원본을 함께 확인한다. 싱글은 x=100, 더블은 x=84·116에 매듭을 둔다(200×40 기준). 투명 표식만 들어 있으므로 바디 위에 얹는다. 길이 0도 길이 0 바디 위에 같은 표식을 얹는 디자인이다.
 - Grace는 실제 윤곽을 따르는 별도 overlay다. J2-C 원본의 모든 픽셀이 alpha 0.5 이상인 것을 검사하고, 그 **200×40 직사각 외곽 전체**에 검정 1px·흰색 1px·바깥 10px 번짐을 둔다. 더블 일부 실패도 반쪽이나 내부 이음선에 새 윤곽을 만들지 않는다.
 
 ## 파일과 제안 적용 경로
@@ -68,7 +68,15 @@
 
 표식의 실제 외곽을 따라 2.4px 어두운 선을 둔다(싱글 `#05243a`, 더블 `#3b2906`). 빛번짐·Grace 효과가 아닌 가독성용 윤곽선이다. 바디와 표식 면 색은 그대로다. `sustain-visibility.mjs`가 기존 SVG의 D 경로를 재사용하며 `sustain-{single,double}-channel-outline`와 `sustain-single-rail-outline`의 PNG·2배 PNG·SVG 9개를 생성한다.
 
-`manifest.sustainVisibilityPreview`에 비교 원본·후보·표시 폭·활성 바디를 기록한다. **비교용 후보이며 기존 승인 정상본·실패본·몫별 레이어와 런타임 키를 교체하지 않는다.** 게임 배율은 누름 폭 62.5px를 기준으로 바디와 overlay를 함께 `62.5 / 212`로 줄인다.
+`manifest.sustainVisibilityPreview`에 비교 원본·후보·표시 폭·활성 바디를 기록한다. **싱글 44px는 사용자 선택본**으로 `selected.single`에 기록한다. 더블 32px는 시안이며 기존 정상본·실패본·몫별 레이어와 런타임 키를 교체하지 않는다. 게임 배율은 누름 폭 62.5px를 기준으로 바디와 overlay를 함께 `62.5 / 212`로 줄인다.
+
+### 릴리즈 중앙 이중 꺾쇠 시안
+
+`#release-symbol`에서 J2-C 원본과 중앙에 위쪽 꺾쇠 두 개를 세로로 올린 가는 선(2px)·굵은 선(3px)을 비교한다. 두 안의 폭·위치는 같고, 싱글·더블 모두 x=100에 같은 이중 기호 하나를 놓는다. 이는 릴리즈 동작의 공통 표식 제안이며 몫 수나 뗌 횟수를 바꾸지 않는다.
+
+`release-chevron.mjs`가 기존 PNG를 내장한 SVG에 벡터 표식을 합성한다. 중앙 외의 기존 도안과 200×40 크기를 보존하고, 기본 PNG에는 기본 원본을, 2배 PNG·SVG에는 2배 원본을 사용한다. `release-{single,double}-chevron-{thin,bold}`의 PNG·2배 PNG·SVG 12개를 제공하며 활성 바디 끝과 게임 배율로 확인한다.
+
+`manifest.releaseSymbolPreview`에 비교 파일과 선 두께를 기록한다. 아직 선택하지 않은 시안이며 기존 릴리즈 정상·실패·Grace·몫별 레이어와 런타임 키를 교체하지 않는다.
 
 ### 바디 위 더블 포인트 일부 성공
 
