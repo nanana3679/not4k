@@ -3,7 +3,6 @@
   "purpose": "판정 에이전트 검토용 확정 에셋 묶음. proposedRuntimePath와 skinKey는 제안이며 런타임에 아직 연결하지 않음.",
   "selections": {
     "doublePoint": "M6 anodized contrast 70%",
-    "terminal": "J2-C",
     "sustain": "D knot scale 1.8",
     "doubleBodyCenters": [
       0.42,
@@ -215,9 +214,9 @@
     {
       "source": "lab/image-galleries/release-notes-20261023/assets/terminal-j2-shadow-3-single.png",
       "file": "assets/terminal-j2-shadow-3-single.png",
-      "role": "터미널 · single · J2-C",
-      "skinKey": "terminalSingle",
-      "proposedRuntimePath": "public/skins/classic/terminal-single.png",
+      "role": "J2-C 릴리즈 선택 원본 · 출처 파일명 보존",
+      "skinKey": null,
+      "proposedRuntimePath": null,
       "width": 200,
       "height": 40,
       "bytes": 16511,
@@ -235,12 +234,13 @@
       "approval": "approved-artwork",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png"
-      ]
+      ],
+      "usage": "release-source"
     },
     {
       "source": "lab/image-galleries/release-notes-20261023/assets/terminal-j2-shadow-3-single@2x.png",
       "file": "assets/terminal-j2-shadow-3-single@2x.png",
-      "role": "터미널 · single · J2-C · 2배 원본",
+      "role": "J2-C 릴리즈 선택 원본 · 출처 파일명 보존",
       "skinKey": null,
       "proposedRuntimePath": null,
       "width": 400,
@@ -260,7 +260,8 @@
       "approval": "approved-artwork",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png"
-      ]
+      ],
+      "usage": "release-source"
     },
     {
       "source": "lab/image-galleries/release-notes-20261023/assets/sustain-single.png",
@@ -342,9 +343,9 @@
     {
       "source": "lab/image-galleries/release-notes-20261023/assets/terminal-j2-shadow-3-double.png",
       "file": "assets/terminal-j2-shadow-3-double.png",
-      "role": "터미널 · double · J2-C",
-      "skinKey": "terminalDouble",
-      "proposedRuntimePath": "public/skins/classic/terminal-double.png",
+      "role": "J2-C 릴리즈 선택 원본 · 출처 파일명 보존",
+      "skinKey": null,
+      "proposedRuntimePath": null,
       "width": 200,
       "height": 40,
       "bytes": 17704,
@@ -362,12 +363,13 @@
       "approval": "approved-artwork",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png"
-      ]
+      ],
+      "usage": "release-source"
     },
     {
       "source": "lab/image-galleries/release-notes-20261023/assets/terminal-j2-shadow-3-double@2x.png",
       "file": "assets/terminal-j2-shadow-3-double@2x.png",
-      "role": "터미널 · double · J2-C · 2배 원본",
+      "role": "J2-C 릴리즈 선택 원본 · 출처 파일명 보존",
       "skinKey": null,
       "proposedRuntimePath": null,
       "width": 400,
@@ -387,7 +389,8 @@
       "approval": "approved-artwork",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png"
-      ]
+      ],
+      "usage": "release-source"
     },
     {
       "source": "lab/image-galleries/release-notes-20261023/assets/sustain-double.png",
@@ -569,9 +572,9 @@
     {
       "source": "lab/image-galleries/release-notes-20261023/assets/terminal-grace-overlay.png",
       "file": "assets/terminal-grace-overlay.png",
-      "role": "Grace · 직사각형 바디 끝 윤곽",
-      "skinKey": "terminalGraceOverlay",
-      "proposedRuntimePath": "public/skins/classic/terminal-grace-overlay.png",
+      "role": "과거 바디 끝 Grace 참고본 · 새 모델 미사용",
+      "skinKey": null,
+      "proposedRuntimePath": null,
       "width": 248,
       "height": 88,
       "bytes": 3261,
@@ -589,13 +592,14 @@
       "approval": "approved-artwork",
       "sourceFiles": [
         "assets/terminal-grace-overlay.png"
-      ]
+      ],
+      "usage": "historical-reference"
     },
     {
       "source": "lab/image-galleries/release-notes-20261023/assets/terminal-grace-overlay.svg",
       "file": "assets/terminal-grace-overlay.svg",
-      "role": "Grace · 직사각형 바디 끝 윤곽",
-      "skinKey": "terminalGraceOverlay",
+      "role": "과거 바디 끝 Grace 참고본 · 새 모델 미사용",
+      "skinKey": null,
       "proposedRuntimePath": null,
       "width": 1240,
       "height": 440,
@@ -614,7 +618,8 @@
       "approval": "approved-artwork",
       "sourceFiles": [
         "assets/terminal-grace-overlay.svg"
-      ]
+      ],
+      "usage": "historical-reference"
     },
     {
       "file": "assets/body-single-held.svg",
@@ -792,90 +797,6 @@
       ],
       "bytes": 1556,
       "sha256": "93ceed80c77fb107b86c9f41ac51bbff6cf8ef3c4bdd72ebef57acb256d71016"
-    },
-    {
-      "file": "assets/terminal-single-failed.svg",
-      "role": "J2-C single · 전체 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-single@2x.png"
-      ],
-      "operation": {
-        "failedSide": "all"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalSingleFailed",
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 76370,
-      "sha256": "87fa219ab882a402770ef54d6b3a1460e7232d33e36b2aa7104402d7d080adce"
-    },
-    {
-      "file": "assets/terminal-single-failed.png",
-      "role": "J2-C single · 전체 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-single@2x.png"
-      ],
-      "operation": {
-        "failedSide": "all"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalSingleFailed",
-      "proposedRuntimePath": "public/skins/classic/terminal-single-failed.png",
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 9076,
-      "sha256": "033c548b1f97cdb820e8f255d9bcbfdf133bf71bb9be2dc02d365a31f54a5542"
-    },
-    {
-      "file": "assets/terminal-single-failed@2x.png",
-      "role": "J2-C single · 전체 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-single@2x.png"
-      ],
-      "operation": {
-        "failedSide": "all"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalSingleFailed",
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 28408,
-      "sha256": "fa9d1d138c938d0ff56cd2a572bb39b60d3667cb72c19443842787941902dc09"
     },
     {
       "file": "assets/sustain-single-failed.svg",
@@ -1506,258 +1427,6 @@
       ],
       "bytes": 1850,
       "sha256": "c331df566e975d2e3bd787f66f12e64213f867d02d4dd61200aa8a6a384bc963"
-    },
-    {
-      "file": "assets/terminal-double-failed.svg",
-      "role": "J2-C double · 전체 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-double@2x.png"
-      ],
-      "operation": {
-        "failedSide": "all"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalDoubleFailed",
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 84278,
-      "sha256": "0d5b881a7a1c9baaa3cb1cd935f07d091ee7fec1d2e9e43e94b20783678db8f9"
-    },
-    {
-      "file": "assets/terminal-double-failed.png",
-      "role": "J2-C double · 전체 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-double@2x.png"
-      ],
-      "operation": {
-        "failedSide": "all"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalDoubleFailed",
-      "proposedRuntimePath": "public/skins/classic/terminal-double-failed.png",
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 9031,
-      "sha256": "75797aebab94dc514f4ff29962aa4bb6d7073613e64653ffd98fec9a20d2b1db"
-    },
-    {
-      "file": "assets/terminal-double-failed@2x.png",
-      "role": "J2-C double · 전체 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-double@2x.png"
-      ],
-      "operation": {
-        "failedSide": "all"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalDoubleFailed",
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 28780,
-      "sha256": "047688ca6d6e1035dd9ee6be203ed9dd7ceacb76487126a6532d7ac750e237b6"
-    },
-    {
-      "file": "assets/terminal-double-partial-failed-left.svg",
-      "role": "J2-C double · 왼쪽 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-double@2x.png"
-      ],
-      "operation": {
-        "failedSide": "left"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalDoublePartialFailedLeft",
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 84361,
-      "sha256": "e0b3c3110489eee25cb8bd1f72bc17ea1e665333e593d8ac103c3db38baf99b2"
-    },
-    {
-      "file": "assets/terminal-double-partial-failed-left.png",
-      "role": "J2-C double · 왼쪽 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-double@2x.png"
-      ],
-      "operation": {
-        "failedSide": "left"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalDoublePartialFailedLeft",
-      "proposedRuntimePath": "public/skins/classic/terminal-double-partial-failed-left.png",
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 14340,
-      "sha256": "faad2635b675d2677232f80b165a33cf9d8d92267a07c759bd6827c72f3c7db6"
-    },
-    {
-      "file": "assets/terminal-double-partial-failed-left@2x.png",
-      "role": "J2-C double · 왼쪽 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-double@2x.png"
-      ],
-      "operation": {
-        "failedSide": "left"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalDoublePartialFailedLeft",
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 48393,
-      "sha256": "1b28a17954522c3d2723d3c77869db4d8a52739e66335143a839e095ffa83e8a"
-    },
-    {
-      "file": "assets/terminal-double-partial-failed-right.svg",
-      "role": "J2-C double · 오른쪽 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-double@2x.png"
-      ],
-      "operation": {
-        "failedSide": "right"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalDoublePartialFailedRight",
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 84361,
-      "sha256": "6dcfe27e71b6983031059c7346d274de546f95eb55e82f8c85a9cedddfdcdb9b"
-    },
-    {
-      "file": "assets/terminal-double-partial-failed-right.png",
-      "role": "J2-C double · 오른쪽 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-double@2x.png"
-      ],
-      "operation": {
-        "failedSide": "right"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalDoublePartialFailedRight",
-      "proposedRuntimePath": "public/skins/classic/terminal-double-partial-failed-right.png",
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 14337,
-      "sha256": "31553414e7f240cd643eeb11d637368eee19acc3cdedc4dda4374909d3fa4606"
-    },
-    {
-      "file": "assets/terminal-double-partial-failed-right@2x.png",
-      "role": "J2-C double · 오른쪽 실패",
-      "generator": "build-states.mjs",
-      "sourceFiles": [
-        "assets/terminal-j2-shadow-3-double@2x.png"
-      ],
-      "operation": {
-        "failedSide": "right"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": "terminalDoublePartialFailedRight",
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 48602,
-      "sha256": "6696135f6fc7675dc4a9e22604eb130b092e1f1e0b97a379e02658aeb53db546"
     },
     {
       "file": "assets/sustain-double-failed.svg",
@@ -4031,36 +3700,6 @@
       ]
     },
     {
-      "id": "terminal-single",
-      "label": "J2-C 싱글 마감",
-      "targetSize": [
-        200,
-        40
-      ],
-      "states": [
-        {
-          "id": "idle",
-          "label": "대기",
-          "file": "assets/terminal-j2-shadow-3-single.png",
-          "skinKey": "terminalSingleIdle"
-        },
-        {
-          "id": "held",
-          "label": "전체 유지 · 대기와 같은 그림",
-          "file": "assets/terminal-j2-shadow-3-single.png",
-          "skinKey": "terminalSingle",
-          "aliasOf": "idle"
-        },
-        {
-          "id": "failed",
-          "label": "전체 실패",
-          "file": "assets/terminal-single-failed.png",
-          "skinKey": "terminalSingleFailed"
-        }
-      ],
-      "heldTreatment": "바디만 켜짐을 표시하고 터미널은 승인 그림을 재사용하는 시안. 부분 충족과 실패 상태는 별도로 유지."
-    },
-    {
       "id": "sustain-single",
       "label": "싱글 유지 표식",
       "targetSize": [
@@ -4139,64 +3778,6 @@
         84,
         116
       ]
-    },
-    {
-      "id": "terminal-double",
-      "label": "J2-C 더블 마감",
-      "targetSize": [
-        200,
-        40
-      ],
-      "states": [
-        {
-          "id": "idle",
-          "label": "대기",
-          "file": "assets/terminal-j2-shadow-3-double.png",
-          "skinKey": "terminalDoubleIdle"
-        },
-        {
-          "id": "held",
-          "label": "전체 유지 · 대기와 같은 그림",
-          "file": "assets/terminal-j2-shadow-3-double.png",
-          "skinKey": "terminalDouble",
-          "aliasOf": "idle"
-        },
-        {
-          "id": "partial-held-left",
-          "label": "왼쪽 미충족 · 같은 그림",
-          "file": "assets/terminal-j2-shadow-3-double.png",
-          "aliasOf": "idle",
-          "waitingSide": "left",
-          "skinKey": "terminalDoublePartialHeldLeft"
-        },
-        {
-          "id": "partial-held-right",
-          "label": "오른쪽 미충족 · 같은 그림",
-          "file": "assets/terminal-j2-shadow-3-double.png",
-          "aliasOf": "idle",
-          "waitingSide": "right",
-          "skinKey": "terminalDoublePartialHeldRight"
-        },
-        {
-          "id": "failed",
-          "label": "전체 실패",
-          "file": "assets/terminal-double-failed.png",
-          "skinKey": "terminalDoubleFailed"
-        },
-        {
-          "id": "partial-failed-left",
-          "label": "왼쪽 실패",
-          "file": "assets/terminal-double-partial-failed-left.png",
-          "skinKey": "terminalDoublePartialFailedLeft"
-        },
-        {
-          "id": "partial-failed-right",
-          "label": "오른쪽 실패",
-          "file": "assets/terminal-double-partial-failed-right.png",
-          "skinKey": "terminalDoublePartialFailedRight"
-        }
-      ],
-      "heldTreatment": "바디만 켜짐을 표시하고 터미널은 승인 그림을 재사용하는 시안. 부분 충족과 실패 상태는 별도로 유지."
     },
     {
       "id": "sustain-double",
@@ -4355,7 +3936,7 @@
           "unitIndex": 1
         }
       ],
-      "note": "기본 200×40 좌표와 투명 여백을 유지. 표시 수명은 미확정이며 성공한 몫을 숨기는 안의 자료."
+      "note": "기본 200×40 좌표를 보존한 참고 레이어. 일부 성공의 반쪽 숨김은 전체 70%로 대체됐으며 성공·실패 혼합의 최종 합성은 미확정."
     },
     {
       "id": "sustain-layers",
@@ -4390,7 +3971,7 @@
           "unitIndex": 1
         }
       ],
-      "note": "기본 200×40 좌표와 투명 여백을 유지. 표시 수명은 미확정이며 성공한 몫을 숨기는 안의 자료."
+      "note": "기본 200×40 좌표와 투명 여백을 유지. 유지 표식의 표시 방식·수명은 별도 검토."
     },
     {
       "id": "unit-masks",
@@ -4420,7 +4001,7 @@
       "assets/terminal-j2-shadow-3-single.png",
       "assets/terminal-j2-shadow-3-double.png"
     ],
-    "rasterCopy": "J2-C 마감과 릴리즈 정상본은 선택 PNG를 그대로 사용. 릴리즈 기본/2배 PNG는 해당 원본을 바이트 그대로 복사하며 릴리즈 SVG·실패 SVG는 @2x PNG를 내장한 래퍼다.",
+    "rasterCopy": "J2-C 릴리즈 정상본은 선택 PNG를 그대로 사용. 릴리즈 기본/2배 PNG는 해당 원본을 바이트 그대로 복사하며 릴리즈 SVG·실패 SVG는 @2x PNG를 내장한 래퍼다.",
     "targets": [
       {
         "key": "point",
@@ -4429,11 +4010,6 @@
       },
       {
         "key": "body",
-        "width": 200,
-        "height": 40
-      },
-      {
-        "key": "terminal",
         "width": 200,
         "height": 40
       },
@@ -4467,18 +4043,35 @@
       ],
       "composeOnce": true
     },
-    "failureStyle": "무채색 + 밝기 45%; 시각 시안이며 표시 수명·판정 정책은 구현하지 않음",
+    "failureStyle": "무채색 + 밝기 45%; 실패색의 구체 강도는 시안. 확정된 표시 수명은 confirmedDisplay를 따름.",
+    "confirmedDisplay": {
+      "sourceComments": [
+        "https://github.com/nanana3679/not4k/pull/339#issuecomment-6390804166",
+        "https://github.com/nanana3679/not4k/pull/339#issuecomment-6390954414"
+      ],
+      "releasePartialSuccessAlpha": 0.7,
+      "gracePartialSuccessOverlayAlpha": 1,
+      "releaseSuccessHidden": true,
+      "failedRelease": {
+        "when": "failure-confirmed",
+        "includesDependentZero": true,
+        "hideWhen": "scrolled-out",
+        "pendingFailureStyle": false
+      },
+      "bodyStartCap": false,
+      "bodyEndCap": false,
+      "implicitPoint": false,
+      "implicitRelease": false
+    },
     "missingRequestedStates": [],
     "unapproved": [
       "새 상태별 색·강도",
-      "J2-C 유지/부분 충족의 대기 그림 재사용",
-      "더블 릴리즈 일부 성공의 전체 alpha 0.7",
-      "한 몫 성공 후 나머지 몫만 표시",
-      "실패·종속 0점 표시 수명"
+      "일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성",
+      "유지 노트의 성공·실패 표시 방식과 수명"
     ]
   },
   "releaseSuccessPreview": {
-    "approval": "proposed-display-treatment",
+    "approval": "approved-display-treatment",
     "targetSize": [
       200,
       40
@@ -4517,21 +4110,38 @@
         "alpha": 0
       }
     ],
-    "alternatives": [
+    "graceOverlay": {
+      "file": "assets/release-grace-overlay.png",
+      "targetSize": [
+        248,
+        88
+      ],
+      "padding": 24
+    },
+    "graceProgression": [
       {
-        "id": "hide-left-success",
-        "label": "왼쪽 성공 · 오른쪽만 남김",
-        "file": "assets/release-double-unit-right.png",
-        "alpha": 1
+        "id": "pending",
+        "label": "대기 · 본체·외곽 100%",
+        "file": "assets/release-double.png",
+        "alpha": 1,
+        "overlayAlpha": 1
       },
       {
-        "id": "left-failed",
-        "label": "왼쪽 실패 · 일부 실패색",
-        "file": "assets/release-double-partial-failed-left.png",
-        "alpha": 1
+        "id": "partial-success",
+        "label": "일부 성공 · 본체 70% · 외곽 100%",
+        "file": "assets/release-double.png",
+        "alpha": 0.7,
+        "overlayAlpha": 1
+      },
+      {
+        "id": "success",
+        "label": "모두 성공 · 본체·외곽 숨김",
+        "file": "assets/release-double.png",
+        "alpha": 0,
+        "overlayAlpha": 0
       }
     ],
-    "note": "일반 더블 릴리즈의 일부 성공 비교 시안. 원본에 표시 알파만 적용하며 반투명 PNG를 만들지 않음. 70%·성공 몫 숨김·Grace 외곽·실패 표시 수명은 미확정."
+    "note": "일부 성공은 정상 도안 전체 70%로 확정. Grace 외곽은 원래 밝기를 유지하며 모두 성공하면 본체·외곽을 함께 숨김. 반쪽 숨김은 대체됨. 원본과 별도 overlay에 표시 알파만 적용."
   },
   "pointSuccessPreview": {
     "targetSize": [
@@ -4576,5 +4186,43 @@
       }
     ],
     "note": "선택한 M6 도안에 일반 더블 포인트의 표시 alpha 1→0.7→0을 적용. 바디와 중심을 맞추고 포인트가 양옆으로 6px씩 나오며 바디 알파는 유지."
+  },
+  "bodyCompositionPreview": {
+    "bodyFile": "assets/body-double-center-dual-beam.png",
+    "bodySize": [
+      200,
+      160
+    ],
+    "stageSize": [
+      212,
+      200
+    ],
+    "cases": [
+      {
+        "id": "bare",
+        "label": "Point 없음 · 릴리즈 없음",
+        "point": null,
+        "release": null
+      },
+      {
+        "id": "point",
+        "label": "Point 있음 · 릴리즈 없음",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "release": null
+      },
+      {
+        "id": "release",
+        "label": "Point 없음 · 릴리즈 있음",
+        "point": null,
+        "release": "assets/release-double.png"
+      },
+      {
+        "id": "both",
+        "label": "Point 있음 · 릴리즈 있음",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "release": "assets/release-double.png"
+      }
+    ],
+    "note": "위는 끝, 아래는 시작. 바디 자체의 경계는 같고 명시된 Point·릴리즈만 추가. 시작·끝 마감은 없음."
   }
 }

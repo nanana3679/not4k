@@ -80,16 +80,58 @@ test('더블 릴리즈 일부 성공은 단색·바디 위에서 같은 200×40 
   expect(pixels.hiddenAlpha).toBe(0);
   expect(pixels.leftAlpha).toBeGreaterThan(100);
   expect(pixels.rightAlpha).toBeGreaterThan(100);
-  const alternatives = section.locator('[data-comparison="alternatives"]');
-  for (const [id, file] of [['hide-left-success', 'release-double-unit-right.png'], ['left-failed', 'release-double-partial-failed-left.png']]) {
-    const images = alternatives.locator(`[data-state="${id}"] img`);
-    await expect(images).toHaveCount(2);
-    for (const image of await images.all()) {
-      await expect(image).toHaveAttribute('src', `assets/${file}`);
-      await expect(image).toHaveCSS('opacity', '1');
+  await expect(progression.locator('img[src*="grace"]')).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
+test('Grace 일부 성공은 본체 70%·외곽 100%를 유지하고 모두 성공 때 두 레이어를 숨긴다', async ({ page }) => {
+  await page.goto(route + '#grace-success');
+  const comparison = page.locator('[data-comparison="grace-progression"]');
+  for (const [id, bodyAlpha, outlineAlpha] of [['pending', '1', '1'], ['partial-success', '0.7', '1'], ['success', '0', '0']]) {
+    for (const background of ['solid', 'body']) {
+      const stage = comparison.locator(`[data-state="${id}"] [data-background="${background}"]`);
+      const body = stage.locator('.success-note'), outline = stage.locator('.success-outline');
+      await expect(body).toHaveCSS('opacity', bodyAlpha);
+      await expect(outline).toHaveCSS('opacity', outlineAlpha);
+      await expect(stage).toHaveCSS('opacity', '1');
+      await expect(body).toHaveAttribute('src', 'assets/release-double.png');
+      await expect(outline).toHaveAttribute('src', 'assets/release-grace-overlay.png');
+      expect(await stage.evaluate(stage => {
+        const parent = stage.getBoundingClientRect();
+        return [...stage.querySelectorAll('img')].map(image => {
+          const r = image.getBoundingClientRect(); return [r.width, r.height, r.left - parent.left, r.top - parent.top];
+        });
+      })).toEqual([[200, 40, 24, 32], [248, 88, 0, 8]]);
     }
   }
-  await expect(section.locator('img[src*="grace"]')).toHaveCount(0);
+  for (const width of [390, 800, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+    expect(await comparison.locator('article').evaluateAll(articles => articles.every(article => {
+      const parent = article.getBoundingClientRect();
+      return [...article.querySelectorAll('img')].every(image => {
+        const r = image.getBoundingClientRect(); return r.left >= parent.left && r.right <= parent.right;
+      });
+    }))).toBe(true);
+  }
+});
+
+test('바디 시작·끝 4개 조합은 같은 200×160 바디에 명시한 Point·릴리즈만 놓고 마감을 그리지 않는다', async ({ page }) => {
+  await page.goto(route + '#body-boundaries');
+  const section = page.locator('#body-boundaries');
+  for (const [id, point, release] of [['bare', 0, 0], ['point', 1, 0], ['release', 0, 1], ['both', 1, 1]] as const) {
+    const stage = section.locator(`[data-case="${id}"] .boundary-stage`);
+    await expect(stage.locator('img')).toHaveCount(point + release);
+    await expect(stage.locator('.boundary-point')).toHaveCount(point);
+    await expect(stage.locator('.boundary-release')).toHaveCount(release);
+    expect(await stage.locator('.boundary-body').evaluate(body => {
+      const r = body.getBoundingClientRect(), parent = body.parentElement!.getBoundingClientRect();
+      return [r.width, r.height, r.left - parent.left, r.top - parent.top];
+    })).toEqual([200, 160, 6, 20]);
+  }
+  await expect(page.locator('img[src*="terminal-"]')).toHaveCount(0);
+  await expect(page.locator('#terminal-single, #terminal-double')).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });

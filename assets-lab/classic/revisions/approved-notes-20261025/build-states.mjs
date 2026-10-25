@@ -1,13 +1,24 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { chromium } from '@playwright/test';
 import { halfMask, rasterArtwork, rectangularGraceArtwork, stateArtwork } from './state-artwork.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
+// Retire only generated terminal states; selected J2-C raster masters remain release inputs.
+for (const asset of manifest.assets.filter(asset => asset.generator === 'build-states.mjs' && /^assets\/terminal-(single|double)-(failed|partial-failed-(left|right))/.test(asset.file))) {
+  await unlink(new URL(asset.file, here)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+}
 // Keep the selected masters immutable; replace generated records and the superseded release artwork.
 manifest.assets = manifest.assets.filter(asset => asset.generator !== 'build-states.mjs' && !asset.file.startsWith('assets/release-'));
 manifest.selections.release = 'J2-C';
+delete manifest.selections.terminal;
+for (const asset of manifest.assets.filter(asset => asset.file.startsWith('assets/terminal-'))) {
+  asset.skinKey = null;
+  asset.proposedRuntimePath = null;
+  asset.usage = asset.file.includes('terminal-j2-') ? 'release-source' : 'historical-reference';
+  asset.role = asset.file.includes('terminal-j2-') ? 'J2-C 릴리즈 선택 원본 · 출처 파일명 보존' : '과거 바디 끝 Grace 참고본 · 새 모델 미사용';
+}
 manifest.stateGroups = [];
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
@@ -69,21 +80,6 @@ try {
       }) : []),
     ]) states.push(state(id, label, await emit(`body-${kind}-${id}`, stateArtwork(source, treatment), { role: `${kind} 바디 · ${label}`, sourceFiles: [`assets/${bodyName}.svg`], operation: treatment, skinKey: key }), { skinKey: key }));
     group(`body-${kind}`, `${kind === 'single' ? '싱글' : '더블'} 바디`, states, { beamCenters: centers });
-
-    const terminalName = `terminal-j2-shadow-3-${kind}`;
-    const terminalSource = rasterArtwork(await read(`${terminalName}@2x.png`));
-    const terminalStates = [
-      state('idle', '대기', `assets/${terminalName}.png`, { skinKey: `terminal${cap}Idle` }),
-      state('held', '전체 유지 · 대기와 같은 그림', `assets/${terminalName}.png`, { skinKey: `terminal${cap}`, aliasOf: 'idle' }),
-    ];
-    if (kind === 'double') for (const side of ['left', 'right']) terminalStates.push(state(`partial-held-${side}`, `${side === 'left' ? '왼쪽' : '오른쪽'} 미충족 · 같은 그림`, `assets/${terminalName}.png`, { aliasOf: 'idle', waitingSide: side, skinKey: `terminalDoublePartialHeld${side === 'left' ? 'Left' : 'Right'}` }));
-    for (const side of ['all', ...(kind === 'double' ? ['left', 'right'] : [])]) {
-      const id = side === 'all' ? 'failed' : `partial-failed-${side}`;
-      const label = side === 'all' ? '전체 실패' : `${side === 'left' ? '왼쪽' : '오른쪽'} 실패`;
-      const key = side === 'all' ? `terminal${cap}Failed` : `terminalDoublePartialFailed${side === 'left' ? 'Left' : 'Right'}`;
-      terminalStates.push(state(id, label, await emit(`terminal-${kind}-${id}`, stateArtwork(terminalSource, { failedSide: side }), { role: `J2-C ${kind} · ${label}`, sourceFiles: [`assets/${terminalName}@2x.png`], operation: { failedSide: side }, skinKey: key }), { skinKey: key }));
-    }
-    group(`terminal-${kind}`, `J2-C ${kind === 'single' ? '싱글' : '더블'} 마감`, terminalStates, { heldTreatment: '바디만 켜짐을 표시하고 터미널은 승인 그림을 재사용하는 시안. 부분 충족과 실패 상태는 별도로 유지.' });
 
     const sustainName = `sustain-${kind}`;
     const sustainSource = await svg(sustainName);
@@ -155,7 +151,7 @@ try {
       const label = `${side === 'left' ? '왼쪽' : '오른쪽'} 몫만${failed ? ' · 실패' : ''}`;
       states.push(state(id, label, await emit(`${role}-double-${id}`, source, { nativeSource, role: `${role} · ${label}`, sourceFiles: [`assets/${inputName}.png`, `assets/${svgInputName}.svg`], operation: { ...treatment, nativePixels: '기본 PNG에서 분리', highResolution: role === 'release' ? 'J2-C @2x PNG를 내장한 SVG에서 렌더링' : '벡터 SVG에서 렌더링' }, skinKey: null }), { unitIndex: side === 'left' ? 0 : 1 }));
     }
-    group(`${role}-layers`, `${role === 'release' ? '릴리즈' : '유지'} · 남은 몫 분리`, states, { note: '기본 200×40 좌표와 투명 여백을 유지. 표시 수명은 미확정이며 성공한 몫을 숨기는 안의 자료.' });
+    group(`${role}-layers`, `${role === 'release' ? '릴리즈' : '유지'} · 남은 몫 분리`, states, { note: role === 'release' ? '기본 200×40 좌표를 보존한 참고 레이어. 일부 성공의 반쪽 숨김은 전체 70%로 대체됐으며 성공·실패 혼합의 최종 합성은 미확정.' : '기본 200×40 좌표와 투명 여백을 유지. 유지 표식의 표시 방식·수명은 별도 검토.' });
   }
   const masks = [];
   for (const side of ['left', 'right']) masks.push(state(side, `${side === 'left' ? '왼쪽' : '오른쪽'} 몫 마스크`, await emit(`unit-mask-${side}`, halfMask(side), { role: '200×40 절반 알파 마스크', sourceFiles: [], operation: { side, alphaMask: true } })));
@@ -177,7 +173,7 @@ try {
   };
 
   manifest.releaseSuccessPreview = {
-    approval: 'proposed-display-treatment',
+    approval: 'approved-display-treatment',
     targetSize: [200, 40],
     grace: false,
     backgrounds: [
@@ -189,11 +185,24 @@ try {
       state('partial-success', '일부 성공 · 전체 70%', 'assets/release-double.png', { alpha: 0.7 }),
       state('success', '모두 성공 · 숨김', 'assets/release-double.png', { alpha: 0 }),
     ],
-    alternatives: [
-      state('hide-left-success', '왼쪽 성공 · 오른쪽만 남김', 'assets/release-double-unit-right.png', { alpha: 1 }),
-      state('left-failed', '왼쪽 실패 · 일부 실패색', 'assets/release-double-partial-failed-left.png', { alpha: 1 }),
+    graceOverlay: { file: 'assets/release-grace-overlay.png', targetSize: [248, 88], padding: 24 },
+    graceProgression: [
+      state('pending', '대기 · 본체·외곽 100%', 'assets/release-double.png', { alpha: 1, overlayAlpha: 1 }),
+      state('partial-success', '일부 성공 · 본체 70% · 외곽 100%', 'assets/release-double.png', { alpha: 0.7, overlayAlpha: 1 }),
+      state('success', '모두 성공 · 본체·외곽 숨김', 'assets/release-double.png', { alpha: 0, overlayAlpha: 0 }),
     ],
-    note: '일반 더블 릴리즈의 일부 성공 비교 시안. 원본에 표시 알파만 적용하며 반투명 PNG를 만들지 않음. 70%·성공 몫 숨김·Grace 외곽·실패 표시 수명은 미확정.',
+    note: '일부 성공은 정상 도안 전체 70%로 확정. Grace 외곽은 원래 밝기를 유지하며 모두 성공하면 본체·외곽을 함께 숨김. 반쪽 숨김은 대체됨. 원본과 별도 overlay에 표시 알파만 적용.',
+  };
+
+  manifest.bodyCompositionPreview = {
+    bodyFile: 'assets/body-double-center-dual-beam.png', bodySize: [200, 160], stageSize: [212, 200],
+    cases: [
+      { id: 'bare', label: 'Point 없음 · 릴리즈 없음', point: null, release: null },
+      { id: 'point', label: 'Point 있음 · 릴리즈 없음', point: 'assets/note-double-anodized-contrast-070.png', release: null },
+      { id: 'release', label: 'Point 없음 · 릴리즈 있음', point: null, release: 'assets/release-double.png' },
+      { id: 'both', label: 'Point 있음 · 릴리즈 있음', point: 'assets/note-double-anodized-contrast-070.png', release: 'assets/release-double.png' },
+    ],
+    note: '위는 끝, 아래는 시작. 바디 자체의 경계는 같고 명시된 Point·릴리즈만 추가. 시작·끝 마감은 없음.',
   };
 
   // Original artwork is regenerated at explicit target sizes, or copied for raster masters.
@@ -201,13 +210,19 @@ try {
     command: 'node assets-lab/classic/revisions/approved-notes-20261025/build-states.mjs',
     generatedFrom: '동일 폴더 assets/의 확정 원본; build-states.mjs + state-artwork.mjs',
     rasterMasters: ['assets/terminal-j2-shadow-3-single.png', 'assets/terminal-j2-shadow-3-double.png'],
-    rasterCopy: 'J2-C 마감과 릴리즈 정상본은 선택 PNG를 그대로 사용. 릴리즈 기본/2배 PNG는 해당 원본을 바이트 그대로 복사하며 릴리즈 SVG·실패 SVG는 @2x PNG를 내장한 래퍼다.',
-    targets: [target('point', 212), target('body'), target('terminal'), target('release'), target('sustain'), target('pointGrace', 260, 88), target('releaseGrace', 248, 88)],
+    rasterCopy: 'J2-C 릴리즈 정상본은 선택 PNG를 그대로 사용. 릴리즈 기본/2배 PNG는 해당 원본을 바이트 그대로 복사하며 릴리즈 SVG·실패 SVG는 @2x PNG를 내장한 래퍼다.',
+    targets: [target('point', 212), target('body'), target('release'), target('sustain'), target('pointGrace', 260, 88), target('releaseGrace', 248, 88)],
     scale: 'PNG 기본 크기는 targetSize, @2x는 각 변 2배. SVG 자연 크기 / 5 규칙을 사용하지 않음.',
     grace: { sourcePadding: 24, releaseSilhouette: 'J2-C의 alpha >= 0.5인 전체 200×40 직사각 외곽', referenceOnly: ['terminal-grace-overlay'], composeOnce: true },
-    failureStyle: '무채색 + 밝기 45%; 시각 시안이며 표시 수명·판정 정책은 구현하지 않음',
+    failureStyle: '무채색 + 밝기 45%; 실패색의 구체 강도는 시안. 확정된 표시 수명은 confirmedDisplay를 따름.',
+    confirmedDisplay: {
+      sourceComments: ['https://github.com/nanana3679/not4k/pull/339#issuecomment-6390804166', 'https://github.com/nanana3679/not4k/pull/339#issuecomment-6390954414'],
+      releasePartialSuccessAlpha: 0.7, gracePartialSuccessOverlayAlpha: 1, releaseSuccessHidden: true,
+      failedRelease: { when: 'failure-confirmed', includesDependentZero: true, hideWhen: 'scrolled-out', pendingFailureStyle: false },
+      bodyStartCap: false, bodyEndCap: false, implicitPoint: false, implicitRelease: false,
+    },
     missingRequestedStates: [],
-    unapproved: ['새 상태별 색·강도', 'J2-C 유지/부분 충족의 대기 그림 재사용', '더블 릴리즈 일부 성공의 전체 alpha 0.7', '한 몫 성공 후 나머지 몫만 표시', '실패·종속 0점 표시 수명'],
+    unapproved: ['새 상태별 색·강도', '일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성', '유지 노트의 성공·실패 표시 방식과 수명'],
   };
   const assetsByFile = new Map(manifest.assets.map(asset => [asset.file, asset]));
   for (const asset of manifest.assets) {

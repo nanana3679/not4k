@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-interface Asset { file: string; bytes: number; sha256: string; width: number; height: number; targetSize?: number[]; generator?: string; sourceFiles?: string[] }
-interface State { id: string; file: string; aliasOf?: string; waitingSide?: string; alpha?: number }
+interface Asset { file: string; bytes: number; sha256: string; width: number; height: number; targetSize?: number[]; generator?: string; sourceFiles?: string[]; skinKey?: string | null; proposedRuntimePath?: string | null; usage?: string }
+interface State { id: string; file: string; aliasOf?: string; waitingSide?: string; alpha?: number; overlayAlpha?: number }
 interface Group { id: string; states: State[]; beamCenters?: number[] }
 interface ReleaseSuccessPreview {
   approval: string; targetSize: number[]; grace: boolean;
   backgrounds: { id: string; file?: string }[];
-  progression: State[]; alternatives: State[];
+  progression: State[]; graceProgression: State[]; graceOverlay: { file: string; targetSize: number[]; padding: number };
 }
 interface PointSuccessPreview {
   targetSize: number[]; bodySize: number[];
@@ -16,13 +16,13 @@ interface PointSuccessPreview {
   progression: State[];
 }
 const here = new URL('./', import.meta.url);
-const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; buildContract: { missingRequestedStates: string[]; unapproved: string[] } };
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
-  it('에셋 138개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
-    expect(manifest.assets).toHaveLength(138);
-    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(138);
+  it('에셋 126개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
+    expect(manifest.assets).toHaveLength(126);
+    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(126);
     for (const asset of manifest.assets) {
       const bytes = readFileSync(new URL(asset.file, here));
       expect(bytes.length, asset.file).toBe(asset.bytes);
@@ -74,13 +74,18 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     expect(new Set(group('body-double').states.map(state => state.file)).size).toBe(7);
   });
 
-  it('J2-C는 대기·유지·부분 충족이 같은 그림을 참조해도 상태를 분리하며 좌우 실패와 합치지 않는다', () => {
-    const states = group('terminal-double').states;
-    const idle = states.find(state => state.id === 'idle')!;
-    for (const side of ['left', 'right']) {
-      expect(states.find(state => state.id === `partial-held-${side}`)).toMatchObject({ file: idle.file, aliasOf: 'idle', waitingSide: side });
-      expect(states.find(state => state.id === `partial-failed-${side}`)!.file).not.toBe(idle.file);
+  it('바디 시작·끝 terminal 상태와 스킨 키는 없고 J2-C 원본은 릴리즈 입력으로만 보존한다', () => {
+    expect(manifest.stateGroups.some(entry => entry.id.startsWith('terminal-'))).toBe(false);
+    expect(manifest.buildContract.targets.some(target => target.key === 'terminal')).toBe(false);
+    for (const asset of manifest.assets.filter(asset => asset.file.startsWith('assets/terminal-'))) {
+      expect(asset.skinKey).toBeNull();
+      expect(asset.proposedRuntimePath).toBeNull();
+      expect(asset.usage).toBe(asset.file.includes('terminal-j2-') ? 'release-source' : 'historical-reference');
     }
+    expect(manifest.bodyCompositionPreview.cases.map(({ id, point, release }) => [id, !!point, !!release])).toEqual([
+      ['bare', false, false], ['point', true, false], ['release', false, true], ['both', true, true],
+    ]);
+    expect(manifest.buildContract.confirmedDisplay).toMatchObject({ bodyStartCap: false, bodyEndCap: false, implicitPoint: false, implicitRelease: false });
   });
 
   it('더블 포인트는 M6 212×40 원본에 alpha 1→0.7→0을 적용하고 바디 폭 200을 유지한다', () => {
@@ -98,23 +103,32 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     for (const side of ['left', 'right']) expect(group('point-double').states.find(state => state.id === `partial-${side}`)).toMatchObject({ aliasOf: 'pending', alpha: 0.7 });
   });
 
-  it('더블 릴리즈 성공 시안은 같은 200×40 원본에 alpha 1→0.7→0을 적용하고 반쪽 숨김·일부 실패와 구별한다', () => {
+  it('더블 릴리즈 본체는 alpha 1→0.7→0이며 Grace 외곽은 1→1→0으로 별도 표시한다', () => {
     const preview = manifest.releaseSuccessPreview;
-    expect(preview).toMatchObject({ approval: 'proposed-display-treatment', targetSize: [200, 40], grace: false });
+    expect(preview).toMatchObject({ approval: 'approved-display-treatment', targetSize: [200, 40], grace: false });
     expect(preview.progression.map(({ id, file, alpha }) => ({ id, file, alpha }))).toEqual([
       { id: 'pending', file: 'assets/release-double.png', alpha: 1 },
       { id: 'partial-success', file: 'assets/release-double.png', alpha: 0.7 },
       { id: 'success', file: 'assets/release-double.png', alpha: 0 },
     ]);
-    expect(preview.alternatives).toMatchObject([
-      { id: 'hide-left-success', file: 'assets/release-double-unit-right.png', alpha: 1 },
-      { id: 'left-failed', file: 'assets/release-double-partial-failed-left.png', alpha: 1 },
+    expect(preview.graceOverlay).toEqual({ file: 'assets/release-grace-overlay.png', targetSize: [248, 88], padding: 24 });
+    expect(preview.graceProgression.map(({ id, file, alpha, overlayAlpha }) => ({ id, file, alpha, overlayAlpha }))).toEqual([
+      { id: 'pending', file: 'assets/release-double.png', alpha: 1, overlayAlpha: 1 },
+      { id: 'partial-success', file: 'assets/release-double.png', alpha: 0.7, overlayAlpha: 1 },
+      { id: 'success', file: 'assets/release-double.png', alpha: 0, overlayAlpha: 0 },
     ]);
     expect(preview.backgrounds).toMatchObject([{ id: 'solid' }, { id: 'body', file: 'assets/body-double-center-dual-beam.png' }]);
-    expect(manifest.buildContract.unapproved).toContain('더블 릴리즈 일부 성공의 전체 alpha 0.7');
-    for (const item of [...preview.progression, ...preview.alternatives, ...preview.backgrounds]) {
+    expect(manifest.buildContract.confirmedDisplay).toMatchObject({ releasePartialSuccessAlpha: 0.7, gracePartialSuccessOverlayAlpha: 1, releaseSuccessHidden: true });
+    expect(manifest.buildContract.unapproved.join(' ')).not.toMatch(/alpha 0.7|Grace 외곽|실패·종속 0점 표시 수명/);
+    for (const item of [...preview.progression, ...preview.graceProgression, preview.graceOverlay, ...preview.backgrounds]) {
       if (item.file) expect(manifest.assets.some(asset => asset.file === item.file), item.file).toBe(true);
     }
+  });
+
+  it('릴리즈는 실패 확정·종속 0점일 때 실패색으로 화면 밖까지 남고 판정 대기에는 실패색을 쓰지 않는다', () => {
+    expect(manifest.buildContract.confirmedDisplay.failedRelease).toEqual({ when: 'failure-confirmed', includesDependentZero: true, hideWhen: 'scrolled-out', pendingFailureStyle: false });
+    expect(manifest.buildContract.unapproved).toContain('일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성');
+    expect(manifest.buildContract.unapproved).toContain('유지 노트의 성공·실패 표시 방식과 수명');
   });
 
   it('릴리즈·유지는 좌우 정상/실패 분리 파일을 제공하고 생성물의 입력은 같은 묶음 안에서 모두 찾을 수 있다', () => {
