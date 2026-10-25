@@ -5,9 +5,9 @@ import {
   LANE_AREA_WIDTH, LANE_COUNT, LANE_WIDTH, NOTE_HEIGHT, NOTE_WIDTH, judgmentLineYAtLift, playfieldPx, suddenCoverPx,
 } from '../game/renderer/constants';
 import {
-  ESTIMATED_DWELL_HIGHEST_LEVEL, ESTIMATED_DWELL_LOWEST_LEVEL, REST_EDGE_RED, fallenHeightRatio, groupRestPanels, minRestZoneMs,
-  neighborProgress, noteDwellMs, panelCorners, restPanelState, restPanelTiming, separatorTop, sharedCameraLane,
-  type FoldingPanel, type LaneRestZone, type RestPanelGroup, type RestPanelPhase,
+  ESTIMATED_DWELL_HIGHEST_LEVEL, ESTIMATED_DWELL_LOWEST_LEVEL, REST_EDGE_RED, REST_PANEL_LOOK, REST_PANEL_OUTLINE_WIDTH, fallenHeightRatio,
+  groupRestPanels, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, panelEdgeStrip, restPanelState, restPanelTiming, rimColor,
+  separatorTop, sharedCameraLane, type FoldingPanel, type LaneRestZone, type RestPanelGroup, type RestPanelPhase,
 } from '../game/renderer/restZonePanel';
 import './RestZoneLanePage.css';
 
@@ -36,39 +36,36 @@ const PHASE_LABEL: Record<RestPanelPhase, string> = {
 };
 const laneColor = (lane: number) => lane % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD;
 const SEPARATOR_WIDTH = playfieldPx(2);
-/** 판넬 좌우 붉은 변의 폭(논리 px). */
-const RED_EDGE_WIDTH = 2;
-/** 판넬 테두리 스타일. 'rim'은 레인색을 밝힌 선으로 가장자리에 빛이 맺힌 듯 보이게 하며, 게임이 쓰는 값이라 기본값이다(RFD 0034 결정 4). */
+/**
+ * 판넬 테두리 스타일. 'rim'(밝은 레인색 둘레)만 게임이 쓰는 값이고(REST_PANEL_LOOK.edge, RFD 0034 결정 4) 나머지는 Lab 시안이다.
+ * 'rim'은 레인색을 밝힌 선으로 가장자리에 빛이 맺힌 듯 보이게 한다.
+ */
 type EdgeStyle = 'red-outline' | 'red-stripe' | 'rim' | 'none';
 const EDGE_STYLE_LABEL: Record<EdgeStyle, string> = {
   'red-outline': '붉은 둘레', 'red-stripe': '붉은 빗금 경계', rim: '밝은 레인색 둘레', none: '없음',
 };
-const RIM_BRIGHTNESS = 2.6;
-const brighten = (color: number, factor: number) => [16, 8, 0]
-  .reduce((sum, shift) => sum | (Math.min(255, Math.round(((color >> shift) & 255) * factor)) << shift), 0);
-const mixColor = (from: number, to: number, t: number) => {
-  const channel = (shift: number) => Math.round(((from >> shift) & 255) * (1 - t) + ((to >> shift) & 255) * t);
-  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
-};
+/** 테두리 스타일별 변 띠 색. 붉은 빗금 경계·없음은 테두리 없이 이웃과 맞닿을 때만 구분선을 그린다(null). */
+const outlineColorFor = (style: EdgeStyle, edgeLaneColor: number): number | null =>
+  style === 'rim' ? rimColor(edgeLaneColor) : style === 'red-outline' ? REST_EDGE_RED : null;
 
 type ZonePreset = 'single' | 'pair-same' | 'pair-offset' | 'short';
-// lane은 이 페이지의 0부터 세는 레인 인덱스다(화면 표기 레인 2 = 1).
+// lane은 이 페이지의 0부터 세는 레인 인덱스다(화면 표기 레인 2 = 1). start·end는 박이다(게임은 ms를 넣는다).
 const ZONE_PRESETS: Record<ZonePreset, { label: string; zones: readonly LaneRestZone[] }> = {
-  single: { label: '레인 2만', zones: [{ lane: 1, beat: 8, endBeat: 24 }] },
+  single: { label: '레인 2만', zones: [{ lane: 1, start: 8, end: 24 }] },
   'pair-same': {
     label: '레인 3·4 같은 구간',
-    zones: [{ lane: 2, beat: 8, endBeat: 24 }, { lane: 3, beat: 8, endBeat: 24 }],
+    zones: [{ lane: 2, start: 8, end: 24 }, { lane: 3, start: 8, end: 24 }],
   },
   'pair-offset': {
     label: '레인 3·4 시작 어긋남',
-    zones: [{ lane: 2, beat: 8, endBeat: 24 }, { lane: 3, beat: 12, endBeat: 24 }],
+    zones: [{ lane: 2, start: 8, end: 24 }, { lane: 3, start: 12, end: 24 }],
   },
-  short: { label: '레인 2 짧은 구간(1.5초)', zones: [{ lane: 1, beat: 8, endBeat: 11 }] },
+  short: { label: '레인 2 짧은 구간(1.5초)', zones: [{ lane: 1, start: 8, end: 11 }] },
 };
 const laneLabel = (group: RestPanelGroup) =>
   `레인 ${Array.from({ length: group.laneCount }, (_, index) => group.firstLane + index + 1).join('·')}`;
 const groupTiming = (group: RestPanelGroup, dwellMs: number, animMs: number) =>
-  restPanelTiming(group.beat * BEAT_MS, group.endBeat * BEAT_MS, dwellMs, animMs);
+  restPanelTiming(group.start * BEAT_MS, group.end * BEAT_MS, dwellMs, animMs);
 const seconds = (ms: number) => (ms / 1000).toFixed(2);
 
 interface Controls {
@@ -96,6 +93,25 @@ interface Controls {
   showNotes: boolean;
 }
 
+/** 0～1 비율을 Lab 슬라이더의 정수 %로 바꾼다(0.4 → 40). */
+// REST_PANEL_LOOK의 비율이 슬라이더 칸(5%)에 정확히 놓여야 Lab 기본값이 게임 값과 같다(지금 1·0.4·0 모두 그렇다).
+const toPercent = (fraction: number) => Math.round(fraction * 100);
+/** 게임 값(REST_PANEL_LOOK)에서 가져오는 판넬 조절 기본값. 슬라이더 범위·단위는 Lab 것이고 비율은 %로 바꾼다. */
+const gameLookControls = (): Pick<Controls,
+  'maxAngle' | 'cameraDistance' | 'animMs' | 'edgeStyle' | 'brightness' | 'stripeWidth' | 'fadeStart' | 'topBrightness' | 'mergeAdjacent' | 'fillGaps'
+> => ({
+  maxAngle: REST_PANEL_LOOK.maxAngleDeg,
+  cameraDistance: REST_PANEL_LOOK.cameraDistance,
+  animMs: REST_PANEL_LOOK.animMs,
+  edgeStyle: REST_PANEL_LOOK.edge,
+  brightness: toPercent(REST_PANEL_LOOK.hatchBrightness),
+  stripeWidth: REST_PANEL_LOOK.stripeWidth,
+  fadeStart: toPercent(REST_PANEL_LOOK.fadeStart),
+  topBrightness: toPercent(REST_PANEL_LOOK.topBrightness),
+  mergeAdjacent: REST_PANEL_LOOK.mergeAdjacent,
+  fillGaps: REST_PANEL_LOOK.fillGaps,
+});
+
 /**
  * 사용자 설정에 따른 레인 모양. 판넬은 판정선(경첩)부터 레인이 보이는 위끝까지만 덮는다.
  * 노트는 위끝에 처음 보이고 판정선에 닿을 때까지 dwellMs 동안 레인에 머문다.
@@ -110,11 +126,10 @@ const laneView = (current: Pick<Controls, 'liftPercent' | 'suddenPercent' | 'scr
 };
 
 export default function RestZoneLanePage() {
-  const [controls, setControls] = useState<Controls>({
-    playing: true, playbackRate: 1, maxAngle: 60, cameraDistance: 1.5, animMs: 300,
-    edgeStyle: 'rim', brightness: 100, stripeWidth: 8, fadeStart: 40, topBrightness: 0, scrollPxPerSecond: Math.round(JUDGE_Y / 1.2),
-    estimatedDwellMs: 1500, liftPercent: 0, suddenPercent: 0, preset: 'single', mergeAdjacent: true, fillGaps: true, showNotes: true,
-  });
+  const [controls, setControls] = useState<Controls>(() => ({
+    ...gameLookControls(), playing: true, playbackRate: 1, scrollPxPerSecond: Math.round(JUDGE_Y / 1.2),
+    estimatedDwellMs: 1500, liftPercent: 0, suddenPercent: 0, preset: 'single', showNotes: true,
+  }));
   const [timeMs, setTimeMs] = useState(0);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -286,7 +301,7 @@ export default function RestZoneLanePage() {
         const current = controlsRef.current;
         const zones = ZONE_PRESETS[current.preset].zones;
         const groups = groupRestPanels(zones, current.mergeAdjacent);
-        const camera = { cameraDistance: current.cameraDistance, eyeHeight: 0.5 };
+        const camera = { cameraDistance: current.cameraDistance, eyeHeight: REST_PANEL_LOOK.eyeHeight };
         const view = laneView(current);
         judgment.y = view.judgeY - JUDGE_Y;
         // 지금 접혀 있는 판넬만 firstLane 순서로(groupRestPanels가 이미 정렬). 이웃·공유 카메라 계산의 입력이다.
@@ -321,24 +336,20 @@ export default function RestZoneLanePage() {
           const neighbors = current.fillGaps ? neighborProgress(panels, index) : { left: 0, right: 0 };
           for (const side of ['left', 'right'] as const) {
             const mesh = side === 'left' ? slot.leftEdge : slot.rightEdge;
-            // 이웃이 접힌 만큼 테두리를 빼고 레인 구분선(양쪽 판넬이 절반 폭씩)을 넣는다.
-            const seam = neighbors[side];
-            const hasOutline = current.edgeStyle === 'red-outline' || current.edgeStyle === 'rim';
-            const outline = hasOutline ? 1 - seam : 0;
-            const strength = outline + seam;
-            mesh.visible = strength > 0;
-            if (strength <= 0) continue;
-            const toSeam = seam / strength;
-            const edgeWidth = RED_EDGE_WIDTH + (SEPARATOR_WIDTH / 2 - RED_EDGE_WIDTH) * toSeam;
-            const edgeX = side === 'left' ? x : x + width - edgeWidth;
-            const [etl, etr, ebr, ebl] = panelCorners({ ...rect, x: edgeX, width: edgeWidth }, angle, camera, cameraX);
+            // 이웃이 접힌 만큼 테두리를 빼고 레인 구분선(양쪽 판넬이 절반 폭씩)을 넣는다. 계산은 게임과 같은 panelEdgeStrip이다.
+            const strip = panelEdgeStrip({
+              progress, seam: neighbors[side],
+              outlineColor: outlineColorFor(current.edgeStyle, laneColor(side === 'left' ? group.firstLane : group.firstLane + group.laneCount - 1)),
+              separatorColor: COLORS.LANE_SEPARATOR, outlineWidth: REST_PANEL_OUTLINE_WIDTH, separatorWidth: SEPARATOR_WIDTH,
+            });
+            mesh.visible = strip.visible;
+            if (!strip.visible) continue;
+            const edgeX = side === 'left' ? x : x + width - strip.width;
+            const [etl, etr, ebr, ebl] = panelCorners({ ...rect, x: edgeX, width: strip.width }, angle, camera, cameraX);
             mesh.texture = pair.edge;
             mesh.setCorners(etl.x, etl.y, etr.x, etr.y, ebr.x, ebr.y, ebl.x, ebl.y);
-            const outlineColor = current.edgeStyle === 'rim'
-              ? brighten(laneColor(side === 'left' ? group.firstLane : group.firstLane + group.laneCount - 1), RIM_BRIGHTNESS)
-              : REST_EDGE_RED;
-            mesh.tint = mixColor(outlineColor, COLORS.LANE_SEPARATOR, toSeam);
-            mesh.alpha = progress * strength;
+            mesh.tint = strip.tint;
+            mesh.alpha = strip.alpha;
           }
         });
         // 접히는 판넬 안쪽의 레인 구분선은 판넬 텍스처가, 틈을 메운 두 판넬 사이 구분선은 두 판넬의 변 띠가 판넬과 함께
@@ -351,7 +362,7 @@ export default function RestZoneLanePage() {
         notes.clear();
         if (current.showNotes) {
           for (const note of DEMO_NOTES) {
-            if (zones.some(zone => zone.lane === note.lane && note.beat > zone.beat && note.beat < zone.endBeat)) continue;
+            if (zones.some(zone => zone.lane === note.lane && note.beat > zone.start && note.beat < zone.end)) continue;
             // 이전·현재·다음 반복을 함께 확인해 루프 경계에서도 노트가 끊기지 않는다.
             for (const offset of [-LOOP_MS, 0, LOOP_MS]) {
               const y = view.judgeY - (note.ms + offset - timeRef.current) * current.scrollPxPerSecond / 1000;
@@ -402,13 +413,13 @@ export default function RestZoneLanePage() {
   const groupStates = groupRestPanels(presetZones, controls.mergeAdjacent).map(group => {
     const timing = groupTiming(group, controls.estimatedDwellMs, controls.animMs);
     // 빈 레인 창 [시작, 끝 − 추정 녹숫]의 가운데가 가장 많이 넘어간 순간이다.
-    const peak = restPanelState((group.beat * BEAT_MS + timing.endMs) / 2, timing).progress;
-    return { group, peak, zoneMs: (group.endBeat - group.beat) * BEAT_MS, ...restPanelState(timeMs, timing) };
+    const peak = restPanelState((group.start * BEAT_MS + timing.endMs) / 2, timing).progress;
+    return { group, peak, zoneMs: (group.end - group.start) * BEAT_MS, ...restPanelState(timeMs, timing) };
   });
   const shortGroups = groupStates.filter(state => state.zoneMs < minZoneMs);
   // 양수면 사용자 설정이 추정보다 느려 다음 노트가 판넬이 다 올라오기 전에 보인다.
   const dwellGapMs = view.dwellMs - controls.estimatedDwellMs;
-  const heightPercent = Math.round(fallenHeightRatio(controls.maxAngle * Math.PI / 180, { cameraDistance: controls.cameraDistance, eyeHeight: 0.5 }) * 100);
+  const heightPercent = Math.round(fallenHeightRatio(controls.maxAngle * Math.PI / 180, { cameraDistance: controls.cameraDistance, eyeHeight: REST_PANEL_LOOK.eyeHeight }) * 100);
 
   return (
     <main className="rest-zone-lab" data-lab-page="rest-zone-lane" data-preview-ready={ready}>
@@ -420,7 +431,7 @@ export default function RestZoneLanePage() {
       <div className="rest-zone-workbench">
         <section className="rest-zone-preview" aria-label="레인 미리보기">
           <p className="rest-zone-chart">
-            120 BPM · 32박 반복 · restZone {presetZones.map(zone => `레인 ${zone.lane + 1} ${zone.beat} → ${zone.endBeat}박`).join(', ')}
+            120 BPM · 32박 반복 · restZone {presetZones.map(zone => `레인 ${zone.lane + 1} ${zone.start} → ${zone.end}박`).join(', ')}
           </p>
           <div className="rest-zone-canvas" ref={hostRef} />
           {!ready && !error && <p role="status">미리보기 준비 중…</p>}
@@ -428,7 +439,7 @@ export default function RestZoneLanePage() {
           <div className="rest-zone-status" aria-label="현재 판넬 상태">
             <span>{seconds(timeMs)} / 16.00초</span>
             {groupStates.map(({ group, phase, progress }, index) => (
-              <span key={`${group.firstLane}:${group.beat}`} className="rest-zone-group-status">
+              <span key={`${group.firstLane}:${group.start}`} className="rest-zone-group-status">
                 {laneLabel(group)}{' '}
                 {/* 첫 판넬의 상태만 data 속성으로 노출해 E2E가 하나를 가리키게 한다. */}
                 <strong data-panel-phase={index === 0 ? phase : undefined}>{PHASE_LABEL[phase]}</strong>
@@ -453,7 +464,7 @@ export default function RestZoneLanePage() {
             모든 사용자가 같은 시각에 같은 연출을 봅니다.
           </p>
           {shortGroups.map(({ group, peak, zoneMs }) => (
-            <p key={`${group.firstLane}:${group.beat}`} className="rest-zone-hint" role="note">
+            <p key={`${group.firstLane}:${group.start}`} className="rest-zone-hint" role="note">
               {laneLabel(group)}: restZone {seconds(zoneMs)}초가 지침 최소 길이 {seconds(minZoneMs)}초(추정 녹숫 + 애니메이션 2번)보다 짧아
               {peak > 0 ? ` 최대 ${Math.round(peak * 100)}%까지만 넘어갑니다.` : ' 넘어가지 않습니다.'}
             </p>
