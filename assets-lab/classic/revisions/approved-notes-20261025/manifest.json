@@ -3244,6 +3244,768 @@
       "sha256": "d29325bf1c00bcf4f063305000e446de815a6d57f9cacf4fbdf1dca5f7c705a2"
     },
     {
+      "file": "assets/body-single-palette-point.svg",
+      "role": "single idleBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "idleBody",
+        "referenceFile": "palette-reference/single.png",
+        "referenceSha256": "60cc0f488079682dcdad571c0ad0d071dfae00891b8c6294e0145aebf9330620",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5484,
+      "sha256": "37637c28ae06096900a32747465da9d590d518edcaf81b8d302899cf03c50268"
+    },
+    {
+      "file": "assets/body-single-palette-point.png",
+      "role": "single idleBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "idleBody",
+        "referenceFile": "palette-reference/single.png",
+        "referenceSha256": "60cc0f488079682dcdad571c0ad0d071dfae00891b8c6294e0145aebf9330620",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 852,
+      "sha256": "f3dc3b0352dd8c2323138d408159daf7a44892ea77add7474305efdadb2ce0ae"
+    },
+    {
+      "file": "assets/body-single-palette-point@2x.png",
+      "role": "single idleBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "idleBody",
+        "referenceFile": "palette-reference/single.png",
+        "referenceSha256": "60cc0f488079682dcdad571c0ad0d071dfae00891b8c6294e0145aebf9330620",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1825,
+      "sha256": "4a0bc3afd09746577e02fe31e4f9b45775442895a79505d4ce1adc4a7cfe298c"
+    },
+    {
+      "file": "assets/body-held-single-palette-point.svg",
+      "role": "single heldBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "heldBody",
+        "referenceFile": "palette-reference/single.png",
+        "referenceSha256": "60cc0f488079682dcdad571c0ad0d071dfae00891b8c6294e0145aebf9330620",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6442,
+      "sha256": "6447ae858fa5d920569e0827164b70fe0d14c6a1ad6c9846314c887677f0cfb1"
+    },
+    {
+      "file": "assets/body-held-single-palette-point.png",
+      "role": "single heldBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "heldBody",
+        "referenceFile": "palette-reference/single.png",
+        "referenceSha256": "60cc0f488079682dcdad571c0ad0d071dfae00891b8c6294e0145aebf9330620",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1919,
+      "sha256": "8c0e988275c4fd53456fe3dc019e2b50d1f8f6389bce4d842ec800b857bfe362"
+    },
+    {
+      "file": "assets/body-held-single-palette-point@2x.png",
+      "role": "single heldBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "palette-reference/single.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "heldBody",
+        "referenceFile": "palette-reference/single.png",
+        "referenceSha256": "60cc0f488079682dcdad571c0ad0d071dfae00891b8c6294e0145aebf9330620",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5708,
+      "sha256": "ac6359f0ca218054ba9b7f963ae56385f5bf87e2ba7520c6b616fd5dfaf69e6e"
+    },
+    {
+      "file": "assets/note-single-palette-release.svg",
+      "role": "single point · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "point",
+        "referenceFile": "assets/terminal-j2-shadow-3-single@2x.png",
+        "referenceSha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17539,
+      "sha256": "7937971f9c0e92e6d333857147d3ef3ce1651b3fac0359cb75df6eaa018a5ace"
+    },
+    {
+      "file": "assets/note-single-palette-release.png",
+      "role": "single point · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "point",
+        "referenceFile": "assets/terminal-j2-shadow-3-single@2x.png",
+        "referenceSha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 4699,
+      "sha256": "584de0c465951bdab64f6df473ed2ed34c36de9715aa221bfec636eec4b2155c"
+    },
+    {
+      "file": "assets/note-single-palette-release@2x.png",
+      "role": "single point · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "point",
+        "referenceFile": "assets/terminal-j2-shadow-3-single@2x.png",
+        "referenceSha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 13491,
+      "sha256": "7959bc1e6bfe0be576b843752444662aa791e5b3d5353e8b659760c8adfd4150"
+    },
+    {
+      "file": "assets/body-single-palette-release.svg",
+      "role": "single idleBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "idleBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-single@2x.png",
+        "referenceSha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5397,
+      "sha256": "fcedc9e54309bd113080396f6a246d2b6903ee336992304af11390258fa6ea69"
+    },
+    {
+      "file": "assets/body-single-palette-release.png",
+      "role": "single idleBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "idleBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-single@2x.png",
+        "referenceSha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 832,
+      "sha256": "7bb244efe93cd104887be54d02b721a0b446d10dd0fe38f412ecd47c12a5f7d6"
+    },
+    {
+      "file": "assets/body-single-palette-release@2x.png",
+      "role": "single idleBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "idleBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-single@2x.png",
+        "referenceSha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1808,
+      "sha256": "d8cc25c9299f78be29262fa5262f71bab6d03b20384e429382184ccd851aafe4"
+    },
+    {
+      "file": "assets/body-held-single-palette-release.svg",
+      "role": "single heldBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "heldBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-single@2x.png",
+        "referenceSha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6355,
+      "sha256": "ec8d0f7fb2a2a2d2cf4939cdce03da0eb555b696f0f8d81e8f84218a1c9802e2"
+    },
+    {
+      "file": "assets/body-held-single-palette-release.png",
+      "role": "single heldBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "heldBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-single@2x.png",
+        "referenceSha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1971,
+      "sha256": "03eb227fe49bc75e9ad88380caad5a1b6c564b676300f19bfd756e8cf5e0aaad"
+    },
+    {
+      "file": "assets/body-held-single-palette-release@2x.png",
+      "role": "single heldBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "heldBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-single@2x.png",
+        "referenceSha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5367,
+      "sha256": "ff0b09ebc4704308b6af3f71766964c8e28d1a743184e58e6d0ae55885d365c6"
+    },
+    {
+      "file": "assets/note-single-palette-body.svg",
+      "role": "single point · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/body-single.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "point",
+        "referenceFile": "assets/body-single.png",
+        "referenceSha256": "80655da690f6612b8dca32ea3b79e1b38f58123e94cb5c127c296335d90f674e",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17530,
+      "sha256": "878b4ef6066af98362fcea37bead9b335f1d6c0faa66f405cea47b3295706994"
+    },
+    {
+      "file": "assets/note-single-palette-body.png",
+      "role": "single point · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/body-single.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "point",
+        "referenceFile": "assets/body-single.png",
+        "referenceSha256": "80655da690f6612b8dca32ea3b79e1b38f58123e94cb5c127c296335d90f674e",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5070,
+      "sha256": "62f48638af72b51c3caf5da9e349a9364056082372e74e25f92da100d97e720a"
+    },
+    {
+      "file": "assets/note-single-palette-body@2x.png",
+      "role": "single point · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/body-single.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "point",
+        "referenceFile": "assets/body-single.png",
+        "referenceSha256": "80655da690f6612b8dca32ea3b79e1b38f58123e94cb5c127c296335d90f674e",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14330,
+      "sha256": "58f3ed45328f4ecec1e638d09c199206fc581f47564697cedad6ea3edabec883"
+    },
+    {
+      "file": "assets/release-single-palette-body.svg",
+      "role": "single release · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large.svg",
+        "assets/body-single.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "release",
+        "referenceFile": "assets/body-single.png",
+        "referenceSha256": "80655da690f6612b8dca32ea3b79e1b38f58123e94cb5c127c296335d90f674e",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 78461,
+      "sha256": "60f7a0e9eaae3ead64ab1119d1cb96dd6a30df145e032b91f1c99518e1a8eace"
+    },
+    {
+      "file": "assets/release-single-palette-body.png",
+      "role": "single release · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large.svg",
+        "assets/body-single.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "release",
+        "referenceFile": "assets/body-single.png",
+        "referenceSha256": "80655da690f6612b8dca32ea3b79e1b38f58123e94cb5c127c296335d90f674e",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17875,
+      "sha256": "7a744744d7adc05604def3c312f9b47f0cc9e4ae4d435f430c24be80cff60b70"
+    },
+    {
+      "file": "assets/release-single-palette-body@2x.png",
+      "role": "single release · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png",
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large.svg",
+        "assets/body-single.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "release",
+        "referenceFile": "assets/body-single.png",
+        "referenceSha256": "80655da690f6612b8dca32ea3b79e1b38f58123e94cb5c127c296335d90f674e",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 58497,
+      "sha256": "5aedafe7063a7df19f876f59b8866e8a6171d92f8066822a8215fcb495e90e1b"
+    },
+    {
       "file": "assets/release-single-failed.svg",
       "role": "J2-C single 릴리즈 · 전체 실패",
       "generator": "build-states.mjs",
@@ -4613,6 +5375,768 @@
       ],
       "bytes": 59820,
       "sha256": "39085876954404ab9bfa647c505957f4d2e2545da7269be16b2ffd158480f957"
+    },
+    {
+      "file": "assets/body-double-palette-point.svg",
+      "role": "double idleBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "idleBody",
+        "referenceFile": "palette-reference/double.png",
+        "referenceSha256": "1d343998a0cea6b32555675152ae762a03a7f67e2974fe403f476021e3bd6943",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6179,
+      "sha256": "dfe4517e3e610454056388d91b3f3b4d62c2c630ca3c83d4481dd546812b53c7"
+    },
+    {
+      "file": "assets/body-double-palette-point.png",
+      "role": "double idleBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "idleBody",
+        "referenceFile": "palette-reference/double.png",
+        "referenceSha256": "1d343998a0cea6b32555675152ae762a03a7f67e2974fe403f476021e3bd6943",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 781,
+      "sha256": "80acea4656efdd701113a1a4ca47f1acac9d1186ef09f6077c25972c0fc15905"
+    },
+    {
+      "file": "assets/body-double-palette-point@2x.png",
+      "role": "double idleBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "idleBody",
+        "referenceFile": "palette-reference/double.png",
+        "referenceSha256": "1d343998a0cea6b32555675152ae762a03a7f67e2974fe403f476021e3bd6943",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1746,
+      "sha256": "e40734597270c0461635e0754de0a997726fe6634c32c2af78cad9687012babc"
+    },
+    {
+      "file": "assets/body-held-double-palette-point.svg",
+      "role": "double heldBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "heldBody",
+        "referenceFile": "palette-reference/double.png",
+        "referenceSha256": "1d343998a0cea6b32555675152ae762a03a7f67e2974fe403f476021e3bd6943",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 7292,
+      "sha256": "8870206f750ca4248c343df726c0aed5b11ec34f39d39c3fec6bd3d295caf77f"
+    },
+    {
+      "file": "assets/body-held-double-palette-point.png",
+      "role": "double heldBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "heldBody",
+        "referenceFile": "palette-reference/double.png",
+        "referenceSha256": "1d343998a0cea6b32555675152ae762a03a7f67e2974fe403f476021e3bd6943",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2702,
+      "sha256": "d6dafe1116abf6b23dd62b8db697065d75052f374f8ef9ca1c2b8ef426b57c22"
+    },
+    {
+      "file": "assets/body-held-double-palette-point@2x.png",
+      "role": "double heldBody · 포인트 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "palette-reference/double.png"
+      ],
+      "operation": {
+        "anchor": "point",
+        "role": "heldBody",
+        "referenceFile": "palette-reference/double.png",
+        "referenceSha256": "1d343998a0cea6b32555675152ae762a03a7f67e2974fe403f476021e3bd6943",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10274,
+      "sha256": "eb945a49e54b1503c0d6b47cbb0a6ed1904a6280a0f7322217d6ac0a2e9dc418"
+    },
+    {
+      "file": "assets/note-double-palette-release.svg",
+      "role": "double point · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "point",
+        "referenceFile": "assets/terminal-j2-shadow-3-double@2x.png",
+        "referenceSha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 159281,
+      "sha256": "6a21c9f6791bb11a55b50f26ac4826c27e604d3533aa61d2f6ca8b8c2830ffd5"
+    },
+    {
+      "file": "assets/note-double-palette-release.png",
+      "role": "double point · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "point",
+        "referenceFile": "assets/terminal-j2-shadow-3-double@2x.png",
+        "referenceSha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 9125,
+      "sha256": "ad76967b810719dc0d20035d5ecb90f2d2668f55c82649409b7ced948726085d"
+    },
+    {
+      "file": "assets/note-double-palette-release@2x.png",
+      "role": "double point · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "point",
+        "referenceFile": "assets/terminal-j2-shadow-3-double@2x.png",
+        "referenceSha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 27849,
+      "sha256": "b13a31d178cac34a256f4876471b4ec15c5e2b5f449471327391828f788e22b8"
+    },
+    {
+      "file": "assets/body-double-palette-release.svg",
+      "role": "double idleBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "idleBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-double@2x.png",
+        "referenceSha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6027,
+      "sha256": "0eeb9d896d6fc61bda0ab092b896331980c00d7b2143a04b6fca9bc4fb9eef20"
+    },
+    {
+      "file": "assets/body-double-palette-release.png",
+      "role": "double idleBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "idleBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-double@2x.png",
+        "referenceSha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 758,
+      "sha256": "116fbd962f83bb0125647d51b1a4b7de51989299df92b52ac633c327ade691bb"
+    },
+    {
+      "file": "assets/body-double-palette-release@2x.png",
+      "role": "double idleBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "idleBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-double@2x.png",
+        "referenceSha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1711,
+      "sha256": "6ad0fcfdbe3ce5e1cfee5eabf8e09cfa4bafedb153db30d5af23decc111b458f"
+    },
+    {
+      "file": "assets/body-held-double-palette-release.svg",
+      "role": "double heldBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "heldBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-double@2x.png",
+        "referenceSha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 7140,
+      "sha256": "c39a610a5c742b53cbc8e9d7e143cc26ec597ff65ad70a72fa5433e079a3e609"
+    },
+    {
+      "file": "assets/body-held-double-palette-release.png",
+      "role": "double heldBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "heldBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-double@2x.png",
+        "referenceSha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2208,
+      "sha256": "184aba5750338c599f1d951cf6a10f730433bd4d252a6e101ca71257b1cdafee"
+    },
+    {
+      "file": "assets/body-held-double-palette-release@2x.png",
+      "role": "double heldBody · 기존 릴리즈 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "anchor": "release",
+        "role": "heldBody",
+        "referenceFile": "assets/terminal-j2-shadow-3-double@2x.png",
+        "referenceSha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 9180,
+      "sha256": "7e771245fdf0115320e33a07dfbbf68c1242b721ae583e19c17ae925d002ec3f"
+    },
+    {
+      "file": "assets/note-double-palette-body.svg",
+      "role": "double point · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "point",
+        "referenceFile": "assets/body-double-center-dual-beam.png",
+        "referenceSha256": "a625b7e95f55d3d42319d6b1699be3ceb48b51e02e657a83add44f4c056eb808",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 159308,
+      "sha256": "b5fe0c71990671fddcb06e91081b2d8db52a6b1f1825c0b8f2ffc48d19c96ee6"
+    },
+    {
+      "file": "assets/note-double-palette-body.png",
+      "role": "double point · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "point",
+        "referenceFile": "assets/body-double-center-dual-beam.png",
+        "referenceSha256": "a625b7e95f55d3d42319d6b1699be3ceb48b51e02e657a83add44f4c056eb808",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 9370,
+      "sha256": "0d94b00d2d4f26c5cdd23c06fa75cb4d40631b3652f19bd960c571c4e288599d"
+    },
+    {
+      "file": "assets/note-double-palette-body@2x.png",
+      "role": "double point · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "point",
+        "referenceFile": "assets/body-double-center-dual-beam.png",
+        "referenceSha256": "a625b7e95f55d3d42319d6b1699be3ceb48b51e02e657a83add44f4c056eb808",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": null
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 28967,
+      "sha256": "44f045fda47480f320f955416786ab02afa1d27739f1c179fad9be1aa98b44eb"
+    },
+    {
+      "file": "assets/release-double-palette-body.svg",
+      "role": "double release · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large.svg",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "release",
+        "referenceFile": "assets/body-double-center-dual-beam.png",
+        "referenceSha256": "a625b7e95f55d3d42319d6b1699be3ceb48b51e02e657a83add44f4c056eb808",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 87274,
+      "sha256": "a84143a51bd5f90e5551e6435891d98e8ac1a84a47d2a828b995b869e6d23782"
+    },
+    {
+      "file": "assets/release-double-palette-body.png",
+      "role": "double release · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large.svg",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "release",
+        "referenceFile": "assets/body-double-center-dual-beam.png",
+        "referenceSha256": "a625b7e95f55d3d42319d6b1699be3ceb48b51e02e657a83add44f4c056eb808",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18815,
+      "sha256": "d22a04b192427d56e283b7399c04ecb99d63dd8e6bd296fcdb031b994aacf7a1"
+    },
+    {
+      "file": "assets/release-double-palette-body@2x.png",
+      "role": "double release · 기존 바디 기준 색 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png",
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large.svg",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "operation": {
+        "anchor": "body",
+        "role": "release",
+        "referenceFile": "assets/body-double-center-dual-beam.png",
+        "referenceSha256": "a625b7e95f55d3d42319d6b1699be3ceb48b51e02e657a83add44f4c056eb808",
+        "paletteSamples": 65,
+        "preserve": "sRGB weighted intensity, alpha, geometry",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 61698,
+      "sha256": "5d43a0a79e2e4987db2acb7c83214ac617cfc6bbdf0d0285b75d34b40a3b287b"
     },
     {
       "file": "assets/release-double-failed.svg",
@@ -7023,6 +8547,86 @@
         "idleBody": "assets/body-double-center-dual-beam.png",
         "heldBody": "assets/body-double-held.png",
         "paletteReference": "palette-reference/double.png"
+      }
+    ]
+  },
+  "paletteAnchorPreview": {
+    "approval": "proposed-artwork",
+    "note": "기존 조합과 포인트·기존 릴리즈·기존 바디 기준의 3안을 비교. 기준 에셋은 원본을 유지하고 나머지 둘만 같은 팔레트로 변환. 포인트 기준은 앞선 색 방향을 바디까지 확장.",
+    "kinds": [
+      {
+        "kind": "single",
+        "variants": [
+          {
+            "id": "original",
+            "label": "기존 조합",
+            "point": "assets/note-single.png",
+            "idleBody": "assets/body-single.png",
+            "heldBody": "assets/body-single-held.png",
+            "release": "assets/release-single-chevron-triple-tight-large.png"
+          },
+          {
+            "id": "point",
+            "label": "포인트 기준",
+            "point": "assets/note-single.png",
+            "idleBody": "assets/body-single-palette-point.png",
+            "heldBody": "assets/body-held-single-palette-point.png",
+            "release": "assets/release-single-palette-point.png"
+          },
+          {
+            "id": "release",
+            "label": "기존 릴리즈 기준",
+            "point": "assets/note-single-palette-release.png",
+            "idleBody": "assets/body-single-palette-release.png",
+            "heldBody": "assets/body-held-single-palette-release.png",
+            "release": "assets/release-single-chevron-triple-tight-large.png"
+          },
+          {
+            "id": "body",
+            "label": "기존 바디 기준",
+            "point": "assets/note-single-palette-body.png",
+            "idleBody": "assets/body-single.png",
+            "heldBody": "assets/body-single-held.png",
+            "release": "assets/release-single-palette-body.png"
+          }
+        ]
+      },
+      {
+        "kind": "double",
+        "variants": [
+          {
+            "id": "original",
+            "label": "기존 조합",
+            "point": "assets/note-double-anodized-contrast-070.png",
+            "idleBody": "assets/body-double-center-dual-beam.png",
+            "heldBody": "assets/body-double-held.png",
+            "release": "assets/release-double-chevron-triple-tight-large.png"
+          },
+          {
+            "id": "point",
+            "label": "포인트 기준",
+            "point": "assets/note-double-anodized-contrast-070.png",
+            "idleBody": "assets/body-double-palette-point.png",
+            "heldBody": "assets/body-held-double-palette-point.png",
+            "release": "assets/release-double-palette-point.png"
+          },
+          {
+            "id": "release",
+            "label": "기존 릴리즈 기준",
+            "point": "assets/note-double-palette-release.png",
+            "idleBody": "assets/body-double-palette-release.png",
+            "heldBody": "assets/body-held-double-palette-release.png",
+            "release": "assets/release-double-chevron-triple-tight-large.png"
+          },
+          {
+            "id": "body",
+            "label": "기존 바디 기준",
+            "point": "assets/note-double-palette-body.png",
+            "idleBody": "assets/body-double-center-dual-beam.png",
+            "heldBody": "assets/body-double-held.png",
+            "release": "assets/release-double-palette-body.png"
+          }
+        ]
       }
     ]
   }

@@ -2,6 +2,72 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('색 기준 3안은 기준 에셋을 유지하고 나머지 포인트·바디·릴리즈의 크기와 명암 및 알파를 보존한다', async ({ page }) => {
+  await page.goto(route + '#palette-anchors');
+  const section = page.locator('#palette-anchors');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(4);
+    for (const anchor of ['point', 'release', 'body']) {
+      const referenceSelector = anchor === 'body' ? '.palette-body' : `.palette-${anchor}`;
+      const attribute = anchor === 'body' ? 'style' : 'src';
+      const original = comparison.locator(`[data-anchor="original"] ${referenceSelector}`);
+      const candidate = comparison.locator(`[data-anchor="${anchor}"] ${referenceSelector}`);
+      expect(await candidate.evaluateAll((elements, key) => elements.map(element => element.getAttribute(key)), attribute))
+        .toEqual(await original.evaluateAll((elements, key) => elements.map(element => element.getAttribute(key)), attribute));
+      await comparison.locator(`[data-anchor="${anchor}"] summary`).click();
+      await expect(comparison.locator(`[data-anchor="${anchor}"] nav`)).toHaveCount(4);
+    }
+  }
+  const results = await page.evaluate(async () => {
+    const pixels = async (file: string, width: number, scale: number) => {
+      const image = new Image(); image.src = file; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = width * scale; canvas.height = 40 * scale;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return context.getImageData(0, 0, canvas.width, canvas.height).data;
+    };
+    const results = [];
+    for (const kind of ['single', 'double']) {
+      const point = kind === 'single' ? 'note-single' : 'note-double-anodized-contrast-070';
+      const body = kind === 'single' ? 'body-single' : 'body-double-center-dual-beam';
+      const cases = [
+        { candidate: `body-${kind}-palette-point`, original: body, width: 200 },
+        { candidate: `body-held-${kind}-palette-point`, original: `body-${kind}-held`, width: 200 },
+        { candidate: `note-${kind}-palette-release`, original: point, width: 212 },
+        { candidate: `body-${kind}-palette-release`, original: body, width: 200 },
+        { candidate: `body-held-${kind}-palette-release`, original: `body-${kind}-held`, width: 200 },
+        { candidate: `note-${kind}-palette-body`, original: point, width: 212 },
+        { candidate: `release-${kind}-palette-body`, original: `release-${kind}-chevron-triple-tight-large`, width: 200 },
+      ];
+      for (const item of cases) for (const suffix of ['.png', '@2x.png', '.svg']) {
+        const scale = suffix === '.png' ? 1 : 2;
+        const original = await pixels(`assets/${item.original}${scale === 1 ? '.png' : '.svg'}`, item.width, scale);
+        const candidate = await pixels(`assets/${item.candidate}${suffix}`, item.width, scale);
+        let maxAlphaDifference = 0, maxIntensityDifference = 0, changedPixels = 0;
+        for (let i = 0; i < original.length; i += 4) {
+          maxAlphaDifference = Math.max(maxAlphaDifference, Math.abs(original[i + 3] - candidate[i + 3]));
+          // Premultiplied color avoids amplifying rounding in nearly transparent outline pixels.
+          const difference = Math.abs([.2126, .7152, .0722].reduce((sum, weight, channel) => sum + weight * (original[i + channel] * original[i + 3] - candidate[i + channel] * candidate[i + 3]) / 255, 0));
+          maxIntensityDifference = Math.max(maxIntensityDifference, difference);
+          if (Math.max(...[0, 1, 2].map(channel => Math.abs(original[i + channel] - candidate[i + channel]))) > 5) changedPixels++;
+        }
+        results.push({ file: item.candidate + suffix, maxAlphaDifference, maxIntensityDifference, changedPixels });
+      }
+    }
+    return results;
+  });
+  expect(results).toHaveLength(42);
+  for (const result of results) {
+    expect(result.maxAlphaDifference, result.file).toBeLessThanOrEqual(1);
+    expect(result.maxIntensityDifference, result.file).toBeLessThanOrEqual(3);
+    expect(result.changedPixels, result.file).toBeGreaterThan(100);
+  }
+  for (const width of [1024, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+  }
+});
+
 test('릴리즈 팔레트 전후는 같은 포인트·바디를 쓰고 모든 PNG·SVG에서 원래 명암과 알파 및 3단 표식을 보존한다', async ({ page }) => {
   await page.goto(route + '#release-palette');
   const section = page.locator('#release-palette');

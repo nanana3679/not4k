@@ -4,7 +4,7 @@ import { chromium } from '@playwright/test';
 import { halfMask, rasterArtwork, rectangularGraceArtwork, stateArtwork } from './state-artwork.mjs';
 import { outlinedSustain } from './sustain-visibility.mjs';
 import { releaseChevron } from './release-chevron.mjs';
-import { paletteMappedArtwork, sampleReleasePalette } from './release-palette.mjs';
+import { paletteMappedArtwork, sampleArtworkPalette } from './release-palette.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -40,6 +40,11 @@ manifest.releaseSymbolPreview = {
 manifest.releasePalettePreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
   note: 'ImageGen은 포인트·바디를 참고한 색 방향만 제공. 생성본에서 색을 추출해 원래 J2-C의 sRGB 가중 밝기·알파에 적용하고 선택한 3단을 다시 합성. 포인트·바디는 원본 그대로 비교.',
+  kinds: [],
+};
+manifest.paletteAnchorPreview = {
+  approval: 'proposed-artwork',
+  note: '기존 조합과 포인트·기존 릴리즈·기존 바디 기준의 3안을 비교. 기준 에셋은 원본을 유지하고 나머지 둘만 같은 팔레트로 변환. 포인트 기준은 앞선 색 방향을 바디까지 확장.',
   kinds: [],
 };
 const browser = await chromium.launch({ headless: true });
@@ -176,7 +181,7 @@ try {
     manifest.releaseSymbolPreview.kinds.push({ kind, symbolCenters, heldBody: `assets/body-${kind}-held.png`, variants: symbolVariants });
     const paletteReference = `palette-reference/${kind}.png`;
     const referenceBytes = await readFile(new URL(paletteReference, here));
-    const paletteTable = await page.evaluate(sampleReleasePalette, `data:image/png;base64,${referenceBytes.toString('base64')}`);
+    const paletteTable = await page.evaluate(sampleArtworkPalette, `data:image/png;base64,${referenceBytes.toString('base64')}`);
     const selectedSymbol = symbolVariants.find(variant => variant.id === manifest.releaseSymbolPreview.selectedVariant);
     const candidate = await emit(`release-${kind}-palette-point`, releaseChevron(paletteMappedArtwork(source, paletteTable), { kind, centers: symbolCenters, ...selectedSymbol }), {
       nativeSource: releaseChevron(paletteMappedArtwork(nativeSource, paletteTable), { kind, centers: symbolCenters, ...selectedSymbol }),
@@ -191,6 +196,40 @@ try {
       idleBody: kind === 'single' ? 'assets/body-single.png' : 'assets/body-double-center-dual-beam.png',
       heldBody: `assets/body-${kind}-held.png`, paletteReference,
     });
+    const originals = {
+      point: kind === 'single' ? 'assets/note-single.png' : 'assets/note-double-anodized-contrast-070.png',
+      idleBody: kind === 'single' ? 'assets/body-single.png' : 'assets/body-double-center-dual-beam.png',
+      heldBody: `assets/body-${kind}-held.png`, release: selectedSymbol.file,
+    };
+    const anchorVariants = [{ id: 'original', label: '기존 조합', ...originals }];
+    for (const [anchor, label] of [['point', '포인트 기준'], ['release', '기존 릴리즈 기준'], ['body', '기존 바디 기준']]) {
+      const referenceFile = anchor === 'point' ? paletteReference : anchor === 'release' ? sourceFiles[1] : originals.idleBody;
+      const bytes = anchor === 'point' ? referenceBytes : await readFile(new URL(referenceFile, here));
+      const table = anchor === 'point' ? paletteTable : await page.evaluate(sampleArtworkPalette, `data:image/png;base64,${bytes.toString('base64')}`);
+      const variant = { id: anchor, label, ...originals };
+      for (const [role, prefix] of [['point', 'note'], ['idleBody', 'body'], ['heldBody', 'body-held'], ['release', 'release']]) {
+        if (role === anchor || (anchor === 'body' && role.endsWith('Body'))) continue;
+        if (anchor === 'point' && role === 'release') { variant.release = candidate; continue; }
+        const width = role === 'point' ? 212 : 200;
+        const sourceFile = originals[role];
+        const svgFile = sourceFile.replace('.png', '.svg');
+        const originalSource = role === 'release' ? source : (await readFile(new URL(svgFile, here))).toString();
+        const native = role === 'release' ? nativeSource : rasterArtwork(await readFile(new URL(sourceFile, here)), width);
+        const recolor = input => {
+          const artwork = paletteMappedArtwork(input, table, { width });
+          return role === 'release' ? releaseChevron(artwork, { kind, centers: symbolCenters, ...selectedSymbol }) : artwork;
+        };
+        variant[role] = await emit(`${prefix}-${kind}-palette-${anchor}`, recolor(originalSource), {
+          nativeSource: recolor(native), width,
+          role: `${kind} ${role} · ${label} 색 시안`, sourceFiles: [...(role === 'release' ? sourceFiles : []), sourceFile, svgFile, referenceFile],
+          operation: { anchor, role, referenceFile, referenceSha256: createHash('sha256').update(bytes).digest('hex'),
+            paletteSamples: table.length, preserve: 'sRGB weighted intensity, alpha, geometry', symbolVariant: role === 'release' ? selectedSymbol.id : null },
+          approval: 'proposed-artwork',
+        });
+      }
+      anchorVariants.push(variant);
+    }
+    manifest.paletteAnchorPreview.kinds.push({ kind, variants: anchorVariants });
     const states = [state('pending', '미처리 · J2-C', `assets/release-${kind}.png`)];
     for (const side of ['all', ...(kind === 'double' ? ['left', 'right'] : [])]) {
       const id = side === 'all' ? 'failed' : `partial-failed-${side}`;
