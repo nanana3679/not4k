@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
-test('3단 표식의 실제 알파는 위부터 100%·55%·20%이며 꼭짓점 x는 활성 광선 픽셀 중심과 일치한다', async ({ page }) => {
+test('3단 표식의 실제 알파는 위부터 100%·80%·50%이며 꼭짓점 x는 활성 광선 픽셀 중심과 일치한다', async ({ page }) => {
   await page.goto(route + '#release-symbol');
   const guides = page.locator('#release-symbol .release-beam-guide');
   await expect(guides.first()).toBeHidden();
@@ -49,7 +49,7 @@ test('3단 표식의 실제 알파는 위부터 100%·55%·20%이며 꼭짓점 x
     expect(row.centers).toEqual(row.kind === 'single' ? [100] : [84, 116]);
     expect(row.symbolCenters).toEqual(row.centers);
     expect(row.ratios).toHaveLength(3);
-    for (const [i, alpha] of [1, 0.55, 0.2].entries()) expect(row.ratios[i]).toBeCloseTo(alpha, 2);
+    for (const [i, alpha] of [1, 0.8, 0.5].entries()) expect(row.ratios[i]).toBeCloseTo(alpha, 2);
   }
   await page.getByLabel('광선 중심선 보기').uncheck();
   await expect(guides.first()).toBeHidden();

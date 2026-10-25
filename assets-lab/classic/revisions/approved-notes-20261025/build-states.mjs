@@ -30,7 +30,7 @@ manifest.sustainVisibilityPreview = {
 };
 manifest.releaseSymbolPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
-  note: '2단 B와 아래로 흐려지는 3단 두 안을 비교. 3단은 14px 경로 폭·2.2px 선, 위부터 alpha 1·0.55·0.2. 윤곽도 함께 흐려짐. 아이콘 중심은 바디 광선 좌표를 공유.',
+  note: '2단 B와 아래로 흐려지는 3단 두 안을 비교. 3단은 14px 경로 폭·2.2px 선, 위부터 alpha 1·0.8·0.5. 윤곽도 함께 흐려짐. 아이콘 중심은 바디 광선 좌표를 공유.',
   comparisonIds: ['ratio-b', 'triple-fade', 'triple-tight'],
   reference: 'https://lucide.dev/icons/chevrons-up',
   kinds: [],
@@ -152,9 +152,9 @@ try {
       { id: 'ratio-b', label: 'B · 완만한 각도', strokeWidth: 2.5, pathWidth: 18, chevronRise: 5, chevronOffset: 6 },
       { id: 'ratio-c', label: 'C · 납작하게', strokeWidth: 2.5, pathWidth: 16, chevronRise: 4, chevronOffset: 5.5 },
       { id: 'triple-fade', label: '3단 · 아래로 흐리게', strokeWidth: 2.2, pathWidth: 14, chevronRise: 4.5, chevronOffset: 6,
-        layerAlphas: [1, 0.55, 0.2], outlineWidth: 0.6, outlineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' },
+        layerAlphas: [1, 0.8, 0.5], outlineWidth: 0.6, outlineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' },
       { id: 'triple-tight', label: '3단 · 촘촘하게', strokeWidth: 2.2, pathWidth: 14, chevronRise: 4.5, chevronOffset: 5,
-        layerAlphas: [1, 0.55, 0.2], outlineWidth: 0.6, outlineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' },
+        layerAlphas: [1, 0.8, 0.5], outlineWidth: 0.6, outlineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' },
     ]) {
       const file = await emit(`release-${kind}-chevron-${id}`, releaseChevron(source, { kind, centers: symbolCenters, ...geometry }), {
         nativeSource: releaseChevron(nativeSource, { kind, centers: symbolCenters, ...geometry }),

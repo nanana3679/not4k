@@ -146,7 +146,7 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     }
   });
 
-  it('릴리즈 3단은 alpha 1·0.55·0.2로 흐려지고 표식 중심은 바디 광선과 일치하며 기존 J2-C 상태를 보존한다', () => {
+  it('릴리즈 3단은 alpha 1·0.8·0.5로 흐려지고 표식 중심은 바디 광선과 일치하며 기존 J2-C 상태를 보존한다', () => {
     expect(manifest.releaseSymbolPreview.approval).toBe('proposed-artwork');
     expect(manifest.releaseSymbolPreview.comparisonIds).toEqual(['ratio-b', 'triple-fade', 'triple-tight']);
     expect(manifest.releaseSymbolPreview.kinds.map(item => item.kind)).toEqual(['single', 'double']);
@@ -161,7 +161,7 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
       expect(group(`release-${item.kind}`).states.find(state => state.id === 'pending')!.file).toBe(item.variants[0].file);
       for (const variant of item.variants.slice(1)) {
         expect(manifest.assets.find(asset => asset.file === variant.file)).toMatchObject({ width: 200, height: 40, skinKey: null, proposedRuntimePath: null });
-        if (variant.id.startsWith('triple-')) expect(variant.layerAlphas).toEqual([1, 0.55, 0.2]);
+        if (variant.id.startsWith('triple-')) expect(variant.layerAlphas).toEqual([1, 0.8, 0.5]);
         const source = readFileSync(new URL(variant.file.replace('.png', '.svg'), here), 'utf8');
         expect(source.match(/data-release-symbol="stacked-up-chevrons"/g)).toHaveLength(item.kind === 'single' ? 1 : 2);
         for (const center of item.symbolCenters) expect(source).toContain(`transform="translate(${center} 0)"`);

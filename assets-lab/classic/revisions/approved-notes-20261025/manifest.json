@@ -2740,8 +2740,8 @@
         "chevronOffset": 6,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -2764,8 +2764,8 @@
         0,
         0
       ],
-      "bytes": 76335,
-      "sha256": "d0a9a51ef9ec69a8e34f84db5f3f5a727f1c16016e22a39584215525a2d7b42f"
+      "bytes": 76334,
+      "sha256": "c3e67efe5cfcb6c3054db9c496dd58c84ba3061dad249f3ba47d1e329a77db53"
     },
     {
       "file": "assets/release-single-chevron-triple-fade.png",
@@ -2786,8 +2786,8 @@
         "chevronOffset": 6,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -2810,8 +2810,8 @@
         0,
         0
       ],
-      "bytes": 17092,
-      "sha256": "28e84b502399b0deab495fe43675186604bdbe6344e7bf710035d77a68a33c19"
+      "bytes": 17139,
+      "sha256": "007efa5bb0840c6898e0241ec9d9f36a5045c17a3d5e39e95881010dee227ac1"
     },
     {
       "file": "assets/release-single-chevron-triple-fade@2x.png",
@@ -2832,8 +2832,8 @@
         "chevronOffset": 6,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -2856,8 +2856,8 @@
         0,
         0
       ],
-      "bytes": 58226,
-      "sha256": "e22795ef4e9407be9a564b5badc3270f279ecba9bbb12898f8eb8dd74b505866"
+      "bytes": 58341,
+      "sha256": "9e7c9fb219ef1b023fad3bf7ce772f57872d3e3226f2bab86519a738f9917851"
     },
     {
       "file": "assets/release-single-chevron-triple-tight.svg",
@@ -2878,8 +2878,8 @@
         "chevronOffset": 5,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -2902,8 +2902,8 @@
         0,
         0
       ],
-      "bytes": 76335,
-      "sha256": "637e34b6c9ce58b0b7ef44ceedf4231ff12c6d8817b3d15a86a3b428ada145d6"
+      "bytes": 76334,
+      "sha256": "76b7ea61abf871e3e07589135a2e6c7f704f7845d5fc660c9f7a9259d19e78e7"
     },
     {
       "file": "assets/release-single-chevron-triple-tight.png",
@@ -2924,8 +2924,8 @@
         "chevronOffset": 5,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -2948,8 +2948,8 @@
         0,
         0
       ],
-      "bytes": 17044,
-      "sha256": "bda012a692d05cd3f72c2ee40512c8ab16becec875229ea4255c232c5b1fb501"
+      "bytes": 17094,
+      "sha256": "33fcb3b5933289ee171cbc46376c2eee43fc28e4b7130e4f842c18656ad7593b"
     },
     {
       "file": "assets/release-single-chevron-triple-tight@2x.png",
@@ -2970,8 +2970,8 @@
         "chevronOffset": 5,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -2994,8 +2994,8 @@
         0,
         0
       ],
-      "bytes": 58244,
-      "sha256": "4c3904d23c697264bcf84e3b7680c6b3268c645c0eefeb16d34e734f2ce4cebe"
+      "bytes": 58356,
+      "sha256": "9090dcaed1e35fb24172a220c6e62b73ddcb74514271d6eae487552e9584c41f"
     },
     {
       "file": "assets/release-single-failed.svg",
@@ -3857,8 +3857,8 @@
         "chevronOffset": 6,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -3881,8 +3881,8 @@
         0,
         0
       ],
-      "bytes": 85036,
-      "sha256": "e4bb31180efe7704bdd664c0a081fb2f4bfa422090fc503ca9399f3ba1772056"
+      "bytes": 85034,
+      "sha256": "044507a3f953b2313d4e4cb9eafa86ed3150de6da812de72feda03785c6781eb"
     },
     {
       "file": "assets/release-double-chevron-triple-fade.png",
@@ -3904,8 +3904,8 @@
         "chevronOffset": 6,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -3928,8 +3928,8 @@
         0,
         0
       ],
-      "bytes": 18786,
-      "sha256": "22d100a328459e8330713a72af056af6f3cbde124486e6d8480015258d5fc2b6"
+      "bytes": 18909,
+      "sha256": "fee47406b202fa6930782b900c4d20f47200d319822498cd11f2f4e71dd16ee0"
     },
     {
       "file": "assets/release-double-chevron-triple-fade@2x.png",
@@ -3951,8 +3951,8 @@
         "chevronOffset": 6,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -3975,8 +3975,8 @@
         0,
         0
       ],
-      "bytes": 65513,
-      "sha256": "13b5f4cba1b3985673593c60cc40e16f633de5cbb229919284944883651f02b4"
+      "bytes": 65888,
+      "sha256": "9d0d58c6fc56b9ed45d71c03a5eda5e7ad0e1af80e1df57c529e134cd7015530"
     },
     {
       "file": "assets/release-double-chevron-triple-tight.svg",
@@ -3998,8 +3998,8 @@
         "chevronOffset": 5,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -4022,8 +4022,8 @@
         0,
         0
       ],
-      "bytes": 85036,
-      "sha256": "40117a882ea128203d104760142f024a46cdfc0536645927e601eedb86b02799"
+      "bytes": 85034,
+      "sha256": "3b7ba3989a2e6cd80279e319a35154db19dd8d11292d85ca372bae6dac98b982"
     },
     {
       "file": "assets/release-double-chevron-triple-tight.png",
@@ -4045,8 +4045,8 @@
         "chevronOffset": 5,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -4069,8 +4069,8 @@
         0,
         0
       ],
-      "bytes": 18698,
-      "sha256": "8a144a30a223e5847ffe384e1d896e6965dc0a343a6d068fa007dc813eb94a73"
+      "bytes": 18801,
+      "sha256": "600729dcb25ca77de360226d0ad00a9017ecc9c72ca0a143ecb97327661d08ea"
     },
     {
       "file": "assets/release-double-chevron-triple-tight@2x.png",
@@ -4092,8 +4092,8 @@
         "chevronOffset": 5,
         "layerAlphas": [
           1,
-          0.55,
-          0.2
+          0.8,
+          0.5
         ],
         "outlineWidth": 0.6,
         "outlineOpacity": 0.55,
@@ -4116,8 +4116,8 @@
         0,
         0
       ],
-      "bytes": 65520,
-      "sha256": "646768c0dd6a6638a846b08920914e65bde40fcd4863028a86d69043b741c467"
+      "bytes": 65854,
+      "sha256": "717406492e022093d91c261a1f822f83775495e135b9a318bff4c80551659ead"
     },
     {
       "file": "assets/release-double-failed.svg",
@@ -6264,7 +6264,7 @@
       200,
       40
     ],
-    "note": "2단 B와 아래로 흐려지는 3단 두 안을 비교. 3단은 14px 경로 폭·2.2px 선, 위부터 alpha 1·0.55·0.2. 윤곽도 함께 흐려짐. 아이콘 중심은 바디 광선 좌표를 공유.",
+    "note": "2단 B와 아래로 흐려지는 3단 두 안을 비교. 3단은 14px 경로 폭·2.2px 선, 위부터 alpha 1·0.8·0.5. 윤곽도 함께 흐려짐. 아이콘 중심은 바디 광선 좌표를 공유.",
     "comparisonIds": [
       "ratio-b",
       "triple-fade",
@@ -6339,8 +6339,8 @@
             "chevronOffset": 6,
             "layerAlphas": [
               1,
-              0.55,
-              0.2
+              0.8,
+              0.5
             ],
             "outlineWidth": 0.6,
             "outlineOpacity": 0.55,
@@ -6357,8 +6357,8 @@
             "chevronOffset": 5,
             "layerAlphas": [
               1,
-              0.55,
-              0.2
+              0.8,
+              0.5
             ],
             "outlineWidth": 0.6,
             "outlineOpacity": 0.55,
@@ -6435,8 +6435,8 @@
             "chevronOffset": 6,
             "layerAlphas": [
               1,
-              0.55,
-              0.2
+              0.8,
+              0.5
             ],
             "outlineWidth": 0.6,
             "outlineOpacity": 0.55,
@@ -6453,8 +6453,8 @@
             "chevronOffset": 5,
             "layerAlphas": [
               1,
-              0.55,
-              0.2
+              0.8,
+              0.5
             ],
             "outlineWidth": 0.6,
             "outlineOpacity": 0.55,
