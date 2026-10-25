@@ -63,6 +63,8 @@
 .release-junction-sketches svg{display:block;width:100%;max-width:280px;margin:auto}
 .release-junction-sketches path{fill:none;stroke:#ffcadf;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .release-junction-sketches .junction-side-face{fill:#65502b;stroke:none}
+.junction-crops{display:flex;justify-content:center;gap:20px}
+.junction-crops svg{display:block;width:140px;max-width:calc(50% - 10px);height:auto;background:#080c12}
 
 .release-parts-controls{border:0;margin:24px 0;padding:0}
 .release-parts-controls legend{font-size:13px;color:#b5c4d5;margin-bottom:12px}

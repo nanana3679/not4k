@@ -8,6 +8,7 @@ import { paletteMappedArtwork, sampleArtworkPalette } from './release-palette.mj
 import { releaseMaterialArtwork } from './release-material.mjs';
 import { splitReleaseHighlight, releaseWideMaterialArtwork } from './release-highlight.mjs';
 import { releaseBeamEndsArtwork } from './release-beam-ends.mjs';
+import { releaseSteppedJunctionArtwork } from './release-stepped-junctions.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -67,6 +68,11 @@ manifest.releaseWideMaterialPreview = {
   darkSurface: 'central-face', whiteLightAlphas: [1, .5, 0], kinds: [],
 };
 const browser = await chromium.launch({ headless: true });
+manifest.releaseJunctionPreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '사용자가 확인한 양옆 가로 띠와 중앙 경사 테두리 접점에 짧은 옆면을 추가. 경계가 두 갈래로 나뉘어 낮은 어두운 면과 높은 면의 단차를 표현하며 기존 색·꺾쇠·싱글 한 빛·더블 두 빛을 유지.',
+  kinds: [],
+};
 const page = await browser.newPage();
 const read = name => readFile(new URL(`assets/${name}`, here));
 const svg = async name => (await read(`${name}.svg`)).toString();
@@ -309,6 +315,18 @@ try {
         note: '바디에 맞춘 릴리즈 색 방향을 유지. 중앙 흰빛 하나를 x=84·116의 두 광선 끝으로 나누며 싱글은 기존 한 지점을 유지.',
       };
     }
+    const junctionOriginal = kind === 'double' ? manifest.releaseBeamEndPreview.candidate : anchorVariants.find(variant => variant.id === 'body').release;
+    const junctionReference = `junction-reference/${kind}.png`;
+    const junctionBytes = await readFile(new URL(junctionReference, here));
+    const junctionGeometry = JSON.parse(await readFile(new URL('junction-reference/crops.json', here), 'utf8'))[kind];
+    const junctionCandidate = await emit(`release-${kind}-stepped-junctions`, releaseSteppedJunctionArtwork(await readFile(new URL(junctionOriginal.replace('.png', '@2x.png'), here)), junctionBytes, junctionGeometry), {
+      nativeSource: releaseSteppedJunctionArtwork(await readFile(new URL(junctionOriginal, here)), junctionBytes, junctionGeometry),
+      role: `${kind} 릴리즈 · 가로 띠와 경사 테두리의 짧은 단차 옆면`,
+      sourceFiles: [junctionOriginal, junctionOriginal.replace('.png', '@2x.png'), junctionReference, 'junction-reference/prompts.json', 'junction-reference/crops.json', 'junction-reference/explanation.png'],
+      operation: { ...junctionGeometry, junctions2x: [[104, 42], [296, 42]], patchBounds2x: [[82, 22, 45, 44], [273, 22, 45, 44]], referenceSha256: createHash('sha256').update(junctionBytes).digest('hex'), preserve: 'original pixels outside junctions, chevrons, palette, beam-end hotspots and alpha' },
+      approval: 'proposed-artwork',
+    });
+    manifest.releaseJunctionPreview.kinds.push({ kind, original: junctionOriginal, candidate: junctionCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
       { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },

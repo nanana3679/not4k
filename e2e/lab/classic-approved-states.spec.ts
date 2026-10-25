@@ -2,6 +2,56 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('싱글·더블 단차 수정은 좌우 접점만 바꾸고 화살표·광선 끝 흰빛·알파를 PNG와 SVG에서 보존한다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '단차 수정 전후' }).click();
+  await expect(page).toHaveURL(/#release-stepped-junctions$/);
+  const section = page.locator('#release-stepped-junctions');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(2);
+    await expect(comparison.locator('.junction-crops svg')).toHaveCount(4);
+    await expect(comparison.locator('[data-variant="candidate"] nav a')).toHaveCount(3);
+  }
+  const results = await page.evaluate(async () => {
+    const results = [];
+    for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
+      const scale = suffix === '.png' ? 1 : 2;
+      const width = 200 * scale, height = 40 * scale;
+      const pixels = async (file: string) => {
+        const image = new Image(); image.src = `assets/${file}`; await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, width, height);
+        return context.getImageData(0, 0, width, height).data;
+      };
+      const originalName = kind === 'single' ? 'release-single-palette-body' : 'release-double-palette-body-dual-ends';
+      const original = await pixels(originalName + (scale === 1 ? '.png' : '@2x.png'));
+      const candidate = await pixels(`release-${kind}-stepped-junctions${suffix}`);
+      let outsideDifference = 0, alphaDifference = 0;
+      const changed = [0, 0];
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        const difference = Math.max(...[0, 1, 2].map(c => Math.abs(candidate[i + c] - original[i + c])));
+        alphaDifference = Math.max(alphaDifference, Math.abs(candidate[i + 3] - original[i + 3]));
+        const side = [[82, 127], [273, 318]].findIndex(([start, end]) => x >= Math.floor(start * scale / 2) && x < Math.ceil(end * scale / 2));
+        if (side >= 0 && y >= 11 * scale && y < 33 * scale) {
+          if (difference > 8) changed[side]++;
+        } else outsideDifference = Math.max(outsideDifference, difference);
+      }
+      results.push({ kind, suffix, outsideDifference, alphaDifference, changed });
+    }
+    return results;
+  });
+  for (const result of results) {
+    const label = result.kind + result.suffix;
+    expect(result.outsideDifference, label).toBe(0);
+    expect(result.alphaDifference, label).toBe(0);
+    for (const count of result.changed) expect(count, label).toBeGreaterThan(20);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('단차 접점 안내에서 더블 도안의 좌우 접점과 한 경계·두 경계 연결을 모바일에서도 확인한다', async ({ page }) => {
   await page.goto(route);
   await page.locator('.jump').getByRole('link', { name: '단차 접점' }).click();

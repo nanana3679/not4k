@@ -4525,6 +4525,210 @@
       "sha256": "5aedafe7063a7df19f876f59b8866e8a6171d92f8066822a8215fcb495e90e1b"
     },
     {
+      "file": "assets/release-single-stepped-junctions.svg",
+      "role": "single 릴리즈 · 가로 띠와 경사 테두리의 짧은 단차 옆면",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-palette-body.png",
+        "assets/release-single-palette-body@2x.png",
+        "junction-reference/single.png",
+        "junction-reference/prompts.json",
+        "junction-reference/crops.json",
+        "junction-reference/explanation.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          137,
+          2048,
+          410
+        ],
+        "junctions2x": [
+          [
+            104,
+            42
+          ],
+          [
+            296,
+            42
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            82,
+            22,
+            45,
+            44
+          ],
+          [
+            273,
+            22,
+            45,
+            44
+          ]
+        ],
+        "referenceSha256": "73256031e48a866f7e363fa97ccf67961434775386cc2f712c8351ed1403cc81",
+        "preserve": "original pixels outside junctions, chevrons, palette, beam-end hotspots and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1847500,
+      "sha256": "d805f40c8771840a008a069ea1bb3c8f3ab78af8f963ece679fa1866d8293fe5"
+    },
+    {
+      "file": "assets/release-single-stepped-junctions.png",
+      "role": "single 릴리즈 · 가로 띠와 경사 테두리의 짧은 단차 옆면",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-palette-body.png",
+        "assets/release-single-palette-body@2x.png",
+        "junction-reference/single.png",
+        "junction-reference/prompts.json",
+        "junction-reference/crops.json",
+        "junction-reference/explanation.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          137,
+          2048,
+          410
+        ],
+        "junctions2x": [
+          [
+            104,
+            42
+          ],
+          [
+            296,
+            42
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            82,
+            22,
+            45,
+            44
+          ],
+          [
+            273,
+            22,
+            45,
+            44
+          ]
+        ],
+        "referenceSha256": "73256031e48a866f7e363fa97ccf67961434775386cc2f712c8351ed1403cc81",
+        "preserve": "original pixels outside junctions, chevrons, palette, beam-end hotspots and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18045,
+      "sha256": "d910fcdf80fdedd7ced241260344bf842671973252a349b6f8b8185b0e88c63c"
+    },
+    {
+      "file": "assets/release-single-stepped-junctions@2x.png",
+      "role": "single 릴리즈 · 가로 띠와 경사 테두리의 짧은 단차 옆면",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-palette-body.png",
+        "assets/release-single-palette-body@2x.png",
+        "junction-reference/single.png",
+        "junction-reference/prompts.json",
+        "junction-reference/crops.json",
+        "junction-reference/explanation.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          137,
+          2048,
+          410
+        ],
+        "junctions2x": [
+          [
+            104,
+            42
+          ],
+          [
+            296,
+            42
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            82,
+            22,
+            45,
+            44
+          ],
+          [
+            273,
+            22,
+            45,
+            44
+          ]
+        ],
+        "referenceSha256": "73256031e48a866f7e363fa97ccf67961434775386cc2f712c8351ed1403cc81",
+        "preserve": "original pixels outside junctions, chevrons, palette, beam-end hotspots and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 59519,
+      "sha256": "d4e8de6a0b995f1a3dfc468adec16183b0da5b0c55245309dc49f1c3b86f33b7"
+    },
+    {
       "file": "assets/body-single-balance-gentle.svg",
       "role": "single idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -7984,6 +8188,210 @@
       "sha256": "7bddb628de6be46036f8f5a577a27ab3b2ef4406a8f78f47e07223ac131d58cb"
     },
     {
+      "file": "assets/release-double-stepped-junctions.svg",
+      "role": "double 릴리즈 · 가로 띠와 경사 테두리의 짧은 단차 옆면",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-palette-body-dual-ends.png",
+        "assets/release-double-palette-body-dual-ends@2x.png",
+        "junction-reference/double.png",
+        "junction-reference/prompts.json",
+        "junction-reference/crops.json",
+        "junction-reference/explanation.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          138,
+          2048,
+          400
+        ],
+        "junctions2x": [
+          [
+            104,
+            42
+          ],
+          [
+            296,
+            42
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            82,
+            22,
+            45,
+            44
+          ],
+          [
+            273,
+            22,
+            45,
+            44
+          ]
+        ],
+        "referenceSha256": "b8f17228ed238f921729be5a9fd9e6c70a007f1f14e53fb95ab07d0686d87053",
+        "preserve": "original pixels outside junctions, chevrons, palette, beam-end hotspots and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1788024,
+      "sha256": "3ec6cd8d743784b0aeb4c3b57007faf93b20342deeffe1124ee7cf7223563843"
+    },
+    {
+      "file": "assets/release-double-stepped-junctions.png",
+      "role": "double 릴리즈 · 가로 띠와 경사 테두리의 짧은 단차 옆면",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-palette-body-dual-ends.png",
+        "assets/release-double-palette-body-dual-ends@2x.png",
+        "junction-reference/double.png",
+        "junction-reference/prompts.json",
+        "junction-reference/crops.json",
+        "junction-reference/explanation.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          138,
+          2048,
+          400
+        ],
+        "junctions2x": [
+          [
+            104,
+            42
+          ],
+          [
+            296,
+            42
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            82,
+            22,
+            45,
+            44
+          ],
+          [
+            273,
+            22,
+            45,
+            44
+          ]
+        ],
+        "referenceSha256": "b8f17228ed238f921729be5a9fd9e6c70a007f1f14e53fb95ab07d0686d87053",
+        "preserve": "original pixels outside junctions, chevrons, palette, beam-end hotspots and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 19392,
+      "sha256": "6ef9925daa420b719040feae11153855269d3d67ee8f20fcfed83a229ff422ac"
+    },
+    {
+      "file": "assets/release-double-stepped-junctions@2x.png",
+      "role": "double 릴리즈 · 가로 띠와 경사 테두리의 짧은 단차 옆면",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-palette-body-dual-ends.png",
+        "assets/release-double-palette-body-dual-ends@2x.png",
+        "junction-reference/double.png",
+        "junction-reference/prompts.json",
+        "junction-reference/crops.json",
+        "junction-reference/explanation.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2048,
+          683
+        ],
+        "crop": [
+          0,
+          138,
+          2048,
+          400
+        ],
+        "junctions2x": [
+          [
+            104,
+            42
+          ],
+          [
+            296,
+            42
+          ]
+        ],
+        "patchBounds2x": [
+          [
+            82,
+            22,
+            45,
+            44
+          ],
+          [
+            273,
+            22,
+            45,
+            44
+          ]
+        ],
+        "referenceSha256": "b8f17228ed238f921729be5a9fd9e6c70a007f1f14e53fb95ab07d0686d87053",
+        "preserve": "original pixels outside junctions, chevrons, palette, beam-end hotspots and alpha"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 64636,
+      "sha256": "89ed04bfe460b9a37bb52dc09d19228516258f189331b48c32efe3372c2866d6"
+    },
+    {
       "file": "assets/body-double-balance-gentle.svg",
       "role": "double idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -11323,5 +11731,31 @@
     "idleBody": "assets/body-double-center-dual-beam.png",
     "heldBody": "assets/body-double-held.png",
     "note": "바디에 맞춘 릴리즈 색 방향을 유지. 중앙 흰빛 하나를 x=84·116의 두 광선 끝으로 나누며 싱글은 기존 한 지점을 유지."
+  },
+  "releaseJunctionPreview": {
+    "approval": "proposed-artwork",
+    "targetSize": [
+      200,
+      40
+    ],
+    "note": "사용자가 확인한 양옆 가로 띠와 중앙 경사 테두리 접점에 짧은 옆면을 추가. 경계가 두 갈래로 나뉘어 낮은 어두운 면과 높은 면의 단차를 표현하며 기존 색·꺾쇠·싱글 한 빛·더블 두 빛을 유지.",
+    "kinds": [
+      {
+        "kind": "single",
+        "original": "assets/release-single-palette-body.png",
+        "candidate": "assets/release-single-stepped-junctions.png",
+        "point": "assets/note-single.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png"
+      },
+      {
+        "kind": "double",
+        "original": "assets/release-double-palette-body-dual-ends.png",
+        "candidate": "assets/release-double-stepped-junctions.png",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png"
+      }
+    ]
   }
 }
