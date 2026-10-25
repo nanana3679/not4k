@@ -7,6 +7,7 @@ import { releaseChevron } from './release-chevron.mjs';
 import { paletteMappedArtwork, sampleArtworkPalette } from './release-palette.mjs';
 import { releaseMaterialArtwork } from './release-material.mjs';
 import { splitReleaseHighlight, releaseWideMaterialArtwork } from './release-highlight.mjs';
+import { releaseBeamEndsArtwork } from './release-beam-ends.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -290,6 +291,24 @@ try {
       anchorVariants.push(variant);
     }
     manifest.paletteAnchorPreview.kinds.push({ kind, variants: anchorVariants });
+    if (kind === 'double') {
+      const original = anchorVariants.find(variant => variant.id === 'body').release;
+      const reference = 'beam-end-reference/double.png';
+      const referenceBytes = await readFile(new URL(reference, here));
+      const geometry = JSON.parse(await readFile(new URL('beam-end-reference/crop.json', here), 'utf8'));
+      const file = await emit('release-double-palette-body-dual-ends', releaseBeamEndsArtwork(await readFile(new URL(original.replace('.png', '@2x.png'), here)), referenceBytes, geometry), {
+        nativeSource: releaseBeamEndsArtwork(await readFile(new URL(original, here)), referenceBytes, geometry),
+        role: '더블 릴리즈 · 두 광선 끝에 맞춘 흰빛 두 지점',
+        sourceFiles: [original, original.replace('.png', '@2x.png'), reference, 'beam-end-reference/prompts.json', 'beam-end-reference/crop.json'],
+        operation: { ...geometry, reference, referenceSha256: createHash('sha256').update(referenceBytes).digest('hex'), preserve: 'original pixels outside lower central rim, chevrons, selected body palette and alpha' },
+        approval: 'proposed-artwork',
+      });
+      manifest.releaseBeamEndPreview = {
+        approval: 'proposed-artwork', targetSize: [200, 40], beamCenters: geometry.beamCenters,
+        original, candidate: file, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody,
+        note: '바디에 맞춘 릴리즈 색 방향을 유지. 중앙 흰빛 하나를 x=84·116의 두 광선 끝으로 나누며 싱글은 기존 한 지점을 유지.',
+      };
+    }
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
       { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },

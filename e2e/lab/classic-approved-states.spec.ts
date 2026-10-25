@@ -2,6 +2,68 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('더블 릴리즈는 광선 x=84·116에 두 밝은 지점을 만들고 중앙 띠 밖 도안과 알파를 유지한다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '더블 빛 두 지점' }).click();
+  await expect(page).toHaveURL(/#release-beam-ends$/);
+  const section = page.locator('#release-beam-ends');
+  await expect(section.locator('article')).toHaveCount(2);
+  await expect(section.locator('[data-variant="candidate"] nav a')).toHaveCount(3);
+  const comparisons = await page.evaluate(async () => {
+    const results = [];
+    for (const suffix of ['.png', '@2x.png', '.svg']) {
+      const scale = suffix === '.png' ? 1 : 2;
+      const width = 200 * scale, height = 40 * scale;
+      const pixels = async (file: string) => {
+        const image = new Image(); image.src = `assets/${file}`; await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, width, height);
+        return context.getImageData(0, 0, width, height).data;
+      };
+      const original = await pixels(`release-double-palette-body${scale === 1 ? '.png' : '@2x.png'}`);
+      const candidate = await pixels(`release-double-palette-body-dual-ends${suffix}`);
+      let outsideDifference = 0, alphaDifference = 0;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        alphaDifference = Math.max(alphaDifference, Math.abs(candidate[i + 3] - original[i + 3]));
+        if (x < 65 * scale || x >= 135 * scale || y < 26 * scale || y >= 39 * scale) {
+          for (let c = 0; c < 3; c++) outsideDifference = Math.max(outsideDifference, Math.abs(candidate[i + c] - original[i + c]));
+        }
+      }
+      // White in the gold rim has a higher minimum RGB channel than its gold surroundings.
+      const whiteness = (data: Uint8ClampedArray, x: number) => {
+        let total = 0;
+        for (let y = 29 * scale; y < 37 * scale; y++) {
+          const i = (y * width + x) * 4;
+          total += Math.min(data[i], data[i + 1], data[i + 2]);
+        }
+        return total / (8 * scale);
+      };
+      const peaks = [84, 116].map(center => {
+        let peak = { x: 0, value: 0 };
+        for (let x = (center - 6) * scale; x <= (center + 6) * scale; x++) {
+          const value = whiteness(candidate, x);
+          if (value > peak.value) peak = { x: x / scale, value };
+        }
+        return { ...peak, expected: center };
+      });
+      results.push({ suffix, outsideDifference, alphaDifference, peaks, center: whiteness(candidate, 100 * scale), oldCenter: whiteness(original, 100 * scale) });
+    }
+    return results;
+  });
+  for (const result of comparisons) {
+    expect(result.outsideDifference, result.suffix).toBe(0);
+    expect(result.alphaDifference, result.suffix).toBe(0);
+    expect(result.center).toBeLessThan(result.oldCenter - 30);
+    for (const peak of result.peaks) {
+      expect(Math.abs(peak.x - peak.expected), result.suffix).toBeLessThanOrEqual(1);
+      expect(peak.value).toBeGreaterThan(result.center + 30);
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('릴리즈와 바디 색 비교는 원래 포인트·바디 위에 원본과 바디색 릴리즈만 바꿔 표시한다', async ({ page }) => {
   await page.goto(route);
   await page.locator('.jump').getByRole('link', { name: '릴리즈·바디 색' }).click();

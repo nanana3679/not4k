@@ -1,6 +1,6 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 보존 원본 24개와 복사·상태별 생성물 267개, 총 291개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 270개, 총 294개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
@@ -61,6 +61,12 @@
 새 상태 파일은 `body-double-held`, `body-double-partial-held-{left,right}`, `body-double-failed`, `body-double-partial-failed-{left,right}`, `note-double-failed`, `sustain-{single,double}-failed`, `sustain-double-partial-failed-{left,right}`, `{sustain,release}-double-unit-{left,right}[-failed]`, `unit-mask-{left,right}` 이름으로 찾을 수 있다.
 
 ## 재생성 및 미리보기
+
+### 더블 릴리즈 · 두 광선 끝에 흰빛 맞추기
+
+`#release-beam-ends`는 사용자가 확인한 바디 기준 릴리즈 색을 유지하고 더블의 중앙 흰빛 한 지점을 **광선 x=84·116에 맞춘 두 지점**으로 나눈 비교다. 두 화살표 아래의 얇은 띠는 이어지고 x=100에는 별도 밝은 중심을 두지 않는다. 싱글의 한 지점은 기존 그대로다. 수정 전·후를 확대, 활성 바디 연결, 게임 배율 대기/활성으로 확인한다.
+
+내장 `image_gen.imagegen`으로 바디색 더블 릴리즈의 하단 빛만 수정했다. 전체 프롬프트·생성 원본·정렬 crop은 [`beam-end-reference/`](beam-end-reference/)에 보존한다. `release-beam-ends.mjs`는 생성본에서 중앙 하단 띠(400×80 좌표의 x=130～270, y=52～77)만 가장자리를 부드럽게 합성하고, 나머지 원본 픽셀과 3단 표식·알파를 유지한다. `release-double-palette-body-dual-ends` PNG·2배 PNG·SVG 3개와 `manifest.releaseBeamEndPreview`를 추가하며 앞선 291개는 그대로 보존한다. 새 도안의 실제 스킨·실패·Grace 파생본 적용은 별도다.
 
 ### 릴리즈와 바디만 색 맞추기
 
