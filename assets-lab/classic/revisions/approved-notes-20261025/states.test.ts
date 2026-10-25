@@ -16,13 +16,13 @@ interface PointSuccessPreview {
   progression: State[];
 }
 const here = new URL('./', import.meta.url);
-const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; releaseSymbolPreview: { approval: string; comparisonIds: string[]; kinds: { kind: string; symbolCenters: number[]; variants: { id: string; file: string; strokeWidth?: number }[] }[] }; sustainVisibilityPreview: { approval: string; outlineWidth: number; selected: { single: string }; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; railCandidate?: string; railMarkerWidth?: number; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; releaseSymbolPreview: { approval: string; comparisonIds: string[]; kinds: { kind: string; symbolCenters: number[]; variants: { id: string; file: string; strokeWidth?: number; layerAlphas?: number[] }[] }[] }; sustainVisibilityPreview: { approval: string; outlineWidth: number; selected: { single: string }; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; railCandidate?: string; railMarkerWidth?: number; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
-  it('에셋 165개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
-    expect(manifest.assets).toHaveLength(165);
-    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(165);
+  it('에셋 177개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
+    expect(manifest.assets).toHaveLength(177);
+    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(177);
     for (const asset of manifest.assets) {
       const bytes = readFileSync(new URL(asset.file, here));
       expect(bytes.length, asset.file).toBe(asset.bytes);
@@ -146,19 +146,22 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     }
   });
 
-  it('좁힌 릴리즈 이중 꺾쇠는 싱글 x=100에 1개·더블 x=84와 116에 2개이며 기존 J2-C 상태를 교체하지 않는다', () => {
+  it('릴리즈 3단은 alpha 1·0.55·0.2로 흐려지고 표식 중심은 바디 광선과 일치하며 기존 J2-C 상태를 보존한다', () => {
     expect(manifest.releaseSymbolPreview.approval).toBe('proposed-artwork');
-    expect(manifest.releaseSymbolPreview.comparisonIds).toEqual(['bold', 'ratio-a', 'ratio-b', 'ratio-c']);
+    expect(manifest.releaseSymbolPreview.comparisonIds).toEqual(['ratio-b', 'triple-fade', 'triple-tight']);
     expect(manifest.releaseSymbolPreview.kinds.map(item => item.kind)).toEqual(['single', 'double']);
     for (const item of manifest.releaseSymbolPreview.kinds) {
       expect(item.symbolCenters).toEqual(item.kind === 'single' ? [100] : [84, 116]);
+      expect(item.symbolCenters).toEqual(group(`body-${item.kind}`).beamCenters);
       expect(item.variants.map(({ id, strokeWidth }) => ({ id, strokeWidth }))).toEqual([
         { id: 'original', strokeWidth: undefined }, { id: 'thin', strokeWidth: 2 }, { id: 'bold', strokeWidth: 3 },
         { id: 'ratio-a', strokeWidth: 2.5 }, { id: 'ratio-b', strokeWidth: 2.5 }, { id: 'ratio-c', strokeWidth: 2.5 },
+        { id: 'triple-fade', strokeWidth: 2.2 }, { id: 'triple-tight', strokeWidth: 2.2 },
       ]);
       expect(group(`release-${item.kind}`).states.find(state => state.id === 'pending')!.file).toBe(item.variants[0].file);
       for (const variant of item.variants.slice(1)) {
         expect(manifest.assets.find(asset => asset.file === variant.file)).toMatchObject({ width: 200, height: 40, skinKey: null, proposedRuntimePath: null });
+        if (variant.id.startsWith('triple-')) expect(variant.layerAlphas).toEqual([1, 0.55, 0.2]);
         const source = readFileSync(new URL(variant.file.replace('.png', '.svg'), here), 'utf8');
         expect(source.match(/data-release-symbol="stacked-up-chevrons"/g)).toHaveLength(item.kind === 'single' ? 1 : 2);
         for (const center of item.symbolCenters) expect(source).toContain(`transform="translate(${center} 0)"`);

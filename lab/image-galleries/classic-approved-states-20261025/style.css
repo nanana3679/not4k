@@ -24,8 +24,12 @@
 .sustain-stage img{position:absolute;top:36px;left:0;width:200px;height:40px}
 .sustain-game{width:59px;height:34px;margin:auto}
 .sustain-game .sustain-stage,.sustain-game .release-symbol-stage{transform:scale(0.29481132);transform-origin:top left}
-.release-symbol-comparison{grid-template-columns:repeat(4,minmax(0,1fr))}
+.release-symbol-comparison{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:1040px){.release-symbol-comparison{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.release-guide-control{display:inline-flex;align-items:center;gap:8px;min-height:40px;font-size:14px;color:#b5c4d5;cursor:pointer}
+.release-guide-control input{accent-color:#f493ca}
+.release-beam-guide{display:none;position:absolute;top:0;bottom:0;border-left:1px dashed #fa95cc;transform:translateX(-.5px);z-index:2;pointer-events:none}
+#release-symbol:has(#release-beam-guides:checked) .release-beam-guide{display:block}
 .release-symbol-stage{position:relative;width:200px;height:112px;margin:auto}
 .release-symbol-stage::before{content:"";position:absolute;top:32px;bottom:0;left:0;right:0;background-image:var(--body);background-size:200px 40px}
 .release-symbol-stage img{position:absolute;left:0;top:12px;width:200px;height:40px}

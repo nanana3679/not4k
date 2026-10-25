@@ -30,8 +30,8 @@ manifest.sustainVisibilityPreview = {
 };
 manifest.releaseSymbolPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
-  note: '직전 16×16 경로 비율과 높이를 낮춘 A 16×12, B 18×11, C 16×9.5 비율을 비교. 새 3안은 같은 2.5px 선 두께. 싱글 x=100에 1개, 더블 x=84·116에 2개를 나란히 배치.',
-  comparisonIds: ['bold', 'ratio-a', 'ratio-b', 'ratio-c'],
+  note: '2단 B와 아래로 흐려지는 3단 두 안을 비교. 3단은 14px 경로 폭·2.2px 선, 위부터 alpha 1·0.55·0.2. 윤곽도 함께 흐려짐. 아이콘 중심은 바디 광선 좌표를 공유.',
+  comparisonIds: ['ratio-b', 'triple-fade', 'triple-tight'],
   reference: 'https://lucide.dev/icons/chevrons-up',
   kinds: [],
 };
@@ -143,7 +143,7 @@ try {
     await emit(`release-${kind}`, source, { role: `J2-C ${kind} 릴리즈`, sourceFiles,
       operation: { artwork: 'J2-C', png: '선택 PNG를 바이트 그대로 복사', svg: '@2x PNG 내장 래퍼' },
       pngSources, approval: 'approved-artwork', skinKey: `release${cap}` });
-    const symbolCenters = kind === 'single' ? [100] : [84, 116];
+    const symbolCenters = manifest.stateGroups.find(group => group.id === `body-${kind}`).beamCenters;
     const symbolVariants = [{ id: 'original', label: '기존', file: `assets/release-${kind}.png` }];
     for (const { id, label, ...geometry } of [
       { id: 'thin', label: '가는 표시', strokeWidth: 2, pathWidth: 16, chevronRise: 8, chevronOffset: 8 },
@@ -151,10 +151,14 @@ try {
       { id: 'ratio-a', label: 'A · 높이만 낮춤', strokeWidth: 2.5, pathWidth: 16, chevronRise: 6, chevronOffset: 6 },
       { id: 'ratio-b', label: 'B · 완만한 각도', strokeWidth: 2.5, pathWidth: 18, chevronRise: 5, chevronOffset: 6 },
       { id: 'ratio-c', label: 'C · 납작하게', strokeWidth: 2.5, pathWidth: 16, chevronRise: 4, chevronOffset: 5.5 },
+      { id: 'triple-fade', label: '3단 · 아래로 흐리게', strokeWidth: 2.2, pathWidth: 14, chevronRise: 4.5, chevronOffset: 6,
+        layerAlphas: [1, 0.55, 0.2], outlineWidth: 0.6, outlineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' },
+      { id: 'triple-tight', label: '3단 · 촘촘하게', strokeWidth: 2.2, pathWidth: 14, chevronRise: 4.5, chevronOffset: 5,
+        layerAlphas: [1, 0.55, 0.2], outlineWidth: 0.6, outlineOpacity: 0.55, lineCap: 'round', lineJoin: 'round' },
     ]) {
-      const file = await emit(`release-${kind}-chevron-${id}`, releaseChevron(source, { kind, ...geometry }), {
-        nativeSource: releaseChevron(nativeSource, { kind, ...geometry }),
-        role: `J2-C ${kind} 릴리즈 · 이중 꺾쇠 ${label} 시안`, sourceFiles,
+      const file = await emit(`release-${kind}-chevron-${id}`, releaseChevron(source, { kind, centers: symbolCenters, ...geometry }), {
+        nativeSource: releaseChevron(nativeSource, { kind, centers: symbolCenters, ...geometry }),
+        role: `J2-C ${kind} 릴리즈 · 꺾쇠 ${label} 시안`, sourceFiles,
         operation: { symbol: 'stacked-up-chevrons', symbolCenters, ...geometry, indicates: 'release-action' },
         approval: 'proposed-artwork',
       });
@@ -272,7 +276,7 @@ try {
       bodyStartCap: false, bodyEndCap: false, implicitPoint: false, implicitRelease: false,
     },
     missingRequestedStates: [],
-    unapproved: ['새 상태별 색·강도', '일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성', '유지 노트의 성공·실패 표시 방식과 수명', '더블 유지 표식 각 32px 확대·어두운 윤곽선', '릴리즈 중앙 이중 꺾쇠 표시'],
+    unapproved: ['새 상태별 색·강도', '일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성', '유지 노트의 성공·실패 표시 방식과 수명', '더블 유지 표식 각 32px 확대·어두운 윤곽선', '릴리즈 중앙 꺾쇠 표시'],
   };
   const assetsByFile = new Map(manifest.assets.map(asset => [asset.file, asset]));
   for (const asset of manifest.assets) {

@@ -2,14 +2,67 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
-test('릴리즈 직전 안과 비율 3안은 싱글 1개·더블 2개로 비교하며 모든 파일에서 아이콘 밖 도안을 보존한다', async ({ page }) => {
+test('3단 표식의 실제 알파는 위부터 100%·55%·20%이며 꼭짓점 x는 활성 광선 픽셀 중심과 일치한다', async ({ page }) => {
+  await page.goto(route + '#release-symbol');
+  const guides = page.locator('#release-symbol .release-beam-guide');
+  await expect(guides.first()).toBeHidden();
+  await page.getByLabel('광선 중심선 보기').check();
+  await expect(guides.first()).toBeVisible();
+  const result = await page.evaluate(async () => {
+    const pixels = async (src: string) => {
+      const image = new Image(); image.src = src; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, 400, 80);
+      return context.getImageData(0, 0, 400, 80).data;
+    };
+    const rows = [];
+    for (const kind of ['single', 'double']) {
+      const body = await pixels(`assets/body-${kind}-held@2x.png`);
+      const centers = []; let start = -1;
+      for (let x = 0; x <= 400; x++) {
+        const i = (40 * 400 + x) * 4;
+        const white = x < 400 && Math.min(body[i], body[i + 1], body[i + 2]) > 245;
+        if (white && start < 0) start = x;
+        if (!white && start >= 0) { centers.push((start + x) / 4); start = -1; }
+      }
+      for (const variant of ['triple-fade', 'triple-tight']) {
+        const text = await (await fetch(`assets/release-${kind}-chevron-${variant}.svg`)).text();
+        const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+        const symbols = [...doc.querySelectorAll('[data-release-symbol]')];
+        const symbolCenters = symbols.map(symbol => Number(symbol.getAttribute('transform')!.match(/translate\(([\d.]+)/)![1]));
+        const layers = [...symbols[0].querySelectorAll('[data-chevron-layer]')];
+        const sums: number[] = [];
+        for (const layer of layers) {
+          const isolated = symbols[0].cloneNode(false) as Element;
+          isolated.append(layer.cloneNode(true));
+          const source = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="40" viewBox="0 0 200 40">${new XMLSerializer().serializeToString(isolated)}</svg>`;
+          const data = await pixels('data:image/svg+xml,' + encodeURIComponent(source));
+          let sum = 0; for (let i = 3; i < data.length; i += 4) sum += data[i];
+          sums.push(sum);
+        }
+        rows.push({ kind, variant, centers, symbolCenters, ratios: sums.map(sum => sum / sums[0]) });
+      }
+    }
+    return rows;
+  });
+  for (const row of result) {
+    expect(row.centers).toEqual(row.kind === 'single' ? [100] : [84, 116]);
+    expect(row.symbolCenters).toEqual(row.centers);
+    expect(row.ratios).toHaveLength(3);
+    for (const [i, alpha] of [1, 0.55, 0.2].entries()) expect(row.ratios[i]).toBeCloseTo(alpha, 2);
+  }
+  await page.getByLabel('광선 중심선 보기').uncheck();
+  await expect(guides.first()).toBeHidden();
+});
+
+test('릴리즈 2단 B와 3단 두 안은 싱글 1개·더블 2개로 비교하며 모든 파일에서 아이콘 밖 도안을 보존한다', async ({ page }) => {
   await page.goto(route + '#release-symbol');
   const section = page.locator('#release-symbol');
   for (const kind of ['single', 'double']) {
     const comparison = section.locator(`[data-kind="${kind}"]`);
-    await expect(comparison.locator('article')).toHaveCount(4);
-    await expect(comparison.locator('.sustain-game img')).toHaveCount(4);
-    for (const variant of ['bold', 'ratio-a', 'ratio-b', 'ratio-c']) {
+    await expect(comparison.locator('article')).toHaveCount(3);
+    await expect(comparison.locator('.sustain-game img')).toHaveCount(3);
+    for (const variant of ['ratio-b', 'triple-fade', 'triple-tight']) {
       await expect(comparison.locator(`[data-variant="${variant}"] nav a`)).toHaveCount(3);
     }
   }
@@ -24,7 +77,7 @@ test('릴리즈 직전 안과 비율 3안은 싱글 1개·더블 2개로 비교�
     for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
       const scale = suffix === '.png' ? 1 : 2;
       const original = await pixels(`assets/release-${kind}${suffix === '.svg' ? '@2x.png' : suffix}`, scale);
-      for (const variant of ['thin', 'bold', 'ratio-a', 'ratio-b', 'ratio-c']) {
+      for (const variant of ['thin', 'bold', 'ratio-a', 'ratio-b', 'ratio-c', 'triple-fade', 'triple-tight']) {
         const candidate = await pixels(`assets/release-${kind}-chevron-${variant}${suffix}`, scale);
         let changedCenter = 0, changedOutside = 0, changedLeft = 0, changedRight = 0, changedGap = 0;
         const bounds = kind === 'single' ? [80, 120] : [70, 130];

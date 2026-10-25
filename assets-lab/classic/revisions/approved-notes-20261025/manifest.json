@@ -2168,7 +2168,7 @@
     },
     {
       "file": "assets/release-single-chevron-thin.svg",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 가는 표시 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 가는 표시 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2205,7 +2205,7 @@
     },
     {
       "file": "assets/release-single-chevron-thin.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 가는 표시 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 가는 표시 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2242,7 +2242,7 @@
     },
     {
       "file": "assets/release-single-chevron-thin@2x.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 가는 표시 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 가는 표시 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2279,7 +2279,7 @@
     },
     {
       "file": "assets/release-single-chevron-bold.svg",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 직전 안 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 직전 안 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2316,7 +2316,7 @@
     },
     {
       "file": "assets/release-single-chevron-bold.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 직전 안 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 직전 안 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2353,7 +2353,7 @@
     },
     {
       "file": "assets/release-single-chevron-bold@2x.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 직전 안 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 직전 안 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2390,7 +2390,7 @@
     },
     {
       "file": "assets/release-single-chevron-ratio-a.svg",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 A · 높이만 낮춤 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 A · 높이만 낮춤 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2427,7 +2427,7 @@
     },
     {
       "file": "assets/release-single-chevron-ratio-a.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 A · 높이만 낮춤 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 A · 높이만 낮춤 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2464,7 +2464,7 @@
     },
     {
       "file": "assets/release-single-chevron-ratio-a@2x.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 A · 높이만 낮춤 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 A · 높이만 낮춤 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2501,7 +2501,7 @@
     },
     {
       "file": "assets/release-single-chevron-ratio-b.svg",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 B · 완만한 각도 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 B · 완만한 각도 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2538,7 +2538,7 @@
     },
     {
       "file": "assets/release-single-chevron-ratio-b.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 B · 완만한 각도 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 B · 완만한 각도 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2575,7 +2575,7 @@
     },
     {
       "file": "assets/release-single-chevron-ratio-b@2x.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 B · 완만한 각도 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 B · 완만한 각도 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2612,7 +2612,7 @@
     },
     {
       "file": "assets/release-single-chevron-ratio-c.svg",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 C · 납작하게 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 C · 납작하게 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2649,7 +2649,7 @@
     },
     {
       "file": "assets/release-single-chevron-ratio-c.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 C · 납작하게 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 C · 납작하게 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2686,7 +2686,7 @@
     },
     {
       "file": "assets/release-single-chevron-ratio-c@2x.png",
-      "role": "J2-C single 릴리즈 · 이중 꺾쇠 C · 납작하게 시안",
+      "role": "J2-C single 릴리즈 · 꺾쇠 C · 납작하게 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-single.png",
@@ -2720,6 +2720,282 @@
       ],
       "bytes": 57895,
       "sha256": "de79b3ad5e1e76f6c21bd973121415b7e692ee239f860809bd21efbe9dbc82d9"
+    },
+    {
+      "file": "assets/release-single-chevron-triple-fade.svg",
+      "role": "J2-C single 릴리즈 · 꺾쇠 3단 · 아래로 흐리게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          100
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 6,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 76335,
+      "sha256": "d0a9a51ef9ec69a8e34f84db5f3f5a727f1c16016e22a39584215525a2d7b42f"
+    },
+    {
+      "file": "assets/release-single-chevron-triple-fade.png",
+      "role": "J2-C single 릴리즈 · 꺾쇠 3단 · 아래로 흐리게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          100
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 6,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17092,
+      "sha256": "28e84b502399b0deab495fe43675186604bdbe6344e7bf710035d77a68a33c19"
+    },
+    {
+      "file": "assets/release-single-chevron-triple-fade@2x.png",
+      "role": "J2-C single 릴리즈 · 꺾쇠 3단 · 아래로 흐리게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          100
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 6,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 58226,
+      "sha256": "e22795ef4e9407be9a564b5badc3270f279ecba9bbb12898f8eb8dd74b505866"
+    },
+    {
+      "file": "assets/release-single-chevron-triple-tight.svg",
+      "role": "J2-C single 릴리즈 · 꺾쇠 3단 · 촘촘하게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          100
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 5,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 76335,
+      "sha256": "637e34b6c9ce58b0b7ef44ceedf4231ff12c6d8817b3d15a86a3b428ada145d6"
+    },
+    {
+      "file": "assets/release-single-chevron-triple-tight.png",
+      "role": "J2-C single 릴리즈 · 꺾쇠 3단 · 촘촘하게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          100
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 5,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17044,
+      "sha256": "bda012a692d05cd3f72c2ee40512c8ab16becec875229ea4255c232c5b1fb501"
+    },
+    {
+      "file": "assets/release-single-chevron-triple-tight@2x.png",
+      "role": "J2-C single 릴리즈 · 꺾쇠 3단 · 촘촘하게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-single.png",
+        "assets/terminal-j2-shadow-3-single@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          100
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 5,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 58244,
+      "sha256": "4c3904d23c697264bcf84e3b7680c6b3268c645c0eefeb16d34e734f2ce4cebe"
     },
     {
       "file": "assets/release-single-failed.svg",
@@ -2993,7 +3269,7 @@
     },
     {
       "file": "assets/release-double-chevron-thin.svg",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 가는 표시 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 가는 표시 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3031,7 +3307,7 @@
     },
     {
       "file": "assets/release-double-chevron-thin.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 가는 표시 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 가는 표시 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3069,7 +3345,7 @@
     },
     {
       "file": "assets/release-double-chevron-thin@2x.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 가는 표시 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 가는 표시 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3107,7 +3383,7 @@
     },
     {
       "file": "assets/release-double-chevron-bold.svg",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 직전 안 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 직전 안 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3145,7 +3421,7 @@
     },
     {
       "file": "assets/release-double-chevron-bold.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 직전 안 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 직전 안 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3183,7 +3459,7 @@
     },
     {
       "file": "assets/release-double-chevron-bold@2x.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 직전 안 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 직전 안 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3221,7 +3497,7 @@
     },
     {
       "file": "assets/release-double-chevron-ratio-a.svg",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 A · 높이만 낮춤 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 A · 높이만 낮춤 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3259,7 +3535,7 @@
     },
     {
       "file": "assets/release-double-chevron-ratio-a.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 A · 높이만 낮춤 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 A · 높이만 낮춤 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3297,7 +3573,7 @@
     },
     {
       "file": "assets/release-double-chevron-ratio-a@2x.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 A · 높이만 낮춤 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 A · 높이만 낮춤 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3335,7 +3611,7 @@
     },
     {
       "file": "assets/release-double-chevron-ratio-b.svg",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 B · 완만한 각도 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 B · 완만한 각도 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3373,7 +3649,7 @@
     },
     {
       "file": "assets/release-double-chevron-ratio-b.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 B · 완만한 각도 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 B · 완만한 각도 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3411,7 +3687,7 @@
     },
     {
       "file": "assets/release-double-chevron-ratio-b@2x.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 B · 완만한 각도 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 B · 완만한 각도 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3449,7 +3725,7 @@
     },
     {
       "file": "assets/release-double-chevron-ratio-c.svg",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 C · 납작하게 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 C · 납작하게 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3487,7 +3763,7 @@
     },
     {
       "file": "assets/release-double-chevron-ratio-c.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 C · 납작하게 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 C · 납작하게 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3525,7 +3801,7 @@
     },
     {
       "file": "assets/release-double-chevron-ratio-c@2x.png",
-      "role": "J2-C double 릴리즈 · 이중 꺾쇠 C · 납작하게 시안",
+      "role": "J2-C double 릴리즈 · 꺾쇠 C · 납작하게 시안",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/terminal-j2-shadow-3-double.png",
@@ -3560,6 +3836,288 @@
       ],
       "bytes": 64069,
       "sha256": "88d1f2e73671b2907f6d04033b3c76a23580d1a89097c18a392ff322e5609c40"
+    },
+    {
+      "file": "assets/release-double-chevron-triple-fade.svg",
+      "role": "J2-C double 릴리즈 · 꺾쇠 3단 · 아래로 흐리게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 6,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 85036,
+      "sha256": "e4bb31180efe7704bdd664c0a081fb2f4bfa422090fc503ca9399f3ba1772056"
+    },
+    {
+      "file": "assets/release-double-chevron-triple-fade.png",
+      "role": "J2-C double 릴리즈 · 꺾쇠 3단 · 아래로 흐리게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 6,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18786,
+      "sha256": "22d100a328459e8330713a72af056af6f3cbde124486e6d8480015258d5fc2b6"
+    },
+    {
+      "file": "assets/release-double-chevron-triple-fade@2x.png",
+      "role": "J2-C double 릴리즈 · 꺾쇠 3단 · 아래로 흐리게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 6,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 65513,
+      "sha256": "13b5f4cba1b3985673593c60cc40e16f633de5cbb229919284944883651f02b4"
+    },
+    {
+      "file": "assets/release-double-chevron-triple-tight.svg",
+      "role": "J2-C double 릴리즈 · 꺾쇠 3단 · 촘촘하게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 5,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 85036,
+      "sha256": "40117a882ea128203d104760142f024a46cdfc0536645927e601eedb86b02799"
+    },
+    {
+      "file": "assets/release-double-chevron-triple-tight.png",
+      "role": "J2-C double 릴리즈 · 꺾쇠 3단 · 촘촘하게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 5,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18698,
+      "sha256": "8a144a30a223e5847ffe384e1d896e6965dc0a343a6d068fa007dc813eb94a73"
+    },
+    {
+      "file": "assets/release-double-chevron-triple-tight@2x.png",
+      "role": "J2-C double 릴리즈 · 꺾쇠 3단 · 촘촘하게 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/terminal-j2-shadow-3-double.png",
+        "assets/terminal-j2-shadow-3-double@2x.png"
+      ],
+      "operation": {
+        "symbol": "stacked-up-chevrons",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "strokeWidth": 2.2,
+        "pathWidth": 14,
+        "chevronRise": 4.5,
+        "chevronOffset": 5,
+        "layerAlphas": [
+          1,
+          0.55,
+          0.2
+        ],
+        "outlineWidth": 0.6,
+        "outlineOpacity": 0.55,
+        "lineCap": "round",
+        "lineJoin": "round",
+        "indicates": "release-action"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 65520,
+      "sha256": "646768c0dd6a6638a846b08920914e65bde40fcd4863028a86d69043b741c467"
     },
     {
       "file": "assets/release-double-failed.svg",
@@ -5503,7 +6061,7 @@
       "일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성",
       "유지 노트의 성공·실패 표시 방식과 수명",
       "더블 유지 표식 각 32px 확대·어두운 윤곽선",
-      "릴리즈 중앙 이중 꺾쇠 표시"
+      "릴리즈 중앙 꺾쇠 표시"
     ]
   },
   "releaseSuccessPreview": {
@@ -5706,12 +6264,11 @@
       200,
       40
     ],
-    "note": "직전 16×16 경로 비율과 높이를 낮춘 A 16×12, B 18×11, C 16×9.5 비율을 비교. 새 3안은 같은 2.5px 선 두께. 싱글 x=100에 1개, 더블 x=84·116에 2개를 나란히 배치.",
+    "note": "2단 B와 아래로 흐려지는 3단 두 안을 비교. 3단은 14px 경로 폭·2.2px 선, 위부터 alpha 1·0.55·0.2. 윤곽도 함께 흐려짐. 아이콘 중심은 바디 광선 좌표를 공유.",
     "comparisonIds": [
-      "bold",
-      "ratio-a",
       "ratio-b",
-      "ratio-c"
+      "triple-fade",
+      "triple-tight"
     ],
     "reference": "https://lucide.dev/icons/chevrons-up",
     "kinds": [
@@ -5771,6 +6328,42 @@
             "pathWidth": 16,
             "chevronRise": 4,
             "chevronOffset": 5.5
+          },
+          {
+            "id": "triple-fade",
+            "label": "3단 · 아래로 흐리게",
+            "file": "assets/release-single-chevron-triple-fade.png",
+            "strokeWidth": 2.2,
+            "pathWidth": 14,
+            "chevronRise": 4.5,
+            "chevronOffset": 6,
+            "layerAlphas": [
+              1,
+              0.55,
+              0.2
+            ],
+            "outlineWidth": 0.6,
+            "outlineOpacity": 0.55,
+            "lineCap": "round",
+            "lineJoin": "round"
+          },
+          {
+            "id": "triple-tight",
+            "label": "3단 · 촘촘하게",
+            "file": "assets/release-single-chevron-triple-tight.png",
+            "strokeWidth": 2.2,
+            "pathWidth": 14,
+            "chevronRise": 4.5,
+            "chevronOffset": 5,
+            "layerAlphas": [
+              1,
+              0.55,
+              0.2
+            ],
+            "outlineWidth": 0.6,
+            "outlineOpacity": 0.55,
+            "lineCap": "round",
+            "lineJoin": "round"
           }
         ]
       },
@@ -5831,6 +6424,42 @@
             "pathWidth": 16,
             "chevronRise": 4,
             "chevronOffset": 5.5
+          },
+          {
+            "id": "triple-fade",
+            "label": "3단 · 아래로 흐리게",
+            "file": "assets/release-double-chevron-triple-fade.png",
+            "strokeWidth": 2.2,
+            "pathWidth": 14,
+            "chevronRise": 4.5,
+            "chevronOffset": 6,
+            "layerAlphas": [
+              1,
+              0.55,
+              0.2
+            ],
+            "outlineWidth": 0.6,
+            "outlineOpacity": 0.55,
+            "lineCap": "round",
+            "lineJoin": "round"
+          },
+          {
+            "id": "triple-tight",
+            "label": "3단 · 촘촘하게",
+            "file": "assets/release-double-chevron-triple-tight.png",
+            "strokeWidth": 2.2,
+            "pathWidth": 14,
+            "chevronRise": 4.5,
+            "chevronOffset": 5,
+            "layerAlphas": [
+              1,
+              0.55,
+              0.2
+            ],
+            "outlineWidth": 0.6,
+            "outlineOpacity": 0.55,
+            "lineCap": "round",
+            "lineJoin": "round"
           }
         ]
       }
