@@ -1,6 +1,6 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 보존 원본 24개와 복사·상태별 생성물 243개, 총 267개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 249개, 총 273개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
@@ -61,6 +61,14 @@
 새 상태 파일은 `body-double-held`, `body-double-partial-held-{left,right}`, `body-double-failed`, `body-double-partial-failed-{left,right}`, `note-double-failed`, `sustain-{single,double}-failed`, `sustain-double-partial-failed-{left,right}`, `{sustain,release}-double-unit-{left,right}[-failed]`, `unit-mask-{left,right}` 이름으로 찾을 수 있다.
 
 ## 재생성 및 미리보기
+
+### 릴리즈 3·4·5번 재질 수정
+
+`#release-material`에서 기존 릴리즈와 3·4·5번을 수정한 시안을 싱글·더블로 비교한다. **3번 U자 빛줄기는 바디 광선 주변 같은 어두운 홈**, **4번 윗면은 밝은 면·중간 면·그늘 면으로 명암을 나눈 셀채색**, **5번 가로빛은 강도를 낮춘 선**으로 표현한다. 4번 전체를 단색으로 채우지 않는다. 같은 기존 포인트·바디를 사용해 확대, 활성 바디 연결, 게임 배율 대기/활성을 보여 준다.
+
+내장 `image_gen.imagegen`에 원래 릴리즈를 편집 대상으로, 해당 바디를 재질·색 참고로 주었다. 생성 원본과 전체 프롬프트는 [`material-reference/`](material-reference/)에 보존한다. 생성본의 달라진 꺾쇠·중앙 면 등은 채택하지 않는다. `release-material.mjs`가 기록된 crop으로 검정 여백을 제외하고 3·4·5번 영역만 원래 400×80 좌표계에 합성한다. 중앙 꺾쇠·하단 면·양끝 띠를 비롯한 영역 밖 픽셀은 원본을 사용하며 8번 흰빛의 코어는 마스크로 보존하고 주변을 부드럽게 연결한다. SVG의 `atop` 합성으로 원본의 픽셀별 알파도 유지한다. 이 영역 구분은 미리보기 제작용이며 런타임 레이어 계약이 아니다.
+
+`release-{single,double}-material-body` PNG·2배 PNG·자체 포함 SVG **6개**를 추가한다. 기본 PNG는 원래 기본 PNG 위에, 2배 PNG·SVG는 원래 2배 PNG 위에 합성한다. `manifest.releaseMaterialPreview`에 원본·후보·포인트·바디 조합을 기록한다. 앞선 267개 에셋은 바이트 그대로 유지하며 새 시안은 미선택이다. 실제 스킨 연결과 실패·Grace 파생본 적용은 별도다.
 
 ### 릴리즈 부위 번호
 

@@ -3139,6 +3139,156 @@
       "sha256": "646547fa6cf7919dd4f1f9f8f43a4aea115f693ece12493ec23f6b6278dc5281"
     },
     {
+      "file": "assets/release-single-material-body.svg",
+      "role": "single 릴리즈 · 3번 어두운 홈·4번 명암 면·5번 가로빛 완화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large@2x.png",
+        "material-reference/single.png",
+        "material-reference/prompts.json",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "parts": [
+          3,
+          4,
+          5
+        ],
+        "materialReference": "material-reference/single.png",
+        "referenceSha256": "3910159eae4904dd0e6c3df59be3e51c8caae97ea1d8c76e36c413ccfe152060",
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          138,
+          2170,
+          445
+        ],
+        "preserve": "original pixels outside requested regions, chevron size and alignment, center highlight core",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1465928,
+      "sha256": "7f987196a6277b1f226b6a2d58c0e0e3103dc143975bf2605f3cd562f4294b57"
+    },
+    {
+      "file": "assets/release-single-material-body.png",
+      "role": "single 릴리즈 · 3번 어두운 홈·4번 명암 면·5번 가로빛 완화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large@2x.png",
+        "material-reference/single.png",
+        "material-reference/prompts.json",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "parts": [
+          3,
+          4,
+          5
+        ],
+        "materialReference": "material-reference/single.png",
+        "referenceSha256": "3910159eae4904dd0e6c3df59be3e51c8caae97ea1d8c76e36c413ccfe152060",
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          138,
+          2170,
+          445
+        ],
+        "preserve": "original pixels outside requested regions, chevron size and alignment, center highlight core",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16594,
+      "sha256": "faed6625b73311e433b8d2f3f39452a6a011ad507ced8251bdbfc05ecb2611c4"
+    },
+    {
+      "file": "assets/release-single-material-body@2x.png",
+      "role": "single 릴리즈 · 3번 어두운 홈·4번 명암 면·5번 가로빛 완화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-chevron-triple-tight-large.png",
+        "assets/release-single-chevron-triple-tight-large@2x.png",
+        "material-reference/single.png",
+        "material-reference/prompts.json",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "parts": [
+          3,
+          4,
+          5
+        ],
+        "materialReference": "material-reference/single.png",
+        "referenceSha256": "3910159eae4904dd0e6c3df59be3e51c8caae97ea1d8c76e36c413ccfe152060",
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          138,
+          2170,
+          445
+        ],
+        "preserve": "original pixels outside requested regions, chevron size and alignment, center highlight core",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 56662,
+      "sha256": "86271d0c225ed03078a0253bc02eb60febb6e19cd8875722ee1ad4f867276b24"
+    },
+    {
       "file": "assets/release-single-palette-point.svg",
       "role": "single 릴리즈 · 포인트 팔레트에 맞춘 색 시안",
       "generator": "build-states.mjs",
@@ -5912,6 +6062,156 @@
       ],
       "bytes": 66217,
       "sha256": "b6a833130cde10e1882e3571393b7b0c86bb6c37bd92f98225e8bd5beedf62f7"
+    },
+    {
+      "file": "assets/release-double-material-body.svg",
+      "role": "double 릴리즈 · 3번 어두운 홈·4번 명암 면·5번 가로빛 완화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large@2x.png",
+        "material-reference/double.png",
+        "material-reference/prompts.json",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "parts": [
+          3,
+          4,
+          5
+        ],
+        "materialReference": "material-reference/double.png",
+        "referenceSha256": "24aa44acf0d3ce709a90be453cc44aaf118e845e205f6f2dcacea5de58bdc8c3",
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          145,
+          2172,
+          434
+        ],
+        "preserve": "original pixels outside requested regions, chevron size and alignment, center highlight core",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1589880,
+      "sha256": "e6d2afd329b1e46960caf730187fdb1a37712462dfcd4db2c2a690f481686a56"
+    },
+    {
+      "file": "assets/release-double-material-body.png",
+      "role": "double 릴리즈 · 3번 어두운 홈·4번 명암 면·5번 가로빛 완화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large@2x.png",
+        "material-reference/double.png",
+        "material-reference/prompts.json",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "parts": [
+          3,
+          4,
+          5
+        ],
+        "materialReference": "material-reference/double.png",
+        "referenceSha256": "24aa44acf0d3ce709a90be453cc44aaf118e845e205f6f2dcacea5de58bdc8c3",
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          145,
+          2172,
+          434
+        ],
+        "preserve": "original pixels outside requested regions, chevron size and alignment, center highlight core",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18592,
+      "sha256": "af3809e5fd0de0c6b1e6bc7883aa1cf6bca448284f79a07d06043bf1e2760033"
+    },
+    {
+      "file": "assets/release-double-material-body@2x.png",
+      "role": "double 릴리즈 · 3번 어두운 홈·4번 명암 면·5번 가로빛 완화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-chevron-triple-tight-large.png",
+        "assets/release-double-chevron-triple-tight-large@2x.png",
+        "material-reference/double.png",
+        "material-reference/prompts.json",
+        "material-reference/crops.json"
+      ],
+      "operation": {
+        "parts": [
+          3,
+          4,
+          5
+        ],
+        "materialReference": "material-reference/double.png",
+        "referenceSha256": "24aa44acf0d3ce709a90be453cc44aaf118e845e205f6f2dcacea5de58bdc8c3",
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          145,
+          2172,
+          434
+        ],
+        "preserve": "original pixels outside requested regions, chevron size and alignment, center highlight core",
+        "symbolVariant": "triple-tight-large"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 63708,
+      "sha256": "8615d288b91f441bad723e89a939110f371da23362e0f7cb7a1231886d502eca"
     },
     {
       "file": "assets/release-double-palette-point.svg",
@@ -9988,6 +10288,37 @@
             "release": "assets/release-double-balance-unified.png"
           }
         ]
+      }
+    ]
+  },
+  "releaseMaterialPreview": {
+    "approval": "proposed-artwork",
+    "targetSize": [
+      200,
+      40
+    ],
+    "note": "3번은 어두운 홈, 4번은 바디처럼 명암을 나눈 면, 5번은 약한 가로빛. ImageGen 결과에서 지정 영역만 합성하고 원래 중앙 면·꺾쇠·아랫면·양끝 띠를 유지. 8번 중앙 흰빛의 코어도 보존.",
+    "parts": [
+      3,
+      4,
+      5
+    ],
+    "kinds": [
+      {
+        "kind": "single",
+        "original": "assets/release-single-chevron-triple-tight-large.png",
+        "candidate": "assets/release-single-material-body.png",
+        "point": "assets/note-single.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png"
+      },
+      {
+        "kind": "double",
+        "original": "assets/release-double-chevron-triple-tight-large.png",
+        "candidate": "assets/release-double-material-body.png",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png"
       }
     ]
   }

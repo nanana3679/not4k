@@ -5,6 +5,7 @@ import { halfMask, rasterArtwork, rectangularGraceArtwork, stateArtwork } from '
 import { outlinedSustain } from './sustain-visibility.mjs';
 import { releaseChevron } from './release-chevron.mjs';
 import { paletteMappedArtwork, sampleArtworkPalette } from './release-palette.mjs';
+import { releaseMaterialArtwork } from './release-material.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -52,6 +53,11 @@ manifest.paletteBalancePreview = {
   approval: 'proposed-artwork',
   note: '포인트 원본은 고정. 바디는 20%·35%, 릴리즈는 45%·65%만 앞선 포인트 팔레트로 이동해 원색을 살린 중간 강도 비교. 명암 배치·알파·3단 표식은 유지.',
   kinds: [],
+};
+manifest.releaseMaterialPreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '3번은 어두운 홈, 4번은 바디처럼 명암을 나눈 면, 5번은 약한 가로빛. ImageGen 결과에서 지정 영역만 합성하고 원래 중앙 면·꺾쇠·아랫면·양끝 띠를 유지. 8번 중앙 흰빛의 코어도 보존.',
+  parts: [3, 4, 5], kinds: [],
 };
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
@@ -189,6 +195,22 @@ try {
     const referenceBytes = await readFile(new URL(paletteReference, here));
     const paletteTable = await page.evaluate(sampleArtworkPalette, `data:image/png;base64,${referenceBytes.toString('base64')}`);
     const selectedSymbol = symbolVariants.find(variant => variant.id === manifest.releaseSymbolPreview.selectedVariant);
+    const materialReference = `material-reference/${kind}.png`;
+    const materialBytes = await readFile(new URL(materialReference, here));
+    const materialCrop = JSON.parse(await readFile(new URL('material-reference/crops.json', here), 'utf8'))[kind];
+    const originalMaterialFile = selectedSymbol.file.slice(7);
+    const materialCandidate = await emit(`release-${kind}-material-body`, releaseMaterialArtwork(await read(originalMaterialFile.replace('.png', '@2x.png')), materialBytes, materialCrop), {
+      nativeSource: releaseMaterialArtwork(await read(originalMaterialFile), materialBytes, materialCrop),
+      role: `${kind} 릴리즈 · 3번 어두운 홈·4번 명암 면·5번 가로빛 완화`,
+      sourceFiles: [selectedSymbol.file, selectedSymbol.file.replace('.png', '@2x.png'), materialReference, 'material-reference/prompts.json', 'material-reference/crops.json'],
+      operation: { parts: [3, 4, 5], materialReference, referenceSha256: createHash('sha256').update(materialBytes).digest('hex'), ...materialCrop,
+        preserve: 'original pixels outside requested regions, chevron size and alignment, center highlight core', symbolVariant: selectedSymbol.id },
+      approval: 'proposed-artwork',
+    });
+    manifest.releaseMaterialPreview.kinds.push({ kind, original: selectedSymbol.file, candidate: materialCandidate,
+      point: kind === 'single' ? 'assets/note-single.png' : 'assets/note-double-anodized-contrast-070.png',
+      idleBody: kind === 'single' ? 'assets/body-single.png' : 'assets/body-double-center-dual-beam.png', heldBody: `assets/body-${kind}-held.png`,
+    });
     const candidate = await emit(`release-${kind}-palette-point`, releaseChevron(paletteMappedArtwork(source, paletteTable), { kind, centers: symbolCenters, ...selectedSymbol }), {
       nativeSource: releaseChevron(paletteMappedArtwork(nativeSource, paletteTable), { kind, centers: symbolCenters, ...selectedSymbol }),
       role: `${kind} 릴리즈 · 포인트 팔레트에 맞춘 색 시안`,

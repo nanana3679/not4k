@@ -2,6 +2,67 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('릴리즈 재질 수정은 3번 홈과 5번 빛을 낮추고 4번 명암·원래 꺾쇠와 바디 조합을 유지한다', async ({ page }) => {
+  await page.goto(route + '#release-material');
+  const section = page.locator('#release-material');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(2);
+    await expect(comparison.locator('[data-variant="candidate"] nav a')).toHaveCount(3);
+    const shared = await comparison.evaluate(element => [...element.querySelectorAll('article')].map(article => ({
+      points: [...article.querySelectorAll('.palette-point')].map(image => image.getAttribute('src')),
+      bodies: [...article.querySelectorAll('.palette-body')].map(body => body.getAttribute('style')),
+    })));
+    expect(shared[0]).toEqual(shared[1]);
+  }
+  const results = await page.evaluate(async () => {
+    const pixels = async (file: string) => {
+      const image = new Image(); image.src = file; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, 400, 80);
+      return context.getImageData(0, 0, 400, 80).data;
+    };
+    const values = (data: Uint8ClampedArray, [x, y, width, height]: number[]) => {
+      const result: number[] = [];
+      for (let row = y; row < y + height; row++) for (let col = x; col < x + width; col++) {
+        const i = (row * 400 + col) * 4;
+        result.push(.2126 * data[i] + .7152 * data[i + 1] + .0722 * data[i + 2]);
+      }
+      return result;
+    };
+    const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const results = [];
+    for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
+      const file = `assets/release-${kind}-material-body${suffix}`;
+      const original = await pixels(`assets/release-${kind}-chevron-triple-tight-large${suffix === '.png' ? '.png' : '@2x.png'}`);
+      const candidate = await pixels(file);
+      let alphaDifference = 0, preservedDifference = 0;
+      for (let i = 3; i < original.length; i += 4) alphaDifference = Math.max(alphaDifference, Math.abs(original[i] - candidate[i]));
+      for (const [x, y, width, height] of [[145, 4, 110, 47], [33, 53, 62, 19], [305, 53, 62, 19], [2, 25, 8, 20], [198, 66, 4, 2]]) {
+        for (let row = y; row < y + height; row++) for (let col = x; col < x + width; col++) for (let c = 0; c < 3; c++) {
+          const i = (row * 400 + col) * 4 + c;
+          preservedDifference = Math.max(preservedDifference, Math.abs(original[i] - candidate[i]));
+        }
+      }
+      const upper = values(candidate, [40, 4, 40, 17]);
+      results.push({ file, alphaDifference, preservedDifference, upperRange: Math.max(...upper) - Math.min(...upper),
+        channelRatio: mean(values(candidate, [145, 64, 20, 5])) / mean(values(original, [145, 64, 20, 5])),
+        stripeRatio: mean(values(candidate, [35, 24, 50, 8])) / mean(values(original, [35, 24, 50, 8])),
+      });
+    }
+    return results;
+  });
+  for (const result of results) {
+    expect(result.alphaDifference, result.file).toBe(0);
+    expect(result.preservedDifference, result.file).toBe(0);
+    expect(result.channelRatio, result.file).toBeLessThan(.4);
+    expect(result.stripeRatio, result.file).toBeLessThan(.9);
+    expect(result.upperRange, result.file).toBeGreaterThan(30);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('릴리즈 1～8번을 선택하면 싱글·더블의 같은 부위가 강조되고 전체 보기에서 원래 번호가 돌아온다', async ({ page }) => {
   await page.goto(route + '#release-parts');
   const section = page.locator('#release-parts');
