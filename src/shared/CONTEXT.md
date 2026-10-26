@@ -1,5 +1,7 @@
 # Shared Chart Model
 
+`ChartDocument`는 구형·명시 항목을 보존하는 저장·편집 문서다. 풀 정의는 [glossary](../../docs/context/glossary.md#chartdocument), 필드와 저장 버전은 [차트 문서 포맷](../../docs/spec/chart-format.md)을 따른다.
+
 현재 구현 단계: 공용 문서·main/aux 왕복·정적 관계·문서 검증을 구현했다. 판정·에디터·실제 재생 전환은 다음 단계다.
 
 Shared chart model 컨텍스트는 게임 클라이언트와 차트 편집기가 공유하는 차트 언어를 다룬다.
