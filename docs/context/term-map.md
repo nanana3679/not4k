@@ -4,7 +4,7 @@
 
 **원칙:** prose(서술·근거·예시 대화)는 한국어 유지. 이 표가 바꾸는 것은 *용어 토큰*뿐이다. 모든 항목은 개념당 표면형 1개, 동의어 폐기, glossary에서 1:1 고정.
 
-**새 판정 계약:** [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)은 **채택 계약, 구현은 후속 PR**이다. 새 용어는 아래 표기와 [glossary](glossary.md)의 정의를 따르며 설명용 영어를 새 API·JSON 필드명으로 고정하지 않는다. `holdOnly`·연결 release·등록 키의 구형 의미는 과도기 읽기·표시·편집 범위에서만 유지한다.
+**새 판정 계약:** [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)은 **채택 계약, 구현은 후속 PR**이다. 새 용어는 아래 표기와 [glossary](glossary.md)의 정의를 따른다. 저장 JSON·타입 이름과 예정된 이름 변경은 [B](#b-기존-개념--established-이름-유지)의 포인트 노트 문단을 따른다. `holdOnly`·연결 release·등록 키의 구형 의미는 과도기 읽기·표시·편집 범위에서만 유지한다.
 
 ## 판별 규칙
 
@@ -48,7 +48,7 @@
 
 레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `checkLongNoteBodyHold`/`laneHoldStates`/`longNoteBodyStates` — 대표 예시, 전체는 glossary 참조. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류), **난이도명**(보편 개념, 차트 레벨과 쌍둥이 — 코드 `difficultyLabel`. 2026-07-06 A에서 재분류), **기어**(레인 영역을 둘러싼 테두리 스킨의 한국 리듬게임 커뮤니티 표준 이름 — 코드 `gear*` 정렬: `gearImage`·`GearLayout` 등, 전체는 [glossary](glossary.md#기어-gear) 참조. 기어 위 장식 애니메이션과 그 식별자(`GearMotionController`·설정 `gearMotion` 등)는 A의 `gearMotion` 행. 이 뜻의 "프레임"은 렌더 프레임과 헷갈려 쓰지 않는다. 2026-10-06 #231), **녹숫**(노트가 레인에 보이고 판정선에 닿기까지의 시간. IIDX 녹색 숫자의 한국 커뮤니티 표준 이름이며 not4k는 IIDX의 프레임 기반 숫자가 아니라 시간으로 다룬다. Lv.별 기준값은 추정 녹숫, [glossary](glossary.md#녹숫-green-number) 참조. 2026-10-15), **흰숫**(서든·리프트가 줄이는 레인 높이를 레인 위끝부터 리프트 0% 판정선까지 = 1000으로 놓고 잰 값. IIDX 흰색 숫자의 한국 커뮤니티 표준 이름이며 위쪽(서든)·아래쪽(리프트) 흰숫이 따로 있고 숫자 하나로 말하면 보통 합계, not4k 설정 %의 10배. [glossary](glossary.md#흰숫-white-number) 참조. 2026-10-18 #291).
 
-새 계약의 **포인트 노트**(Point, 누름)·**바디**(유지 구간)·**릴리즈 노트**(실제 뗌)는 기존 리듬게임 개념을 나타내므로 한국어 이름을 유지한다. `Point`·release·body는 설명에서 병기할 수 있으며 새 API·JSON 타입명은 구현에서 정한다. **Grace 노트**는 Point·명시 릴리즈의 타이밍 등급 면제이며 새 릴리즈의 실제 up 요구를 없애지 않는다. **유지 판정**은 새 계약에서 실제 레인 hold 수로 판단하고 등록 키 기반 구형 구현과 구별한다. 풀 정의는 [glossary](glossary.md#포인트-노트-point)를 따른다.
+새 계약의 **포인트 노트**(Point, 누름)·**바디**(유지 구간)·**릴리즈 노트**(실제 뗌)는 기존 리듬게임 개념을 나타내므로 한국어 이름을 유지한다. `Point`·release·body는 설명에서 병기할 수 있다. 저장 JSON·타입 이름은 `point`·`release`·`sustain`·`body`이며 #341에서 도입한다. 사용자는 #347 머지 직후 RFD와 함께 별도 PR로 `point`→`tap`, `sustain`→`tick`으로 바꾸기로 결정했다(`release`·`body`는 유지, 2026-10-26, 사용자: “이정도면 바꿔도 될거같은데”). 그 PR 전까지는 이름을 바꾸지 않는다. **Grace 노트**는 Point·명시 릴리즈의 타이밍 등급 면제이며 새 릴리즈의 실제 up 요구를 없애지 않는다. **유지 판정**은 새 계약에서 실제 레인 hold 수로 판단하고 등록 키 기반 구형 구현과 구별한다. 풀 정의는 [glossary](glossary.md#포인트-노트-point)를 따른다.
 
 > 트릴/더블/Grace 노트: 음악·리듬게임 기존 용어라 **한국어 이름 유지 + 코드만 영어 정렬**(`trill`/`double`/`grace`). 단 트릴 *구간*은 발명이라 A의 `trillZone`.
 
@@ -68,7 +68,7 @@
 | 홀드 교대 (← 홀드 이어잡기 개명) | 홀드 교대 | (보면 비가시 — 표기 없음) |
 | 다중키 바인딩 | 다중키 바인딩 | 구현: `keyBindings`/`KeyBinding`/`laneBindings` — 배열명이 "다중" 의미를 못 담아 캐논 부적합 (2026-07-06 A에서 재분류) |
 | 분할 릴리즈 | 분할 릴리즈 | `D=-` |
-| 유지 노트 | 유지 노트(화면의 개별 표시는 유지 표식) | 바디 상태에 명시적 점수 정산만 추가한다. 자체 창·입력 소비가 없다. 설명용 sustain을 API/JSON 이름으로 확정하지 않는다([glossary](glossary.md#유지-노트)) |
+| 유지 노트 | 유지 노트(화면의 개별 표시는 유지 표식) | 바디 상태에 명시적 점수 정산만 추가한다. 자체 창·입력 소비가 없다. 저장 JSON·타입 이름은 `sustain`이며 #347 머지 뒤 별도 PR에서 `tick`으로 바꾼다([B](#b-기존-개념--established-이름-유지), [glossary](glossary.md#유지-노트)) |
 | 바디 몫 | 바디 몫 | single 1개·double 2개의 시작·유지·완료·실패 단위. 고정 물리 키 소유가 아니다. unit/body unit은 설명용 병기이며 새 타입명 강제 아님 |
 | 점수 항목 | 점수 항목 | 명시 노트의 요구 한 몫당 가중치 3인 항목. 바디 자체는 만들지 않는다([glossary](glossary.md#점수-항목과-무점수-miss)) |
 | 종속 0점 | 종속 0점 | 기회 소멸은 원래 가중치의 0점 정산이며 추가 Miss 효과가 없다([glossary](glossary.md#점수-항목과-무점수-miss)) |
