@@ -517,7 +517,6 @@ export class SelectMode implements EditorMode {
       y,
       space: this.callbacks.space,
       sel: this.sel, // getSelection() 라이브 getter — 사본 금지, 캡 게이트가 이 값을 읽는다.
-      isScoreNote: i => ['point', 'release', 'sustain'].includes(this.chart.notes[i]?.type),
       isRangeNote: (i) => {
         const n = this.chart.notes[i];
         return n !== undefined && this.isRangeNote(n);

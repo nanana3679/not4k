@@ -104,9 +104,28 @@ test('우클릭중 Ctrl+Z는 삭제를 먼저 Undo하고 뒤늦은 Esc·move가 
   expect(await notes(page)).toEqual(original); expect(await state(page)).toEqual(history);
 });
 
-test('실제 touch 미선택 handle은 연결선택 후 resize하고 선택된handle에서는 제외 Point를 되살리지 않는다', async ({ page }) => {
-  const chart = family(); chart.notes = chart.notes.filter(note => note.type !== 'release');
-  await openEditor(page, { chart }); await selectMode(page);
+// 기본 끝 Release가 바디 끝을 덮으면 끝 핸들은 Release hit(끝 ±1/16박) 바로 위 띠(끝+1/16～3/16박)에서 잡는다.
+const ABOVE_END_RELEASE = 1 / 8;
+
+test('마우스로 기본 끝Release 바로 위 띠를 끌면 미선택 바디도 연결선택 후 끝과 Release를 함께 늘리고 Release 자체를 끌면 Release만 옮긴다', async ({ page }) => {
+  await openEditor(page, { chart: family() }); await selectMode(page);
+  const mouseDrag = async (start: number, end: number) => {
+    const source = await canvasPosition(page, 1, start); const target = await canvasPosition(page, 1, end);
+    await page.mouse.move(source.x, source.y); await page.mouse.down(); await page.mouse.move(target.x, target.y, { steps: 4 }); await page.mouse.up();
+  };
+  await mouseDrag(3 + ABOVE_END_RELEASE, 4);
+  const resized = await notes(page);
+  expect(resized[0]).toMatchObject({ endBeat: { n: 4, d: 1 } }); expect(resized[3].beat).toEqual({ n: 4, d: 1 });
+  expect(resized[1].beat).toEqual({ n: 1, d: 1 }); expect(resized[2].beat).toEqual({ n: 2, d: 1 });
+  expect((await state(page)).selection).toEqual([0, 1, 2, 3]);
+  await click(page, 6, 3); await mouseDrag(4, 5);
+  const moved = await notes(page);
+  expect(moved[3].beat).toEqual({ n: 5, d: 1 }); expect(moved[0]).toMatchObject({ endBeat: { n: 4, d: 1 } });
+  expect((await state(page)).selection).toEqual([3]);
+});
+
+test('실제 touch 미선택 handle은 기본 끝Release가 있어도 연결선택 후 resize하고 선택된handle에서는 제외 Point를 되살리지 않는다', async ({ page }) => {
+  await openEditor(page, { chart: family() }); await selectMode(page);
   const cdp = await page.context().newCDPSession(page);
   await page.locator('select').filter({ has: page.locator('option[value="8"]') }).selectOption('8');
   const resize = async (start: number, end: number) => {
@@ -114,8 +133,12 @@ test('실제 touch 미선택 handle은 연결선택 후 resize하고 선택된ha
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...source, id: 1 }] }); await page.waitForTimeout(650);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...target, id: 1 }] }); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   };
-  await resize(3, 3.5); expect((await notes(page))[0]).toMatchObject({ endBeat: { n: 7, d: 2 } }); expect((await state(page)).selection).toEqual([0, 1, 2]);
-  await click(page, 1, 1, true); expect((await state(page)).selection).toEqual([0, 2]);
-  await resize(3.5, 4); expect((await notes(page))[0]).toMatchObject({ endBeat: { n: 4, d: 1 } }); expect((await state(page)).selection).toEqual([0, 2]);
+  await resize(3 + ABOVE_END_RELEASE, 3.5);
+  expect((await notes(page))[0]).toMatchObject({ endBeat: { n: 7, d: 2 } }); expect((await notes(page))[3].beat).toEqual({ n: 7, d: 2 });
+  expect((await state(page)).selection).toEqual([0, 1, 2, 3]);
+  await click(page, 1, 1, true); expect((await state(page)).selection).toEqual([0, 2, 3]);
+  await resize(3.5 + ABOVE_END_RELEASE, 4);
+  expect((await notes(page))[0]).toMatchObject({ endBeat: { n: 4, d: 1 } }); expect((await notes(page))[3].beat).toEqual({ n: 4, d: 1 });
+  expect((await state(page)).selection).toEqual([0, 2, 3]);
   await cdp.detach();
 });

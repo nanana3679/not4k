@@ -20,6 +20,7 @@ import {
   hitTestExtraNoteAt,
   hitTestTrillZoneAt,
   hitTestRestZoneAt,
+  isExplicitScoreNote,
 } from "./hitTest";
 import {
   beatFloatToRawBeat,
@@ -174,21 +175,29 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     return hitTestNoteAt(source.getChart().notes, lane, b.n / b.d, undefined, source.getSelectedNotes());
   };
 
+  // 범위 노트 끝 핸들. 명시 점수 노트와 겹친 자리는 노트가 이긴다(RFD 0037 §6-2).
+  // 끝을 점수 노트(기본 끝 Release 등)가 덮으면 그 노트 hit 바로 위 띠에서 핸들을 잡는다.
   const hitTestNoteEnd = (x: number, y: number): number | null => {
     const lane = xToUnifiedLane(x);
     if (lane === null) return null;
     const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 16;
+    const coveredEndBandTop = 3 / 16;
     const notes = source.getChart().notes;
     const front = hitTestNoteAt(notes, lane, testBeatFloat);
-    if (front !== null && (notes[front].type === "point" || notes[front].type === "release" || notes[front].type === "sustain")) return null;
+    if (front !== null && isExplicitScoreNote(notes[front])) return null;
+    const endCoveredByScoreNote = (endBeatFloat: number) =>
+      isExplicitScoreNote(notes[hitTestNoteAt(notes, lane, endBeatFloat) ?? -1]);
     for (let i = 0; i < notes.length; i++) {
       const note = notes[i];
       if (note.lane !== lane) continue;
       if (!("endBeat" in note)) continue;
       const endBeatFloat = note.endBeat.n / note.endBeat.d;
-      if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;
+      const offset = testBeatFloat - endBeatFloat;
+      if (Math.abs(offset) < tolerance) return i;
+      if ((front === null || front === i) && offset >= tolerance && offset < coveredEndBandTop
+        && endCoveredByScoreNote(endBeatFloat)) return i;
     }
     return null;
   };

@@ -615,8 +615,9 @@ export function useCanvasEvents(
       rendererRef.current.setHoveredNote(hoverNoteHit);
       rendererRef.current.setHoveredTrillZone(hoveredTrillZone);
       rendererRef.current.setHoveredRestZone(hoveredRestZone);
-      // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다.
-      rendererRef.current.setResizeHoverNote(mode === 'select' ? hoverNoteHit : null);
+      // 롱노트 리사이즈 캡은 select 모드에서 노트에 hover했을 때만 표시한다. 끝을 점수 노트가
+      // 덮은 바디는 노트 hit 밖의 끝 핸들 띠에 hover해도 캡을 보여 준다.
+      rendererRef.current.setResizeHoverNote(mode === 'select' ? (hoverNoteHit ?? space.hitTestNoteEnd(x, y)) : null);
     }
 
     // 트릴존 위 커서: 리사이즈 캡(끝)=ns-resize(↕), 선택된 존 몸통=move(선택 후 드래그=이동,
@@ -641,9 +642,8 @@ export function useCanvasEvents(
         } else if (restBody !== null && (selectModeRef.current?.selectedRestZones.has(restBody) ?? false)) {
           cursor = 'move';
         } else {
-          // 롱노트 끝 캡 위: z-order 최상위 노트일 때만 리사이즈 커서(겹친 끝점 가로채기 방지)
-          const noteEnd = space.hitTestNoteEnd(x, y);
-          if (noteEnd !== null && space.hitTestNote(x, y) === noteEnd) cursor = 'ns-resize';
+          // 롱노트 끝 캡 위: down이 실제로 끝 리사이즈를 잡는 자리에서만 리사이즈 커서를 쓴다.
+          if (selectModeRef.current?.resolveGrabAt(x, y).kind === 'noteEndCap') cursor = 'ns-resize';
         }
       }
       if (canvasEl.style.cursor !== cursor) canvasEl.style.cursor = cursor;

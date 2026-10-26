@@ -15,6 +15,11 @@ const POINT_NOTE_TOLERANCE = 1 / 16;
 /** Tolerance for snap-position note detection (tighter, exact match) */
 export const SNAP_POSITION_TOLERANCE = 1 / 32;
 
+/** 명시적 점수 노트(Point·릴리즈·유지 노트). 같은 자리의 바디·끝 핸들보다 먼저 잡힌다(RFD 0037 §6-2). */
+export function isExplicitScoreNote(note: DocumentNoteEntity | undefined): boolean {
+  return note?.type === "point" || note?.type === "release" || note?.type === "sustain";
+}
+
 /** Highest z-order value — used for early exit in hit test */
 const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
 

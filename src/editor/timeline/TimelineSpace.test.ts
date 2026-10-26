@@ -261,6 +261,40 @@ describe("TimelineSpace — 히트테스트", () => {
     expect(space.hitTestNoteEnd(30, 1100)).toBeNull();
   });
 
+  describe("끝 Release가 덮은 바디 끝 핸들", () => {
+    // 1～5박 싱글 바디 + 5박 Release. y=500이 1박이라 5박은 y=2500, 1/16박은 y≈31.
+    const bodyWithEndRelease = (): DocumentNoteEntity[] => [
+      { type: "body", lane: 1, beat: beat(1), endBeat: beat(5), holdCount: 1 },
+      { type: "release", lane: 1, beat: beat(5), count: 1 },
+    ];
+
+    it("5박(y=2500)은 Release와 끝 핸들이 겹쳐 Release가 이기고 hitTestNoteEnd는 null이다", () => {
+      const { source } = makeFakeSource({ chart: makeChart({ notes: bodyWithEndRelease() }) });
+      const space = createTimelineSpace(source);
+      expect(space.hitTestUnifiedNote(30, 2500)).toBe(1);
+      expect(space.hitTestNoteEnd(30, 2500)).toBeNull();
+    });
+
+    it("Release hit 밖 바로 위 5.1박(y=2550)은 노트가 없고 hitTestNoteEnd가 바디 0을 돌려준다", () => {
+      const { source } = makeFakeSource({ chart: makeChart({ notes: bodyWithEndRelease() }) });
+      const space = createTimelineSpace(source);
+      expect(space.hitTestUnifiedNote(30, 2550)).toBeNull();
+      expect(space.hitTestNoteEnd(30, 2550)).toBe(0);
+    });
+
+    it("끝 핸들 띠 밖 5.2박(y=2600)은 hitTestNoteEnd가 null이다", () => {
+      const { source } = makeFakeSource({ chart: makeChart({ notes: bodyWithEndRelease() }) });
+      expect(createTimelineSpace(source).hitTestNoteEnd(30, 2600)).toBeNull();
+    });
+
+    it("Release 없는 바디는 기존처럼 끝 ±1/16박만 핸들이라 5.1박(y=2550)은 null이다", () => {
+      const { source } = makeFakeSource({ chart: makeChart({ notes: [bodyWithEndRelease()[0]] }) });
+      const space = createTimelineSpace(source);
+      expect(space.hitTestNoteEnd(30, 2500)).toBe(0);
+      expect(space.hitTestNoteEnd(30, 2550)).toBeNull();
+    });
+  });
+
   it("hitTestEventEnd: editorLane 1 구간 이벤트 endBeat=2를 보조 x=250·y=1000에서 히트, editorLane 2 위치(x=310)는 미스", () => {
     const events: ChartEvent[] = [
       { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },

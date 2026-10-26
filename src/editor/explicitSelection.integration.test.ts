@@ -8,6 +8,8 @@ import { DeleteMode } from './modes/DeleteMode';
 import { EraseGesture } from './editing/EraseGesture';
 import { hitTestNoteAt } from './timeline/hitTest';
 import { makeFakeSpace } from './timeline/makeFakeSpace';
+import { createTimelineSpace } from './timeline/TimelineSpace';
+import { scheduleFromGrabTarget } from './hooks/touchEditRouting';
 import { editorChartErrors, editorChartViolationIndices } from './documentValidation';
 import { compileExplicitJudgmentChart } from '../game/judgment/explicitCompiledChart';
 
@@ -215,6 +217,75 @@ describe('이미 선택된 명시 노트 누름은 선택 전체 이동', () => 
 
     expect(notes().map(note => note.beat)).toEqual([beat(1), beat(3)]);
     expect(selection()).toEqual(new Set([1]));
+  });
+});
+
+describe('기본 끝 Release가 있는 바디 끝 핸들(실제 hit-test)', () => {
+  // 실제 TimelineSpace: lane 1 중심 x=30, y=500이 1박(120 BPM, y=ms 항등). 5박은 y=2500.
+  let unsubscribe = () => {};
+  afterEach(() => unsubscribe());
+  function setupRealSpace(source: ChartDocument) {
+    useEditorStore.setState({ chart: source, selection: emptySelection(), historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, extraLaneCount: 2 });
+    const space = createTimelineSpace({
+      getChart: () => current().chart, getSnapDivision: () => 4, getSelectedNotes: () => new Set(current().selection.notes),
+      getExtraLaneCount: () => current().extraLaneCount, yToTime: y => y, getTotalTimelineMs: () => 20000,
+    });
+    const mode = new SelectMode(current().chart, {
+      space, getSelection: () => current().selection,
+      setSelection: value => current().setSelection(value), setSelectionTransient: value => current().setSelectionTransient(value),
+      onChartUpdate: (value, transaction) => current().setChart(value, { transaction }),
+      beginTransaction: onInterrupt => current().beginEditTransaction('selection', onInterrupt), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token),
+    });
+    unsubscribe = useEditorStore.subscribe(state => mode.setChart(state.chart));
+    const mouseDrag = (fromY: number, toY: number) => { mode.onPointerDown(30, fromY, false, false); mode.onPointerMove(30, toY); mode.onPointerUp(30, toY); };
+    const touchLongPressDrag = (fromY: number, toY: number) => {
+      mode.beginLongPressDrag(30, fromY, { noteEndHit: space.hitTestNoteEnd(30, fromY), noteHit: space.hitTestUnifiedNote(30, fromY), zoneHit: space.hitTestTrillZone(30, fromY) });
+      mode.onPointerMove(30, toY); mode.onPointerUp(30, toY);
+    };
+    return { mode, mouseDrag, touchLongPressDrag };
+  }
+  const bodyAt1to5 = () => chart(family().slice(0, 4));
+  const bodyEndAndReleaseBeats = () => {
+    const [body, , , release] = notes();
+    return [beatToFloat((body as Extract<DocumentNoteEntity, { type: 'body' }>).endBeat), beatToFloat(release.beat)];
+  };
+
+  it('마우스로 미선택 1～5박 바디의 Release 바로 위 5.1박을 6박까지 끌면 연결 4개를 선택하고 바디 끝과 Release만 6박이 된다', () => {
+    const { mode, mouseDrag } = setupRealSpace(bodyAt1to5());
+    expect(mode.resolveGrabAt(30, 2550)).toEqual({ kind: 'noteEndCap', index: 0 });
+    mouseDrag(2550, 3000);
+
+    expect(selection()).toEqual(new Set([0, 1, 2, 3]));
+    expect(bodyEndAndReleaseBeats()).toEqual([6, 6]);
+    expect(notes()[1].beat).toEqual(beat(1)); expect(notes()[2].beat).toEqual(beat(3));
+  });
+  it('터치 롱프레스로 미선택 바디의 Release 바로 위 5.1박을 6박까지 끌면 down 예약은 지연 박스이고 바디 끝과 Release가 6박이 된다', () => {
+    const { mode, touchLongPressDrag } = setupRealSpace(bodyAt1to5());
+    expect(scheduleFromGrabTarget(mode.resolveGrabAt(30, 2550))).toBe('emptySelectBox');
+    touchLongPressDrag(2550, 3000);
+
+    expect(selection()).toEqual(new Set([0, 1, 2, 3]));
+    expect(bodyEndAndReleaseBeats()).toEqual([6, 6]);
+  });
+  it('마우스로 5박 Release 자체를 6박까지 끌면 겹친 자리는 Release가 이겨 Release만 옮기고 바디 끝은 5박이다', () => {
+    const { mouseDrag } = setupRealSpace(bodyAt1to5());
+    mouseDrag(2500, 3000);
+
+    expect(selection()).toEqual(new Set([3]));
+    expect(bodyEndAndReleaseBeats()).toEqual([5, 6]);
+  });
+  it('선택된 trillZone 1～5박 끝에 명시 trill Point가 있어도 5박 끝 캡을 6박까지 끌면 구간 끝이 6박이 된다', () => {
+    const { mode, mouseDrag } = setupRealSpace({ ...chart([{ type: 'point', kind: 'trill', lane: 1, beat: beat(5) }]), trillZones: [{ lane: 1, beat: beat(1), endBeat: beat(5) }] });
+    mode.selectZoneUnit(0);
+    expect(mode.resolveGrabAt(30, 2500)).toEqual({ kind: 'trillZoneEndCap', index: 0 });
+    mouseDrag(2500, 3000);
+
+    expect(beatToFloat(current().chart.trillZones[0].endBeat)).toBe(6); expect(notes()[0].beat).toEqual(beat(5));
+  });
+  it('선택된 restZone 1～5박 끝에 Release가 있어도 5박 down은 restZone 끝 캡을 잡는다', () => {
+    const { mode } = setupRealSpace({ ...chart([{ type: 'release', lane: 1, beat: beat(5), count: 1 }]), restZones: [{ lane: 1, beat: beat(1), endBeat: beat(5) }] });
+    mode.selectRestZoneUnit(0);
+    expect(mode.resolveGrabAt(30, 2500)).toEqual({ kind: 'restZoneEndCap', index: 0 });
   });
 });
 
