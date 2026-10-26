@@ -10,7 +10,7 @@ export interface PixiPreviewSteps {
   readonly load: () => Promise<void>;
   /** 모든 준비가 끝나고 취소되지 않았을 때 장면을 만든다. */
   readonly mount: () => void;
-  /** 장면·로더를 해제한다. 앱 파괴보다 먼저 부른다. */
+  /** 장면·로더를 해제한다. 취소·준비 실패 중 처음 한 번만, 앱 파괴보다 먼저 부른다. */
   readonly release: () => void;
   /** 취소되지 않은 미리보기의 준비 실패를 알린다. */
   readonly onError: (error: unknown) => void;
@@ -49,7 +49,9 @@ export function startPixiPreview(steps: PixiPreviewSteps): () => void {
   };
   void run().catch((error: unknown) => {
     if (!cancelled) steps.onError(error);
+    // 실패한 화면이 마운트된 채 남아도 쓰지 않는 WebGL 앱을 즉시 돌려준다. 언마운트 취소는 다시 파괴하지 않는다.
     release();
+    destroyApp();
   });
   return () => {
     cancelled = true;

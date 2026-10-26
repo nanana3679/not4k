@@ -78,4 +78,44 @@ describe("Lab Pixi 미리보기 수명", () => {
     expect(preview.calls).toEqual(["beforeInit", "init", "load", "release", "destroy"]);
     expect(preview.destroyArgs).toEqual([keepGlobalResources]);
   });
+
+  it("init 뒤 스킨 PNG 로드가 실패하면 오류를 알리고 장면·로더 해제와 앱 파괴를 즉시 한 번 하며 이후 언마운트 취소는 다시 파괴하지 않는다", async () => {
+    const preview = startFake();
+    preview.beforeInit.resolve();
+    await flush();
+    preview.init.resolve();
+    await flush();
+    const failure = new Error("skin png 404");
+    preview.load.reject(failure);
+    await flush();
+    expect(preview.errors).toEqual([failure]);
+    expect(preview.calls).toEqual(["beforeInit", "init", "load", "release", "destroy"]);
+    preview.cancel();
+    expect(preview.calls).toEqual(["beforeInit", "init", "load", "release", "destroy"]);
+    expect(preview.destroyArgs).toEqual([keepGlobalResources]);
+  });
+
+  it("app.init이 실패하면 오류를 알리고 장면·로더만 해제하며 초기화되지 않은 앱은 파괴하지 않는다", async () => {
+    const preview = startFake();
+    preview.beforeInit.resolve();
+    await flush();
+    preview.init.reject(new Error("webgl unavailable"));
+    await flush();
+    preview.cancel();
+    expect(preview.errors).toHaveLength(1);
+    expect(preview.calls).toEqual(["beforeInit", "init", "release"]);
+  });
+
+  it("스킨 로드 대기 중 취소한 뒤 로드가 실패하면 오류를 알리지 않고 해제·파괴를 다시 하지 않는다", async () => {
+    const preview = startFake();
+    preview.beforeInit.resolve();
+    await flush();
+    preview.init.resolve();
+    await flush();
+    preview.cancel();
+    preview.load.reject(new Error("aborted"));
+    await flush();
+    expect(preview.errors).toEqual([]);
+    expect(preview.calls).toEqual(["beforeInit", "init", "load", "release", "destroy"]);
+  });
 });
