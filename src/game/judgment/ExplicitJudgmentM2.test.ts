@@ -34,22 +34,22 @@ function assertFixture(fixture: ExplicitReplayFixture): void {
   expect(result.score.finalDenominatorWeight).toBe(fixture.expected.theoreticalWeight);
   expect(result.snapshot.items.every(item => item.settlementFactId !== null)).toBe(true);
   expect(new Set(result.facts.filter(fact => fact.kind === "settlement").map(fact => fact.itemId)).size).toBe(fixture.expected.scoreItemCount);
-  if (fixture.expected.events) {
-    const events = { perfect: 0, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 };
-    for (const fact of facts) if (fact.kind === "settlement") {
-      if (fact.outcome === "dependentZero") events.dependentZero++;
-      else if (fact.grade === "perfect" || fact.grade === "great" || fact.grade === "good") events[fact.grade]++;
-      else if (fact.grade === "miss") { if (fact.itemKind === "point") events.pointMiss++; else events.releaseMiss++; }
-    }
-    for (const fact of result.facts) if (fact.kind === "bodyFailed" && fact.unscoredMiss
-      && (!indices || compiled.bodyUnits.some(unit => unit.id === fact.bodyUnitId && indices.includes(unit.source.noteIndex)))) events.maintenanceMiss++;
-    expect(events).toEqual(fixture.expected.events);
+  // 종속 0점과 등급 있는 Miss는 둘 다 0점이라 점수만으로 구별되지 않는다. 승인 fixture는 판정 종류별 수를 반드시 적는다.
+  expect(fixture.expected.events).toBeDefined();
+  const events = { perfect: 0, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 };
+  for (const fact of facts) if (fact.kind === "settlement") {
+    if (fact.outcome === "dependentZero") events.dependentZero++;
+    else if (fact.grade === "perfect" || fact.grade === "great" || fact.grade === "good") events[fact.grade]++;
+    else if (fact.grade === "miss") { if (fact.itemKind === "point") events.pointMiss++; else events.releaseMiss++; }
   }
+  for (const fact of result.facts) if (fact.kind === "bodyFailed" && fact.unscoredMiss
+    && (!indices || compiled.bodyUnits.some(unit => unit.id === fact.bodyUnitId && indices.includes(unit.source.noteIndex)))) events.maintenanceMiss++;
+  expect(events).toEqual(fixture.expected.events);
 }
 
 describe("M2 승인 fixture의 실제 compiler→core→session→ScoreManager", () => {
-  it.each(explicitEnjFixtures)("$id 승인 입력을 실행하면 $expected.earnedScore/$expected.theoreticalWeight 점과 전 항목 1회 정산", assertFixture);
-  it.each(explicitHcFixtures)("$id 승인 입력을 실행하면 $expected.earnedScore 점과 P/Gr/Go/PM/RM/MM/Z 기대값 보존", assertFixture);
+  it.each(explicitEnjFixtures)("$id 승인 입력을 실행하면 $expected.earnedScore/$expected.theoreticalWeight점·등급별 성공·Point/릴리즈/바디 Miss·종속 0점 수가 기대값과 같고 전 항목을 1회 정산", assertFixture);
+  it.each(explicitHcFixtures)("$id 승인 입력을 실행하면 $expected.earnedScore점·등급별 성공·Point/릴리즈/바디 Miss·종속 0점 수가 이관 기대값과 같음", assertFixture);
 });
 
 describe("M2 지연 입력의 잠정 진행과 확정 사실", () => {
