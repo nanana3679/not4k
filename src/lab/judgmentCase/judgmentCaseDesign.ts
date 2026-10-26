@@ -78,8 +78,11 @@ export function parseJudgmentCaseDesign(source: string, fallbackTitle = ""): Jud
   let parsed: unknown;
   try { parsed = JSON.parse(source); }
   catch { throw new Error("설계 JSON을 읽을 수 없습니다"); }
+  // 에디터·v4 차트 JSON에는 version·meta 같은 필드가 있으므로 알 수 없는 필드 오류보다 형식 안내를 먼저 낸다.
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && (parsed as Record<string, unknown>).format !== "judgment-case-design") {
+    throw new Error('format은 "judgment-case-design"이어야 합니다 (--design 전용 JSON)');
+  }
   const root = record(parsed, "설계", ["format", "title", "notes", "inputs", "windows", "annotations", "summary", "memo"]);
-  if (root.format !== "judgment-case-design") throw new Error('format은 "judgment-case-design"이어야 합니다 (--design 전용 JSON)');
   const ids = new Set<string>();
   const notes = array(root.notes, "notes").map((value, index): DesignNote => {
     const loc = `notes[${index}]`;

@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { serializeChart } from "../../shared/chart";
+import { beat } from "../../shared/types/beat";
+import type { ChartDocument } from "../../shared/types/chart";
 import { parseJudgmentCaseDesign, summarizeJudgmentCaseDesign } from "./judgmentCaseDesign";
 
 const base = { format: "judgment-case-design", notes: [{ kind: "point", atMs: 1000 }] };
@@ -55,7 +58,18 @@ describe("수동 설계 입력", () => {
     expect(() => parseJudgmentCaseDesign('{"format":"judgment-case-design","notes":[{"kind":"point","atMs":1e400}]}')).toThrow(/유한/);
   });
 
-  it("에디터 JSON을 --design에 주면 설계 형식을 명시하라는 오류", () => {
+  it("format 없는 { notes: [] }를 --design에 주면 설계 형식을 명시하라는 오류", () => {
     expect(() => parse({ notes: [] })).toThrow(/format.*judgment-case-design/);
+  });
+
+  it("version·meta가 있는 v4 ChartDocument JSON을 --design에 주면 '알 수 없는 필드' 대신 format 안내 오류", () => {
+    const chart: ChartDocument = {
+      meta: { title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1, imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 },
+      notes: [{ type: "point", kind: "single", lane: 1, beat: beat(2) }], trillZones: [], restZones: [],
+      events: [{ type: "bpm", beat: beat(0), bpm: 120 }],
+    };
+    const source = serializeChart(chart);
+    expect(JSON.parse(source).version).toBe(4);
+    expect(() => parseJudgmentCaseDesign(source)).toThrow(/format.*judgment-case-design/);
   });
 });
