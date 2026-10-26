@@ -124,6 +124,21 @@ describe("explicit 사례의 실제 compiler → session → ScoreManager", () =
     expect(run.displays.filter(display => display.confirmedAt === 1500)).toHaveLength(1);
   });
 
+  it("A1000～2000으로 finalize까지 마친 사례는 timeline 완료 라벨에 (잠정)을 붙이지 않고 'N2 무점수 완료 @2000'", () => {
+    const { example, run } = replay(document([point(1000), body(1000, 2000), sustain(1500), release(2000)], [["A", 1000, 2000]]));
+    expect(run.finalized).toBe(true);
+    expect(run.result?.facts.some(fact => (fact.kind === "bodyStarted" || fact.kind === "bodyCompleted") && fact.provisional)).toBe(true);
+    const labels = explicitCaseLabels(example, run).map(label => label.text);
+    expect(labels).toContain("N2 무점수 완료 @2000");
+    expect(labels.join("\n")).not.toContain("(잠정)");
+  });
+
+  it("같은 사례가 finalize 전이면 무효화되지 않은 provisional 완료 라벨에 (잠정)을 유지", () => {
+    const { example, run } = replay(document([point(1000), body(1000, 2000), sustain(1500), release(2000)], [["A", 1000, 2000]]));
+    const labels = explicitCaseLabels(example, { ...run, finalized: false }).map(label => label.text);
+    expect(labels).toContain("N2 무점수 완료 (잠정) @2000");
+  });
+
   it("late up950/observed1001이 잠정 시작을 무효화하면 라벨도 시작을 제거하고 실제 snapshot 미시작을 보존", () => {
     const example = explicitCaseFromDocument(document([body(1000, 1060), sustain(1030)]));
     const compiled = compileExplicitJudgmentChart(example.chart);

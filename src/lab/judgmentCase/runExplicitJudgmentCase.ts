@@ -92,7 +92,7 @@ export function explicitCaseNoteName(example: ExplicitChartCase, index: number, 
 const gradeLabel = (grade: string | null) => grade === "perfect" ? "Perfect" : grade === "great" ? "Great"
   : grade === "good" ? "Good" : grade === "goodTrill" ? "Good◇" : grade === "miss" ? "Miss" : "없음";
 
-/** 무효화된 provisional 기록을 현재 시작·완료로 표시하지 않는다. */
+/** 무효화된 provisional 기록을 현재 시작·완료로 표시하지 않고, finalize 전의 남은 provisional 기록만 (잠정)으로 표시한다. */
 export function explicitCaseLabels(example: ExplicitChartCase, run: ExplicitCaseRun): ExplicitCaseLabel[] {
   const facts = run.result?.facts ?? [];
   const invalidated = new Set(facts.flatMap(fact => fact.kind === "bodyProgressInvalidated" ? [...fact.invalidatedFactIds] : []));
@@ -119,7 +119,8 @@ export function explicitCaseLabels(example: ExplicitChartCase, run: ExplicitCase
       failure = fact.kind === "bodyFailed";
       text = `${unitName} ${fact.kind === "bodyStarted" ? "시작" : fact.kind === "bodyCompleted" ? "무점수 완료"
         : fact.reason === "startTimeout" ? "시작 실패" : fact.reason === "maintenance" ? "유지 실패" : "Point Miss 종속 실패"}`;
-      if (fact.kind !== "bodyFailed" && fact.provisional) text += " (잠정)";
+      // finalize 뒤에는 늦은 입력이 더 없어 무효화되지 않은 provisional 진행이 그대로 확정이다.
+      if (fact.kind !== "bodyFailed" && fact.provisional && !run.finalized) text += " (잠정)";
       if (fact.kind === "bodyFailed") text += fact.unscoredMiss ? " · 무점수 Miss" : " · 추가 Miss 없음";
     } else return [];
     return [{ atMs: fact.confirmedAt, text: `${text} @${formatMs(fact.confirmedAt)}`, failure }];
