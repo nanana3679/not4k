@@ -115,8 +115,10 @@ export class ExplicitNotePresenter {
         else if (fulfilled.length) state = "held";
         const alpha = complete > 0 && complete < units.length ? 0.7 : 1;
         const rawBottom = timeY(body.startMs) + noteHeight / 2;
-        // 실제 시작해 유지·회복 중인 몫이 하나라도 남으면 판정선에 붙인다. 더블 한 몫이 실패해도 남은 몫을 잡고 있는 동안
-        // 바디가 원래 위치로 튀지 않는다(실패한 절반은 부분 실패 도안). 남은 몫이 없을 때만 원래 배치를 끝까지 스크롤한다.
+        // 실제 시작해 유지·회복 중인 몫이 하나라도 있으면 판정선에 붙인다. 더블 한 몫이 실패해도 다른 몫이 유지·회복 중인
+        // 동안은 원래 위치로 튀지 않고 실패한 절반만 부분 실패 도안으로 그린다. 유지·회복 중인 몫이 없어지면(모두 실패, 또는
+        // 남은 몫이 완료된 complete+failed) 실패가 남은 바디는 원래 차트 위치에서 스크롤한다. 그래서 남은 몫이 완료되는 순간
+        // 판정선 아래에 바디 띠가 잠깐 보이며, 사용자 결정(2026-10-26)으로 감수한다.
         const pinned = units.some((unit: ExplicitBodyUnitSnapshot) => unit.actualStartMs !== null
           && (unit.state === "active" || unit.state === "recovering"));
         const bottom = pinned ? layout.judgmentLineY + noteHeight / 2 : rawBottom;
