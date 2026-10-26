@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AbstractRenderer, TexturePool, type Application } from 'pixi.js';
+import { AbstractRenderer, Texture, TexturePool, type Application } from 'pixi.js';
 import { GameRenderer } from './GameRenderer';
+import { GAME_HEIGHT } from './constants';
+import type { SkinManager } from '../skin';
 
 describe('GameRenderer 리소스 수명', () => {
   it('초기화 실패로 dispose(false)를 호출하면 GPU를 해제하되 React가 제거할 캔버스는 남긴다', () => {
@@ -48,6 +50,26 @@ describe('GameRenderer 리소스 수명', () => {
     expect(destroyApplication).toHaveBeenCalledTimes(1);
     TexturePool.returnTexture(reusedTexture);
     TexturePool.clear();
+  });
+
+  it('app.init 뒤 장면 구성의 키 빔 단계가 실패하면 init은 그 오류로 실패하고 캔버스는 남긴 채 Pixi 앱을 1회 파괴하며 뒤늦은 dispose는 다시 파괴하지 않는다', async () => {
+    const skinManager = {
+      getTheme: () => ({ bg: 0, beamColor: 0xffffff }),
+      getBodyWidthScale: () => 1,
+      hasTexture: () => false,
+      getLoadedTextures: () => new Map<string, Texture>(),
+      getTexture: () => { throw new Error('텍스처 없음'); },
+    } as unknown as SkinManager;
+    const renderer = new GameRenderer({ canvas: {} as HTMLCanvasElement, width: 1067, height: GAME_HEIGHT, skinManager,
+      showFlightBackground: false, gearMotion: false });
+    const app = Reflect.get(renderer, 'app') as Application;
+    vi.spyOn(app, 'init').mockResolvedValue(undefined);
+    const destroy = vi.spyOn(app, 'destroy').mockImplementation(() => {});
+    vi.spyOn(renderer as unknown as { buildKeyBeams(): void }, 'buildKeyBeams').mockImplementation(() => { throw new Error('해제된 스킨'); });
+    await expect(renderer.init()).rejects.toThrow('해제된 스킨');
+    expect(destroy).toHaveBeenCalledExactlyOnceWith({ removeView: false, releaseGlobalResources: false }, { children: true, texture: false });
+    renderer.dispose(false);
+    expect(destroy).toHaveBeenCalledOnce();
   });
 
   it('dispose 후 늦게 도착한 프레임은 파괴된 판정 UI와 Graphics에 접근하지 않는다', () => {

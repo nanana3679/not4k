@@ -792,6 +792,27 @@ describe('명시 실제 재생 runtime', () => {
     expect(fixture.renderers).toHaveLength(0); expect(run.target.listeners.size).toBe(0);
   });
 
+  it.each(['resolve', 'reject'] as const)('렌더러 init 대기 중 취소 뒤 init이 %s되면 그때 renderer·explicit 스킨·기존 스킨 순으로 한 번씩 정리하고 오류를 보고하지 않는다', async outcome => {
+    let settle!: (failed: boolean) => void; let entered!: () => void;
+    const ready = new Promise<void>(done => { entered = done; });
+    fixture.init = () => { entered(); return new Promise<void>((resolve, reject) => {
+      settle = failed => failed ? reject(new Error('init after cancel')) : resolve();
+    }); };
+    const run = create(); const starting = run.player.start(); await ready;
+    run.player.dispose();
+    const renderer = fixture.renderers[0]; const skin = fixture.skins[0]; const explicit = fixture.explicit[0];
+    expect(renderer.dispose).not.toHaveBeenCalled();
+    expect(skin.dispose).not.toHaveBeenCalled(); expect(explicit.dispose).not.toHaveBeenCalled();
+    expect(fixture.audio[0].dispose).toHaveBeenCalledOnce();
+    settle(outcome === 'reject'); await starting; await Promise.resolve();
+    expect(renderer.dispose).toHaveBeenCalledExactlyOnceWith(false);
+    expect(skin.dispose).toHaveBeenCalledOnce(); expect(explicit.dispose).toHaveBeenCalledOnce();
+    expect(renderer.dispose.mock.invocationCallOrder[0]).toBeLessThan(explicit.dispose.mock.invocationCallOrder[0]);
+    expect(explicit.dispose.mock.invocationCallOrder[0]).toBeLessThan(skin.dispose.mock.invocationCallOrder[0]);
+    expect(run.onError).not.toHaveBeenCalled(); expect(run.target.listeners.size).toBe(0); expect(frames.size).toBe(0);
+    expect(fixture.audio[0].playWithPreroll).not.toHaveBeenCalled();
+  });
+
   it('음악 준비1000ms에 취소하면 예약 오디오·RAF·키 listener를 모두 닫고 늦은 frame은 결과를 만들지 않는다', async () => {
     const run = create(); await run.player.start(); wallFrame(1000);
     const queued = [...frames.values()]; run.player.dispose(); run.player.dispose();

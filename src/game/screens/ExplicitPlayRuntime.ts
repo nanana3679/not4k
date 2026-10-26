@@ -42,6 +42,8 @@ export class ExplicitPlayRuntime {
   private skin: SkinManager | null = null;
   private explicitSkin: ExplicitSkinLoader | null = null;
   private renderer: GameRenderer | null = null;
+  /** 진행 중인 renderer.init. 이 동안 취소하면 Pixi 앱이 아직 스킨을 읽으므로 끝난 뒤에 함께 정리한다. */
+  private rendererInit: Promise<void> | null = null;
   private input: ReturnType<typeof createExplicitPlayInput> | null = null;
   private adapter: ExplicitSessionRendererAdapter | null = null;
   private session: ExplicitJudgmentSession | null = null;
@@ -102,8 +104,11 @@ export class ExplicitPlayRuntime {
         height: GAME_HEIGHT, resolution: settings.renderHeight / GAME_HEIGHT, skinManager: this.skin,
         bombScale: settings.bombScale, gearMotion: settings.gearMotion, difficultyLabel: request.document.meta.difficultyLabel });
       this.renderer = renderer;
-      await renderer.init();
-      if (this.closed) { renderer.dispose(false); return; }
+      const rendererInit = renderer.init();
+      this.rendererInit = rendererInit;
+      try { await rendererInit; } finally { this.rendererInit = null; }
+      // 취소됐다면 dispose가 init 종료 뒤의 renderer·스킨 정리를 이미 예약했다.
+      if (this.closed) return;
       this.targetMs = request.startTimeMs;
       const session = new ExplicitJudgmentSession(request.compiled, {
         windows: getJudgmentWindows(settings.judgmentMode),
@@ -387,10 +392,11 @@ export class ExplicitPlayRuntime {
     this.releaseInput();
     this.adapter?.dispose();
     this.adapter = null;
-    this.renderer?.dispose(false);
-    this.renderer = null;
-    this.explicitSkin?.dispose();
-    this.skin?.dispose();
+    const renderer = this.renderer; const explicitSkin = this.explicitSkin; const skin = this.skin;
+    this.renderer = null; this.explicitSkin = null; this.skin = null;
+    const release = () => { renderer?.dispose(false); explicitSkin?.dispose(); skin?.dispose(); };
+    // init 도중에는 renderer.dispose가 아무것도 하지 않고, 먼저 해제한 스킨을 init이 읽다 실패한다.
+    if (this.rendererInit) void this.rendererInit.then(release, release); else release();
     if (this.audio) void this.audio.dispose();
     this.audio = null;
     this.clock = null;

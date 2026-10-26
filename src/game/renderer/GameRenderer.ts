@@ -392,6 +392,33 @@ export class GameRenderer {
       backgroundAlpha: this.showFlightBackground ? 0 : 1,
     });
 
+    try {
+      this.buildScene();
+    } catch (error) {
+      // 아직 initialized 전이라 dispose가 건너뛴다. 이미 초기화한 Pixi 앱과 만든 장면은 여기서 파괴한다(캔버스는 React 소유).
+      this.app.destroy({ removeView: false, releaseGlobalResources: false }, { children: true, texture: false });
+      throw error;
+    }
+    this.initialized = true;
+    // lease는 dispose가 release할 수 있는 시점(초기화 뒤)에 acquire한다. `holder`는 그래도 기어 레이어의 기어 스프라이트 바로 위에 붙는다.
+    this.buildGearMotion();
+    // 비행 배경과 `gearMotion` 에셋은 렌더러 준비에 필요하다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
+    const required: Promise<unknown>[] = [];
+    if (this.showFlightBackground) {
+      this.flightBackground = new FlightBackground({
+        canvas: this.canvas, width: this.width, height: this.height,
+        resolution: this.resolution, scenario: resolveFlightScenario(this.difficultyLabel),
+      });
+      required.push(this.flightBackground.init());
+    }
+    if (this.gearMotionController) required.push(this.gearMotionController.ready);
+    try { await Promise.all(required); }
+    // 오류 화면으로 전환할 때 React가 소유한 캔버스는 React가 제거한다.
+    catch (error) { this.dispose(false); throw error; }
+  }
+
+  /** app.init 뒤의 장면 그래프·하위 렌더러·정적 요소 구성. 실패하면 init이 Pixi 앱을 파괴한다. */
+  private buildScene(): void {
     // Build scene graph
     this.app.stage.addChild(this.backgroundLayer);
     this.backgroundLayer.addChild(this.laneBackground);
@@ -458,22 +485,6 @@ export class GameRenderer {
     if (this.tutorialKeyboardSpec) {
       this.buildTutorialKeyboard();
     }
-    this.initialized = true;
-    // lease는 dispose가 release할 수 있는 시점(초기화 뒤)에 acquire한다. `holder`는 그래도 기어 레이어의 기어 스프라이트 바로 위에 붙는다.
-    this.buildGearMotion();
-    // 비행 배경과 `gearMotion` 에셋은 렌더러 준비에 필요하다. 함께 기다리고, 어느 쪽이든 실패하면 스스로 정리한 뒤 그 오류로 실패한다.
-    const required: Promise<unknown>[] = [];
-    if (this.showFlightBackground) {
-      this.flightBackground = new FlightBackground({
-        canvas: this.canvas, width: this.width, height: this.height,
-        resolution: this.resolution, scenario: resolveFlightScenario(this.difficultyLabel),
-      });
-      required.push(this.flightBackground.init());
-    }
-    if (this.gearMotionController) required.push(this.gearMotionController.ready);
-    try { await Promise.all(required); }
-    // 오류 화면으로 전환할 때 React가 소유한 캔버스는 React가 제거한다.
-    catch (error) { this.dispose(false); throw error; }
   }
 
   /**
