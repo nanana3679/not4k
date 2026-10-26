@@ -144,7 +144,7 @@ export class ExplicitPlayRuntime {
           try { this.activatePreparedPlayback(timestamp); } catch (error) { this.fail(error); }
         },
         onLatePreparationHoldChange: () => {
-          try { this.reseedPreparationHolds(); } catch (error) { this.fail(error); }
+          try { this.applyLatePreparationHoldChange(); } catch (error) { this.fail(error); }
         },
       });
       this.input = input;
@@ -334,16 +334,16 @@ export class ExplicitPlayRuntime {
 
   /**
    * 준비 중에 누르거나 뗀 키가 판정 재개 뒤에야 도착했다. Point·릴리즈 입력으로 넣지 않고
-   * 바뀐 현재 hold로 같은 목표 T의 재개를 다시 적용한다(RFD 0040: 준비 down/up은 hold로만 반영).
+   * 바뀐 키의 레인 hold만 현재 core 시각에 맞춘다(RFD 0040: 준비 down/up은 hold로만 반영).
+   * 재개를 다시 적용하지 않으므로 다른 레인 바디의 시작·유지 기한은 그대로다.
    */
-  private reseedPreparationHolds(): void {
+  private applyLatePreparationHoldChange(): void {
     if (!this.seededFromPreparation || this.paused || this.closed || this.preparation) return;
     const session = this.session!;
     const songTimeMs = this.clock!.judgmentTimeMs();
     // 이미 큐에 들어온 재개 뒤 실제 입력을 먼저 처리해야 core의 hold와 물리 hold가 어긋나지 않는다.
     drainExplicitPlaySessionInputs(this.input!.timeline, session, Infinity, songTimeMs);
-    session.resumeAt(session.snapshot.atMs, this.currentHeldKeys(), songTimeMs, this.targetMs);
-    this.renderer!.setExplicitPlaybackChart(session.playbackChart);
+    session.syncHeldKeys(session.snapshot.atMs, this.currentHeldKeys(), songTimeMs);
   }
 
   private currentHeldKeys(): { lane: number; key: string }[] {

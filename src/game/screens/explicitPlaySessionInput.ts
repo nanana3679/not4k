@@ -23,7 +23,7 @@ export interface ExplicitPlayInputHooks {
   beforeInput?(eventTimestamp: number): void;
   /**
    * 판정 재개 시각보다 앞선 down/up이 재개 뒤에 도착했다. 점수 입력으로 넣지 않으며,
-   * 이미 바뀐 `heldKeys`를 재개 hold에 다시 반영하는 것은 호출자 몫이다.
+   * 이미 바뀐 `heldKeys`를 판정 hold에 반영하는 것은 호출자 몫이다.
    */
   onLatePreparationHoldChange?(): void;
 }

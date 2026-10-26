@@ -496,6 +496,26 @@ describe('명시 실제 재생 runtime', () => {
     expect(result.facts.filter(fact => fact.kind === 'input' && fact.action === 'down')).toHaveLength(0);
   });
 
+  it.each([
+    ['실제3000 판정 재개 전에', false],
+    ['실제3185에 늦게', true],
+  ] as const)('준비 중 KeyQ로 잡은 바디0～2000을 170에 떼고 레인2 KeyE 준비 down(timestamp2990)이 %s 도착하면 바디는 190에 유지 실패하고 220 재입력은 유지 노트500 점수를 얻지 않는다', async (_, delayed) => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.notes = [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: 'sustain', count: 1, lane: 1, beat: beat(1) }];
+    const run = create(false, chart); await run.player.start();
+    wallFrame(1000); key(run.target, 'keydown', 'KeyQ');
+    if (!delayed) { wallFrame(2990); key(run.target, 'keydown', 'KeyE'); }
+    wallFrame(3000);
+    at(170); key(run.target, 'keyup', 'KeyQ'); frame(180);
+    if (delayed) { fixture.now = 3185; key(run.target, 'keydown', 'KeyE', 2990); }
+    at(220); key(run.target, 'keydown', 'KeyQ'); frame(220); frame(4200);
+    const result = run.onResult.mock.calls[0][0];
+    expect(run.onError).not.toHaveBeenCalled();
+    expect(result.snapshot.bodyUnits[0]).toMatchObject({ state: 'failed', failedAtMs: 190 });
+    expect(result.score).toMatchObject({ earnedScore: 0, processedNotes: 1, judgmentCounts: { perfect: 0 } });
+  });
+
   it('준비 종료 프레임이80ms 늦어도 실제3020ms down은 새 Point 입력이고 준비 중 down으로 버리지 않는다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(0) }];
