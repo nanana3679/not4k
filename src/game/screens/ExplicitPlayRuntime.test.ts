@@ -88,13 +88,15 @@ beforeEach(() => {
 });
 afterEach(() => { for (const player of players.splice(0)) player.dispose(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function create(auto = true, chart = explicitPlaytestCharts[0].chart, settings: Partial<GameSettings> = {}, startTimeMs = 0, duration = 4,
+/** startTimeMs를 생략하면 처음부터 테스트, 넘기면 그 커서부터 테스트다. */
+function create(auto = true, chart = explicitPlaytestCharts[0].chart, settings: Partial<GameSettings> = {}, startTimeMs?: number, duration = 4,
   normal?: { playbackRange?: PlaybackRange | null }) {
   const target = new Target(); const onResult = vi.fn<(result: ExplicitSessionResult) => void>();
   const onError = vi.fn(); const onPhase = vi.fn(); const onProgress = vi.fn();
   const request: ExplicitPlayRequest = normal
     ? prepareNormalPlay({ document: chart, audioBuffer: { duration } as AudioBuffer, playbackRange: normal.playbackRange })
-    : prepareExplicitPlayTest({ document: chart, audioBuffer: { duration } as AudioBuffer, returnUrl: '/lab/explicit-playtest', auto, startTimeMs });
+    : prepareExplicitPlayTest({ document: chart, audioBuffer: { duration } as AudioBuffer, returnUrl: '/lab/explicit-playtest', auto,
+      ...(startTimeMs === undefined ? {} : { startTimeMs }) });
   const player = new ExplicitPlayRuntime({ request, settings: { ...useGameStore.getInitialState().settings, gearMotion: false, ...settings },
     canvas: {} as HTMLCanvasElement, width: 1200, height: 700, inputTarget: target, onResult, onError, onPhase, onProgress });
   players.push(player);
@@ -119,7 +121,7 @@ describe('명시 실제 재생 runtime', () => {
   it('일반 첫 시작과 Retry는 각각 준비 완료 즉시 play(0)·playing이며 음악 준비와 resumeAt을 호출하지 않는다', async () => {
     const resume = vi.spyOn(ExplicitJudgmentSession.prototype, 'resumeAt');
     for (let attempt = 0; attempt < 2; attempt++) {
-      const run = create(false, undefined, {}, 0, 4, {}); await run.player.start();
+      const run = create(false, undefined, {}, undefined, 4, {}); await run.player.start();
       const audio = fixture.audio[attempt]; const renderer = fixture.renderers[attempt];
       expect(run.onPhase.mock.calls.map(call => call[0])).toEqual(['preparing', 'playing']);
       expect(audio.play).toHaveBeenCalledExactlyOnceWith(0);
@@ -142,7 +144,7 @@ describe('명시 실제 재생 runtime', () => {
     if (stage === 'audio') fixture.prepareAudio = block;
     if (stage === 'renderer') fixture.init = block;
     if (stage === 'gear') { fixture.gearReady = waiting; fixture.load = async () => { entered(); }; }
-    const run = create(false, undefined, {}, 0, 4, {}); const starting = run.player.start(); await ready;
+    const run = create(false, undefined, {}, undefined, 4, {}); const starting = run.player.start(); await ready;
     wallFrame(5000); key(run.target, 'keydown', 'Escape'); run.player.togglePause();
     expect(run.onPhase).toHaveBeenLastCalledWith('preparing');
     expect(fixture.audio[0].play).not.toHaveBeenCalled(); expect(run.target.listeners.size).toBe(0);
@@ -156,7 +158,7 @@ describe('명시 실제 재생 runtime', () => {
     fixture.latency = 20;
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(2) }];
-    const run = create(false, chart, { playSpeed: rate, inputOffsetMs: 40, visualOffsetMs: 70 }, 0, 4, {});
+    const run = create(false, chart, { playSpeed: rate, inputOffsetMs: 40, visualOffsetMs: 70 }, undefined, 4, {});
     await run.player.start(); wallFrame(0);
     expect(fixture.renderers[0].prepareForPlayback).toHaveBeenCalledWith(50 * rate);
     expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(50 * rate, 0);
@@ -170,7 +172,7 @@ describe('명시 실제 재생 runtime', () => {
     fixture.latency = 20;
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.meta.offsetMs = -40; chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(0) }];
-    const run = create(false, chart, { playSpeed: 2 }, 0, 4, {}); await run.player.start();
+    const run = create(false, chart, { playSpeed: 2 }, undefined, 4, {}); await run.player.start();
     key(run.target, 'keydown', 'KeyQ'); wallFrame(0); frame(4200);
     expect(run.onError).not.toHaveBeenCalled();
     expect(run.onResult.mock.calls[0][0].score).toMatchObject({ totalNotes: 1, earnedScore: 3 });
@@ -178,7 +180,7 @@ describe('명시 실제 재생 runtime', () => {
 
   it('일반 배속2·L₀20ms에서5000ms pause는2000으로 되감고 실제2999ms 숨긴 뒤3000ms에 다시 표시한다', async () => {
     fixture.latency = 20;
-    const run = create(false, undefined, { playSpeed: 2, visualOffsetMs: 70 }, 0, 8, {});
+    const run = create(false, undefined, { playSpeed: 2, visualOffsetMs: 70 }, undefined, 8, {});
     await run.player.start(); frame(2000); frame(5000); run.player.togglePause();
     expect(fixture.renderers[0].restoreExplicitPlaybackState).toHaveBeenCalledWith(2000, 2, expect.any(Array));
     run.player.togglePause();
@@ -193,7 +195,7 @@ describe('명시 실제 재생 runtime', () => {
 
   it('일반 시작의 출력 지연20ms 안에서 즉시 pause해도0ms 목표로 음악 준비한 뒤 정상 재개한다', async () => {
     fixture.latency = 20;
-    const run = create(false, undefined, {}, 0, 4, {}); await run.player.start();
+    const run = create(false, undefined, {}, undefined, 4, {}); await run.player.start();
     key(run.target, 'keydown', 'Escape'); key(run.target, 'keydown', 'Escape');
     expect(fixture.audio[0].playWithPreroll).toHaveBeenCalledExactlyOnceWith(-2980);
     wallFrame(3000); expect(run.onPhase).toHaveBeenLastCalledWith('playing');
@@ -202,7 +204,7 @@ describe('명시 실제 재생 runtime', () => {
 
   it('일반 입력+100ms·L₀20ms에서 J−20의 KeyQ(raw80) 뒤 입력 없이 J5에 멈추면 오류 없이 0으로 되감아 일시정지한다', async () => {
     fixture.latency = 20;
-    const run = create(false, undefined, { inputOffsetMs: 100 }, 0, 4, {}); await run.player.start();
+    const run = create(false, undefined, { inputOffsetMs: 100 }, undefined, 4, {}); await run.player.start();
     at(-20); key(run.target, 'keydown', 'KeyQ'); frame(-20);
     at(5); key(run.target, 'keydown', 'Escape');
     expect(run.onError).not.toHaveBeenCalled();
@@ -212,7 +214,7 @@ describe('명시 실제 재생 runtime', () => {
 
   it('원본16초의8～12초 구간은 songTime0으로 시작하고 렌더러·완주 기준은4000ms이다', async () => {
     const range = { startTime: 8, endTime: 12, fadeInTime: .2, fadeOutTime: .3 };
-    const run = create(false, undefined, {}, 0, 16, { playbackRange: range }); await run.player.start();
+    const run = create(false, undefined, {}, undefined, 16, { playbackRange: range }); await run.player.start();
     expect(fixture.audio[0].setPlaybackRange).toHaveBeenCalledWith(range);
     expect(fixture.audio[0].play).toHaveBeenCalledExactlyOnceWith(0);
     expect(fixture.renderers[0].setExplicitChart.mock.calls[0][4]).toBe(4000);
@@ -223,7 +225,7 @@ describe('명시 실제 재생 runtime', () => {
   it('일반 AutoEvent1000～2000ms와3000ms 실제 down은4항목12점·타격4회·고도4회로 한 번 종료한다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.events.push({ type: 'auto', beat: beat(2), endBeat: beat(4) });
-    const run = create(false, chart, {}, 0, 4, {}); await run.player.start();
+    const run = create(false, chart, {}, undefined, 4, {}); await run.player.start();
     frame(1000); frame(2000); at(3000); key(run.target, 'keydown', 'KeyE'); frame(3000);
     const pending = [...frames.values()]; frame(4200); for (const callback of pending) callback(4300);
     expect(run.onResult).toHaveBeenCalledOnce();
@@ -241,7 +243,7 @@ describe('명시 실제 재생 runtime', () => {
     const click = vi.fn(); vi.stubGlobal('document', { createElement: () => ({ click }) });
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:debug');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
-    const run = create(false, undefined, { debugMode: true }, 0, 8, {}); await run.player.start();
+    const run = create(false, undefined, { debugMode: true }, undefined, 8, {}); await run.player.start();
     at(1000); key(run.target, 'keydown', 'KeyQ'); frame(1000); frame(5000);
     run.player.togglePause(); run.player.togglePause(); frame(2000); frame(8200); run.player.downloadDebugLog();
     expect(record).toHaveBeenCalled(); expect(rewind).toHaveBeenCalledExactlyOnceWith(2000, expect.any(ExplicitJudgmentSession));
@@ -252,7 +254,7 @@ describe('명시 실제 재생 runtime', () => {
   it('일반 debugMode 기록 실패는 판정과 완주를 막지 않고 오류 로그만1회 남긴다', async () => {
     vi.spyOn(ExplicitPlayDebugLog.prototype, 'record').mockImplementation(() => { throw new Error('debug'); });
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const run = create(false, undefined, { debugMode: true }, 0, 4, {}); await run.player.start();
+    const run = create(false, undefined, { debugMode: true }, undefined, 4, {}); await run.player.start();
     frame(1000); frame(4200);
     expect(run.onResult).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledOnce();
@@ -260,11 +262,11 @@ describe('명시 실제 재생 runtime', () => {
 
   it('일반 debugMode에서 Retry용 dispose와 로딩 취소는 다운로드하지 않는다', async () => {
     const download = vi.spyOn(ExplicitPlayDebugLog.prototype, 'download').mockImplementation(() => {});
-    const first = create(false, undefined, { debugMode: true }, 0, 4, {}); await first.player.start(); first.player.dispose();
+    const first = create(false, undefined, { debugMode: true }, undefined, 4, {}); await first.player.start(); first.player.dispose();
     let resolve!: () => void; let entered!: () => void;
     const ready = new Promise<void>(done => { entered = done; });
     fixture.init = () => { entered(); return new Promise<void>(done => { resolve = done; }); };
-    const canceled = create(false, undefined, { debugMode: true }, 0, 4, {});
+    const canceled = create(false, undefined, { debugMode: true }, undefined, 4, {});
     const start = canceled.player.start(); await ready; canceled.player.downloadDebugLog(); canceled.player.dispose(); resolve(); await start;
     expect(download).not.toHaveBeenCalled(); expect(fixture.audio[1].play).not.toHaveBeenCalled();
     expect(canceled.target.listeners.size).toBe(0); expect(frames.size).toBe(0);
@@ -273,7 +275,7 @@ describe('명시 실제 재생 runtime', () => {
   it('일반4초 끝의 Point4000과입력−100ms는 진행 시각이4120ms 기한을 넘는4221ms까지 결과를 기다린다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(8) }];
-    const run = create(false, chart, { inputOffsetMs: -100 }, 0, 4, {}); await run.player.start();
+    const run = create(false, chart, { inputOffsetMs: -100 }, undefined, 4, {}); await run.player.start();
     frame(4000); at(4100); key(run.target, 'keydown', 'KeyQ'); frame(4100); frame(4220);
     expect(run.onResult).not.toHaveBeenCalled(); frame(4221);
     expect(run.onResult.mock.calls[0][0].score).toMatchObject({ earnedScore: 3, judgmentCounts: { perfect: 1 } });
@@ -284,7 +286,7 @@ describe('명시 실제 재생 runtime', () => {
     chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(2) },
       { type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(12) },
       { type: 'release', count: 1, lane: 1, beat: beat(12) }];
-    const run = create(false, chart, {}, 0, 8); await run.player.start();
+    const run = create(false, chart, {}, undefined, 8); await run.player.start();
     frame(0); at(1000); key(run.target, 'keydown', 'KeyQ'); frame(1500);
     at(5000); run.player.togglePause(); key(run.target, 'keyup', 'KeyQ'); run.player.togglePause();
     frame(2000); at(2010); key(run.target, 'keydown', 'KeyW'); frame(2010);
@@ -297,7 +299,7 @@ describe('명시 실제 재생 runtime', () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(2) },
       { type: 'point', kind: 'single', lane: 2, beat: beat(7, 2) }];
-    const run = create(auto, chart, {}, 0, 8); await run.player.start(); frame(0);
+    const run = create(auto, chart, {}, undefined, 8); await run.player.start(); frame(0);
     if (!auto) { at(1000); key(run.target, 'keydown', 'KeyQ'); }
     frame(1500); at(5000); run.player.togglePause();
     const renderer = fixture.renderers[0];
@@ -315,7 +317,7 @@ describe('명시 실제 재생 runtime', () => {
     chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(37, 10) },
       { type: 'body', holdCount: 1, lane: 1, beat: beat(37, 10), endBeat: beat(12) },
       { type: 'release', count: 1, lane: 1, beat: beat(12) }];
-    const run = create(false, chart, { inputOffsetMs: -200 }, 0, 8); await run.player.start();
+    const run = create(false, chart, { inputOffsetMs: -200 }, undefined, 8); await run.player.start();
     frame(0); frame(1500); at(5000); run.player.togglePause();
     expect(run.onProgress).toHaveBeenLastCalledWith({ settled: 0, combo: 0 }, 2000);
     run.player.togglePause(); frame(2000);
@@ -378,6 +380,20 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onResult.mock.calls[0][0].score).toMatchObject({ totalNotes: 3, processedNotes: 3,
       earnedScore: 9, finalDenominatorWeight: 9, judgmentCounts: { perfect: 3, miss: 0 } });
     expect(renderer.showBombEffect).toHaveBeenCalledTimes(3);
+  });
+
+  it('처음부터 테스트는 차트 offset−1500ms의 −500ms Point를 일반 재생처럼 Miss로 정산해 4항목·분모12이며1000 pause는0으로 되감는다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.meta.offsetMs = -1500;
+    const run = create(false, chart); await run.player.start();
+    wallFrame(3000); frame(500); frame(1000);
+    run.player.togglePause();
+    expect(fixture.renderers[0].restoreExplicitPlaybackState).toHaveBeenCalledWith(0, 1, expect.any(Array));
+    run.player.togglePause(); wallFrame(fixture.now + 3000);
+    at(1500); key(run.target, 'keydown', 'KeyE'); frame(1500); frame(4200);
+    expect(run.onError).not.toHaveBeenCalled();
+    expect(run.onResult.mock.calls[0][0].score).toMatchObject({ totalNotes: 4, processedNotes: 4, finalDenominatorWeight: 12,
+      earnedScore: 3, judgmentCounts: { perfect: 1, miss: 1 } });
   });
 
   it('차트 offset−5000ms로 노트가 모두0 이전에 있어도 처음 준비2999ms까지 정산·효과는0이다', async () => {
@@ -450,7 +466,7 @@ describe('명시 실제 재생 runtime', () => {
 
   it.each([0.5, 1, 2])('배속%s·L₀20ms·입력−40ms·시각+70ms에서도5000ms pause는2000ms로 되감고 실제3000ms 준비한다', async rate => {
     fixture.latency = 20;
-    const run = create(false, undefined, { playSpeed: rate, inputOffsetMs: -40, visualOffsetMs: 70 }, 0, 8);
+    const run = create(false, undefined, { playSpeed: rate, inputOffsetMs: -40, visualOffsetMs: 70 }, undefined, 8);
     await run.player.start(); frame(0); frame(2000); frame(5000);
     run.player.togglePause(); run.player.togglePause();
     const started = fixture.now;
@@ -476,7 +492,7 @@ describe('명시 실제 재생 runtime', () => {
       { type: 'release', count: 1, lane: 1, beat: beat(8) },
       { type: 'point', kind: 'single', lane: 2, beat: beat(12) },
     ];
-    const run = create(false, chart, {}, 0, 8); await run.player.start();
+    const run = create(false, chart, {}, undefined, 8); await run.player.start();
     at(1000); key(run.target, 'keydown', 'KeyQ'); frame(1500); frame(2000);
     at(4000); key(run.target, 'keyup', 'KeyQ'); frame(4000); frame(5000);
     const renderer = fixture.renderers[0];
@@ -510,7 +526,7 @@ describe('명시 실제 재생 runtime', () => {
       { type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(8) },
       { type: 'release', count: 1, lane: 1, beat: beat(8) }];
     const resume = vi.spyOn(ExplicitJudgmentSession.prototype, 'resumeAt');
-    const run = create(true, chart, {}, 0, 8); await run.player.start(); frame(1000); frame(2000); frame(5000);
+    const run = create(true, chart, {}, undefined, 8); await run.player.start(); frame(1000); frame(2000); frame(5000);
     run.player.togglePause(); run.player.togglePause(); frame(2000);
     expect(resume.mock.calls.at(-1)![1]).toHaveLength(1);
     expect(resume.mock.calls.at(-1)![1]![0].key).toMatch(/^explicit-auto:/);
@@ -525,7 +541,7 @@ describe('명시 실제 재생 runtime', () => {
       { type: 'body', holdCount: 2, lane: 1, beat: beat(2), endBeat: beat(8) },
       { type: 'sustain', count: 2, lane: 1, beat: beat(5) },
       { type: 'release', count: 2, lane: 1, beat: beat(8) }];
-    const run = create(false, chart, {}, 0, 8); await run.player.start();
+    const run = create(false, chart, {}, undefined, 8); await run.player.start();
     at(1000); key(run.target, 'keydown', 'KeyQ'); frame(1500); frame(2000);
     const snapshot = fixture.renderers[0].setExplicitChart.mock.calls[0][2];
     const prefixFailed = snapshot().bodyUnits.find(unit => unit.state === 'failed')!;
@@ -554,7 +570,7 @@ describe('명시 실제 재생 runtime', () => {
     const chart = structuredClone(explicitPlaytestCharts[3].chart);
     chart.notes = [1000, 2500].map(ms => ({ type: 'point' as const, kind: 'trill' as const, lane: 1, beat: beat(ms, 500) }));
     chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(12) }];
-    const run = create(true, chart, {}, 0, 8); await run.player.start(); frame(1000); frame(2000); frame(5000);
+    const run = create(true, chart, {}, undefined, 8); await run.player.start(); frame(1000); frame(2000); frame(5000);
     run.player.togglePause(); run.player.togglePause(); frame(2000); frame(2500); frame(8200);
     const result = run.onResult.mock.calls[0][0];
     const downs = result.facts.filter(fact => fact.kind === 'input').filter(fact => fact.action === 'down');
@@ -575,7 +591,7 @@ describe('명시 실제 재생 runtime', () => {
 
   it('5000→2000 음악 준비1000ms에서 다시 pause하면2000 목표를 보존하고 세션은 한 번만 복원한다', async () => {
     const reconstruct = vi.spyOn(ExplicitJudgmentSession.prototype, 'reconstructAt');
-    const run = create(true, undefined, {}, 0, 8); await run.player.start(); frame(1000); frame(2000); frame(5000);
+    const run = create(true, undefined, {}, undefined, 8); await run.player.start(); frame(1000); frame(2000); frame(5000);
     run.player.togglePause(); run.player.togglePause();
     wallFrame(fixture.now + 1000); run.player.togglePause();
     wallFrame(fixture.now + 5000); run.player.togglePause();
@@ -592,7 +608,7 @@ describe('명시 실제 재생 runtime', () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(12) }];
     const resume = vi.spyOn(ExplicitJudgmentSession.prototype, 'resumeAt');
-    const run = create(false, chart, {}, 0, 8); await run.player.start();
+    const run = create(false, chart, {}, undefined, 8); await run.player.start();
     wallFrame(2999); key(run.target, 'keydown', 'KeyQ'); wallFrame(3050);
     expect(resume).toHaveBeenLastCalledWith(0, [{ lane: 1, key: 'KeyQ' }], 50, 0);
     const query = fixture.renderers[0].setExplicitChart.mock.calls[0][2];
@@ -617,7 +633,7 @@ describe('명시 실제 재생 runtime', () => {
   it('1000 Perfect·3000 Miss 뒤5000→2000으로 되감아3000을 다시 치면3점에서6점으로 바뀌고 분모6은 유지된다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [1000, 3000].map(ms => ({ type: 'point' as const, kind: 'single' as const, lane: 1, beat: beat(ms, 500) }));
-    const run = create(false, chart, {}, 0, 8); await run.player.start();
+    const run = create(false, chart, {}, undefined, 8); await run.player.start();
     at(1000); key(run.target, 'keydown', 'KeyQ'); frame(1000);
     at(1050); key(run.target, 'keyup', 'KeyQ'); frame(2000); frame(5000);
     const renderer = fixture.renderers[0];
@@ -634,7 +650,7 @@ describe('명시 실제 재생 runtime', () => {
     fixture.latency = 20;
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(1850, 500) }];
-    const run = create(false, chart, { playSpeed: rate, inputOffsetMs: offset, visualOffsetMs: 90 }, 0, 8);
+    const run = create(false, chart, { playSpeed: rate, inputOffsetMs: offset, visualOffsetMs: 90 }, undefined, 8);
     await run.player.start(); frame(2000);
     at(2050); key(run.target, 'keydown', 'KeyQ'); frame(2050);
     at(2100); key(run.target, 'keyup', 'KeyQ'); frame(5000);
@@ -652,7 +668,7 @@ describe('명시 실제 재생 runtime', () => {
   it('입력+200ms로T2000 전에 친 미래 Point2100은 복원에 남고3000 재연주와 합쳐6점이다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [2100, 3000].map(ms => ({ type: 'point' as const, kind: 'single' as const, lane: 1, beat: beat(ms, 500) }));
-    const run = create(false, chart, { inputOffsetMs: 200 }, 0, 8); await run.player.start();
+    const run = create(false, chart, { inputOffsetMs: 200 }, undefined, 8); await run.player.start();
     at(1900); key(run.target, 'keydown', 'KeyQ'); frame(1900);
     at(1950); key(run.target, 'keyup', 'KeyQ'); frame(2000); frame(5000);
     run.player.togglePause();
@@ -730,7 +746,7 @@ describe('명시 실제 재생 runtime', () => {
 
   it.each([false, true])('일반=%s의 explicit 스킨 읽기 실패는 audio·양쪽 skin을 정리하고 keyboard·RAF를 시작하지 않는다', async normal => {
     fixture.load = async () => { throw new Error('explicit skin'); };
-    const run = create(true, undefined, {}, 0, 4, normal ? {} : undefined); await run.player.start();
+    const run = create(true, undefined, {}, undefined, 4, normal ? {} : undefined); await run.player.start();
     expect(run.onError.mock.calls[0][0].message).toBe('explicit skin');
     expect(fixture.audio[0].dispose).toHaveBeenCalledOnce();
     expect(fixture.skins[0].dispose).toHaveBeenCalledOnce();
@@ -741,7 +757,7 @@ describe('명시 실제 재생 runtime', () => {
 
   it.each([['warmup', false], ['audio', false], ['warmup', true], ['audio', true]] as const)('%s 시작 실패·일반=%s는 renderer·textures·input을 정리하고 listener를 남기지 않는다', async (stage, normal) => {
     fixture.preparationError = stage === 'warmup'; fixture.playError = stage === 'audio';
-    const run = create(true, undefined, {}, 0, 4, normal ? {} : undefined); await run.player.start();
+    const run = create(true, undefined, {}, undefined, 4, normal ? {} : undefined); await run.player.start();
     expect(run.onError).toHaveBeenCalledOnce();
     expect(fixture.renderers[0].dispose).toHaveBeenCalled();
     expect(run.target.listeners.size).toBe(0); expect(frames.size).toBe(0);
@@ -751,7 +767,7 @@ describe('명시 실제 재생 runtime', () => {
     let resolve!: () => void; let entered!: () => void;
     const loading = new Promise<void>(done => { entered = done; });
     fixture.load = () => { entered(); return new Promise<void>(done => { resolve = done; }); };
-    const run = create(true, undefined, {}, 0, 4, normal ? {} : undefined); const start = run.player.start(); await loading;
+    const run = create(true, undefined, {}, undefined, 4, normal ? {} : undefined); const start = run.player.start(); await loading;
     run.player.dispose(); resolve(); await start;
     expect(fixture.audio[0].play).not.toHaveBeenCalled();
     expect(fixture.audio[0].dispose).toHaveBeenCalledOnce();

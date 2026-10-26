@@ -16,10 +16,10 @@ function setup(overrides: Partial<PerformPlayTestParams> = {}) {
 }
 afterEach(() => useGameStore.setState(useGameStore.getInitialState(), true));
 describe('에디터에서 명시 실제 테스트 플레이', () => {
-  it('커서2000ms라도 처음부터 요청은 전체 원본문서·audio·복귀URL을 전달하고 새화면의 4항목 분모12를 유지한다', () => {
+  it('커서2000ms라도 처음부터 요청은 startTimeMs 없이 전체 원본문서·audio·복귀URL을 전달하고 새화면의 4항목 분모12를 유지한다', () => {
     const { params, game } = setup();
     expect(performPlayTest(params)).toBe(true);
-    expect(game.startExplicitPlayTest).toHaveBeenCalledWith({ document: params.chart, audioBuffer: params.audioBuffer, returnUrl: params.returnUrl, startTimeMs: 0 });
+    expect(game.startExplicitPlayTest).toHaveBeenCalledWith({ document: params.chart, audioBuffer: params.audioBuffer, returnUrl: params.returnUrl });
     expect(useGameStore.getState().screen).toBe('explicitPlay');
     expect(useGameStore.getState().explicitPlay?.compiled.totalJudgments).toBe(4);
     expect(useGameStore.getState().explicitPlay?.compiled.theoreticalWeight).toBe(12);

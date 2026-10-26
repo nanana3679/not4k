@@ -64,7 +64,8 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
     try {
       // 원본문서 전체를 검사한다. legacy main을 걸러내거나 aux의 의미 위반을 숨기지 않는다.
       compileExplicitJudgmentChart(chart);
-      game.startExplicitPlayTest({ document: chart, audioBuffer, returnUrl, startTimeMs: fromCursor ? currentTimeMs : 0 });
+      // 처음부터 시작은 시작 시각을 넘기지 않아 0 앞 항목도 일반 재생처럼 포함한다.
+      game.startExplicitPlayTest({ document: chart, audioBuffer, returnUrl, ...(fromCursor ? { startTimeMs: currentTimeMs } : {}) });
     } catch (reason) {
       addToast(reason instanceof Error ? reason.message : '명시 차트를 재생할 수 없습니다', 'error');
       return false;

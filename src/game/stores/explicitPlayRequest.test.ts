@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { beat } from '../../shared';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
 import { useGameStore } from './gameStore';
-import { prepareExplicitPlayTest, prepareNormalPlay } from './explicitPlayRequest';
+import { explicitSessionRangeStartMs, prepareExplicitPlayTest, prepareNormalPlay } from './explicitPlayRequest';
 
 const audioBuffer = { duration: 4 } as AudioBuffer;
 const options = () => ({ document: structuredClone(explicitPlaytestCharts[0].chart), audioBuffer, returnUrl: '/editor?draft=1' });
@@ -125,6 +125,35 @@ describe('명시 테스트 진입 게이트', () => {
     expect(request.compiled.bodies).toEqual([]);
     expect(request.compiled.totalJudgments).toBe(0);
     expect(request.compiled.theoreticalWeight).toBe(0);
+  });
+
+  it('startTimeMs를 생략한 처음부터 테스트는 offsetMs=-1500의 −500ms Point도 일반 요청처럼 포함해 4항목·분모12·시작0이다', () => {
+    const input = options();
+    input.document.meta.offsetMs = -1500;
+    const request = prepareExplicitPlayTest(input);
+    const normal = prepareNormalPlay(input);
+    expect(request.startTimeMs).toBe(0);
+    expect(request.compiled.scoreItems.map(item => item.timeMs)).toEqual([-500, 0, 500, 1500]);
+    expect(request.compiled.scoreItems.map(item => item.id)).toEqual(normal.compiled.scoreItems.map(item => item.id));
+    expect(request.compiled.totalJudgments).toBe(4);
+    expect(request.compiled.theoreticalWeight).toBe(12);
+    expect(request.compiled.bodies[0]).toMatchObject({ startMs: -500, endMs: 500 });
+    expect(explicitSessionRangeStartMs(request)).toBe(-500);
+  });
+
+  it('offsetMs=-1500에서 커서0ms 테스트는 −500ms Point를 Miss 없이 빼 3항목·분모9이고 세션 범위도0ms에서 시작한다', () => {
+    const input = options();
+    input.document.meta.offsetMs = -1500;
+    const request = prepareExplicitPlayTest({ ...input, startTimeMs: 0 });
+    expect(request.compiled.scoreItems.map(item => item.timeMs)).toEqual([0, 500, 1500]);
+    expect(request.compiled.theoreticalWeight).toBe(9);
+    expect(request.compiled.bodies[0]).toMatchObject({ startMs: 0, endMs: 500 });
+    expect(explicitSessionRangeStartMs(request)).toBe(0);
+  });
+
+  it('0 앞 항목이 없는 처음부터 테스트의 세션 범위는0ms, 1500ms 커서는1500ms에서 시작한다', () => {
+    expect(explicitSessionRangeStartMs(prepareExplicitPlayTest(options()))).toBe(0);
+    expect(explicitSessionRangeStartMs(prepareExplicitPlayTest({ ...options(), startTimeMs: 1500 }))).toBe(1500);
   });
 
   it('점수 항목 없는 Body는 분모0으로 진입하고 clear는 요청과 오디오 참조를 해제한다', () => {

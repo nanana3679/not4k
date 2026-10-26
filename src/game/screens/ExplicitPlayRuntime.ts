@@ -14,6 +14,7 @@ import { resolvePlayLogicalWidth } from '../renderer/gearLayout';
 import { SkinManager } from '../skin';
 import { ExplicitSkinLoader } from '../skin/ExplicitSkinLoader';
 import type { GameSettings } from '../stores/gameStore';
+import { explicitSessionRangeStartMs } from '../stores/explicitPlayRequest';
 import type { ExplicitPlayRequest } from '../stores/explicitPlayRequest';
 import { GameClock } from '../time';
 import { keepGearMotionAssets } from './gearMotionKeepAlive';
@@ -104,7 +105,8 @@ export class ExplicitPlayRuntime {
       const session = new ExplicitJudgmentSession(request.compiled, {
         windows: getJudgmentWindows(settings.judgmentMode),
         // 일반 시작의 J는 출력 지연만큼 0보다 앞선다. 커서 범위·재진입은 테스트에만 적용한다.
-        ...(request.purpose === 'play' ? {} : { startTimeMs: this.targetMs }),
+        // 처음부터 테스트의 범위는 0 앞 항목까지 넓혀 일반 재생과 같은 항목을 판정한다.
+        ...(request.purpose === 'play' ? {} : { startTimeMs: explicitSessionRangeStartMs(request) }),
       });
       this.session = session;
       if (settings.debugMode && request.purpose === 'play') {
