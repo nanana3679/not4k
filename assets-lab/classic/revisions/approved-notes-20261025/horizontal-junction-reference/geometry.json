@@ -1,0 +1,18 @@
+{
+  "single": {
+    "scaleX": 1,
+    "offsetX": 0,
+    "offsetY": 0.16,
+    "rimX": 83.1,
+    "rimSlope": 0.54,
+    "seamY": 46.5
+  },
+  "double": {
+    "scaleX": 1,
+    "offsetX": 0,
+    "offsetY": 1.56,
+    "rimX": 82.4,
+    "rimSlope": 0.52,
+    "seamY": 47.5
+  }
+}

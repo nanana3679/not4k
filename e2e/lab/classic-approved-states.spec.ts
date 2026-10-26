@@ -2,64 +2,69 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
-test('싱글·더블 꼭짓점의 주변 면을 고쳐도 원본 가로 띠·대각선 빛의 위치·아래 사선·알파는 그대로다', async ({ page }) => {
-  await page.goto(route);
-  await page.locator('.jump').getByRole('link', { name: '면과 직선 복원' }).click();
-  await expect(page).toHaveURL(/#release-straight-junctions$/);
-  const section = page.locator('#release-straight-junctions');
-  for (const kind of ['single', 'double']) {
-    const comparison = section.locator(`[data-kind="${kind}"]`);
-    await expect(comparison.locator('article')).toHaveCount(2);
-    await expect(comparison.locator('[data-variant="previous"] .palette-release').first()).toHaveAttribute('src', `assets/release-${kind}-clean-junctions.png`);
-    await expect(comparison.locator('[data-variant="candidate"] nav a')).toHaveCount(3);
-  }
-  const results = await page.evaluate(async () => {
-    const results = [];
-    for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
-      const scale = suffix === '.png' ? 1 : 2, width = 200 * scale, height = 40 * scale;
-      const pixels = async (file: string) => {
-        const image = new Image(); image.src = `assets/${file}`; await image.decode();
-        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
-        const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, width, height);
-        return context.getImageData(0, 0, width, height).data;
-      };
-      const base = `release-${kind}-palette-body${kind === 'double' ? '-dual-ends' : ''}`;
-      const original = await pixels(base + (scale === 1 ? '.png' : '@2x.png'));
-      const candidate = await pixels(`release-${kind}-straight-junctions${suffix}`);
-      let outsideDifference = 0, alphaDifference = 0, rimDifference = 0, changedPixels = 0;
-      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-        const i = (y * width + x) * 4;
-        alphaDifference = Math.max(alphaDifference, Math.abs(candidate[i + 3] - original[i + 3]));
-        const inPatch = y >= 15 * scale && y < Math.ceil(49 * scale / 2) && [[82, 112], [288, 318]].some(([start, end]) => x >= start * scale / 2 && x < end * scale / 2);
-        for (let c = 0; c < 3; c++) {
-          const difference = Math.abs(candidate[i + c] - original[i + c]);
-          if (!inPatch) outsideDifference = Math.max(outsideDifference, difference);
-          if (difference > 20) changedPixels++;
-        }
-      }
-      // Follow the original bright diagonal, independently of the compositing mask.
-      for (const side of [0, 1]) for (let y = 15 * scale; y < 33 * scale; y++) {
-        const index = (x: number) => (y * width + (side ? width - 1 - x : x)) * 4;
-        const brightness = (x: number) => Math.min(...original.slice(index(x), index(x) + 3));
-        let peak = Math.floor(97 * scale / 2);
-        for (let x = peak; x < Math.ceil(125 * scale / 2); x++) if (brightness(x) > brightness(peak)) peak = x;
-        for (let dx = 0; dx <= scale; dx++) for (let c = 0; c < 3; c++) rimDifference = Math.max(rimDifference, Math.abs(candidate[index(peak + dx) + c] - original[index(peak + dx) + c]));
-      }
-      results.push({ kind, suffix, outsideDifference, alphaDifference, rimDifference, changedPixels });
+for (const variant of [
+  { id: 'straight', previous: 'clean', link: '면과 직선 복원', label: '꼭짓점 주변 면 복원' },
+  { id: 'horizontal', previous: 'straight', link: 'ㅡ 수평 연결', label: '접점의 수평 연결' },
+]) {
+  test(`${variant.label}은 싱글·더블의 원본 가로 띠·대각선 빛·아래 사선·알파를 보존한다`, async ({ page }) => {
+    await page.goto(route);
+    await page.locator('.jump').getByRole('link', { name: variant.link }).click();
+    await expect(page).toHaveURL(new RegExp(`#release-${variant.id}-junctions$`));
+    const section = page.locator(`#release-${variant.id}-junctions`);
+    for (const kind of ['single', 'double']) {
+      const comparison = section.locator(`[data-kind="${kind}"]`);
+      await expect(comparison.locator('article')).toHaveCount(2);
+      await expect(comparison.locator('[data-variant="previous"] .palette-release').first()).toHaveAttribute('src', `assets/release-${kind}-${variant.previous}-junctions.png`);
+      await expect(comparison.locator('[data-variant="candidate"] nav a')).toHaveCount(3);
     }
-    return results;
+    const results = await page.evaluate(async (variantId) => {
+      const results = [];
+      for (const kind of ['single', 'double']) for (const suffix of ['.png', '@2x.png', '.svg']) {
+        const scale = suffix === '.png' ? 1 : 2, width = 200 * scale, height = 40 * scale;
+        const pixels = async (file: string) => {
+          const image = new Image(); image.src = `assets/${file}`; await image.decode();
+          const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+          const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, width, height);
+          return context.getImageData(0, 0, width, height).data;
+        };
+        const base = `release-${kind}-palette-body${kind === 'double' ? '-dual-ends' : ''}`;
+        const original = await pixels(base + (scale === 1 ? '.png' : '@2x.png'));
+        const candidate = await pixels(`release-${kind}-${variantId}-junctions${suffix}`);
+        let outsideDifference = 0, alphaDifference = 0, rimDifference = 0, changedPixels = 0;
+        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+          const i = (y * width + x) * 4;
+          alphaDifference = Math.max(alphaDifference, Math.abs(candidate[i + 3] - original[i + 3]));
+          const inPatch = y >= 15 * scale && y < Math.ceil(49 * scale / 2) && [[82, 112], [288, 318]].some(([start, end]) => x >= start * scale / 2 && x < end * scale / 2);
+          for (let c = 0; c < 3; c++) {
+            const difference = Math.abs(candidate[i + c] - original[i + c]);
+            if (!inPatch) outsideDifference = Math.max(outsideDifference, difference);
+            if (difference > 20) changedPixels++;
+          }
+        }
+        // Follow the original bright diagonal, independently of the compositing mask.
+        for (const side of [0, 1]) for (let y = 15 * scale; y < 33 * scale; y++) {
+          const index = (x: number) => (y * width + (side ? width - 1 - x : x)) * 4;
+          const brightness = (x: number) => Math.min(...original.slice(index(x), index(x) + 3));
+          let peak = Math.floor(97 * scale / 2);
+          for (let x = peak; x < Math.ceil(125 * scale / 2); x++) if (brightness(x) > brightness(peak)) peak = x;
+          for (let dx = 0; dx <= scale; dx++) for (let c = 0; c < 3; c++) rimDifference = Math.max(rimDifference, Math.abs(candidate[index(peak + dx) + c] - original[index(peak + dx) + c]));
+        }
+        results.push({ kind, suffix, outsideDifference, alphaDifference, rimDifference, changedPixels });
+      }
+      return results;
+    }, variant.id);
+    for (const result of results) {
+      const label = result.kind + result.suffix;
+      expect(result.outsideDifference, label).toBe(0);
+      expect(result.alphaDifference, label).toBe(0);
+      // Canvas rounds the feathered edge to 8-bit channels; allow only that single-level difference.
+      expect(result.rimDifference, label).toBeLessThanOrEqual(1);
+      expect(result.changedPixels, label).toBeGreaterThan(20);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   });
-  for (const result of results) {
-    const label = result.kind + result.suffix;
-    expect(result.outsideDifference, label).toBe(0);
-    expect(result.alphaDifference, label).toBe(0);
-    // Canvas rounds the feathered edge to 8-bit channels; allow only that single-level difference.
-    expect(result.rimDifference, label).toBeLessThanOrEqual(1);
-    expect(result.changedPixels, label).toBeGreaterThan(20);
-  }
-  await page.setViewportSize({ width: 390, height: 844 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
-});
+}
 
 test('싱글·더블의 기존 교차 사선을 면의 색으로 메우고 접점 밖 픽셀과 알파를 보존한다', async ({ page }) => {
   await page.goto(route);

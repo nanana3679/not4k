@@ -94,6 +94,11 @@ manifest.releaseStraightJunctionPreview = {
   note: '변형 전 원본 위에 꼭짓점 안쪽 면만 합성. 긴 대각선 테두리·가로 흰 띠·아래 사선을 원본 좌표로 보존하며 세 면의 꼭짓점 유지.',
   kinds: [],
 };
+manifest.releaseHorizontalJunctionPreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '접점의 위로 꺾이는 경계를 수평 연결로 단순화. 가로 경계가 같은 높이로 안쪽 테두리까지 이어지고 면의 명암으로 단차를 표시. 원래 테두리 폭·색·중앙 도안 유지.',
+  kinds: [],
+};
 const page = await browser.newPage();
 const read = name => readFile(new URL(`assets/${name}`, here));
 const svg = async name => (await read(`${name}.svg`)).toString();
@@ -379,6 +384,18 @@ try {
       approval: 'proposed-artwork',
     });
     manifest.releaseStraightJunctionPreview.kinds.push({ kind, original: junctionOriginal, previous: cleanCandidate, candidate: straightCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
+    const horizontalReference = `horizontal-junction-reference/${kind}.png`;
+    const horizontalBytes = await readFile(new URL(horizontalReference, here));
+    const horizontalGeometry = JSON.parse(await readFile(new URL('horizontal-junction-reference/geometry.json', here), 'utf8'))[kind];
+    const horizontalOptions = { geometry: horizontalGeometry, treatment: 'horizontal-surface-seam' };
+    const horizontalCandidate = await emit(`release-${kind}-horizontal-junctions`, releaseStraightJunctionArtwork(await readFile(new URL(junctionOriginal.replace('.png', '@2x.png'), here)), horizontalBytes, kind, horizontalOptions), {
+      nativeSource: releaseStraightJunctionArtwork(await readFile(new URL(junctionOriginal, here)), horizontalBytes, kind, horizontalOptions),
+      role: `${kind} 릴리즈 · 아래 접점 경계의 수평 연결`,
+      sourceFiles: [junctionOriginal, junctionOriginal.replace('.png', '@2x.png'), horizontalReference, 'horizontal-junction-reference/prompts.json', 'horizontal-junction-reference/geometry.json', `straight-junction-reference/${kind}-original.png`],
+      operation: { ...horizontalGeometry, crop2x: [80, 20, 50, 50], patchBounds2x: [[82, 30, 30, 19], [288, 30, 30, 19]], mirroredRight: true, referenceSha256: createHash('sha256').update(horizontalBytes).digest('hex'), preserve: 'original straight rim, upper white bar, lower diagonal below y=49, pixels outside local face, icons, highlights and alpha' },
+      approval: 'proposed-artwork',
+    });
+    manifest.releaseHorizontalJunctionPreview.kinds.push({ kind, previous: straightCandidate, candidate: horizontalCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
       { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },
