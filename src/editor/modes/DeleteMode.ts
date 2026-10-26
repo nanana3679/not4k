@@ -70,28 +70,34 @@ export class DeleteMode implements EditorMode {
     // 삭제 보호에 걸린 노트 뒤의 구간을 대신 지우지 않는다.
     if (this.callbacks.space.hitTestUnifiedNote(x, y) !== null) return;
 
-    // Try deleting a trill zone (only if empty)
-    const zoneIdx = this.callbacks.space.hitTestTrillZone(x, y);
-    if (zoneIdx !== null) {
-      const result = deleteEmptyTrillZoneAtIndex(this.chart, zoneIdx);
-      if (result.blockedReason) {
-        this.callbacks.onWarn?.(result.blockedReason);
-      } else if (result.chart) {
-        this.chart = result.chart;
-        this.callbacks.onChartUpdate(result.chart);
-      }
-      return;
+    const zoneResult = DeleteMode.deleteZoneAtHits(
+      this.chart,
+      this.callbacks.space.hitTestTrillZone(x, y),
+      this.callbacks.space.hitTestRestZone(x, y),
+      this.callbacks.onWarn,
+    );
+    if (zoneResult !== null) {
+      this.chart = zoneResult;
+      this.callbacks.onChartUpdate(zoneResult);
     }
+  }
 
-    // Try deleting a rest zone (RFD 0019 — trillZone 미러, empty 가드 없음)
-    const restIdx = this.callbacks.space.hitTestRestZone(x, y);
-    if (restIdx !== null) {
-      const result = deleteRestZoneAtIndex(this.chart, restIdx);
-      if (result) {
-        this.chart = result;
-        this.callbacks.onChartUpdate(result);
-      }
+  /**
+   * 노트가 없는 자리의 구간 삭제. `trillZone`이 겹치면 그 구간만 보며 비어 있을 때만 지우고
+   * (노트가 있으면 경고), 없으면 `restZone`을 지운다(RFD 0019 — empty 가드 없음).
+   */
+  static deleteZoneAtHits(
+    chart: ChartDocument,
+    trillZoneIndex: number | null,
+    restZoneIndex: number | null,
+    onWarn?: (message: string) => void,
+  ): ChartDocument | null {
+    if (trillZoneIndex !== null) {
+      const result = deleteEmptyTrillZoneAtIndex(chart, trillZoneIndex);
+      if (result.blockedReason) onWarn?.(result.blockedReason);
+      return result.chart;
     }
+    return restZoneIndex === null ? null : deleteRestZoneAtIndex(chart, restZoneIndex);
   }
 
   /** Right-click delete (mode-independent, also called from other modes) */

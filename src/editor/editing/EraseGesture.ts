@@ -1,7 +1,7 @@
 import type { ChartDocument, DocumentNoteEntity } from '../../shared';
 import { beatLte } from '../../shared';
 import { DeleteMode } from '../modes/DeleteMode';
-import { hitTestNoteAt } from '../timeline/hitTest';
+import { hitTestNoteAt, hitTestRestZoneAt, hitTestTrillZoneAt } from '../timeline/hitTest';
 
 interface EraseCallbacks {
   getChart: () => ChartDocument;
@@ -58,6 +58,26 @@ export class EraseGesture {
         this.occludersByBody.set(body, [...(this.occludersByBody.get(body) ?? []), note]);
       }
     }
+    this.callbacks.onChartUpdate(next, this.token!);
+    return true;
+  }
+
+  /**
+   * Delete 모드 터치 삭제. 노트를 먼저 지우고, 그 자리에 노트가 없을 때만 빈 `trillZone`·
+   * `restZone`을 같은 transaction에서 지운다. 삭제가 막힌 노트 아래 구간은 대신 지우지 않는다.
+   */
+  eraseAt(lane: number, beatFloat: number): boolean {
+    if (this.erase(lane, beatFloat)) return true;
+    if (!this.active || this.stopped) return false;
+    const chart = this.callbacks.getChart();
+    if (hitTestNoteAt(chart.notes, lane, beatFloat) !== null) return false;
+    const next = DeleteMode.deleteZoneAtHits(
+      chart,
+      hitTestTrillZoneAt(chart.trillZones, lane, beatFloat),
+      hitTestRestZoneAt(chart.restZones ?? [], lane, beatFloat),
+      this.callbacks.onWarn,
+    );
+    if (!next) return false;
     this.callbacks.onChartUpdate(next, this.token!);
     return true;
   }

@@ -142,12 +142,13 @@ export function useCanvasEvents(
     touchEmptySelectCandidateRef.current = null;
   }, []);
 
+  // Delete 모드 터치 삭제. 노트가 없으면 빈 trillZone·restZone을 같은 transaction에서 지운다.
   const deleteAtPoint = useCallback((x: number, y: number) => {
     if (eraseGestureRef.current.isActive) {
       const lane = space.xToUnifiedLane(x);
       if (lane !== null) {
         const beat = space.yToBeatRaw(y);
-        eraseGestureRef.current.erase(lane, beat.n / beat.d);
+        eraseGestureRef.current.eraseAt(lane, beat.n / beat.d);
       }
     } else deleteModeRef.current?.onPointerDown(x, y);
   }, [deleteModeRef, space]);
