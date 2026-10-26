@@ -138,7 +138,7 @@ raw 입력 시각·관측 시각·확정 시각과 같은 키의 down/up 인과�
 
 실제 선택 집합이 이동·복사·끝 resize·삭제·Cut을 결정하게 한다. 노트 우선 hit, 바디 동반 선택, 토글 제외 보존, 직접 노트 삭제·미선택/선택 바디 우클릭·Delete의 범위 차이를 구현한다. 선택에서 빠진 소속 유지가 있으면 바디 삭제/Cut을 막고, 축소 보호는 위반 임시 확정과 구별한다.
 
-우클릭 드래그의 관통 삭제 방지·한 조작 Undo·Esc 복구를 하나의 편집 트랜잭션으로 다룬다. 의미 위반은 미리보기부터 빗금으로 표시하고 확정·선택 해제·교체를 허용하되 저장/플레이를 막는다. 구조 오류 거부와 이미 구현한 `trillZone` 위반 축소 차단은 유지한다.
+우클릭 드래그의 관통 삭제 방지·한 조작 Undo·Esc 복구를 하나의 편집 트랜잭션으로 다룬다. 의미 위반은 미리보기부터 빗금으로 표시하고 확정·선택 해제·교체를 허용하되 저장/플레이를 막는다. 구조 오류 거부는 유지하고 [RFD 0017 추가 4](../rfd/0017-optimistic-edit-transient-invalid.md#3-4-구조의미-분류-확정-소비자-감사-2026-07-09)의 `trillZone` 위반 축소 차단과 그 `SelectMode` 회귀 테스트를 함께 구현한다.
 
 - **완료 기준:** 선택된 것만 복사/이동, 제외 릴리즈의 잔류, 선택 릴리즈만 resize 동반, Cut 거부 시 clipboard/history 불변, 선택 인덱스 보정, 우클릭·Esc·Undo/Redo와 터치 입력의 공통 경로를 검증한다.
 - **주요 위치:** `SelectionSlice`, `SelectMode`, `DeleteMode`, `ClipboardManager`, `resolveGrab`·hitTest, store·editApplication·키보드/포인터 훅. 각 명칭은 [에디터 컨텍스트](../../src/editor/CONTEXT.md)의 기존 책임을 따른다.
