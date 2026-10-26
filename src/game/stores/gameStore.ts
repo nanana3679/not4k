@@ -237,7 +237,9 @@ export const useGameStore = create<GameState>()(
 
       // 화면을 전환하면 설정 모달은 항상 닫는다. 모달은 곡 선택 위에만 뜨는 오버레이라
       // 다른 화면으로 넘어간 채 열려 있으면 안 되고, 복귀 시 의도치 않게 재오픈되는 것도 막는다.
+      // 명시 테스트 요청(문서·음원)은 explicitPlay 화면에서만 쓰므로 다른 화면으로 가면 항상 해제한다.
       setScreen: (screen) => set(state => ({ screen, settingsOpen: false, calibrationActive: false,
+        ...(screen !== 'explicitPlay' ? { explicitPlay: null } : {}),
         ...(screen !== 'play' && screen !== 'result' && screen !== 'explicitPlay'
           ? { normalPlay: null, explicitPlay: null, lastResult: null, chartData: null, audioBuffer: null,
             normalLoadId: state.normalLoadId + 1, startTimeMs: 0, editorReturnUrl: null }

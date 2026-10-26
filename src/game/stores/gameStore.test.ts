@@ -325,4 +325,10 @@ describe('명시 테스트 요청의 화면 수명', () => {
     expect(useGameStore.getState().explicitPlay).toBeNull();
     expect(useGameStore.getState().screen).toBe('songSelect');
   });
+
+  it.each(['play', 'result'] as const)('명시 테스트 요청이 남은 채 구형 %s 화면으로 이동하면 문서·음원을 담은 이전 테스트 요청을 해제한다', screen => {
+    useGameStore.getState().startExplicitPlayTest({ document: explicitPlaytestCharts[0].chart, audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/editor' });
+    useGameStore.getState().setScreen(screen);
+    expect(useGameStore.getState()).toMatchObject({ screen, explicitPlay: null });
+  });
 });
