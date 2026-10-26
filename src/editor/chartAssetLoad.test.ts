@@ -46,7 +46,7 @@ describe("loadLegacyEditorChartAsset", () => {
     expect(() => loadLegacyEditorChartAsset(JSON.stringify(main), extraText)).toThrow("보조 파일이 유효한 JSON이 아닙니다");
   });
 
-  it("v4 명시 메인 Point는 에디터 store에 적재하지 않고 지원 오류를 전달한다", () => {
+  it("v4 메인 notes에 명시 single Point lane 1이 있으면 구형 Chart로 바꾸지 않고 UnsupportedChartContentError를 던진다", () => {
     expect(() => loadLegacyEditorChartAsset(JSON.stringify({ ...main, version: 4, notes: [{ type: "point", kind: "single", lane: 1, beat: "0" }] }), null)).toThrow(UnsupportedChartContentError);
   });
 
