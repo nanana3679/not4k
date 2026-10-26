@@ -86,6 +86,19 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(active.y + active.height).toBeCloseTo(432.25);
   });
 
+  it.each([
+    [["active", "active"], "held", 432.25],
+    [["failed", "active"], "partialFailed.left", 432.25],
+    [["failed", "recovering"], "partialFailed.left", 432.25],
+    [["complete", "failed"], "partialFailed.right", 532.25],
+    [["failed", "failed"], "failed", 532.25],
+  ] as const)("1500ms에서 더블 바디 %j는 %s 도안의 아래끝을 y %s에 둔다 - 시작해 유지·회복 중인 몫이 남으면 판정선 426에 붙고 남은 몫이 없으면 원래 위치로 스크롤", (states, artwork, bottom) => {
+    const layer = show({ body: states }, 1500).find(note => note.kind === "body")!.layers[0];
+    expect(layer.assetId).toBe(`body.double.${artwork}`);
+    expect(layer.y).toBeCloseTo(119.75);
+    expect(layer.y + layer.height).toBeCloseTo(bottom);
+  });
+
   it("Grace 24px 패딩은 본체와 같은 x·y 배율로 정렬되고 Point 212×40과 release 200×40을 구별한다", () => {
     const notes = show();
     for (const note of [notes[0], notes[3]]) {

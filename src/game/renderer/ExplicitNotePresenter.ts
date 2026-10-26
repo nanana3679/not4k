@@ -115,10 +115,11 @@ export class ExplicitNotePresenter {
         else if (fulfilled.length) state = "held";
         const alpha = complete > 0 && complete < units.length ? 0.7 : 1;
         const rawBottom = timeY(body.startMs) + noteHeight / 2;
-        // 실제 시작한 건강한 바디만 판정선에 붙인다. 실패는 원래 배치를 끝까지 스크롤한다.
-        const started = units.some((unit: ExplicitBodyUnitSnapshot) => unit.actualStartMs !== null
+        // 실제 시작해 유지·회복 중인 몫이 하나라도 남으면 판정선에 붙인다. 더블 한 몫이 실패해도 남은 몫을 잡고 있는 동안
+        // 바디가 원래 위치로 튀지 않는다(실패한 절반은 부분 실패 도안). 남은 몫이 없을 때만 원래 배치를 끝까지 스크롤한다.
+        const pinned = units.some((unit: ExplicitBodyUnitSnapshot) => unit.actualStartMs !== null
           && (unit.state === "active" || unit.state === "recovering"));
-        const bottom = failed.length === 0 && started ? layout.judgmentLineY + noteHeight / 2 : rawBottom;
+        const bottom = pinned ? layout.judgmentLineY + noteHeight / 2 : rawBottom;
         const top = timeY(body.endMs) - noteHeight / 2;
         const geometry = { y: Math.min(top, bottom - noteHeight), height: Math.max(noteHeight, bottom - top) };
         return { sourceNoteIndex: index, kind: "body", ordinals: units.map(unit => unit.ref.ordinal),
