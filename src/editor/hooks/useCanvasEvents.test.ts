@@ -169,3 +169,25 @@ describe('독립 명령이 끊은 터치 조작', () => {
     expect(current().historyPast).toHaveLength(1);
   });
 });
+
+describe('연결 경계의 바디 끝 핸들 띠', () => {
+  // holdCount 2 바디 1～5박과 holdCount 1 바디 5～9박이 5박 Release에서 이어진다. 5.1박(y=2550)은 뒤 바디 안이다.
+  const connectedBodies = (): DocumentNoteEntity[] => [
+    { type: 'body', lane: 1, beat: beat(1), endBeat: beat(5), holdCount: 2 },
+    { type: 'point', kind: 'double', lane: 1, beat: beat(1) },
+    { type: 'release', lane: 1, beat: beat(5), count: 1 },
+    { type: 'body', lane: 1, beat: beat(5), endBeat: beat(9), holdCount: 1 },
+  ];
+
+  it('선택한 앞 바디의 5.1박 띠를 터치로 4박까지 끌면 앞 바디 끝과 5박 Release만 4박이 되고 뒤 바디는 5～9박이다', () => {
+    const { handlers, selectMode } = setup(chart(connectedBodies()), 'select');
+    selectMode.selectNote(0);
+    handlers.handlePointerDown(pointer(2550));
+    handlers.handlePointerMove(pointer(2000));
+    handlers.handlePointerUp(pointer(2000));
+
+    expect(bodyEnd()).toBe(4);
+    expect(beatToFloat(notes()[2].beat)).toBe(4);
+    expect(notes()[3]).toEqual(connectedBodies()[3]);
+  });
+});

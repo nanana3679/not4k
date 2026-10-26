@@ -287,6 +287,41 @@ describe("TimelineSpace — 히트테스트", () => {
       expect(createTimelineSpace(source).hitTestNoteEnd(30, 2600)).toBeNull();
     });
 
+    describe("이어진 뒤 바디가 끝 핸들 띠를 덮는 연결 경계", () => {
+      // holdCount 2 바디 1～5박 + 5박 Release + holdCount 1 바디 5～9박. 5.1박(y=2550)은 뒤 바디 안이다.
+      const connectedBodies = (): DocumentNoteEntity[] => [
+        { type: "body", lane: 1, beat: beat(1), endBeat: beat(5), holdCount: 2 },
+        { type: "release", lane: 1, beat: beat(5), count: 1 },
+        { type: "body", lane: 1, beat: beat(5), endBeat: beat(9), holdCount: 1 },
+      ];
+
+      it.each([
+        { label: "선택 없음", selected: [] },
+        { label: "앞 바디 0 선택", selected: [0] },
+      ])("$label이어도 뒤 바디 2 안인 5.1박(y=2550)의 hitTestNoteEnd는 앞 바디 0이다(선택 게이트는 resolveGrab)", ({ selected }) => {
+        const { source } = makeFakeSource({ chart: makeChart({ notes: connectedBodies() }), selectedNotes: new Set(selected) });
+        const space = createTimelineSpace(source);
+        expect(space.hitTestUnifiedNote(30, 2550)).toBe(2);
+        expect(space.hitTestNoteEnd(30, 2550)).toBe(0);
+      });
+
+      it("5.125박 유지 노트가 덮는 5.1박(y=2550)은 점수 노트가 이겨 hitTestNoteEnd가 null이다", () => {
+        const notes: DocumentNoteEntity[] = [...connectedBodies(), { type: "sustain", lane: 1, beat: beat(41, 8), count: 1 }];
+        const { source } = makeFakeSource({ chart: makeChart({ notes }) });
+        const space = createTimelineSpace(source);
+        expect(space.hitTestUnifiedNote(30, 2550)).toBe(3);
+        expect(space.hitTestNoteEnd(30, 2550)).toBeNull();
+      });
+
+      it("5.125박 구형 single 노트가 덮는 5.1박(y=2550)은 띠를 막아 hitTestNoteEnd가 null이다", () => {
+        const notes: DocumentNoteEntity[] = [...connectedBodies(), { type: "single", lane: 1, beat: beat(41, 8) }];
+        const { source } = makeFakeSource({ chart: makeChart({ notes }) });
+        const space = createTimelineSpace(source);
+        expect(space.hitTestUnifiedNote(30, 2550)).toBe(3);
+        expect(space.hitTestNoteEnd(30, 2550)).toBeNull();
+      });
+    });
+
     it("Release 없는 바디는 기존처럼 끝 ±1/16박만 핸들이라 5.1박(y=2550)은 null이다", () => {
       const { source } = makeFakeSource({ chart: makeChart({ notes: [bodyWithEndRelease()[0]] }) });
       const space = createTimelineSpace(source);

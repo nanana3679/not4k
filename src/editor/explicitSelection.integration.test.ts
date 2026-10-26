@@ -291,6 +291,43 @@ describe('기본 끝 Release가 있는 바디 끝 핸들(실제 hit-test)', () =
     expect(selection()).toEqual(new Set([3]));
     expect(bodyEndAndReleaseBeats()).toEqual([5, 6]);
   });
+  // holdCount 2 바디 1～5박과 holdCount 1 바디 5～9박이 5박 Release에서 이어진다. 5.1박 띠는 뒤 바디 안이다.
+  const connectedBodies = () => chart([
+    { type: 'body', lane: 1, beat: beat(1), endBeat: beat(5), holdCount: 2 },
+    { type: 'point', kind: 'double', lane: 1, beat: beat(1) },
+    { type: 'release', lane: 1, beat: beat(5), count: 1 },
+    { type: 'body', lane: 1, beat: beat(5), endBeat: beat(9), holdCount: 1 },
+    { type: 'release', lane: 1, beat: beat(9), count: 1 },
+  ]);
+  const connectedBeats = () => notes().map(note => [beatToFloat(note.beat), 'endBeat' in note ? beatToFloat(note.endBeat) : null]);
+
+  it('마우스로 선택한 앞 바디 1～5박의 5.1박 띠를 4박까지 끌면 이어진 뒤 바디 안이어도 앞 바디 끝과 5박 Release만 4박이 된다', () => {
+    const { mode, mouseDrag } = setupRealSpace(connectedBodies());
+    mode.selectNote(0);
+    expect(mode.resolveGrabAt(30, 2550)).toEqual({ kind: 'noteEndCap', index: 0 });
+    mouseDrag(2550, 2000);
+
+    expect(connectedBeats()).toEqual([[1, 4], [1, null], [4, null], [5, 9], [9, null]]);
+  });
+  it('앞 바디가 미선택이면 마우스로 5.1박을 누를 때 이어진 뒤 바디 5～9박을 잡는다', () => {
+    const { mode } = setupRealSpace(connectedBodies());
+    expect(mode.resolveGrabAt(30, 2550)).toEqual({ kind: 'note', index: 3 });
+  });
+  it('터치 롱프레스로 선택한 앞 바디의 5.1박 띠를 4박까지 끌면 down 예약은 지연 박스이고 앞 바디 끝과 5박 Release만 4박이 된다', () => {
+    const { mode, touchLongPressDrag } = setupRealSpace(connectedBodies());
+    mode.selectNote(0);
+    expect(scheduleFromGrabTarget(mode.resolveGrabAt(30, 2550))).toBe('emptySelectBox');
+    touchLongPressDrag(2550, 2000);
+
+    expect(connectedBeats()).toEqual([[1, 4], [1, null], [4, null], [5, 9], [9, null]]);
+  });
+  it('터치 끝 캡 롱프레스는 앞 바디가 미선택이어도 5.1박 띠에서 앞 바디 연결 3개를 고르고 끝과 5박 Release를 4박으로 줄인다', () => {
+    const { touchLongPressDrag } = setupRealSpace(connectedBodies());
+    touchLongPressDrag(2550, 2000);
+
+    expect(selection()).toEqual(new Set([0, 1, 2]));
+    expect(connectedBeats()).toEqual([[1, 4], [1, null], [4, null], [5, 9], [9, null]]);
+  });
   it('선택된 trillZone 1～5박 끝에 명시 trill Point가 있어도 5박 끝 캡을 6박까지 끌면 구간 끝이 6박이 된다', () => {
     const { mode, mouseDrag } = setupRealSpace({ ...chart([{ type: 'point', kind: 'trill', lane: 1, beat: beat(5) }]), trillZones: [{ lane: 1, beat: beat(1), endBeat: beat(5) }] });
     mode.selectZoneUnit(0);
