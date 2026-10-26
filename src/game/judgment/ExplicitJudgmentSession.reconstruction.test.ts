@@ -102,7 +102,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(session.score.judgmentCounts).toMatchObject({ perfect: 0, miss: 1 });
   });
 
-  it("Point1000·바디1000～2000을 T1050에 복원·재개한 뒤 raw900/관측1060 down은 Point Good과 바디 시작1050을 함께 인정해 9점 중 7점", () => {
+  it("Point 1000·바디 1000～2000을 T 1050에 복원·재개한 뒤 raw 900·관측 1060 down은 Point Good과 바디 시작 1050을 함께 인정해 9점 중 7점", () => {
     const original = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
     original.advance(1050);
     original.advance(1200);
@@ -116,7 +116,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(result.facts.filter(fact => fact.kind === "bodyFailed")).toEqual([]);
   });
 
-  it("Point 없는 바디1000～2000을 T1050에 재개한 뒤 차트 시작 창 안 raw900/관측1060 down은 바디를 T1050에 시작해 유지·릴리즈 6점", () => {
+  it("Point 없는 바디 1000～2000을 T 1050에 재개한 뒤 차트 시작 창 안 raw 900·관측 1060 down은 바디를 T 1050에 시작해 유지·릴리즈 6점", () => {
     const original = makeSession([b(1000, 2000), s(1500), r(2000)]);
     original.advance(1050);
     original.advance(1200);

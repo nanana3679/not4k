@@ -184,7 +184,7 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 7, judgmentCounts: { good: 1, perfect: 2, miss: 1 } });
   });
 
-  it("double Point1000+single 바디1000～2000에서 A down1000 hold·up2000은 ordinal0 Perfect로 바디를 시작해 Perfect·Miss·릴리즈 Perfect 6/9점", () => {
+  it("double Point 1000 + single 바디 1000～2000에서 A down 1000 hold·up 2000은 ordinal 0 Perfect로 바디를 시작해 Perfect·Miss·릴리즈 Perfect 6/9점", () => {
     const session = makeSession([p(1000, "double"), b(1000, 2000), r(2000)]);
     session.processBatch(1000, [down()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1000 });
@@ -197,7 +197,7 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(result.facts.filter(fact => fact.kind === "bodyFailed")).toEqual([]);
   });
 
-  it("double Point1000+single 바디에서 A down1000 뒤 B down1100은 바디를 A의 1000에 시작하고 유지1050을 1050에 Perfect로 정산", () => {
+  it("double Point 1000 + single 바디에서 A down 1000 뒤 B down 1100은 바디를 A의 1000에 시작하고 유지 1050을 1050에 Perfect로 정산", () => {
     const session = makeSession([p(1000, "double"), b(1000, 2000), s(1050), r(2000)]);
     session.processBatch(1000, [down()]);
     session.advance(1050);
@@ -209,7 +209,7 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 10, judgmentCounts: { perfect: 3, good: 1, miss: 0 } });
   });
 
-  it("double Point1000+single 바디의 A down1000 성공 뒤 T1050 재개는 남은 ordinal1의 1120 Miss로 바디를 실패시키지 않아 6/9점", () => {
+  it("double Point 1000 + single 바디의 A down 1000 성공 뒤 T 1050 재개는 남은 ordinal 1의 1120 Miss로 바디를 실패시키지 않아 6/9점", () => {
     const session = makeSession([p(1000, "double"), b(1000, 2000), r(2000)]);
     session.processBatch(1000, [down()]);
     session.advance(1050);
@@ -220,7 +220,7 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, judgmentCounts: { perfect: 2, miss: 1 } });
   });
 
-  it("double Point1000+single 바디에 입력이 없으면 1120에 Point 두 개만 Miss이고 바디는 pointMiss 실패로 릴리즈만 종속0", () => {
+  it("double Point 1000 + single 바디에 입력이 없으면 1120에 Point 두 개만 Miss이고 바디는 pointMiss 실패로 릴리즈만 종속 0점", () => {
     const session = makeSession([p(1000, "double"), b(1000, 2000), r(2000)]);
     session.advance(1121);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1120, pointStatus: "missed" });
@@ -528,7 +528,7 @@ describe("연결 바디 실패 전파", () => {
     ? `${fact.id} bodyFailed ${fact.bodyUnitId} cause=${fact.causeFactId} miss=${fact.unscoredMiss}`
     : fact.kind === "settlement" ? `${fact.id} ${fact.outcome} ${fact.itemId} cause=${fact.causeFactId}` : `${fact.id} ${fact.kind}`;
 
-  it("Point·릴리즈 없는 single 바디 3개 연결에서 첫 시작 실패1120은 앞 바디부터 실패·유지 종속0을 차례로 확정하고 끝 릴리즈만 종속0", () => {
+  it("Point·릴리즈 없는 single 바디 3개 연결에서 첫 시작 실패 1120은 앞 바디부터 실패·유지 종속 0점을 차례로 확정하고 끝 릴리즈만 종속 0점", () => {
     const session = makeSession([b(1000, 2000), s(1500), b(2000, 3000), s(2500), b(3000, 4000), s(3500), r(4000)]);
     session.advance(1121);
     expect(session.facts.map(factLine)).toEqual([
@@ -543,7 +543,7 @@ describe("연결 바디 실패 전파", () => {
     expect(session.score.judgmentCounts.miss).toBe(1);
   });
 
-  it("double 2→2→1 연결의 두 몫 시작 실패1120은 몫별 연결을 먼저 따라간 뒤 두 몫이 모두 실패한 감소 연결의 single을 실패시킴", () => {
+  it("double 2→2→1 연결의 두 몫 시작 실패 1120은 몫별 연결을 먼저 따라간 뒤 두 몫이 모두 실패한 감소 연결의 single을 실패시킴", () => {
     const session = makeSession([b(1000, 2000, 2), b(2000, 3000, 2), b(3000, 4000), r(4000)]);
     session.advance(1121);
     expect(session.facts.map(factLine)).toEqual([
@@ -556,7 +556,7 @@ describe("연결 바디 실패 전파", () => {
     ]);
   });
 
-  it("Point·릴리즈 없는 single 바디 3000개 연결의 첫 시작 실패1120은 호출 스택 초과 없이 3000개를 모두 실패시키고 Miss 1개·끝 릴리즈 종속0", () => {
+  it("Point·릴리즈 없는 single 바디 3000개 연결의 첫 시작 실패 1120은 호출 스택 초과 없이 3000개를 모두 실패시키고 Miss 1개·끝 릴리즈 종속 0점", () => {
     const bodies = Array.from({ length: 3000 }, (_, index) => b(1000 + index * 100, 1100 + index * 100));
     const session = makeSession([...bodies, r(301000)]);
     session.advance(1121);
@@ -568,7 +568,7 @@ describe("연결 바디 실패 전파", () => {
 });
 
 describe("이른 완료 창 E−Good 직전의 hold 부족과 유지 유예", () => {
-  it("바디1000～2000·릴리즈2000에서 A down1000·up1875는 유예 끝1895가 이른 완료 창(1880～) 안이어도 1895 유지 실패 Miss이고 릴리즈는 종속0", () => {
+  it("바디 1000～2000·릴리즈 2000에서 A down 1000·up 1875는 유예 끝 1895가 이른 완료 창(1880～) 안이어도 1895 유지 실패 Miss이고 릴리즈는 종속 0점", () => {
     const session = makeSession([b(1000, 2000), r(2000)]);
     session.processBatch(1000, [down()]);
     session.processBatch(1875, [up()]);
@@ -579,7 +579,7 @@ describe("이른 완료 창 E−Good 직전의 hold 부족과 유지 유예", ()
     expect(session.finalize().score).toMatchObject({ earnedScore: 0, totalNotes: 1, judgmentCounts: { miss: 1 } });
   });
 
-  it("릴리즈 없는 바디1000～2000에서 A down1000·up1875는 이른 완료가 아니라 1895 유지 실패 Miss 하나", () => {
+  it("릴리즈 없는 바디 1000～2000에서 A down 1000·up 1875는 이른 완료가 아니라 1895 유지 실패 Miss 하나", () => {
     const session = makeSession([b(1000, 2000)]);
     session.processBatch(1000, [down()]);
     session.processBatch(1875, [up()]);
@@ -588,7 +588,7 @@ describe("이른 완료 창 E−Good 직전의 hold 부족과 유지 유예", ()
     expect(result.score).toMatchObject({ totalNotes: 0, judgmentCounts: { miss: 1 } });
   });
 
-  it("바디1000～2000·릴리즈2000에서 A up1880은 이른 완료 창 경계 안이라 1880에 정상 완료하고 릴리즈 Good", () => {
+  it("바디 1000～2000·릴리즈 2000에서 A up 1880은 이른 완료 창 경계 안이라 1880에 정상 완료하고 릴리즈 Good", () => {
     const session = makeSession([b(1000, 2000), r(2000)]);
     session.processBatch(1000, [down()]);
     session.processBatch(1880, [up()]);
