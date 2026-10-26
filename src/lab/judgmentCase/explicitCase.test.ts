@@ -41,7 +41,7 @@ const numberAttr = (tag: string, name: string) => {
 };
 const bodyRect = (svg: string) => tagOf(svg, /<rect data-explicit-asset="body\.[^"]+"[^>]*>/);
 /** 축 눈금 선의 y. 눈금 글자(font-size 11)가 바로 뒤에 붙는다. */
-const tickY = (svg: string, label: string) =>
+const axisLineY = (svg: string, label: string) =>
   numberAttr(tagOf(svg, new RegExp(`<line x1="70"[^>]*/>(?=<text x="14" y="[^"]+" fill="[^"]+" font-size="11">${label}</text>)`)), "y1");
 
 describe("explicit 사례의 실제 compiler → session → ScoreManager", () => {
@@ -269,7 +269,7 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
     const rect = bodyRect(svg);
     const pointHeight = numberAttr(tagOf(svg, /<use data-explicit-asset="point\.single\.pending"[^>]*>/), "height");
     expect(numberAttr(rect, "height")).toBeCloseTo(pointHeight, 6);
-    expect(numberAttr(rect, "y") + numberAttr(rect, "height") / 2).toBeCloseTo(tickY(svg, "1000"), 6);
+    expect(numberAttr(rect, "y") + numberAttr(rect, "height") / 2).toBeCloseTo(axisLineY(svg, "1000"), 6);
   });
 
   it("길이0 바디1000～1000 위의 유지1000은 바디 없이 홀로 그려지지 않고 같은 중심의 바디와 함께 그림", () => {
@@ -287,8 +287,8 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
     const { example, run } = replay(document([body(1000, 2000)], [["A", 1000, 2000]]));
     const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
     const rect = bodyRect(svg);
-    expect(numberAttr(rect, "y")).toBeCloseTo(tickY(svg, "2000"), 6);
-    expect(numberAttr(rect, "y") + numberAttr(rect, "height")).toBeCloseTo(tickY(svg, "1000"), 6);
+    expect(numberAttr(rect, "y")).toBeCloseTo(axisLineY(svg, "2000"), 6);
+    expect(numberAttr(rect, "y") + numberAttr(rect, "height")).toBeCloseTo(axisLineY(svg, "1000"), 6);
   });
 
   it("double 유지 표식은 정식 left/right 에셋 두 개이며 sustain 독립 창은 없음", () => {
