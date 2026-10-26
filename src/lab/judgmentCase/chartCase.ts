@@ -130,7 +130,11 @@ export function judgmentCaseFromChart(chart: Chart, options: JudgmentCaseChartOp
 /** 에디터 차트 JSON(`{`로 시작) 또는 사례 텍스트를 판정 사례로 읽는다. */
 export function judgmentCaseFromSource(source: string, options: { fallbackTitle?: string } = {}): JudgmentCase {
   if (source.trimStart().startsWith("{")) {
-    if (JSON.parse(source).version === 4) throw new Error("v4 ChartDocument는 --explicit으로 실행하세요. 구형 엔진으로 자동 변환하지 않습니다");
+    // 형식 안내용으로만 미리 읽는다. 깨진 JSON은 아래 차트 파서가 기존 오류로 알린다.
+    let probe: { version?: unknown; format?: unknown } | null = null;
+    try { probe = JSON.parse(source); } catch { /* deserializeChart가 보고한다 */ }
+    if (probe?.version === 4) throw new Error("v4 ChartDocument는 --explicit으로 실행하세요. 구형 엔진으로 자동 변환하지 않습니다");
+    if (probe?.format === "judgment-case-design") throw new Error("judgment-case-design JSON은 --design으로 그리세요. 판정 엔진 사례로 실행하지 않습니다");
     const chart = deserializeChart(source);
     return judgmentCaseFromChart(chart, { title: chart.meta.title || options.fallbackTitle || "" });
   }

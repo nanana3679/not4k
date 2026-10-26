@@ -68,6 +68,14 @@ describe("judgmentCaseFromSource — 에디터 v3 JSON", () => {
   it("앞 공백이 있는 JSON 문자열도 텍스트 문법이 아닌 차트 JSON으로 읽음", () => {
     expect(judgmentCaseFromSource(`\n  ${serializeChart(editorChart())}`).notes).toHaveLength(2);
   });
+
+  it("'{ \"meta\":'처럼 끊긴 JSON은 v4 검사 전에 막히지 않고 차트 파서의 '유효한 JSON이 아닙니다' 오류", () => {
+    expect(() => judgmentCaseFromSource('{ "meta":')).toThrow(/차트 파싱 실패: 유효한 JSON이 아닙니다/);
+  });
+
+  it("format judgment-case-design JSON을 기본 모드에 주면 meta 오류 대신 --design 안내 오류", () => {
+    expect(() => judgmentCaseFromSource('{"format":"judgment-case-design","notes":[]}')).toThrow(/--design/);
+  });
 });
 
 describe("judgmentCaseFromSource — 텍스트 문법", () => {

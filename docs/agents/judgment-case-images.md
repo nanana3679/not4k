@@ -43,7 +43,7 @@ pnpm case:image --explicit chart-v4.json --out /tmp/explicit.png
 pnpm case:image --explicit chart-v4.json --engine . --engine ../other-explicit-engine --out /tmp/compare.png
 ```
 
-`--explicit`은 `version: 4`인 `ChartDocument` JSON만 받는다. 노트의 `point`·`body`·`release`·`sustain` 의미를 그대로 새 compiler/session에 전달하며 구형 `NoteEntity`로 변환하지 않는다. 구형 텍스트·v3와 `judgment-case-design` JSON은 거부한다. 기본 legacy 모드에 v4를 넘겨도 `--explicit` 사용 안내와 함께 거부한다.
+`--explicit`은 `version: 4`인 `ChartDocument` JSON만 받는다. 노트의 `point`·`body`·`release`·`sustain` 의미를 그대로 새 compiler/session에 전달하며 구형 `NoteEntity`로 변환하지 않는다. 구형 텍스트·v3와 `judgment-case-design` JSON은 거부한다. 기본 legacy 모드에 v4를 넘기면 `--explicit`, `judgment-case-design` JSON을 넘기면 `--design` 사용 안내와 함께 거부한다. 깨진 JSON은 기존처럼 차트 파서의 `유효한 JSON이 아닙니다` 오류로 알린다.
 
 아래는 BPM 120에서 `N1` Point 1000ms, `N2` 바디 1000～2000ms, `N3` 유지 1500ms, `N4` 릴리즈 2000ms를 실제 입력으로 실행하는 v4 예시다.
 
