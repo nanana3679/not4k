@@ -184,6 +184,51 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 7, judgmentCounts: { good: 1, perfect: 2, miss: 1 } });
   });
 
+  it("double Point1000+single 바디1000～2000에서 A down1000 hold·up2000은 ordinal0 Perfect로 바디를 시작해 Perfect·Miss·릴리즈 Perfect 6/9점", () => {
+    const session = makeSession([p(1000, "double"), b(1000, 2000), r(2000)]);
+    session.processBatch(1000, [down()]);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1000 });
+    session.advance(1121);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", pointStatus: "satisfied" });
+    session.processBatch(2000, [up()]);
+    const result = session.finalize();
+    expect(result.score).toMatchObject({ earnedScore: 6, judgmentCounts: { perfect: 2, miss: 1 } });
+    expect(result.snapshot.bodyUnits[0].state).toBe("complete");
+    expect(result.facts.filter(fact => fact.kind === "bodyFailed")).toEqual([]);
+  });
+
+  it("double Point1000+single 바디에서 A down1000 뒤 B down1100은 바디를 A의 1000에 시작하고 유지1050을 1050에 Perfect로 정산", () => {
+    const session = makeSession([p(1000, "double"), b(1000, 2000), s(1050), r(2000)]);
+    session.processBatch(1000, [down()]);
+    session.advance(1050);
+    session.processBatch(1100, [down("B")]);
+    const aDown = session.facts.find(fact => fact.kind === "input" && fact.key === "A");
+    expect(session.facts.filter(fact => fact.kind === "bodyStarted")).toMatchObject([{ actualStartMs: 1000, inputId: aDown?.kind === "input" ? aDown.inputId : "" }]);
+    expect(settlements(session).find(fact => fact.itemKind === "sustain")).toMatchObject({ atMs: 1050, grade: "perfect" });
+    session.processBatch(2000, [up(), up("B")]);
+    expect(session.finalize().score).toMatchObject({ earnedScore: 10, judgmentCounts: { perfect: 3, good: 1, miss: 0 } });
+  });
+
+  it("double Point1000+single 바디의 A down1000 성공 뒤 T1050 재개는 남은 ordinal1의 1120 Miss로 바디를 실패시키지 않아 6/9점", () => {
+    const session = makeSession([p(1000, "double"), b(1000, 2000), r(2000)]);
+    session.processBatch(1000, [down()]);
+    session.advance(1050);
+    session.resumeAt(1050, [{ key: "A", lane: 1 }]);
+    session.advance(1121);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1050, pointStatus: "satisfied" });
+    session.processBatch(2000, [up()]);
+    expect(session.finalize().score).toMatchObject({ earnedScore: 6, judgmentCounts: { perfect: 2, miss: 1 } });
+  });
+
+  it("double Point1000+single 바디에 입력이 없으면 1120에 Point 두 개만 Miss이고 바디는 pointMiss 실패로 릴리즈만 종속0", () => {
+    const session = makeSession([p(1000, "double"), b(1000, 2000), r(2000)]);
+    session.advance(1121);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1120, pointStatus: "missed" });
+    expect(session.facts.filter(fact => fact.kind === "bodyFailed")).toMatchObject([{ reason: "pointMiss", unscoredMiss: false }]);
+    expect(session.finalize().score).toMatchObject({ earnedScore: 0, judgmentCounts: { miss: 2 } });
+    expect(settlements(session).map(fact => fact.outcome)).toEqual(["graded", "graded", "dependentZero"]);
+  });
+
   it("double의 첫 down1070·up1080·같은키down1090은 겹친창에서도 유지 1몫만 완료하고 다른몫은1120 실패", () => {
     const session = makeSession([b(1000, 1060, 2), s(1030, 2), r(1060, 2)]);
     session.processBatch(1070, [down()]); session.processBatch(1080, [up()]); session.processBatch(1090, [down()]); session.processBatch(1100, [up()]);
