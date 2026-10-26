@@ -33,13 +33,17 @@ describe("loadLegacyEditorChartAsset", () => {
     expect(loaded.extraLaneCount).toBe(0);
   });
 
-  it("별도 보조 응답이 빈 문자열이면 기존처럼 메인 내장 Grace 보조 노트를 불러온다", () => {
-    const loaded = loadLegacyEditorChartAsset(JSON.stringify({ ...main, extraNotes: [{ type: "single", extraLane: 1, beat: "0", grace: true }] }), "");
-    expect(loaded.chart.notes).toEqual([{ type: "single", lane: 5, beat: beat(0), grace: true }]);
+  it("별도 보조 200 응답 본문이 빈 문자열이면 메인 내장 Grace 보조 노트로 돌아가지 않고 ChartFormatError를 전달한다", () => {
+    const chartText = JSON.stringify({ ...main, extraNotes: [{ type: "single", extraLane: 1, beat: "0", grace: true }] });
+    expect(() => loadLegacyEditorChartAsset(chartText, "")).toThrow(ChartFormatError);
   });
 
-  it("과거 손상 JSON 보조 파일은 기존처럼 무시한다", () => {
-    expect(loadLegacyEditorChartAsset(JSON.stringify(main), "not json").extraLaneCount).toBe(0);
+  it.each([
+    ["JSON이 아닌 본문 \"not json\"", "not json"],
+    ["업로드가 끊겨 잘린 본문", '{"extraNotes":[{"type":"single","extraLane":1,'],
+  ])("별도 보조 파일이 %s이면 보조 없음(extraLaneCount 0)으로 열지 않고 ChartFormatError를 전달한다", (_label, extraText) => {
+    expect(() => loadLegacyEditorChartAsset(JSON.stringify(main), extraText)).toThrow(ChartFormatError);
+    expect(() => loadLegacyEditorChartAsset(JSON.stringify(main), extraText)).toThrow("보조 파일이 유효한 JSON이 아닙니다");
   });
 
   it("v4 명시 메인 Point는 에디터 store에 적재하지 않고 지원 오류를 전달한다", () => {
