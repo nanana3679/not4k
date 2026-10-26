@@ -1,7 +1,7 @@
 import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { beat, type ChartDocument } from '../../shared';
+import { beat, ChartFormatError, type ChartDocument } from '../../shared';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
 import { useGameStore } from '../stores/gameStore';
 
@@ -103,6 +103,14 @@ describe('일반 곡 LoadingScreen', () => {
     await vi.waitFor(() => expect(fixture.error).toContain('Unable to load this song'));
     expect(useGameStore.getState()).toMatchObject({ normalPlay: null, explicitPlay: null, lastResult: null, chartData: null, audioBuffer: null });
     expect(fixture.close).toHaveBeenCalledOnce();
+  });
+
+  it('aux JSON 손상(ChartFormatError)이면 재시도 안내가 아닌 차트 데이터 오류 안내를 표시한다', async () => {
+    fixture.load.mockRejectedValue(new ChartFormatError('보조 파일이 유효한 JSON이 아닙니다'));
+    mount();
+    await vi.waitFor(() => expect(fixture.error).toContain('This chart contains invalid notes or chart data.'));
+    expect(fixture.error).not.toContain('Unable to load this song');
+    expect(useGameStore.getState()).toMatchObject({ screen: 'loading', normalPlay: null });
   });
 
   it('선택한 곡이 없으면 음원 장치나 fetch 없이 Back 안내를 표시한다', async () => {

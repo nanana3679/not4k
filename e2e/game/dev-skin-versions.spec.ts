@@ -44,7 +44,9 @@ async function openSongs(page: Page) {
     charts: [{ id: 'dev-chart', song_id: SONG_ID, difficulty_label: 'NORMAL', difficulty_level: 1 }],
   }] }));
   await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/normal.json`, route => route.fulfill({ json: chart }));
-  await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/normal.extra.json`, route => route.fulfill({ status: 404 }));
+  // 실제 Supabase Storage는 없는 aux를 HTTP 400과 본문 statusCode "404"·code "NoSuchKey"로 알린다.
+  await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/normal.extra.json`, route => route.fulfill({
+    status: 400, json: { statusCode: '404', error: 'not_found', code: 'NoSuchKey' } }));
   await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/audio.wav*`, route => route.fulfill({ contentType: 'audio/wav', body: audio }));
   await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/jacket.svg*`, route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#163851"/></svg>' }));
   await page.goto('/game');

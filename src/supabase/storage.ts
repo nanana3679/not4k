@@ -13,7 +13,7 @@ import {
   songChartPath,
   songChartExtraPath,
 } from "../shared";
-import { deserializeChart, deserializeChartDocument, parseExtraNotesDocument, withAuxNotes } from "../shared";
+import { ChartFormatError, deserializeChart, deserializeChartDocument, parseExtraNotesDocument, withAuxNotes } from "../shared";
 import type { Chart, ChartDocument } from "../shared";
 
 /**
@@ -43,18 +43,46 @@ export async function fetchChartDocument(songId: string, difficulty: string): Pr
     fetchExtraChartText(songId, difficulty),
   ]);
   const chart = deserializeChartDocument(chartText);
-  const extra = parseExtraNotesDocument(JSON.parse(extraText ?? chartText));
+  const extra = parseExtraNotesDocument(extraText === null ? JSON.parse(chartText) : parseAuxJson(extraText));
   if (extraText !== null || extra.extraNotes.length > 0 || extra.extraLaneCount > 0) {
     return { ...chart, notes: withAuxNotes(chart.notes, extra.extraNotes) };
   }
   return chart;
 }
 
+/** 손상된 aux JSON은 메인 JSON과 같이 차트 형식 오류로 알린다(네트워크 오류로 읽히지 않게). */
+function parseAuxJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ChartFormatError("보조 파일이 유효한 JSON이 아닙니다");
+  }
+}
+
 async function fetchExtraChartText(songId: string, difficulty: string): Promise<string | null> {
   const response = await fetch(getPublicUrl(songChartExtraPath(songId, difficulty)), { cache: 'no-cache' });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`Failed to fetch chart extras: ${response.status}`);
-  return response.text();
+  if (response.ok) return response.text();
+  if (await isMissingObjectResponse(response)) return null;
+  throw new Error(`Failed to fetch chart extras: ${response.status}`);
+}
+
+/**
+ * aux가 없는 곡인지 판별한다. Supabase Storage는 없는 객체를 HTTP 404가 아니라
+ * HTTP 400과 본문 `{"statusCode":"404","error":"not_found","code":"NoSuchKey"}`로 알린다.
+ * 권한·버킷·서버 오류처럼 다른 본문의 400은 없는 파일로 보지 않는다.
+ */
+async function isMissingObjectResponse(response: Response): Promise<boolean> {
+  if (response.status === 404) return true;
+  if (response.status !== 400) return false;
+  let body: unknown;
+  try {
+    body = JSON.parse(await response.text());
+  } catch {
+    return false;
+  }
+  if (!body || typeof body !== 'object') return false;
+  const { statusCode, error, code } = body as Record<string, unknown>;
+  return code === 'NoSuchKey' || (String(statusCode) === '404' && error === 'not_found');
 }
 
 async function fetchChartText(songId: string, difficulty: string): Promise<string> {
