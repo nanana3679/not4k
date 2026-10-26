@@ -30,7 +30,8 @@ interface UnitRuntime {
   pointDecisionAt: number | null;
   /** 재개한 남은 부분에는 원래 시작 Point의 바디 시작 의무를 다시 부과하지 않는다. */
   reentered: boolean;
-  activation: number;
+  /** 마지막으로 다시 연 재개 차수. 같은 차수에서 시작한 몫끼리만 시작 키가 겹치지 않게 비교한다. */
+  resumeEpoch: number;
 }
 interface BodyRuntime {
   readonly body: ExplicitCompiledBody;
@@ -63,7 +64,7 @@ export class ExplicitJudgmentCore {
   private readonly windows: JudgmentWindows;
   private readonly maintenanceGraceMs: number;
   private holds: LaneHoldTracker;
-  private readonly heldByKey = new Map<string, number>();
+  private readonly laneByHeldKey = new Map<string, number>();
   private readonly lastHeldAtByLane = new Map<number, number>();
   private readonly items: ItemRuntime[];
   private readonly bodies: BodyRuntime[];
@@ -75,7 +76,7 @@ export class ExplicitJudgmentCore {
   private readonly trillKeysByZone = new Map<number, Set<string>>();
   private clock = -Infinity;
   private inputSequence = 0;
-  private activation = 0;
+  private resumeEpoch = 0;
   private readonly facts: ExplicitConfirmedFact[] = [];
   private currentPlaybackChart: ExplicitCompiledChart;
 
@@ -106,7 +107,7 @@ export class ExplicitJudgmentCore {
         runtime.units.push({ body: runtime, ordinal: unit.ref.ordinal, id: unit.id, points,
           startedAt: null, completedAt: null, failedAt: null, failureFactId: null,
           startFact: null, completeFact: null, startKey: null, inherited: false, judgedFrom: null, pointDecisionAt: null,
-          reentered: false, activation: 0 });
+          reentered: false, resumeEpoch: 0 });
       }
       return runtime;
     });
@@ -124,7 +125,7 @@ export class ExplicitJudgmentCore {
 
   get time(): number { return this.clock; }
   get heldKeysSnapshot(): readonly ExplicitHeldKey[] {
-    return Object.freeze([...this.heldByKey].map(([key, lane]) => Object.freeze({ key, lane })));
+    return Object.freeze([...this.laneByHeldKey].map(([key, lane]) => Object.freeze({ key, lane })));
   }
   get playbackChart(): ExplicitCompiledChart { return this.currentPlaybackChart; }
   get confirmed(): readonly ExplicitConfirmedFact[] { return Object.freeze([...this.facts]); }
@@ -135,7 +136,7 @@ export class ExplicitJudgmentCore {
     if (!Number.isFinite(playbackStartMs)) throw new RangeError("표시 시작 시각은 유한해야 합니다");
     this.validateHeldKeys(preheldKeys);
     this.currentPlaybackChart = createExplicitPlaybackChartView(this.currentPlaybackChart, playbackStartMs, this.currentPlaybackChart.scoreItems);
-    this.activation++;
+    this.resumeEpoch++;
     this.replaceHeldKeys(atMs, preheldKeys);
     for (const runtime of this.bodies) {
       if (runtime.body.endMs < atMs || (runtime.body.startMs >= atMs
@@ -145,7 +146,7 @@ export class ExplicitJudgmentCore {
         if (!this.open(unit)) continue;
         // 되감기 뒤에도 미처리 시작 Point의 일반 실패 종속은 면제하지 않는다.
         unit.reentered = !unit.points.length || this.pointSatisfied(unit) || unit.points.every(point => point.settlement !== null);
-        unit.activation = this.activation;
+        unit.resumeEpoch = this.resumeEpoch;
         unit.startedAt = null; unit.startFact = null; unit.startKey = null;
         unit.inherited = false; unit.judgedFrom = null; unit.pointDecisionAt = null;
       }
@@ -161,11 +162,11 @@ export class ExplicitJudgmentCore {
 
   private replaceHeldKeys(atMs: number, keys: readonly ExplicitHeldKey[]): void {
     this.holds = new LaneHoldTracker(this.maintenanceGraceMs);
-    this.heldByKey.clear();
+    this.laneByHeldKey.clear();
     // 점수에는 원래 raw 시각을 쓰되 이전 활성 구간의 hold 기록으로 되돌아가지 않는다.
     for (let lane = 1; lane <= 4; lane++) this.lastHeldAtByLane.set(lane, atMs);
     for (const { key, lane } of keys) {
-      this.heldByKey.set(key, lane);
+      this.laneByHeldKey.set(key, lane);
       this.holds.down(key, lane, atMs);
     }
   }
@@ -230,16 +231,16 @@ export class ExplicitJudgmentCore {
     const tokensByRaw = new Map<number, InputToken[]>();
     const firstHeldByLane = new Map<number, number>();
     const heldAtByLane = new Map(this.lastHeldAtByLane);
-    const simulatedHeldByKey = new Map(this.heldByKey);
+    const simulatedLaneByHeldKey = new Map(this.laneByHeldKey);
     for (const group of sorted) {
       const tokens = tokensByRaw.get(group.rawAtMs) ?? [];
       for (const input of group.inputs) {
         const lane = input.lane!;
         const heldAt = Math.max(group.rawAtMs, heldAtByLane.get(lane) ?? -Infinity);
         const down = input.type === "down" || input.type === "press";
-        const accepted = down ? !simulatedHeldByKey.has(input.key) : simulatedHeldByKey.get(input.key) === lane;
+        const accepted = down ? !simulatedLaneByHeldKey.has(input.key) : simulatedLaneByHeldKey.get(input.key) === lane;
         if (accepted) {
-          if (down) simulatedHeldByKey.set(input.key, lane); else simulatedHeldByKey.delete(input.key);
+          if (down) simulatedLaneByHeldKey.set(input.key, lane); else simulatedLaneByHeldKey.delete(input.key);
           heldAtByLane.set(lane, heldAt);
           firstHeldByLane.set(lane, Math.min(heldAt, firstHeldByLane.get(lane) ?? Infinity));
         }
@@ -323,7 +324,7 @@ export class ExplicitJudgmentCore {
     const { input, rawAt, heldAt, observedAt, inputId, sequence } = token;
     const lane = input.lane!;
     const action = this.action(token);
-    const accepted = action === "down" ? !this.heldByKey.has(input.key) : this.heldByKey.get(input.key) === lane;
+    const accepted = action === "down" ? !this.laneByHeldKey.has(input.key) : this.laneByHeldKey.get(input.key) === lane;
     const candidate = accepted ? this.items.find(runtime => {
       const { item, settlement } = runtime;
       if (settlement || item.lane !== lane || Math.abs(rawAt - item.timeMs) > this.windows.GOOD) return false;
@@ -335,8 +336,8 @@ export class ExplicitJudgmentCore {
       phase: "input", observedAt, heldAtMs: heldAt, accepted, consumedItemId: candidate?.item.id ?? null });
     if (!accepted) return;
     this.lastHeldAtByLane.set(lane, heldAt);
-    if (action === "down") { this.heldByKey.set(input.key, lane); this.holds.down(input.key, lane, heldAt); }
-    else { this.heldByKey.delete(input.key); this.holds.up(input.key, heldAt); }
+    if (action === "down") { this.laneByHeldKey.set(input.key, lane); this.holds.down(input.key, lane, heldAt); }
+    else { this.laneByHeldKey.delete(input.key); this.holds.up(input.key, heldAt); }
     if (candidate) {
       const { item } = candidate;
       const grade = "grace" in item && item.grace ? "perfect" : this.grade(rawAt - item.timeMs);
@@ -380,7 +381,7 @@ export class ExplicitJudgmentCore {
     const { item, settlement } = runtime;
     const { input, rawAt } = token;
     if (settlement || item.kind !== "release" || item.lane !== input.lane || Math.abs(rawAt - item.timeMs) > this.windows.GOOD
-      || this.heldByKey.get(input.key) !== input.lane) return false;
+      || this.laneByHeldKey.get(input.key) !== input.lane) return false;
     const previousUse = this.releaseUsesByNote.get(item.source.noteIndex)?.get(input.key);
     const body = item.bodyIndex === undefined ? undefined : this.bodyByIndex.get(item.bodyIndex);
     if (previousUse !== undefined && (!body || (body.pointDownByKey.get(input.key) ?? -Infinity) <= previousUse)) return false;
@@ -429,14 +430,14 @@ export class ExplicitJudgmentCore {
         && this.pointSatisfied(other)))).length;
   }
   private filled(unit: UnitRuntime): boolean { return this.holds.count(unit.body.body.lane) >= this.need(unit); }
-  private heldKeys(lane: number): string[] { return [...this.heldByKey].filter(([, value]) => value === lane).map(([key]) => key).sort(); }
+  private heldKeys(lane: number): string[] { return [...this.laneByHeldKey].filter(([, value]) => value === lane).map(([key]) => key).sort(); }
 
   private tryStart(unit: UnitRuntime, at: number, via: "preheld" | "down", token: InputToken | null, ownPoint = false): void {
     if (!this.open(unit) || unit.startedAt !== null) return;
     const runtime = unit.body;
     const active = runtime.units.filter(other => this.open(other) && other.startedAt !== null).length;
     if (this.holds.count(runtime.body.lane) <= active) return;
-    const used = new Set(runtime.units.filter(other => other.activation === unit.activation
+    const used = new Set(runtime.units.filter(other => other.resumeEpoch === unit.resumeEpoch
       && other.startedAt !== null && other.failedAt === null).map(other => other.startKey));
     const key = this.heldKeys(runtime.body.lane).find(key => !used.has(key));
     if (key === undefined) return;
