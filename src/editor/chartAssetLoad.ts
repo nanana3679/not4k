@@ -23,3 +23,32 @@ export function loadLegacyEditorChartAsset(chartText: string, extraText: string 
   }
   return { chart: requireLegacyChart(document, "현재 에디터"), extraLaneCount };
 }
+
+/**
+ * 별도 보조 파일을 읽는다. 없는 객체만 null(별도 보조 없음)로 돌려준다.
+ * 권한·서버 오류나 네트워크 오류를 보조 없음으로 열면 저장이 기존 보조 파일을 지우므로 오류로 전달한다.
+ */
+export async function fetchEditorExtraText(url: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
+  const response = await fetchImpl(url, { cache: "no-store" });
+  if (response.ok) return response.text();
+  if (await isMissingStorageObject(response)) return null;
+  throw new Error(`Chart extra fetch failed: ${response.status}`);
+}
+
+/**
+ * Supabase Storage는 없는 객체를 HTTP 404가 아니라 HTTP 400과 본문
+ * `{"statusCode":"404","error":"not_found","code":"NoSuchKey"}`로 알린다. 다른 본문의 400은 없는 파일이 아니다.
+ */
+async function isMissingStorageObject(response: Response): Promise<boolean> {
+  if (response.status === 404) return true;
+  if (response.status !== 400) return false;
+  let body: unknown;
+  try {
+    body = JSON.parse(await response.text());
+  } catch {
+    return false;
+  }
+  if (!body || typeof body !== "object") return false;
+  const { statusCode, error, code } = body as Record<string, unknown>;
+  return code === "NoSuchKey" || (String(statusCode) === "404" && error === "not_found");
+}

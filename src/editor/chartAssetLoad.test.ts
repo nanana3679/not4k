@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { beat } from "../shared/types/beat";
 import { ChartFormatError, UnsupportedChartContentError } from "../shared/chart";
-import { loadLegacyEditorChartAsset } from "./chartAssetLoad";
+import { fetchEditorExtraText, loadLegacyEditorChartAsset } from "./chartAssetLoad";
 
 const main = {
   version: 3, meta: { title: "기존 메타데이터", offsetMs: -20 }, notes: [], trillZones: [], events: [],
@@ -69,5 +69,36 @@ describe("loadLegacyEditorChartAsset", () => {
     { extraNotes: "bad" },
   ])("보조 형식 오류 %j는 무시하지 않고 ChartFormatError를 전달한다", (extra) => {
     expect(() => loadLegacyEditorChartAsset(JSON.stringify(main), JSON.stringify(extra))).toThrow(ChartFormatError);
+  });
+});
+
+describe("fetchEditorExtraText", () => {
+  const respond = (response: Response) => vi.fn<typeof fetch>().mockResolvedValue(response);
+  const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
+
+  it("200 응답이면 보조 파일 본문을 그대로 돌려준다", async () => {
+    await expect(fetchEditorExtraText("aux", respond(new Response('{"extraNotes":[]}')))).resolves.toBe('{"extraNotes":[]}');
+  });
+
+  it.each([
+    ["404", json(404, { error: "not_found" })],
+    ["Storage의 400 NoSuchKey", json(400, { statusCode: "404", error: "not_found", code: "NoSuchKey" })],
+    ["code 없는 400 statusCode 404·not_found", json(400, { statusCode: "404", error: "not_found" })],
+  ])("%s 응답은 없는 보조 파일이므로 null이다", async (_label, response) => {
+    await expect(fetchEditorExtraText("aux", respond(response))).resolves.toBeNull();
+  });
+
+  it.each([
+    ["403", json(403, { error: "forbidden" })],
+    ["500", json(500, { error: "server" })],
+    ["권한 오류 본문의 400", json(400, { statusCode: "403", error: "Unauthorized" })],
+    ["JSON이 아닌 본문의 400", new Response("bad request", { status: 400 })],
+  ])("%s 응답은 보조 없음으로 열지 않고 로드 오류로 전달한다", async (_label, response) => {
+    await expect(fetchEditorExtraText("aux", respond(response))).rejects.toThrow("Chart extra fetch failed");
+  });
+
+  it("네트워크 오류는 null로 삼키지 않고 그대로 전달한다", async () => {
+    const failing = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(fetchEditorExtraText("aux", failing)).rejects.toThrow("Failed to fetch");
   });
 });

@@ -34,7 +34,7 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
-import { loadLegacyEditorChartAsset } from './chartAssetLoad';
+import { fetchEditorExtraText, loadLegacyEditorChartAsset } from './chartAssetLoad';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 
@@ -135,9 +135,8 @@ export default function EditorApp() {
       if (!res.ok) throw new Error(`Chart fetch failed: ${res.status}`);
       return res.text();
     });
-    const extraFetch = fetch(extraUrl, { cache: 'no-store' })
-      .then((res) => res.ok ? res.text() : null)
-      .catch(() => null);
+    // 없는 보조 파일(404·Storage 400 NoSuchKey)만 별도 보조 없음이다. 다른 실패는 아래 catch의 로드 오류로 간다.
+    const extraFetch = fetchEditorExtraText(extraUrl);
 
     Promise.all([chartFetch, extraFetch])
       .then(([chartText, extraText]) => {
