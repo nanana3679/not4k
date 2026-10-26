@@ -130,9 +130,12 @@ export function summarizeExplicitCase(example: ExplicitChartCase, run: ExplicitC
   const result = run.result;
   const score = result?.score;
   const counts = score?.judgmentCounts;
+  // 전체 이론 가중치가 0인 무점수 차트는 ScoreManager 내부값 0을 0%로 노출하지 않는다(RFD 0039 결정 2·3).
+  const achievement = run.compiled?.theoreticalWeight === 0 ? "달성률 없음(무점수 차트)"
+    : `달성률 ${score?.achievementRate.toFixed(2)}%`;
   const lines = [`[${example.title || "(제목 없음)"} | explicit ${result ? "실제 엔진 실행" : "실행 거부(세션 미생성)"} | ${engineLabel}]`,
     counts ? `Perfect ${counts.perfect} · Great ${counts.great} · Good ${counts.good} · Good◇ ${counts.goodTrill} · Miss ${counts.miss}` : "판정·점수 결과 없음(세션 미생성)",
-    score ? `점수 ${score.earnedScore}/${score.finalDenominatorWeight} · 달성률 ${score.achievementRate.toFixed(2)}% · 콤보 ${result!.combo} · ${!run.finalized ? "판정 불가(finalize 전)" : score.isFullCombo ? "Full Combo" : "Full Combo 아님"}` : "점수·분모·콤보 계산 불가 · 판정 불가(finalize 전)",
+    score ? `점수 ${score.earnedScore}/${score.finalDenominatorWeight} · ${achievement} · 콤보 ${result!.combo} · ${!run.finalized ? "판정 불가(finalize 전)" : score.isFullCombo ? "Full Combo" : "Full Combo 아님"}` : "점수·분모·콤보 계산 불가 · 판정 불가(finalize 전)",
     `점수 항목 ${run.compiled?.totalJudgments ?? "미컴파일"} · 바디 가중치 0 · 미정산 ${result?.snapshot.items.filter(item => item.settlementFactId === null).length ?? "계산 불가"} · 종속 0점 ${result?.snapshot.items.filter(item => item.state === "dependentZero").length ?? "계산 불가"}`,
     `엔진 기본창 Perfect ±${run.defaults.windows.PERFECT} / Great ±${run.defaults.windows.GREAT} / Good ±${run.defaults.windows.GOOD}ms · 유지 유예 ${run.defaults.maintenanceGraceMs}ms · 프레임 ${run.frameMs}ms`];
   lines.push(...example.notes.map(entry => `${entry.id} L${entry.note.lane} ${entry.note.type} ${formatMs(entry.startMs)}${entry.endMs === undefined ? "" : `～${formatMs(entry.endMs)}`}ms`));

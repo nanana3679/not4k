@@ -54,6 +54,25 @@ describe("explicit 사례의 실제 compiler → session → ScoreManager", () =
     expect(run.result?.snapshot.bodyUnits[0].state).toBe("complete");
   });
 
+  it("이론 가중치0인 바디1000～2000 차트는 요약에 달성률 0.00% 대신 '달성률 없음(무점수 차트)'을 쓰고 PNG에도 달성률이 없음", () => {
+    const { example, run } = replay(document([body(1000, 2000)], [["A", 1000, 1500]]));
+    expect(run.compiled?.theoreticalWeight).toBe(0);
+    const summary = summarizeExplicitCase(example, run, "실제");
+    expect(summary).not.toMatch(/달성률 \d/);
+    expect(summary).toContain("달성률 없음(무점수 차트)");
+    // 바디 유지 실패의 무점수 Miss와 Full Combo 판단은 숨기지 않는다(RFD 0039 결정 4).
+    expect(summary).toContain("Miss 1");
+    expect(summary).toContain("Full Combo 아님");
+    const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
+    expect(svg).not.toMatch(/달성률|0\.00%/);
+  });
+
+  it("Point1000을 입력 없이 놓친 점수 차트는 분모3·획득0이며 요약에 달성률 0.00%를 그대로 표시", () => {
+    const { example, run } = replay(document([point(1000)]));
+    expect(run.compiled?.theoreticalWeight).toBe(3);
+    expect(summarizeExplicitCase(example, run, "실제")).toContain("점수 0/3 · 달성률 0.00%");
+  });
+
   it("standalone 릴리즈2000은 실제 up2000 하나로 Perfect3점을 받음", () => {
     const { run } = replay(document([release(2000)], [["A", 500, 2000]]));
     expect(run.result?.score).toMatchObject({ earnedScore: 3, totalNotes: 1, processedNotes: 1 });
