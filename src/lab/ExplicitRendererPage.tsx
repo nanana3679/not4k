@@ -8,6 +8,7 @@ import type { ExplicitJudgmentEffect } from "../game/judgment/ExplicitJudgmentSt
 import { advanceExplicitPreviewSession, createExplicitPreviewSession, explicitPreviewChart, explicitPreviewPresets,
   explicitPreviewReplayChart, explicitPreviewSnapshot } from "./explicitRendererPreview";
 import type { ExplicitPreviewPreset } from "./explicitRendererPreview";
+import { startPixiPreview } from "./pixiPreviewLifecycle";
 import "./ExplicitRendererPage.css";
 
 interface PreviewOptions { mode: "fixture" | "session"; preset: ExplicitPreviewPreset; atMs: number; lift: number; reset: number }
@@ -32,21 +33,11 @@ export default function ExplicitRendererPage() {
   }, [playing]);
 
   useEffect(() => {
-    let cancelled = false;
-    let initialized = false;
     const app = new Application();
     const loader = new ExplicitSkinLoader();
     let renderer: ExplicitNoteRenderer | null = null;
     let adapter: ExplicitSessionRendererAdapter | null = null;
-    const start = async () => {
-      await import("pixi.js/unsafe-eval");
-      if (cancelled) return;
-      await app.init({ width: 500, height: 600, background: 0x101520, antialias: true, preference: "webgl" });
-      initialized = true;
-      if (cancelled) { app.destroy(true, { children: true }); return; }
-      app.ticker.stop();
-      await loader.load({ resolution });
-      if (cancelled) return;
+    const mount = () => {
       host.current?.appendChild(app.canvas);
       const backdrop = new Graphics();
       app.stage.addChild(backdrop);
@@ -92,14 +83,18 @@ export default function ExplicitRendererPage() {
       draw(latest.current);
       setStatus("33개 역할 준비 완료");
     };
-    void start().catch((error: unknown) => {
-      if (!cancelled) setStatus(`표시 실패: ${error instanceof Error ? error.message : String(error)}`);
-      loader.dispose();
+    return startPixiPreview({
+      app,
+      beforeInit: () => import("pixi.js/unsafe-eval"),
+      init: async () => {
+        await app.init({ width: 500, height: 600, background: 0x101520, antialias: true, preference: "webgl" });
+        app.ticker.stop();
+      },
+      load: () => loader.load({ resolution }),
+      mount,
+      release: () => { controller.current = null; adapter?.dispose(); renderer?.dispose(); loader.dispose(); },
+      onError: error => setStatus(`표시 실패: ${error instanceof Error ? error.message : String(error)}`),
     });
-    return () => {
-      cancelled = true; controller.current = null; adapter?.dispose(); renderer?.dispose(); loader.dispose();
-      if (initialized) app.destroy(true, { children: true });
-    };
   }, [resolution]);
 
   return <main className="explicit-renderer-page" data-lab-page="explicit-renderer">

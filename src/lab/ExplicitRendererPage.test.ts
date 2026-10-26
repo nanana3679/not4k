@@ -8,10 +8,11 @@ import { advanceExplicitPreviewSession, createExplicitPreviewSession, explicitPr
 import pageSource from "./ExplicitRendererPage.tsx?raw";
 
 describe("명시 노트 표시 Lab", () => {
-  it("CSP가 unsafe-eval을 막는 Lab에서도 app.init 전에 Pixi 호환 모듈을 불러온다", () => {
-    const compatibility = pageSource.indexOf('await import("pixi.js/unsafe-eval")');
+  it("CSP가 unsafe-eval을 막는 Lab에서도 Pixi 호환 모듈을 startPixiPreview의 beforeInit으로 불러와 init 단계의 app.init보다 먼저 끝낸다", () => {
+    const compatibility = pageSource.indexOf('beforeInit: () => import("pixi.js/unsafe-eval")');
     expect(compatibility).toBeGreaterThanOrEqual(0);
-    expect(pageSource.indexOf("await app.init")).toBeGreaterThan(compatibility);
+    expect(pageSource.indexOf("await app.init")).toBeGreaterThan(pageSource.indexOf("init: async () =>"));
+    expect(pageSource).not.toMatch(/app\.destroy\(/);
   });
   it("/lab/explicit-renderer는 카탈로그의 Gameplay 항목이고 화면에 fixture·실제 M1 세션 구별과 Lab 복귀 링크를 제공한다", () => {
     expect(labPreviewCatalog.find(entry => entry.id === "explicit-renderer")).toMatchObject({ path: "/lab/explicit-renderer", category: "Gameplay" });
