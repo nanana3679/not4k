@@ -7,6 +7,14 @@ describe("ScoreManager", () => {
     id, noteIndex: 0, unitIndex: 0, kind, timeMs: 1000, weight3,
   });
 
+  it("명시 point의 raw -30ms는 FAST 1회이고 sustain의 -100ms는 타이밍 없이 Perfect 3점을 더함", () => {
+    const sm = new ScoreManager([item("point", "point"), item("sustain", "sustain")]);
+    sm.settleScoreItem("point", JudgmentGrade.PERFECT, -30);
+    sm.settleScoreItem("sustain", JudgmentGrade.PERFECT, -100);
+    expect(sm.finalize()).toMatchObject({ earnedScore: 6, processedNotes: 2,
+      finalDenominatorWeight: 6, fastCount: 1, slowCount: 0 });
+  });
+
   it("NJ-S01: 점수 항목 3개가 Perfect이고 무점수 유지 Miss가 있으면 100%와 Full Combo 아님을 함께 기록", () => {
     const sm = new ScoreManager([item("h0"), item("h1"), item("r1", "release")]);
     sm.settleScoreItem("h0", JudgmentGrade.PERFECT);

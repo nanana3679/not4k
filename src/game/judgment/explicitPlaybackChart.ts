@@ -1,0 +1,40 @@
+import type { ExplicitCompiledChart, ExplicitScoreItem } from "./explicitCompiledChart";
+
+/** 새 커서 세션만 명시 시각 < cut 항목을 제외한다. 정확히 cut인 항목은 포함한다. */
+export function selectExplicitPlaybackChart(compiled: ExplicitCompiledChart, startTimeMs: number): ExplicitCompiledChart {
+  return createExplicitPlaybackChartView(compiled, startTimeMs, compiled.scoreItems.filter(item => item.timeMs >= startTimeMs));
+}
+
+/**
+ * 원본 timing·관계·source index를 유지하는 재생용 범위다. 저장 문서나 compiler 결과를 수정하지 않는다.
+ * 재개는 기존 점수 항목을 그대로 넘겨 미처리 기회와 이론 가중치를 보존한다.
+ */
+export function createExplicitPlaybackChartView(
+  compiled: ExplicitCompiledChart, startTimeMs: number, retainedItems: readonly ExplicitScoreItem[],
+): ExplicitCompiledChart {
+  if (!Number.isFinite(startTimeMs)) throw new RangeError("재생 시작 시각은 유한해야 합니다");
+  const scoreItems = Object.freeze(retainedItems.map(item => Object.freeze({ ...item,
+    source: Object.freeze({ ...item.source }), beat: Object.freeze({ ...item.beat }),
+    ...(item.kind === "point" ? { startsBodyIndices: Object.freeze([...item.startsBodyIndices]) } : {}),
+    ...(item.kind === "sustain" ? { bodyUnit: Object.freeze({ ...item.bodyUnit }) } : {}),
+  })));
+  const retainedNoteIndices = new Set(scoreItems.map(item => item.source.noteIndex));
+  const bodies = Object.freeze(compiled.bodies.filter(body => body.endMs >= startTimeMs).map(body => {
+    const startMs = Math.max(body.startMs, startTimeMs);
+    const source = Object.freeze({ ...body.source });
+    return Object.freeze({ ...body, source, startMs,
+      // Beat와 timing은 원본 배치의 출처다. 실제 재생·표시 경계만 ms 범위로 자른다.
+      beat: Object.freeze({ ...body.beat }), endBeat: Object.freeze({ ...body.endBeat }),
+      startPointIndices: Object.freeze(body.startPointIndices.filter(index => retainedNoteIndices.has(index))),
+      releaseIndices: Object.freeze(body.releaseIndices.filter(index => retainedNoteIndices.has(index))),
+      sustainIndices: Object.freeze(body.sustainIndices.filter(index => retainedNoteIndices.has(index))),
+      units: Object.freeze(body.units.map(unit => Object.freeze({ ...unit, source, startMs,
+        ref: Object.freeze({ ...unit.ref }) }))),
+    });
+  }));
+  const bodyIndices = new Set(bodies.map(body => body.source.noteIndex));
+  const connections = Object.freeze(compiled.connections.filter(connection => bodyIndices.has(connection.predecessorIndex)
+    && bodyIndices.has(connection.successorIndex)).map(connection => Object.freeze({ ...connection })));
+  return Object.freeze({ ...compiled, bodies, bodyUnits: Object.freeze(bodies.flatMap(body => body.units)), connections, scoreItems,
+    totalJudgments: scoreItems.length, theoreticalWeight: scoreItems.reduce((sum, item) => sum + item.weight, 0) });
+}

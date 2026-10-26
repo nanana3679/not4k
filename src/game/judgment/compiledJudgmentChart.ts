@@ -1,5 +1,5 @@
 import type { NoteEntity, RangeNote, TrillZone } from "../../shared";
-import { beatEq, beatGte, beatLte } from "../../shared";
+import { assertLegacyNotes, beatEq, beatGte, beatLte } from "../../shared";
 
 export type JudgmentScoreItemKind = "head" | "release" | "holdOnly";
 
@@ -136,6 +136,7 @@ export function compileJudgmentChart(
   noteEndTimesMs: TimeInput,
   trillZones: readonly TrillZone[] = [],
 ): CompiledJudgmentChart {
+  assertLegacyNotes(notes, "구형 compileJudgmentChart");
   const trillZoneByNote = new Map<number, number>();
   notes.forEach((note, noteIndex) => {
     if (note.type !== "trill" && note.type !== "trillLong") return;

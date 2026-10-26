@@ -1,6 +1,6 @@
 import { JudgmentGrade, JUDGMENT_SCORES, JUDGMENT_WINDOWS, type JudgmentWindows, Rank, getRank } from "../../shared";
 
-export type ScoreItemKind = "head" | "release" | "holdOnly";
+export type ScoreItemKind = "head" | "release" | "holdOnly" | "point" | "sustain";
 export interface ScoreItem {
   readonly id: string; readonly noteIndex: number; readonly unitIndex: number;
   readonly kind: ScoreItemKind; readonly timeMs: number; readonly weight3: number;
@@ -96,9 +96,9 @@ export class ScoreManager {
 
   private recordTiming(deltaMs: number | undefined, grade: JudgmentGrade, kind: ScoreItemKind): void {
     const threshold = this.fastSlowThreshold;
-    // `holdOnly`/H has no timing grade. Callers can suppress timing (Grace)
+    // `holdOnly`/H and explicit sustain have no timing grade. Callers suppress timing (Grace)
     // by omitting deltaMs; release raw timing remains accepted.
-    if (kind !== "holdOnly" && deltaMs != null && grade !== JudgmentGrade.MISS && Math.abs(deltaMs) > threshold) {
+    if (kind !== "holdOnly" && kind !== "sustain" && deltaMs != null && grade !== JudgmentGrade.MISS && Math.abs(deltaMs) > threshold) {
       if (deltaMs < 0) this.fastCount++; else if (deltaMs > 0) this.slowCount++;
     }
   }
