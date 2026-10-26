@@ -303,7 +303,7 @@ done
 - N2, 1990ms: 시작 창 안 재누름으로 뒤 N2를 새로 살리지 못한다.
 - N3, 1520ms: 뒤 single 기준인 N3 한 표식도 종속 0점. N4도 실패 종속을 따른다.
 
-기대 정산: N3·N4 0/6점. 감소 위치에 표식 하나만 놓으며 감소 릴리즈를 자동 생성하지 않는다. 표식 자체가 새 시작 지점을 만들지 않는다. 라벨은 경계 의미 설명이며 정산 시각 실측이 아니다.
+기대 정산: N3·N4 0/6점. N1의 두 몫이 같은 시각에 함께 유지 실패하므로 원인 유지 Miss는 몫마다 하나씩 2개다(사용자 결정, 2026-10-26). 감소 위치에 표식 하나만 놓으며 감소 릴리즈를 자동 생성하지 않는다. 표식 자체가 새 시작 지점을 만들지 않는다. 라벨은 경계 의미 설명이며 정산 시각 실측이 아니다.
 
 근거: [RFD 0037 §4·§5·§6-1](../rfd/0037-explicit-score-notes-and-body.md) / 논의 [§48](../research/explicit-score-notes-discussion.md#48-point-없는-21-감소에서-두-몫-탈락-시-뒤-single도-탈락-유지)·[§52](../research/explicit-score-notes-discussion.md#52-21-감소-위치의-유지-노트는-뒤-single-기준)·[§56](../research/explicit-score-notes-discussion.md#56-유지-노트의-독립-허용-창과-선판정-폐지)·[§57](../research/explicit-score-notes-discussion.md#57-같은-hold-수의-유지-노트-연결-금지와-증가감소-위치-허용).
 
