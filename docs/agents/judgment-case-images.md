@@ -70,7 +70,7 @@ pnpm case:image --explicit chart-v4.json --engine . --engine ../other-explicit-e
 - `--engine`은 **새 실행 계열**의 `explicitCompiledChart.ts`·`ExplicitJudgmentSession.ts`·`documentValidation.ts`·`shared/constants/judgment.ts`를 선택한 저장소에서 읽는다. 미지원 엔진을 legacy 실행으로 대체하지 않는다. 창과 유지 유예는 해당 엔진의 기본값을 출력하며 수동 창을 주입하지 않는다. 같은 입력을 엔진마다 실행하고 사례 × 엔진 순서대로 세로 패널을 쌓는다.
 - main에 구형 항목이 남은 문서는 compiler가 거부한다. 오류·진단을 담은 PNG/요약은 만들되 종료 코드는 1이다. aux 항목은 원문 문서에 보존하고 새 게임 판정·PNG 노트에서는 제외한다. `N1` 등의 이름은 원래 `chart.notes` 인덱스이므로 aux가 사이에 있으면 번호가 건너뛴다.
 - PNG와 요약에 **explicit · 실제 엔진 실행**을 표시한다. 점수·분모·콤보·미정산·종속 0점은 세션의 실제 결과이며 바디 가중치는 0이다. 전체 이론 가중치가 0인 무점수 차트는 [RFD 0039](../rfd/0039-unscored-chart-results.md)에 따라 달성률을 숨기고 요약에 `달성률 없음(무점수 차트)`을 쓴다. 점수 항목이 있는 차트는 모두 놓쳐도 `달성률 0.00%`를 표시한다. 시작/유지 실패는 확정 fact를 사용하고 잠정 바디 진행은 invalidation fact와 현재 `snapshot`을 존중한다. 대표 판정은 같은 확정 시각의 `session.effects[].displayUpdate` 최종 개정을 사용한다.
-- 정식 `buildExplicitSkinView`·`getExplicitSkinAsset`의 `public/skins/classic-explicit/` PNG를 사용한다. 노트는 사례 구조를 읽기 위한 대기 도안이며 성공·실패는 실제 사실 라벨로 표시한다. 바디는 실제 경계 안에서 반복하고 cap·숨은 끝점은 그리지 않는다. double 유지 표식도 승인된 좌우 에셋을 사용한다. `--skin classic-explicit`은 생략할 수 있고 다른 스킨은 거부한다.
+- 정식 `buildExplicitSkinView`·`getExplicitSkinAsset`의 `public/skins/classic-explicit/` PNG를 사용한다. 노트는 사례 구조를 읽기 위한 대기 도안이며 성공·실패는 실제 사실 라벨로 표시한다. 바디는 실제 경계 안에서 반복하고 cap·숨은 끝점은 그리지 않는다. 길이 0을 포함해 타일 한 장보다 짧은 바디는 게임처럼 타일 한 장(노트 한 칸) 높이로 실제 경계의 가운데에 그린다. double 유지 표식도 승인된 좌우 에셋을 사용한다. `--skin classic-explicit`은 생략할 수 있고 다른 스킨은 거부한다.
 - 점선 띠는 Point·릴리즈의 **엔진 기본 Good 창**이다. 유지는 독립 창을 그리지 않는다. 제목·설명 본문은 이미지 밖 텍스트 규칙을 유지하며 제목과 상세 결과는 stdout에 남긴다. 이미지 열람이 어려우면 PNG 경로와 stdout 패널 요약을 그대로 함께 전달한다.
 
 ## 설계 모드(엔진 미실행)

@@ -29,6 +29,20 @@ const replay = (chart: ChartDocument) => {
   return { example, run: runExplicitJudgmentCase(example, engine) };
 };
 const skin = createExplicitCaseSkin(fakeSkinImages(explicitCaseSkinAssetPaths()));
+const tagOf = (svg: string, pattern: RegExp) => {
+  const match = pattern.exec(svg);
+  if (!match) throw new Error(`SVG에 ${pattern} 태그가 없습니다`);
+  return match[0];
+};
+const numberAttr = (tag: string, name: string) => {
+  const match = new RegExp(`\\s${name}="([^"]+)"`).exec(tag);
+  if (!match) throw new Error(`${tag}에 ${name} 속성이 없습니다`);
+  return Number(match[1]);
+};
+const bodyRect = (svg: string) => tagOf(svg, /<rect data-explicit-asset="body\.[^"]+"[^>]*>/);
+/** 축 눈금 선의 y. 눈금 글자(font-size 11)가 바로 뒤에 붙는다. */
+const tickY = (svg: string, label: string) =>
+  numberAttr(tagOf(svg, new RegExp(`<line x1="70"[^>]*/>(?=<text x="14" y="[^"]+" fill="[^"]+" font-size="11">${label}</text>)`)), "y1");
 
 describe("explicit 사례의 실제 compiler → session → ScoreManager", () => {
   it("싱글 Point1000·바디1000～2000·유지1500·릴리즈2000을 실제 down/up으로 처리하면 9/9점·콤보3", () => {
@@ -222,6 +236,35 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
       { noteIndex: 0, startMs: 880, endMs: 1120, label: "N1 point Good" },
       { noteIndex: 3, startMs: 1880, endMs: 2120, label: "N4 release Good" },
     ]);
+  });
+
+  it("BPM120 길이0 바디1000～1000은 높이0으로 사라지지 않고 Point와 같은 높이로 1000ms 눈금 가운데에 그림", () => {
+    const { example, run } = replay(document([point(500), body(1000, 1000)], [["A", 500, 1250]]));
+    expect(run.error).toBeNull();
+    const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
+    const rect = bodyRect(svg);
+    const pointHeight = numberAttr(tagOf(svg, /<use data-explicit-asset="point\.single\.pending"[^>]*>/), "height");
+    expect(numberAttr(rect, "height")).toBeCloseTo(pointHeight, 6);
+    expect(numberAttr(rect, "y") + numberAttr(rect, "height") / 2).toBeCloseTo(tickY(svg, "1000"), 6);
+  });
+
+  it("길이0 바디1000～1000 위의 유지1000은 바디 없이 홀로 그려지지 않고 같은 중심의 바디와 함께 그림", () => {
+    const { example, run } = replay(document([body(1000, 1000), sustain(1000)], [["A", 500, 1250]]));
+    expect(run.error).toBeNull();
+    const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
+    const rect = bodyRect(svg);
+    const marker = tagOf(svg, /<use data-explicit-asset="sustain\.single\.pending"[^>]*>/);
+    expect(numberAttr(rect, "height")).toBeGreaterThan(0);
+    expect(numberAttr(rect, "y") + numberAttr(rect, "height") / 2)
+      .toBeCloseTo(numberAttr(marker, "y") + numberAttr(marker, "height") / 2, 6);
+  });
+
+  it("바디1000～2000처럼 타일보다 긴 바디는 실제 경계 1000·2000ms 눈금 사이에 그대로 그림", () => {
+    const { example, run } = replay(document([body(1000, 2000)], [["A", 1000, 2000]]));
+    const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
+    const rect = bodyRect(svg);
+    expect(numberAttr(rect, "y")).toBeCloseTo(tickY(svg, "2000"), 6);
+    expect(numberAttr(rect, "y") + numberAttr(rect, "height")).toBeCloseTo(tickY(svg, "1000"), 6);
   });
 
   it("double 유지 표식은 정식 left/right 에셋 두 개이며 sustain 독립 창은 없음", () => {

@@ -36,10 +36,14 @@ function drawNote(entry: ExplicitCaseNote, x: number, y: (at: number) => number,
   if (note.type === "body") {
     const id = `body.${note.trill ? "trill" : note.holdCount === 2 ? "double" : "single"}.idle` as ExplicitSkinAssetId;
     const asset = getExplicitSkinAsset(skin.view, id);
-    const top = y(entry.endMs!);
-    const height = y(entry.startMs) - top;
     const width = asset.logicalSize.width * SCALE;
     const tileHeight = asset.logicalSize.height * SCALE;
+    const boundaryTop = y(entry.endMs!);
+    const boundaryHeight = y(entry.startMs) - boundaryTop;
+    // 게임 ExplicitNotePresenter처럼 길이 0 바디도 사라지지 않게 타일 한 장(노트 한 칸) 높이를 최소로 하고
+    // 실제 경계의 가운데에 맞춘다. 타일보다 긴 바디는 실제 경계 그대로 그린다.
+    const height = Math.max(tileHeight, boundaryHeight);
+    const top = boundaryHeight >= tileHeight ? boundaryTop : boundaryTop + (boundaryHeight - tileHeight) / 2;
     const patternId = `${prefix}-body-${entry.index}`;
     drawing = `<pattern id="${patternId}" patternUnits="userSpaceOnUse" x="${x - width / 2}" y="${top}" width="${width}" height="${tileHeight}"><use href="#explicit-${id}" width="${width}" height="${tileHeight}"/></pattern>`
       + `<rect data-explicit-asset="${id}" data-body-cap="none" x="${x - width / 2}" y="${top}" width="${width}" height="${height}" fill="url(#${patternId})"/>`;
