@@ -349,7 +349,9 @@ export class ExplicitJudgmentCore {
     }
     if (action === "down") {
       for (const runtime of this.bodies) {
-        if (runtime.body.lane !== lane || Math.abs(rawAt - runtime.activationStartMs) > this.windows.GOOD) continue;
+        // 재개는 시작 창을 T로 옮기지만 차트 시각의 원래 창은 닫지 않는다. 그 창의 늦게 관측한 down도 hold 시각(≥T)에 시작한다.
+        if (runtime.body.lane !== lane || (Math.abs(rawAt - runtime.activationStartMs) > this.windows.GOOD
+          && Math.abs(rawAt - runtime.body.startMs) > this.windows.GOOD)) continue;
         const own = runtime.units.find(unit => !unit.reentered && unit.point === candidate && candidate !== undefined);
         if (own && this.open(own)) {
           own.judgedFrom = heldAt; own.pointDecisionAt = heldAt;

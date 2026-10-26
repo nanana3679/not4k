@@ -102,6 +102,32 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(session.score.judgmentCounts).toMatchObject({ perfect: 0, miss: 1 });
   });
 
+  it("Point1000·바디1000～2000을 T1050에 복원·재개한 뒤 raw900/관측1060 down은 Point Good과 바디 시작1050을 함께 인정해 9점 중 7점", () => {
+    const original = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
+    original.advance(1050);
+    original.advance(1200);
+    const { session } = original.reconstructAt(1050);
+    session.resumeAt(1050, []);
+    session.processObservedBatch(900, [down()], 1060);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1050, pointStatus: "satisfied" });
+    session.processBatch(2000, [up()]);
+    const result = session.finalize();
+    expect(result.score).toMatchObject({ earnedScore: 7, judgmentCounts: { perfect: 2, good: 1, miss: 0 } });
+    expect(result.facts.filter(fact => fact.kind === "bodyFailed")).toEqual([]);
+  });
+
+  it("Point 없는 바디1000～2000을 T1050에 재개한 뒤 차트 시작 창 안 raw900/관측1060 down은 바디를 T1050에 시작해 유지·릴리즈 6점", () => {
+    const original = makeSession([b(1000, 2000), s(1500), r(2000)]);
+    original.advance(1050);
+    original.advance(1200);
+    const { session } = original.reconstructAt(1050);
+    session.resumeAt(1050, []);
+    session.processObservedBatch(900, [down()], 1060);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1050 });
+    session.processBatch(2000, [up()]);
+    expect(session.finalize().score).toMatchObject({ earnedScore: 6, judgmentCounts: { perfect: 2, miss: 0 } });
+  });
+
   it("2000ms에 일찍 친 2100ms Point는 2050ms 복원에 남고 항목 시각으로 제거되지 않음", () => {
     const original = makeSession([p(2100)]);
     original.processBatch(2000, [down()]);
