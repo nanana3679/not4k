@@ -1347,7 +1347,7 @@ export class SelectMode implements EditorMode {
     const reason = bodyDeletionBlockReason(this.chart.notes, this.effectiveNoteIndices());
     if (reason) { this.callbacks.onWarn?.(reason); return; }
     // restZone은 공존 축 — 선택된 restZone은 노트·존 삭제와 한 커밋으로 함께 지운다 (RFD 0019).
-    // 순서 주의: 차트 커밋(setChart가 축소를 감지해 선택을 원자적으로 비움) → 해제.
+    // 순서 주의: 차트 커밋(setChart가 축소를 감지해 남은 선택을 재매핑) → 해제.
     const selectedRest = this.sel.restZones;
     const withRestRemoved = (chart: ChartDocument): ChartDocument =>
       selectedRest.size > 0

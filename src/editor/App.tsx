@@ -518,7 +518,7 @@ function ChartEditorPage() {
     selectModeRef.current = selectMode;
 
     const deleteMode = new DeleteMode(chart, {
-      // 노트 삭제는 chart.notes 축소 커밋이 선택을 원자적으로 비운다(§3-5 면제) — 별도 clear 불필요.
+      // 노트 삭제는 chart.notes 축소 커밋이 남은 선택을 identity로 재매핑한다 — 별도 보정 불필요.
       onChartUpdate: (c) => setChart(c),
       space,
       getSelectedNotes: () => useEditorStore.getState().selection.notes,
