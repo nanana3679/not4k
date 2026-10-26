@@ -85,12 +85,12 @@ export async function installProbe(page: Page) {
     const render = GameRenderer.prototype.renderFrame;
     GameRenderer.prototype.renderFrame = function (...args) {
       lastSession = currentRuntime?.session ?? lastSession;
-      const fields = this as unknown as { app: { renderer: { gl?: unknown } }; explicitNoteRenderer: { pooledSpriteCount: number } | null;
-        explicitSnapshot?: () => import('../src/game/judgment/ExplicitJudgmentState').ExplicitJudgmentSnapshot };
+      const fields = this as unknown as { app: { renderer: { gl?: unknown } }; explicitNoteRenderer: { spriteCount: number } | null;
+        explicitSnapshotQuery?: () => import('../src/game/judgment/ExplicitJudgmentState').ExplicitJudgmentSnapshot };
       probe.webgl ||= !!fields.app.renderer.gl;
       const result = render.apply(this, args);
-      probe.spriteCount = Math.max(probe.spriteCount, fields.explicitNoteRenderer?.pooledSpriteCount ?? 0);
-      const units = fields.explicitSnapshot?.().bodyUnits ?? [];
+      probe.spriteCount = Math.max(probe.spriteCount, fields.explicitNoteRenderer?.spriteCount ?? 0);
+      const units = fields.explicitSnapshotQuery?.().bodyUnits ?? [];
       probe.partialFailure ||= units.some(unit => unit.state === 'failed') && units.some(unit => unit.state === 'active');
       probe.partialSuccess ||= units.some(unit => unit.state === 'failed') && units.some(unit => unit.state === 'complete');
       return result;
