@@ -6,12 +6,13 @@
 
 ```bash
 pnpm case:image <case.txt|chart.json|-> [더 많은 사례…] --out <file.png> [--engine <repoPath>]… [--scale <px/ms>] [--skin classic|crystal|simple]
+pnpm case:image --explicit <chart-v4.json|-> --out <file.png> [--engine <repoPath>]… [--scale <px/ms>] [--skin classic-explicit]
 ```
 
 - `--out`: 저장할 PNG 경로. 필수다.
 - `--engine`: 판정 엔진을 불러올 저장소(워크트리) 경로. 생략하면 이 도구가 있는 워크트리의 엔진을 쓴다. 여러 번 쓰면 같은 사례를 엔진마다 한 번씩 그린다(legacy는 가로, explicit은 세로).
 - `--scale`: 시간 축 배율(px/ms). 주면 빈 구간을 줄이지 않는 선형 축이 된다. 생략하면 아래 [시간 축](#시간-축) 규칙으로 자동 배율을 고른다.
-- `--skin`: 노트를 그릴 게임 스킨. `classic`(기본, 인게임 기본 스킨)·`crystal`·`simple` 중 하나다. 아래 [노트 스킨](#노트-스킨)을 따른다.
+- `--skin`: 노트를 그릴 게임 스킨. `classic`(기본, 인게임 기본 스킨)·`crystal`·`simple` 중 하나다. 아래 [노트 스킨](#노트-스킨)을 따른다. `--explicit`은 `classic-explicit`만 쓴다.
 - `--design`: [설계 JSON](#설계-모드엔진-미실행)을 읽어 기존 스킨으로 그린다. 판정 엔진은 실행하지 않으며 `--engine`과 함께 쓰면 오류다. `--skin`은 기본 모드와 똑같이 사용할 수 있다.
 - `--explicit`: [v4 실제 명시 판정](#v4-실제-명시-판정)의 `compileExplicitJudgmentChart` + `ExplicitJudgmentSession` + 실제 `ScoreManager` 경로를 사용한다. `--design`과 함께 쓸 수 없고 스킨은 `classic-explicit`만 사용한다.
 - 사례 자리에 `-`를 쓰면 표준 입력에서 읽는다. 대화 중 임시 파일 없이 heredoc으로 넘길 수 있다.
