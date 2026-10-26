@@ -1,4 +1,4 @@
-import { Container, Sprite, Texture, TilingSprite } from "pixi.js";
+import { Container, Sprite, Texture, TextureSource, TilingSprite } from "pixi.js";
 import { describe, expect, it, vi } from "vitest";
 import { buildExplicitSkinView } from "../skin/explicitSkin";
 import type { ExplicitSkinTextures } from "../skin/ExplicitSkinLoader";
@@ -83,20 +83,33 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     parent.destroy();
   });
 
-  it("Point 더블 부분 실패를 좌우 Texture frame으로 합성하면 실패쪽만 바뀌고 dispose는 crop view만 해제한다", () => {
-    const { renderer } = setup();
+  it("Point 더블 왼쪽 Miss는 point.double.failed 원본 왼쪽 절반(frame x 0·폭 106)과 pending 원본 오른쪽 절반(x 106)을 합성하고 좌우가 바뀌면 각 원본의 crop을 따로 쓰며 dispose는 crop view만 해제한다", () => {
+    const texturesById = new Map<string, Texture>();
+    const getTexture = (id: string) => {
+      if (!texturesById.has(id)) texturesById.set(id, new Texture({ source: new TextureSource({ width: 212, height: 40 }) }));
+      return texturesById.get(id)!;
+    };
+    const renderer = new ExplicitNoteRenderer(new Container(), { view: buildExplicitSkinView("/"), getTexture }, layout);
+    renderer.setChart(chart);
     renderer.render(explicitRenderSnapshot(chart, { items: { 3: ["miss", "pending"] } }), 1000);
     const points = children(renderer, "point").children as Sprite[];
+    const failedSource = getTexture("point.double.failed").source;
+    const pendingSource = getTexture("point.double.pending").source;
     expect(points).toHaveLength(2);
-    expect(points.map(point => point.texture.frame.x)).toEqual([0, 0.5]);
+    expect(points.map(point => point.texture.source)).toEqual([failedSource, pendingSource]);
+    expect(points.map(point => [point.texture.frame.x, point.texture.frame.width])).toEqual([[0, 106], [106, 106]]);
     expect(points.map(point => point.alpha)).toEqual([1, 1]);
     expect(points[0].x + points[0].width).toBeCloseTo(points[1].x);
-    const textures = points.map(point => point.texture);
+    const crops = points.map(point => point.texture);
+    renderer.render(explicitRenderSnapshot(chart, { items: { 3: ["pending", "miss"] } }), 1000);
+    expect(points.map(point => point.texture.source)).toEqual([pendingSource, failedSource]);
+    expect(points.map(point => point.texture.frame.x)).toEqual([0, 106]);
+    crops.push(...points.map(point => point.texture));
     renderer.render(explicitRenderSnapshot(chart, { items: { 3: ["miss", "success"] } }), 1000);
     expect(points.map(point => point.alpha)).toEqual([0.7, 0.7]);
-    expect(points.map(point => point.texture)).toEqual(textures);
+    expect(points.map(point => point.texture)).toEqual(crops.slice(0, 2));
     renderer.dispose();
-    expect(textures.every(texture => texture.destroyed)).toBe(true);
-    expect(Texture.WHITE.source.destroyed).toBe(false);
+    expect(crops.every(texture => texture.destroyed)).toBe(true);
+    expect([failedSource, pendingSource].every(source => !source.destroyed)).toBe(true);
   });
 });
