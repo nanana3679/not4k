@@ -660,6 +660,56 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onError).not.toHaveBeenCalled();
   });
 
+  it('Point1000·3000을 친 뒤5000→2000 재개에서3000을 다시 치고4000에서 또 멈추면1000으로 되감아 Point1000만 남기고 최종6점이다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.notes = [1000, 3000].map(ms => ({ type: 'point' as const, kind: 'single' as const, lane: 1, beat: beat(ms, 500) }));
+    const reconstruct = vi.spyOn(ExplicitJudgmentSession.prototype, 'reconstructAt');
+    const run = create(false, chart, {}, undefined, 8); await run.player.start(); wallFrame(3000);
+    const tap = (ms: number) => {
+      at(ms); key(run.target, 'keydown', 'KeyQ'); frame(ms); at(ms + 50); key(run.target, 'keyup', 'KeyQ'); frame(ms + 50);
+    };
+    tap(1000); tap(3000); frame(5000);
+    run.player.togglePause();
+    expect(run.onProgress).toHaveBeenLastCalledWith({ settled: 1, combo: 1 }, 2000);
+    run.player.togglePause(); wallFrame(fixture.now + 3000);
+    tap(3000); frame(4000);
+    run.player.togglePause();
+    expect(run.onProgress).toHaveBeenLastCalledWith({ settled: 1, combo: 1 }, 1000);
+    run.player.togglePause();
+    expect(fixture.audio[0].playWithPreroll).toHaveBeenLastCalledWith(-2000);
+    wallFrame(fixture.now + 3000);
+    tap(3000); frame(8200);
+    expect(reconstruct.mock.calls.map(call => call[0])).toEqual([2000, 1000]);
+    expect(run.onError).not.toHaveBeenCalled();
+    expect(run.onResult.mock.calls[0][0].score).toMatchObject({ earnedScore: 6, processedNotes: 2,
+      judgmentCounts: { perfect: 2, miss: 0 } });
+    expect(fixture.renderers[0].showBombEffect).toHaveBeenCalledTimes(4);
+  });
+
+  it('바디1000～6000을 계속 누른 채5000→2000 재개 뒤5500에서 다시 멈춰 더 늦은2500으로 되감아도 바디는 complete이고 Point·릴리즈6점이다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(2) },
+      { type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(12) },
+      { type: 'release', count: 1, lane: 1, beat: beat(12) }];
+    const reconstruct = vi.spyOn(ExplicitJudgmentSession.prototype, 'reconstructAt');
+    const run = create(false, chart, {}, undefined, 10); await run.player.start(); wallFrame(3000);
+    at(1000); key(run.target, 'keydown', 'KeyQ'); frame(1000); frame(3000); frame(5000);
+    run.player.togglePause(); run.player.togglePause(); wallFrame(fixture.now + 3000);
+    const query = () => fixture.renderers[0].setExplicitChart.mock.calls[0][2]();
+    expect(query().bodyUnits[0].state).toBe('active');
+    frame(4000); frame(5500);
+    run.player.togglePause();
+    expect(run.onProgress).toHaveBeenLastCalledWith({ settled: 1, combo: 1 }, 2500);
+    run.player.togglePause(); wallFrame(fixture.now + 3000);
+    expect(query().bodyUnits[0].state).toBe('active');
+    frame(5000); at(6000); key(run.target, 'keyup', 'KeyQ'); frame(6000); frame(10200);
+    expect(reconstruct.mock.calls.map(call => call[0])).toEqual([2000, 2500]);
+    const result = run.onResult.mock.calls[0][0];
+    expect(run.onError).not.toHaveBeenCalled();
+    expect(result.snapshot.bodyUnits[0].state).toBe('complete');
+    expect(result.score).toMatchObject({ earnedScore: 6, processedNotes: 2, judgmentCounts: { perfect: 2, miss: 0 } });
+  });
+
   it('커서3500에서5000 pause는3500까지만 되감고3000 노트는 포함하지 않아4500 재연주 뒤6점이다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [3000, 3500, 4500].map(ms => ({ type: 'point' as const, kind: 'single' as const, lane: 1, beat: beat(ms, 500) }));
