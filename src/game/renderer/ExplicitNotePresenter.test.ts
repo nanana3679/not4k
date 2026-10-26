@@ -199,4 +199,26 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     ]);
     expect(notes[2].layers[0]).toMatchObject({ assetId: "release.double.partialFailed.right", alpha: 0.7, visible: true });
   });
+
+  it("M2 실제 double 1000～3000ms를 두 키로 시작하고 1500ms B만 떼면 2950ms [active,failed]는 아래끝 432.25로 판정선에 붙고 3000ms 남은 몫 완료로 [complete,failed]가 되면 원래 차트 위치 832.25에서 100ms마다 20px 스크롤한다", () => {
+    const session = new ExplicitJudgmentSession(chart, { maintenanceGraceMs: 20 });
+    session.processBatch(1000, [{ key: "A", lane: 1, type: "down" }, { key: "B", lane: 1, type: "down" }]);
+    session.processBatch(1500, [{ key: "B", lane: 1, type: "up" }]);
+    const bodyAt = (at: number) => {
+      session.advance(at);
+      const layer = presenter.present(session.snapshot, layout, at).find(note => note.kind === "body")!.layers[0];
+      return { states: session.snapshot.bodyUnits.map(unit => unit.state), layer, bottom: layer.y + layer.height };
+    };
+    const held = bodyAt(2950);
+    expect(held.states).toEqual(["active", "failed"]);
+    expect(held.layer).toMatchObject({ assetId: "body.double.partialFailed.right", alpha: 1, visible: true });
+    expect(held.layer.y).toBeCloseTo(409.75);
+    expect(held.bottom).toBeCloseTo(432.25);
+    const released = bodyAt(3000);
+    expect(released.states).toEqual(["complete", "failed"]);
+    expect(released.layer).toMatchObject({ assetId: "body.double.partialFailed.right", alpha: 0.7, visible: true });
+    expect(released.layer.y).toBeCloseTo(419.75);
+    expect(released.bottom).toBeCloseTo(832.25);
+    expect(bodyAt(3100).bottom).toBeCloseTo(852.25);
+  });
 });
