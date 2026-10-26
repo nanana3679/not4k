@@ -9,7 +9,7 @@ Chart editor 컨텍스트는 차트 제작자가 차트를 만들고 수정하�
 
 다음 `holdOnly` 제작 지침은 이전 규칙의 기록으로 남긴다. 구형 항목의 판정·저장·배치 의미는 과도기 읽기·편집을 위해 보존하지만, 새 바디에도 구형 항목 수리에도 `holdOnly`를 새로 배치하지 않는다. 선택 해제 게이트는 구형 구현의 대조 기록이며 새 에디터에서는 의미 위반 항목의 선택 해제·교체를 허용한다.
 
-뗌을 요구하면서 타이밍 등급만 면제할 때는 **그레이스 릴리즈**, 뗌 자체를 요구하지 않을 때는 **릴리즈 없음**으로 구분한다([RFD 0035](../../docs/rfd/0035-release-presence-and-grace.md), 엔진·에디터 이행 전). 교대 up의 점수 손해를 Grace(`holdOnly`)로 면제하던 제작 지침은 이전 결정이다. 정의는 [glossary](../../docs/context/glossary.md#release-판정)를, 패턴별 적용 범위와 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)를 따르며, 자동 배치 금지는 별도 결정 없이 추가하지 않는다.
+뗌을 요구하면서 타이밍 등급만 면제할 때는 **그레이스 릴리즈**, 뗌 자체를 요구하지 않을 때는 **릴리즈 없음**으로 구분한다([RFD 0035](../../docs/rfd/0035-release-presence-and-grace.md)·[RFD 0037 §2](../../docs/rfd/0037-explicit-score-notes-and-body.md#2-구성과-점수-의미), 명시 릴리즈의 Grace 제작·판정 구현). 교대 up의 점수 손해를 Grace(`holdOnly`)로 면제하던 제작 지침은 이전 결정이다. 정의는 [glossary](../../docs/context/glossary.md#release-판정)를, 패턴별 적용 범위와 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)를 따르며, 자동 배치 금지는 별도 결정 없이 추가하지 않는다.
 
 ## Language
 
