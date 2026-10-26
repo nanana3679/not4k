@@ -262,9 +262,9 @@ describe("InputSystem→GameClock→명시 입력 큐의 수명", () => {
 
   it('준비 종료 뒤 첫 down 직전 callback은 이전 hold만 보고 해당 down은 새 입력으로 큐에 남긴다', () => {
     const seen: unknown[] = [];
-    const source = createExplicitPlayInput([{ lane: 1, key: 'KeyA' }], { toInputTimeMs: at => at }, at => {
+    const source = createExplicitPlayInput([{ lane: 1, key: 'KeyA' }], { toInputTimeMs: at => at }, { beforeInput: at => {
       if (at >= 3000) { seen.push(source.heldKeys); source.setJudging(true); }
-    });
+    } });
     const target = new EventTarget(); source.attach(target); source.setJudging(false);
     keyboard(target, 'keydown', 3020);
     expect(seen).toEqual([[]]); expect(source.timeline.size).toBe(1);
@@ -276,6 +276,21 @@ describe("InputSystem→GameClock→명시 입력 큐의 수명", () => {
     const target = new EventTarget(); source.attach(target); keyboard(target, 'keydown', 1000);
     source.setJudging(false);
     expect(source.timeline.size).toBe(0); expect(source.heldKeys).toEqual([{ lane: 1, key: 'KeyA' }]);
+    source.dispose();
+  });
+
+  it('3000ms 판정 재개 뒤 늦게 배달된 timestamp2990 up·2995 down은 큐에 넣지 않고 hold만 바꾼 뒤 늦은 준비 hold hook을 각각 1회 부른다', () => {
+    const changes: unknown[] = [];
+    const source = createExplicitPlayInput([{ lane: 1, key: 'KeyA' }], { toInputTimeMs: at => at },
+      { onLatePreparationHoldChange: () => changes.push(source.heldKeys) });
+    const target = new EventTarget(); source.attach(target); source.setJudging(false);
+    keyboard(target, 'keydown', 1000);
+    source.setJudging(true, 3000);
+    keyboard(target, 'keyup', 2990); keyboard(target, 'keydown', 2995);
+    expect(source.timeline.size).toBe(0);
+    expect(changes).toEqual([[], [{ lane: 1, key: 'KeyA' }]]);
+    keyboard(target, 'keyup', 3020);
+    expect(changes).toHaveLength(2); expect(source.timeline.size).toBe(1);
     source.dispose();
   });
 

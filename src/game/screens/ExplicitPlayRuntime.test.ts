@@ -110,8 +110,8 @@ function frame(time: number) {
 function wallFrame(time: number, timestamp = time) {
   fixture.now = time; const callbacks = [...frames.values()]; frames.clear(); for (const callback of callbacks) callback(timestamp);
 }
-function key(target: Target, type: 'keydown' | 'keyup', code: string) {
-  const event = new Event(type); Object.defineProperties(event, { code: { value: code }, timeStamp: { value: fixture.now } });
+function key(target: Target, type: 'keydown' | 'keyup', code: string, timeStamp = fixture.now) {
+  const event = new Event(type); Object.defineProperties(event, { code: { value: code }, timeStamp: { value: timeStamp } });
   target.dispatchEvent(event);
 }
 
@@ -395,6 +395,38 @@ describe('명시 실제 재생 runtime', () => {
     const result = run.onResult.mock.calls[0][0];
     expect(result.score.earnedScore).toBe(0);
     expect(result.facts.filter(fact => fact.kind === 'input')).toHaveLength(0);
+  });
+
+  it('준비 중 누른 KeyQ의 timestamp2990 up이 실제3000 활성화 뒤3010에 도착하면 바디0～2000을 hold 없음으로 다시 재개해 유지 노트1000에 점수를 주지 않는다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.notes = [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: 'sustain', count: 1, lane: 1, beat: beat(2) }];
+    const run = create(false, chart); await run.player.start();
+    wallFrame(1000); key(run.target, 'keydown', 'KeyQ'); wallFrame(3000);
+    const query = fixture.renderers[0].setExplicitChart.mock.calls[0][2];
+    expect(query().bodyUnits[0].state).toBe('active');
+    fixture.now = 3010; key(run.target, 'keyup', 'KeyQ', 2990);
+    frame(1000); frame(4200);
+    const result = run.onResult.mock.calls[0][0];
+    expect(run.onError).not.toHaveBeenCalled();
+    expect(result.snapshot.bodyUnits[0].state).toBe('failed');
+    expect(result.score).toMatchObject({ earnedScore: 0, judgmentCounts: { perfect: 0 } });
+    expect(result.facts.filter(fact => fact.kind === 'input')).toHaveLength(0);
+  });
+
+  it('준비 중 timestamp2990 KeyQ down이 실제3000 활성화 뒤3010에 도착하면 새 down 없이 hold로 반영해 바디0～2000과 유지 노트1000을 Perfect로 잇는다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.notes = [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: 'sustain', count: 1, lane: 1, beat: beat(2) }];
+    const run = create(false, chart); await run.player.start();
+    wallFrame(3000);
+    fixture.now = 3010; key(run.target, 'keydown', 'KeyQ', 2990);
+    frame(1000); at(2500); key(run.target, 'keyup', 'KeyQ'); frame(2500); frame(4200);
+    const result = run.onResult.mock.calls[0][0];
+    expect(run.onError).not.toHaveBeenCalled();
+    expect(result.snapshot.bodyUnits[0].state).toBe('complete');
+    expect(result.score).toMatchObject({ earnedScore: 3, judgmentCounts: { perfect: 1 } });
+    expect(result.facts.filter(fact => fact.kind === 'input' && fact.action === 'down')).toHaveLength(0);
   });
 
   it('준비 종료 프레임이80ms 늦어도 실제3020ms down은 새 Point 입력이고 준비 중 down으로 버리지 않는다', async () => {

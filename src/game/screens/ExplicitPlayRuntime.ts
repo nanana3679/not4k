@@ -48,6 +48,8 @@ export class ExplicitPlayRuntime {
   private auto: ExplicitAutoPlayer | null = null;
   private debugLog: ExplicitPlayDebugLog | null = null;
   private preparation: { targetMs: number; readyAt: number } | null = null;
+  /** 지금 판정 경계가 음악 준비 종료의 hold seed에서 시작했는지. 일반 첫 시작은 seed가 없다. */
+  private seededFromPreparation = false;
   private targetMs = 0;
   private frameId: number | null = null;
   private closed = false;
@@ -123,8 +125,13 @@ export class ExplicitPlayRuntime {
       const bindings: KeyBinding[] = Object.entries(settings.keyBindings).flatMap(([lane, keys]) =>
         keys.map((key: string) => ({ lane: Number(lane.slice(4)) as KeyBinding['lane'], key })));
       renderer.setupKeyboardDisplay(new Map(bindings.map(binding => [binding.key, binding.lane])));
-      const input = createExplicitPlayInput(bindings, clock, timestamp => {
-        try { this.activatePreparedPlayback(timestamp); } catch (error) { this.fail(error); }
+      const input = createExplicitPlayInput(bindings, clock, {
+        beforeInput: timestamp => {
+          try { this.activatePreparedPlayback(timestamp); } catch (error) { this.fail(error); }
+        },
+        onLatePreparationHoldChange: () => {
+          try { this.reseedPreparationHolds(); } catch (error) { this.fail(error); }
+        },
       });
       this.input = input;
       input.setJudging(false);
@@ -290,17 +297,35 @@ export class ExplicitPlayRuntime {
     if (!preparation || this.paused || this.closed || eventTimestamp < preparation.readyAt
       || performance.now() < preparation.readyAt || this.clock!.judgmentTimeMs() < preparation.targetMs) return;
     const session = this.session!;
-    const autoHeldKeys = [...this.autoHeldByLane].flatMap(([lane, keys]) => [...keys].map(key => ({ lane, key })));
     // 보정 raw/core 시각을 곡 목표로 강제 진행하면 음수 입력 offset의 합법적인 창을 닫는다.
-    session.resumeAt(session.snapshot.atMs, [...this.input!.heldKeys, ...autoHeldKeys],
-      this.clock!.judgmentTimeMs(), preparation.targetMs);
+    session.resumeAt(session.snapshot.atMs, this.currentHeldKeys(), this.clock!.judgmentTimeMs(), preparation.targetMs);
     this.renderer!.setExplicitPlaybackChart(session.playbackChart);
     // 복원한 Auto 커서·유한 키·트릴 교대 계획은 준비 동안 그대로 멈춘다.
     this.preparation = null;
+    this.seededFromPreparation = true;
     this.input!.setJudging(true, preparation.readyAt);
     this.renderer!.setChartVisible(true);
     this.lastFrame = null;
     this.options.onPhase('playing');
+  }
+
+  /**
+   * 준비 중에 누르거나 뗀 키가 판정 재개 뒤에야 도착했다. Point·릴리즈 입력으로 넣지 않고
+   * 바뀐 현재 hold로 같은 목표 T의 재개를 다시 적용한다(RFD 0040: 준비 down/up은 hold로만 반영).
+   */
+  private reseedPreparationHolds(): void {
+    if (!this.seededFromPreparation || this.paused || this.closed || this.preparation) return;
+    const session = this.session!;
+    const songTimeMs = this.clock!.judgmentTimeMs();
+    // 이미 큐에 들어온 재개 뒤 실제 입력을 먼저 처리해야 core의 hold와 물리 hold가 어긋나지 않는다.
+    drainExplicitPlaySessionInputs(this.input!.timeline, session, Infinity, songTimeMs);
+    session.resumeAt(session.snapshot.atMs, this.currentHeldKeys(), songTimeMs, this.targetMs);
+    this.renderer!.setExplicitPlaybackChart(session.playbackChart);
+  }
+
+  private currentHeldKeys(): { lane: number; key: string }[] {
+    const autoHeldKeys = [...this.autoHeldByLane].flatMap(([lane, keys]) => [...keys].map(key => ({ lane, key })));
+    return [...this.input!.heldKeys, ...autoHeldKeys];
   }
 
   private trackAutoInputs(events: readonly ExplicitAutoInput[]): void {

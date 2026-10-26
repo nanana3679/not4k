@@ -18,11 +18,21 @@ export interface ExplicitAutoInputSource {
   eventsThrough(timeMs: number): readonly ExplicitAutoInput[];
 }
 
+export interface ExplicitPlayInputHooks {
+  /** 경계 뒤 첫 실제 입력보다 먼저 준비 종료를 적용해 직전 hold만 seed한다. */
+  beforeInput?(eventTimestamp: number): void;
+  /**
+   * 판정 재개 시각보다 앞선 down/up이 재개 뒤에 도착했다. 점수 입력으로 넣지 않으며,
+   * 이미 바뀐 `heldKeys`를 재개 hold에 다시 반영하는 것은 호출자 몫이다.
+   */
+  onLatePreparationHoldChange?(): void;
+}
+
 /** 입력 시각은 수집 시 GameClock으로 한 번만 변환한다. reset은 물리 hold와 raw 큐를 함께 비운다. */
 export function createExplicitPlayInput(
   bindings: readonly KeyBinding[],
   clock: Pick<GameClock, "toInputTimeMs">,
-  beforeInput?: (eventTimestamp: number) => void,
+  hooks: ExplicitPlayInputHooks = {},
 ) {
   const timeline = new InputTimeline();
   const heldByKey = new Map<string, KeyBinding>();
@@ -31,11 +41,12 @@ export function createExplicitPlayInput(
   let judging = true;
   let judgingFromTimestamp = -Infinity;
   const record = (lane: KeyBinding['lane'], at: number, key: string, type: 'down' | 'up') => {
-    // 경계 뒤 첫 실제 입력보다 먼저 준비 종료를 적용해 직전 hold만 seed한다.
-    beforeInput?.(at);
+    hooks.beforeInput?.(at);
     if (disposed) return;
     if (type === 'down') heldByKey.set(key, { lane, key }); else heldByKey.delete(key);
-    if (judging && at >= judgingFromTimestamp) timeline.enqueue({ lane, key, type, inputAt: clock.toInputTimeMs(at) });
+    if (!judging) return;
+    if (at >= judgingFromTimestamp) timeline.enqueue({ lane, key, type, inputAt: clock.toInputTimeMs(at) });
+    else hooks.onLatePreparationHoldChange?.();
   };
   const inputSystem = new InputSystem([...bindings], {
     onLanePress: (lane, at, key) => record(lane, at, key, 'down'),
