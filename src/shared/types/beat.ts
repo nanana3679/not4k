@@ -56,13 +56,13 @@ const BEAT_STRING = /^(-?\d+)(?:\/(-?\d+))?$/;
  * - "7/2" → beat(7, 2)
  *
  * 분자·분모 전체가 안전 정수인 문자열만 받는다. "1.5"·"1oops"를 앞부분 정수로 잘라
- * 다른 위치로 읽지 않는다.
+ * 다른 위치로 읽지 않는다. JSON에서 온 숫자 1·배열 [1]도 RegExp가 "1"로 바꿔 읽지 않게 거부한다.
  */
 export function beatFromString(s: string): Beat {
-  const match = BEAT_STRING.exec(s);
+  const match = typeof s === "string" ? BEAT_STRING.exec(s) : null;
   const n = match ? Number(match[1]) : NaN;
   const d = match?.[2] === undefined ? 1 : Number(match[2]);
-  if (!Number.isSafeInteger(n) || !Number.isSafeInteger(d)) throw new Error(`Beat: invalid string "${s}"`);
+  if (!Number.isSafeInteger(n) || !Number.isSafeInteger(d)) throw new Error(`Beat: invalid string ${JSON.stringify(s)}`);
   return beat(n, d);
 }
 

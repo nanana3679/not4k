@@ -269,6 +269,16 @@ describe("C1 형식 오류 분류와 미지원 필드 정책", () => {
     expect(() => deserializeChartDocument(v4(patch))).toThrow(ChartFormatError);
   });
 
+  it.each([
+    ["bpm 이벤트 박이 숫자 1", { events: [{ type: "bpm", beat: 1, bpm: 120 }] }],
+    ["bpm 이벤트 박이 배열 [1]", { events: [{ type: "bpm", beat: [1], bpm: 120 }] }],
+    ["trillZones 시작 박이 숫자 0", { trillZones: [{ lane: 1, beat: 0, endBeat: "4" }] }],
+    ["restZones 끝 박이 배열 [\"2\"]", { restZones: [{ lane: 1, beat: "0", endBeat: ["2"] }] }],
+  ])("%s이면 문자열로 바꿔 같은 박으로 읽지 않고 ChartFormatError로 거부한다", (_label, patch) => {
+    expect(() => deserializeChartDocument(v4(patch))).toThrow(ChartFormatError);
+    expect(() => deserializeChartDocument(v4(patch))).toThrow("invalid string");
+  });
+
   it("JSON 객체 진입 chartDocumentFromJson도 notes 배열이 없으면 ChartFormatError다", () => {
     const { notes: _notes, ...withoutNotes } = chartToJson(document([]));
     expect(() => chartDocumentFromJson(withoutNotes as unknown as ChartJson)).toThrow(ChartFormatError);

@@ -78,6 +78,12 @@ describe("beatFromString()", () => {
     },
   );
 
+  it.each([
+    ["숫자 1", 1], ["배열 [1]", [1]], ["배열 [\"1/2\"]", ["1/2"]], ["null", null],
+  ])("문자열이 아닌 값이 %s이면 문자열로 바꿔 박으로 읽지 않고 invalid string 에러다", (_label, value) => {
+    expect(() => beatFromString(value as unknown as string)).toThrow("invalid string");
+  });
+
   it("안전 정수를 넘는 분자 \"9007199254740993\"은 invalid string 에러다", () => {
     expect(() => beatFromString("9007199254740993")).toThrow("invalid string");
   });
