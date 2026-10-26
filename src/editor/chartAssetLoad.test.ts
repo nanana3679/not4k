@@ -97,6 +97,8 @@ describe("fetchEditorExtraText", () => {
     ["500", json(500, { error: "server" })],
     ["권한 오류 본문의 400", json(400, { statusCode: "403", error: "Unauthorized" })],
     ["JSON이 아닌 본문의 400", new Response("bad request", { status: 400 })],
+    ["버킷 없음 400 statusCode 404·code NoSuchBucket", json(400, { statusCode: "404", code: "NoSuchBucket", error: "Bucket not found", message: "Bucket not found" })],
+    ["code 없는 버킷 없음 400 statusCode 404·error Bucket not found", json(400, { statusCode: "404", error: "Bucket not found", message: "Bucket not found" })],
   ])("%s 응답은 보조 없음으로 열지 않고 로드 오류로 전달한다", async (_label, response) => {
     await expect(fetchEditorExtraText("aux", respond(response))).rejects.toThrow("Chart extra fetch failed");
   });
