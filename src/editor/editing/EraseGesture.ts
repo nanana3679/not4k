@@ -66,7 +66,7 @@ export class EraseGesture {
    * Delete 모드 터치 삭제. 노트를 먼저 지우고, 그 자리에 노트가 없을 때만 빈 `trillZone`·
    * `restZone`을 같은 transaction에서 지운다. 삭제가 막힌 노트 아래 구간은 대신 지우지 않는다.
    */
-  eraseAt(lane: number, beatFloat: number): boolean {
+  eraseNoteOrZoneAt(lane: number, beatFloat: number): boolean {
     if (this.erase(lane, beatFloat)) return true;
     if (!this.active || this.stopped) return false;
     const chart = this.callbacks.getChart();

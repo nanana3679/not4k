@@ -29,7 +29,7 @@ const pageErrors = new WeakMap<Page, string[]>();
 test.beforeEach(({ page }) => { const errors: string[] = []; pageErrors.set(page, errors); page.on('pageerror', error => errors.push(error.message)); });
 test.afterEach(({ page }) => { expect(pageErrors.get(page)).toEqual([]); });
 
-test('바디 선택·Release 제외·lane이동은 실제 set만 옮기고 선택된 Sustain 클릭은 set을 유지하며 미선택 Release 직접클릭은 그 항목만 고른다', async ({ page }) => {
+test('바디 선택·Release 제외·lane 이동은 실제 set만 옮기고 선택된 Sustain 클릭은 set을 유지하며 미선택 Release 직접 클릭은 그 항목만 고른다', async ({ page }) => {
   await openEditor(page, { chart: family() }); await selectMode(page);
   await click(page, 1.5); expect((await state(page)).selection).toEqual([0, 1, 2, 3]);
   await click(page, 3, 1, true); expect((await state(page)).selection).toEqual([0, 1, 2]);
@@ -39,7 +39,7 @@ test('바디 선택·Release 제외·lane이동은 실제 set만 옮기고 선�
   await click(page, 3); expect((await state(page)).selection).toEqual([3]);
 });
 
-test('partial box는 바디 연결집합을 고르고 Ctrl+A·Delete·Undo는 전체 노트와 선택index를 보존한다', async ({ page }) => {
+test('partial box는 바디 연결 집합을 고르고 Ctrl+A·Delete·Undo는 전체 노트와 선택 index를 보존한다', async ({ page }) => {
   await openEditor(page, { chart: family() }); await selectMode(page);
   const start = await canvasPosition(page, 2, 1.3); const end = await canvasPosition(page, 1, 1.7);
   await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y, { steps: 4 }); await page.mouse.up();
@@ -66,7 +66,7 @@ test('Sustain 제외 Cut은 clipboard·chart·selection·history를 보존하고
   expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
 
-test('Shift resize는 선택된 끝Release만 따라가며 Sustain 밖 축소를 막고 제외 Release는 원위치다', async ({ page }) => {
+test('Shift resize는 선택된 끝 Release만 따라가며 Sustain 밖 축소를 막고 제외 Release는 원위치다', async ({ page }) => {
   await openEditor(page, { chart: family() }); await selectMode(page); await click(page, 1.5);
   await page.keyboard.press('Shift+ArrowUp');
   const extended = await notes(page); expect(extended[0]).toMatchObject({ endBeat: extended[3].beat }); expect(extended[2].beat).toEqual({ n: 2, d: 1 });
@@ -76,7 +76,7 @@ test('Shift resize는 선택된 끝Release만 따라가며 Sustain 밖 축소를
   const shrunk = await notes(page); expect(shrunk[0]).toMatchObject({ endBeat: { n: 2, d: 1 } }); expect(shrunk[2].beat).toEqual({ n: 2, d: 1 });
 });
 
-test('우클릭 900ms 연속삭제는 노트뒤 Body를 관통하지 않고 Undo1개이며 별개gesture는 따로 Undo한다', async ({ page }) => {
+test('우클릭 900ms 연속 삭제는 노트 뒤 Body를 관통하지 않고 Undo 1개이며 별개 gesture는 따로 Undo한다', async ({ page }) => {
   await openEditor(page, { chart: family() }); const sustain = await canvasPosition(page, 1, 2); const middle = await canvasPosition(page, 1, 2.5);
   await page.mouse.move(sustain.x, sustain.y); await page.mouse.down({ button: 'right' });
   await page.waitForTimeout(900); await page.mouse.move(sustain.x + 1, sustain.y); await page.mouse.move(middle.x, middle.y, { steps: 1 });
@@ -87,7 +87,7 @@ test('우클릭 900ms 연속삭제는 노트뒤 Body를 관통하지 않고 Undo
   await page.keyboard.press('Control+z'); expect(await notes(page)).toHaveLength(3); await page.keyboard.press('Control+z'); expect(await notes(page)).toHaveLength(5);
 });
 
-test('우클릭중 Esc는 삭제만 복구하고 up전 move로 다시 지우지 않으며 기존 Undo를 유지한다', async ({ page }) => {
+test('우클릭 중 Esc는 삭제만 복구하고 up 전 move로 다시 지우지 않으며 기존 Undo를 유지한다', async ({ page }) => {
   await openEditor(page, { chart: family() }); await selectMode(page); await click(page, 2.5); await page.keyboard.press('ArrowRight');
   const before = await notes(page); const history = (await state(page)).past;
   const sustain = await canvasPosition(page, 1, 2); const start = await canvasPosition(page, 1, 1);
@@ -96,7 +96,7 @@ test('우클릭중 Esc는 삭제만 복구하고 up전 move로 다시 지우지 
   await page.mouse.up({ button: 'right' }); expect((await state(page)).past).toBe(history); expect((await state(page)).transaction).toBe(false);
 });
 
-test('우클릭중 Ctrl+Z는 삭제를 먼저 Undo하고 뒤늦은 Esc·move가 복구상태를 바꾸지 않는다', async ({ page }) => {
+test('우클릭 중 Ctrl+Z는 삭제를 먼저 Undo하고 뒤늦은 Esc·move가 복구 상태를 바꾸지 않는다', async ({ page }) => {
   await openEditor(page, { chart: family() }); const original = await notes(page); const sustain = await canvasPosition(page, 1, 2); const start = await canvasPosition(page, 1, 1);
   await page.mouse.move(sustain.x, sustain.y); await page.mouse.down({ button: 'right' });
   await page.keyboard.press('Control+z'); expect(await notes(page)).toEqual(original);
@@ -107,7 +107,7 @@ test('우클릭중 Ctrl+Z는 삭제를 먼저 Undo하고 뒤늦은 Esc·move가 
 // 기본 끝 Release가 바디 끝을 덮으면 끝 핸들은 Release hit(끝 ±1/16박) 바로 위 띠(끝+1/16～3/16박)에서 잡는다.
 const ABOVE_END_RELEASE = 1 / 8;
 
-test('마우스로 기본 끝Release 바로 위 띠를 끌면 미선택 바디도 연결선택 후 끝과 Release를 함께 늘리고 Release 자체를 끌면 Release만 옮긴다', async ({ page }) => {
+test('마우스로 기본 끝 Release 바로 위 띠를 끌면 미선택 바디도 연결 선택 후 끝과 Release를 함께 늘리고 Release 자체를 끌면 Release만 옮긴다', async ({ page }) => {
   await openEditor(page, { chart: family() }); await selectMode(page);
   const mouseDrag = async (start: number, end: number) => {
     const source = await canvasPosition(page, 1, start); const target = await canvasPosition(page, 1, end);
@@ -124,7 +124,7 @@ test('마우스로 기본 끝Release 바로 위 띠를 끌면 미선택 바디�
   expect((await state(page)).selection).toEqual([3]);
 });
 
-test('실제 touch 미선택 handle은 기본 끝Release가 있어도 연결선택 후 resize하고 선택된handle에서는 제외 Point를 되살리지 않는다', async ({ page }) => {
+test('실제 touch 미선택 handle은 기본 끝 Release가 있어도 연결 선택 후 resize하고 선택된 handle에서는 제외 Point를 되살리지 않는다', async ({ page }) => {
   await openEditor(page, { chart: family() }); await selectMode(page);
   const cdp = await page.context().newCDPSession(page);
   await page.locator('select').filter({ has: page.locator('option[value="8"]') }).selectOption('8');

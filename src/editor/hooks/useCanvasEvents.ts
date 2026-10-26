@@ -46,7 +46,7 @@ export interface CanvasEventHandlers {
   handlePointerLeave: () => void;
   handleDoubleClick: (e: React.MouseEvent<HTMLCanvasElement>) => void;
   handleContextMenu: (e: React.MouseEvent<HTMLCanvasElement>) => void;
-  rightDragDeletedRef: RefObject<boolean>;
+  rightPressPendingRef: RefObject<boolean>;
 }
 
 const LONG_PRESS_MS = 450;
@@ -98,7 +98,7 @@ export function useCanvasEvents(
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
   const addToast = useEditorStore((s) => s.addToast);
 
-  const rightDragDeletedRef = useRef(false);
+  const rightPressPendingRef = useRef(false);
   const eraseGestureRef = useRef(new EraseGesture({
     getChart: () => useEditorStore.getState().chart,
     getSelectedNotes: () => useEditorStore.getState().selection.notes,
@@ -159,7 +159,7 @@ export function useCanvasEvents(
       const lane = space.xToUnifiedLane(x);
       if (lane !== null) {
         const beat = space.yToBeatRaw(y);
-        eraseGestureRef.current.eraseAt(lane, beat.n / beat.d);
+        eraseGestureRef.current.eraseNoteOrZoneAt(lane, beat.n / beat.d);
       }
     } else deleteModeRef.current?.onPointerDown(x, y);
   }, [deleteModeRef, space]);
@@ -407,7 +407,7 @@ export function useCanvasEvents(
 
     if (e.button === 2) {
       // 삭제는 여기서 시작한다. 이 누름이 만들 contextmenu 한 번은 삭제하지 않는다.
-      rightDragDeletedRef.current = true;
+      rightPressPendingRef.current = true;
       canvasRef.current?.setPointerCapture(e.pointerId);
       // 붙여넣기 대기처럼 다른 조작의 transaction이 열려 있으면 키보드 명령처럼 먼저 확정한다.
       // 소유 모드는 onInterrupt로 붙여넣기를 확정하고, 삭제 gesture가 새 transaction을 연다.
@@ -973,9 +973,9 @@ export function useCanvasEvents(
     const decision = resolveContextMenuDelete({
       now: Date.now(),
       suppressUntil: suppressContextMenuUntilRef.current,
-      rightPressPending: rightDragDeletedRef.current,
+      rightPressPending: rightPressPendingRef.current,
     });
-    rightDragDeletedRef.current = decision.rightPressPending;
+    rightPressPendingRef.current = decision.rightPressPending;
     if (!decision.shouldDelete) return;
 
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -1024,6 +1024,6 @@ export function useCanvasEvents(
     handlePointerLeave,
     handleDoubleClick,
     handleContextMenu,
-    rightDragDeletedRef,
+    rightPressPendingRef,
   };
 }

@@ -56,7 +56,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
   it('빈 1～4박 trillZone의 2박을 탭하면 같은 transaction에서 구간을 지우고 Undo 1번에 돌아온다', () => {
     const initial = chart([], { trillZones: [zoneAt1to4] });
     const { erase } = setup(initial);
-    erase.begin(); expect(erase.eraseAt(1, 2)).toBe(true); erase.finish();
+    erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(true); erase.finish();
 
     expect(current().chart.trillZones).toEqual([]);
     expect(current().historyPast).toHaveLength(1);
@@ -66,7 +66,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
   it('3박 트릴 Point가 든 1～4박 trillZone의 2박을 탭하면 구간을 지우지 않고 경고한다', () => {
     const initial = chart([{ type: 'point', kind: 'trill', lane: 1, beat: beat(3) }], { trillZones: [zoneAt1to4] });
     const { erase, warn } = setup(initial);
-    erase.begin(); expect(erase.eraseAt(1, 2)).toBe(false); erase.finish();
+    erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
 
     expect(current().chart).toBe(initial);
     expect(warn).toHaveBeenCalledWith('Zone contains notes — remove them first');
@@ -74,7 +74,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
 
   it('1～4박 restZone의 2박을 탭하면 restZone을 지운다', () => {
     const { erase } = setup(chart([], { restZones: [zoneAt1to4] }));
-    erase.begin(); expect(erase.eraseAt(1, 2)).toBe(true); erase.finish();
+    erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(true); erase.finish();
 
     expect(current().chart.restZones).toEqual([]);
   });
@@ -85,7 +85,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
     const initial = chart([body, sustain], { restZones: [zoneAt1to4] });
     const { erase, warn } = setup(initial);
     useEditorStore.setState({ selection: { notes: new Set([0]), zones: new Set(), restZones: new Set() } });
-    erase.begin(); expect(erase.eraseAt(1, 2)).toBe(false); erase.finish();
+    erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
 
     expect(current().chart).toBe(initial);
     expect(warn).toHaveBeenCalledOnce();
@@ -94,7 +94,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
   it('Esc로 취소한 누름은 같은 누름의 2박 탭으로 빈 trillZone을 지우지 않는다', () => {
     const initial = chart([], { trillZones: [zoneAt1to4] });
     const { erase } = setup(initial);
-    erase.begin(); erase.cancel(); expect(erase.eraseAt(1, 2)).toBe(false); erase.finish();
+    erase.begin(); erase.cancel(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
 
     expect(current().chart).toBe(initial);
   });
