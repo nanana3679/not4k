@@ -280,6 +280,18 @@ describe("C1 형식 오류 분류와 미지원 필드 정책", () => {
     })))).toThrow("보조 노트에는 lane 대신 extraLane");
   });
 
+  it.each([0, -1, 1.5, "1", null])("보조 노트 extraLane=%j는 메인 레인이나 비정수 레인으로 옮기지 않고 ChartFormatError로 거부한다", (extraLane) => {
+    expect(() => parseExtraNotesDocument(JSON.parse(JSON.stringify({
+      extraNotes: [{ type: "single", extraLane, beat: "0" }],
+    })))).toThrow("extraLane은 1 이상의 정수여야 합니다");
+  });
+
+  it("보조 노트에 extraLane이 없으면 ChartFormatError로 거부한다", () => {
+    expect(() => parseExtraNotesDocument(JSON.parse(JSON.stringify({
+      extraNotes: [{ type: "single", beat: "0" }],
+    })))).toThrow("extraLane은 1 이상의 정수여야 합니다");
+  });
+
   it("최상위·bpm 이벤트·trillZone·보조 최상위의 미지원 필드는 읽기를 막지 않고 재저장에서 빠지며 meta 필드는 남는다", () => {
     const source = chartToJson(document([{ type: "point", kind: "single", lane: 1, beat: beat(0) }]));
     const resaved = JSON.parse(serializeChart(deserializeChartDocument(JSON.stringify({

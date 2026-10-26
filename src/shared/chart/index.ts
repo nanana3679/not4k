@@ -435,6 +435,8 @@ export function parseExtraNotesDocument(json: ExtraNotesJson): { extraNotes: Doc
     // 메인 전용 lane을 extraLane으로 덮어써 조용히 버리지 않는다.
     if ("lane" in value) throw new ChartFormatError("보조 노트에는 lane 대신 extraLane을 씁니다");
     const { extraLane, ...rest } = value;
+    // 0·음수·비정수 extraLane은 메인 레인(1～4)이나 성립하지 않는 레인으로 옮겨지므로 읽지 않는다.
+    if (!Number.isInteger(extraLane) || extraLane < 1) throw new ChartFormatError("extraLane은 1 이상의 정수여야 합니다");
     const note = parseDocumentNote({ ...rest, lane: extraLane }, json.version);
     // 파일의 extraLane 숫자를 읽은 뒤 실제 보조 lane으로 매핑한다.
     return noteToExtra({ ...note, lane: fromAuxIndex(note.lane) });
