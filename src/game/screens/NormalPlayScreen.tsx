@@ -7,14 +7,14 @@ import { ExplicitPlayScreen } from './ExplicitPlayScreen';
 export function NormalPlayScreen() {
   const request = useGameStore(state => state.normalPlay);
   const completeNormalPlay = useGameStore(state => state.completeNormalPlay);
-  const releaseNormalPlay = useGameStore(state => state.releaseNormalPlay);
+  const clearNormalPlay = useGameStore(state => state.clearNormalPlay);
   const setScreen = useGameStore(state => state.setScreen);
   const complete = useCallback((result: ExplicitSessionResult) => {
     if (request) completeNormalPlay(request, result);
   }, [request, completeNormalPlay]);
   useEffect(() => () => {
-    if (request) releaseNormalPlay(request);
-  }, [request, releaseNormalPlay]);
+    if (request) clearNormalPlay(request);
+  }, [request, clearNormalPlay]);
 
   if (!request) return <div role="alert">
     <p>No song loaded.</p>

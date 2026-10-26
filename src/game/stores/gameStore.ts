@@ -81,7 +81,7 @@ interface GameState {
   completeNormalPlayLoad: (loadId: number, request: ExplicitPlayRequest) => boolean;
   cancelNormalPlayLoad: (loadId: number) => void;
   completeNormalPlay: (request: ExplicitPlayRequest, result: ExplicitSessionResult) => void;
-  releaseNormalPlay: (request: ExplicitPlayRequest) => void;
+  clearNormalPlay: (request: ExplicitPlayRequest) => void;
   startExplicitPlayTest: (options: ExplicitPlayTestOptions) => void;
   clearExplicitPlayTest: () => void;
 
@@ -222,7 +222,7 @@ export const useGameStore = create<GameState>()(
           finalDenominatorWeight: score.finalDenominatorWeight,
         } });
       },
-      releaseNormalPlay: request => {
+      clearNormalPlay: request => {
         if (get().normalPlay !== request) return;
         set({ normalPlay: null, lastResult: null, screen: 'songSelect' });
       },

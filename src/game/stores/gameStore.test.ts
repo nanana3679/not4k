@@ -275,14 +275,14 @@ describe('일반 곡 로딩·결과 수명', () => {
     const previous = start();
     const next = start(2);
     const state = useGameStore.getState();
-    state.releaseNormalPlay(previous);
+    state.clearNormalPlay(previous);
     expect(useGameStore.getState().normalPlay).toBe(next);
     state.completeNormalPlay(next, new ExplicitJudgmentSession(next.compiled).finalize());
     const completed = useGameStore.getState();
-    state.releaseNormalPlay(next);
+    state.clearNormalPlay(next);
     expect(useGameStore.getState()).toBe(completed);
     const current = start();
-    state.releaseNormalPlay(current);
+    state.clearNormalPlay(current);
     expect(useGameStore.getState()).toMatchObject({ normalPlay: null, lastResult: null, screen: 'songSelect' });
   });
 
