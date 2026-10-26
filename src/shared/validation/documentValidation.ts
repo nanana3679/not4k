@@ -1,6 +1,6 @@
 import type { DocumentNoteEntity, NoteEntity } from "../types/chart";
 import { isExplicitNote } from "../types/chart";
-import { beatEq, beatGt, beatLt, beatLte } from "../types/beat";
+import { beatEq, beatGt, beatLt, beatLte, isWellFormedBeat } from "../types/beat";
 import { isMainLane } from "../chart/laneAxis";
 import { deriveExplicitNoteRelations } from "../chart/explicitNoteRelations";
 import { parseDocumentNote } from "../chart/noteDocument";
@@ -52,12 +52,8 @@ export function validateChartDocumentStructural(input: ChartDocumentValidationIn
       errors.push({ rule: "noteMalformed", message: "노트가 객체가 아닙니다", refs: [noteRef(index)] });
       return;
     }
-    const wellFormedBeat = (value: unknown): value is { n: number; d: number } => {
-      if (!value || typeof value !== "object" || !("n" in value) || !("d" in value)) return false;
-      return typeof value.n === "number" && typeof value.d === "number"
-        && Number.isFinite(value.n) && Number.isFinite(value.d) && value.d !== 0;
-    };
-    if (!wellFormedBeat(note.beat) || ("endBeat" in note && !wellFormedBeat(note.endBeat))) {
+    // 소수 분자는 저장 문자열 왕복에서 다른 박으로 바뀌므로 codec 검사 전에 거부한다.
+    if (!isWellFormedBeat(note.beat) || ("endBeat" in note && !isWellFormedBeat(note.endBeat))) {
       errors.push({ rule: "beatMalformed", message: "노트의 시작·끝 Beat가 유효하지 않습니다", refs: [noteRef(index)] });
       return;
     }

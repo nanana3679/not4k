@@ -56,6 +56,25 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     expect(result.canSave).toBe(false);
   });
 
+  it("저장 왕복에서 0박이 되는 explicit Point n=0.5와 음수 분모 body 끝 d=-2는 beatMalformed 구조 위반이다", () => {
+    const chart = document([{ type: "point", kind: "single", lane: 1, beat: { n: 0.5, d: 1 } },
+      { type: "body", lane: 2, beat: beat(0), endBeat: { n: 1, d: -2 }, holdCount: 1 }]);
+    const result = validateChartDocument(chart);
+    expect(result.structural.map(e => [e.rule, e.refs])).toEqual([
+      ["beatMalformed", [{ kind: "note", index: 0 }]], ["beatMalformed", [{ kind: "note", index: 1 }]]]);
+    expect(result.canSave).toBe(false);
+  });
+
+  it("문서의 trillZone 끝 n=4.5와 stop 이벤트 시작 n=2.5도 beatMalformed 구조 위반이다", () => {
+    const chart = document([point(1)]);
+    chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: { n: 4.5, d: 1 } }];
+    chart.events.push({ type: "stop", beat: { n: 2.5, d: 1 }, endBeat: beat(3) });
+    const result = validateChartDocument(chart);
+    expect(result.structural.filter(e => e.rule === "beatMalformed").map(e => e.refs))
+      .toEqual([[{ kind: "trillZone", index: 0 }], [{ kind: "event", index: 1 }]]);
+    expect(result.canSave).toBe(false);
+  });
+
   it("JS 경계에서 sustain count3·double trill body는 noteMalformed 구조 진단이다", () => {
     const notes = [{ type: "sustain", lane: 1, beat: beat(0), count: 3 },
       { type: "body", lane: 2, beat: beat(0), endBeat: beat(4), holdCount: 2, trill: true }] as unknown as DocumentNoteEntity[];

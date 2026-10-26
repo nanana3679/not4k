@@ -926,6 +926,23 @@ describe("validateBeatWellFormed (구조: malformed Beat)", () => {
     ]);
   });
 
+  it("정수 계약을 어긴 n=0.5 노트·끝 n=4.5 트릴존·d=-2 bpm 이벤트·7.5/2 박자표는 각각 beatMalformed다", () => {
+    const errors = validateBeatWellFormed(
+      [{ type: "single", lane: 1, beat: { n: 0.5, d: 1 } }] as NoteEntity[],
+      [{ lane: 1, beat: beat(0), endBeat: { n: 4.5, d: 1 } }] as TrillZone[],
+      [
+        { type: "bpm", beat: { n: 1, d: -2 }, bpm: 120 },
+        { type: "timeSignature", beat: beat(0), beatPerMeasure: { n: 7.5, d: 2 } },
+      ] as ChartEvent[],
+    );
+    expect(errors.map((e) => [e.rule, e.refs])).toEqual([
+      ["beatMalformed", [{ kind: "note", index: 0 }]],
+      ["beatMalformed", [{ kind: "trillZone", index: 0 }]],
+      ["beatMalformed", [{ kind: "event", index: 0 }]],
+      ["beatMalformed", [{ kind: "event", index: 1 }]],
+    ]);
+  });
+
   it("d=0 beatPerMeasure 박자표도 beatMalformed로 잡힌다", () => {
     const errors = validateBeatWellFormed([], [], [
       { type: "timeSignature", beat: beat(0), beatPerMeasure: { n: 4, d: 0 } },

@@ -26,7 +26,7 @@ import type {
   TimeSignatureEvent,
   StopEvent,
 } from "../types/chart";
-import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
+import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat, isWellFormedBeat } from "../types/beat";
 import { isMainLane } from "../chart/laneAxis";
 
 export interface ValidationError {
@@ -927,8 +927,8 @@ export function validateBeatWellFormed(
   restZones: readonly RestZone[] = [],
 ): ValidationError[] {
   const errors: ValidationError[] = [];
-  const isMalformed = (b: Beat): boolean =>
-    !Number.isFinite(b.n) || !Number.isFinite(b.d) || b.d === 0;
+  // 소수 분자·음수 분모도 저장 왕복에서 위치가 바뀌거나 비교가 뒤집히므로 malformed다.
+  const isMalformed = (b: Beat): boolean => !isWellFormedBeat(b);
 
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];

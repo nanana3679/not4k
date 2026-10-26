@@ -223,6 +223,20 @@ describe("C1 구형 의미와 버전 경계", () => {
     expect(() => parseExtraNotes(JSON.parse(serializeExtraNotes(auxNotesAsExtra([{ ...cases[0][1], lane: 5 }]), 1)))).toThrow(UnsupportedChartContentError);
   });
 
+  it.each(["1.5", "1/2.5", "1oops", "0.5"])("v4 Point의 박 문자열 %j는 정수로 잘라 옮기지 않고 거부한다", (value) => {
+    expect(() => deserializeChartDocument(JSON.stringify({ ...chartToJson(document([])), version: 4,
+      notes: [{ type: "point", kind: "single", lane: 1, beat: value }] }))).toThrow("박 문자열이 유효하지 않습니다");
+  });
+
+  it("v3 구형 노트의 기존 박 문자열 \"-1/2\"·\"7/2\"·\"0\"은 그대로 읽는다", () => {
+    const parsed = deserializeChartDocument(JSON.stringify({ ...chartToJson(document([])), version: 3, notes: [
+      { type: "single", lane: 1, beat: "-1/2" }, { type: "long", lane: 2, beat: "0", endBeat: "7/2" },
+    ] }));
+    expect(parsed.notes).toEqual([
+      { type: "single", lane: 1, beat: beat(-1, 2) }, { type: "long", lane: 2, beat: beat(0), endBeat: beat(7, 2) },
+    ]);
+  });
+
   it.each([
     [{ type: "release", count: 2, grace: [true, false] }, "grace는 boolean"],
     [{ type: "release", count: 2, graceByUnit: [true, false] }, "지원하지 않는 필드"],
