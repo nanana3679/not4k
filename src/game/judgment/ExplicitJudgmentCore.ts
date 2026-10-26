@@ -1,7 +1,7 @@
 import { JUDGMENT_WINDOWS, MAINTENANCE_GRACE_MS } from "../../shared/constants/judgment";
 import type { JudgmentWindows } from "../../shared/constants/judgment";
 import { LaneHoldTracker } from "./LaneHoldTracker";
-import type { ExplicitCompiledBody, ExplicitCompiledChart, ExplicitScoreItem } from "./explicitCompiledChart";
+import type { ExplicitCompiledBody, ExplicitCompiledChart, ExplicitCompiledConnection, ExplicitScoreItem } from "./explicitCompiledChart";
 import { createExplicitPlaybackChartView, selectExplicitPlaybackChart } from "./explicitPlaybackChart";
 import type {
   ExplicitBodyUnitSnapshot, ExplicitConfirmationPhase, ExplicitConfirmedFact, ExplicitGrade,
@@ -464,25 +464,37 @@ export class ExplicitJudgmentCore {
     this.settleSustains(unit, at, phase, true);
   }
 
-  private fail(unit: UnitRuntime, at: number, reason: "startTimeout" | "maintenance" | "pointMiss", causeFactId: string | null, shared = false): void {
-    if (!this.open(unit)) return;
-    unit.failedAt = at;
-    const fact = this.confirm({ kind: "bodyFailed", bodyUnitId: unit.id, lane: unit.body.body.lane,
-      atMs: at, confirmedAt: Math.max(at, this.clock), phase: "deadline", reason, causeFactId, unscoredMiss: !shared && reason !== "pointMiss" });
-    unit.failureFactId = fact.id;
-    for (const item of this.items) if (!item.settlement && item.item.kind === "sustain"
-      && item.item.bodyIndex === unit.body.body.source.noteIndex && item.item.bodyUnit.ordinal === unit.ordinal) {
-      this.settle(item, null, at, "deadline", null, null, fact.id);
-    }
-    this.settleLostReleases(unit.body, at, fact.id);
-    for (const connection of this.chart.connections.filter(c => c.predecessorIndex === unit.body.body.source.noteIndex)) {
+  /**
+   * 실패와 연결 공유 실패를 깊이 우선 순서로 확정한다. 긴 연결 사슬에서도 호출 스택을 쓰지 않도록 명시적 stack으로 걷는다.
+   * 각 연결의 공유 조건은 앞 연결의 전파를 모두 마친 뒤에 판단한다.
+   */
+  private fail(unit: UnitRuntime, at: number, reason: "startTimeout" | "maintenance" | "pointMiss", causeFactId: string | null): void {
+    const stack: { readonly unit: UnitRuntime; readonly factId: string; readonly connections: readonly ExplicitCompiledConnection[]; next: number }[] = [];
+    const failOne = (target: UnitRuntime, cause: string | null, shared: boolean): void => {
+      if (!this.open(target)) return;
+      target.failedAt = at;
+      const fact = this.confirm({ kind: "bodyFailed", bodyUnitId: target.id, lane: target.body.body.lane,
+        atMs: at, confirmedAt: Math.max(at, this.clock), phase: "deadline", reason, causeFactId: cause, unscoredMiss: !shared && reason !== "pointMiss" });
+      target.failureFactId = fact.id;
+      for (const item of this.items) if (!item.settlement && item.item.kind === "sustain"
+        && item.item.bodyIndex === target.body.body.source.noteIndex && item.item.bodyUnit.ordinal === target.ordinal) {
+        this.settle(item, null, at, "deadline", null, null, fact.id);
+      }
+      this.settleLostReleases(target.body, at, fact.id);
+      stack.push({ unit: target, factId: fact.id, next: 0,
+        connections: this.chart.connections.filter(c => c.predecessorIndex === target.body.body.source.noteIndex) });
+    };
+    failOne(unit, causeFactId, false);
+    while (stack.length) {
+      const frame = stack[stack.length - 1];
+      if (frame.next >= frame.connections.length) { stack.pop(); continue; }
+      const connection = frame.connections[frame.next++];
       const next = this.bodyByIndex.get(connection.successorIndex);
-      if (!next) continue;
-      if (next.startPoints.length) continue;
-      if (connection.sourceCount === connection.targetCount && unit.body.body.releaseIndices.length === 0) {
-        this.fail(next.units[unit.ordinal], at, reason, fact.id, true);
-      } else if (connection.sourceCount === 2 && connection.targetCount === 1 && unit.body.units.every(u => u.failedAt !== null)) {
-        this.fail(next.units[0], at, reason, fact.id, true);
+      if (!next || next.startPoints.length) continue;
+      if (connection.sourceCount === connection.targetCount && frame.unit.body.body.releaseIndices.length === 0) {
+        failOne(next.units[frame.unit.ordinal], frame.factId, true);
+      } else if (connection.sourceCount === 2 && connection.targetCount === 1 && frame.unit.body.units.every(u => u.failedAt !== null)) {
+        failOne(next.units[0], frame.factId, true);
       }
     }
   }
