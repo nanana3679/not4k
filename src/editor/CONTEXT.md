@@ -148,7 +148,7 @@ _Avoid_: 뷰포트 제스처
 
 ## 새 에디터 계약 요약
 
-다음은 에디터에 구현한 편집 계약이다(명시 차트 테스트 재생은 #346에서 연결). 정의는 [glossary](../../docs/context/glossary.md), 조작별 세부는 [공식 편집 스펙](../../docs/spec/chart-editor.md#새-에디터-채택-계약), 결정은 [RFD 0037 §6](../../docs/rfd/0037-explicit-score-notes-and-body.md#6-위치-관계와-편집)·[§8](../../docs/rfd/0037-explicit-score-notes-and-body.md#8-구형-차트와-과도기)을 따른다.
+다음은 새 에디터에 구현·검증한 편집 계약의 요약이다(명시 차트 테스트 재생은 #346에서 연결). 정의는 [glossary](../../docs/context/glossary.md), 조작별 세부는 [공식 편집 스펙](../../docs/spec/chart-editor.md#새-에디터-채택-계약), 결정은 [RFD 0037 §6](../../docs/rfd/0037-explicit-score-notes-and-body.md#6-위치-관계와-편집)·[§8](../../docs/rfd/0037-explicit-score-notes-and-body.md#8-구형-차트와-과도기)을 따른다.
 
 - 바디는 무점수 유지 구간이고 포인트 노트(Point)·릴리즈 노트·유지 노트는 명시적 점수 노트다. 일반 Point 드래그는 시작 Point·바디·끝 릴리즈를, 트릴 드래그는 Point·바디만 만든다([RFD 0038](../../docs/rfd/0038-release-notes-in-trill-zones.md)). 빈 위치 유지 배치는 길이 0 싱글 바디+표식 1개를 만든다. 재클릭의 더블 변경과 표식 수 규칙은 스펙을 따른다.
 - 바디를 새로 선택하면 시작 Point·소속 유지 표식·끝 릴리즈도 선택하지만 미선택 개별 노트 클릭은 해당 노트만 고른다. 이미 선택된 노트를 누르면 선택을 유지하고 끌면 선택 전체를 옮긴다(RFD 0016 §6-6). 토글 제외를 보존하고 복사·이동은 실제 선택 집합을 따르며, 관계는 같은 레인의 박 위치에서 도출한다.

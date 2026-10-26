@@ -1,6 +1,6 @@
 # 노트 판정 사례 명세
 
-> **과도기 구형 계약·논의 기록.** 이 문서의 `NJ-` 사례와 아래 후속 대조는 구형 모델의 입력·기대값·당시 실행 기록을 보존한다. 새 채택 계약은 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md), [glossary](../context/glossary.md#바디-판정과-실패-종속), [명시적 점수 노트 판정 사례](explicit-note-judgment-cases.md)를 따른다(구현은 #342). RFD 0032 자동 테스트 81건은 [이전 대응표](judgment-case-migration.md)에 별도로 연결했다. 아래의 시작 down 소비·미시작 release 허용·숨은 연결 up 소비·자동 끝점 점수·`holdOnly`를 새 모델에 이식하지 않는다. 기존 사례 결과를 새 기대값으로 덮어쓰거나 이 문서의 당시 “현재”·“후속”을 최신 계약으로 읽지 않는다. 구형 읽기·편집 보존과 제거 시점은 [과도기 계약](../rfd/0037-explicit-score-notes-and-body.md#8-구형-차트와-과도기), 미정·이행은 [PRD §12](../prd.md#12-미정-사항)를 따른다.
+> **과도기 구형 계약·논의 기록.** 이 문서의 `NJ-` 사례와 아래 후속 대조는 구형 모델의 입력·기대값·당시 실행 기록을 보존한다. 새 채택 계약은 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md), [glossary](../context/glossary.md#바디-판정과-실패-종속), [명시적 점수 노트 판정 사례](explicit-note-judgment-cases.md)를 따른다(판정 코어는 #342, 일반 곡 재생과 명시 테스트 재생의 런타임에 구현). RFD 0032 자동 테스트 81건은 [이전 대응표](judgment-case-migration.md)에 별도로 연결했다. 아래의 시작 down 소비·미시작 release 허용·숨은 연결 up 소비·자동 끝점 점수·`holdOnly`를 새 모델에 이식하지 않는다. 기존 사례 결과를 새 기대값으로 덮어쓰거나 이 문서의 당시 “현재”·“후속”을 최신 계약으로 읽지 않는다. 구형 읽기·편집 보존과 제거 시점은 [과도기 계약](../rfd/0037-explicit-score-notes-and-body.md#8-구형-차트와-과도기), 미정·이행은 [PRD §12](../prd.md#12-미정-사항)를 따른다.
 
 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 채택 동작을 자동 테스트로 옮기기 위한 입력·기대 결과이다. 용어는 [glossary](../context/glossary.md#롱노트-판정-모델)를 따른다. **현재 엔진을 실행한 결과나 테스트 통과 기록이 아니다.**
 

@@ -4,7 +4,7 @@
 
 **원칙:** prose(서술·근거·예시 대화)는 한국어 유지. 이 표가 바꾸는 것은 *용어 토큰*뿐이다. 모든 항목은 개념당 표면형 1개, 동의어 폐기, glossary에서 1:1 고정.
 
-**새 판정 계약:** [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)은 **채택 계약**이며 구현 진척은 RFD 0037 상단을 따른다. 새 용어는 아래 표기와 [glossary](glossary.md)의 정의를 따른다. 저장 JSON·타입 이름과 예정된 이름 변경은 [B](#b-기존-개념--established-이름-유지)의 포인트 노트 문단을 따른다. `holdOnly`·연결 release·등록 키의 구형 의미는 과도기 읽기·표시·편집 범위에서만 유지한다.
+**새 판정 계약:** [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)은 **채택 계약·일반 기본 경로 구현·검증**이다. 새 용어는 아래 표기와 [glossary](glossary.md)의 정의를 따른다. 저장 JSON·타입 이름과 예정된 이름 변경은 [B](#b-기존-개념--established-이름-유지)의 포인트 노트 문단을 따른다. `holdOnly`·연결 release·등록 키의 구형 의미는 과도기 읽기·표시·편집 범위에서만 유지한다.
 
 ## 판별 규칙
 
