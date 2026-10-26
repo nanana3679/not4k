@@ -25,7 +25,7 @@ const reconstructionChart: ChartDocument = {
 const sessionFor = (id: string) => new ExplicitJudgmentSession(compileExplicitJudgmentChart(
   explicitEnjFixtures.find(fixture => fixture.id === id)!.chart), { maintenanceGraceMs: 20 });
 
-describe("G1 snapshot 복구와 확정 effect sink 경계", () => {
+describe("snapshot 복구와 확정 effect sink 경계", () => {
   it('1000 Point·1500 sustain 처리 뒤1200으로 복원하면 prefix Point 효과는 재생하지 않고1500 재정산 효과만 한 번 전달한다', () => {
     const session = new ExplicitJudgmentSession(compileExplicitJudgmentChart(reconstructionChart));
     const sink = { applyConfirmedEffects: vi.fn() }, port = { render: vi.fn() };
@@ -45,7 +45,7 @@ describe("G1 snapshot 복구와 확정 effect sink 경계", () => {
     expect(restored.session.score.earnedScore).toBe(6);
   });
 
-  it("M1 ENJ-05 회복 뒤 유지 성공은 Perfect·lane 1 타격·타이밍 null 효과를 한 번만 sink에 전달한다", () => {
+  it("ENJ-05 회복 뒤 유지 성공은 Perfect·lane 1 타격·타이밍 null 효과를 한 번만 sink에 전달한다", () => {
     const session = sessionFor("ENJ-05");
     const sink = { applyConfirmedEffects: vi.fn() }, port = { render: vi.fn() };
     const adapter = new ExplicitSessionRendererAdapter(session, sink);

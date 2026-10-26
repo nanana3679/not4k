@@ -14,13 +14,13 @@ const up = (key = "A", lane = 1): ExplicitJudgmentInput => ({ key, lane, type: "
 type Settlement = Extract<ExplicitConfirmedFact, { kind: "settlement" }>;
 const settlements = (session: ExplicitJudgmentSession): readonly Settlement[] =>
   session.facts.filter((fact): fact is Settlement => fact.kind === "settlement");
-const fixture = (notes: Parameters<typeof makeExplicitReplayFixture>[2]) => makeExplicitReplayFixture("ENJ-test", "M1 合成", notes, [],
+const fixture = (notes: Parameters<typeof makeExplicitReplayFixture>[2]) => makeExplicitReplayFixture("ENJ-test", "세션 합성 회귀", notes, [],
   { scoreItemCount: 0, theoreticalWeight: 0, earnedScore: 0, scope: "whole" });
 const makeSession = (notes: Parameters<typeof fixture>[0]) => new ExplicitJudgmentSession(compileExplicitJudgmentChart(fixture(notes).chart), options);
 const fromFixture = (test: ExplicitReplayFixture) => new ExplicitJudgmentSession(compileExplicitJudgmentChart(test.chart), options);
 const m1 = explicitEnjFixtures.filter(test => /ENJ-0[1-9]$|ENJ-18$/.test(test.id));
 
-describe("I2 남은 바디의 재개와 기존 세션 보존", () => {
+describe("남은 바디의 재개와 기존 세션 보존", () => {
   it("0ms에서 준비용 세션을 만들면 바디·유지는 대기하고 resumeAt의 preheld가 들어온 순간 한 번 시작·정산", () => {
     const chart = compileExplicitJudgmentChart(fixture([b(0, 1000), s(0)]).chart);
     const session = new ExplicitJudgmentSession(chart, { ...options, startTimeMs: 0 });
@@ -364,7 +364,7 @@ describe("I2 남은 바디의 재개와 기존 세션 보존", () => {
   });
 });
 
-describe("M1 실제 explicit compiler → core → session → ScoreManager", () => {
+describe("실제 explicit compiler → core → session → ScoreManager", () => {
   it.each(m1)("$id 승인 입력을 실제 세션으로 재생하면 $expected.earnedScore/$expected.theoreticalWeight점과 정확한 항목 수", test => {
     const { compiled, result } = replayExplicitFixture(test, (chart, config) => new ExplicitJudgmentSession(chart,
       { windows: { PERFECT: config.windows.perfect, GREAT: config.windows.great, GOOD: config.windows.good, BAD: 160 },
@@ -513,7 +513,7 @@ describe("M1 실제 explicit compiler → core → session → ScoreManager", ()
   });
 });
 
-describe("M1 합성 lifecycle·실패·입력·효과 소유권", () => {
+describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
   it("Point+바디+유지+release는 down 1000ms를 Point 하나만 소비하고 유지·완료·up 정산 뒤 9/9점", () => {
     const session = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
     session.processBatch(1000, [down()]);
@@ -746,7 +746,7 @@ describe("M1 합성 lifecycle·실패·입력·효과 소유권", () => {
     expect(added.result().score.judgmentCounts.miss).toBe(base.result().score.judgmentCounts.miss);
   });
 
-  it("snapshot・result・finalize再取得と drainEffects再呼出しは確定事実・点数・効果を再実行しない", () => {
+  it("Point1000·릴리즈2000 세션의 snapshot·result·finalize를 다시 읽고 drainEffects를 다시 불러도 확정 사실·점수를 다시 만들지 않고 효과는 한 번씩만 전달", () => {
     const session = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
     session.processBatch(1000, [down()]);
     const saved = session.snapshot;
@@ -815,7 +815,7 @@ describe("M1 합성 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 3, processedNotes: 1, isFullCombo: true });
   });
 
-  it("M2 double·connection·더블 릴리즈를 컴파일하면 요구한 몫과 명시 점수 항목을 보존", () => {
+  it("double·connection·더블 릴리즈를 컴파일하면 요구한 몫과 명시 점수 항목을 보존", () => {
     expect(makeSession([b(1000, 2000, 2)]).snapshot.bodyUnits).toHaveLength(2);
     expect(makeSession([b(1000, 2000), b(2000, 3000)]).snapshot.bodyUnits).toHaveLength(2);
     expect(makeSession([p(1000, "double")]).snapshot.items).toHaveLength(2);

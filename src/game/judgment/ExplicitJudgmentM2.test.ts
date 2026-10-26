@@ -47,13 +47,13 @@ function assertFixture(fixture: ExplicitReplayFixture): void {
   expect(events).toEqual(fixture.expected.events);
 }
 
-describe("M2 승인 fixture의 실제 compiler→core→session→ScoreManager", () => {
+describe("승인 fixture의 실제 compiler→core→session→ScoreManager", () => {
   it.each(explicitEnjFixtures)("$id 승인 입력을 실행하면 $expected.earnedScore/$expected.theoreticalWeight점·등급별 성공·Point/릴리즈/바디 Miss·종속 0점 수가 기대값과 같고 전 항목을 1회 정산", assertFixture);
   it.each(explicitHcFixtures)("$id 승인 입력을 실행하면 $expected.earnedScore점·등급별 성공·Point/릴리즈/바디 Miss·종속 0점 수가 이관 기대값과 같음", assertFixture);
 });
 
-describe("M2 지연 입력의 잠정 진행과 확정 사실", () => {
-  it("ENJ-04 preheld up raw950/observed1001은 잠정 S1000을 취소하고 미시작·1120 실패이며 완료를 만들지 않음", () => {
+describe("지연 입력의 잠정 진행과 확정 사실", () => {
+  it("ENJ-04에서 preheld up을 raw 950·관측 1001에 받으면 잠정 시작 1000을 취소하고 미시작 상태로 1120에 실패하며 완료를 만들지 않음", () => {
     const session = makeSession([b(1000, 1060), s(1030)]);
     session.processBatch(500, [down()]); session.advance(1001);
     session.processObservedBatch(950, [up()], 1001);
@@ -63,8 +63,8 @@ describe("M2 지연 입력의 잠정 진행과 확정 사실", () => {
   });
 });
 
-describe("M2 raw·hold·observed·기한의 독립 계약", () => {
-  it("첫 Point1000+double에서 A up990/관측1001은 preheld 시작을 취소하고 B/C1050은 Great1·Perfect2·Miss0", () => {
+describe("raw·hold·observed·기한의 독립 계약", () => {
+  it("Point 1000 + double 바디에서 A up을 raw 990·관측 1001에 받으면 preheld 시작을 취소하고 B·C down 1050으로 Great 1·Perfect 2·Miss 0", () => {
     const session = makeSession([p(1000), b(1000, 3000, 2), r(3000, 2)]);
     session.processBatch(800, [down()]); session.advance(1001);
     session.processObservedBatch(990, [up()], 1001);
@@ -74,7 +74,7 @@ describe("M2 raw·hold·observed·기한의 독립 계약", () => {
     expect(session.finalize().score.judgmentCounts).toMatchObject({ perfect: 2, great: 1, miss: 0 });
   });
 
-  it("up1500 뒤 raw회복1515/관측1530은 이미 지난1520 유지 Miss와 종속0을 번복하지 않음", () => {
+  it("up 1500 뒤 raw 1515·관측 1530의 회복 down은 이미 지난 1520 유지 Miss와 종속 0점을 번복하지 않음", () => {
     const session = makeSession([b(1000, 2000), s(1600), r(2000)]);
     session.processBatch(1000, [down()]); session.processBatch(1500, [up()]);
     session.processObservedBatch(1515, [down("B")], 1530);
@@ -85,7 +85,7 @@ describe("M2 raw·hold·observed·기한의 독립 계약", () => {
     expect(session.finalize().score.judgmentCounts.miss).toBe(1);
   });
 
-  it("lane1 rawup1490/관측1501·down1512는 lane2 down1500 유무와 관계없이1510 유지 Miss", () => {
+  it("lane 1의 raw 1490·관측 1501 up과 down 1512는 lane 2 down 1500 유무와 관계없이 1510 유지 Miss", () => {
     for (const extraLane of [false, true]) {
       const session = makeSession([b(1000, 2000), r(2000), ...(extraLane ? [b(1400, 2000, 1, 2)] : [])]);
       session.processBatch(1000, [down()]);
@@ -97,7 +97,7 @@ describe("M2 raw·hold·observed·기한의 독립 계약", () => {
     }
   });
 
-  it("동일lane rawup1490은 이미 반영한1500 down까지 clamp하되 raw오차와 관측시각은 그대로 보존", () => {
+  it("같은 lane의 raw 1490 up은 이미 반영한 1500 down까지 hold 시각만 clamp하고 raw 오차와 관측 시각은 그대로 보존", () => {
     const session = makeSession([b(1000, 2000), r(2000)]);
     session.processBatch(1000, [down()]); session.processBatch(1500, [down("B")]); session.advance(1501);
     session.processObservedBatch(1490, [up()], 1501);
@@ -105,7 +105,7 @@ describe("M2 raw·hold·observed·기한의 독립 계약", () => {
     expect(session.snapshot.bodyUnits[0].state).toBe("active");
   });
 
-  it("drain의 rawup1500·down1507을 관측1530에 함께 넣으면1520 실패 없이 release Perfect", () => {
+  it("한 drain에 raw 1500 up·1507 down을 관측 1530으로 함께 넣으면 1520 실패 없이 릴리즈 Perfect", () => {
     const session = makeSession([b(1000, 2000), r(2000)]);
     session.processBatch(1000, [down()]); session.advance(1490); session.advance(1530);
     session.processObservedBatches([{ rawAtMs: 1500, inputs: [up()] }, { rawAtMs: 1507, inputs: [down("B")] }], 1530);
@@ -114,7 +114,7 @@ describe("M2 raw·hold·observed·기한의 독립 계약", () => {
     expect(session.finalize().score.judgmentCounts).toMatchObject({ perfect: 1, miss: 0 });
   });
 
-  it("관측1500의 raw회복1490은 열린기한1500에 회복하고 관측1501이면1500 유지 Miss", () => {
+  it("raw 1490 회복 down을 관측 1500에 받으면 열린 기한 1500에 회복하고 관측 1501이면 1500 유지 Miss", () => {
     for (const observedAt of [1500, 1501]) {
       const session = makeSession([p(1000), b(1000, 2000), r(2000)]);
       session.processBatch(1000, [down()]); session.processBatch(1480, [up()]); session.advance(1500);
@@ -123,7 +123,7 @@ describe("M2 raw·hold·observed·기한의 독립 계약", () => {
     }
   });
 
-  it("2120 Point Miss 확정 뒤 rawup2115/관측2121은 채움 판단만 취소하고 Point Miss 1개·끝 종속0", () => {
+  it("2120 Point Miss 확정 뒤 raw 2115·관측 2121 up은 채움 판단만 취소하고 Point Miss 1개·끝 종속 0점", () => {
     const session = makeSession([b(1000, 2000), p(2000), b(2000, 3000), r(3000)]);
     session.processBatch(1000, [down()]); session.advance(2121);
     const pointMiss = settlements(session)[0];
@@ -136,7 +136,7 @@ describe("M2 raw·hold·observed·기한의 독립 계약", () => {
     expect(settlements(session).at(-1)).toMatchObject({ outcome: "dependentZero", confirmedAt: 2121 });
   });
 
-  it("raw950/관측1100이 이미 정산한1030 유지 Perfect를 만나도 정산·효과는 남고 잠정 시작·완료만 재계산", () => {
+  it("raw 950·관측 1100 up이 이미 정산한 1030 유지 Perfect를 만나도 정산·효과는 남고 잠정 시작·완료만 다시 계산", () => {
     const session = makeSession([b(1000, 1060), s(1030)]);
     session.processBatch(500, [down()]); session.advance(1100);
     const settled = settlements(session)[0];
@@ -146,7 +146,7 @@ describe("M2 raw·hold·observed·기한의 독립 계약", () => {
     expect(session.effects.filter(effect => effect.scoreAction === "settleItem")).toHaveLength(1);
   });
 
-  it("여러 raw group의 lane누락은 첫 유효 group도 적용하지 않고 clock·facts·items를 보존", () => {
+  it("여러 raw group 중 하나에 lane이 없으면 앞의 유효 group도 적용하지 않고 clock·facts·items를 보존", () => {
     const session = makeSession([p(1000)]);
     expect(() => session.processObservedBatches([{ rawAtMs: 1000, inputs: [down()] },
       { rawAtMs: 1001, inputs: [{ type: "up", key: "A" }] }], 1010)).toThrow(RangeError);
@@ -157,9 +157,9 @@ describe("M2 raw·hold·observed·기한의 독립 계약", () => {
 const permutations = <T,>(values: readonly T[]): T[][] => values.length ? values.flatMap((value, i) =>
   permutations(values.filter((_, index) => index !== i)).map(rest => [value, ...rest])) : [[]];
 
-describe("M2 같은 raw up의 가능한 배정 전체 비교", () => {
+describe("같은 raw up의 가능한 배정 전체 비교", () => {
   const permutationsBySize = [2, 3, 4, 5].flatMap(count => permutations(["A", "B", "C", "D", "E"].slice(0, count)));
-  it.each(permutationsBySize.map(keys => ({ keys, name: keys.join("→") })))("같은 raw2060 up $name 은 먼저 쓴 A/B 제약을 함께 배정하여 남은 릴리즈 2개 모두 성공", ({ keys }) => {
+  it.each(permutationsBySize.map(keys => ({ keys, name: keys.join("→") })))("같은 raw 2060 up 순서 $name 은 먼저 쓴 A·B 제약을 함께 배정하여 남은 릴리즈 2개 모두 성공", ({ keys }) => {
     // B는 앞 바디의 실제 시작 전에 뒤 standalone doubleRelease를 쓴다.
     const session = makeSession([p(1900), b(1900, 2000), r(2000, 2), r(2060, 2)]);
     session.processBatch(500, [down("B")]); session.processBatch(1950, [up("B")]);
@@ -174,8 +174,8 @@ describe("M2 같은 raw up의 가능한 배정 전체 비교", () => {
   });
 });
 
-describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
-  it("single Point double의 비담당 몫은 preheld로1000 시작하고 up1005 뒤 Point기한1120까지 늘리지 않고1025 실패", () => {
+describe("실제 몫·Point·릴리즈·유지의 경계", () => {
+  it("single Point + double 바디의 비담당 몫은 preheld로 1000에 시작하고 up 1005 뒤 Point 기한 1120까지 늘리지 않고 1025에 실패", () => {
     const session = makeSession([p(1000), b(1000, 2000, 2), s(1100, 2), r(2000, 2)]);
     session.processBatch(500, [down()]); session.advance(1000); session.processBatch(1005, [up()]); session.advance(1026);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", actualStartMs: 1000, failedAtMs: 1025 });
@@ -229,7 +229,7 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(settlements(session).map(fact => fact.outcome)).toEqual(["graded", "graded", "dependentZero"]);
   });
 
-  it("double의 첫 down1070·up1080·같은키down1090은 겹친창에서도 유지 1몫만 완료하고 다른몫은1120 실패", () => {
+  it("double 바디에서 down 1070·up 1080·같은 키 down 1090은 겹친 창에서도 한 몫만 완료하고 다른 몫은 1120에 실패", () => {
     const session = makeSession([b(1000, 1060, 2), s(1030, 2), r(1060, 2)]);
     session.processBatch(1070, [down()]); session.processBatch(1080, [up()]); session.processBatch(1090, [down()]); session.processBatch(1100, [up()]);
     expect(session.snapshot.bodyUnits.filter(unit => unit.state === "complete")).toHaveLength(1);
@@ -238,14 +238,14 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(result.score).toMatchObject({ earnedScore: 6, judgmentCounts: { perfect: 2, miss: 1 } });
   });
 
-  it("길이0 double은 preheld 두키로1000 시작·완료하며 유지 두개6점 외 자동 점수 없음", () => {
+  it("길이 0 double 바디는 preheld 두 키로 1000에 시작·완료하며 유지 두 개 6점 외 자동 점수 없음", () => {
     const session = makeSession([b(1000, 1000, 2), s(1000, 2)]);
     session.processBatch(500, [down(), down("B")]); session.advance(1000);
     expect(session.snapshot.bodyUnits.every(unit => unit.state === "complete" && unit.actualStartMs === 1000 && unit.completedAtMs === 1000)).toBe(true);
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, totalNotes: 2, processedNotes: 2 });
   });
 
-  it("release-only 2→2는 앞2몫실패와 감소없는 단일release0점 뒤 두몫을1990/1995에서 새 시작", () => {
+  it("릴리즈만 있는 2→2 연결은 앞 두 몫 실패로 앞 끝 single 릴리즈가 종속 0점이 된 뒤 두 몫을 1990·1995에 새로 시작", () => {
     const session = makeSession([b(1000, 2000, 2), r(2000), b(2000, 3000, 2), s(2500, 2), r(3000, 2)]);
     session.processBatch(1000, [down(), down("B")]); session.processBatch(1500, [up(), up("B")]);
     session.processBatch(1990, [down("C")]); session.processBatch(1995, [down("D")]);
@@ -254,7 +254,7 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(session.snapshot.bodyUnits.slice(2).every(unit => unit.state === "complete")).toBe(true);
   });
 
-  it("single Point있는 2→2는 앞전체실패 뒤 Point down1990과 다른down1995로 각각 새 시작", () => {
+  it("single Point가 있는 2→2 연결은 앞 두 몫 실패 뒤 Point down 1990과 다른 down 1995로 두 몫을 각각 새로 시작", () => {
     const session = makeSession([b(1000, 2000, 2), p(2000), b(2000, 3000, 2), s(2500, 2), r(3000, 2)]);
     session.processBatch(1000, [down(), down("B")]); session.processBatch(1500, [up(), up("B")]);
     session.processBatch(1990, [down("C")]); session.processBatch(1995, [down("D")]);
@@ -263,7 +263,7 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 15, judgmentCounts: { perfect: 5, miss: 2 } });
   });
 
-  it("double 끝 release1은 한몫실패에도 건강한몫으로 Perfect를 살리고 release2이면 하나만 종속0", () => {
+  it("double 바디 끝 single 릴리즈는 한 몫이 실패해도 건강한 몫으로 Perfect를 살리고 double 릴리즈면 하나만 종속 0점", () => {
     for (const releaseCount of [1, 2] as const) {
       const session = makeSession([b(1000, 2000, 2), r(2000, releaseCount)]);
       session.processBatch(1000, [down(), down("B")]); session.processBatch(1500, [up()]); session.processBatch(2000, [up("B")]);
@@ -272,7 +272,7 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
     }
   });
 
-  it("독립 single바디의 doubleRelease도 두다른키up을 받아6점이며 바디완료 뒤 임의같은키재누름은 두번째기회0점", () => {
+  it("독립 single 바디의 double 릴리즈도 서로 다른 두 키 up을 받아 6점이며 바디 완료 뒤 같은 키 임의 재누름은 두 번째 기회 0점", () => {
     const session = makeSession([b(1000, 2000), r(2000, 2)]);
     session.processBatch(1000, [down()]); session.processBatch(1980, [down("B"), up()]); session.processBatch(2000, [up("B")]);
     expect(session.finalize().score.earnedScore).toBe(6);
@@ -281,14 +281,14 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(reused.finalize().score).toMatchObject({ earnedScore: 3, judgmentCounts: { perfect: 1, miss: 1 } });
   });
 
-  it("다른바디 Point를 친 재누름은 앞doubleRelease의 같은키권한을 갱신하지 않고 뒤release만 소비", () => {
+  it("다른 바디의 Point를 친 재누름은 앞 double 릴리즈의 같은 키 권한을 갱신하지 않고 뒤 릴리즈만 소비", () => {
     const session = makeSession([b(1000, 2000), r(2000, 2), p(2010), b(2010, 2060), r(2060)]);
     session.processBatch(1000, [down()]); session.processBatch(1990, [up()]); session.processBatch(2010, [down()]); session.processBatch(2060, [up()]);
     expect(session.finalize().score).toMatchObject({ earnedScore: 9, judgmentCounts: { perfect: 3, miss: 1 } });
     expect(settlements(session).filter(fact => fact.itemKind === "release" && fact.grade !== "miss").map(fact => fact.itemId)).toEqual(["n1:release:0", "n4:release:0"]);
   });
 
-  it("double의 한몫 earlyup1890은 자기1950유지만일괄 Perfect로 만들고 남은몫은표식까지대기", () => {
+  it("double 바디 한 몫의 이른 up 1890은 자기 몫의 유지 1950만 일괄 Perfect로 만들고 남은 몫은 표식 시각까지 대기", () => {
     const session = makeSession([b(1000, 2000, 2), s(1950, 2), r(2000, 2)]);
     session.processBatch(1000, [down(), down("B")]); session.processBatch(1890, [up()]);
     expect(session.snapshot.items.filter(item => item.kind === "sustain").map(item => item.state).sort()).toEqual(["pending", "success"]);
@@ -298,7 +298,7 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 10, judgmentCounts: { perfect: 3, good: 1, miss: 0 } });
   });
 
-  it("1→2 앞earlyup1890은 뒤2000경계의 유지두개를 가져오지 않고 뒤down2010/2020에 각각확정", () => {
+  it("1→2 연결의 앞 바디 이른 up 1890은 뒤 2000 경계의 유지 두 개를 가져오지 않고 뒤 down 2010·2020에 각각 확정", () => {
     const session = makeSession([b(1000, 2000), b(2000, 3000, 2), s(2000, 2)]);
     session.processBatch(1000, [down()]); session.processBatch(1890, [up()]);
     expect(settlements(session)).toHaveLength(0);
@@ -307,7 +307,7 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
     expect(session.finalize().score.earnedScore).toBe(6);
   });
 
-  it("같은키 raw900 down/up/down/up 인과를보존하며 첫Point실제재누름만 doubleRelease 예외를줌", () => {
+  it("같은 키의 raw 900 down·up·down·up은 인과를 보존하며 시작 Point를 실제로 친 재누름만 double 릴리즈 예외를 줌", () => {
     const session = makeSession([p(1000), b(1000, 1060), r(1060, 2)]);
     session.processBatch(900, [down(), up(), down(), up()]);
     expect(session.facts.filter(fact => fact.kind === "input").map(fact => [fact.action, fact.accepted])).toEqual([
@@ -321,8 +321,8 @@ describe("M2 실제 몫·Point·릴리즈·유지의 경계", () => {
 const semanticFacts = (facts: readonly ExplicitConfirmedFact[]) => facts.filter(fact => fact.kind !== "settlement" || fact.itemKind !== "sustain")
   .map(({ id: _id, ...fact }) => "causeFactId" in fact ? { ...fact, causeFactId: fact.causeFactId === null ? null : "cause" } : fact);
 
-describe("M2 제때입력의 프레임 분할과 유지 표식 불변", () => {
-  it.each(explicitHcFixtures)("$id 를16ms프레임·같은시각advance·입력반전으로재생해도점수·실패몫·확정시각보존", fixture => {
+describe("제때 입력의 프레임 분할과 유지 표식 불변", () => {
+  it.each(explicitHcFixtures)("$id 를 16ms 프레임·같은 시각 advance·입력 순서 반전으로 재생해도 점수·실패 몫·확정 시각을 보존", fixture => {
     const compiled = compileExplicitJudgmentChart(fixture.chart);
     const direct = factory(compiled, fixture);
     const framed = factory(compiled, fixture);
@@ -342,7 +342,7 @@ describe("M2 제때입력의 프레임 분할과 유지 표식 불변", () => {
     expect(outcomes(framed)).toEqual(outcomes(direct));
   });
 
-  it.each(explicitHcFixtures)("$id 에바디중간유지를추가해도body/input/기존정산/실패facts는동일하고명시표식만추가정산", fixture => {
+  it.each(explicitHcFixtures)("$id 에 바디 중간 유지 표식을 추가해도 body·input·기존 정산·실패 facts는 같고 추가한 표식만 새로 정산", fixture => {
     const originalCount = fixture.chart.notes.length;
     const notes = [...fixture.chart.notes];
     const compiled = compileExplicitJudgmentChart(fixture.chart);
@@ -365,7 +365,7 @@ describe("M2 제때입력의 프레임 분할과 유지 표식 불변", () => {
   });
 });
 
-describe("M2 트릴은 Point 소비 키만 교대 세트에 반영", () => {
+describe("트릴은 Point 소비 키만 교대 세트에 반영", () => {
   const trillSession = (grace = false) => {
     const body = b(1000, 1800);
     if (body.type !== "body") throw new Error("바디 fixture 필요");
@@ -376,7 +376,7 @@ describe("M2 트릴은 Point 소비 키만 교대 세트에 반영", () => {
     return factory(compileExplicitJudgmentChart(fixture.chart), fixture);
   };
 
-  it("트릴 A1000·일반hold B1150·A1300·B1600은 P2·goodTrill1이고 body끝자동점수없음", () => {
+  it("트릴 A 1000·일반 hold B 1150·A 1300·B 1600은 Perfect 2·goodTrill 1이고 바디 끝 자동 점수 없음", () => {
     const session = trillSession();
     session.processBatch(1000, [down()]); session.processBatch(1150, [down("B")]);
     session.processBatch(1220, [up()]); session.processBatch(1300, [down()]); session.processBatch(1400, [up("B")]);
@@ -387,7 +387,7 @@ describe("M2 트릴은 Point 소비 키만 교대 세트에 반영", () => {
     expect(session.snapshot.bodyUnits[0].state).toBe("complete");
   });
 
-  it("Grace 트릴 같은키1000·1300은Perfect뒤goodTrill1점이며두입력모두타이밍집계없음", () => {
+  it("Grace 트릴을 같은 키로 1000·1300에 치면 Perfect 뒤 goodTrill 1점이며 두 입력 모두 타이밍 집계 없음", () => {
     const session = trillSession(true);
     session.processBatch(1000, [down()]); session.processBatch(1150, [down("B")]);
     session.processBatch(1290, [up()]); session.processBatch(1300, [down()]);
@@ -405,9 +405,9 @@ describe("M2 트릴은 Point 소비 키만 교대 세트에 반영", () => {
   });
 });
 
-describe("M2 clean 지연의 프레임·관측 분할 행렬", () => {
+describe("clean 지연의 프레임·관측 분할 행렬", () => {
   const cases = [8, 16, 33].flatMap(frame => [5, 15, 40].flatMap(delay => [1, 2].map(count => ({ frame, delay, count: count as 1 | 2 }))));
-  it.each(cases)("headless$count몫 frame$frame ms·지연$delay ms는raw1500up/1507down교대를즉시전달과동일정산", ({ frame, delay, count }) => {
+  it.each(cases)("Point 없는 $count몫 바디에서 frame $frame ms·지연 $delay ms로 받은 raw 1500 up·1507 down 교대는 즉시 전달과 같은 정산", ({ frame, delay, count }) => {
     const notes = [b(1000, 2000, count), r(2000, count)];
     const direct = makeSession(notes); const delayed = makeSession(notes);
     const batches = [{ rawAtMs: 1000, inputs: count === 1 ? [down()] : [down(), down("C")] },
@@ -430,8 +430,8 @@ describe("M2 clean 지연의 프레임·관측 분할 행렬", () => {
   });
 });
 
-describe("M2 리뷰 반례의 실패 몫과 물리 키 분리", () => {
-  it.each(["A", "B"])("Point몫 A900→910이930에 실패한 뒤 %s1000은 비담당몫을 새로 시작하여 끝 Perfect1", key => {
+describe("리뷰 반례의 실패 몫과 물리 키 분리", () => {
+  it.each(["A", "B"])("Point 몫이 A 900～910 hold로 930에 실패한 뒤 %s down 1000은 비담당 몫을 새로 시작하여 끝 Perfect 1", key => {
     const session = makeSession([p(1000), b(1000, 3000, 2), r(3000, 2)]);
     session.processBatch(900, [down()]); session.processBatch(910, [up()]); session.advance(931);
     session.processBatch(1000, [down(key)]);
@@ -440,7 +440,7 @@ describe("M2 리뷰 반례의 실패 몫과 물리 키 분리", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 4, judgmentCounts: { good: 1, perfect: 1, miss: 1 } });
   });
 
-  it.each([null, 1020])("비담당 preheld가1005에 끊기고 Point1010으로 hold1이면 실제Point기준1030 실패이며 두번째 down%s는 회복", recoveredAt => {
+  it.each([null, 1020])("비담당 preheld가 1005에 끊기고 Point down 1010으로 hold 1이면 실제 Point 기준 1030에 실패하며 두 번째 down %s는 회복", recoveredAt => {
     const session = makeSession([p(1000), b(1000, 2000, 2), r(2000, 2)]);
     session.processBatch(500, [down()]); session.processBatch(1005, [up()]); session.processBatch(1010, [down("B")]);
     if (recoveredAt !== null) session.processBatch(recoveredAt, [down()]);
@@ -451,8 +451,8 @@ describe("M2 리뷰 반례의 실패 몫과 물리 키 분리", () => {
   });
 });
 
-describe("M2 키 이름 치환과 트릴 집계의 원본 채택 계약", () => {
-  it.each(explicitHcFixtures)("$id 의 A/B/C/D를역순키이름으로바꿔도승인점수·이벤트·실패몫이동일", fixture => {
+describe("키 이름 치환과 트릴 집계의 원본 채택 계약", () => {
+  it.each(explicitHcFixtures)("$id 의 A·B·C·D 키 이름을 역순으로 바꿔도 승인 점수·판정 종류별 수·실패 몫이 같음", fixture => {
     const renamed = { ...fixture, batches: fixture.batches.map(batch => ({ ...batch,
       inputs: batch.inputs.map(input => ({ ...input, key: `key${100 - input.key.charCodeAt(0)}` })) })) };
     assertFixture(renamed);
@@ -462,7 +462,7 @@ describe("M2 키 이름 치환과 트릴 집계의 원본 채택 계약", () => 
       .toEqual(a.snapshot.bodyUnits.map(unit => [unit.state, unit.actualStartMs, unit.failedAtMs, unit.completedAtMs]));
   });
 
-  it.each(permutations(["A", "B"]).map(keys => ({ keys, name: keys.join("→") })))("트릴 이전 A Perfect·새 B Great 동시 $name 은 원본처럼 전체 최고Perfect를 택하고 소비한두키를다음세트에기록", ({ keys }) => {
+  it.each(permutations(["A", "B"]).map(keys => ({ keys, name: keys.join("→") })))("트릴에서 이전 A Perfect·새 B Great 동시 입력 $name 은 원본처럼 전체 최고 Perfect를 택하고 소비한 두 키를 다음 세트에 기록", ({ keys }) => {
     const fixture = makeExplicitReplayFixture("ENJ-trill", "PointJudgmentState.finalizeBatch 교대 집계 계약", [p(1000, "trill"),
       p(1300, "trill"), p(1380, "trill"), p(1700, "trill"), p(2000, "trill"), p(2300, "trill")], [],
     { scoreItemCount: 6, theoreticalWeight: 18, earnedScore: 11, scope: "whole" });
@@ -478,8 +478,8 @@ describe("M2 키 이름 치환과 트릴 집계의 원본 채택 계약", () => 
   });
 });
 
-describe("M2 입력이 없는 묶음과 hold가 바뀌지 않는 입력", () => {
-  it("빈 processBatch500은 시각500까지만 진행하고 Point1000·body1000은 미정산·미시작", () => {
+describe("입력이 없는 묶음과 hold가 바뀌지 않는 입력", () => {
+  it("빈 processBatch 500은 시각 500까지만 진행하고 Point 1000·바디 1000은 미정산·미시작", () => {
     const session = makeSession([p(1000), b(1000, 2000), r(2000)]);
     session.processBatch(500, []);
     expect(session.snapshot.atMs).toBe(500);
@@ -490,7 +490,7 @@ describe("M2 입력이 없는 묶음과 hold가 바뀌지 않는 입력", () => 
     expect(session.snapshot.atMs).toBe(700); expect(session.facts).toHaveLength(0);
   });
 
-  it("held 없는 X up950/관측1001은 잠정 S1000을 취소하거나 새로운 bodyStarted를 만들지 않음", () => {
+  it("누르지 않은 X의 raw 950·관측 1001 up은 잠정 시작 1000을 취소하거나 새 bodyStarted를 만들지 않음", () => {
     const session = makeSession([b(1000, 2000)]);
     session.processBatch(500, [down()]); session.advance(1001);
     const before = session.facts.filter(fact => fact.kind !== "input");
@@ -499,7 +499,7 @@ describe("M2 입력이 없는 묶음과 hold가 바뀌지 않는 입력", () => 
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1000 });
   });
 
-  it("거부한 X up1500은 같은drain의 A up1490을1500으로 clamp하지 않음", () => {
+  it("거부한 X up 1500은 같은 drain의 A up 1490을 1500으로 clamp하지 않음", () => {
     const session = makeSession([b(1000, 2000)]);
     session.processBatch(1000, [down()]); session.processBatch(1500, [up("X")]);
     session.processObservedBatch(1490, [up()], 1501);
@@ -509,8 +509,8 @@ describe("M2 입력이 없는 묶음과 hold가 바뀌지 않는 입력", () => 
   });
 });
 
-describe("M2 같은키 Point 재누름 예외도 double의 실제 두키 요구를 바꾸지 않음", () => {
-  it.each(["A", "B"])("preheld A의1010 첫완료 뒤 시작Point를 %s1020으로 치면 A는1040 부족실패·B는두번째몫정상완료", key => {
+describe("같은 키 Point 재누름 예외도 double의 실제 두 키 요구를 바꾸지 않음", () => {
+  it.each(["A", "B"])("preheld A의 1010 첫 완료 뒤 시작 Point를 %s 1020으로 치면 A는 1040 hold 부족 실패·B는 두 번째 몫 정상 완료", key => {
     const session = makeSession([p(1000), b(1000, 1060, 2), s(1030, 2), r(1060, 2)]);
     session.processBatch(500, [down()]); session.processBatch(1010, [up()]);
     session.processBatch(1020, [down(key)]); session.processBatch(1030, [up(key)]);

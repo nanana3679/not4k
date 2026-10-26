@@ -21,7 +21,7 @@ function permutations<T>(values: readonly T[]): T[][] {
   return values.length ? values.flatMap((value, index) => permutations(values.filter((_, i) => i !== index)).map(rest => [value, ...rest])) : [[]];
 }
 
-describe("M3 실제 compiler → core → session의 대표 글자와 개별 정산", () => {
+describe("실제 compiler → core → session의 대표 글자와 개별 정산", () => {
   it.each([
     { id: "ENJ-16", grade: "good", count: 2, score: 4, perfect: 1, good: 1, noteIndex: 2 },
     { id: "ENJ-17", grade: "perfect", count: 4, score: 12, perfect: 4, good: 0, noteIndex: 2 },
