@@ -4,7 +4,7 @@
 
 [원본 81건](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts)을 파일 순서의 HC001～HC081로 식별한다. 원본 테스트명·등록 상태·출처 줄, 새 명시 항목·기대 정산·목표 단계는 [대응 자료](fixtures/legacy-judgment-case-migration.json)에 함께 보존한다. `it.fails`나 과거 81/81 카운트를 새 모델의 통과 증거로 사용하지 않는다. 그림과 구체 입력 설명은 [새 대표 사례](explicit-note-judgment-cases.md)를 따른다.
 
-통합 작업트리의 실제 세션 실행 이력은 [구현 계획의 별도 기록](../plans/explicit-score-notes-implementation.md#통합-작업트리의-검증-기록--340의-구현-증거-아님)으로 구별한다. 이 표와 JSON은 설계 기대값이며 후속 PR 3에서 새 실행 fixture와 다시 대조한다.
+통합 작업트리의 실제 세션 실행 이력은 [구현 계획의 별도 기록](../plans/explicit-score-notes-implementation.md#통합-작업트리의-검증-기록--340의-구현-증거-아님)으로 구별한다. 이 표와 JSON은 설계 기대값이며 #342에서 새 실행 fixture와 다시 대조한다.
 
 ## 읽는 방법
 
