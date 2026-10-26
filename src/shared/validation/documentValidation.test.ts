@@ -245,6 +245,36 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     expect(result.semantic[0]).toMatchObject({ rule: "duplicate", refs: [{ kind: "note", index: 0 }, { kind: "note", index: 2 }] });
   });
 
+  it("구형 holdOnly long [0,4] 끝 4의 Point는 구형 single이든 명시 Point든 noteConstraint이고 저장을 막는다", () => {
+    const holdOnly: DocumentNoteEntity = { type: "long", lane: 1, beat: beat(0), endBeat: beat(4), holdOnly: true };
+    expect(rules([holdOnly, { type: "single", lane: 1, beat: beat(4) }])).toEqual(["noteConstraint"]);
+    const result = validateChartDocument(document([holdOnly, point(4)]));
+    expect(result.semantic.map(e => [e.rule, e.refs])).toEqual([
+      ["noteConstraint", [{ kind: "note", index: 0 }, { kind: "note", index: 1 }]]]);
+    expect(result.canSave).toBe(false);
+  });
+
+  it("구형 길이 0 long [2,2]와 같은 박 2의 명시 Point는 noteConstraint이고 저장을 막는다", () => {
+    const result = validateChartDocument(document([point(2), { type: "long", lane: 1, beat: beat(2), endBeat: beat(2) }]));
+    expect(result.semantic.map(e => [e.rule, e.refs])).toEqual([
+      ["noteConstraint", [{ kind: "note", index: 1 }, { kind: "note", index: 0 }]]]);
+    expect(result.canSave).toBe(false);
+  });
+
+  it("맞닿은 구형 long [0,2]·[2,4]는 경계 2의 명시 Point를 head로 인식하고 head가 없으면 noteConstraint다", () => {
+    const ranges: DocumentNoteEntity[] = [{ type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: "long", lane: 1, beat: beat(2), endBeat: beat(4) }];
+    expect(rules(ranges)).toEqual(["noteConstraint"]);
+    expect(rules([...ranges, point(2)])).toEqual([]);
+  });
+
+  it("구형 trillLong [1,3]은 시작 1의 명시 트릴 Point를 head로 인식해 trillLongInvalid가 아니다", () => {
+    const chart = document([{ type: "trillLong", lane: 1, beat: beat(1), endBeat: beat(3) },
+      { type: "point", kind: "trill", lane: 1, beat: beat(1) }]);
+    chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+    expect(validateChartDocument(chart).semantic).toEqual([]);
+  });
+
   it("의미 위반 sustain을 유효한 body로 옮겨 수리하면 canSave가 false→true가 된다", () => {
     const invalid = document([body(), mark("sustain", 6)]);
     expect(validateChartDocument(invalid).canSave).toBe(false);

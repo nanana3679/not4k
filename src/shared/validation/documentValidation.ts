@@ -37,6 +37,23 @@ function geometryNotes(notes: readonly DocumentNoteEntity[]): NoteEntity[] {
   });
 }
 
+/**
+ * 구형 범위가 소유한 제약(holdOnly 끝·길이 0 head·같은 unit 연결 head·트릴 head)을 위한 보기.
+ * 구형 항목은 그대로 두고 명시 Point만 같은 kind의 구형 Point로 인식한다. 명시 바디·릴리즈·유지는
+ * 구형 의미로 다시 해석하지 않으므로 넣지 않는다. indices는 문서 원본 index다.
+ */
+function legacyRangeConstraintView(notes: readonly DocumentNoteEntity[]): { notes: NoteEntity[]; indices: number[] } {
+  const view: NoteEntity[] = [];
+  const indices: number[] = [];
+  notes.forEach((note, index) => {
+    if (!isExplicitNote(note)) view.push(note);
+    else if (note.type === "point") view.push({ type: note.kind, lane: note.lane, beat: note.beat });
+    else return;
+    indices.push(index);
+  });
+  return { notes: view, indices };
+}
+
 function remapErrors(errors: ValidationError[], indices: readonly number[]): ValidationError[] {
   return errors.map(error => ({ ...error,
     message: error.message.replace(/notes (\d+), (\d+)/g, (_, a: string, b: string) => `notes ${indices[Number(a)]}, ${indices[Number(b)]}`),
@@ -91,11 +108,16 @@ export function validateChartDocumentSemantic(
   const restZones = input.restZones ?? [];
   const legacyIndices = notes.flatMap((note, index) => !isExplicitNote(note) ? [index] : []);
   const legacy = legacyIndices.map(index => notes[index]).filter((note): note is NoteEntity => !isExplicitNote(note));
+  // 혼합 쌍의 중복·겹침·zone 배타는 아래 명시 쌍 검사가 맡으므로 구형 부분집합만 넘긴다.
   const errors = remapErrors([
     ...validateNoDuplicates(legacy), ...validateNoLongOverlap(legacy),
-    ...validateTrillExclusive(legacy, trillZones), ...validateTrillLong(legacy),
-    ...validateNoteJudgmentConstraints(legacy),
+    ...validateTrillExclusive(legacy, trillZones),
   ], legacyIndices);
+  // 구형 범위의 Point 관련 제약은 명시 Point로 바꾼 항목도 Point로 보고 검사한다.
+  const legacyRangeView = legacyRangeConstraintView(notes);
+  errors.push(...remapErrors([
+    ...validateTrillLong(legacyRangeView.notes), ...validateNoteJudgmentConstraints(legacyRangeView.notes),
+  ], legacyRangeView.indices));
   const geometry = geometryNotes(notes);
   errors.push(...validateNoTrillZoneOverlap(trillZones), ...validateNoRestZoneOverlap(restZones),
     ...validateRestZoneExclusive(geometry, trillZones, restZones), ...validateStopZones(geometry, events),
