@@ -34,9 +34,11 @@
 
 `serializeChart`·`chartToJson`은 문서의 지원 항목을 저장한다. `deserializeChartDocument`·`chartDocumentFromJson`은 신형·혼합을 포함하는 문서를 읽는다. 기존 `deserializeChart`·`chartFromJson`은 구형 전용 `Chart` 소비자를 위한 경계이며 명시 항목이 있으면 지원 불가로 거부한다. 새 reader 결과를 구형 타입으로 캐스트해 이 검사를 우회하지 않는다.
 
+미지원 필드는 위치에 따라 다르게 다룬다. 노트 항목은 엄격하게 읽어 미지원 필드(유지의 `grace`, 구형 롱노트의 `holdCount` 등)를 버리지 않고 형식 오류로 거부한다. 최상위·`trillZones`·`restZones`·`events` 항목과 보조 파일 최상위의 미지원 필드는 읽기를 막지 않지만 저장에서 보존하지 않는다. `meta` 객체는 읽은 그대로 저장한다. 박 문자열 오류와 항목 모양 오류를 포함한 읽기 오류는 모두 `ChartFormatError`로 전달하며, 지원하지 않는 명시 내용은 그 하위 클래스 `UnsupportedChartContentError`다.
+
 ## 메인과 보조 파일
 
-편집 문서에서는 메인과 보조 노트가 `notes` 안에 함께 있으며 기존 `laneAxis`가 경계를 소유한다. 에셋 저장은 메인 파일과 별도 보조 파일로 나누고 로드는 둘을 합친다. 보조 파일은 기존 `extraLane` 좌표와 `extraLaneCount`를 유지한다. 노트의 `lane`만 `extraLane`으로 바꾸며 종류·일반/Grace·구형 `holdOnly`·신형 수량을 보존한다.
+편집 문서에서는 메인과 보조 노트가 `notes` 안에 함께 있으며 기존 `laneAxis`가 경계를 소유한다. 에셋 저장은 메인 파일과 별도 보조 파일로 나누고 로드는 둘을 합친다. 보조 파일은 기존 `extraLane` 좌표와 `extraLaneCount`를 유지한다. 노트의 `lane`만 `extraLane`으로 바꾸며 종류·일반/Grace·구형 `holdOnly`·신형 수량을 보존한다. 보조 노트 항목에 메인 전용 `lane`이 있으면 `extraLane`으로 덮어쓰지 않고 형식 오류로 거부한다.
 
 구형 보조 파일의 기존 표현은 유지하고 명시 항목이 있으면 버전이 있는 새 표현으로 저장한다. `parseExtraNotesDocument`가 전체 지원 항목을 읽고 구형 전용 `parseExtraNotes`는 명시 항목을 구형 타입으로 넘기지 않는다. 별도 보조 파일 부재 시 구형 내장 보조 자료를 읽는 기존 경로도 유지한다.
 

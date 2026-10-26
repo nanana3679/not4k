@@ -6,8 +6,9 @@ import {
   auxNotesAsExtra, chartDocumentFromJson, chartFromJson, chartToJson,
   deserializeChart, deserializeChartDocument, mainNotes, parseExtraNotes,
   parseExtraNotesDocument, serializeChart, serializeExtraNotes, withAuxNotes,
-  UnsupportedChartContentError,
+  ChartFormatError, UnsupportedChartContentError,
 } from "./index";
+import type { ChartJson } from "./index";
 
 function document(notes: DocumentNoteEntity[]): ChartDocument {
   return {
@@ -250,5 +251,47 @@ describe("C1 구형 의미와 버전 경계", () => {
     [{ type: "point", kind: "unknown" }, "Point kind"],
   ])("구조 오류 %j는 %s로 거부하고 항목을 유실하지 않는다", (note, message) => {
     expect(() => deserializeChartDocument(JSON.stringify({ ...chartToJson(document([])), version: 4, notes: [{ lane: 1, beat: "0", ...note }] }))).toThrow(message);
+  });
+});
+
+describe("C1 형식 오류 분류와 미지원 필드 정책", () => {
+  const v4 = (patch: Record<string, unknown>) => JSON.stringify({ ...chartToJson(document([])), version: 4, ...patch });
+
+  it.each([
+    ["trillZones 끝 박 \"x\"", { trillZones: [{ lane: 1, beat: "0", endBeat: "x" }] }],
+    ["restZones 시작 박 \"1.5\"", { restZones: [{ lane: 1, beat: "1.5", endBeat: "2" }] }],
+    ["bpm 이벤트 박 \"1oops\"", { events: [{ type: "bpm", beat: "1oops", bpm: 120 }] }],
+    ["timeSignature beatPerMeasure \"4/x\"", { events: [{ type: "timeSignature", beat: "0", beatPerMeasure: "4/x" }] }],
+    ["trillZones 항목 null", { trillZones: [null] }],
+    ["events 항목 null", { events: [null] }],
+    ["version 2 구형 이벤트 박 \"x\"", { version: 2, events: [{ beat: "x", endBeat: "0", bpm: 120 }] }],
+  ])("%s는 일반 Error가 아니라 ChartFormatError로 거부한다", (_label, patch) => {
+    expect(() => deserializeChartDocument(v4(patch))).toThrow(ChartFormatError);
+  });
+
+  it("JSON 객체 진입 chartDocumentFromJson도 notes 배열이 없으면 ChartFormatError다", () => {
+    const { notes: _notes, ...withoutNotes } = chartToJson(document([]));
+    expect(() => chartDocumentFromJson(withoutNotes as unknown as ChartJson)).toThrow(ChartFormatError);
+  });
+
+  it("보조 노트에 메인 전용 lane 3이 있으면 extraLane 1로 덮어쓰지 않고 ChartFormatError로 거부한다", () => {
+    expect(() => parseExtraNotesDocument(JSON.parse(JSON.stringify({
+      extraNotes: [{ type: "single", lane: 3, extraLane: 1, beat: "0" }],
+    })))).toThrow("보조 노트에는 lane 대신 extraLane");
+  });
+
+  it("최상위·bpm 이벤트·trillZone·보조 최상위의 미지원 필드는 읽기를 막지 않고 재저장에서 빠지며 meta 필드는 남는다", () => {
+    const source = chartToJson(document([{ type: "point", kind: "single", lane: 1, beat: beat(0) }]));
+    const resaved = JSON.parse(serializeChart(deserializeChartDocument(JSON.stringify({
+      ...source, future: 1, meta: { ...source.meta, future: 1 },
+      trillZones: [{ lane: 3, beat: "0", endBeat: "4", future: 1 }],
+      events: [{ type: "bpm", beat: "0", bpm: 120, future: 1 }],
+    }))));
+    expect(resaved).not.toHaveProperty("future");
+    expect(resaved.trillZones[0]).not.toHaveProperty("future");
+    expect(resaved.events[0]).not.toHaveProperty("future");
+    expect(resaved.meta.future).toBe(1);
+    const aux = parseExtraNotesDocument(JSON.parse(JSON.stringify({ extraNotes: [], extraLaneCount: 1, future: 1 })));
+    expect(JSON.parse(serializeExtraNotes(aux.extraNotes, aux.extraLaneCount))).toEqual({ extraNotes: [], extraLaneCount: 1 });
   });
 });

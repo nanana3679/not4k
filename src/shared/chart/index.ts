@@ -334,11 +334,34 @@ function isChartEventJson(e: ChartEventJson | LegacyEventMarkerJson): e is Chart
   return "type" in e;
 }
 
-/** JSON 객체 → 보존 가능한 저장 문서. 의미 위반/구형 존재는 읽기 차단 사유가 아니다. */
+/** 구간·이벤트 항목의 박 문자열·모양 오류도 호출자가 형식 오류로 구별하도록 ChartFormatError로 감싼다. */
+function parseEntry<T>(label: string, parse: () => T): T {
+  try {
+    return parse();
+  } catch (error) {
+    if (error instanceof ChartFormatError) throw error;
+    throw new ChartFormatError(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * JSON 객체 → 보존 가능한 저장 문서. 의미 위반/구형 존재는 읽기 차단 사유가 아니다.
+ * 노트 항목은 미지원 필드를 거부하고, 최상위·구간·이벤트의 미지원 필드는 읽되 저장에서 보존하지 않는다.
+ */
 export function chartDocumentFromJson(json: ChartJson): ChartDocument {
+  if (!isObject(json)) throw new ChartFormatError("최상위 값이 객체가 아닙니다");
+  if (!isObject(json.meta)) throw new ChartFormatError("meta 필드가 없거나 유효하지 않습니다");
+  if (!Array.isArray(json.notes)) throw new ChartFormatError("notes 필드가 배열이 아닙니다");
+  if (!Array.isArray(json.trillZones)) throw new ChartFormatError("trillZones 필드가 배열이 아닙니다");
+  if (json.restZones !== undefined && !Array.isArray(json.restZones)) throw new ChartFormatError("restZones 필드가 배열이 아닙니다");
+  if (json.events !== undefined && !Array.isArray(json.events)) throw new ChartFormatError("events 필드가 배열이 아닙니다");
   assertSupportedChartVersion(json.version);
   const events: ChartEvent[] = [];
-  for (const e of json.events ?? []) {
+  (json.events ?? []).forEach((e, index) => parseEntry(`events[${index}]`, () => {
     if (isChartEventJson(e)) {
       const event = parseEvent(e);
       if (!event) throw new ChartFormatError(`지원하지 않는 이벤트 type: ${String(e.type)}`);
@@ -347,12 +370,12 @@ export function chartDocumentFromJson(json: ChartJson): ChartDocument {
       if ((json.version ?? 1) >= 3) throw new ChartFormatError("version 3/4 이벤트에는 type이 필요합니다");
       events.push(...migrateLegacyEvent(e));
     }
-  }
+  }));
   return {
     meta: json.meta,
     notes: json.notes.map((note) => parseDocumentNote(note, json.version)),
-    trillZones: json.trillZones.map(parseTrillZone),
-    restZones: (json.restZones ?? []).map(parseRestZone),
+    trillZones: json.trillZones.map((zone, index) => parseEntry(`trillZones[${index}]`, () => parseTrillZone(zone))),
+    restZones: (json.restZones ?? []).map((zone, index) => parseEntry(`restZones[${index}]`, () => parseRestZone(zone))),
     events,
   };
 }
@@ -370,12 +393,6 @@ export function deserializeChartDocument(str: string): ChartDocument {
   } catch {
     throw new ChartFormatError("유효한 JSON이 아닙니다");
   }
-  if (!json || typeof json !== "object" || Array.isArray(json)) throw new ChartFormatError("최상위 값이 객체가 아닙니다");
-  if (!json.meta || typeof json.meta !== "object" || Array.isArray(json.meta)) throw new ChartFormatError("meta 필드가 없거나 유효하지 않습니다");
-  if (!Array.isArray(json.notes)) throw new ChartFormatError("notes 필드가 배열이 아닙니다");
-  if (!Array.isArray(json.trillZones)) throw new ChartFormatError("trillZones 필드가 배열이 아닙니다");
-  if (json.restZones !== undefined && !Array.isArray(json.restZones)) throw new ChartFormatError("restZones 필드가 배열이 아닙니다");
-  if (json.events !== undefined && !Array.isArray(json.events)) throw new ChartFormatError("events 필드가 배열이 아닙니다");
   return chartDocumentFromJson(json);
 }
 
@@ -415,6 +432,8 @@ export function parseExtraNotesDocument(json: ExtraNotesJson): { extraNotes: Doc
   if (!Number.isInteger(extraLaneCount) || extraLaneCount < 0) throw new ChartFormatError("extraLaneCount는 0 이상의 정수여야 합니다");
   const extraNotes = (json.extraNotes ?? []).map((value) => {
     if (!value || typeof value !== "object") throw new ChartFormatError("보조 노트가 객체가 아닙니다");
+    // 메인 전용 lane을 extraLane으로 덮어써 조용히 버리지 않는다.
+    if ("lane" in value) throw new ChartFormatError("보조 노트에는 lane 대신 extraLane을 씁니다");
     const { extraLane, ...rest } = value;
     const note = parseDocumentNote({ ...rest, lane: extraLane }, json.version);
     // 파일의 extraLane 숫자를 읽은 뒤 실제 보조 lane으로 매핑한다.
