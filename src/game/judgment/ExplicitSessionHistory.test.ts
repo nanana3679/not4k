@@ -43,6 +43,16 @@ describe("곡 관측 시각으로 제한한 세션 연산 이력", () => {
     expect(Object.isFrozen(prefix[0].operation)).toBe(true);
   });
 
+  it("syncHeldKeys 연산의 원본 held를 나중에 B에서 D로 바꿔도 저장한 B는 불변", () => {
+    const history = new ExplicitSessionHistory(0);
+    const heldKeys = [{ key: "B", lane: 2 }];
+    history.append({ kind: "syncHeldKeys", atMs: 1000, heldKeys }, 1000);
+    heldKeys[0].key = "D";
+    const [entry] = [...history.prefixThrough(1000)];
+    expect(entry.operation).toEqual({ kind: "syncHeldKeys", atMs: 1000, heldKeys: [{ key: "B", lane: 2 }] });
+    expect(entry.operation.kind === "syncHeldKeys" && Object.isFrozen(entry.operation.heldKeys[0])).toBe(true);
+  });
+
   it("연산 없는 재구성 경계2050은 상태를 추가하지 않고 새 관측2049를 거부", () => {
     const history = new ExplicitSessionHistory(0);
     history.append({ kind: "advance", atMs: 2000 }, 2000);

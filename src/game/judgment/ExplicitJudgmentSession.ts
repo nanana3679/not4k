@@ -91,6 +91,16 @@ export class ExplicitJudgmentSession {
     this.history.append({ kind: "resume", atMs, heldKeys: preheldKeys, playbackStartMs }, observedSongTimeMs);
   }
 
+  /** 재개 뒤에야 안 준비 중 hold 변화를 현재 core 시각의 hold로만 맞춘다. 바뀐 레인 밖의 바디는 건드리지 않는다. */
+  syncHeldKeys(atMs: number, heldKeys: readonly ExplicitHeldKey[],
+    observedSongTimeMs = Math.max(atMs, this.history.latestSongTimeMs)): void {
+    this.assertOpen();
+    this.history.validateObservation(observedSongTimeMs);
+    this.core.syncHeldKeys(atMs, heldKeys);
+    this.applyFacts();
+    this.history.append({ kind: "syncHeldKeys", atMs, heldKeys }, observedSongTimeMs);
+  }
+
   processBatch(at: number, inputs: readonly ExplicitJudgmentInput[],
     observedSongTimeMs = Math.max(at, this.core.time, this.history.latestSongTimeMs)): void {
     this.assertOpen();
@@ -144,6 +154,7 @@ export class ExplicitJudgmentSession {
       case "batch": this.processBatch(operation.atMs, operation.inputs, observedSongTimeMs); break;
       case "observedBatches": this.processObservedBatches(operation.groups, operation.observedAtMs, observedSongTimeMs); break;
       case "resume": this.resumeAt(operation.atMs, operation.heldKeys, observedSongTimeMs, operation.playbackStartMs); break;
+      case "syncHeldKeys": this.syncHeldKeys(operation.atMs, operation.heldKeys, observedSongTimeMs); break;
     }
   }
 

@@ -5,7 +5,8 @@ export type ExplicitSessionOperation =
   | { readonly kind: "batch"; readonly atMs: number; readonly inputs: readonly ExplicitJudgmentInput[] }
   | { readonly kind: "observedBatches"; readonly observedAtMs: number; readonly groups: readonly ExplicitObservedInputBatch[] }
   | { readonly kind: "resume"; readonly atMs: number; readonly heldKeys: readonly ExplicitHeldKey[] | undefined;
-      readonly playbackStartMs: number };
+      readonly playbackStartMs: number }
+  | { readonly kind: "syncHeldKeys"; readonly atMs: number; readonly heldKeys: readonly ExplicitHeldKey[] };
 
 interface ObservedOperation {
   /** 보정 raw/core 시각과 별개인 실제 곡 관측 시각. */
@@ -22,6 +23,8 @@ function copyOperation(operation: ExplicitSessionOperation): ExplicitSessionOper
       Object.freeze({ rawAtMs: group.rawAtMs, inputs: copyInputs(group.inputs) }))) });
     case "resume": return Object.freeze({ ...operation,
       heldKeys: operation.heldKeys && Object.freeze(operation.heldKeys.map(key => Object.freeze({ ...key }))) });
+    case "syncHeldKeys": return Object.freeze({ ...operation,
+      heldKeys: Object.freeze(operation.heldKeys.map(key => Object.freeze({ ...key }))) });
     case "advance": return Object.freeze({ ...operation });
   }
 }
