@@ -161,7 +161,7 @@ describe('명시 화면의 일반·테스트 표현과 시도 수명', () => {
     expect(harness.players[0].dispose).toHaveBeenCalledOnce(); expect(props.onExit).toHaveBeenCalledOnce();
   });
 
-  it('일반 preparing·music-preparation 안내는 영어 Preparing audio and graphics·Get ready이고 한국어 안내를 표시하지 않는다', () => {
+  it('일반 loading·music-preparation 안내는 영어 Preparing audio and graphics·Get ready이고 한국어 안내를 표시하지 않는다', () => {
     const props = { request: normalRequest(), presentation: 'play' as const };
     render(props); expect(render(props).html).toContain('Preparing audio and graphics');
     harness.players[0].options.onPhase('music-preparation'); const { html } = render(props);
@@ -169,7 +169,7 @@ describe('명시 화면의 일반·테스트 표현과 시도 수명', () => {
     for (const text of ['준비 중', '키를 자유롭게']) expect(html).not.toContain(text);
   });
 
-  it('테스트 preparing·music-preparation 안내는 에디터 언어인 한국어를 유지한다', () => {
+  it('테스트 loading·music-preparation 안내는 에디터 언어인 한국어를 유지한다', () => {
     const request = prepareExplicitPlayTest({ document: explicitPlaytestCharts[0].chart,
       audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/editor' });
     render({ request }); expect(render({ request }).html).toContain('음원과 표시 준비 중');
