@@ -130,6 +130,7 @@ export function judgmentCaseFromChart(chart: Chart, options: JudgmentCaseChartOp
 /** 에디터 차트 JSON(`{`로 시작) 또는 사례 텍스트를 판정 사례로 읽는다. */
 export function judgmentCaseFromSource(source: string, options: { fallbackTitle?: string } = {}): JudgmentCase {
   if (source.trimStart().startsWith("{")) {
+    if (JSON.parse(source).version === 4) throw new Error("v4 ChartDocument는 --explicit으로 실행하세요. 구형 엔진으로 자동 변환하지 않습니다");
     const chart = deserializeChart(source);
     return judgmentCaseFromChart(chart, { title: chart.meta.title || options.fallbackTitle || "" });
   }

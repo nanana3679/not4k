@@ -2,10 +2,40 @@ import { describe, expect, it } from "vitest";
 import { parseJudgmentCaseCliArgs } from "./judgmentCaseCli";
 
 describe("parseJudgmentCaseCliArgs", () => {
+  it("--explicit v4.json은 실제 새 세션과 기본 classic-explicit 스킨을 선택하고 --engine 두 개를 보존", () => {
+    expect(parseJudgmentCaseCliArgs(["--explicit", "v4.json", "--out", "out.png", "--engine", ".", "--engine", "../other"])).toMatchObject({
+      explicit: true, design: false, skin: "classic-explicit", engines: [".", "../other"],
+    });
+  });
+
+  it("--explicit과 --design은 실제 판정·수동 설계를 섞지 않고 오류", () => {
+    expect(() => parseJudgmentCaseCliArgs(["--explicit", "--design", "case.json", "--out", "x.png"])).toThrow(/--design.*--explicit/);
+  });
+
+  it("--explicit의 --skin classic과 legacy의 --skin classic-explicit은 조용히 무시하지 않고 오류", () => {
+    expect(() => parseJudgmentCaseCliArgs(["--explicit", "v4.json", "--out", "x.png", "--skin", "classic"])).toThrow(/classic-explicit/);
+    expect(() => parseJudgmentCaseCliArgs(["v3.json", "--out", "x.png", "--skin", "classic-explicit"])).toThrow(/--explicit/);
+    expect(parseJudgmentCaseCliArgs(["--explicit", "v4.json", "--out", "x.png", "--skin", "classic-explicit"]).skin).toBe("classic-explicit");
+  });
   it("사례 파일 하나와 --out이면 엔진 없이(현재 워크트리) 기본 스킨 classic으로 그 사례를 렌더", () => {
     expect(parseJudgmentCaseCliArgs(["case.txt", "--out", "out.png"])).toEqual({
-      cases: ["case.txt"], out: "out.png", engines: [], skin: "classic", help: false,
+      cases: ["case.txt"], out: "out.png", engines: [], skin: "classic", design: false, explicit: false, help: false,
     });
+  });
+
+  it("--design은 수동 설계 JSON 두 개와 --scale 0.5를 받고 엔진을 선택하지 않음", () => {
+    expect(parseJudgmentCaseCliArgs(["--design", "a.json", "b.json", "--out", "out.png", "--scale", "0.5"])).toMatchObject({
+      design: true, cases: ["a.json", "b.json"], engines: [], scale: 0.5,
+    });
+  });
+
+  it("--design과 --engine을 섞으면 무시하지 않고 오류", () => {
+    expect(() => parseJudgmentCaseCliArgs(["--engine=../main", "--design", "a.json", "--out", "out.png"])).toThrow(/--design.*--engine/);
+  });
+
+  it("--design의 기본 스킨은 classic이고 --skin simple도 그대로 선택", () => {
+    expect(parseJudgmentCaseCliArgs(["--design", "a.json", "--out", "out.png"]).skin).toBe("classic");
+    expect(parseJudgmentCaseCliArgs(["--design", "a.json", "--out", "out.png", "--skin", "simple"]).skin).toBe("simple");
   });
 
   it("--skin simple·--skin=crystal로 노트 스킨을 고름", () => {
