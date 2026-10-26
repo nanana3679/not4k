@@ -159,6 +159,26 @@ function captureHistory(state: EditorState, separateHistory = false, transaction
   };
 }
 
+/**
+ * 열린 편집 transaction이 아직 history에 넣지 않은 변경을 가졌는가. 참조만 비교하므로
+ * 버튼 상태처럼 store가 바뀔 때마다 계산해도 된다.
+ */
+export function hasUncommittedEdit(state: Pick<EditorState, 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
+  const transaction = state.editTransaction;
+  return transaction !== null
+    && (transaction.before.chart !== state.chart || transaction.before.extraLaneCount !== state.extraLaneCount);
+}
+
+/** Undo 가능 여부. 불러온 직후 첫 붙여넣기처럼 transaction 안에만 있는 편집도 되돌릴 수 있다. */
+export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
+  return state.historyPast.length > 0 || hasUncommittedEdit(state);
+}
+
+/** Redo 가능 여부. 변경이 있는 transaction을 확정하면 Redo 기록이 사라지므로 그동안은 불가다. */
+export function selectCanRedo(state: Pick<EditorState, 'historyFuture' | 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
+  return state.historyFuture.length > 0 && !hasUncommittedEdit(state);
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   // 뷰포트 슬라이스 (상태 + 클램프 내장 액션)
   ...createViewportSlice(set, get),

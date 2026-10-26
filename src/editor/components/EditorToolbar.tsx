@@ -9,7 +9,7 @@ import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
 import {serializeChart, serializeExtraNotes,  buildViolationList, mainNotes, auxNotesAsExtra, isExplicitNote} from '../../shared';
 import type { PlaybackRange } from '../../shared';
-import { useEditorStore } from '../stores';
+import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 
 const styles = {
@@ -653,8 +653,9 @@ export function EditorToolbar({
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const selectedNotes = useEditorStore((s) => s.selection.notes);
-  const historyPastCount = useEditorStore((s) => s.historyPast.length);
-  const historyFutureCount = useEditorStore((s) => s.historyFuture.length);
+  // 불러온 직후 첫 붙여넣기처럼 transaction 안에만 있는 편집도 Undo할 수 있다.
+  const canUndo = useEditorStore(selectCanUndo);
+  const canRedo = useEditorStore(selectCanRedo);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   // 막다른 상태 탈출(RFD 0017 §7) — 씨앗(마지막 valid 스냅샷)이 있을 때만 버튼 노출
@@ -702,13 +703,13 @@ export function EditorToolbar({
   });
 
   const runUndo = () => {
-    if (historyPastCount === 0) return;
+    if (!canUndo) return;
     undo();
     addToast('Undo', 'info');
   };
 
   const runRedo = () => {
-    if (historyFutureCount === 0) return;
+    if (!canRedo) return;
     redo();
     addToast('Redo', 'info');
   };
@@ -955,18 +956,18 @@ export function EditorToolbar({
         <div style={styles.compactTopRow}>
           <div style={styles.compactGroup}>
             <button
-              style={getIconButtonStyle(false, historyPastCount === 0)}
+              style={getIconButtonStyle(false, !canUndo)}
               onClick={runUndo}
-              disabled={historyPastCount === 0}
+              disabled={!canUndo}
               title="Undo (Ctrl+Z)"
               aria-label="Undo"
             >
               <ToolbarIcon name="undo" />
             </button>
             <button
-              style={getIconButtonStyle(false, historyFutureCount === 0)}
+              style={getIconButtonStyle(false, !canRedo)}
               onClick={runRedo}
-              disabled={historyFutureCount === 0}
+              disabled={!canRedo}
               title="Redo (Ctrl+Shift+Z)"
               aria-label="Redo"
             >
@@ -1166,18 +1167,18 @@ export function EditorToolbar({
       {/* Undo / Redo (아이콘) */}
       <div style={styles.compactGroup}>
         <button
-          style={getIconButtonStyle(false, historyPastCount === 0)}
+          style={getIconButtonStyle(false, !canUndo)}
           onClick={runUndo}
-          disabled={historyPastCount === 0}
+          disabled={!canUndo}
           title="Undo (Ctrl+Z)"
           aria-label="Undo"
         >
           <ToolbarIcon name="undo" />
         </button>
         <button
-          style={getIconButtonStyle(false, historyFutureCount === 0)}
+          style={getIconButtonStyle(false, !canRedo)}
           onClick={runRedo}
-          disabled={historyFutureCount === 0}
+          disabled={!canRedo}
           title="Redo (Ctrl+Shift+Z)"
           aria-label="Redo"
         >

@@ -10,7 +10,7 @@ import type { SelectMode } from '../modes';
 import { msToBeat } from '../../shared';
 import type { BpmMarker } from '../../shared';
 import type { ToastType } from '../../shared/toast';
-import { useEditorStore, type EditorModeName } from '../stores';
+import { selectCanRedo, selectCanUndo, useEditorStore, type EditorModeName } from '../stores';
 
 /** 단축키 처리가 읽는 키 입력 사실. 테스트는 이 필드만 채운 객체를 넘긴다. */
 export type EditorKeyEvent = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'preventDefault'>;
@@ -42,15 +42,16 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
     useEditorStore.getState().commitEditTransaction();
   }
 
+  // undo·redo는 열린 transaction을 먼저 확정하므로 그 안의 첫 편집도 되돌릴 수 있다.
   if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
     e.preventDefault();
     const state = useEditorStore.getState();
     if (e.shiftKey) {
-      if (state.historyFuture.length > 0) {
+      if (selectCanRedo(state)) {
         state.redo();
         addToast('Redo', 'info');
       }
-    } else if (state.historyPast.length > 0) {
+    } else if (selectCanUndo(state)) {
       state.undo();
       addToast('Undo', 'info');
     }
@@ -60,7 +61,7 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
   if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
     e.preventDefault();
     const state = useEditorStore.getState();
-    if (state.historyFuture.length > 0) {
+    if (selectCanRedo(state)) {
       state.redo();
       addToast('Redo', 'info');
     }

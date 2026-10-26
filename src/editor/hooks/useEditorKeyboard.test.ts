@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { beat } from '../../shared';
 import type { ChartDocument, DocumentNoteEntity } from '../../shared';
-import { useEditorStore } from '../stores';
+import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { emptySelection } from '../stores/selectionSlice';
 import { SelectMode } from '../modes/SelectMode';
 import { hitTestNoteAt } from '../timeline/hitTest';
@@ -108,5 +108,31 @@ describe('붙여넣기·드래그 중 독립 명령', () => {
 
     press('z', { ctrlKey: true, shiftKey: true });
     expect(notes()[0].beat).toEqual(beat(3));
+  });
+});
+
+describe('transaction 안의 첫 편집 Undo', () => {
+  it('차트를 불러온 직후 첫 8박 붙여넣기 대기 중 Ctrl+Z 한 번이 붙여넣기를 되돌리고 Ctrl+Shift+Z로 다시 2개가 된다', () => {
+    const { mode, press, pasteCopyOfFirstNoteAt8 } = setup();
+    pasteCopyOfFirstNoteAt8();
+    expect(current().historyPast).toHaveLength(0);
+
+    press('z', { ctrlKey: true });
+    expect(notes()).toHaveLength(1);
+    expect(mode.isPendingPaste).toBe(false);
+
+    press('z', { ctrlKey: true, shiftKey: true });
+    expect(notes()).toHaveLength(2);
+  });
+
+  it('history가 빈 첫 붙여넣기 대기 중 selectCanUndo는 true이고 Redo 기록 1개가 있어도 selectCanRedo는 false다', () => {
+    const { pasteCopyOfFirstNoteAt8 } = setup();
+    useEditorStore.setState({ historyFuture: [{ chart: current().chart, extraLaneCount: 2 }] });
+    expect(selectCanUndo(current())).toBe(false);
+    expect(selectCanRedo(current())).toBe(true);
+
+    pasteCopyOfFirstNoteAt8();
+    expect(selectCanUndo(current())).toBe(true);
+    expect(selectCanRedo(current())).toBe(false);
   });
 });
