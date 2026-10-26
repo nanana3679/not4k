@@ -1,4 +1,3 @@
-import { editorChartErrors } from '../documentValidation';
 /**
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
@@ -7,10 +6,11 @@ import { useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import {serializeChart, serializeExtraNotes,  buildViolationList, mainNotes, auxNotesAsExtra, isExplicitNote} from '../../shared';
+import { serializeChart, serializeExtraNotes, buildViolationList, mainNotes, auxNotesAsExtra, isExplicitNote } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
+import { editorChartErrors } from '../documentValidation';
 
 const styles = {
   toolbar: {

@@ -1,6 +1,6 @@
 import { editorChartErrors, editorChartViolationIndices } from './documentValidation';
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {beat} from "../shared";
+import { beat } from "../shared";
 import type { ChartDocument, Lane, DocumentNoteEntity, TrillZone } from "../shared";
 import { useEditorStore } from "./stores";
 import { performPlayTest, type PerformPlayTestParams } from "./hooks/useFileOperations";

@@ -1,13 +1,13 @@
-import { editorChartErrors } from '../documentValidation';
 /**
  * Editor Store — Zustand state management for not4k chart editor
  */
 
 import { create } from 'zustand';
 import type { ChartDocument } from '../../shared';
-import {beat,  validateChartDocumentStructural} from '../../shared';
+import { beat, validateChartDocumentStructural } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
+import { editorChartErrors } from '../documentValidation';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
 import {
   createSelectionSlice,

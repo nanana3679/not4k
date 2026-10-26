@@ -1,4 +1,3 @@
-import { editorChartViolationIndices } from './documentValidation';
 /**
  * not4k Chart Editor — Main App Component
  */
@@ -35,6 +34,7 @@ import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
 import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
+import { editorChartViolationIndices } from './documentValidation';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 

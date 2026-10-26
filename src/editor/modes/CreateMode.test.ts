@@ -1,7 +1,7 @@
 import { editorChartErrors } from '../documentValidation';
 import { describe, it, expect, vi } from "vitest";
 import { CreateMode, isEventEntityType } from "./CreateMode";
-import {beat,  violationsInvolving} from "../../shared";
+import { beat, violationsInvolving } from "../../shared";
 import { hitTestNoteAt } from "../timeline/hitTest";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
