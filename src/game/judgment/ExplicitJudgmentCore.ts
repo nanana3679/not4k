@@ -17,7 +17,7 @@ interface UnitRuntime {
   readonly ordinal: number;
   readonly id: string;
   /** 이 몫의 시작을 맡는 시작 Point 항목. double Point + single 바디는 한 몫이 두 항목을 모두 맡는다. */
-  readonly points: readonly ItemRuntime[];
+  readonly startPoints: readonly ItemRuntime[];
   startedAt: number | null;
   completedAt: number | null;
   failedAt: number | null;
@@ -102,9 +102,9 @@ export class ExplicitJudgmentCore {
         // single Point는 double의 높은 hold 기준을 맡고 비담당 몫은 낮은 기준을 먼저 채운다.
         // 몫보다 많은 Point(double Point + single 바디)는 가장 높은 몫이 모두 맡아 먼저 성공한 down으로 시작한다.
         const offset = body.holdCount - startPoints.length;
-        const points = offset >= 0 ? startPoints.filter((_, index) => index === unit.ref.ordinal - offset)
+        const unitStartPoints = offset >= 0 ? startPoints.filter((_, index) => index === unit.ref.ordinal - offset)
           : startPoints.filter((_, index) => index === unit.ref.ordinal || (unit.ref.ordinal === body.holdCount - 1 && index >= body.holdCount));
-        runtime.units.push({ body: runtime, ordinal: unit.ref.ordinal, id: unit.id, points,
+        runtime.units.push({ body: runtime, ordinal: unit.ref.ordinal, id: unit.id, startPoints: unitStartPoints,
           startedAt: null, completedAt: null, failedAt: null, failureFactId: null,
           startFact: null, completeFact: null, startKey: null, inherited: false, judgedFrom: null, pointDecisionAt: null,
           reentered: false, resumeEpoch: 0 });
@@ -145,7 +145,7 @@ export class ExplicitJudgmentCore {
       for (const unit of runtime.units) {
         if (!this.open(unit)) continue;
         // 되감기 뒤에도 미처리 시작 Point의 일반 실패 종속은 면제하지 않는다.
-        unit.reentered = !unit.points.length || this.pointSatisfied(unit) || unit.points.every(point => point.settlement !== null);
+        unit.reentered = !unit.startPoints.length || this.pointSatisfied(unit) || unit.startPoints.every(point => point.settlement !== null);
         unit.resumeEpoch = this.resumeEpoch;
         unit.startedAt = null; unit.startFact = null; unit.startKey = null;
         unit.inherited = false; unit.judgedFrom = null; unit.pointDecisionAt = null;
@@ -196,7 +196,7 @@ export class ExplicitJudgmentCore {
         state: unit.failedAt !== null ? "failed" : unit.completedAt !== null ? "complete" : unit.startedAt === null ? "waiting" : recovering ? "recovering" : "active",
         actualStartMs: unit.startedAt, completedAtMs: unit.completedAt, failedAtMs: unit.failedAt, failureFactId: unit.failureFactId,
         maintenanceSinceMs: since, maintenanceDeadlineMs: recovering ? this.maintenanceDeadline(unit) ?? null : null,
-        pointStatus: !unit.points.length ? "none" : this.pointSatisfied(unit) ? "satisfied"
+        pointStatus: !unit.startPoints.length ? "none" : this.pointSatisfied(unit) ? "satisfied"
           : this.pointMissed(unit) ? "missed" : "waiting" });
     }));
     const items: ExplicitItemSnapshot[] = this.items.map(({ item, settlement }) => {
@@ -357,14 +357,14 @@ export class ExplicitJudgmentCore {
         // 재개는 시작 창을 T로 옮기지만 차트 시각의 원래 창은 닫지 않는다. 그 창의 늦게 관측한 down도 hold 시각(≥T)에 시작한다.
         if (runtime.body.lane !== lane || (Math.abs(rawAt - runtime.activationStartMs) > this.windows.GOOD
           && Math.abs(rawAt - runtime.body.startMs) > this.windows.GOOD)) continue;
-        const own = candidate && runtime.units.find(unit => !unit.reentered && unit.points.includes(candidate));
+        const own = candidate && runtime.units.find(unit => !unit.reentered && unit.startPoints.includes(candidate));
         // 여러 Point를 맡은 몫은 먼저 성공한 Point down으로만 판단한다. 다음 Point 성공이 시작·유지 기준을 옮기지 않는다.
         if (own && this.open(own) && own.pointDecisionAt === null) {
           own.judgedFrom = heldAt; own.pointDecisionAt = heldAt;
           if (own.startedAt === null) this.tryStart(own, heldAt, "down", token, true);
         }
         for (const unit of runtime.units) if (unit.startedAt === null) {
-          if (!unit.points.length || unit.reentered) this.tryStart(unit, heldAt, "down", token);
+          if (!unit.startPoints.length || unit.reentered) this.tryStart(unit, heldAt, "down", token);
           else if (this.pointSatisfied(unit)) this.tryStart(unit, heldAt, "down", token, true);
         }
       }
@@ -418,11 +418,11 @@ export class ExplicitJudgmentCore {
   private open(unit: UnitRuntime): boolean { return unit.failedAt === null && unit.completedAt === null; }
   /** 맡은 시작 Point 중 하나라도 성공했다. */
   private pointSatisfied(unit: UnitRuntime): boolean {
-    return unit.points.some(point => point.settlement !== null && point.settlement.grade !== "miss");
+    return unit.startPoints.some(point => point.settlement !== null && point.settlement.grade !== "miss");
   }
   /** 맡은 시작 Point가 모두 Miss다. 하나라도 성공하거나 대기 중이면 Point Miss 실패가 아니다. */
   private pointMissed(unit: UnitRuntime): boolean {
-    return unit.points.length > 0 && unit.points.every(point => point.settlement?.grade === "miss");
+    return unit.startPoints.length > 0 && unit.startPoints.every(point => point.settlement?.grade === "miss");
   }
   private need(unit: UnitRuntime): number {
     return unit.body.units.filter(other => other.ordinal <= unit.ordinal && other.failedAt === null
@@ -441,7 +441,7 @@ export class ExplicitJudgmentCore {
       && other.startedAt !== null && other.failedAt === null).map(other => other.startKey));
     const key = this.heldKeys(runtime.body.lane).find(key => !used.has(key));
     if (key === undefined) return;
-    if (unit.points.length && !unit.reentered && !ownPoint) {
+    if (unit.startPoints.length && !unit.reentered && !ownPoint) {
       if (!this.hasHealthyPredecessor(unit)) return;
       unit.inherited = true;
     }
@@ -515,7 +515,7 @@ export class ExplicitJudgmentCore {
   }
 
   private maintenanceDeadline(unit: UnitRuntime): number | undefined {
-    if (!this.open(unit) || (unit.points.length && !unit.reentered && unit.pointDecisionAt === null)
+    if (!this.open(unit) || (unit.startPoints.length && !unit.reentered && unit.pointDecisionAt === null)
       || (unit.startedAt === null && unit.judgedFrom === null)) return undefined;
     // Point는 처리했어도 두 번째 물리 키가 없어 실제 시작하지 못한 몫은 실제 down부터 부족 상태다.
     if (unit.startedAt === null) return unit.judgedFrom! + this.maintenanceGraceMs;
@@ -608,9 +608,9 @@ export class ExplicitJudgmentCore {
       }
       for (const runtime of this.bodies) for (const unit of [...runtime.units].reverse()) {
         if (!this.open(unit)) continue;
-        if (unit.points.length && !unit.reentered && unit.pointDecisionAt === null && unit.points[0].item.timeMs + this.windows.GOOD === next) {
+        if (unit.startPoints.length && !unit.reentered && unit.pointDecisionAt === null && unit.startPoints[0].item.timeMs + this.windows.GOOD === next) {
           unit.pointDecisionAt = next;
-          if (!unit.inherited || unit.startedAt === null || !this.filled(unit)) this.fail(unit, next, "pointMiss", unit.points[0].settlement!.id);
+          if (!unit.inherited || unit.startedAt === null || !this.filled(unit)) this.fail(unit, next, "pointMiss", unit.startPoints[0].settlement!.id);
           else unit.judgedFrom = next;
         } else if (unit.startedAt === null && runtime.activationStartMs + this.windows.GOOD === next) this.fail(unit, next, "startTimeout", null);
         else if (this.maintenanceDeadline(unit) === next) this.fail(unit, next, "maintenance", null);
@@ -619,7 +619,7 @@ export class ExplicitJudgmentCore {
   }
 
   private unitDeadline(unit: UnitRuntime): number | undefined {
-    if (unit.points.length && !unit.reentered && unit.pointDecisionAt === null) return unit.points[0].item.timeMs + this.windows.GOOD;
+    if (unit.startPoints.length && !unit.reentered && unit.pointDecisionAt === null) return unit.startPoints[0].item.timeMs + this.windows.GOOD;
     if (!unit.reentered && unit.startedAt === null && this.pointSatisfied(unit)) return this.maintenanceDeadline(unit);
     return unit.startedAt === null ? unit.body.activationStartMs + this.windows.GOOD : this.maintenanceDeadline(unit);
   }
