@@ -19,7 +19,7 @@ export class ChartFormatError extends Error {
 
 export class UnsupportedChartContentError extends ChartFormatError {
   constructor(context: string) {
-    super(`${context}은 명시적 노트 형식을 지원하지 않습니다`);
+    super(`${context}에서는 명시적 노트 형식을 지원하지 않습니다`);
     this.name = "UnsupportedChartContentError";
   }
 }
@@ -129,7 +129,8 @@ export function parseDocumentNote(value: unknown, version?: number): DocumentNot
       const endBeat = parseBeat(n.endBeat, "endBeat");
       if (type === "body") {
         const holdCount = count(n, "holdCount");
-        if (n.trill !== undefined && (n.trill !== true || holdCount !== 1)) throw new ChartFormatError("trill 바디의 holdCount는 1이어야 합니다");
+        if (n.trill !== undefined && n.trill !== true) throw new ChartFormatError("바디 trill은 true만 쓸 수 있습니다(트릴이 아니면 생략)");
+        if (n.trill === true && holdCount !== 1) throw new ChartFormatError("trill 바디의 holdCount는 1이어야 합니다");
         if (holdCount === 2) return { type, lane, beat, endBeat, holdCount };
         return { type, lane, beat, endBeat, holdCount, ...(n.trill === true ? { trill: true } : {}) };
       }

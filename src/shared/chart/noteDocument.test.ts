@@ -294,4 +294,15 @@ describe("C1 형식 오류 분류와 미지원 필드 정책", () => {
     const aux = parseExtraNotesDocument(JSON.parse(JSON.stringify({ extraNotes: [], extraLaneCount: 1, future: 1 })));
     expect(JSON.parse(serializeExtraNotes(aux.extraNotes, aux.extraLaneCount))).toEqual({ extraNotes: [], extraLaneCount: 1 });
   });
+
+  it("바디 trill:false는 holdCount 오류가 아니라 trill은 true만 쓴다는 오류로 거부한다", () => {
+    expect(() => deserializeChartDocument(v4({ notes: [
+      { type: "body", lane: 1, beat: "0", endBeat: "2", holdCount: 1, trill: false },
+    ] }))).toThrow("바디 trill은 true만 쓸 수 있습니다");
+  });
+
+  it("구형 reader로 명시 Point를 읽으면 \"구형 차트 reader에서는 명시적 노트 형식을 지원하지 않습니다\" 오류다", () => {
+    const source = document([{ type: "point", kind: "single", lane: 1, beat: beat(0) }]);
+    expect(() => deserializeChart(serializeChart(source))).toThrow("구형 차트 reader에서는 명시적 노트 형식을 지원하지 않습니다");
+  });
 });
