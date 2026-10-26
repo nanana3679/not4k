@@ -1,6 +1,6 @@
 # 명시적 노트 정적 export
 
-[RFD 0037](../../../docs/rfd/0037-explicit-score-notes-and-body.md)의 E1/G1에서 함께 읽는 정적 도안 계약이다. 이번 연결은 이미지·좌표 정보만 제공한다. 실제 스킨 로딩, 판정 상태 선택, 성공 알파, 표시 수명과 기본 게임 전환은 후속 G1/G2 작업이다.
+[RFD 0037](../../../docs/rfd/0037-explicit-score-notes-and-body.md)의 E1/G1에서 함께 읽는 정적 도안 계약이다. 이 정적 view는 이미지·좌표 정보만 제공한다. 스킨 로딩은 `ExplicitSkinLoader`가, 판정 상태에 따른 도안 선택·성공 alpha·표시 수명은 `ExplicitNotePresenter`(G1)가 공개 snapshot으로 맡는다. 실제 재생 연결과 기본 게임 전환은 후속 작업이다.
 
 ## 원본과 출처
 
@@ -42,4 +42,4 @@ pnpm build:explicit-skin --check
 - Grace는 본체와 별도 이미지다. Point overlay 260×88의 본체는 `(24,24,212,40)`, 릴리즈·트릴 overlay 248×88의 본체는 `(24,24,200,40)`이다. `@2x`도 동일한 논리 크기·패딩을 쓴다. `*-grace.png` 합성 참고본과 과거 terminal overlay는 export하지 않는다.
 - 유지 single은 x=100, double은 x=84·116에 놓인다. double 좌우 파일 각각의 **전체 200×40 캔버스**와 투명 여백을 유지한다. 한쪽을 숨긴 뒤 남은 쪽을 잘라 재중앙 정렬하지 않는다.
 - `partialHeld`의 side는 미충족 쪽(`sideMeaning: unmet`), `partialFailed`는 실패 쪽(`failed`), 유지 분리 레이어는 표식 쪽(`marker`)이다. 물리 키·손을 나타내지 않는다.
-- 성공 alpha 0.7과 실패 도안 합성, 유지 성공 표식만 숨김, Grace 외곽의 독립 밝기는 이 정적 view가 판단하지 않는다. M1 공개 상태를 쓰는 후속 G1에서 적용한다.
+- 성공 alpha 0.7과 실패 도안 합성, 유지 성공 표식만 숨김, Grace 외곽의 독립 밝기는 이 정적 view가 판단하지 않는다. `ExplicitNotePresenter`(G1)가 M1 공개 snapshot으로 적용한다.
