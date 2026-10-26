@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, writeFile, readdir, unlink } from 'node:fs/promises';
 import { releasePartsHtml, releasePartsCss } from './release-parts.mjs';
 import { releaseJunctionHtml, releaseJunctionCss } from './release-junction.mjs';
+import { selectedStatesHtml, selectedStatesCss } from './selected-states-preview.mjs';
 
 const here = new URL('./', import.meta.url);
 const gallery = new URL('../../../../lab/image-galleries/classic-approved-states-20261025/', here);
@@ -11,7 +12,7 @@ for (const file of await readdir(new URL('assets/', gallery))) {
   if (/^terminal-(single|double)-(failed|partial-failed-(left|right))(\.svg|(?:@2x)?\.png)$/.test(file)) await unlink(new URL(`assets/${file}`, gallery));
 }
 for (const file of files) await copyFile(new URL(file, here), new URL(file, gallery));
-await copyFile(new URL('selected-palette-preview.png', here), new URL('selected-palette-preview.png', gallery));
+for (const file of ['selected-palette-preview.png', 'selected-states-preview.png']) await copyFile(new URL(file, here), new URL(file, gallery));
 const noteReferences = JSON.parse(await readFile(new URL('note-palette-reference/sources.json', here), 'utf8'));
 await mkdir(new URL('note-references/', gallery), { recursive: true });
 for (const reference of noteReferences.images) await copyFile(new URL(`note-palette-reference/${reference.file}`, here), new URL(`note-references/${reference.file}`, gallery));
@@ -200,7 +201,8 @@ ${manifest.paletteBalancePreview.kinds.map(entry => `<h3>${entry.kind === 'singl
 </section>`;
 const html = `<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Classic 상태별 에셋 검토</title><link rel="stylesheet" href="style.css"></head>
-<body><main><header><a href="../../">← Lab 목록</a><p class="edition">Classic · 판정 연결 준비</p><h1>상태별 에셋 검토</h1><p>확정 도안으로 만든 유지·실패·몫별 표시 시안입니다. 확정한 성공·실패 표시와 검토 중인 색의 강도를 구분해 확인합니다.</p><p>릴리즈도 최종 C안(J2-C)을 사용합니다. D 매듭은 유지 표식입니다. 바디와 유지 표식에는 Grace를 붙이지 않습니다.</p><nav class="jump"><a href="#selected-palette">선택 팔레트·유지 확대</a><a href="#palette-mix">팔레트 혼합</a><a href="#blue-gold-palette">파랑·금색 전후</a><a href="#critical-gold-palette">크림 골드</a><a href="#release-cel-balance">셀 채색 4안</a><a href="#release-simplified-original">원형 유지 단순화</a><a href="#release-simple-frame">릴리즈 단순화</a><a href="#release-horizontal-junctions">ㅡ 수평 연결</a><a href="#release-straight-junctions">면과 직선 복원</a><a href="#release-clean-junctions">세 면의 꼭짓점</a><a href="#release-forked-junctions">아래 접점 분기</a><a href="#release-stepped-junctions">단차 수정 전후</a><a href="#release-junction">단차 접점</a><a href="#release-beam-ends">더블 빛 두 지점</a><a href="#release-body-color">릴리즈·바디 색</a><a href="#release-material-corrected">넓은 면·흰빛 알파</a><a href="#release-material">3·4·5번 수정안</a><a href="#release-parts">릴리즈 부위 번호</a><a href="#palette-balance">중간 강도 2안</a><a href="#palette-anchors">이전 색 기준 3안</a><a href="#release-palette">릴리즈 색 전후</a><a href="#release-symbol">릴리즈 표식</a><a href="#sustain-visibility">유지 가독성</a><a href="#point-success">포인트 일부 성공</a><a href="#release-success">릴리즈 일부 성공</a><a href="#body-double">바디</a><a href="#body-boundaries">바디 시작·끝</a><a href="#point-double">누름</a><a href="#sustain-double">유지</a><a href="#release-double">릴리즈</a><a href="#sustain-layers">남은 몫</a></nav></header>
+<body><main><header><a href="../../">← Lab 목록</a><p class="edition">Classic · 판정 연결 준비</p><h1>상태별 에셋 검토</h1><p>확정 도안으로 만든 유지·실패·몫별 표시 시안입니다. 확정한 성공·실패 표시와 검토 중인 색의 강도를 구분해 확인합니다.</p><p>현재 선택은 릴리즈 A안·파랑 50%·금색 75%와 확대된 D 유지 표식입니다. 최신 파생본은 맨 위에서 확인하며 이전 J2-C 자료는 비교 기록으로 보존합니다. 바디와 유지 표식에는 Grace를 붙이지 않습니다.</p><nav class="jump"><a href="#selected-states">선택본 파생 에셋</a><a href="#selected-palette">선택 팔레트·유지 확대</a><a href="#palette-mix">팔레트 혼합</a><a href="#blue-gold-palette">파랑·금색 전후</a><a href="#critical-gold-palette">크림 골드</a><a href="#release-cel-balance">셀 채색 4안</a><a href="#release-simplified-original">원형 유지 단순화</a><a href="#release-simple-frame">릴리즈 단순화</a><a href="#release-horizontal-junctions">ㅡ 수평 연결</a><a href="#release-straight-junctions">면과 직선 복원</a><a href="#release-clean-junctions">세 면의 꼭짓점</a><a href="#release-forked-junctions">아래 접점 분기</a><a href="#release-stepped-junctions">단차 수정 전후</a><a href="#release-junction">단차 접점</a><a href="#release-beam-ends">더블 빛 두 지점</a><a href="#release-body-color">릴리즈·바디 색</a><a href="#release-material-corrected">넓은 면·흰빛 알파</a><a href="#release-material">3·4·5번 수정안</a><a href="#release-parts">릴리즈 부위 번호</a><a href="#palette-balance">중간 강도 2안</a><a href="#palette-anchors">이전 색 기준 3안</a><a href="#release-palette">릴리즈 색 전후</a><a href="#release-symbol">릴리즈 표식</a><a href="#sustain-visibility">유지 가독성</a><a href="#point-success">포인트 일부 성공</a><a href="#release-success">릴리즈 일부 성공</a><a href="#body-double">바디</a><a href="#body-boundaries">바디 시작·끝</a><a href="#point-double">누름</a><a href="#sustain-double">유지</a><a href="#release-double">릴리즈</a><a href="#sustain-layers">남은 몫</a></nav></header>
+${selectedStatesHtml(manifest.selectedStatePreview, links)}
 ${selectedPalette}
 ${paletteMix}
 ${blueGoldPalette}
@@ -298,6 +300,7 @@ await writeFile(new URL('style.css', gallery), `:root{color-scheme:dark;font-fam
 @media(max-width:760px){.success-comparison{grid-template-columns:1fr}.success-comparison article{max-width:440px;width:100%;margin:auto}}
 @media(max-width:600px){main{padding:24px 16px}.states{grid-template-columns:1fr}article{padding-inline:8px}h3{min-height:0}}
 .cel-selected{display:inline-block;margin-left:7px;padding:2px 6px;border:1px solid #b9d9f3;border-radius:3px;color:#d7edff;font-size:11px;white-space:nowrap}.cel-row[data-selected="true"],.cel-cards article[data-selected="true"]{border-top-color:#b9d9f3}.cel-overview{display:grid;gap:20px}.cel-row{display:grid;grid-template-columns:170px minmax(0,1fr) minmax(0,1fr);align-items:center;gap:20px;border-top:1px solid #303945;padding-top:18px}.cel-row h3{min-height:0;margin:0 0 6px}.cel-row p{font-size:12px;margin:0}.cel-row figure{margin:0}.cel-row figcaption,.cel-body-pair figcaption{text-align:center;color:#b5c4d5;font-size:12px;margin-bottom:10px}.cel-row img{display:block;width:100%;height:auto;max-width:400px;margin:auto}.cel-assemblies-title{margin-top:36px;min-height:0}.cel-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.cel-cards h4{margin:0}.cel-body-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cel-body-pair figure{margin:0 0 18px}.cel-body-pair nav{justify-content:center}.cel-body-pair .palette-game-pair{gap:8px}@media(max-width:1000px){.cel-cards{grid-template-columns:1fr}}@media(max-width:650px){.cel-row{grid-template-columns:1fr;gap:14px}.cel-body-pair{grid-template-columns:1fr}.cel-body-pair>div+div{margin-top:20px}}
+${selectedStatesCss.trimEnd()}
 ${releaseJunctionCss.trimEnd()}
 ${releasePartsCss.trimEnd()}\n`);
 console.log('Lab gallery: /lab/images/classic-approved-states-20261025/');

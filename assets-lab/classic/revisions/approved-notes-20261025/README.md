@@ -1,26 +1,39 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 보존 원본 24개와 복사·상태별 생성물 459개, 총 483개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 552개, 총 576개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
-## 확정 디자인
+## 현재 선택 디자인과 파생본
 
-| 역할 | 싱글 | 더블 |
+| 역할 | 싱글 · 파랑 50% | 더블 · 금색 75% |
 | --- | --- | --- |
-| 누름 | ![기존 싱글](assets/note-single.png) | ![M6 70% 더블](assets/note-double-anodized-contrast-070.png) |
-| 대기 바디 | ![싱글 바디](assets/body-single.png) | ![중앙 두 광선 더블 바디](assets/body-double-center-dual-beam.png) |
-| 일반 릴리즈 J2-C | ![싱글 릴리즈](assets/release-single.png) | ![더블 릴리즈](assets/release-double.png) |
-| 유지 노트 D | ![싱글 유지 · 44px 선택](assets/sustain-single-rail-outline.png) | ![더블 유지 · 각 32px 선택](assets/sustain-double-palette-mix-075-outline.png) |
+| 누름 | ![싱글](assets/note-single-palette-mix-050.png) | ![더블](assets/note-double-palette-mix-075.png) |
+| 대기 바디 | ![싱글 바디](assets/body-single-palette-mix-050.png) | ![더블 바디](assets/body-double-palette-mix-075.png) |
+| 릴리즈 A | ![싱글 릴리즈 A](assets/release-single-palette-mix-050.png) | ![더블 릴리즈 A](assets/release-double-palette-mix-075.png) |
+| 유지 D | ![싱글 44px](assets/sustain-single-palette-mix-050.png) | ![더블 각 32px](assets/sustain-double-palette-mix-075-outline.png) |
 
-- 싱글 누름은 기존 디자인을 유지한다. 더블 누름은 **M6 아노다이징 대비 70%**다.
-- 더블 바디는 바깥 면을 유지하고 중앙 영역만 넓혀 **42%·58%**에 두 광선을 둔다.
-- **릴리즈도 마지막에 선택한 C안(J2-C)**으로 맞췄다. 초기 릴리즈 도안은 교체했다. `terminal-j2-shadow-3-{single,double}`에 보존된 선택 PNG를 `release-{single,double}.png`와 `@2x.png`로 바이트 그대로 복사한다. 릴리즈 SVG는 2배 PNG를 내장한 래퍼이며 벡터 원본이 아니다.
-- **바디 시작·끝에는 별도 마감이 없다.** 시작에는 명시한 `Point`만, 끝에는 명시한 릴리즈만 추가한다. 릴리즈 없는 끝은 바디 자체로 끝난다. `terminal-j2-*`는 릴리즈 선택 원본의 출처 파일명이며 새 모델의 terminal 역할을 뜻하지 않는다([정정 댓글](https://github.com/nanana3679/not4k/pull/339#issuecomment-6390954414)).
-- 유지 노트의 보존 원본은 **D 매듭 1.8배**이며, 이후 싱글은 **44px·어두운 윤곽선 안을 선택**했다. 아래 가독성 비교에서 선택본과 원본을 함께 확인한다. 싱글은 x=100, 더블은 x=84·116에 매듭을 둔다(200×40 기준). 투명 표식만 들어 있으므로 바디 위에 얹는다. 길이 0도 길이 0 바디 위에 같은 표식을 얹는 디자인이다.
-- Grace는 실제 윤곽을 따르는 별도 overlay다. J2-C 원본의 모든 픽셀이 alpha 0.5 이상인 것을 검사하고, 그 **200×40 직사각 외곽 전체**에 검정 1px·흰색 1px·바깥 10px 번짐을 둔다. 더블 일부 실패도 반쪽이나 내부 이음선에 새 윤곽을 만들지 않는다.
+정상 조합은 `manifest.selectedPalettePreview.kinds`, **최신 상태별 파일은 `manifest.selectedStatePreview`**를 기준으로 사용한다. `stateGroups`와 기존 파일명은 이전 비교 기록이다. [최신 파생 에셋 비교](selected-states-preview.png)는 `/lab/images/classic-approved-states-20261025/#selected-states`에서도 확인할 수 있다.
 
-## 파일과 제안 적용 경로
+- 싱글 50%·더블 75% 색, M6 70% 더블 질감, 셀 채색 A 릴리즈와 3단 꺾쇠를 유지한다. 광선 중심은 싱글 x=100, 더블 x=84·116이다.
+- 유지 표식은 싱글 44px·더블 각 32px이며 어두운 윤곽선까지 함께 실패색과 좌우 분리본에 반영한다. 길이 0도 같은 바디 위에 표식을 놓는다.
+- 바디의 한쪽 미충족은 선택한 대기 도안과 반대쪽 활성 도안의 절반을 합성한다. 한쪽 실패는 미충족 쪽만 무채색·45%로 바꾼다. 전체 실패는 대기 도안 전체에서 만든다.
+- 누름·릴리즈의 더블 일부 성공은 정상 본체 전체 alpha 0.7을 사용하며 별도 반쪽 성공 PNG를 만들지 않는다. Grace 일부 성공도 본체 70%·외곽 100%로 합성하고 모두 성공하면 함께 숨긴다.
+- 릴리즈 Grace는 A안에서도 보존된 전체 200×40 외곽을 사용한다. 누름 Grace는 기존 모따기 윤곽이다. 더블 한쪽 실패에도 전체 Grace를 유지하며 바디·유지에는 붙이지 않는다.
+- 바디 시작·끝에는 별도 마감이 없다. 명시한 누름·릴리즈만 조합한다. `terminal-j2-*`는 이전 릴리즈의 출처 보존 파일이다.
+
+새 파생본 31종을 PNG·2배 PNG·SVG로 제공해 **93개 파일을 추가**했다. 파생본은 각 배율의 승인 PNG에서 만들며 SVG는 2배 PNG를 내장한 자체 포함 래퍼다. 알파와 정상 절반의 픽셀, 분리 레이어 재합성, Grace 내부 보존을 검증한다. 기존 483개 에셋은 바이트 그대로 보존한다. 실패색 강도·유지 표시 수명·성공과 실패가 섞인 최종 합성은 기존 검토 범위를 유지하며 런타임을 변경하지 않는다.
+
+| 최신 자료 | 내용 |
+| --- | --- |
+| `selectedStatePreview.groups` | 싱글·더블 누름/바디/릴리즈/유지 8그룹과 현재 파일·표시 alpha |
+| `selectedStatePreview.graceGroups` | 누름·릴리즈의 전체 Grace와 성공 단계, 한쪽 실패 릴리즈 Grace 합성본 |
+| `selectedStatePreview.graceOverlays` | 누름 260×88·릴리즈 248×88, 각 24px padding의 별도 overlay |
+| `selectedStatePreview.layers` | 확대 유지·A 릴리즈의 좌/우 정상·실패 레이어 8종 |
+
+파생 파일은 `selected-{point,body,release,sustain}-{single,double}-{상태}`로 구별한다. 일부 성공은 정상 파일 공유와 alpha로 표현하고, `*-grace`는 합성 참고본이다. 렌더러에서 별도 overlay를 사용하면 합성본을 다시 덧씌우지 않는다.
+
+## 이전 기본 도안과 제안 적용 경로
 
 아래 목적지는 모두 `public/skins/classic/` 기준이다. 이번 PR에서 복사하거나 연결하지 않는다.
 
@@ -42,7 +55,7 @@
 
 `*-grace.png`는 overlay를 본체에 합친 참고본이다. 실제 렌더러에서 별도 overlay를 사용할 경우 합성본을 다시 겹쳐 그리지 않는다. 일반 `@2x.png`는 400×80, Grace의 2배 PNG는 496×176이며 기본 PNG와 같은 논리 크기로 배치한다. 릴리즈·유지 SVG의 표시 크기는 200×40, 릴리즈 Grace SVG는 248×88이다. 다른 SVG는 기존 제작 좌표계를 보존하므로 개별 크기는 매니페스트를 따른다.
 
-## 상태별 보완 · 검토 중인 시안
+## 이전 상태별 비교 기록
 
 [판정 에이전트의 적용 계약](https://github.com/nanana3679/not4k/pull/339#issuecomment-6386397758)에 따라 자료를 보완했다. 이후 [성공·실패 표시 확인](https://github.com/nanana3679/not4k/pull/339#issuecomment-6390804166)과 [마감 제거 정정](https://github.com/nanana3679/not4k/pull/339#issuecomment-6390954414)을 우선한다. 새 상태의 구체적인 색·강도는 검토 중인 표현으로 구별한다. 실패색은 기존 릴리즈와 같은 **무채색·45% 밝기**를 참고한 시안이다.
 
@@ -62,11 +75,15 @@
 
 ## 재생성 및 미리보기
 
+### 선택본 파생 에셋 재생성
+
+`node assets-lab/classic/revisions/approved-notes-20261025/build-selected-states.mjs`로 현재 선택본의 파생 에셋만 다시 만들 수 있다. `build-states.mjs`도 선택 팔레트를 만든 뒤 같은 생성기를 호출한다. `build-preview.mjs`를 실행하면 최신 파생본과 이전 비교 자료를 함께 갱신한다. 입력 경로는 같은 revision 안에만 있으며 다른 미커밋 탐색 갤러리에 의존하지 않는다.
+
 ### 선택 팔레트와 노란 유지 표식 확대
 
 파랑 50%·노랑 75%를 선택했다. [바디에 붙인 선택본과 노란 유지 수정 전/후 이미지](selected-palette-preview.png)를 함께 제공한다. 현재 조합 10종의 PNG·2배 PNG·SVG 30개는 `approved-artwork`로 기록한다. `manifest.paletteMixPreview.selectedAmountByKind`에 혼합 비중을, `selectedPalettePreview.kinds`에 현재 조합의 5종 파일을 기록한다. `#selected-palette`는 파랑 선택본과 노랑 수정 전/후를 대기·활성 바디 및 게임 크기로 비교한다.
 
-직전 금색 팔레트 비교에는 확대 전 `sustain-double`이 사용됐다. 이번에는 `sustain-double-channel-outline`의 각 32px·2.4px 윤곽선을 노랑 75%로 변환한 `sustain-double-palette-mix-075-outline`을 사용한다. 광선 중심 x=84·116과 원래 D 경로를 유지하며 필터 영역을 캔버스 전체로 잡아 윤곽선을 자르지 않는다. PNG·2배 PNG·SVG 3개를 추가하고 이전 480개는 비교 기록으로 보존한다. 실제 스킨·실패 상태 연결은 별도다.
+직전 금색 팔레트 비교에는 확대 전 `sustain-double`이 사용됐다. 이번에는 `sustain-double-channel-outline`의 각 32px·2.4px 윤곽선을 노랑 75%로 변환한 `sustain-double-palette-mix-075-outline`을 사용한다. 광선 중심 x=84·116과 원래 D 경로를 유지하며 필터 영역을 캔버스 전체로 잡아 윤곽선을 자르지 않는다. PNG·2배 PNG·SVG 3개를 추가하고 이전 480개는 비교 기록으로 보존한다. 실패·일부 실패·Grace 파생본은 위 최신 상태 자료에 반영했고, 실제 스킨 연결은 별도다.
 
 ### 기존/새 팔레트 25%·50%·75% 혼합
 
@@ -88,7 +105,7 @@
 
 `#release-cel-balance`는 사용자가 선호한 단순화 형태를 유지하며 채색만 조율한 A～D다. A는 은은한 사선 명암과 넓은 빛, B는 바디처럼 세로로 나눈 색면, C는 더 선명한 사선 명암과 좁은 빛, D는 넓은 단색면과 광선 끝 중심의 빛을 비교한다. 명칭은 생성 결과의 차이를 설명하며 수치화한 셀/그라데이션 면적 비율은 아니다. 싱글·더블 총 8종을 현재 안과 함께 보고 활성 바디·게임 크기 및 PNG·2배 PNG·SVG 24개를 제공한다. **A · 부드러운 면 분리를 선택했다**(2026-10-26). 현재 릴리즈 외형은 `release-{single,double}-cel-a`이며 PNG·2배 PNG·SVG 총 6개를 선택 파일로 사용한다. `manifest.selections.releaseStyle`은 `cel-a`, `releaseCelBalancePreview.selectedVariant`는 `a`, 각 kind의 `selectedFile`은 해당 PNG를 가리킨다. A 파일의 승인 상태는 `approved-artwork`이고 B～D는 비교 시안으로 보존한다.
 
-내장 `image_gen.imagegen`으로 파란 4안과 각 금색 대응을 생성했다. [전체 프롬프트](cel-balance-reference/prompts.json), 원본 8장, [crop·시안 정보](cel-balance-reference/variants.json)를 보존한다. `release-cel-balance.mjs`는 생성본의 넓은 색면만 합성하고 원래 외곽 알파·U 테두리·광선 끝을 유지한다. 선택한 3단 벡터를 동일한 위치·100/80/50 알파로 다시 얹는다. 이전 336개 파일·포인트·바디·게임 스킨·판정 연결은 변경하지 않는다. `selections.release = J2-C`는 보존 원본과 기존 상태 파생본의 출처이며 최신 외형 선택은 `releaseStyle = cel-a`다. 실패·Grace 등 상태 파생본의 외형 전환은 후속 적용 대상이다.
+내장 `image_gen.imagegen`으로 파란 4안과 각 금색 대응을 생성했다. [전체 프롬프트](cel-balance-reference/prompts.json), 원본 8장, [crop·시안 정보](cel-balance-reference/variants.json)를 보존한다. `release-cel-balance.mjs`는 생성본의 넓은 색면만 합성하고 원래 외곽 알파·U 테두리·광선 끝을 유지한다. 선택한 3단 벡터를 동일한 위치·100/80/50 알파로 다시 얹는다. 이전 336개 파일·포인트·바디·게임 스킨·판정 연결은 변경하지 않는다. `selections.release = J2-C`는 보존 원본과 기존 상태 파생본의 출처이며 최신 외형 선택은 `releaseStyle = cel-a`다. 최신 상태 파생본은 `selectedStatePreview`에서 A 외형·선택 팔레트를 사용하며 이전 J2-C 파일은 비교 기록으로 보존한다.
 
 ### 원래 릴리즈 · 양옆 장식만 단순화
 

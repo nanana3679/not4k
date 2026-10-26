@@ -17,6 +17,7 @@ import { releaseSimplifiedOriginalArtwork } from './release-simplified-original.
 import { releaseCelBalanceArtwork } from './release-cel-balance.mjs';
 import { criticalGoldArtwork, criticalGoldStops } from './critical-gold-palette.mjs';
 import { brightBlueArtwork, brightBlueStops } from './bright-blue-palette.mjs';
+import { buildSelectedStates } from './build-selected-states.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -703,6 +704,7 @@ try {
   };
   const selectedPaletteFiles = new Set(selectedPalettes.flatMap(entry =>
     ['point', 'idleBody', 'heldBody', 'release', 'sustain'].map(role => entry[role])));
+  await buildSelectedStates({ here, manifest, page });
   const assetsByFile = new Map(manifest.assets.map(asset => [asset.file, asset]));
   for (const asset of manifest.assets) {
     const baseFile = asset.file.replace('@2x', '').replace('.svg', '.png');
