@@ -14,7 +14,7 @@ const harness = vi.hoisted(() => ({ cursor: 0, slots: [] as unknown[], effects: 
   setScreen: vi.fn(), storedRequest: null as ExplicitPlayRequest | null,
   mountedRefs: new Set<{ current: unknown }>() }));
 class FakeRuntime {
-  start = vi.fn(async () => { this.options.onPhase('preparing'); });
+  start = vi.fn(async () => { this.options.onPhase('loading'); });
   dispose = vi.fn(); togglePause = vi.fn(); downloadDebugLog = vi.fn();
   constructor(readonly options: ExplicitPlayRuntimeOptions) { harness.players.push(this); }
 }

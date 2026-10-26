@@ -24,7 +24,7 @@ export function ExplicitPlayScreen({ request: suppliedRequest, onExit, presentat
   const runtime = useRef<ExplicitPlayRuntime | null>(null);
   const completion = useRef({ presentation, onComplete });
   const [iteration, setIteration] = useState(0);
-  const [phase, setPhase] = useState<ExplicitPlayPhase>('preparing');
+  const [phase, setPhase] = useState<ExplicitPlayPhase>('loading');
   const [failure, setFailure] = useState<{ request: ExplicitPlayRequest; iteration: number; message: string } | null>(null);
   const error = failure?.request === request && failure?.iteration === iteration ? failure.message : null;
   const [result, setResult] = useState<ExplicitSessionResult | null>(null);
@@ -40,7 +40,7 @@ export function ExplicitPlayScreen({ request: suppliedRequest, onExit, presentat
       canvas: canvas.current, width: container.current.clientWidth, height: container.current.clientHeight, inputTarget: window,
       onPhase: next => {
         if (runtime.current !== player) return;
-        if (next === 'preparing') { setResult(null); setFailure(null); setProgress({ settled: 0, combo: 0, at: 0 }); }
+        if (next === 'loading') { setResult(null); setFailure(null); setProgress({ settled: 0, combo: 0, at: 0 }); }
         setPhase(next);
       },
       onResult: next => {
@@ -62,7 +62,7 @@ export function ExplicitPlayScreen({ request: suppliedRequest, onExit, presentat
   useEffect(() => {
     if (presentation !== 'test' || !repeat || phase !== 'finished') return;
     const timer = window.setTimeout(() => {
-      setResult(null); setFailure(null); setProgress({ settled: 0, combo: 0, at: 0 }); setPhase('preparing'); setIteration(value => value + 1);
+      setResult(null); setFailure(null); setProgress({ settled: 0, combo: 0, at: 0 }); setPhase('loading'); setIteration(value => value + 1);
     }, 1000);
     return () => window.clearTimeout(timer);
   }, [phase, repeat, presentation]);
@@ -74,7 +74,7 @@ export function ExplicitPlayScreen({ request: suppliedRequest, onExit, presentat
   };
   const reset = () => {
     close();
-    setResult(null); setFailure(null); setProgress({ settled: 0, combo: 0, at: 0 }); setPhase('preparing'); setIteration(value => value + 1);
+    setResult(null); setFailure(null); setProgress({ settled: 0, combo: 0, at: 0 }); setPhase('loading'); setIteration(value => value + 1);
   };
   const back = () => {
     runtime.current?.downloadDebugLog();
@@ -97,7 +97,7 @@ export function ExplicitPlayScreen({ request: suppliedRequest, onExit, presentat
       <label><input type="checkbox" checked={repeat} onChange={event => setRepeat(event.target.checked)} />반복</label>
       <button onClick={back}>돌아가기</button>
     </div>}
-    {request && !error && phase === 'preparing' && <p className="explicit-play__notice" role="status">음원과 표시 준비 중</p>}
+    {request && !error && phase === 'loading' && <p className="explicit-play__notice" role="status">음원과 표시 준비 중</p>}
     {phase === 'music-preparation' && <p className="explicit-play__notice" role="status">음악 준비 중 · 키를 자유롭게 바꿀 수 있습니다</p>}
     {presentation === 'test' && phase === 'paused' && <p className="explicit-play__notice" role="status">일시정지 · Esc로 계속</p>}
     {presentation === 'play' && phase === 'paused' && <div className={`explicit-play__pause${import.meta.env.DEV ? ' explicit-play__pause--dev' : ''}`}>

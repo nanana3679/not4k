@@ -123,7 +123,7 @@ describe('명시 실제 재생 runtime', () => {
     for (let attempt = 0; attempt < 2; attempt++) {
       const run = create(false, undefined, {}, undefined, 4, {}); await run.player.start();
       const audio = fixture.audio[attempt]; const renderer = fixture.renderers[attempt];
-      expect(run.onPhase.mock.calls.map(call => call[0])).toEqual(['preparing', 'playing']);
+      expect(run.onPhase.mock.calls.map(call => call[0])).toEqual(['loading', 'playing']);
       expect(audio.play).toHaveBeenCalledExactlyOnceWith(0);
       expect(audio.playWithPreroll).not.toHaveBeenCalled();
       expect(renderer.prepareForPlayback).toHaveBeenCalledOnce();
@@ -146,7 +146,7 @@ describe('명시 실제 재생 runtime', () => {
     if (stage === 'gear') { fixture.gearReady = waiting; fixture.load = async () => { entered(); }; }
     const run = create(false, undefined, {}, undefined, 4, {}); const starting = run.player.start(); await ready;
     wallFrame(5000); key(run.target, 'keydown', 'Escape'); run.player.togglePause();
-    expect(run.onPhase).toHaveBeenLastCalledWith('preparing');
+    expect(run.onPhase).toHaveBeenLastCalledWith('loading');
     expect(fixture.audio[0].play).not.toHaveBeenCalled(); expect(run.target.listeners.size).toBe(0);
     resolve(); await starting;
     expect(run.onPhase).toHaveBeenLastCalledWith('playing'); expect(fixture.audio[0].startedAt).toBe(5000);

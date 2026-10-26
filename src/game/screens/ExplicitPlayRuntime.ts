@@ -22,7 +22,7 @@ import { canFinishExplicitPlaySession, createExplicitPlayInput, drainExplicitPla
   finishExplicitPlaySession, stepExplicitPlaySession } from './explicitPlaySessionInput';
 import { EXPLICIT_MUSIC_PREPARATION_MS, explicitPreparationPosition, explicitResumeTarget } from './explicitPlayPreparation';
 
-export type ExplicitPlayPhase = 'preparing' | 'music-preparation' | 'playing' | 'paused' | 'finished' | 'error';
+export type ExplicitPlayPhase = 'loading' | 'music-preparation' | 'playing' | 'paused' | 'finished' | 'error';
 export interface ExplicitPlayRuntimeOptions {
   request: ExplicitPlayRequest;
   settings: GameSettings;
@@ -81,7 +81,7 @@ export class ExplicitPlayRuntime {
     if (this.closed || this.started) return;
     this.started = true;
     const { request, settings, canvas } = this.options;
-    this.options.onPhase('preparing');
+    this.options.onPhase('loading');
     try {
       this.audio = new AudioEngine();
       this.skin = new SkinManager();
