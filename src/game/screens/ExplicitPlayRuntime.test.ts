@@ -516,6 +516,20 @@ describe('명시 실제 재생 runtime', () => {
     expect(result.score).toMatchObject({ earnedScore: 0, processedNotes: 1, judgmentCounts: { perfect: 0 } });
   });
 
+  it('준비 중 KeyQ를 잡은 채 실제3040 KeyW down이 큐에 있고 timestamp2990 KeyQ up이 3045에 늦게 도착하면 KeyW down을 먼저 처리해 Point50을 Perfect로 친다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(1, 10) }];
+    const run = create(false, chart); await run.player.start();
+    wallFrame(1000); key(run.target, 'keydown', 'KeyQ'); wallFrame(3000);
+    fixture.now = 3040; key(run.target, 'keydown', 'KeyW');
+    fixture.now = 3045; key(run.target, 'keyup', 'KeyQ', 2990);
+    frame(100); frame(4200);
+    const result = run.onResult.mock.calls[0][0];
+    expect(run.onError).not.toHaveBeenCalled();
+    expect(result.score).toMatchObject({ earnedScore: 3, judgmentCounts: { perfect: 1, miss: 0 } });
+    expect(result.facts.filter(fact => fact.kind === 'input' && fact.accepted)).toMatchObject([{ key: 'KeyW', atMs: 40 }]);
+  });
+
   it('준비 종료 프레임이80ms 늦어도 실제3020ms down은 새 Point 입력이고 준비 중 down으로 버리지 않는다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(0) }];
