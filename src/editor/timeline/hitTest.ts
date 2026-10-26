@@ -6,7 +6,7 @@
  * All functions use raw (unsnapped) beat values for snap-independent detection.
  */
 
-import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
+import type { Chart, NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
 
 /** Tolerance for point note hit detection (in beats) */
@@ -14,6 +14,29 @@ const POINT_NOTE_TOLERANCE = 1 / 16;
 
 /** Tolerance for snap-position note detection (tighter, exact match) */
 export const SNAP_POSITION_TOLERANCE = 1 / 32;
+
+/** 롱노트 끝 캡 히트 영역(박) — 끝점(endBeat) ± 이 값 미만이면 끝 캡에 맞은 것으로 본다. */
+const NOTE_END_CAP_TOLERANCE = 1 / 16;
+
+/** beatFloat가 끝점 endBeatFloat의 끝 캡 히트 영역 안인가. */
+export function isWithinNoteEndCap(beatFloat: number, endBeatFloat: number): boolean {
+  return Math.abs(beatFloat - endBeatFloat) < NOTE_END_CAP_TOLERANCE;
+}
+
+/**
+ * 구간 이벤트 events[eventIndex]의 끝이 롱노트 notes[noteIndex]의 끝 캡 히트 영역 안인가(두 끝이 같은 위치).
+ * 어느 쪽이든 endBeat가 없거나 범위 밖이면 false. resolveGrab 끝 캡 게이트(eventEndMeetsNoteEnd)에 넣는 chart 사실.
+ */
+export function eventEndMeetsNoteEnd(
+  chart: Pick<Chart, "events" | "notes">,
+  eventIndex: number,
+  noteIndex: number,
+): boolean {
+  const evt = chart.events[eventIndex];
+  const note = chart.notes[noteIndex];
+  if (evt === undefined || !("endBeat" in evt) || note === undefined || !("endBeat" in note)) return false;
+  return isWithinNoteEndCap(evt.endBeat.n / evt.endBeat.d, note.endBeat.n / note.endBeat.d);
+}
 
 /** Highest z-order value — used for early exit in hit test */
 const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
