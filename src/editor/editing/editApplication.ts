@@ -2,8 +2,6 @@ import type { ChartDocument, Lane, DocumentNoteEntity, RangeNote } from "../../s
 import { beatEq } from "../../shared";
 import { bodyDeletionBlockReason } from './explicitEditing';
 
-const DEFAULT_POINT_TOLERANCE = 1 / 16;
-
 function beatFloatOf(beat: { n: number; d: number }): number {
   return beat.n / beat.d;
 }
@@ -81,35 +79,6 @@ export function deleteChartNotesAtIndices(chart: ChartDocument, indices: Readonl
     notes,
     trillZones,
   };
-}
-
-export function deleteChartNoteAtLaneBeat(
-  chart: ChartDocument,
-  input: {
-    /** 통합 lane — 메인 1..4, 보조 5+ 모두 이 한 경로로 삭제한다 (RFD 0018 ④d) */
-    lane: number;
-    beatFloat: number;
-    pointTolerance?: number;
-  },
-): ChartDocument | null {
-  const tolerance = input.pointTolerance ?? DEFAULT_POINT_TOLERANCE;
-
-  for (let i = 0; i < chart.notes.length; i++) {
-    const note = chart.notes[i];
-    if (note.lane !== input.lane) continue;
-
-    const startBeat = beatFloatOf(note.beat);
-    if ("endBeat" in note) {
-      const endBeat = beatFloatOf(note.endBeat);
-      if (input.beatFloat >= startBeat && input.beatFloat <= endBeat) {
-        return deleteChartNoteAtIndex(chart, i);
-      }
-    } else if (Math.abs(input.beatFloat - startBeat) < tolerance) {
-      return deleteChartNoteAtIndex(chart, i);
-    }
-  }
-
-  return null;
 }
 
 export function deleteEmptyTrillZoneAtIndex(

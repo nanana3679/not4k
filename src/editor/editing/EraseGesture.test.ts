@@ -99,3 +99,38 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
     expect(current().chart).toBe(initial);
   });
 });
+
+describe('우클릭 드래그 삭제 경로의 구형·보조 노트', () => {
+  it('1박 single은 1+1/32박에서 지우고 lane2 2～4박 long은 3박에서 같은 구간의 trillZone과 함께 지운다', () => {
+    const { erase } = setup(chart([
+      { type: 'single', lane: 1, beat: beat(1) },
+      { type: 'long', lane: 2, beat: beat(2), endBeat: beat(4) },
+    ], { trillZones: [{ lane: 2, beat: beat(2), endBeat: beat(4) }] }));
+    erase.begin(); erase.erase(1, 1 + 1 / 32); erase.erase(2, 3); erase.finish();
+
+    expect(notes()).toEqual([]);
+    expect(current().chart.trillZones).toEqual([]);
+  });
+
+  it('보조 lane5 long 바디 3박과 lane6 single 8박도 같은 erase 경로로 지운다', () => {
+    const { erase } = setup(chart([
+      { type: 'single', lane: 1, beat: beat(1) },
+      { type: 'long', lane: 5, beat: beat(2), endBeat: beat(4) },
+      { type: 'single', lane: 6, beat: beat(8) },
+    ]));
+    erase.begin(); erase.erase(5, 3); erase.erase(6, 8); erase.finish();
+
+    expect(notes().map(note => note.lane)).toEqual([1]);
+  });
+
+  it('0박 trill 헤드를 지목해도 같은 레인·박의 trillLong 바디와 함께 쌍소멸한다', () => {
+    const { erase } = setup(chart([
+      { type: 'trill', lane: 1, beat: beat(0) },
+      { type: 'trillLong', lane: 1, beat: beat(0), endBeat: beat(2) },
+      { type: 'single', lane: 2, beat: beat(0) },
+    ], { trillZones: [{ lane: 1, beat: beat(0), endBeat: beat(2) }] }));
+    erase.begin(); erase.erase(1, 0); erase.finish();
+
+    expect(notes().map(note => note.type)).toEqual(['single']);
+  });
+});
