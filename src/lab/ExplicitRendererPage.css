@@ -1,0 +1,13 @@
+.explicit-renderer-page { max-width: 1120px; margin: 0 auto; padding: 32px; color: #e7ebf3; background: #10131c; min-height: 100vh; font: 15px/1.6 system-ui, sans-serif; }
+.explicit-renderer-page a { color: #b7d9ff; }
+.explicit-renderer-page h1 { margin: 20px 0 8px; font-size: 28px; }
+.explicit-renderer-workbench { display: grid; grid-template-columns: minmax(0, 500px) minmax(260px, 1fr); gap: 32px; margin-top: 24px; align-items: start; }
+.explicit-renderer-stage { width: 100%; aspect-ratio: 5 / 6; background: #101520; }
+.explicit-renderer-stage canvas { width: 100%; display: block; }
+.explicit-renderer-page label { display: block; margin: 20px 0; }
+.explicit-renderer-page select, .explicit-renderer-page input { display: block; width: 100%; margin-top: 6px; }
+.explicit-renderer-page select, .explicit-renderer-page button { color: inherit; background: #252f43; border: 1px solid #6a7892; border-radius: 4px; padding: 8px; font: inherit; }
+.explicit-renderer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.explicit-renderer-page button { cursor: pointer; }
+.explicit-renderer-page pre { max-height: 400px; overflow: auto; font-size: 12px; }
+@media (max-width: 820px) { .explicit-renderer-page { padding: 20px; } .explicit-renderer-workbench { grid-template-columns: 1fr; } }

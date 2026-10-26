@@ -13,6 +13,7 @@ dist-lab/
 public/skins/*
 !public/skins/crystal/
 !public/skins/classic/
+!public/skins/classic-explicit/
 !public/skins/simple/
 __pycache__/
 *.pyc

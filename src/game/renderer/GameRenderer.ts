@@ -6,7 +6,11 @@
  */
 
 import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, type Texture, type TextureSource } from "pixi.js";
-import type { NoteEntity, TrillZone, RestZone, ChartEvent, ChartTiming } from "../../shared";
+import type { NoteEntity, TrillZone, RestZone, ChartEvent, ChartTiming, ChartDocument } from "../../shared";
+import type { ExplicitCompiledChart } from "../judgment/explicitCompiledChart";
+import type { ExplicitJudgmentSnapshot, ExplicitJudgmentDisplayState } from "../judgment/ExplicitJudgmentState";
+import type { ExplicitSkinLoader } from "../skin/ExplicitSkinLoader";
+import { ExplicitNoteRenderer } from "./ExplicitNoteRenderer";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
 import {
@@ -186,6 +190,7 @@ export class GameRenderer {
 
   // Chart data
   private noteRenderData: NoteRenderData[] = [];
+  private chartVisible = true;
   private trillZones: readonly TrillZone[] = [];
   // 휴지 구간(RFD 0019) — 저작 데이터. 레인 구간을 dim해 손 파킹 창을 안내한다.
   private restZones: readonly RestZone[] = [];
@@ -195,6 +200,7 @@ export class GameRenderer {
   private autoEvents: AutoEventRenderData[] = [];
   private chartDurationMs: number = 0;
   private flightAltitudeState: FlightAltitudeState = createFlightAltitudeState();
+  private readonly explicitFlightHistory: { songTimeMs: number; state: FlightAltitudeState }[] = [];
   /** Lab 미리보기가 고정한 고도(setAltitudeOverride). null이면 고도 모델을 따른다. */
   private altitudeOverride: number | null = null;
 
@@ -264,6 +270,9 @@ export class GameRenderer {
   // Sub-renderers
   private judgmentUI!: JudgmentUI;
   private noteRenderer!: GameNoteRenderer;
+  private explicitNoteRenderer: ExplicitNoteRenderer | null = null;
+  private explicitSnapshot: (() => ExplicitJudgmentSnapshot) | null = null;
+  private explicitTextures: readonly Texture[] = [];
 
   constructor(options: GameRendererOptions) {
     this.canvas = options.canvas;
@@ -634,6 +643,7 @@ export class GameRenderer {
       sources.add(texture.source);
     }
     for (const texture of this.gearTextures) sources.add(texture.source);
+    for (const texture of this.explicitTextures) sources.add(texture.source);
     for (const texture of this.gearMotionController?.textures ?? []) sources.add(texture.source);
     // Pixi의 Graphics.fill()이 그라데이션 텍스처를 동기로 만들므로(buildKeyBeams 안) init 뒤에는 이미 있다.
     if (this.keyBeamGradient?.texture) sources.add(this.keyBeamGradient.texture.source);
@@ -900,7 +910,10 @@ export class GameRenderer {
    * Lab 미리보기가 고정값을 걸었으면 그 값이다(고도 상태는 그래도 계속 나아간다). renderFrame이 프레임마다 한 번 부른다.
    */
   private advanceFlightAltitude(songTimeMs: number, deltaMs: number): number {
-    stepFlightAltitude(this.flightAltitudeState, deltaMs, this.flightAltitudeState);
+    // 명시 재개의 음악 준비는 복원한 고도도 정지한다. 기어 자체의 애니메이션은 계속된다.
+    if (!this.explicitNoteRenderer || this.chartVisible) {
+      stepFlightAltitude(this.flightAltitudeState, deltaMs, this.flightAltitudeState);
+    }
     if (this.altitudeOverride !== null) return this.altitudeOverride;
     return resolveFlightAltitude(this.flightAltitudeState, songTimeMs, this.chartDurationMs);
   }
@@ -918,12 +931,18 @@ export class GameRenderer {
     timing: ChartTiming,
     durationMs: number = 0,
   ): void {
+    this.explicitNoteRenderer?.dispose();
+    this.explicitNoteRenderer = null;
+    this.explicitSnapshot = null;
+    this.explicitTextures = [];
+    this.setChartVisible(true);
     this.timing = timing;
     this.trillZones = trillZones;
     this.restZones = restZones;
     this.chartDurationMs = Math.max(0, Number.isFinite(durationMs) ? durationMs : 0);
     this.flightBackground?.reset();
     this.flightAltitudeState = createFlightAltitudeState();
+    this.explicitFlightHistory.length = 0;
     // 차트를 (다시) 걸면(되감기·새 차트) 게이지는 이징 없이 새 고도로 바로 맞춘다.
     this.gearGauge?.snapNext();
 
@@ -974,6 +993,64 @@ export class GameRenderer {
     this.noteRenderer.setLongNoteConnections(connectedPredecessor, startMsByIndex, trillLongIndices);
   }
 
+  /** 명시 노트는 구형 NoteEntity로 넘기지 않는다. 공통 구간·기어만 빈 legacy 배치로 준비한다. */
+  setExplicitChart(
+    compiled: ExplicitCompiledChart,
+    textures: ExplicitSkinLoader,
+    snapshot: () => ExplicitJudgmentSnapshot,
+    document: Pick<ChartDocument, "trillZones" | "restZones" | "events">,
+    durationMs: number,
+  ): void {
+    const loaded = [...textures.getLoadedTextures().values()];
+    this.setChart([], document.trillZones.filter(zone => zone.lane >= 1 && zone.lane <= 4),
+      (document.restZones ?? []).filter(zone => zone.lane >= 1 && zone.lane <= 4), document.events, compiled.timing, durationMs);
+    this.explicitNoteRenderer = new ExplicitNoteRenderer(this.laneContentLayer, textures, this.explicitLayout());
+    this.explicitNoteRenderer.setChart(compiled);
+    this.explicitSnapshot = snapshot;
+    this.explicitTextures = loaded;
+  }
+
+  private explicitLayout() {
+    return { laneAreaX: this.laneAreaX, height: this.height, judgmentLineY: this._judgmentLineY, scrollSpeed: this._scrollSpeed };
+  }
+
+  /** 음악 준비 중에는 차트만 숨기고 기어·키 상태·설정은 유지한다. */
+  setChartVisible(visible: boolean): void {
+    this.chartVisible = visible;
+    for (const layer of [this.measureLineLayer, this.restZoneLayer, this.trillZoneLayer,
+      this.longNoteBodyLayer, this.longNoteEndLayer, this.longNoteHeadLayer, this.noteLayer,
+      this.judgmentLineGraphic]) layer.visible = visible;
+    if (this.explicitNoteRenderer) this.explicitNoteRenderer.root.visible = visible;
+    this.eventMessageText.visible = visible;
+  }
+
+  /** 같은 세션의 남은 바디 뷰만 바꾼다. 고도·기어·확정 효과는 초기화하지 않는다. */
+  setExplicitPlaybackChart(chart: ExplicitCompiledChart): void {
+    this.explicitNoteRenderer?.setChart(chart);
+  }
+
+  /** 시각 offset을 더하기 전 실제 곡 시각에, 이번 프레임까지 반영한 고도 상태를 보관한다. */
+  recordExplicitPlaybackPosition(songTimeMs: number): void {
+    this.explicitFlightHistory.push({ songTimeMs, state: { ...this.flightAltitudeState } });
+  }
+
+  /** 과거 프레임의 고도를 조용히 복원하며 폐기한 판정 글자·타격과 뒤쪽 이력은 지운다. */
+  restoreExplicitPlaybackState(songTimeMs: number, playbackRate: number, boundaryGrades: readonly JudgmentGrade[] = []): void {
+    while (this.explicitFlightHistory.length && this.explicitFlightHistory.at(-1)!.songTimeMs > songTimeMs) {
+      this.explicitFlightHistory.pop();
+    }
+    const prefix = this.explicitFlightHistory.at(-1);
+    this.flightAltitudeState = prefix ? { ...prefix.state } : createFlightAltitudeState();
+    if (prefix) stepFlightAltitude(this.flightAltitudeState,
+      (songTimeMs - prefix.songTimeMs) / playbackRate, this.flightAltitudeState);
+    // 복원 경계까지 새로 진행해 얻은 판정은 고도에만 반영하고 과거 표시 효과를 재생하지 않는다.
+    for (const grade of boundaryGrades) this.flightAltitudeState = applyFlightJudgment(this.flightAltitudeState, grade);
+    this.recordExplicitPlaybackPosition(songTimeMs);
+    this.resetTransientState();
+    this.flightBackground?.reset();
+    this.gearGauge?.snapNext();
+  }
+
   renderFrame(songTimeMs: number, deltaMs: number = 16): void {
     // 초기화가 끝나기 전(로딩 지연)이나 dispose 직후에 렌더가 들어오면 PIXI 내부 렌더러가
     // null이라 this.app.render()가 alphaMode를 null에서 읽어 크래시한다. 준비 전에는 조용히 건너뛴다.
@@ -999,6 +1076,11 @@ export class GameRenderer {
     this.longNoteHeadLayer.removeChildren();
     this.noteLayer.removeChildren();
 
+    if (!this.chartVisible) {
+      this.app.render();
+      return;
+    }
+
     const visibleWindowMs = (this.height / this._scrollSpeed) * 1000 + 500;
     const minTime = songTimeMs - this.lateNoteWindowMs();
     const maxTime = songTimeMs + visibleWindowMs;
@@ -1006,6 +1088,9 @@ export class GameRenderer {
     this.renderRestZones(songTimeMs);
     this.renderMeasureLines(songTimeMs);
     this.renderTrillZones(songTimeMs);
+    if (this.explicitNoteRenderer && this.explicitSnapshot) {
+      this.explicitNoteRenderer.render(this.explicitSnapshot(), songTimeMs);
+    }
 
     for (const data of this.noteRenderData) {
       const { entity, index, timeMs, endTimeMs } = data;
@@ -1148,6 +1233,10 @@ export class GameRenderer {
     this.judgmentUI.showJudgment(grade, deltaMs);
   }
 
+  showJudgmentGroup(state: ExplicitJudgmentDisplayState): void {
+    this.judgmentUI.showJudgmentGroup(state);
+  }
+
   /** 노트 판정 시 봄 이펙트 재생 */
   showBombEffect(lane: number): void {
     if (this.bombScale === 0) return;
@@ -1204,8 +1293,8 @@ export class GameRenderer {
     this.comboText.text = combo > 0 ? `${combo}` : "";
   }
 
-  updateAccuracy(rate: number): void {
-    this.accuracyText.text = `${rate.toFixed(2)}%`;
+  updateAccuracy(rate: number | null): void {
+    this.accuracyText.text = rate === null ? "" : `${rate.toFixed(2)}%`;
   }
 
   set scrollSpeed(value: number) {
@@ -1213,6 +1302,7 @@ export class GameRenderer {
     if (this.noteRenderer) {
       this.noteRenderer.setScrollSpeed(value);
     }
+    this.explicitNoteRenderer?.resize(this.explicitLayout());
   }
 
   get scrollSpeed(): number {
@@ -1283,6 +1373,7 @@ export class GameRenderer {
     this.accuracyText.y = this._judgmentLineY - ACCURACY_OFFSET;
     this.judgmentUI.setPosition(this._judgmentLineY);
     this.noteRenderer.setJudgmentLineY(this._judgmentLineY);
+    this.explicitNoteRenderer?.resize(this.explicitLayout());
   }
 
   setSudden(y: number): void {
@@ -1348,6 +1439,10 @@ export class GameRenderer {
     this.gearGauge?.destroy();
     this.gearGauge = null;
     this.gearTextures = [];
+    this.explicitNoteRenderer?.dispose();
+    this.explicitNoteRenderer = null;
+    this.explicitSnapshot = null;
+    this.explicitTextures = [];
     this.noteRenderer.dispose();
     // Boolean true also clears Pixi's global pools in v8. Other tutorial
     // slots still own pooled text textures and bounds, so release only this app.

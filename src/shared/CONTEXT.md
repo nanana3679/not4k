@@ -2,7 +2,7 @@
 
 `ChartDocument`는 구형·명시 항목을 보존하는 저장·편집 문서다. 풀 정의는 [glossary](../../docs/context/glossary.md#chartdocument), 필드와 저장 버전은 [차트 문서 포맷](../../docs/spec/chart-format.md)을 따른다.
 
-현재 구현 단계: 공용 문서와 명시 판정 코어·세션·정산·이력 복원을 구현했다. 현재 일반 화면은 구형 경로를 유지한다.
+현재 구현 단계: 명시 판정·공용 문서·새 스킨·공개 상태 표시를 구현했다. 에디터 제작과 실제 재생 연결은 다음 단계다.
 
 Shared chart model 컨텍스트는 게임 클라이언트와 차트 편집기가 공유하는 차트 언어를 다룬다.
 개별 노트 타입과 피스의 의미는 루트 `CONTEXT.md`의 Core domain을 따른다.
