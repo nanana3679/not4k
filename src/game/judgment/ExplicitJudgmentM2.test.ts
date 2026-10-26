@@ -566,3 +566,34 @@ describe("연결 바디 실패 전파", () => {
     expect(session.score.judgmentCounts.miss).toBe(1);
   }, 20000);
 });
+
+describe("이른 완료 창 E−Good 직전의 hold 부족과 유지 유예", () => {
+  it("바디1000～2000·릴리즈2000에서 A down1000·up1875는 유예 끝1895가 이른 완료 창(1880～) 안이어도 1895 유지 실패 Miss이고 릴리즈는 종속0", () => {
+    const session = makeSession([b(1000, 2000), r(2000)]);
+    session.processBatch(1000, [down()]);
+    session.processBatch(1875, [up()]);
+    session.advance(1896);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1895, completedAtMs: null });
+    expect(session.facts.filter(fact => fact.kind === "bodyFailed")).toMatchObject([{ reason: "maintenance", unscoredMiss: true, atMs: 1895 }]);
+    expect(settlements(session)).toMatchObject([{ itemKind: "release", outcome: "dependentZero", atMs: 1895 }]);
+    expect(session.finalize().score).toMatchObject({ earnedScore: 0, totalNotes: 1, judgmentCounts: { miss: 1 } });
+  });
+
+  it("릴리즈 없는 바디1000～2000에서 A down1000·up1875는 이른 완료가 아니라 1895 유지 실패 Miss 하나", () => {
+    const session = makeSession([b(1000, 2000)]);
+    session.processBatch(1000, [down()]);
+    session.processBatch(1875, [up()]);
+    const result = session.finalize();
+    expect(result.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1895, completedAtMs: null });
+    expect(result.score).toMatchObject({ totalNotes: 0, judgmentCounts: { miss: 1 } });
+  });
+
+  it("바디1000～2000·릴리즈2000에서 A up1880은 이른 완료 창 경계 안이라 1880에 정상 완료하고 릴리즈 Good", () => {
+    const session = makeSession([b(1000, 2000), r(2000)]);
+    session.processBatch(1000, [down()]);
+    session.processBatch(1880, [up()]);
+    const result = session.finalize();
+    expect(result.snapshot.bodyUnits[0]).toMatchObject({ state: "complete", completedAtMs: 1880, failedAtMs: null });
+    expect(result.score).toMatchObject({ earnedScore: 1, judgmentCounts: { good: 1, miss: 0 } });
+  });
+});
