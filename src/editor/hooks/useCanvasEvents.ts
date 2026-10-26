@@ -116,6 +116,9 @@ export function useCanvasEvents(
   const touchMultiSelectRef = useRef(false);
   const touchTapToggleRef = useRef<TouchTapToggleCandidate | null>(null);
   const suppressContextMenuUntilRef = useRef(0);
+  // 한 손가락 터치 누름과 그 시작 때 SelectMode가 센 끊긴 드래그 수. 누르는 동안 수가 늘면
+  // Undo·모드 전환 같은 독립 명령이 이 누름의 드래그를 끊은 것이다(onInterrupt).
+  const touchContactRef = useRef<{ pointerId: number; interruptedDragCount: number } | null>(null);
 
   const clearHoldTimer = useCallback(() => {
     if (holdTimerRef.current !== null) {
@@ -142,6 +145,13 @@ export function useCanvasEvents(
   const clearTouchEmptySelectCandidate = useCallback(() => {
     touchEmptySelectCandidateRef.current = null;
   }, []);
+
+  // 끊긴 누름은 손을 뗄 때까지 남은 후보(지연 박스·탭 토글·롱프레스)로 새 편집을 다시 열지 않는다.
+  const isTouchContactInterrupted = useCallback((pointerId: number) => {
+    const contact = touchContactRef.current;
+    return contact !== null && contact.pointerId === pointerId
+      && (selectModeRef.current?.interruptedDragCount ?? 0) !== contact.interruptedDragCount;
+  }, [selectModeRef]);
 
   // Delete 모드 터치 삭제. 노트가 없으면 빈 trillZone·restZone을 같은 transaction에서 지운다.
   const deleteAtPoint = useCallback((x: number, y: number) => {
@@ -244,6 +254,7 @@ export function useCanvasEvents(
     eraseGestureRef.current.finish();
     touchEmptySelectCandidateRef.current = null;
     touchTapToggleRef.current = null;
+    touchContactRef.current = null;
     createModeRef.current?.cancelDrag();
     // 발화했을 수 있는 select 드래그(이동/리사이즈/박스)도 폐기하고 프리뷰를 걷는다.
     const selectResult = selectModeRef.current?.cancel();
@@ -355,6 +366,10 @@ export function useCanvasEvents(
         handleEditCancel();
         return;
       }
+      touchContactRef.current = {
+        pointerId: e.pointerId,
+        interruptedDragCount: selectModeRef.current?.interruptedDragCount ?? 0,
+      };
     }
 
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -515,6 +530,13 @@ export function useCanvasEvents(
 
     if (e.pointerType === 'touch' && recognizerRef.current.activeTouchCount >= 2) {
       routeViewportGestures(navGestures, rect);
+      return;
+    }
+
+    if (e.pointerType === 'touch' && isTouchContactInterrupted(e.pointerId)) {
+      clearHoldTimer();
+      touchEmptySelectCandidateRef.current = null;
+      touchTapToggleRef.current = null;
       return;
     }
 
@@ -747,7 +769,7 @@ export function useCanvasEvents(
     toSample, updateTouchMovement,
     routeViewportGestures, canvasRef, createModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
-    selectModeRef, deleteAtPoint,
+    selectModeRef, deleteAtPoint, clearHoldTimer, isTouchContactInterrupted,
     onNavigationInteraction, applyEditResult,
   ]);
 
@@ -758,6 +780,7 @@ export function useCanvasEvents(
     let holdMoved = false;
     let holdDown: { x: number; y: number } | null = null; // 있으면 = 이 pointer에 hold가 있었음
     let touchEmptySelectCandidate: TouchEmptySelectCandidate | null = null;
+    let interruptedTouchContact = false;
     if (e.pointerType === 'touch') {
       e.preventDefault();
       updateTouchMovement(e);
@@ -776,6 +799,8 @@ export function useCanvasEvents(
         touchEmptySelectCandidate = pendingEmptySelect;
         touchEmptySelectCandidateRef.current = null;
       }
+      interruptedTouchContact = isTouchContactInterrupted(e.pointerId);
+      if (touchContactRef.current?.pointerId === e.pointerId) touchContactRef.current = null;
     }
 
     rendererRef.current?.handleMinimapPointerUp();
@@ -786,6 +811,18 @@ export function useCanvasEvents(
     }
 
     if (wasPinching) {
+      return;
+    }
+
+    // 끊긴 누름의 up은 지연 박스 재생·탭 토글을 하지 않는다. 다중선택 래치만 남은 선택에 맞춘다.
+    if (interruptedTouchContact) {
+      if (touchTapToggleRef.current?.pointerId === e.pointerId) touchTapToggleRef.current = null;
+      const sel = useEditorStore.getState().selection;
+      touchMultiSelectRef.current = nextTouchMultiSelectLatch(
+        touchMultiSelectRef.current,
+        sel.notes.size + sel.zones.size + sel.restZones.size,
+      );
+      rendererRef.current?.hideGhostNote();
       return;
     }
 
@@ -891,7 +928,7 @@ export function useCanvasEvents(
   }, [
     mode, entityType, isTimeInBounds, toSample, clearHoldTimer,
     updateTouchMovement, canvasRef, createModeRef, deleteModeRef, isDraggingCursorRef,
-    deleteAtPoint, rendererRef, selectModeRef, applyEditResult,
+    deleteAtPoint, rendererRef, selectModeRef, applyEditResult, isTouchContactInterrupted,
   ]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -903,6 +940,7 @@ export function useCanvasEvents(
       clearHoldTimer();
       clearTouchEmptySelectCandidate();
       touchTapToggleRef.current = null;
+      if (touchContactRef.current?.pointerId === e.pointerId) touchContactRef.current = null;
     }
     rendererRef.current?.handleMinimapPointerUp();
     rendererRef.current?.clearMoveOrigins();

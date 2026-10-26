@@ -91,6 +91,7 @@ export class SelectMode implements EditorMode {
   private resizingOriginalBeat: Beat | null = null;
   private resizeOriginalNotes: DocumentNoteEntity[] | null = null;
   private transactionToken: symbol | null = null;
+  private _interruptedDragCount = 0;
   private originalSustainCountByNoteIndex = new Map<number, 1 | 2>();
 
   // Clipboard & paste state
@@ -346,7 +347,18 @@ export class SelectMode implements EditorMode {
   private settleInterruptedInteraction(): void {
     this.transactionToken = null;
     this.clipboardManager.settlePaste();
-    if (this.dragType === "move" || this.dragType === "resize") this.endDragWithoutWrite();
+    if (this.dragType === "move" || this.dragType === "resize") {
+      this.endDragWithoutWrite();
+      this._interruptedDragCount += 1;
+    }
+  }
+
+  /**
+   * 독립 명령이 끊은 이동·리사이즈 드래그 수. 캔버스 입력은 누름 시작 때 값과 비교해, 같은
+   * 누름이 남은 후보로 새 드래그를 다시 열지 않게 한다.
+   */
+  get interruptedDragCount(): number {
+    return this._interruptedDragCount;
   }
 
   /** 드래그 상태만 비운다. 차트 쓰기·transaction 종료는 호출자가 이미 끝냈다. */

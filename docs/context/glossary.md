@@ -912,7 +912,7 @@ Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 
 
 **축소 커밋과 선택**: 노트·구간 개수가 줄어드는 커밋은 같은 트랜잭션에서 선택을 **엔티티 identity로 재매핑**한다 — 남은 엔티티는 새 인덱스로 계속 선택되고 지워진 엔티티만 빠진다. 인덱스 밀림으로 엉뚱한 엔티티가 선택되는 것을 막으면서, 선택된 바디 우클릭처럼 일부만 지우는 삭제가 다른 선택을 잃지 않게 한다. 개수가 줄지 않는 커밋은 재정규화만 한다.
 
-**편집 transaction**: 붙여넣기 대기·이동 드래그·끝점 리사이즈·우클릭 드래그 삭제처럼 한 조작의 여러 쓰기는 `beginEditTransaction`이 준 token을 달고 history를 쌓지 않다가, 소유자가 확정하면 Undo 한 단위로 기록하고 취소하면 시작 전 차트·선택으로 돌린다. token 없는 쓰기·모드 전환·Undo/Redo·로드 같은 독립 명령은 열린 transaction을 먼저 확정하고 소유자에게 `onInterrupt`로 알린다. 소유자(`SelectMode`·`EraseGesture`)는 그때 진행 중 조작을 끝내 옛 token으로 쓰지 않는다. Undo 가능 여부(`selectCanUndo`)는 아직 history에 들어가지 않은 transaction 변경도 셈한다.
+**편집 transaction**: 붙여넣기 대기·이동 드래그·끝점 리사이즈·우클릭 드래그 삭제처럼 한 조작의 여러 쓰기는 `beginEditTransaction`이 준 token을 달고 history를 쌓지 않다가, 소유자가 확정하면 Undo 한 단위로 기록하고 취소하면 시작 전 차트·선택으로 돌린다. token 없는 쓰기·모드 전환·Undo/Redo·로드 같은 독립 명령은 열린 transaction을 먼저 확정하고 소유자에게 `onInterrupt`로 알린다. 소유자(`SelectMode`·`EraseGesture`)는 그때 진행 중 조작을 끝내 옛 token으로 쓰지 않는다. 끊긴 조작의 마우스·터치 누름은 손을 뗄 때까지 같은 누름으로 새 조작을 다시 열지 않는다(터치의 지연 박스·탭 토글·롱프레스 후보 포함). Undo 가능 여부(`selectCanUndo`)는 아직 history에 들어가지 않은 transaction 변경도 셈한다.
 
 **`loadChart`**: 레거시/외부 위반 차트를 구조·의미 모두 열어 수리를 허용한다(경고만). 재저장은 저장 게이트가 차단하므로 위반 상태가 저장·전파되지는 않는다 — "열 수는 있되, 다 고쳐야 저장할 수 있다".
 

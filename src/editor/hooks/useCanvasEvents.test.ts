@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beat } from '../../shared';
+import { beat, beatToFloat } from '../../shared';
 import type { ChartDocument, DocumentNoteEntity } from '../../shared';
 import { useEditorStore } from '../stores/editorStore';
 import type { EditorModeName } from '../stores/editorStore';
@@ -32,6 +32,13 @@ const chart = (source: DocumentNoteEntity[], extra: Partial<ChartDocument> = {})
   events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) }],
   ...extra,
 });
+
+const bodyWithEndRelease = (): DocumentNoteEntity[] => [
+  { type: 'body', lane: 1, beat: beat(1), endBeat: beat(5), holdCount: 1 },
+  { type: 'point', kind: 'single', lane: 1, beat: beat(1) },
+  { type: 'release', lane: 1, beat: beat(5), count: 1 },
+];
+const bodyEnd = () => beatToFloat((notes()[0] as Extract<DocumentNoteEntity, { type: 'body' }>).endBeat);
 
 type PointerInit = { pointerType?: 'touch' | 'mouse'; button?: number; buttons?: number; pointerId?: number; x?: number };
 const pointer = (y: number, init: PointerInit = {}) => ({
@@ -87,12 +94,12 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
   });
   const ref = <T,>(value: T) => ({ current: value });
   const canvas = { style: {}, getBoundingClientRect: () => ({ left: 0, top: 0 }), setPointerCapture: () => {} } as unknown as HTMLCanvasElement;
-  let handlers: CanvasEventHandlers | undefined;
-  function CanvasEventsProbe() {
-    handlers = useCanvasEvents(ref(canvas), ref(null), ref(null), ref(createMode), ref(selectMode), ref(deleteMode), ref(false), space, () => true);
+  function CanvasEventsProbe({ onRender }: { onRender: (handlers: CanvasEventHandlers) => void }) {
+    onRender(useCanvasEvents(ref(canvas), ref(null), ref(null), ref(createMode), ref(selectMode), ref(deleteMode), ref(false), space, () => true));
     return null;
   }
-  renderToStaticMarkup(createElement(CanvasEventsProbe));
+  let handlers: CanvasEventHandlers | undefined;
+  renderToStaticMarkup(createElement(CanvasEventsProbe, { onRender: rendered => { handlers = rendered; } }));
   return { handlers: handlers!, createMode, selectMode, deleteMode };
 }
 
@@ -110,5 +117,55 @@ describe('우클릭 삭제', () => {
     expect(current().historyPast).toHaveLength(2);
     current().undo();
     expect(notes().map(note => note.beat)).toEqual([beat(1), beat(4)]);
+  });
+});
+
+describe('독립 명령이 끊은 터치 조작', () => {
+  it('바디 끝 핸들을 터치로 5박에서 6박까지 끄는 중 Undo하면 같은 손가락을 7박까지 움직였다 떼도 다시 리사이즈하지 않고 Redo를 남긴다', () => {
+    const { handlers } = setup(chart(bodyWithEndRelease()), 'select');
+    handlers.handlePointerDown(pointer(2550));
+    handlers.handlePointerMove(pointer(3000));
+    expect(bodyEnd()).toBe(6);
+
+    current().undo();
+    expect(bodyEnd()).toBe(5);
+    handlers.handlePointerMove(pointer(3500));
+
+    expect(bodyEnd()).toBe(5);
+    expect(current().editTransaction).toBeNull();
+    handlers.handlePointerUp(pointer(3500));
+    expect(bodyEnd()).toBe(5);
+    expect(current().historyFuture).toHaveLength(1);
+  });
+
+  it('Undo로 끊긴 터치를 뗀 뒤 새 터치로 5.1박 끝 핸들을 6박까지 끌면 다시 리사이즈한다', () => {
+    const { handlers } = setup(chart(bodyWithEndRelease()), 'select');
+    handlers.handlePointerDown(pointer(2550));
+    handlers.handlePointerMove(pointer(3000));
+    current().undo();
+    handlers.handlePointerUp(pointer(3000));
+
+    handlers.handlePointerDown(pointer(2550, { pointerId: 2 }));
+    handlers.handlePointerMove(pointer(3000, { pointerId: 2 }));
+    handlers.handlePointerUp(pointer(3000, { pointerId: 2 }));
+
+    expect(bodyEnd()).toBe(6);
+  });
+
+  it('롱프레스로 시작한 바디 끝 리사이즈를 모드 전환이 끊으면 같은 손가락 이동은 Select 모드로 돌아와도 리사이즈를 다시 열지 않는다', () => {
+    const { handlers } = setup(chart(bodyWithEndRelease()), 'select');
+    handlers.handlePointerDown(pointer(2550));
+    vi.advanceTimersByTime(450);
+    handlers.handlePointerMove(pointer(3000));
+    expect(bodyEnd()).toBe(6);
+
+    current().setMode('create');
+    current().setMode('select');
+    handlers.handlePointerMove(pointer(3500));
+    handlers.handlePointerUp(pointer(3500));
+
+    expect(bodyEnd()).toBe(6);
+    expect(current().editTransaction).toBeNull();
+    expect(current().historyPast).toHaveLength(1);
   });
 });
