@@ -1,0 +1,7 @@
+{
+  "sourceSize": [2048, 683],
+  "crop": [0, 137, 2048, 410],
+  "beamCenters": [84, 116],
+  "hotspotY": 33,
+  "patchBounds2x": [130, 52, 140, 25]
+}

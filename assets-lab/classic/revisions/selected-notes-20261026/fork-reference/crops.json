@@ -1,0 +1,4 @@
+{
+  "single": { "sourceSize": [2048, 683], "crop": [0, 130, 2048, 410], "offsetX": 2 },
+  "double": { "sourceSize": [2048, 683], "crop": [0, 124, 2048, 410], "offsetX": 5 }
+}

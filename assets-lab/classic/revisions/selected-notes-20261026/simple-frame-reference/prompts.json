@@ -1,0 +1,31 @@
+{
+  "tool": "image_gen.imagegen",
+  "steps": [
+    {
+      "output": "single-shape.png",
+      "inputs": [
+        "assets/release-single-horizontal-junctions@2x.png",
+        "assets/note-single.png",
+        "assets/body-single.png"
+      ],
+      "prompt": "Use case: precise-object-edit.\nAsset: rhythm-game release note, a wide 5:1 rectangle.\nImage 1 is the current release-note edit target. Image 2 is the matching ordinary note. Image 3 is the hold-body material reference.\nThe release is visually overcomplicated compared with the other two. Redesign the release as a much simpler member of the SAME asset family. Keep the original saturated blue palette, brightness, overall rectangular width and height, and calm flat illustrated material.\nBorrow the ordinary note's broad uninterrupted face and restrained straight edge strips. Let the body reference inform the simple large color planes. Remove the central shield/U-shaped inset, the branching diagonal joins, tiny triangular facets, multiple raised frames and separate floating side light bars. The result should read as one flat horizontal panel with minimal end details, not an elaborate sci-fi badge. Do not darken the whole asset, and do not copy the body's central black channel. Keep enough subdued material shading to avoid a featureless solid fill.\nThere is one hold beam terminating below the center: retain ONE small, restrained light accent at exactly 50% width on the lower straight edge. No glow outside the silhouette.\nIMPORTANT: leave the central face BLANK with no arrows/icons/text. The exact approved release icon will be composited later. No new symbols.\nDeliver one clean sprite only: identical 5:1 footprint, straight top and bottom, normal-note height, no mockup, no labels, no scene, transparent background."
+    },
+    {
+      "output": "single.png",
+      "inputs": [
+        "simple-frame-reference/single-shape.png",
+        "assets/release-single-horizontal-junctions@2x.png"
+      ],
+      "prompt": "Use case: precise-object-edit.\nImage 1 is the edit target, a simplified blue release-note panel. Image 2 is the approved release COLOR reference only.\nKeep image 1's simple rectangular design and framing. Change ONLY the colors/material intensity of its broad central face and overly pale bevels: it became too white and looks like an ordinary note. The central face must be the saturated MEDIUM BLUE of image 2 (roughly #087bd0), with gentle flat shading, not pale ice blue or white. Keep white/cyan confined to narrow edge accents and the one small central beam-ending light on the bottom edge. Do not darken to navy. Do not add decorations, diagonal joins, shield/U shapes, text, or arrows. Preserve the single wide flat face and restrained end strips. No glow outside the silhouette. Transparent background, identical framing."
+    },
+    {
+      "output": "double.png",
+      "inputs": [
+        "simple-frame-reference/single.png",
+        "assets/release-double-horizontal-junctions@2x.png",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "prompt": "Use case: precise-object-edit.\nImage 1 is the exact blue simplified release-panel design to edit. Image 2 is the approved GOLD release palette/beam-ending reference. Image 3 is the matching gold body material reference.\nCreate the gold DOUBLE counterpart of image 1. Keep exactly the same simple flat panel geometry, end strips, straight edges, shading structure, aspect and framing. Convert blue to the saturated medium GOLD of image 2 (not pale cream, bronze, dark brown, or orange). Avoid adding any internal shield, diagonal joins, triangular facets, extra frames, or ornament. This should be the same restrained family as the point and body.\nReplace the single lower central light accent with TWO small, equally bright beam-ending accents at exactly 42% and 58% of the panel width. No bright central hotspot at 50%. Keep the thin lower straight edge between them. No glow outside the silhouette.\nLeave the central panel BLANK: no arrows/icons/text. Exact approved icons will be composited later.\nOutput one full sprite only, same framing and transparent background."
+    }
+  ]
+}

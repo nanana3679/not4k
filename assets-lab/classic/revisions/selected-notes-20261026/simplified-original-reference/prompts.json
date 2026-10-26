@@ -1,0 +1,20 @@
+{
+  "tool": "image_gen.imagegen",
+  "steps": [
+    {
+      "output": "single.png",
+      "inputs": [
+        "assets/release-single-horizontal-junctions@2x.png"
+      ],
+      "prompt": "Use case: precise-object-edit.\nEdit target: the attached ORIGINAL blue rhythm-game release note.\nTask: simplify this existing design with minimal structural change. It must remain recognizably this exact note, NOT become a generic rectangular panel.\nLOCK the outer 5:1 rectangular footprint, the central downward-tapering trapezoid/U-shaped face and its sloping sides, its low luminous U-shaped rim, centered three upward chevrons, and single beam-ending hotspot at the bottom center. Keep the same blue palette and average brightness.\nOnly simplify the LEFT and RIGHT wings outside that central trapezoid: remove their bright horizontal white bars and the small diagonal seams that divide each wing into tiny triangular/stepped surfaces. Make each wing a calm broad blue surface with restrained flat shading, still fitting tightly around the original sloped center face. Remove tiny beveled trim and stacked light accents from those wings. Keep the existing straight top/bottom boundaries and crisp rectangular outline.\nThe result should read as the ORIGINAL release with fewer peripheral pieces; preserve its identifying central geometry. No new side clips, end caps, vertical stripes, decoration or replacement silhouette. Do not redesign the center.\nOne sprite only, same 5:1 proportions, centered and fully visible, no text/labels/mockup. Transparent background; no external glow."
+    },
+    {
+      "output": "double.png",
+      "inputs": [
+        "assets/release-double-horizontal-junctions@2x.png",
+        "simplified-original-reference/single.png"
+      ],
+      "prompt": "Use case: precise-object-edit.\nImage 1 is the ORIGINAL gold double release note to edit. Image 2 is the minimally simplified BLUE single counterpart, showing the desired simpler side wings.\nSimplify image 1 in exactly the same way: remove ONLY the left/right wings' horizontal white light bars and tiny triangular/stepped facet seams, leaving each wing a broad calm gold surface with restrained flat shading. Do not replace it with a plain rectangular note or add side end caps/stripes.\nLOCK the original image 1's rectangular 5:1 footprint, central downward-tapering trapezoid/U-shaped face, sloping sides and low U-shaped luminous rim. Keep the original gold brightness/palette and central design. Keep TWO triple upward-chevron stacks centered at 42% and 58% width, and TWO distinct lower-rim hotspots at those same beam centers. No central hotspot at 50%.\nThe original release identity must remain intact; only remove peripheral visual complexity. No extra seams, decorations, glow outside the outline, or new shape. One full sprite, straight top/bottom, exact 5:1 proportions. Transparent background, no labels/mockup/text."
+    }
+  ]
+}

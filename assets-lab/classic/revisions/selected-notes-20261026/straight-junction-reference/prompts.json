@@ -1,0 +1,21 @@
+{
+  "tool": "image_gen.imagegen",
+  "targetCrop2x": [
+    80,
+    20,
+    50,
+    50
+  ],
+  "targetOutputSize": [
+    512,
+    512
+  ],
+  "inputs": [
+    "{kind}-original.png: edit target; straight original geometry",
+    "{kind}-previous.png: topology only, distorted geometry"
+  ],
+  "prompts": {
+    "single": "Use case: precise-object-edit.\nInput image 1 is the ORIGINAL undeformed sprite crop and is the edit target. Image 2 is the PREVIOUS ATTEMPT: the three-face vertex topology is correct but surrounding surfaces are warped and pinched. Use image 2 ONLY to understand the three-plane vertex, never copy its deformed geometry.\n\nModify image 1 locally so FRONT, TOP, and SIDE surfaces meet at one clean vertex. The horizontal seam at left must end at its ORIGINAL position. From that vertex, one short straight edge rises to meet the diagonal inner rim, and the existing straight lower diagonal edge continues downward. Remove the obsolete upper-left diagonal seam so exactly three boundaries meet, with no X crossing.\n\nCRITICAL: preserve image 1's spatial geometry. Keep the long bright diagonal rim completely STRAIGHT, at exactly its original position, angle, and uniform width. Keep the long dark lower diagonal edge straight and aligned with its original position. Keep the upper horizontal white strip perfectly straight, with its original width, height and termination. Do NOT shift the vertex sideways. All three surrounding faces are FLAT PLANES: no bulging, concave dents, squeezed triangular pockets, curved transitions, dents, black smears, or soft melt. Join the short new edge cleanly to the straight inner rim without bending the rim or creating a luminous knot.\nMatch the original flat cel-shaded material and restrained illumination; no new strong glow. Maintain uniform surface gradients and crisp linear boundaries. Output the same exact crop and framing as image 1. No labels or annotation.\nKeep the blue color.",
+    "double": "Use case: precise-object-edit.\nInput image 1 is the ORIGINAL undeformed sprite crop and is the edit target. Image 2 is the PREVIOUS ATTEMPT: the three-face vertex topology is correct but surrounding surfaces are warped and pinched. Use image 2 ONLY to understand the three-plane vertex, never copy its deformed geometry.\n\nModify image 1 locally so FRONT, TOP, and SIDE surfaces meet at one clean vertex. The horizontal seam at left must end at its ORIGINAL position. From that vertex, one short straight edge rises to meet the diagonal inner rim, and the existing straight lower diagonal edge continues downward. Remove the obsolete upper-left diagonal seam so exactly three boundaries meet, with no X crossing.\n\nCRITICAL: preserve image 1's spatial geometry. Keep the long bright diagonal rim completely STRAIGHT, at exactly its original position, angle, and uniform width. Keep the long dark lower diagonal edge straight and aligned with its original position. Keep the upper horizontal white strip perfectly straight, with its original width, height and termination. Do NOT shift the vertex sideways. All three surrounding faces are FLAT PLANES: no bulging, concave dents, squeezed triangular pockets, curved transitions, dents, black smears, or soft melt. Join the short new edge cleanly to the straight inner rim without bending the rim or creating a luminous knot.\nMatch the original flat cel-shaded material and restrained illumination; no new strong glow. Maintain uniform surface gradients and crisp linear boundaries. Output the same exact crop and framing as image 1. No labels or annotation.\nKeep the gold color."
+  }
+}

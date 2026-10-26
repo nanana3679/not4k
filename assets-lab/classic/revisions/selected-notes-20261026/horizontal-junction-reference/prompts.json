@@ -1,0 +1,17 @@
+{
+  "tool": "image_gen.imagegen",
+  "targetCrop2x": [
+    80,
+    20,
+    50,
+    50
+  ],
+  "inputs": {
+    "single": "../straight-junction-reference/single-original.png",
+    "double": "../straight-junction-reference/double-original.png"
+  },
+  "prompts": {
+    "single": "Use case: precise-object-edit.\nEdit this cropped rhythm-game sprite corner. Simplify the LOWER seam into one STRAIGHT HORIZONTAL line.\nThe thin horizontal divider currently enters from the left at about y=270 in this 512x512 crop, then stops at the dark diagonal edge around x=175. Extend that divider horizontally, at exactly the same y, across the narrow side strip until it meets the long bright inner diagonal rim around x=300. It should read as a calm continuous \"ㅡ\" connection, with NO upward diagonal spur, V, chevron, fork, point, or zigzag at this junction.\nRemove the obsolete upper-left dark seam between the upper light bar and this lower divider, merging that upper area into one flat plane. Keep the existing lower dark diagonal edge below the divider and the straight bright inner rim at their exact original positions. The difference between the top and lower face should come from subtle flat shading, not an extra glowing edge or triangular bevel.\nKeep the upper white bar, main diagonal light rim, colors, surface widths, all surrounding geometry and crop framing unchanged. No bending, warping, dents, bulges, new highlight blobs, or heavy glow. Same blue/gold palette and restrained material. Output only the edited crop, same framing.\nKeep the existing blue color.",
+    "double": "Use case: precise-object-edit.\nEdit this cropped rhythm-game sprite corner. Simplify the LOWER seam into one STRAIGHT HORIZONTAL line.\nThe thin horizontal divider currently enters from the left at about y=270 in this 512x512 crop, then stops at the dark diagonal edge around x=175. Extend that divider horizontally, at exactly the same y, across the narrow side strip until it meets the long bright inner diagonal rim around x=300. It should read as a calm continuous \"ㅡ\" connection, with NO upward diagonal spur, V, chevron, fork, point, or zigzag at this junction.\nRemove the obsolete upper-left dark seam between the upper light bar and this lower divider, merging that upper area into one flat plane. Keep the existing lower dark diagonal edge below the divider and the straight bright inner rim at their exact original positions. The difference between the top and lower face should come from subtle flat shading, not an extra glowing edge or triangular bevel.\nKeep the upper white bar, main diagonal light rim, colors, surface widths, all surrounding geometry and crop framing unchanged. No bending, warping, dents, bulges, new highlight blobs, or heavy glow. Same blue/gold palette and restrained material. Output only the edited crop, same framing.\nKeep the existing gold color."
+  }
+}

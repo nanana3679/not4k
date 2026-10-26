@@ -1,0 +1,22 @@
+{
+  "tool": "image_gen.imagegen",
+  "targets": {
+    "single": "single-target.png",
+    "double": "double-target.png"
+  },
+  "targetCrop2x": [
+    80,
+    20,
+    50,
+    50
+  ],
+  "targetOutputSize": [
+    512,
+    512
+  ],
+  "note": "앞면·윗면·옆면 세 면의 경계가 한 꼭짓점에서 만나도록 기존 위·바깥쪽 사선을 제거.",
+  "prompts": {
+    "single": "Use case: precise-object-edit.\nThis is a magnified crop of a game sprite. ERASE ONE LINE. The unwanted dark diagonal goes from approximately (105,130) down-right to the junction at (193,275) in this 512x512 crop. It also has a thin bright fringe on its left. Erase BOTH the entire black stroke and its bright fringe along this segment. Fill over them with the surrounding side-panel color, making the area on both sides of that obsolete line one continuous uninterrupted face.\nKeep the horizontal seam from the left edge to (193,275), the new short diagonal rising from (193,275) to approximately (285,200), and the existing dark diagonal BELOW (193,275). Keep the main broad glowing diagonal rim at the right.\nThe unwanted upper-left diagonal must be COMPLETELY GONE. The former small triangular face above the junction must merge with the face to its left. No X, no fourth branch.\nSame exact crop, framing, shapes and palette everywhere else. Do not sharpen, enlarge, reframe or redesign. No text or marks. Output the edited crop only.\nMaintain the existing blue color.",
+    "double": "Use case: precise-object-edit.\nThis is a magnified crop of a game sprite. ERASE ONE LINE. The unwanted dark diagonal goes from approximately (105,130) down-right to the junction at (193,275) in this 512x512 crop. It also has a thin bright fringe on its left. Erase BOTH the entire black stroke and its bright fringe along this segment. Fill over them with the surrounding side-panel color, making the area on both sides of that obsolete line one continuous uninterrupted face.\nKeep the horizontal seam from the left edge to (193,275), the new short diagonal rising from (193,275) to approximately (285,200), and the existing dark diagonal BELOW (193,275). Keep the main broad glowing diagonal rim at the right.\nThe unwanted upper-left diagonal must be COMPLETELY GONE. The former small triangular face above the junction must merge with the face to its left. No X, no fourth branch.\nSame exact crop, framing, shapes and palette everywhere else. Do not sharpen, enlarge, reframe or redesign. No text or marks. Output the edited crop only.\nMaintain the existing gold color."
+  }
+}

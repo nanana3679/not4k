@@ -9,3 +9,8 @@ assets-lab/classic/revisions/approved-notes-20261025/README.md -linguist-generat
 assets-lab/classic/revisions/approved-notes-20261025/manifest.json -linguist-generated
 assets-lab/classic/revisions/approved-notes-20261025/*.mjs -linguist-generated
 assets-lab/classic/revisions/approved-notes-20261025/*.test.ts -linguist-generated
+
+assets-lab/classic/revisions/selected-notes-20261026/README.md -linguist-generated
+assets-lab/classic/revisions/selected-notes-20261026/manifest.json -linguist-generated
+assets-lab/classic/revisions/selected-notes-20261026/*.mjs -linguist-generated
+assets-lab/classic/revisions/selected-notes-20261026/*.test.ts -linguist-generated

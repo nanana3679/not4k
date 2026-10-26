@@ -1,0 +1,40 @@
+{
+  "single": {
+    "sourceSize": [
+      2170,
+      725
+    ],
+    "crop": [
+      0,
+      184,
+      2170,
+      348
+    ],
+    "beamCenters": [
+      100
+    ],
+    "detectedBeamCenters": [
+      100.25
+    ]
+  },
+  "double": {
+    "sourceSize": [
+      2170,
+      725
+    ],
+    "crop": [
+      0,
+      174,
+      2170,
+      358
+    ],
+    "beamCenters": [
+      84,
+      116
+    ],
+    "detectedBeamCenters": [
+      82.75,
+      117.25
+    ]
+  }
+}
