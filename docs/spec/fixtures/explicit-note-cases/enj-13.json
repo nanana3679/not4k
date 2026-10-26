@@ -1,0 +1,85 @@
+{
+  "format": "judgment-case-design",
+  "title": "ENJ-13 — 2→1 전체 탈락 뒤 재누름은 single을 복구하지 않음",
+  "notes": [
+    {
+      "kind": "body",
+      "startMs": 1000,
+      "endMs": 2000,
+      "count": 2,
+      "lane": 1
+    },
+    {
+      "kind": "body",
+      "startMs": 2000,
+      "endMs": 3000,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "maintain",
+      "atMs": 2000,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "release",
+      "atMs": 3000,
+      "count": 1,
+      "lane": 1
+    }
+  ],
+  "inputs": [
+    {
+      "key": "A",
+      "downMs": 1000,
+      "upMs": 1500,
+      "lane": 1
+    },
+    {
+      "key": "B",
+      "downMs": 1000,
+      "upMs": 1500,
+      "lane": 1
+    },
+    {
+      "key": "A",
+      "downMs": 1990,
+      "upMs": 3000,
+      "lane": 1
+    }
+  ],
+  "windows": [
+    {
+      "note": "N2",
+      "startMs": 1880,
+      "endMs": 2120,
+      "label": "뒤 시작 허용"
+    }
+  ],
+  "annotations": [
+    {
+      "note": "N1",
+      "atMs": 1520,
+      "label": "두 몫 탈락",
+      "text": "두 몫 모두 유지 기한을 넘겨 탈락한다.",
+      "tone": "failure"
+    },
+    {
+      "note": "N2",
+      "atMs": 1990,
+      "label": "복구 불가",
+      "text": "시작 창 안 재누름으로 뒤 N2를 새로 살리지 못한다.",
+      "tone": "failure"
+    },
+    {
+      "note": "N3",
+      "atMs": 1520,
+      "label": "종속 0점",
+      "text": "뒤 single 기준인 N3 한 표식도 종속 0점. N4도 실패 종속을 따른다.",
+      "tone": "failure"
+    }
+  ],
+  "summary": "N3·N4 0/6점. 감소 위치에 표식 하나만 놓으며 감소 릴리즈를 자동 생성하지 않는다. 표식 자체가 새 시작 지점을 만들지 않는다. 라벨은 경계 의미 설명이며 정산 시각 실측이 아니다.",
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §4·§5·§6-1 / 논의 §48·52·56·57."
+}

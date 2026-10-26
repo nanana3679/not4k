@@ -3,9 +3,30 @@
 Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력이 판정과 결과로 이어지는 경험을 다룬다.
 노트 타입, 피스, 난이도 용어는 먼저 루트 `CONTEXT.md`의 Core domain을 따른다.
 
+일시정지 재개는 곡 시간 고정 3초 되감기와 이후 상태 복원을 따른다. 일반 첫 재생·Retry는 즉시 시작하며 테스트·재개의 준비와 커서 범위는 [glossary](../../docs/context/glossary.md#일시정지-후-재개)에 정의한다.
+
 ## 판정 모델의 전제
 
-롱노트는 유지 구간을 담당하고 release를 내장하지 않는다. 바디는 점수 항목·가중치 없이 유지 판정으로 콤보와 고도에만 관여하되, 유지 실패 시 연결된 릴리즈 기회도 잃는다. 바디 끝에 별도로 명시한 릴리즈 노트는 일반·Grace 모두 실제 뗌이 필요하다. 그레이스 릴리즈는 허용 창 안이면 Perfect이고 FAST/SLOW를 집계하지 않으며, 릴리즈 없는 끝은 뗌을 요구하지 않는다([glossary](../../docs/context/glossary.md#release-판정)). `holdOnly`는 새 설계에서 폐지했고 아래 기존 엔진 설명에만 남는다([RFD 0035](../../docs/rfd/0035-release-presence-and-grace.md), 엔진 이행 전).
+[RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 **채택 계약·구현은 후속 PR**이다. 정식 정의는 glossary, 실행 전 기대값은 [명시적 점수 노트 판정 사례](../../docs/spec/explicit-note-judgment-cases.md)를 따른다.
+
+- 바디는 hold 수를 요구하는 무점수 구간이고 Point·릴리즈·유지 노트만 명시 점수 항목을 만든다. [바디](../../docs/context/glossary.md#바디)·[점수 항목](../../docs/context/glossary.md#점수-항목과-무점수-miss)을 따른다.
+- 전체 이론 가중치가 0인 유효한 차트도 재생하고 달성률·랭크는 표시하지 않는다. 점수 항목의 전부 Miss는 0%·F다([glossary](../../docs/context/glossary.md#점수-항목과-무점수-miss)).
+
+- Point는 down, 명시 릴리즈는 up을 소비한다. 바디·유지 노트는 입력을 소비하지 않으며 숨은 연결 up 소비는 없다. [consume](../../docs/context/glossary.md#consume-구-표기-흡수소비)을 따른다.
+- preheld는 차트상 시작에서, 시작 창 안의 유효한 새 down은 그때 충족한 몫을 시작한다. 건강한 짧은 바디 승계와 Point 담당 몫의 기존 유지 실패 대기·실제 down 기준을 함께 보존한다. [바디 판정과 실패 종속](../../docs/context/glossary.md#바디-판정과-실패-종속)을 따른다.
+- 실제 시작·정상 완료·릴리즈 대기는 별개이며 같은 수 단순 연결·1→2·2→1의 실패 전파를 구별한다. 일반 진행에서는 확정 실패와 소멸한 점수 기회를 복구하지 않는다. 일시정지의 고정 되감기는 별도 상태 복원이다. [바디 판정과 실패 종속](../../docs/context/glossary.md#바디-판정과-실패-종속)을 따른다.
+- 유지 노트는 자체 창 없이 바디의 정상 유지·시작/회복 대기·이른 종료를 따르고 표식당 Perfect 3점·콤보 +1·일반 Perfect 고도 기여를 갖는다. [유지 노트](../../docs/context/glossary.md#유지-노트)를 따른다.
+- Grace 릴리즈도 실제 up을 요구한다. 싱글 바디의 더블 릴리즈에도 해당 시작 Point를 처리한 같은 키 재누름 예외만 적용한다. [릴리즈 노트](../../docs/context/glossary.md#릴리즈-노트)·[release 판정](../../docs/context/glossary.md#release-판정)을 따른다.
+- 현재 `trillZone` 안에는 바디 끝을 포함해 명시 릴리즈를 도입하지 않으며, 새 트릴 바디 끝에도 자동 점수가 없다([RFD 0038](../../docs/rfd/0038-release-notes-in-trill-zones.md)). 구형 `trillLong`의 보존 의미와 구별한다.
+- 확정 효과·현재 상태·화면 수명을 분리한다. 유지 성공 글자·타격, 동시 최저 대표 등급과 그 등급의 표시 가능한 실제 입력 최대 절대 오차는 [판정 효과](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
+- 실제 입력·AutoPlayer·튜토리얼은 같은 세션과 일회성 효과를 소비하고 반복마다 새 판정·표시 인스턴스를 쓴다. 상세 계약은 [게임 코어](../../docs/spec/game-core.md#autoplayer튜토리얼과-입력-수명), 미정·이행은 [PRD §12](../../docs/prd.md#12-미정-사항)를 따른다.
+
+### 과도기 구형 판정 설명
+
+구형 읽기·표시·편집과 현행 런타임·과거 논의의 대조를 위해 보존한다. 아래의 “후속”·“현재”는 당시 모델의 시점이며 새 채택 계약을 덮지 않는다. 제거 시점은 [구형 차트와 과도기](../../docs/context/glossary.md#구형-차트와-과도기)를 따른다.
+
+<details>
+<summary>등록 키·자동 끝점·연결 보류에 관한 기존 설명</summary>
 
 아래 등록 키·연결 보류는 기존 엔진 기준이다. 후속 설계는 패턴별 허용 입력·기대 결과를 먼저 정하며, release와 Grace의 역할 및 현재 합의 범위는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다. 연결 head를 처리한 single 사례는 이르거나 늦은 실제 head down부터 뒤 바디의 유지를 판단하고 임시 20ms 유지 유예를 적용한다([glossary](../../docs/context/glossary.md#유예-시간-grace-period)). head를 놓쳐도 계속 유지한 뒤 바디의 실제 release는 처리한다([glossary](../../docs/context/glossary.md#release-판정)). 연결 head 창 안에서 hold가 끊기고 head도 놓친 사례는 head Miss 하나와 뒤 끝 종속 0점으로 정리한다. head 기한까지 유지한 뒤 새로 유지가 끊기면 20ms 유예 후 유지 Miss를 추가하고 끝은 종속 0점으로 정산한다. 같은 double 끝의 두 release는 서로 다른 키를 요구하되, 같은 키를 다시 눌러 그 double 바디가 시작하는 연결 head를 처리했다면 그 누름의 up으로 남은 release를 처리할 수 있다. 나머지 적용 범위와 엔진 이행은 아직 남아 있다.
 
@@ -19,6 +40,20 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 - 트릴 교대 추적에는 head를 소비한 키만 등록하며 바디 유지·승계·release 키는 추가하지 않는다. 구간 귀속과 동시 입력의 세부는 glossary의 트릴 노트를 따른다.
 
 풀 정의는 [glossary](../../docs/context/glossary.md#롱노트-판정-모델), 채택 근거는 [RFD 0020](../../docs/rfd/0020-note-judgment-units-and-inheritance.md), 입력별 기대 결과는 [판정 사례 명세](../../docs/spec/note-judgment-cases.md)를 따른다. 현재 엔진과 상세 구현 명세의 이행 상태는 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
+
+기존 Language 정의의 대조 기록:
+
+창과 키 자격을 충족한 가장 이른 Point 또는 실제로 부족한 시작이 keydown 하나를 소비한다. 이미 정당하게 승계한 unit은 추가 시작 입력을 소비하지 않는다. 길이 0 `holdOnly`의 held 상태 확인은 별개이다.
+
+같은 double 끝의 두 실제 release는 서로 다른 물리 키를 요구하며 처음 유지한 키와 달라도 된다. 그 double에서 쓴 키도 뒤 독립 노트의 release에는 다시 쓸 수 있다. 연결 head의 교대·유지 중 탭에서 연결 release에 배정한 up은 뒤 실제 release에 쓰지 않는다. 연결 release는 head보다 뒤 끝의 release보다 먼저, head와 같거나 앞선 감소 release보다 나중에 배정한다(RFD 0032 §6-4). 연결 head 전에 경계보다 먼저 뗀 up은 앞 바디를 끝낸다(RFD 0032 §4-2·§8-2). 나머지 up은 끝 창 안의 적격 대상(바디의 시작 여부와 무관) 중 차트상 끝 시각이 가장 이른 것 하나를 처리하며, `holdOnly` 끝도 자기 Good 창 안의 up 하나를 가져간다(RFD 0032 §2-3·§7-1). 입력 자격·소비와 Grace의 역할, 사례별 합의와 이행 상태는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다.
+
+보류 판정은 확정 순서로 현재 콤보에 반영하며 입력 시각으로 소급하지 않는다. 최대 콤보수 통계는 제공하지 않는다. 확정 순서와 동시 Miss 처리의 세부는 [glossary](../../docs/context/glossary.md#롱노트-판정-모델)를 따른다.
+
+**`AutoEvent`**의 노트를 합성 입력(press/release)으로 변환하는 순수 상태머신이다. `InputSystem`(실제 키보드)과 같은 판정 엔진 입력 seam에 서는 두 번째 어댑터다(시간 주입, 엔진·렌더러 무지). 풀 정의는 glossary "게임 입력".
+
+확정 판정의 점수 정산·통계·고도·표시 효과를 구분하는 순수 데이터이다. `NoteJudgmentSession`이 정산하고 `SessionRendererAdapter`가 확정 묶음과 unit 상태를 실제 플레이·튜토리얼 렌더러에 전달한다. 풀 정의는 [glossary의 판정 효과](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
+
+</details>
 
 ## Language
 
@@ -47,12 +82,12 @@ _Avoid_: 스코어 화면
 _Avoid_: 키 이벤트 처리
 
 **가장 이른 노트 매칭**:
-창과 키 자격을 충족한 가장 이른 Point 또는 실제로 부족한 시작이 keydown 하나를 소비한다. 이미 정당하게 승계한 unit은 추가 시작 입력을 소비하지 않는다. 길이 0 `holdOnly`의 held 상태 확인은 별개이다.
+창·레인·키 자격을 충족한 가장 이른 명시 Point 또는 릴리즈에 down/up을 배정한다. 바디·유지 노트는 소비하지 않는다. 풀 정의는 [glossary](../../docs/context/glossary.md#가장-이른-노트-매칭)를 따른다.
 _Avoid_: 가장 가까운 노트 매칭
 
 **release 판정과 keyup 소비**:
-적격한 up을 실제 release 요구에 배정하는 판정이다. 일반 릴리즈는 타이밍 등급을 나누고 그레이스 릴리즈는 허용 창 안이면 Perfect이며, 입력 자격·배정 순서와 이행 상태는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다.
-_Avoid_: 익명 keyup, 모든 release의 일괄 이진 판정
+명시된 릴리즈만 실제 up 하나를 소비한다. 바디에 붙으면 실제 시작과 남은 기회가 전제이고 정상 완료 뒤의 창은 유지한다. 같은 키 예외·감소 귀속·Grace는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다(이 PR에서는 런타임을 구현하지 않음).
+_Avoid_: 익명 keyup, 실제 release의 이진 판정
 
 **빈 레인 입력**:
 시각적으로 비어 보이는 레인에 입력했지만 판정 윈도우 안의 노트와 연결될 수 있는 입력이다.
@@ -64,7 +99,7 @@ _Avoid_: 지나간 노트
 
 **콤보**:
 Miss 없이 이어진 점수 판정 수이다. 무점수 연결 성공은 증가시키지 않고, 무점수 유지 Miss도 콤보를 끊는다.
-보류 판정은 확정 순서로 현재 콤보에 반영하며 입력 시각으로 소급하지 않는다. 최대 콤보수 통계는 제공하지 않는다. 확정 순서와 동시 Miss 처리의 세부는 [glossary](../../docs/context/glossary.md#롱노트-판정-모델)를 따른다.
+유지 성공도 표식당 +1이며 종속 0점은 새 콤보 이벤트가 아니다. 확정 순서·같은 timestamp/phase의 Miss 우선과 최대 콤보 통계 미제공은 [glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
 _Avoid_: 연속 입력 수
 
 **풀콤보**:
@@ -100,11 +135,11 @@ _Avoid_: 이름 없는 "오프셋"
 _Avoid_: songTime을 호출자가 직접 계산
 
 **`AutoPlayer`**:
-**`AutoEvent`**의 노트를 합성 입력(press/release)으로 변환하는 순수 상태머신이다. `InputSystem`(실제 키보드)과 같은 판정 엔진 입력 seam에 서는 두 번째 어댑터다(시간 주입, 엔진·렌더러 무지). 풀 정의는 glossary "게임 입력".
+바디 hold 요구와 명시 Point·릴리즈를 만족하는 합성 down/up을 만드는 입력 어댑터다. 실제 키보드와 같은 세션을 쓰며 Grace 릴리즈에도 up을 만든다. 새 계약은 [게임 코어](../../docs/spec/game-core.md#autoplayer튜토리얼과-입력-수명), 구형 구현 경계는 [glossary](../../docs/context/glossary.md#autoplayer)를 따른다.
 _Avoid_: 오토 판정(판정은 여전히 판정 엔진이 한다)
 
 **`ConfirmedJudgmentEffects` (판정 효과)**:
-확정 판정의 점수 정산·통계·고도·표시 효과를 구분하는 순수 데이터이다. `NoteJudgmentSession`이 정산하고 `SessionRendererAdapter`가 확정 묶음과 unit 상태를 실제 플레이·튜토리얼 렌더러에 전달한다. 풀 정의는 [glossary의 판정 효과](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
+확정 정산·통계·콤보·고도·글자·타격을 현재 상태와 구별하는 효과다. 표시 복구·반복으로 재실행하지 않으며 새 계약과 구형 구현의 경계는 [glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
 _Avoid_: 화면 콜백에서 판정 규칙 재구현
 
 **리프트**:
@@ -147,8 +182,8 @@ _Avoid_: 달성률
 - **플레이 화면**은 입력을 **입력-노트 매칭**으로 연결하고 판정을 만든다.
 - **가장 이른 노트 매칭**은 노트 배치 순서와 판정 순서를 일치시킨다.
 - `NoteJudgmentSession`은 판정 코어를 생성 함수 `createCore`로 받는다. 넘기지 않으면 실제 게임이 쓰는 `NoteJudgmentCore`를 만들며, 다른 코어를 같은 세션 경로(drain, `advance`, finalize, 확정 효과)로 시험할 때만 넘긴다. 세부는 [게임 코어 명세](../../docs/spec/game-core.md#판정-실행-구조)를 따른다.
-- **처리된 노트**는 읽기 부담을 줄이되, 연결 경계에서 이른 입력이 성공해도 이어지는 바디가 끊겨 보이지 않도록 아직 지나가지 않은 연결 부분을 표시한다.
-- 싱글·더블의 켜짐 표시는 후속 연결 바디·터미널에도 이어지며, Trill은 자기 구간의 실제 유지 상태만 표시한다. 테마 `heldEffect: false`인 스킨은 켜짐을 표시하지 않고 부분 실패·실패만 표시한다([RFD 0028](../../docs/rfd/0028-skin-held-effect.md)). 포인트는 바디·터미널 위에 표시하며, 표시 전파의 unit 수 제한과 판정 분리는 [glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
+- **처리된 노트**의 새 표시 계약은 정상 완료 바디·성공 유지 표식의 즉시 숨김과 실패색 잔존을 구별한다. 명시 릴리즈 대기를 바디와 함께 닫지 않는다([glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects), 이 PR에서는 런타임을 구현하지 않음).
+- 구형 싱글·더블의 연결 켜짐·터미널 전파 기록과 새 모델의 마감 없음·몫별 상태·표시 수명은 [glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)에서 구분한다. `heldEffect: false` 스킨도 부분 실패·실패를 표시하는 [RFD 0028](../../docs/rfd/0028-skin-held-effect.md)의 원칙은 보존한다.
 - **결과 화면**은 **달성률**, **랭크**, **콤보**, **풀콤보**, **`flightRule`** 결과를 보여준다.
 - Play는 **`flightRule`**에 따라 실패할 수 있으며, 실패 조건 없는 완주와 관찰은 **Observer 계열**이 담당한다.
 - **`altitude`**는 **게이지**의 비행 콘셉트 표현이며, **달성률**이나 **랭크**와 구분한다.

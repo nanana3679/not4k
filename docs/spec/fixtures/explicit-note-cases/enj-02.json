@@ -1,0 +1,60 @@
+{
+  "format": "judgment-case-design",
+  "title": "ENJ-02 — 창 안 fresh down은 900ms부터 시작",
+  "notes": [
+    {
+      "kind": "body",
+      "startMs": 1000,
+      "endMs": 2000,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "maintain",
+      "atMs": 1500,
+      "count": 1,
+      "lane": 1
+    }
+  ],
+  "inputs": [
+    {
+      "key": "A",
+      "downMs": 900,
+      "upMs": 2000,
+      "lane": 1
+    }
+  ],
+  "windows": [
+    {
+      "note": "N1",
+      "startMs": 880,
+      "endMs": 1120,
+      "label": "시작 허용"
+    }
+  ],
+  "annotations": [
+    {
+      "note": "N1",
+      "atMs": 900,
+      "label": "이른 시작",
+      "text": "창 안 새 down으로 시작하며 바디는 down을 소비하지 않는다.",
+      "tone": "neutral"
+    },
+    {
+      "note": "N2",
+      "atMs": 900,
+      "label": "선판정 없음",
+      "text": "이른 시작만으로 미래 N2를 성공시키지 않는다.",
+      "tone": "neutral"
+    },
+    {
+      "note": "N2",
+      "atMs": 1500,
+      "label": "Perfect",
+      "text": "표식 시각의 정상 바디 상태로 N2만 3/3점 정산한다.",
+      "tone": "success"
+    }
+  ],
+  "summary": "N1 실제 시작은 900ms, N2 성공은 1500ms다. N2 성공 효과는 각 1회이며 유지 노트 전용 창·입력 소비는 없다.",
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-1·§5 / 논의 §6·16·36·56."
+}

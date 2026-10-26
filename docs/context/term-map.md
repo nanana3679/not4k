@@ -4,6 +4,8 @@
 
 **원칙:** prose(서술·근거·예시 대화)는 한국어 유지. 이 표가 바꾸는 것은 *용어 토큰*뿐이다. 모든 항목은 개념당 표면형 1개, 동의어 폐기, glossary에서 1:1 고정.
 
+**새 판정 계약:** [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)은 **채택 계약, 구현은 후속 PR**이다. 새 용어는 아래 표기와 [glossary](glossary.md)의 정의를 따르며 설명용 영어를 새 API·JSON 필드명으로 고정하지 않는다. `holdOnly`·연결 release·등록 키의 구형 의미는 과도기 읽기·표시·편집 범위에서만 유지한다.
+
 ## 판별 규칙
 
 1. **발명 + 코드 식별자 존재** → 영어 코드 식별자(`백틱`)
@@ -22,9 +24,9 @@
 | 휴지 구간 | `restZone` | `restZone`/`RestZone`/`restZones` |
 | 공릴리즈 — **폐지** (RFD 0015, 역사적 언급만) | `emptyRelease` | 없음 (도장 구현 삭제됨) |
 | 흡수·소비 | `consume` | `consumedLongKeys`/`markLongConsumed`/`requiredConsumeCount`/`consumeReleaseTarget`/`executeReleaseJudgment` |
-| 유지 전용 롱노트(hold-only) — **새 설계에서 폐지** ([RFD 0035](../rfd/0035-release-presence-and-grace.md), 이행 전 코드·차트의 언급에만 사용) | `holdOnly` | `holdOnly`/`isHoldOnlyNote` |
-| 연결 판정 | `connection` | `isConnection`/`Connection` |
-| 종결 판정 | `termination` | `executeTerminationJudgment`/`terminationGrade` |
+| 유지 전용 롱노트(hold-only) | `holdOnly` — 새 계약에서는 폐지, 과도기 미수정 구형 항목 전용 | `holdOnly`/`isHoldOnlyNote`(구형 구현) |
+| 연결 판정 | `connection` — 새 계약의 실제 바디 경계와 구형 연결 보정을 구별 | `isConnection`/`Connection`(구형 구현 근거, 새 API명 강제 아님) |
+| 종결 판정 | `termination` — 새 계약은 명시한 릴리즈만 판정 | `executeTerminationJudgment`/`terminationGrade`(구형 구현) |
 | 인게임 구간 | `gameplayRange` (UI 라벨은 화면 표시 예외로 "인게임 구간" 유지) | `gameplayRange` |
 | Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.GOOD_TRILL` |
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
@@ -38,11 +40,15 @@
 | 기어 y 오프셋 (Lab 조절 이름. 검토 중 "기어·판정선 내리기"·`gearDrop`·`?drop=`에서 바꿨다, 2026-10-10) | `gearOffsetY` (기어와 판정선을 함께 옮기는 화면 y축 값, +가 아래, 논리 px, 게임 값 10. 이 값을 가리킬 때 "내리기"·"내린 양"을 쓰지 않고, 화면 효과를 서술할 때만 "내린다"를 쓴다. 다른 오프셋과의 구분은 [glossary](glossary.md#오프셋-구분)) | `gearOffsetY`/`GEAR_OFFSET_Y`/`clampGearOffsetY`/`GearStage.offsetY`, Lab `data-gear-offset-y`·주소 `?offsetY=`·`#gear-preview-offset-y` |
 | 무대 ("무대 상태"·"무대 data 속성" 등. Lab Gear(`/lab/gear`)에서 렌더러 캔버스를 담은 `<section>`을 가리키던 말이다. stage의 번역어인데 Pixi에서 stage는 렌더러 최상위 `Container`(`app.stage`)라 헷갈려 바꿨다, 2026-10-09 결정. Pixi stage를 가리킬 때는 Pixi `stage`로 쓴다) | `gear-preview-stage` (처음 나올 때 "렌더러 캔버스를 담은 Lab 미리보기 `<section>`(`gear-preview-stage`)". 페이지가 조절 상태와 렌더러가 매 프레임 알려 주는 값을 이 `<section>`의 `data-*` 속성에 쓰고 E2E가 읽는다. 전체화면으로 띄우거나 1:1 픽셀 보기에서 스크롤하는 것은 그 안의 캔버스와 비행 배경(`gear-preview-viewport`)이다. Lab 화면 문구에는 식별자 대신 "미리보기 영역"을 쓴다. 화면에서는 `<section>`과 캔버스 영역을 나누지 않고 사용자가 보는 테두리 친 캔버스 영역을 가리킨다, 2026-10-13) | `gear-preview-stage`/`data-gear-preview-stage`(`src/lab/GearPage.tsx`) |
 
-표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 그대로 유지.
+표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 기존 기록에서 유지한다. 구형 끝점·`holdOnly` 표기를 새 모델의 암묵적 뗌·점수 계약으로 읽지 않는다.
 
 ## B. 기존 개념 — established 이름 유지
 
+**일시정지 후 재개**는 기존 재생 조작의 한국어 표기를 유지한다. 새 흐름의 의미는 [glossary](glossary.md#일시정지-후-재개)에 정의하며 별도 코드 식별자를 이 용어로 확정하지 않는다.
+
 레인, 틱, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `checkLongNoteBodyHold`/`laneHoldStates`/`longNoteBodyStates` — 대표 예시, 전체는 glossary 참조. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류), **난이도명**(보편 개념, 차트 레벨과 쌍둥이 — 코드 `difficultyLabel`. 2026-07-06 A에서 재분류), **기어**(레인 영역을 둘러싼 테두리 스킨의 한국 리듬게임 커뮤니티 표준 이름 — 코드 `gear*` 정렬: `gearImage`·`GearLayout` 등, 전체는 [glossary](glossary.md#기어-gear) 참조. 기어 위 장식 애니메이션과 그 식별자(`GearMotionController`·설정 `gearMotion` 등)는 A의 `gearMotion` 행. 이 뜻의 "프레임"은 렌더 프레임과 헷갈려 쓰지 않는다. 2026-10-06 #231), **녹숫**(노트가 레인에 보이고 판정선에 닿기까지의 시간. IIDX 녹색 숫자의 한국 커뮤니티 표준 이름이며 not4k는 IIDX의 프레임 기반 숫자가 아니라 시간으로 다룬다. Lv.별 기준값은 추정 녹숫, [glossary](glossary.md#녹숫-green-number) 참조. 2026-10-15), **흰숫**(서든·리프트가 줄이는 레인 높이를 레인 위끝부터 리프트 0% 판정선까지 = 1000으로 놓고 잰 값. IIDX 흰색 숫자의 한국 커뮤니티 표준 이름이며 위쪽(서든)·아래쪽(리프트) 흰숫이 따로 있고 숫자 하나로 말하면 보통 합계, not4k 설정 %의 10배. [glossary](glossary.md#흰숫-white-number) 참조. 2026-10-18 #291).
+
+새 계약의 **포인트 노트**(Point, 누름)·**바디**(유지 구간)·**릴리즈 노트**(실제 뗌)는 기존 리듬게임 개념을 나타내므로 한국어 이름을 유지한다. `Point`·release·body는 설명에서 병기할 수 있으며 새 API·JSON 타입명은 구현에서 정한다. **Grace 노트**는 Point·명시 릴리즈의 타이밍 등급 면제이며 새 릴리즈의 실제 up 요구를 없애지 않는다. **유지 판정**은 새 계약에서 실제 레인 hold 수로 판단하고 등록 키 기반 구형 구현과 구별한다. 풀 정의는 [glossary](glossary.md#포인트-노트-point)를 따른다.
 
 > 트릴/더블/Grace 노트: 음악·리듬게임 기존 용어라 **한국어 이름 유지 + 코드만 영어 정렬**(`trill`/`double`/`grace`). 단 트릴 *구간*은 발명이라 A의 `trillZone`.
 
@@ -62,6 +68,11 @@
 | 홀드 교대 (← 홀드 이어잡기 개명) | 홀드 교대 | (보면 비가시 — 표기 없음) |
 | 다중키 바인딩 | 다중키 바인딩 | 구현: `keyBindings`/`KeyBinding`/`laneBindings` — 배열명이 "다중" 의미를 못 담아 캐논 부적합 (2026-07-06 A에서 재분류) |
 | 분할 릴리즈 | 분할 릴리즈 | `D=-` |
+| 유지 노트 | 유지 노트(화면의 개별 표시는 유지 표식) | 바디 상태에 명시적 점수 정산만 추가한다. 자체 창·입력 소비가 없다. 설명용 sustain을 API/JSON 이름으로 확정하지 않는다([glossary](glossary.md#유지-노트)) |
+| 바디 몫 | 바디 몫 | single 1개·double 2개의 시작·유지·완료·실패 단위. 고정 물리 키 소유가 아니다. unit/body unit은 설명용 병기이며 새 타입명 강제 아님 |
+| 점수 항목 | 점수 항목 | 명시 노트의 요구 한 몫당 가중치 3인 항목. 바디 자체는 만들지 않는다([glossary](glossary.md#점수-항목과-무점수-miss)) |
+| 종속 0점 | 종속 0점 | 기회 소멸은 원래 가중치의 0점 정산이며 추가 Miss 효과가 없다([glossary](glossary.md#점수-항목과-무점수-miss)) |
+| 구형 차트와 과도기 | 구형 차트와 과도기 | 미수정 구형 의미 보존·혼합 저장·새 재생 차단·사람의 수리. 종료 시점은 사용자 지정([glossary](glossary.md#구형-차트와-과도기)) |
 | 피스류(비트 복합 트릴, 레인 내 분리, 롱끝 교대→트릴, 가변 분할 피스 등) | 한국어 이름 | 표기법 + PP 코드 |
 | 고도 게이지 시연 (← 게이지 "승인 시연" 개명. "승인"으로는 누가 언제 승인했는지 드러나지 않는다, 2026-10-13) | 고도 게이지 시연 | `lab/image-galleries/frame-keywords-six-20260929/press-animation.html`의 게이지 슬라이더와 `게이지 자동 변화`. 게임 고도 게이지가 빈 유리·유리 안쪽 마스크·8px 경계·약 300ms ease-out을 따른 기준. 디자인 기록은 [게이지 채움 조절](../design/classic-frame-keywords-20260929.md#게이지-채움-조절) |
 
@@ -76,9 +87,9 @@
 | 손 이동 | 손이 담당 레인/키 위치를 옮기는 **동작**. **수평 이동**(레인 좌우, =구 건너가기)·**수직 이동**(키보드 상하, 연속 동시치기-트릴)으로 나뉨 | 손이 주체라 모호함 없음. bare "이동"은 에디터 엔티티 이동과 충돌하므로 "손 이동"으로 한정 |
 | 파지 | 특정 패턴 파훼를 위한 **손배치 전략** (응용, 손 이동을 동원) | 기존(파지법). "양손 교대" 대체 |
 | 키 교대 | 한 레인 내 **활성 키 전환** (다중키 바인딩) | primitive. `구현: alternation`/`trillAlternation` |
-| 의도된 연주 | 차트의 박자와 손배치 의도에 맞으며 허용된 타이밍 오차에도 점수 손해 없이 처리해야 하는 연주. 패턴별 기준은 glossary를 따름 | RFD 0032 §9-1·§9-2. `holdOnly`의 이전 예외는 RFD 0035로 대체. 코드 식별자 없음 |
-| 연결 release | 연결 경계에서 앞 바디의 몫이 끝날 때 떠나는 up 하나를 등급·점수 항목 없이 처리하는 release. 경계 전이면 그때 앞 바디가 끝나고, 경계 뒤·head 뒤면 이미 끝난 몫의 release. 기존 엔진의 연결 보정(구 표기 앞 바디 종료 포함) | 2026-10-17, RFD 0032 §4-1·§4-2. 코드 식별자 없음 |
-| 허용 입력(탈출구) | 의도된 연주는 아니지만 판정이 손해 없이 처리하도록 허용한 연주(같은 키 재타격 `a-a-`·`ab-ab-`) | 2026-10-17, RFD 0032 §9-2. 코드 식별자 없음 |
+| 의도된 연주 | 차트가 의도한 박자·손배치 흐름에서 바디와 명시 노트를 처리하는 제작·플레이테스트 기준. 구형의 모든 up 소비·`holdOnly` 예외 정의는 glossary의 과도기 기록으로 보존 | 새 계약은 RFD 0037. 구형 기준은 2026-10-16, RFD 0032 §7-1·§7-2·§9-1·§9-2. 코드 식별자 없음 |
+| 연결 release | **과도기 구형 계약·과거 논의 전용. 새 계약에서는 숨은 up 소비를 제거했다.** 연결 경계에서 앞 바디의 몫이 끝날 때 떠나는 up 하나를 등급·점수 항목 없이 처리하는 release. 경계 전이면 그때 앞 바디가 끝나고, 경계 뒤·head 뒤면 이미 끝난 몫의 release. 기존 엔진의 연결 보정(구 표기 앞 바디 종료 포함) | 2026-10-17, RFD 0032 §4-1·§4-2. 코드 식별자 없음 |
+| 허용 입력(탈출구) | 구형에서 의도된 연주와 구별하던 같은 키 재타격 `a-a-`·`ab-ab-`. 새 계약은 실제 경계의 분리 연주를 허용하되 숨은 연결 up 소비는 두지 않는다 | 2026-10-17, RFD 0032 §9-2. 코드 식별자 없음 |
 
 **건너가기 → 수평 이동 (개명)**: 건너가기(기법)는 곧 손 이동의 **수평 이동**이라 기법 용어로 중복. 피스 `PP-009`의 라벨도 `수평 이동`으로 개명(PP 코드·구조 유지, 구 표기 건너가기). `가변 분할(PP-007)` prerequisite와 piece-definition·chart-design·prd 등 전 참조를 일괄 치환. 손 이동은 수평/수직 이동으로 분화.
 
@@ -146,6 +157,6 @@
 ## 미구현·주의
 
 - **비행 규칙 / 고도**: 구현 전 영어 명칭을 design-first로 선행 적용한다 — `flightRule`, `Liftoff`/`Infiltration`/`Breakthrough`, `altitude`. 세 이름은 차트 난이도명과 대응 비행 시나리오에 함께 사용한다([RFD 0022](../rfd/0022-flight-difficulty-names-and-visuals.md)). `Breakthrough`의 저고도는 정상 비행이므로 "판정이 좋을수록 시각 고도 상승"을 공통 정의로 두지 않는다. 상태와 시각 고도의 대응은 [glossary](glossary.md#altitude-altitude) 및 [PRD §12](../prd.md#12-미정-사항)를 따른다. → §2.2 no-code 규칙의 design-first 예외.
-- **가장 이른 매칭**: **keydown 소비 / keyup 소비**의 동작 서술로 한국어를 유지한다. 현재 키 자격·시작 준비·입력 소비의 의미는 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)를 따른다. `earliest`는 지역 변수명일 뿐 개념 캐논이 아니다 (2026-07-06 A에서 제외). RFD 0015의 R1/R2는 역사적 약칭이며 익명·이진 release 정의를 현재 규칙으로 복원하지 않는다.
+- **가장 이른 매칭**: **keydown 소비 / keyup 소비**의 동작 서술로 한국어를 유지한다. 새 계약은 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)에 따라 명시 Point·릴리즈만 입력을 소비한다. 등록 키·시작 준비·연결 보정은 과도기 구형 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md)의 설명으로 한정한다. `earliest`는 지역 변수명일 뿐 개념 캐논이 아니다 (2026-07-06 A에서 제외). RFD 0015의 R1/R2는 역사적 약칭이며 익명·이진 release 정의를 현재 규칙으로 복원하지 않는다.
 - **A1 재전환**: 2026-06-30 "텍스트 이벤트→메시지 이벤트" 정정은 이 정책으로 `TextEvent`(영어)로 다시 간다.
 - **표기법 스펙(B 작업)**: `piece-notation.md`의 `-o` 정의 등은 AI 작성본이라 별도 정정 패스 필요(용어 정책과 분리). 현재 이름(릴리즈탭/홀드중탭)은 소통 문제없어 유지.

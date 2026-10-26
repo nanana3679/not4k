@@ -1,0 +1,85 @@
+{
+  "format": "judgment-case-design",
+  "title": "ENJ-10 — 같은 수의 표식 없는 연결은 탈락 공유",
+  "notes": [
+    {
+      "kind": "body",
+      "startMs": 1000,
+      "endMs": 2000,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "body",
+      "startMs": 2000,
+      "endMs": 3000,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "maintain",
+      "atMs": 2500,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "release",
+      "atMs": 3000,
+      "count": 1,
+      "lane": 1
+    }
+  ],
+  "inputs": [
+    {
+      "key": "A",
+      "downMs": 1000,
+      "upMs": 1500,
+      "lane": 1
+    },
+    {
+      "key": "A",
+      "downMs": 1990,
+      "upMs": 3000,
+      "lane": 1
+    }
+  ],
+  "windows": [
+    {
+      "note": "N1",
+      "startMs": 1500,
+      "endMs": 1520,
+      "label": "임시 유지 유예 20ms"
+    },
+    {
+      "note": "N2",
+      "startMs": 1880,
+      "endMs": 2120,
+      "label": "뒤 시작 허용"
+    }
+  ],
+  "annotations": [
+    {
+      "note": "N1",
+      "atMs": 1520,
+      "label": "유지 기한",
+      "text": "회복 없이 유지 기한을 넘기면 N1 탈락.",
+      "tone": "failure"
+    },
+    {
+      "note": "N2",
+      "atMs": 1990,
+      "label": "탈락 공유",
+      "text": "N2 시작 창 안의 재누름이어도 앞뒤가 탈락을 공유하므로 복구하지 않는다.",
+      "tone": "failure"
+    },
+    {
+      "note": "N3",
+      "atMs": 1520,
+      "label": "종속 0점",
+      "text": "N3·N4는 소멸한 기회에 따라 0점·원래 가중치로 정산하며 추가 실패 효과는 없다.",
+      "tone": "failure"
+    }
+  ],
+  "summary": "N3·N4 합계 0/6점. 두 바디 경계는 보존하고 연결점에는 유지 표식을 놓지 않는다. N3는 N2 내부의 합법 표식이며 표식 유무가 바디 탈락을 바꾸지 않는다. 그림의 라벨 시각은 정산 실측 시각이 아니다.",
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §4·§5·§6-1 / 논의 §22·46·56·57."
+}
