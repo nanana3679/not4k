@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 const route = '/lab/images/classic-approved-states-20261025/';
 interface State { id: string; file: string; alpha: number; overlay?: string; overlayAlpha?: number; composite?: string }
 interface Group { id: string; role: string; kind: string; targetSize: number[]; states: State[] }
-const { selectedStatePreview: preview } = JSON.parse(readFileSync(new URL('../../assets-lab/classic/revisions/approved-notes-20261025/manifest.json', import.meta.url), 'utf8')) as {
+const { selectedStatePreview: preview } = JSON.parse(readFileSync(new URL('../../assets-lab/classic/revisions/selected-notes-20261026/manifest.json', import.meta.url), 'utf8')) as {
   selectedStatePreview: { groups: Group[]; graceGroups: Group[]; layers: Group[] };
 };
 
@@ -22,7 +22,7 @@ test('선택본 실패는 기본·2배에서 알파를 유지하고 실패 쪽�
       };
       const normal = await load(group.states[0].file);
       const held = group.role === 'body' ? await load(group.states.find(state => state.id === 'held')!.file) : normal;
-      for (const state of group.states.filter(state => state.id.includes('failed') || state.id.startsWith('partial-held'))) {
+      for (const state of group.states.filter(state => state.id === 'failed' || state.id.startsWith('partial-failed') || state.id.startsWith('partial-held'))) {
         const actual = await load(state.file);
         let alphaDifference = 0, colorDifference = 0, checkedPixels = 0;
         for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
@@ -49,11 +49,11 @@ test('선택본 실패는 기본·2배에서 알파를 유지하고 실패 쪽�
   }
 });
 
-test('릴리즈의 정상·실패 및 유지의 정상 좌우 레이어를 합치면 기본·2배 원본의 픽셀이 복원된다', async ({ page }) => {
+test('릴리즈·유지의 정상·실패 좌우 레이어를 합치면 기본·2배 원본의 픽셀이 복원된다', async ({ page }) => {
   await page.goto(route);
   const checks = await page.evaluate(async preview => {
     const checks = [];
-    for (const layerGroup of preview.layers) for (const failed of layerGroup.role === 'sustain' ? [false] : [false, true]) for (const scale of [1, 2]) {
+    for (const layerGroup of preview.layers) for (const failed of [false, true]) for (const scale of [1, 2]) {
       const load = async (file: string) => { const image = new Image(); image.src = file.replace('.png', scale === 1 ? '.png' : '@2x.png'); await image.decode(); return image; };
       const canvas = document.createElement('canvas'); canvas.width = 200 * scale; canvas.height = 40 * scale;
       const context = canvas.getContext('2d')!;
@@ -76,7 +76,7 @@ test('릴리즈의 정상·실패 및 유지의 정상 좌우 레이어를 합�
   for (const check of checks) expect(check.difference, JSON.stringify(check)).toBeLessThanOrEqual(1);
 });
 
-test('유지 일부 성공은 기본·2배 PNG와 SVG에서 성공한 쪽의 알파만 0으로 만들고 남은 표식의 픽셀과 위치를 유지한다', async ({ page }) => {
+test('유지 일부 성공은 기본·2배 PNG와 SVG에서 성공한 쪽의 알파만 0으로 만들고 남은 정상·실패 표식의 픽셀과 위치를 유지한다', async ({ page }) => {
   await page.goto(route + '#selected-states');
   const sustain = preview.groups.find(group => group.id === 'sustain-double')!;
   const checks = await page.evaluate(async group => {
@@ -90,9 +90,10 @@ test('유지 일부 성공은 기본·2배 PNG와 SVG에서 성공한 쪽의 알
         return context.getImageData(0, 0, width, height).data;
       };
       // SVG embeds the selected 2x PNG and scales it to the requested canvas.
-      const normal = await read(group.states[0].file.replace('.png', format === 'svg' || scale === 2 ? '@2x.png' : '.png'));
-      for (const side of ['left', 'right']) {
-        const state = group.states.find(state => state.id === `partial-success-${side}`)!;
+      for (const failed of [false, true]) for (const side of ['left', 'right']) {
+        const normalState = group.states.find(state => state.id === (failed ? 'failed' : 'pending'))!;
+        const normal = await read(normalState.file.replace('.png', format === 'svg' || scale === 2 ? '@2x.png' : '.png'));
+        const state = group.states.find(state => state.id === (failed ? `success-${side}-failed-${side === 'left' ? 'right' : 'left'}` : `partial-success-${side}`))!;
         const actual = await read(state.file.replace('.png', format === 'svg' ? '.svg' : scale === 2 ? '@2x.png' : '.png'));
         let hiddenAlpha = 0, difference = 0, remainingPixels = 0;
         for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
@@ -106,7 +107,7 @@ test('유지 일부 성공은 기본·2배 PNG와 SVG에서 성공한 쪽의 알
             }
           }
         }
-        checks.push({ scale, format, side, hiddenAlpha, difference, remainingPixels });
+        checks.push({ scale, format, side, failed, hiddenAlpha, difference, remainingPixels });
       }
     }
     return checks;
@@ -118,7 +119,7 @@ test('유지 일부 성공은 기본·2배 PNG와 SVG에서 성공한 쪽의 알
   }
   await page.locator('#selected-states details > summary').click();
   const cards = page.locator('[data-group="sustain-double"]');
-  await expect(cards.locator('article')).toHaveCount(4);
+  await expect(cards.locator('article')).toHaveCount(9);
   for (const side of ['left', 'right']) {
     const state = sustain.states.find(state => state.id === `partial-success-${side}`)!;
     const image = cards.locator(`[data-state="${state.id}"] .selected-state-note`).first();
@@ -165,4 +166,26 @@ test('Grace 합성은 선택 본체를 보존하고 한쪽 실패에도 전체 �
   await expect(partial.locator('.selected-state-overlay').first()).toHaveCSS('opacity', '1');
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
+
+test('릴리즈 성공·실패 혼합은 좌우 부분 실패 도안을 70%로 표시하고 Grace 외곽은 100%를 유지한다', async ({ page }) => {
+  await page.goto(route + '#selected-states');
+  await page.locator('#selected-states details > summary').click();
+  for (const isGrace of [false, true]) {
+    const group = (isGrace ? preview.graceGroups : preview.groups).find(group => group.id === `release-double${isGrace ? '-grace' : ''}`)!;
+    for (const side of ['left', 'right']) {
+      const failedSide = side === 'left' ? 'right' : 'left';
+      const state = page.locator(`[data-group="${group.id}"] [data-state="success-${side}-failed-${failedSide}"]`);
+      await expect(state.locator('.selected-state-note').first()).toHaveAttribute('src', group.states.find(state => state.id === `partial-failed-${failedSide}`)!.file);
+      await expect(state.locator('.selected-state-note').first()).toHaveCSS('opacity', '0.7');
+      if (isGrace) await expect(state.locator('.selected-state-overlay').first()).toHaveCSS('opacity', '1');
+    }
+  }
+  for (const side of ['left', 'right']) {
+    const remainingSide = side === 'left' ? 'right' : 'left';
+    const state = page.locator(`[data-group="sustain-double"] [data-state="success-${side}-failed-${remainingSide}"]`);
+    await expect(state.locator('.selected-state-note').first()).toHaveCSS('opacity', '1');
+    await expect(state.locator('.selected-state-note').first()).toHaveAttribute('src', `assets/selected-sustain-double-unit-${remainingSide}-failed.png`);
+  }
 });
