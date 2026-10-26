@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-interface Asset { file: string; bytes: number; sha256: string; width: number; height: number; targetSize?: number[]; generator?: string; sourceFiles?: string[]; skinKey?: string | null; proposedRuntimePath?: string | null; usage?: string }
+interface Asset { file: string; bytes: number; sha256: string; width: number; height: number; targetSize?: number[]; generator?: string; sourceFiles?: string[]; skinKey?: string | null; proposedRuntimePath?: string | null; usage?: string; approval?: string }
 interface State { id: string; file: string; aliasOf?: string; waitingSide?: string; alpha?: number; overlayAlpha?: number }
 interface Group { id: string; states: State[]; beamCenters?: number[] }
 interface ReleaseSuccessPreview {
@@ -16,13 +16,13 @@ interface PointSuccessPreview {
   progression: State[];
 }
 const here = new URL('./', import.meta.url);
-const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { assets: Asset[]; releaseSymbolPreview: { approval: string; selectedVariant: string; comparisonIds: string[]; kinds: { kind: string; symbolCenters: number[]; variants: { id: string; file: string; strokeWidth?: number; layerAlphas?: number[] }[] }[] }; sustainVisibilityPreview: { approval: string; outlineWidth: number; selected: { single: string }; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; railCandidate?: string; railMarkerWidth?: number; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
+const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')) as { selectedPalettePreview: { kinds: ({ kind: string; amount: number } & Record<'point' | 'idleBody' | 'heldBody' | 'release' | 'sustain', string>)[] }; assets: Asset[]; releaseSymbolPreview: { approval: string; selectedVariant: string; comparisonIds: string[]; kinds: { kind: string; symbolCenters: number[]; variants: { id: string; file: string; strokeWidth?: number; layerAlphas?: number[] }[] }[] }; sustainVisibilityPreview: { approval: string; outlineWidth: number; selected: { single: string; double: string }; kinds: { kind: string; markerWidth: number; beamCenters: number[]; original: string; candidate: string; railCandidate?: string; railMarkerWidth?: number; heldBody: string }[] }; stateGroups: Group[]; pointSuccessPreview: PointSuccessPreview; releaseSuccessPreview: ReleaseSuccessPreview; bodyCompositionPreview: { cases: { id: string; point: string | null; release: string | null }[] }; buildContract: { targets: { key: string }[]; confirmedDisplay: Record<string, unknown>; missingRequestedStates: string[]; unapproved: string[] } };
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
-  it('에셋 360개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
-    expect(manifest.assets).toHaveLength(360);
-    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(360);
+  it('에셋 483개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
+    expect(manifest.assets).toHaveLength(483);
+    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(483);
     for (const asset of manifest.assets) {
       const bytes = readFileSync(new URL(asset.file, here));
       expect(bytes.length, asset.file).toBe(asset.bytes);
@@ -126,6 +126,15 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
   });
 
   it('유지 확대안은 싱글 36px·44px와 더블 각 32px를 비교하며 기존 정상 도안과 스킨 연결을 보존한다', () => {
+    const selected = manifest.selectedPalettePreview.kinds;
+    expect(selected.map(({ kind, amount }) => ({ kind, amount }))).toEqual([{ kind: 'single', amount: .5 }, { kind: 'double', amount: .75 }]);
+    expect(selected[1].sustain).toBe('assets/sustain-double-palette-mix-075-outline.png');
+    for (const entry of selected) for (const role of ['point', 'idleBody', 'heldBody', 'release', 'sustain'] as const) {
+      for (const suffix of ['.png', '@2x.png', '.svg']) {
+        const file = entry[role].replace('.png', suffix);
+        expect(manifest.assets.find(asset => asset.file === file), file).toMatchObject({ approval: 'approved-artwork', skinKey: null, proposedRuntimePath: null });
+      }
+    }
     const preview = manifest.sustainVisibilityPreview;
     expect(preview).toMatchObject({ approval: 'proposed-display-treatment', outlineWidth: 2.4 });
     expect(preview.kinds.map(({ kind, markerWidth, beamCenters }) => ({ kind, markerWidth, beamCenters }))).toEqual([
@@ -134,6 +143,7 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
     ]);
     expect(preview.kinds[0]).toMatchObject({ railMarkerWidth: 44, railCandidate: 'assets/sustain-single-rail-outline.png' });
     expect(preview.selected.single).toBe(preview.kinds[0].railCandidate);
+    expect(preview.selected.double).toBe(preview.kinds[1].candidate);
     expect(preview.kinds[1].railCandidate).toBeUndefined();
     for (const item of preview.kinds) {
       expect(group(`sustain-${item.kind}`).states.find(state => state.id === 'pending')!.file).toBe(item.original);

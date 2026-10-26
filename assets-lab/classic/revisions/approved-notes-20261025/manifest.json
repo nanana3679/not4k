@@ -13881,6 +13881,5478 @@
       ],
       "bytes": 1045,
       "sha256": "9106870671465659f21815ef1dada69973d57270b57f3b852cca138bb68faacc"
+    },
+    {
+      "file": "assets/note-double-critical-gold.svg",
+      "role": "double point · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 164574,
+      "sha256": "ba23714ec30acd6359517762848759f16e215721a98d49273e9c72d4afa3d6d6"
+    },
+    {
+      "file": "assets/note-double-critical-gold.png",
+      "role": "double point · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8483,
+      "sha256": "92b439f837764904291947aed91bc4bb0cc6ff4f3310b1ed94bb509f91fe6bca"
+    },
+    {
+      "file": "assets/note-double-critical-gold@2x.png",
+      "role": "double point · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 25999,
+      "sha256": "ddf5e7795c09f70a2b7e9c08ee69bddc3f56edb60c1088588f11c8c2319b00f7"
+    },
+    {
+      "file": "assets/body-double-critical-gold.svg",
+      "role": "double idleBody · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11320,
+      "sha256": "b3d679a715727a319a0026079d8ee44b09ff72fb6bd5371123fd3495eafc8bcc"
+    },
+    {
+      "file": "assets/body-double-critical-gold.png",
+      "role": "double idleBody · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 783,
+      "sha256": "5bcd752399a8963486f54bc3d852cae36bb36e55dd08c9b37a10bfcba1b8840e"
+    },
+    {
+      "file": "assets/body-double-critical-gold@2x.png",
+      "role": "double idleBody · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1744,
+      "sha256": "cbb04f1c22f606f836e7e0a2870a707bb3ed469fc2072cba56402f5bfa473f5b"
+    },
+    {
+      "file": "assets/body-held-double-critical-gold.svg",
+      "role": "double heldBody · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 12433,
+      "sha256": "3c41f4814a786b3ba7a318c9fce65ff65a030a67fce7053142fbfcce6485488b"
+    },
+    {
+      "file": "assets/body-held-double-critical-gold.png",
+      "role": "double heldBody · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2151,
+      "sha256": "ba75cb1bf2a3814d99f47e8dbb6a7f9c297b7a447d36de70cf7794a2837e9a07"
+    },
+    {
+      "file": "assets/body-held-double-critical-gold@2x.png",
+      "role": "double heldBody · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10230,
+      "sha256": "72a4ccbd3023922954d33c989ac1e20cd112a39dd8a579880762420c02f867f7"
+    },
+    {
+      "file": "assets/release-double-critical-gold.svg",
+      "role": "double release · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1691311,
+      "sha256": "e9ef484e8417e7be0fc5de8155550246be3c1828711c7604bf1248dcf205fc35"
+    },
+    {
+      "file": "assets/release-double-critical-gold.png",
+      "role": "double release · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14589,
+      "sha256": "5a231890c77670cbb56d40789dd66cec6e55ad844dbe4b43f24a41fc63a4a84c"
+    },
+    {
+      "file": "assets/release-double-critical-gold@2x.png",
+      "role": "double release · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 47239,
+      "sha256": "ef7172fd50f2c293c9d5c76da96107d4576d9301dc83a3da516b6012bb09af85"
+    },
+    {
+      "file": "assets/sustain-double-critical-gold.svg",
+      "role": "double sustain · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8492,
+      "sha256": "e974d907dd03ed570ba3add4c86fe5a8ea388e7b19c83692c2ecfeeca981f9df"
+    },
+    {
+      "file": "assets/sustain-double-critical-gold.png",
+      "role": "double sustain · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1562,
+      "sha256": "bba110721d8303c476427c07d4b6ee3ab6a3e42729b9bfabae4d5c7b703cd02f"
+    },
+    {
+      "file": "assets/sustain-double-critical-gold@2x.png",
+      "role": "double sustain · 프세카 금노트 참고 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/gold.png"
+      ],
+      "operation": {
+        "palette": "critical-gold",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#080609"
+          ],
+          [
+            0.15,
+            "#644418"
+          ],
+          [
+            0.3,
+            "#b1812f"
+          ],
+          [
+            0.45,
+            "#e8ad47"
+          ],
+          [
+            0.6,
+            "#feb94b"
+          ],
+          [
+            0.72,
+            "#feca80"
+          ],
+          [
+            0.85,
+            "#feea8c"
+          ],
+          [
+            0.95,
+            "#fffccc"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3751,
+      "sha256": "4d3d562146b7d624c5c7d61d382aebb448b8e3c8cddda744bd1f9cf10bd025ec"
+    },
+    {
+      "file": "assets/note-single-bright-blue.svg",
+      "role": "single point · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 22919,
+      "sha256": "9755bdc6337a31ab20f85d5e88cd88c4c3273983a5f327747c95768f8a6d34a5"
+    },
+    {
+      "file": "assets/note-single-bright-blue.png",
+      "role": "single point · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 4586,
+      "sha256": "43b560b953c905f5c9edab6cbe580f6c60cfa6c8a1bd6b2b6132a1336665285d"
+    },
+    {
+      "file": "assets/note-single-bright-blue@2x.png",
+      "role": "single point · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 13299,
+      "sha256": "b2c56bd133490a06d69fdc5f4656617bcab2f0d4719e6ba3b9d23ca651768f6e"
+    },
+    {
+      "file": "assets/body-single-bright-blue.svg",
+      "role": "single idleBody · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10777,
+      "sha256": "72836f99fcc8a0236288ff20c73e1e5956dddc18cbe7b7be8414b02f2a6a2806"
+    },
+    {
+      "file": "assets/body-single-bright-blue.png",
+      "role": "single idleBody · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 849,
+      "sha256": "d1de7b3c940ae2fb5a5a1ec4cb8d7b415eb1a938cdbcdd33a6fde1f79bcf2fb3"
+    },
+    {
+      "file": "assets/body-single-bright-blue@2x.png",
+      "role": "single idleBody · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1828,
+      "sha256": "6f93c31c6da47ec8f5c1ae6243405cfb9a25a690613731a5365ca415f9abc1a0"
+    },
+    {
+      "file": "assets/body-held-single-bright-blue.svg",
+      "role": "single heldBody · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11735,
+      "sha256": "7e813a22ef9737b91eb6044fc26a725389b67571dfc49c98a1f68df1ee9b0b00"
+    },
+    {
+      "file": "assets/body-held-single-bright-blue.png",
+      "role": "single heldBody · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1368,
+      "sha256": "c70f225a4ad2b72458d26bd19de64290335b6803e772b84479da00e5e4c83db6"
+    },
+    {
+      "file": "assets/body-held-single-bright-blue@2x.png",
+      "role": "single heldBody · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 6126,
+      "sha256": "7891a236826960374e9674939503425c14af9ee039cba86ff527a214db37766d"
+    },
+    {
+      "file": "assets/release-single-bright-blue.svg",
+      "role": "single release · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1479709,
+      "sha256": "0aad7a551ffae5fe433ce6369a87b74a91ad83d289e08c0f673c7bbfb1b4c4b8"
+    },
+    {
+      "file": "assets/release-single-bright-blue.png",
+      "role": "single release · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14181,
+      "sha256": "fe19c99c97dcf4a78c5ee3b8d7c53e8333a6ba36c5f21734faee660f6a23d203"
+    },
+    {
+      "file": "assets/release-single-bright-blue@2x.png",
+      "role": "single release · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 45760,
+      "sha256": "741340898a11b966f1a0cf194538289852ec02c3a31aa626ca621473983107d0"
+    },
+    {
+      "file": "assets/sustain-single-bright-blue.svg",
+      "role": "single sustain · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8471,
+      "sha256": "5f35c46c10f1405bd60616a7568e7111f9683a64860d7b6715c406154527b967"
+    },
+    {
+      "file": "assets/sustain-single-bright-blue.png",
+      "role": "single sustain · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3013,
+      "sha256": "9138581f3deaceb1f0792d169bf6632267c1819b09d080919bcddf828e3e2058"
+    },
+    {
+      "file": "assets/sustain-single-bright-blue@2x.png",
+      "role": "single sustain · 밝은 하늘색 팔레트",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs",
+        "note-palette-reference/sources.json",
+        "note-palette-reference/blue.png"
+      ],
+      "operation": {
+        "palette": "bright-blue",
+        "input": "sRGB weighted intensity",
+        "stops": [
+          [
+            0,
+            "#050b18"
+          ],
+          [
+            0.15,
+            "#344d83"
+          ],
+          [
+            0.3,
+            "#586db8"
+          ],
+          [
+            0.4,
+            "#8394f7"
+          ],
+          [
+            0.6,
+            "#96d8ff"
+          ],
+          [
+            0.8,
+            "#d2e4fe"
+          ],
+          [
+            0.9,
+            "#eae7fe"
+          ],
+          [
+            0.96,
+            "#e1f0fe"
+          ],
+          [
+            1,
+            "#ffffff"
+          ]
+        ],
+        "preserve": "geometry, alpha, texture and light positions; tone brightness is deliberately lifted"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 7025,
+      "sha256": "735df8de5328b84b13983db622862b1d8ccc4329cacc308d0e1f2bd0a71cb07a"
+    },
+    {
+      "file": "assets/note-single-palette-mix-025.svg",
+      "role": "single point · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/note-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 22995,
+      "sha256": "462eb16efe39358cbbf0bf275a89283eace452c37ee0405e5f8790cf981c7c27"
+    },
+    {
+      "file": "assets/note-single-palette-mix-025.png",
+      "role": "single point · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/note-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5642,
+      "sha256": "518d8a985484f20fa1245bec25562d392b259a9119f84864d43aa3cd823c9f03"
+    },
+    {
+      "file": "assets/note-single-palette-mix-025@2x.png",
+      "role": "single point · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/note-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16662,
+      "sha256": "ef804d84d9dcca734038fb2a251a1223c4d5f090af12c35ff7653747fbf1d77f"
+    },
+    {
+      "file": "assets/body-single-palette-mix-025.svg",
+      "role": "single idleBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/body-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10853,
+      "sha256": "4d3f9079fdaf96e549a2f61a224a9d5fa2b9f7b632b173da0a4e403fcf2b36e5"
+    },
+    {
+      "file": "assets/body-single-palette-mix-025.png",
+      "role": "single idleBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/body-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 948,
+      "sha256": "a4301d24c402377d68670bc0db8126a969283cf73ec113e51d87a2836f61b4f3"
+    },
+    {
+      "file": "assets/body-single-palette-mix-025@2x.png",
+      "role": "single idleBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/body-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2080,
+      "sha256": "c6e80a4d5bafcee1e6136024385176f3a5cd4838cb58bcd3bb4120a364a8d9fd"
+    },
+    {
+      "file": "assets/body-held-single-palette-mix-025.svg",
+      "role": "single heldBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/body-held-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11811,
+      "sha256": "44907d3f17eb6e95ded8bc31e2e994055b2f9d8ae07b46f04a52df6fa8da116e"
+    },
+    {
+      "file": "assets/body-held-single-palette-mix-025.png",
+      "role": "single heldBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/body-held-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2712,
+      "sha256": "5a0708a6689dee4ad9b0d7cb8ffcae8f7cd34fd47acabf78751a5de9426bff32"
+    },
+    {
+      "file": "assets/body-held-single-palette-mix-025@2x.png",
+      "role": "single heldBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/body-held-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11072,
+      "sha256": "8ef3a97918c53aa019af69b59ce03601d6b4a70b98e7df985477aae31bcea904"
+    },
+    {
+      "file": "assets/release-single-palette-mix-025.svg",
+      "role": "single release · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "assets/release-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1479785,
+      "sha256": "adbafe3a5c893af9637113cff6371860b605d33ae88d36648deda03b0023ac30"
+    },
+    {
+      "file": "assets/release-single-palette-mix-025.png",
+      "role": "single release · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "assets/release-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16373,
+      "sha256": "532e0f31a8f17a989c50b7466ee0c3e1dc200fc073d0ac68aa39133d3ee52cfb"
+    },
+    {
+      "file": "assets/release-single-palette-mix-025@2x.png",
+      "role": "single release · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "assets/release-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 55614,
+      "sha256": "453b7798ff8bacaf0d03734c3b0948fd67d70acf38ca673fe52212523dd7413b"
+    },
+    {
+      "file": "assets/sustain-single-palette-mix-025.svg",
+      "role": "single sustain · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "assets/sustain-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8547,
+      "sha256": "ab6b14e5af2f65d6ef47a4cdf7adaf24455f8ec9fbb5116703e534a019f7f19a"
+    },
+    {
+      "file": "assets/sustain-single-palette-mix-025.png",
+      "role": "single sustain · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "assets/sustain-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3137,
+      "sha256": "8ddafb7ddbf943031a66cc8219bd6238dfa41d9ab03bb0d3296fb8e25c866bb1"
+    },
+    {
+      "file": "assets/sustain-single-palette-mix-025@2x.png",
+      "role": "single sustain · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "assets/sustain-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 7257,
+      "sha256": "95b4e0940a05d28fac160bf16145e6321c3ad7b301fcaa4ea00f504eadae21b6"
+    },
+    {
+      "file": "assets/note-single-palette-mix-050.svg",
+      "role": "single point · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/note-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 22993,
+      "sha256": "a6d203b44bde88c8a09c7d0b1882a3f2086ae09c859cf52e4f340d9f1a04faed"
+    },
+    {
+      "file": "assets/note-single-palette-mix-050.png",
+      "role": "single point · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/note-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5413,
+      "sha256": "34669d4dfb0dc86b83234b00aeb614212e62dcd982b1e1b942ede4a43d1d0ac4"
+    },
+    {
+      "file": "assets/note-single-palette-mix-050@2x.png",
+      "role": "single point · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/note-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15696,
+      "sha256": "354a8c0f164406f82c2ba6805598a455d8bcd3c5e7aaeeda9d1b8730dc3d8f67"
+    },
+    {
+      "file": "assets/body-single-palette-mix-050.svg",
+      "role": "single idleBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/body-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10851,
+      "sha256": "aa583fb1f41e6599be9195834c04388c38edb3c0ddb8115cb25d794a9b8ee19e"
+    },
+    {
+      "file": "assets/body-single-palette-mix-050.png",
+      "role": "single idleBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/body-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 926,
+      "sha256": "491ce81119654f2345bb92ee66d7e8ba5fa7455a1f5d8e1893e8f4b4c4b5462d"
+    },
+    {
+      "file": "assets/body-single-palette-mix-050@2x.png",
+      "role": "single idleBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/body-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2027,
+      "sha256": "a24706c870df854bb0c68df79ab45354b33dc20e4c5337b19a054a74da63812a"
+    },
+    {
+      "file": "assets/body-held-single-palette-mix-050.svg",
+      "role": "single heldBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/body-held-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11809,
+      "sha256": "facf09f2110d4a6ac786c8f4932a91136d79948db3edb50fd7b8a2ced6b4b75b"
+    },
+    {
+      "file": "assets/body-held-single-palette-mix-050.png",
+      "role": "single heldBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/body-held-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2432,
+      "sha256": "ef2d8e28644dea117a3188406671b3ca1fa17ea522de6f241646ea7a2e852ac1"
+    },
+    {
+      "file": "assets/body-held-single-palette-mix-050@2x.png",
+      "role": "single heldBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/body-held-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10046,
+      "sha256": "8de10bed6bd026e3a345401703606fca405f0b4d791a61e1239a8bc38898fb48"
+    },
+    {
+      "file": "assets/release-single-palette-mix-050.svg",
+      "role": "single release · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "assets/release-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1479783,
+      "sha256": "64b741349335557948b0ef6914090ca768951db98b1f61963fe8f105a371edea"
+    },
+    {
+      "file": "assets/release-single-palette-mix-050.png",
+      "role": "single release · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "assets/release-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16407,
+      "sha256": "10f2f19d47fa8bfb93f2ac3fce8a3ad755e6e16a06ed1d7b10c612743fa23017"
+    },
+    {
+      "file": "assets/release-single-palette-mix-050@2x.png",
+      "role": "single release · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "assets/release-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 55490,
+      "sha256": "600cb39090736ec0c7c3c31286c5e76aaa0507e17bad9f8182427d86cce75167"
+    },
+    {
+      "file": "assets/sustain-single-palette-mix-050.svg",
+      "role": "single sustain · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "assets/sustain-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8545,
+      "sha256": "38b90f4b106630d00cca30a643359b616855e6f58c548a6fb26a191a186747ea"
+    },
+    {
+      "file": "assets/sustain-single-palette-mix-050.png",
+      "role": "single sustain · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "assets/sustain-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3099,
+      "sha256": "b3037d4333ac3635ef5a747e61fb70a4a48af56da817891cf6c5a9ce9baa30b0"
+    },
+    {
+      "file": "assets/sustain-single-palette-mix-050@2x.png",
+      "role": "single sustain · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "assets/sustain-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 7203,
+      "sha256": "39e01e9ea445f18e6c67a7d7c2d5500bfe7a52dee111307a8eda272cba7868b5"
+    },
+    {
+      "file": "assets/note-single-palette-mix-075.svg",
+      "role": "single point · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/note-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 22995,
+      "sha256": "9e6035ec98b297c293525dafb3d805d9cc22dae23df0a6e01942bc17207a8d3c"
+    },
+    {
+      "file": "assets/note-single-palette-mix-075.png",
+      "role": "single point · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/note-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5184,
+      "sha256": "3aa67c86228443d451bad26ab4cb784d538c3aeb035b5f1e6519a557474c2539"
+    },
+    {
+      "file": "assets/note-single-palette-mix-075@2x.png",
+      "role": "single point · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-single.png",
+        "assets/note-single.svg",
+        "assets/note-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15009,
+      "sha256": "f926e4b0bcf96b87a8d6cf06e5cfc4d7690a8b6b924d323ab435dba708112988"
+    },
+    {
+      "file": "assets/body-single-palette-mix-075.svg",
+      "role": "single idleBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/body-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10853,
+      "sha256": "edb567d696347d894052c493c5ae7a6c1d1c04b8b5adb0442ebf8f1c9acf2067"
+    },
+    {
+      "file": "assets/body-single-palette-mix-075.png",
+      "role": "single idleBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/body-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 912,
+      "sha256": "6dfb899ee9013040c424ba09da75eded503b9c00bcfa378b7cb21e5c170716a3"
+    },
+    {
+      "file": "assets/body-single-palette-mix-075@2x.png",
+      "role": "single idleBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single.png",
+        "assets/body-single.svg",
+        "assets/body-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1991,
+      "sha256": "569892ba2d9a0fa30218da3fd1daed53c5a65fc2970401612b9f8dfc6adda03d"
+    },
+    {
+      "file": "assets/body-held-single-palette-mix-075.svg",
+      "role": "single heldBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/body-held-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11811,
+      "sha256": "457ed7f6e9fb455fc290462f0858d15fb8d69e51635f4db364b04e67e56cb24e"
+    },
+    {
+      "file": "assets/body-held-single-palette-mix-075.png",
+      "role": "single heldBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/body-held-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1872,
+      "sha256": "012e6a90a196a0f4d59922ba0432d2cbb4a45b40312c423e20bc73ad6b41e81a"
+    },
+    {
+      "file": "assets/body-held-single-palette-mix-075@2x.png",
+      "role": "single heldBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-single-held.png",
+        "assets/body-single-held.svg",
+        "assets/body-held-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8169,
+      "sha256": "b5c5a9a3a9b5ba115cf2c9ae9963bc326e215beaffbd9069fe304c051d0f2024"
+    },
+    {
+      "file": "assets/release-single-palette-mix-075.svg",
+      "role": "single release · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "assets/release-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1479785,
+      "sha256": "2f4cefeee074449bd68aa59ebcfa618b9c4dbee1f4137dcfc24982bbe952e478"
+    },
+    {
+      "file": "assets/release-single-palette-mix-075.png",
+      "role": "single release · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "assets/release-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15869,
+      "sha256": "3bde6b333f44396d27de0f928e08e1841d8f2f3ef6079a624996acf3240e3d46"
+    },
+    {
+      "file": "assets/release-single-palette-mix-075@2x.png",
+      "role": "single release · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-cel-a.png",
+        "assets/release-single-cel-a.svg",
+        "assets/release-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 52908,
+      "sha256": "53eaa35b65514e9bbf843c5d55e1649d208154d99ab3b7ba86e6368066b50cfd"
+    },
+    {
+      "file": "assets/sustain-single-palette-mix-075.svg",
+      "role": "single sustain · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "assets/sustain-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8547,
+      "sha256": "e3904ab94db0d5c76a2aac0091453c01cda70a12309b2d71de54ade231901493"
+    },
+    {
+      "file": "assets/sustain-single-palette-mix-075.png",
+      "role": "single sustain · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "assets/sustain-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3084,
+      "sha256": "0a22f743305ef2a280f40e77cd23c490dfc08a1bfe72e68e4043aae0d4acfbb7"
+    },
+    {
+      "file": "assets/sustain-single-palette-mix-075@2x.png",
+      "role": "single sustain · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-single-rail-outline.png",
+        "assets/sustain-single-rail-outline.svg",
+        "assets/sustain-single-bright-blue.png",
+        "bright-blue-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 7127,
+      "sha256": "4359cc685e6c8ba6e5d5815ea9208e8b8b237acce2c27c27818c502bd081f263"
+    },
+    {
+      "file": "assets/note-double-palette-mix-025.svg",
+      "role": "double point · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/note-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 164650,
+      "sha256": "d2a76a99ac0300109e2d75d0ab8b3b1b8a785c3966961a5f448a69797ec10698"
+    },
+    {
+      "file": "assets/note-double-palette-mix-025.png",
+      "role": "double point · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/note-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11262,
+      "sha256": "c88922710d2264a48118055bc18ab495fd7ef54b3e66880784554cb9919bc596"
+    },
+    {
+      "file": "assets/note-double-palette-mix-025@2x.png",
+      "role": "double point · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/note-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 35743,
+      "sha256": "20b6768a6c52e17d5a1351cec29c673c648769749eba2de426fd0a9e6f58b5dd"
+    },
+    {
+      "file": "assets/body-double-palette-mix-025.svg",
+      "role": "double idleBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/body-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11396,
+      "sha256": "7f02cb1951159d2dcecb307c25e7cd55034685a9586954f025694f8d118eb05f"
+    },
+    {
+      "file": "assets/body-double-palette-mix-025.png",
+      "role": "double idleBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/body-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 813,
+      "sha256": "5c75c3cbcc3938c55949ae8f5ca7c6899eaa61b6dcb9a567f947501256851c84"
+    },
+    {
+      "file": "assets/body-double-palette-mix-025@2x.png",
+      "role": "double idleBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/body-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1824,
+      "sha256": "959d4a43f70527aa3b5bb7152a51280509a2b0be6b79f0f2fe42864c6fbb232f"
+    },
+    {
+      "file": "assets/body-held-double-palette-mix-025.svg",
+      "role": "double heldBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/body-held-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 12509,
+      "sha256": "43a4f7c2282279dd377284157ade7856808909ca7a3285bbda060bb7094266f1"
+    },
+    {
+      "file": "assets/body-held-double-palette-mix-025.png",
+      "role": "double heldBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/body-held-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3447,
+      "sha256": "0bdac248c5d56662b0f3004d02abf576ef0b982c532a485f562b88e1ea80ea3b"
+    },
+    {
+      "file": "assets/body-held-double-palette-mix-025@2x.png",
+      "role": "double heldBody · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/body-held-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14829,
+      "sha256": "dad5c07f05a48c5b0d6f117d3774a2e7e5f1115c4110b2087746d94edd24c75f"
+    },
+    {
+      "file": "assets/release-double-palette-mix-025.svg",
+      "role": "double release · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "assets/release-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1691387,
+      "sha256": "be5eaa3b28665e937ed4859a581842d987336878b2569609749f54da70fde71f"
+    },
+    {
+      "file": "assets/release-double-palette-mix-025.png",
+      "role": "double release · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "assets/release-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17977,
+      "sha256": "615f349ddb17debe6550a821b95430f3e7660d81466ea06175e6fec10bcb6b41"
+    },
+    {
+      "file": "assets/release-double-palette-mix-025@2x.png",
+      "role": "double release · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "assets/release-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 60799,
+      "sha256": "f560b9a35dbdcb590b015258e91c8fbb876d1828c81d12db83662769ca366843"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-025.svg",
+      "role": "double sustain · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "assets/sustain-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8568,
+      "sha256": "3c5a5452918a19497bc069d1db8eafda806b764e48e5ec75edbf6ae4db6f3a6d"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-025.png",
+      "role": "double sustain · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "assets/sustain-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1647,
+      "sha256": "3b9a7c3d3776f3e397406c635fb9d0fad78d67749c1d2e3c9485ab3e4f49c4b9"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-025@2x.png",
+      "role": "double sustain · 새 팔레트 25% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "assets/sustain-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.25,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3994,
+      "sha256": "d4c28719934bc89a35a4972f55c21f66b90cb2a338834a2c22b192a883de5ec6"
+    },
+    {
+      "file": "assets/note-double-palette-mix-050.svg",
+      "role": "double point · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/note-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 164648,
+      "sha256": "3ed16a50f971ad6a413e64a11a33d9d78fce47e30fe4aab7cd9572cb7d476c7b"
+    },
+    {
+      "file": "assets/note-double-palette-mix-050.png",
+      "role": "double point · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/note-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10939,
+      "sha256": "0b314fb2ecc168526bd78221ba8a9df3efc52b25f69399461c78ce30f7e06340"
+    },
+    {
+      "file": "assets/note-double-palette-mix-050@2x.png",
+      "role": "double point · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/note-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 33959,
+      "sha256": "469c734011833a6536670d614a63c2a597c5745490a4b49141c57caed16ee5d3"
+    },
+    {
+      "file": "assets/body-double-palette-mix-050.svg",
+      "role": "double idleBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/body-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11394,
+      "sha256": "f33bb0d36668d822a22ee999c3e84c953d277dc073ba385875a821bfc4f10637"
+    },
+    {
+      "file": "assets/body-double-palette-mix-050.png",
+      "role": "double idleBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/body-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 810,
+      "sha256": "e47872aadc31e09b5dc55f8453770698565e88ab279cc85325953ad28b19eecc"
+    },
+    {
+      "file": "assets/body-double-palette-mix-050@2x.png",
+      "role": "double idleBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/body-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1749,
+      "sha256": "f955fe931ca6cde4c7312cc2db62ae41f49cedafc3e2f84b7d04135622a1683f"
+    },
+    {
+      "file": "assets/body-held-double-palette-mix-050.svg",
+      "role": "double heldBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/body-held-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 12507,
+      "sha256": "c4c26d9f3ccbf3b18abccadb44feb6d45b05b78e64d1ee01d73735144216df4f"
+    },
+    {
+      "file": "assets/body-held-double-palette-mix-050.png",
+      "role": "double heldBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/body-held-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3502,
+      "sha256": "b26894eda85d7c4f221ad3ac9a029cdba6bc7bac6ad69e2c613a6e0f57e760af"
+    },
+    {
+      "file": "assets/body-held-double-palette-mix-050@2x.png",
+      "role": "double heldBody · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/body-held-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 13383,
+      "sha256": "62e7502a9b88ca573d9183c8d8008632b6b5c5873bf8d54c245ac07eefa52d81"
+    },
+    {
+      "file": "assets/release-double-palette-mix-050.svg",
+      "role": "double release · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "assets/release-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1691385,
+      "sha256": "210b446dc6dd5366bd852d20ca0c57fc028265528a38d64131716b72d2dbd9c6"
+    },
+    {
+      "file": "assets/release-double-palette-mix-050.png",
+      "role": "double release · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "assets/release-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17352,
+      "sha256": "2c24a81da7e6f6b4546896e25baf8d01e7f622cbf86ef57994bb2d737b83749c"
+    },
+    {
+      "file": "assets/release-double-palette-mix-050@2x.png",
+      "role": "double release · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "assets/release-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 58423,
+      "sha256": "e3535ab0ea4c48bf63dc0fe32d174e71bef5cbf78ddaf42a6a7a9048b0516d60"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-050.svg",
+      "role": "double sustain · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "assets/sustain-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8566,
+      "sha256": "845275446cb9d02ffeb5cad1ebb69069175fb6761dcbfc66b31ede4ea3e4bb54"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-050.png",
+      "role": "double sustain · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "assets/sustain-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1639,
+      "sha256": "8af67835d27b35168ce601ac3159a65850fe8eda02be4a028b505ccf9320cdd2"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-050@2x.png",
+      "role": "double sustain · 새 팔레트 50% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "assets/sustain-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.5,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3935,
+      "sha256": "c9da66b93306006fa0e942dc1a488ff2d43adc710efd7de16cd9ceebdd6cce81"
+    },
+    {
+      "file": "assets/note-double-palette-mix-075.svg",
+      "role": "double point · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/note-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 164650,
+      "sha256": "2a4082fe1a499aae796bb94fac8793f4bd4eb5870e6c1559e36fe1b18571642c"
+    },
+    {
+      "file": "assets/note-double-palette-mix-075.png",
+      "role": "double point · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/note-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 212,
+      "height": 40,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 10161,
+      "sha256": "14898b7cff31aa17e3bffa2071198480e4b5599fdf7f51f2a932cb5b990164d3"
+    },
+    {
+      "file": "assets/note-double-palette-mix-075@2x.png",
+      "role": "double point · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/note-double-anodized-contrast-070.svg",
+        "assets/note-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 424,
+      "height": 80,
+      "targetSize": [
+        212,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 32075,
+      "sha256": "100cdb552f5b648d78f154e70107bbb55e340d5ed37d70ebe6b7dadedd9e97e7"
+    },
+    {
+      "file": "assets/body-double-palette-mix-075.svg",
+      "role": "double idleBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/body-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 11396,
+      "sha256": "f467cf6102dd610ff2a8f25863410f8d5a7c47dd7606f8b6590cbdd69463f5ae"
+    },
+    {
+      "file": "assets/body-double-palette-mix-075.png",
+      "role": "double idleBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/body-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 786,
+      "sha256": "40c16fd74608f729178cba644b609cba7e7961975e15faaa478b75473bd7be94"
+    },
+    {
+      "file": "assets/body-double-palette-mix-075@2x.png",
+      "role": "double idleBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-center-dual-beam.png",
+        "assets/body-double-center-dual-beam.svg",
+        "assets/body-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1742,
+      "sha256": "50705fcda5db605f29fc8b4b51164b0b057a4bf1b2f74515c261522ee8642a8a"
+    },
+    {
+      "file": "assets/body-held-double-palette-mix-075.svg",
+      "role": "double heldBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/body-held-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 12509,
+      "sha256": "618819f2759424682e825d9f9af12c14433cdf0b08d3aa4b0bb483832ca9058c"
+    },
+    {
+      "file": "assets/body-held-double-palette-mix-075.png",
+      "role": "double heldBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/body-held-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2991,
+      "sha256": "93ecba7de9cd89d867f77bcc52783156eb4e7ace3ea2d12ae5c4453052f39964"
+    },
+    {
+      "file": "assets/body-held-double-palette-mix-075@2x.png",
+      "role": "double heldBody · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/body-double-held.png",
+        "assets/body-double-held.svg",
+        "assets/body-held-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 12441,
+      "sha256": "81c7a52404ebbc022bcbf4e04c58ce85c828900cc63f61f15bec7c2946c44739"
+    },
+    {
+      "file": "assets/release-double-palette-mix-075.svg",
+      "role": "double release · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "assets/release-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1691387,
+      "sha256": "c9041c713b3258c48c93565c8b7d7c1d92edbede5a5f23e60180c3bab4171599"
+    },
+    {
+      "file": "assets/release-double-palette-mix-075.png",
+      "role": "double release · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "assets/release-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16332,
+      "sha256": "1788a0e1719eb46d52a223bdc059f9eaa30bca933308e93517b89f46ce010f07"
+    },
+    {
+      "file": "assets/release-double-palette-mix-075@2x.png",
+      "role": "double release · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-cel-a.png",
+        "assets/release-double-cel-a.svg",
+        "assets/release-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 54748,
+      "sha256": "4ecc263945ea761781a6883f3cb741adb0b5e04d0e70a3966c0ed6f60b367526"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-075.svg",
+      "role": "double sustain · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "assets/sustain-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 8568,
+      "sha256": "d54ad169262abb71c8610f8f8ae4cdcc195736582c6f0d6cbfca736b195ebc0f"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-075.png",
+      "role": "double sustain · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "assets/sustain-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1582,
+      "sha256": "26bd438feb39532ae74ad711e49dbbc1a812e08155c2d19d21b7b3da86d5465f"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-075@2x.png",
+      "role": "double sustain · 새 팔레트 75% 혼합",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double.png",
+        "assets/sustain-double.svg",
+        "assets/sustain-double-critical-gold.png",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "colorSpace": "sRGB",
+        "preserve": "alpha, geometry and light positions",
+        "formula": "original * (1 - amount) + recolored * amount"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 3807,
+      "sha256": "e3901dc7065427ba9191b90f931292b5c3cd733d87bb3fbc18025c156ae62a64"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-075-outline.svg",
+      "role": "double 유지 · 선택한 금색 75% + 각 32px 확대·윤곽선",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double-channel-outline.png",
+        "assets/sustain-double-channel-outline.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "markerWidth": 32,
+        "outlineWidth": 2.4,
+        "beamCenters": [
+          84,
+          116
+        ],
+        "preserve": "D paths and beam centers",
+        "filterBounds": [
+          0,
+          0,
+          200,
+          40
+        ]
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 9018,
+      "sha256": "4218ff0dc09921cb5dccc131a5843a2514392b924d56b65bcaf33667ce882b07"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-075-outline.png",
+      "role": "double 유지 · 선택한 금색 75% + 각 32px 확대·윤곽선",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double-channel-outline.png",
+        "assets/sustain-double-channel-outline.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "markerWidth": 32,
+        "outlineWidth": 2.4,
+        "beamCenters": [
+          84,
+          116
+        ],
+        "preserve": "D paths and beam centers",
+        "filterBounds": [
+          0,
+          0,
+          200,
+          40
+        ]
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 2312,
+      "sha256": "11d5c1953471777248960861ef508a924c6dbfa359ac0cdbfd7f187a320a555e"
+    },
+    {
+      "file": "assets/sustain-double-palette-mix-075-outline@2x.png",
+      "role": "double 유지 · 선택한 금색 75% + 각 32px 확대·윤곽선",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/sustain-double-channel-outline.png",
+        "assets/sustain-double-channel-outline.svg",
+        "critical-gold-palette.mjs",
+        "release-palette.mjs"
+      ],
+      "operation": {
+        "mixAmount": 0.75,
+        "markerWidth": 32,
+        "outlineWidth": 2.4,
+        "beamCenters": [
+          84,
+          116
+        ],
+        "preserve": "D paths and beam centers",
+        "filterBounds": [
+          0,
+          0,
+          200,
+          40
+        ]
+      },
+      "approval": "approved-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 5940,
+      "sha256": "75bdb36c0d45817aff2ee3d70f5568b3a2c6ef3208e08eec8d593fd706e0c4d3"
     }
   ],
   "stateGroups": [
@@ -14451,9 +19923,10 @@
     ],
     "outlineWidth": 2.4,
     "selected": {
-      "single": "assets/sustain-single-rail-outline.png"
+      "single": "assets/sustain-single-rail-outline.png",
+      "double": "assets/sustain-double-channel-outline.png"
     },
-    "note": "싱글은 다음 파란선까지 닿는 44px·어두운 윤곽선 안을 사용자 선택. 36px와 기존 원본을 비교용으로 보존. 더블 각 32px는 시안이며 런타임은 별도 적용.",
+    "note": "싱글은 다음 파란선까지 닿는 44px, 더블은 각 광선 홈 폭 32px와 어두운 윤곽선을 선택. 이전 비교 원본을 보존하며 런타임은 별도 적용.",
     "kinds": [
       {
         "kind": "single",
@@ -15245,6 +20718,8 @@
       200,
       40
     ],
+    "selectedVariant": "a",
+    "selectedAt": "2026-10-26",
     "note": "선호한 단순화 형태 위에서 넓은 면의 셀 채색과 광원 부근 그라데이션을 조율한 A～D. 테두리·광선 끝·3단 표식은 기존 위치 유지.",
     "variants": [
       {
@@ -15329,8 +20804,293 @@
         ],
         "selectedFile": "assets/release-double-cel-a.png"
       }
+    ]
+  },
+  "criticalGoldPalettePreview": {
+    "approval": "proposed-artwork",
+    "kind": "double",
+    "selectedVariant": null,
+    "note": "배경 없는 금노트 PNG 안쪽의 레몬색 면·살구색 테두리를 표본으로 삼고 어두운 명암을 추가한 시안. 공식 색상표가 아니며 A안의 형상·명암 위치·알파를 유지한다.",
+    "references": [
+      {
+        "title": "채보 뷰어의 개별 노트 PNG 출처",
+        "url": "https://github.com/Team-Haruki/pjsekai-scores-rs",
+        "imageUrl": "https://asset3.pjsekai.moe/live/note/custom01/notes_0.png"
+      },
+      {
+        "title": "AppMedia · 노트 아이콘 대조",
+        "url": "https://appmedia.jp/pjsekai/5318842"
+      }
     ],
-    "selectedVariant": "a",
-    "selectedAt": "2026-10-26"
+    "stops": [
+      [
+        0,
+        "#080609"
+      ],
+      [
+        0.15,
+        "#644418"
+      ],
+      [
+        0.3,
+        "#b1812f"
+      ],
+      [
+        0.45,
+        "#e8ad47"
+      ],
+      [
+        0.6,
+        "#feb94b"
+      ],
+      [
+        0.72,
+        "#feca80"
+      ],
+      [
+        0.85,
+        "#feea8c"
+      ],
+      [
+        0.95,
+        "#fffccc"
+      ],
+      [
+        1,
+        "#ffffff"
+      ]
+    ],
+    "variants": [
+      {
+        "id": "original",
+        "label": "현재 금색",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png",
+        "release": "assets/release-double-cel-a.png",
+        "sustain": "assets/sustain-double.png"
+      },
+      {
+        "id": "candidate",
+        "label": "프세카 참고 · 크림 골드",
+        "point": "assets/note-double-critical-gold.png",
+        "idleBody": "assets/body-double-critical-gold.png",
+        "heldBody": "assets/body-held-double-critical-gold.png",
+        "release": "assets/release-double-critical-gold.png",
+        "sustain": "assets/sustain-double-critical-gold.png"
+      }
+    ]
+  },
+  "brightBluePalettePreview": {
+    "approval": "proposed-artwork",
+    "kind": "single",
+    "selectedVariant": null,
+    "note": "배경 없는 파란 노트 PNG 안쪽의 연보라빛 면·시안색 가장자리를 표본으로 삼고 청색 그림자를 추가한 시안. A안 형상과 선택한 44px 유지 윤곽을 유지한다.",
+    "stops": [
+      [
+        0,
+        "#050b18"
+      ],
+      [
+        0.15,
+        "#344d83"
+      ],
+      [
+        0.3,
+        "#586db8"
+      ],
+      [
+        0.4,
+        "#8394f7"
+      ],
+      [
+        0.6,
+        "#96d8ff"
+      ],
+      [
+        0.8,
+        "#d2e4fe"
+      ],
+      [
+        0.9,
+        "#eae7fe"
+      ],
+      [
+        0.96,
+        "#e1f0fe"
+      ],
+      [
+        1,
+        "#ffffff"
+      ]
+    ],
+    "variants": [
+      {
+        "id": "original",
+        "label": "현재 파랑",
+        "point": "assets/note-single.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png",
+        "release": "assets/release-single-cel-a.png",
+        "sustain": "assets/sustain-single-rail-outline.png"
+      },
+      {
+        "id": "candidate",
+        "label": "새 파랑 · 연보라 + 시안",
+        "point": "assets/note-single-bright-blue.png",
+        "idleBody": "assets/body-single-bright-blue.png",
+        "heldBody": "assets/body-held-single-bright-blue.png",
+        "release": "assets/release-single-bright-blue.png",
+        "sustain": "assets/sustain-single-bright-blue.png"
+      }
+    ]
+  },
+  "paletteMixPreview": {
+    "approval": "proposed-artwork",
+    "selectedAmountByKind": {
+      "single": 0.5,
+      "double": 0.75
+    },
+    "note": "새 팔레트 비중 0%·25%·50%·75%·100%. 각 픽셀의 sRGB 색을 기존×(1−비중)+새 색×비중으로 혼합하며 전체 알파를 낮추는 처리가 아니다.",
+    "kinds": [
+      {
+        "kind": "single",
+        "variants": [
+          {
+            "id": "original",
+            "label": "기존 · 0%",
+            "amount": 0,
+            "point": "assets/note-single.png",
+            "idleBody": "assets/body-single.png",
+            "heldBody": "assets/body-single-held.png",
+            "release": "assets/release-single-cel-a.png",
+            "sustain": "assets/sustain-single-rail-outline.png"
+          },
+          {
+            "id": "mix-025",
+            "label": "25%",
+            "amount": 0.25,
+            "point": "assets/note-single-palette-mix-025.png",
+            "idleBody": "assets/body-single-palette-mix-025.png",
+            "heldBody": "assets/body-held-single-palette-mix-025.png",
+            "release": "assets/release-single-palette-mix-025.png",
+            "sustain": "assets/sustain-single-palette-mix-025.png"
+          },
+          {
+            "id": "mix-050",
+            "label": "50%",
+            "amount": 0.5,
+            "point": "assets/note-single-palette-mix-050.png",
+            "idleBody": "assets/body-single-palette-mix-050.png",
+            "heldBody": "assets/body-held-single-palette-mix-050.png",
+            "release": "assets/release-single-palette-mix-050.png",
+            "sustain": "assets/sustain-single-palette-mix-050.png"
+          },
+          {
+            "id": "mix-075",
+            "label": "75%",
+            "amount": 0.75,
+            "point": "assets/note-single-palette-mix-075.png",
+            "idleBody": "assets/body-single-palette-mix-075.png",
+            "heldBody": "assets/body-held-single-palette-mix-075.png",
+            "release": "assets/release-single-palette-mix-075.png",
+            "sustain": "assets/sustain-single-palette-mix-075.png"
+          },
+          {
+            "id": "candidate",
+            "label": "새 색 · 100%",
+            "point": "assets/note-single-bright-blue.png",
+            "idleBody": "assets/body-single-bright-blue.png",
+            "heldBody": "assets/body-held-single-bright-blue.png",
+            "release": "assets/release-single-bright-blue.png",
+            "sustain": "assets/sustain-single-bright-blue.png",
+            "amount": 1
+          }
+        ]
+      },
+      {
+        "kind": "double",
+        "variants": [
+          {
+            "id": "original",
+            "label": "기존 · 0%",
+            "amount": 0,
+            "point": "assets/note-double-anodized-contrast-070.png",
+            "idleBody": "assets/body-double-center-dual-beam.png",
+            "heldBody": "assets/body-double-held.png",
+            "release": "assets/release-double-cel-a.png",
+            "sustain": "assets/sustain-double.png"
+          },
+          {
+            "id": "mix-025",
+            "label": "25%",
+            "amount": 0.25,
+            "point": "assets/note-double-palette-mix-025.png",
+            "idleBody": "assets/body-double-palette-mix-025.png",
+            "heldBody": "assets/body-held-double-palette-mix-025.png",
+            "release": "assets/release-double-palette-mix-025.png",
+            "sustain": "assets/sustain-double-palette-mix-025.png"
+          },
+          {
+            "id": "mix-050",
+            "label": "50%",
+            "amount": 0.5,
+            "point": "assets/note-double-palette-mix-050.png",
+            "idleBody": "assets/body-double-palette-mix-050.png",
+            "heldBody": "assets/body-held-double-palette-mix-050.png",
+            "release": "assets/release-double-palette-mix-050.png",
+            "sustain": "assets/sustain-double-palette-mix-050.png"
+          },
+          {
+            "id": "mix-075",
+            "label": "75%",
+            "amount": 0.75,
+            "point": "assets/note-double-palette-mix-075.png",
+            "idleBody": "assets/body-double-palette-mix-075.png",
+            "heldBody": "assets/body-held-double-palette-mix-075.png",
+            "release": "assets/release-double-palette-mix-075.png",
+            "sustain": "assets/sustain-double-palette-mix-075.png"
+          },
+          {
+            "id": "candidate",
+            "label": "새 색 · 100%",
+            "point": "assets/note-double-critical-gold.png",
+            "idleBody": "assets/body-double-critical-gold.png",
+            "heldBody": "assets/body-held-double-critical-gold.png",
+            "release": "assets/release-double-critical-gold.png",
+            "sustain": "assets/sustain-double-critical-gold.png",
+            "amount": 1
+          }
+        ]
+      }
+    ]
+  },
+  "selectedPalettePreview": {
+    "note": "파랑 50%·금색 75% 선택. 금색 유지에도 각 32px 확대·어두운 윤곽선을 적용한다. 이전 팔레트 비교 파일은 보존하며 현재 조합은 이 목록을 따른다.",
+    "kinds": [
+      {
+        "kind": "single",
+        "id": "mix-050",
+        "label": "50%",
+        "amount": 0.5,
+        "point": "assets/note-single-palette-mix-050.png",
+        "idleBody": "assets/body-single-palette-mix-050.png",
+        "heldBody": "assets/body-held-single-palette-mix-050.png",
+        "release": "assets/release-single-palette-mix-050.png",
+        "sustain": "assets/sustain-single-palette-mix-050.png"
+      },
+      {
+        "kind": "double",
+        "id": "mix-075",
+        "label": "75%",
+        "amount": 0.75,
+        "point": "assets/note-double-palette-mix-075.png",
+        "idleBody": "assets/body-double-palette-mix-075.png",
+        "heldBody": "assets/body-held-double-palette-mix-075.png",
+        "release": "assets/release-double-palette-mix-075.png",
+        "sustain": "assets/sustain-double-palette-mix-075-outline.png",
+        "previousSustain": "assets/sustain-double-palette-mix-075.png"
+      }
+    ]
   }
 }

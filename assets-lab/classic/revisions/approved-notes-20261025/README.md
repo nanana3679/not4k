@@ -1,6 +1,6 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 보존 원본 24개와 복사·상태별 생성물 336개, 총 360개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 459개, 총 483개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
@@ -11,7 +11,7 @@
 | 누름 | ![기존 싱글](assets/note-single.png) | ![M6 70% 더블](assets/note-double-anodized-contrast-070.png) |
 | 대기 바디 | ![싱글 바디](assets/body-single.png) | ![중앙 두 광선 더블 바디](assets/body-double-center-dual-beam.png) |
 | 일반 릴리즈 J2-C | ![싱글 릴리즈](assets/release-single.png) | ![더블 릴리즈](assets/release-double.png) |
-| 유지 노트 D | ![싱글 유지 · 44px 선택](assets/sustain-single-rail-outline.png) | ![더블 유지](assets/sustain-double.png) |
+| 유지 노트 D | ![싱글 유지 · 44px 선택](assets/sustain-single-rail-outline.png) | ![더블 유지 · 각 32px 선택](assets/sustain-double-palette-mix-075-outline.png) |
 
 - 싱글 누름은 기존 디자인을 유지한다. 더블 누름은 **M6 아노다이징 대비 70%**다.
 - 더블 바디는 바깥 면을 유지하고 중앙 영역만 넓혀 **42%·58%**에 두 광선을 둔다.
@@ -61,6 +61,28 @@
 새 상태 파일은 `body-double-held`, `body-double-partial-held-{left,right}`, `body-double-failed`, `body-double-partial-failed-{left,right}`, `note-double-failed`, `sustain-{single,double}-failed`, `sustain-double-partial-failed-{left,right}`, `{sustain,release}-double-unit-{left,right}[-failed]`, `unit-mask-{left,right}` 이름으로 찾을 수 있다.
 
 ## 재생성 및 미리보기
+
+### 선택 팔레트와 노란 유지 표식 확대
+
+파랑 50%·노랑 75%를 선택했다. [바디에 붙인 선택본과 노란 유지 수정 전/후 이미지](selected-palette-preview.png)를 함께 제공한다. 현재 조합 10종의 PNG·2배 PNG·SVG 30개는 `approved-artwork`로 기록한다. `manifest.paletteMixPreview.selectedAmountByKind`에 혼합 비중을, `selectedPalettePreview.kinds`에 현재 조합의 5종 파일을 기록한다. `#selected-palette`는 파랑 선택본과 노랑 수정 전/후를 대기·활성 바디 및 게임 크기로 비교한다.
+
+직전 금색 팔레트 비교에는 확대 전 `sustain-double`이 사용됐다. 이번에는 `sustain-double-channel-outline`의 각 32px·2.4px 윤곽선을 노랑 75%로 변환한 `sustain-double-palette-mix-075-outline`을 사용한다. 광선 중심 x=84·116과 원래 D 경로를 유지하며 필터 영역을 캔버스 전체로 잡아 윤곽선을 자르지 않는다. PNG·2배 PNG·SVG 3개를 추가하고 이전 480개는 비교 기록으로 보존한다. 실제 스킨·실패 상태 연결은 별도다.
+
+### 기존/새 팔레트 25%·50%·75% 혼합
+
+`#palette-mix`에서 싱글·더블 각각 기존 0%→25%→50%→75%→새 색 100%를 같은 행에 비교한다. 비율은 새 팔레트의 비중이며 픽셀별 sRGB 색을 `기존 × (1 − 비중) + 새 색 × 비중`으로 혼합한다. 노트 전체의 투명도를 낮추지 않는다. 포인트·대기/활성 바디·A 릴리즈·유지 표식 5종을 같은 비율로 조율하며 활성 바디와 게임 크기 대기/활성을 제공한다.
+
+`manifest.paletteMixPreview`에 비율·파일·선택한 파랑 50%·금색 75%를 기록한다. 기존 390개를 보존하고 2색 × 3비율 × 5종 × PNG/2배 PNG/SVG = 90개를 추가한다. `brightBlueArtwork`/`criticalGoldArtwork`의 `amount`를 공통 색 필터 혼합에 전달한다. 형상·알파·광선 위치는 유지하며 스킨 연결은 별도다.
+
+### 단독 노트 PNG를 참고한 파랑·금색 팔레트
+
+`#blue-gold-palette`는 배경 없는 노트 PNG와 기존/새 싱글·더블 조합을 함께 보여 준다. 처음의 게임 화면 참고와 수동 하늘색 시안은 사용자 피드백에 따라 단독 노트 자료로 교체했다. [채보 뷰어](https://github.com/Team-Haruki/pjsekai-scores-rs)가 참조하는 custom01의 `notes_2.png`(파랑), `notes_0.png`(금색)를 [AppMedia의 단독 노트 아이콘](https://appmedia.jp/pjsekai/5318842)과 대조했다. [이미지·출처·SHA-256·표본 좌표·채널별 중앙값](note-palette-reference/sources.json)을 보존한다. 커뮤니티 호스팅 자료이며 공식 색상표로 간주하지 않는다.
+
+바깥 발광과 투명 영역은 표본에서 제외한다. 파랑의 안쪽 면은 `#eae7fe`/`#e1f0fe`, 가장자리는 `#c4a6ff`/`#96d8ff`, 작은 색면은 `#8394f7`다. 금색 안쪽은 `#fffccc`, 테두리는 `#feca80`/`#feea8c`, 작은 색면은 `#feb94b`다. 이 색들을 기준으로 기존 바디의 어두운 면을 읽을 수 있도록 명암 범위를 확장했다. 노트 형태 자체는 복제하지 않는다.
+
+`bright-blue-palette.mjs`와 `critical-gold-palette.mjs`는 같은 sRGB 명암→RGB 보간 함수를 사용한다. 각각 포인트·대기/활성 바디·선택한 A 릴리즈·유지 표식에 적용하며, 싱글 유지에는 선택한 44px 윤곽을 사용한다. 중간 밝기를 올리면서 형상·알파·질감 및 광선 위치를 유지한다. 기본 PNG는 각 기본 크기 원본, 2배와 SVG는 해당 SVG를 사용한다. 파랑은 색 필터 영역을 전체 캔버스로 정해 유지 표식의 바깥 stroke를 자르지 않는다.
+
+`manifest.brightBluePalettePreview`와 `criticalGoldPalettePreview`에 팔레트·파일을 기록한다. 기존 360개를 보존하고 파랑/금색 각 15개, 총 30개 후보를 제공한다. 초기 금색 후보도 단독 PNG 참고 팔레트로 갱신했다. `#blue-gold-palette`에서 활성 바디와 게임 크기 대기/활성을 비교하며, `#critical-gold-palette`에는 금색의 대기/활성 확대를 둔다. 참고 PNG 두 장은 비교 자료로만 표시한다. 현재 선택 비율은 파랑 50%·금색 75%이며 실제 스킨·실패/Grace 상태와 A안 형상 선택을 변경하지 않는다.
 
 ### 셀 채색과 광원 그라데이션 · 4안
 
@@ -166,7 +188,7 @@ J2-C는 흰빛까지 합쳐진 PNG라 원래 흰빛 레이어가 존재하지 �
 
 표식의 실제 외곽을 따라 2.4px 어두운 선을 둔다(싱글 `#05243a`, 더블 `#3b2906`). 빛번짐·Grace 효과가 아닌 가독성용 윤곽선이다. 바디와 표식 면 색은 그대로다. `sustain-visibility.mjs`가 기존 SVG의 D 경로를 재사용하며 `sustain-{single,double}-channel-outline`와 `sustain-single-rail-outline`의 PNG·2배 PNG·SVG 9개를 생성한다.
 
-`manifest.sustainVisibilityPreview`에 비교 원본·후보·표시 폭·활성 바디를 기록한다. **싱글 44px는 사용자 선택본**으로 `selected.single`에 기록한다. 더블 32px는 시안이며 기존 정상본·실패본·몫별 레이어와 런타임 키를 교체하지 않는다. 게임 배율은 누름 폭 62.5px를 기준으로 바디와 overlay를 함께 `62.5 / 212`로 줄인다.
+`manifest.sustainVisibilityPreview`에 비교 원본·후보·표시 폭·활성 바디를 기록한다. **싱글 44px는 사용자 선택본**으로 `selected.single`에 기록한다. 더블 각 32px도 `selected.double`에 기록하고 금색 75% 선택 조합에 적용한다. 기존 정상본·실패본·몫별 레이어와 런타임 키는 보존한다. 게임 배율은 누름 폭 62.5px를 기준으로 바디와 overlay를 함께 `62.5 / 212`로 줄인다.
 
 ### 포인트 고정 · 중간 강도 2안
 

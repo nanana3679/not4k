@@ -2,6 +2,100 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('팔레트 25%·50%·75% 혼합은 싱글·더블 5종의 기본·2배 색을 비율대로 섞고 윤곽을 보존한다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '팔레트 혼합', exact: true }).click();
+  const section = page.locator('#palette-mix');
+  await expect(section.locator('.palette-mix-kind')).toHaveCount(2);
+  for (const kind of ['single', 'double']) {
+    const cards = section.locator(`[data-kind="${kind}"] article`);
+    expect(await cards.evaluateAll(elements => elements.map(element => element.getAttribute('data-amount')))).toEqual(['0', '0.25', '0.5', '0.75', '1']);
+    for (const amount of [.25, .5, .75]) await expect(cards.locator(`:scope[data-amount="${amount}"] a[download]`)).toHaveCount(15);
+  }
+  const checks = await section.evaluate(async element => {
+    const checks = [];
+    for (const kind of ['single', 'double']) for (const role of ['point', 'idleBody', 'heldBody', 'release', 'sustain']) for (const scale of [1, 2]) {
+      const load = async (amount: number) => {
+        const path = element.querySelector(`[data-kind="${kind}"] [data-amount="${amount}"] nav[data-role="${role}"] a`)!.getAttribute('href')!;
+        const suffix = scale === 1 ? '.png' : amount === 0 ? '.svg' : '@2x.png';
+        const image = new Image(); image.src = path.replace('.png', suffix); await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = (role === 'point' ? 212 : 200) * scale; canvas.height = 40 * scale;
+        const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        return context.getImageData(0, 0, canvas.width, canvas.height).data;
+      };
+      const original = await load(0), candidate = await load(1);
+      for (const amount of [.25, .5, .75]) {
+        const mixed = await load(amount);
+        let alphaDifference = 0, colorDifference = 0, checkedPixels = 0;
+        for (let i = 0; i < original.length; i += 4) {
+          alphaDifference = Math.max(alphaDifference, Math.abs(mixed[i + 3] - original[i + 3]));
+          if (original[i + 3] !== 255 || candidate[i + 3] !== 255) continue;
+          checkedPixels++;
+          for (const channel of [0, 1, 2]) colorDifference = Math.max(colorDifference, Math.abs(mixed[i + channel] - (original[i + channel] * (1 - amount) + candidate[i + channel] * amount)));
+        }
+        checks.push({ kind, role, scale, amount, alphaDifference, colorDifference, checkedPixels });
+      }
+    }
+    return checks;
+  });
+  for (const check of checks) {
+    const label = `${check.kind} ${check.role} ${check.scale}배 ${check.amount * 100}%`;
+    expect(check.checkedPixels, label).toBeGreaterThan(50);
+    expect(check.colorDifference, label).toBeLessThanOrEqual(2);
+    // Nested SVG filters may round antialiased stroke boundaries by two alpha levels.
+    expect(check.alphaDifference, label).toBeLessThanOrEqual(2);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
+for (const palette of [
+  { name: '크림 골드', kind: '더블', link: '크림 골드', section: '#critical-gold-palette' },
+  { name: '밝은 하늘색', kind: '싱글', link: '파랑·금색 전후', section: '#blue-gold-palette' },
+]) test(`${palette.name} 팔레트는 ${palette.kind} 5종의 기본·2배 윤곽을 보존하고 밝기를 올리며 15개 다운로드를 제공한다`, async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: palette.link, exact: true }).click();
+  const section = page.locator(palette.section);
+  await expect(section.locator('article')).toHaveCount(2);
+  if (palette.kind === '싱글') await expect(section.locator('.note-palette-reference img')).toHaveCount(2);
+  await expect(section.locator('[data-variant="candidate"] a[download]')).toHaveCount(15);
+  const checks = await section.evaluate(async element => {
+    const checks = [];
+    for (const role of ['point', 'idleBody', 'heldBody', 'release', 'sustain']) {
+      const path = (variant: string) => element.querySelector(`[data-variant="${variant}"] nav[data-role="${role}"] a`)!.getAttribute('href')!;
+      for (const scale of [1, 2]) {
+        const load = async (variant: string) => {
+          const suffix = scale === 1 ? '.png' : variant === 'original' ? '.svg' : '@2x.png';
+          const image = new Image(); image.src = path(variant).replace('.png', suffix); await image.decode();
+          const canvas = document.createElement('canvas'); canvas.width = (role === 'point' ? 212 : 200) * scale; canvas.height = 40 * scale;
+          const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          return { width: canvas.width, height: canvas.height, data: context.getImageData(0, 0, canvas.width, canvas.height).data };
+        };
+        const before = await load('original'), after = await load('candidate');
+        let alphaDifference = 0, changed = 0, beforeBrightness = 0, afterBrightness = 0, count = 0;
+        for (let i = 0; i < before.data.length; i += 4) {
+          alphaDifference = Math.max(alphaDifference, Math.abs(before.data[i + 3] - after.data[i + 3]));
+          if (before.data[i + 3] < 250) continue;
+          const intensity = (data: Uint8ClampedArray) => .2126 * data[i] + .7152 * data[i + 1] + .0722 * data[i + 2];
+          beforeBrightness += intensity(before.data); afterBrightness += intensity(after.data); count++;
+          if ([0, 1, 2].some(channel => Math.abs(before.data[i + channel] - after.data[i + channel]) > 5)) changed++;
+        }
+        checks.push({ role, scale, beforeSize: [before.width, before.height], afterSize: [after.width, after.height], alphaDifference, changed, brightnessDelta: (afterBrightness - beforeBrightness) / count });
+      }
+    }
+    return checks;
+  });
+  for (const check of checks) {
+    expect(check.afterSize, `${check.role} ${check.scale}배 크기`).toEqual(check.beforeSize);
+    // Nesting a stroked SVG in a color filter can round boundary alpha by two 8-bit steps.
+    expect(check.alphaDifference, `${check.role} ${check.scale}배 윤곽`).toBeLessThanOrEqual(2);
+    expect(check.changed, `${check.role} 색 변화`).toBeGreaterThan(50);
+    expect(check.brightnessDelta, `${check.role} 밝기`).toBeGreaterThan(0);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('셀 채색 4안은 싱글·더블 8종에서 기존 3단 표식과 광선 끝을 유지하고 24개 다운로드를 제공한다', async ({ page }) => {
   await page.goto(route);
   await page.locator('.jump').getByRole('link', { name: '셀 채색 4안' }).click();
@@ -919,8 +1013,13 @@ test('선택한 촘촘한 릴리즈 3단은 10% 확대 전후를 비교하고 �
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
 
-test('유지 확대안은 활성 바디 위에 싱글 36px·44px·더블 전체 64px로 보이며 SVG·PNG 모두 어두운 윤곽이 있다', async ({ page }) => {
+test('유지 확대안과 선택한 노랑 75%는 싱글 36px·44px·더블 전체 64px이며 SVG·PNG 모두 어두운 윤곽이 있다', async ({ page }) => {
   await page.goto(route + '#sustain-visibility');
+  const selected = page.locator('#selected-palette');
+  await expect(selected.locator('article')).toHaveCount(3);
+  await expect(selected.locator('[data-variant="single-selected"] .gold-sustain').first()).toHaveAttribute('src', 'assets/sustain-single-palette-mix-050.png');
+  await expect(selected.locator('[data-variant="double-selected"] .gold-sustain').first()).toHaveAttribute('src', 'assets/sustain-double-palette-mix-075-outline.png');
+  await expect(selected.locator('[data-variant="double-before"] .gold-sustain').first()).toHaveAttribute('src', 'assets/sustain-double-palette-mix-075.png');
   const section = page.locator('#sustain-visibility');
   for (const kind of ['single', 'double']) {
     const comparison = section.locator(`[data-kind="${kind}"]`);
@@ -937,6 +1036,7 @@ test('유지 확대안은 활성 바디 위에 싱글 36px·44px·더블 전체 
       { kind: 'single', treatment: 'channel', expectedWidth: 36 },
       { kind: 'single', treatment: 'rail', expectedWidth: 44 },
       { kind: 'double', treatment: 'channel', expectedWidth: 64 },
+      { kind: 'double', treatment: 'palette-mix-075', expectedWidth: 64 },
     ]) for (const suffix of ['.png', '@2x.png', '.svg']) {
       const scale = suffix === '.png' ? 1 : 2;
       const image = new Image(); image.src = `assets/sustain-${kind}-${treatment}-outline${suffix}`; await image.decode();
@@ -948,7 +1048,7 @@ test('유지 확대안은 활성 바디 위에 싱글 36px·44px·더블 전체 
         const i = (y * canvas.width + x) * 4;
         if (data[i + 3] < 128) continue;
         minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-        if (Math.max(data[i], data[i + 1], data[i + 2]) < 90) darkPixels++;
+        if (Math.max(data[i], data[i + 1], data[i + 2]) < (treatment === 'palette-mix-075' ? 140 : 90)) darkPixels++;
       }
       results.push({ kind, treatment, expectedWidth, suffix, width: (maxX - minX + 1) / scale, center: (minX + maxX + 1) / (2 * scale), minY: minY / scale, maxY: (maxY + 1) / scale, darkPixels: darkPixels / scale ** 2 });
     }

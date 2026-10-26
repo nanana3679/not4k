@@ -1,0 +1,71 @@
+{
+  "retrievedAt": "2026-10-26",
+  "source": "https://github.com/Team-Haruki/pjsekai-scores-rs",
+  "crossCheck": "https://appmedia.jp/pjsekai/5318842",
+  "note": "채보 뷰어가 참조하는 community-hosted custom01 개별 PNG. 공식 색상표로 간주하지 않는다. 노트 안쪽만 표본으로 사용하며 바깥 발광·투명 영역은 제외한다.",
+  "sampleMethod": "각 직사각 영역의 채널별 중앙값",
+  "sampleRects": {
+    "faceTop": [
+      100,
+      62,
+      140,
+      12
+    ],
+    "faceBottom": [
+      100,
+      103,
+      140,
+      12
+    ],
+    "topBorder": [
+      100,
+      54,
+      140,
+      4
+    ],
+    "bottomBorder": [
+      100,
+      120,
+      140,
+      6
+    ],
+    "sideMark": [
+      70,
+      82,
+      14,
+      14
+    ]
+  },
+  "images": [
+    {
+      "kind": "blue",
+      "file": "blue.png",
+      "url": "https://asset3.pjsekai.moe/live/note/custom01/notes_2.png",
+      "sha256": "7c067317e161bfc9838b7aafc72dc9035a1d29d07e483780ff5189d3298bc9ee",
+      "width": 354,
+      "height": 186,
+      "samples": {
+        "faceTop": "#eae7fe",
+        "faceBottom": "#e1f0fe",
+        "topBorder": "#c4a6ff",
+        "bottomBorder": "#96d8ff",
+        "sideMark": "#8394f7"
+      }
+    },
+    {
+      "kind": "gold",
+      "file": "gold.png",
+      "url": "https://asset3.pjsekai.moe/live/note/custom01/notes_0.png",
+      "sha256": "2495e2ee50e7dcd530f33274ee220151f84de44378d6f94edcc970faf435360e",
+      "width": 354,
+      "height": 186,
+      "samples": {
+        "faceTop": "#fffccc",
+        "faceBottom": "#fffccc",
+        "topBorder": "#feca80",
+        "bottomBorder": "#feea8c",
+        "sideMark": "#feb94b"
+      }
+    }
+  ]
+}

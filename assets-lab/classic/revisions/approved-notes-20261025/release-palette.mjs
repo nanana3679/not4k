@@ -35,6 +35,18 @@ export async function sampleArtworkPalette(dataUrl) {
   });
 }
 
+export function interpolatedPaletteTable(colorStops) {
+  const stops = colorStops.map(([position, hex]) => [position, [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16) / 255)]);
+  return Array.from({ length: 257 }, (_, index) => {
+    const intensity = index / 256;
+    const upper = stops.findIndex(([position]) => position >= intensity);
+    if (upper === 0) return stops[0][1];
+    const [start, from] = stops[upper - 1], [end, to] = stops[upper];
+    const mix = (intensity - start) / (end - start);
+    return from.map((value, channel) => Number((value + (to[channel] - value) * mix).toFixed(6)));
+  });
+}
+
 export function paletteMappedArtwork(source, table, { width = 200, height = 40, amount = 1 } = {}) {
   const nested = source.replace(/\bwidth="[\d.]+"/, `width="${width}"`).replace(/\bheight="[\d.]+"/, `height="${height}"`);
   const channels = ['R', 'G', 'B'].map((channel, index) => `<feFunc${channel} type="table" tableValues="${table.map(rgb => rgb[index]).join(' ')}"/>`).join('');

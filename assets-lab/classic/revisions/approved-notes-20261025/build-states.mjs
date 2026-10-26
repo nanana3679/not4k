@@ -15,6 +15,8 @@ import { releaseStraightJunctionArtwork, straightJunctionGeometry } from './rele
 import { releaseSimpleFrameArtwork } from './release-simple-frame.mjs';
 import { releaseSimplifiedOriginalArtwork } from './release-simplified-original.mjs';
 import { releaseCelBalanceArtwork } from './release-cel-balance.mjs';
+import { criticalGoldArtwork, criticalGoldStops } from './critical-gold-palette.mjs';
+import { brightBlueArtwork, brightBlueStops } from './bright-blue-palette.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -36,8 +38,8 @@ for (const asset of manifest.assets.filter(asset => asset.file.startsWith('asset
 manifest.stateGroups = [];
 manifest.sustainVisibilityPreview = {
   approval: 'proposed-display-treatment', targetSize: [200, 40], outlineWidth: 2.4,
-  selected: { single: 'assets/sustain-single-rail-outline.png' },
-  note: '싱글은 다음 파란선까지 닿는 44px·어두운 윤곽선 안을 사용자 선택. 36px와 기존 원본을 비교용으로 보존. 더블 각 32px는 시안이며 런타임은 별도 적용.',
+  selected: { single: 'assets/sustain-single-rail-outline.png', double: 'assets/sustain-double-channel-outline.png' },
+  note: '싱글은 다음 파란선까지 닿는 44px, 더블은 각 광선 홈 폭 32px와 어두운 윤곽선을 선택. 이전 비교 원본을 보존하며 런타임은 별도 적용.',
   kinds: [],
 };
 manifest.releaseSymbolPreview = {
@@ -596,9 +598,116 @@ try {
     missingRequestedStates: [],
     unapproved: ['새 상태별 색·강도', '일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성', '유지 노트의 성공·실패 표시 방식과 수명', '더블 유지 표식 각 32px 확대·어두운 윤곽선', '릴리즈 중앙 꺾쇠 표시'],
   };
+  const doubleCel = manifest.releaseCelBalancePreview.kinds.find(entry => entry.kind === 'double');
+  const goldOriginal = {
+    point: doubleCel.point, idleBody: doubleCel.idleBody, heldBody: doubleCel.heldBody,
+    release: doubleCel.selectedFile, sustain: 'assets/sustain-double.png',
+  };
+  manifest.criticalGoldPalettePreview = {
+    approval: 'proposed-artwork', kind: 'double', selectedVariant: null,
+    note: '배경 없는 금노트 PNG 안쪽의 레몬색 면·살구색 테두리를 표본으로 삼고 어두운 명암을 추가한 시안. 공식 색상표가 아니며 A안의 형상·명암 위치·알파를 유지한다.',
+    references: [
+      { title: '채보 뷰어의 개별 노트 PNG 출처', url: 'https://github.com/Team-Haruki/pjsekai-scores-rs', imageUrl: 'https://asset3.pjsekai.moe/live/note/custom01/notes_0.png' },
+      { title: 'AppMedia · 노트 아이콘 대조', url: 'https://appmedia.jp/pjsekai/5318842' },
+    ],
+    stops: criticalGoldStops,
+    variants: [{ id: 'original', label: '현재 금색', ...goldOriginal }],
+  };
+  const goldCandidate = { id: 'candidate', label: '프세카 참고 · 크림 골드' };
+  for (const [role, sourceFile] of Object.entries(goldOriginal)) {
+    const width = role === 'point' ? 212 : 200;
+    const source = (await readFile(new URL(sourceFile.replace('.png', '.svg'), here))).toString();
+    goldCandidate[role] = await emit(`${role === 'idleBody' ? 'body' : role === 'heldBody' ? 'body-held' : role === 'point' ? 'note' : role}-double-critical-gold`, criticalGoldArtwork(source, { width }), {
+      width, nativeSource: criticalGoldArtwork(rasterArtwork(await readFile(new URL(sourceFile, here)), width), { width }),
+      role: `double ${role} · 프세카 금노트 참고 팔레트`,
+      sourceFiles: [sourceFile, sourceFile.replace('.png', '.svg'), 'critical-gold-palette.mjs', 'release-palette.mjs', 'note-palette-reference/sources.json', 'note-palette-reference/gold.png'],
+      operation: { palette: 'critical-gold', input: 'sRGB weighted intensity', stops: criticalGoldStops, preserve: 'geometry, alpha, texture and light positions; tone brightness is deliberately lifted' },
+      approval: 'proposed-artwork',
+    });
+  }
+  manifest.criticalGoldPalettePreview.variants.push(goldCandidate);
+  const singleCel = manifest.releaseCelBalancePreview.kinds.find(entry => entry.kind === 'single');
+  const blueOriginal = {
+    point: singleCel.point, idleBody: singleCel.idleBody, heldBody: singleCel.heldBody,
+    release: singleCel.selectedFile, sustain: manifest.sustainVisibilityPreview.selected.single,
+  };
+  manifest.brightBluePalettePreview = {
+    approval: 'proposed-artwork', kind: 'single', selectedVariant: null,
+    note: '배경 없는 파란 노트 PNG 안쪽의 연보라빛 면·시안색 가장자리를 표본으로 삼고 청색 그림자를 추가한 시안. A안 형상과 선택한 44px 유지 윤곽을 유지한다.',
+    stops: brightBlueStops,
+    variants: [{ id: 'original', label: '현재 파랑', ...blueOriginal }],
+  };
+  const blueCandidate = { id: 'candidate', label: '새 파랑 · 연보라 + 시안' };
+  for (const [role, sourceFile] of Object.entries(blueOriginal)) {
+    const width = role === 'point' ? 212 : 200;
+    const source = (await readFile(new URL(sourceFile.replace('.png', '.svg'), here))).toString();
+    blueCandidate[role] = await emit(`${role === 'idleBody' ? 'body' : role === 'heldBody' ? 'body-held' : role === 'point' ? 'note' : role}-single-bright-blue`, brightBlueArtwork(source, { width }), {
+      width, nativeSource: brightBlueArtwork(rasterArtwork(await readFile(new URL(sourceFile, here)), width), { width }),
+      role: `single ${role} · 밝은 하늘색 팔레트`,
+      sourceFiles: [sourceFile, sourceFile.replace('.png', '.svg'), 'bright-blue-palette.mjs', 'release-palette.mjs', 'note-palette-reference/sources.json', 'note-palette-reference/blue.png'],
+      operation: { palette: 'bright-blue', input: 'sRGB weighted intensity', stops: brightBlueStops, preserve: 'geometry, alpha, texture and light positions; tone brightness is deliberately lifted' },
+      approval: 'proposed-artwork',
+    });
+  }
+  manifest.brightBluePalettePreview.variants.push(blueCandidate);
+  manifest.paletteMixPreview = {
+    approval: 'proposed-artwork', selectedAmountByKind: { single: .5, double: .75 },
+    note: '새 팔레트 비중 0%·25%·50%·75%·100%. 각 픽셀의 sRGB 색을 기존×(1−비중)+새 색×비중으로 혼합하며 전체 알파를 낮추는 처리가 아니다.',
+    kinds: [],
+  };
+  for (const [kind, original, candidate, recolor, helper] of [
+    ['single', blueOriginal, blueCandidate, brightBlueArtwork, 'bright-blue-palette.mjs'],
+    ['double', goldOriginal, goldCandidate, criticalGoldArtwork, 'critical-gold-palette.mjs'],
+  ]) {
+    const variants = [{ id: 'original', label: '기존 · 0%', amount: 0, ...original }];
+    for (const amount of [.25, .5, .75]) {
+      const percent = String(amount * 100).padStart(3, '0');
+      const variant = { id: `mix-${percent}`, label: `${amount * 100}%`, amount };
+      for (const [role, sourceFile] of Object.entries(original)) {
+        const width = role === 'point' ? 212 : 200;
+        const source = (await readFile(new URL(sourceFile.replace('.png', '.svg'), here))).toString();
+        const prefix = role === 'idleBody' ? 'body' : role === 'heldBody' ? 'body-held' : role === 'point' ? 'note' : role;
+        variant[role] = await emit(`${prefix}-${kind}-palette-mix-${percent}`, recolor(source, { width, amount }), {
+          width, nativeSource: recolor(rasterArtwork(await readFile(new URL(sourceFile, here)), width), { width, amount }),
+          role: `${kind} ${role} · 새 팔레트 ${amount * 100}% 혼합`,
+          sourceFiles: [sourceFile, sourceFile.replace('.png', '.svg'), candidate[role], helper, 'release-palette.mjs'],
+          operation: { mixAmount: amount, colorSpace: 'sRGB', preserve: 'alpha, geometry and light positions', formula: 'original * (1 - amount) + recolored * amount' },
+          approval: 'proposed-artwork',
+        });
+      }
+      variants.push(variant);
+    }
+    variants.push({ ...candidate, label: '새 색 · 100%', amount: 1 });
+    manifest.paletteMixPreview.kinds.push({ kind, variants });
+  }
+  const selectedPalettes = manifest.paletteMixPreview.kinds.map(entry => ({
+    kind: entry.kind,
+    ...entry.variants.find(variant => variant.amount === manifest.paletteMixPreview.selectedAmountByKind[entry.kind]),
+  }));
+  const selectedGold = selectedPalettes.find(entry => entry.kind === 'double');
+  const outlinedGoldFile = manifest.sustainVisibilityPreview.selected.double;
+  const recolorOutlinedGold = source => criticalGoldArtwork(source, { amount: selectedGold.amount })
+    // Include the outline beyond the fill bounds, as for the selected blue sustain.
+    .replace('id="critical-gold-palette" x="0" y="0" width="100%" height="100%"', 'id="critical-gold-palette" filterUnits="userSpaceOnUse" x="0" y="0" width="200" height="40"');
+  selectedGold.previousSustain = selectedGold.sustain;
+  selectedGold.sustain = await emit('sustain-double-palette-mix-075-outline', recolorOutlinedGold(await svg('sustain-double-channel-outline')), {
+    nativeSource: recolorOutlinedGold(rasterArtwork(await readFile(new URL(outlinedGoldFile, here)), 200)),
+    role: 'double 유지 · 선택한 금색 75% + 각 32px 확대·윤곽선',
+    sourceFiles: [outlinedGoldFile, outlinedGoldFile.replace('.png', '.svg'), 'critical-gold-palette.mjs', 'release-palette.mjs'],
+    operation: { mixAmount: .75, markerWidth: 32, outlineWidth: 2.4, beamCenters: [84, 116], preserve: 'D paths and beam centers', filterBounds: [0, 0, 200, 40] },
+    approval: 'approved-artwork',
+  });
+  manifest.selectedPalettePreview = {
+    note: '파랑 50%·금색 75% 선택. 금색 유지에도 각 32px 확대·어두운 윤곽선을 적용한다. 이전 팔레트 비교 파일은 보존하며 현재 조합은 이 목록을 따른다.',
+    kinds: selectedPalettes,
+  };
+  const selectedPaletteFiles = new Set(selectedPalettes.flatMap(entry =>
+    ['point', 'idleBody', 'heldBody', 'release', 'sustain'].map(role => entry[role])));
   const assetsByFile = new Map(manifest.assets.map(asset => [asset.file, asset]));
   for (const asset of manifest.assets) {
-    const basePng = assetsByFile.get(asset.file.replace('@2x', '').replace('.svg', '.png'));
+    const baseFile = asset.file.replace('@2x', '').replace('.svg', '.png');
+    const basePng = assetsByFile.get(baseFile);
+    if (selectedPaletteFiles.has(baseFile)) asset.approval = 'approved-artwork';
     asset.targetSize ??= [basePng.width, basePng.height];
     asset.padding ??= asset.file.includes('grace') ? [24, 24, 24, 24] : [0, 0, 0, 0];
     asset.approval ??= 'approved-artwork';
