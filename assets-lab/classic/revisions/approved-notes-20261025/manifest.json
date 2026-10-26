@@ -8,7 +8,8 @@
       0.42,
       0.58
     ],
-    "release": "J2-C"
+    "release": "J2-C",
+    "releaseStyle": "cel-a"
   },
   "assets": [
     {
@@ -5810,7 +5811,7 @@
     },
     {
       "file": "assets/release-single-cel-a.svg",
-      "role": "single 릴리즈 · A · 부드러운 면 분리",
+      "role": "single 릴리즈 · A · 부드러운 면 분리 (선택)",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/release-single-simplified-original.png",
@@ -5837,7 +5838,7 @@
         ],
         "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
       },
-      "approval": "proposed-artwork",
+      "approval": "approved-artwork",
       "skinKey": null,
       "proposedRuntimePath": null,
       "width": 200,
@@ -5857,7 +5858,7 @@
     },
     {
       "file": "assets/release-single-cel-a.png",
-      "role": "single 릴리즈 · A · 부드러운 면 분리",
+      "role": "single 릴리즈 · A · 부드러운 면 분리 (선택)",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/release-single-simplified-original.png",
@@ -5884,7 +5885,7 @@
         ],
         "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
       },
-      "approval": "proposed-artwork",
+      "approval": "approved-artwork",
       "skinKey": null,
       "proposedRuntimePath": null,
       "width": 200,
@@ -5904,7 +5905,7 @@
     },
     {
       "file": "assets/release-single-cel-a@2x.png",
-      "role": "single 릴리즈 · A · 부드러운 면 분리",
+      "role": "single 릴리즈 · A · 부드러운 면 분리 (선택)",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/release-single-simplified-original.png",
@@ -5931,7 +5932,7 @@
         ],
         "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
       },
-      "approval": "proposed-artwork",
+      "approval": "approved-artwork",
       "skinKey": null,
       "proposedRuntimePath": null,
       "width": 400,
@@ -11126,7 +11127,7 @@
     },
     {
       "file": "assets/release-double-cel-a.svg",
-      "role": "double 릴리즈 · A · 부드러운 면 분리",
+      "role": "double 릴리즈 · A · 부드러운 면 분리 (선택)",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/release-double-simplified-original.png",
@@ -11154,7 +11155,7 @@
         ],
         "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
       },
-      "approval": "proposed-artwork",
+      "approval": "approved-artwork",
       "skinKey": null,
       "proposedRuntimePath": null,
       "width": 200,
@@ -11174,7 +11175,7 @@
     },
     {
       "file": "assets/release-double-cel-a.png",
-      "role": "double 릴리즈 · A · 부드러운 면 분리",
+      "role": "double 릴리즈 · A · 부드러운 면 분리 (선택)",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/release-double-simplified-original.png",
@@ -11202,7 +11203,7 @@
         ],
         "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
       },
-      "approval": "proposed-artwork",
+      "approval": "approved-artwork",
       "skinKey": null,
       "proposedRuntimePath": null,
       "width": 200,
@@ -11222,7 +11223,7 @@
     },
     {
       "file": "assets/release-double-cel-a@2x.png",
-      "role": "double 릴리즈 · A · 부드러운 면 분리",
+      "role": "double 릴리즈 · A · 부드러운 면 분리 (선택)",
       "generator": "build-states.mjs",
       "sourceFiles": [
         "assets/release-double-simplified-original.png",
@@ -11250,7 +11251,7 @@
         ],
         "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
       },
-      "approval": "proposed-artwork",
+      "approval": "approved-artwork",
       "skinKey": null,
       "proposedRuntimePath": null,
       "width": 400,
@@ -15295,7 +15296,8 @@
             "label": "D · 광원만 부드럽게",
             "file": "assets/release-single-cel-d.png"
           }
-        ]
+        ],
+        "selectedFile": "assets/release-single-cel-a.png"
       },
       {
         "kind": "double",
@@ -15324,8 +15326,11 @@
             "label": "D · 광원만 부드럽게",
             "file": "assets/release-double-cel-d.png"
           }
-        ]
+        ],
+        "selectedFile": "assets/release-double-cel-a.png"
       }
-    ]
+    ],
+    "selectedVariant": "a",
+    "selectedAt": "2026-10-26"
   }
 }

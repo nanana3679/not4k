@@ -9,6 +9,13 @@ test('셀 채색 4안은 싱글·더블 8종에서 기존 3단 표식과 광선 
   await expect(section.locator('.cel-row')).toHaveCount(5);
   await expect(section.locator('.cel-cards article')).toHaveCount(4);
   await expect(section.locator('a[download]')).toHaveCount(24);
+  await expect(section.locator('.cel-row[data-selected="true"]')).toHaveAttribute('data-variant', 'a');
+  const selectedCard = section.locator('.cel-cards article[data-selected="true"]');
+  await expect(selectedCard).toHaveAttribute('data-variant', 'a');
+  await expect(selectedCard.locator('.cel-selected')).toHaveText('선택');
+  for (const kind of ['single', 'double']) {
+    await expect(selectedCard.locator(`[data-kind="${kind}"] nav a`).first()).toHaveAttribute('href', `assets/release-${kind}-cel-a.png`);
+  }
   const checks = await page.evaluate(async () => {
     const symbols = async (file: string) => {
       const xml = new DOMParser().parseFromString(await (await fetch(`assets/${file}.svg`)).text(), 'image/svg+xml');

@@ -64,13 +64,13 @@
 
 ### 셀 채색과 광원 그라데이션 · 4안
 
-`#release-cel-balance`는 사용자가 선호한 단순화 형태를 유지하며 채색만 조율한 A～D다. A는 은은한 사선 명암과 넓은 빛, B는 바디처럼 세로로 나눈 색면, C는 더 선명한 사선 명암과 좁은 빛, D는 넓은 단색면과 광선 끝 중심의 빛을 비교한다. 명칭은 생성 결과의 차이를 설명하며 수치화한 셀/그라데이션 면적 비율은 아니다. 싱글·더블 총 8종을 현재 안과 함께 보고 활성 바디·게임 크기 및 PNG·2배 PNG·SVG 24개를 제공한다. 채색 선택은 아직 하지 않았다.
+`#release-cel-balance`는 사용자가 선호한 단순화 형태를 유지하며 채색만 조율한 A～D다. A는 은은한 사선 명암과 넓은 빛, B는 바디처럼 세로로 나눈 색면, C는 더 선명한 사선 명암과 좁은 빛, D는 넓은 단색면과 광선 끝 중심의 빛을 비교한다. 명칭은 생성 결과의 차이를 설명하며 수치화한 셀/그라데이션 면적 비율은 아니다. 싱글·더블 총 8종을 현재 안과 함께 보고 활성 바디·게임 크기 및 PNG·2배 PNG·SVG 24개를 제공한다. **A · 부드러운 면 분리를 선택했다**(2026-10-26). 현재 릴리즈 외형은 `release-{single,double}-cel-a`이며 PNG·2배 PNG·SVG 총 6개를 선택 파일로 사용한다. `manifest.selections.releaseStyle`은 `cel-a`, `releaseCelBalancePreview.selectedVariant`는 `a`, 각 kind의 `selectedFile`은 해당 PNG를 가리킨다. A 파일의 승인 상태는 `approved-artwork`이고 B～D는 비교 시안으로 보존한다.
 
-내장 `image_gen.imagegen`으로 파란 4안과 각 금색 대응을 생성했다. [전체 프롬프트](cel-balance-reference/prompts.json), 원본 8장, [crop·시안 정보](cel-balance-reference/variants.json)를 보존한다. `release-cel-balance.mjs`는 생성본의 넓은 색면만 합성하고 원래 외곽 알파·U 테두리·광선 끝을 유지한다. 선택한 3단 벡터를 동일한 위치·100/80/50 알파로 다시 얹는다. 이전 336개 파일·포인트·바디·게임 스킨·판정 연결은 변경하지 않는다.
+내장 `image_gen.imagegen`으로 파란 4안과 각 금색 대응을 생성했다. [전체 프롬프트](cel-balance-reference/prompts.json), 원본 8장, [crop·시안 정보](cel-balance-reference/variants.json)를 보존한다. `release-cel-balance.mjs`는 생성본의 넓은 색면만 합성하고 원래 외곽 알파·U 테두리·광선 끝을 유지한다. 선택한 3단 벡터를 동일한 위치·100/80/50 알파로 다시 얹는다. 이전 336개 파일·포인트·바디·게임 스킨·판정 연결은 변경하지 않는다. `selections.release = J2-C`는 보존 원본과 기존 상태 파생본의 출처이며 최신 외형 선택은 `releaseStyle = cel-a`다. 실패·Grace 등 상태 파생본의 외형 전환은 후속 적용 대상이다.
 
 ### 원래 릴리즈 · 양옆 장식만 단순화
 
-`#release-simplified-original`은 원래 릴리즈의 중앙 사선 면·테두리·화살표·광선 끝의 빛을 살리고 양옆 흰 띠와 작은 면 분할만 덜어낸 시안이다. 직전 사각 패널 탐색 대신 수평 접점 안을 직접 수정한다. 싱글·더블의 원본/수정, 바디 연결, 게임 크기와 PNG·2배 PNG·SVG 6개를 제공한다. 새 시안은 미선택이다.
+`#release-simplified-original`은 원래 릴리즈의 중앙 사선 면·테두리·화살표·광선 끝의 빛을 살리고 양옆 흰 띠와 작은 면 분할만 덜어낸 시안이다. 직전 사각 패널 탐색 대신 수평 접점 안을 직접 수정한다. 싱글·더블의 원본/수정, 바디 연결, 게임 크기와 PNG·2배 PNG·SVG 6개를 제공한다. 이 형태를 바탕으로 위의 셀 채색 A를 선택했다.
 
 내장 `image_gen.imagegen`으로 원래 도안의 주변 장식을 줄였다. [전체 프롬프트](simplified-original-reference/prompts.json)와 생성 원본을 보존한다. `release-simplified-original.mjs`는 [crop 좌표](simplified-original-reference/geometry.json)의 왼쪽 넓은 면을 양옆에 합성하고 오른쪽은 반전한다. 중앙은 각 배율의 기존 PNG를 직접 유지하여 3단 표식의 100/80/50 알파와 광선 중심을 보존한다. 원본 알파 위에 합성하므로 외곽 투명도도 유지된다. 이전 330개 에셋과 실제 스킨·판정 연결은 변경하지 않는다.
 

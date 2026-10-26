@@ -25,6 +25,7 @@ for (const asset of manifest.assets.filter(asset => asset.generator === 'build-s
 // Keep the selected masters immutable; replace generated records and the superseded release artwork.
 manifest.assets = manifest.assets.filter(asset => asset.generator !== 'build-states.mjs' && !asset.file.startsWith('assets/release-'));
 manifest.selections.release = 'J2-C';
+manifest.selections.releaseStyle = 'cel-a';
 delete manifest.selections.terminal;
 for (const asset of manifest.assets.filter(asset => asset.file.startsWith('assets/terminal-'))) {
   asset.skinKey = null;
@@ -116,6 +117,7 @@ manifest.releaseSimplifiedOriginalPreview = {
 const celVariants = JSON.parse(await readFile(new URL('cel-balance-reference/variants.json', here), 'utf8'));
 manifest.releaseCelBalancePreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
+  selectedVariant: 'a', selectedAt: '2026-10-26',
   note: '선호한 단순화 형태 위에서 넓은 면의 셀 채색과 광원 부근 그라데이션을 조율한 A～D. 테두리·광선 끝·3단 표식은 기존 위치 유지.',
   variants: celVariants.map(({ id, label, note }) => ({ id, label, note })), kinds: [],
 };
@@ -445,13 +447,14 @@ try {
       const artwork = original => releaseChevron(releaseCelBalanceArtwork(original, bytes, geometry), { kind, centers: symbolCenters, ...selectedSymbol });
       const file = await emit(`release-${kind}-cel-${variant.id}`, artwork(await readFile(new URL(simplifiedCandidate.replace('.png', '@2x.png'), here))), {
         nativeSource: artwork(await readFile(new URL(simplifiedCandidate, here))),
-        role: `${kind} 릴리즈 · ${variant.label}`,
+        role: `${kind} 릴리즈 · ${variant.label}${variant.id === manifest.releaseCelBalancePreview.selectedVariant ? ' (선택)' : ''}`,
         sourceFiles: [simplifiedCandidate, simplifiedCandidate.replace('.png', '@2x.png'), reference, 'cel-balance-reference/prompts.json', 'cel-balance-reference/variants.json'],
         operation: { ...geometry, referenceSha256: createHash('sha256').update(bytes).digest('hex'), symbolVariant: selectedSymbol.id, symbolCenters, preserve: 'approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only' },
-        approval: 'proposed-artwork',
+        approval: variant.id === manifest.releaseCelBalancePreview.selectedVariant ? 'approved-artwork' : 'proposed-artwork',
       });
       celKind.variants.push({ id: variant.id, label: variant.label, file });
     }
+    celKind.selectedFile = celKind.variants.find(variant => variant.id === manifest.releaseCelBalancePreview.selectedVariant).file;
     manifest.releaseCelBalancePreview.kinds.push(celKind);
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
