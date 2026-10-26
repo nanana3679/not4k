@@ -20,9 +20,9 @@ const manifest = JSON.parse(readFileSync(new URL('manifest.json', here), 'utf8')
 const group = (id: string) => manifest.stateGroups.find(entry => entry.id === id)!;
 
 describe('Classic 확정 도안의 상태별 전달 자료', () => {
-  it('에셋 576개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
-    expect(manifest.assets).toHaveLength(576);
-    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(576);
+  it('에셋 558개는 중복 경로 없이 해시·바이트 수가 일치하며 PNG 기본/2배 크기를 명시한다', () => {
+    expect(manifest.assets).toHaveLength(558);
+    expect(new Set(manifest.assets.map(asset => asset.file)).size).toBe(558);
     for (const asset of manifest.assets) {
       const bytes = readFileSync(new URL(asset.file, here));
       expect(bytes.length, asset.file).toBe(asset.bytes);
@@ -184,10 +184,10 @@ describe('Classic 확정 도안의 상태별 전달 자료', () => {
   it('릴리즈는 실패 확정·종속 0점일 때 실패색으로 화면 밖까지 남고 판정 대기에는 실패색을 쓰지 않는다', () => {
     expect(manifest.buildContract.confirmedDisplay.failedRelease).toEqual({ when: 'failure-confirmed', includesDependentZero: true, hideWhen: 'scrolled-out', pendingFailureStyle: false });
     expect(manifest.buildContract.unapproved).toContain('일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성');
-    expect(manifest.buildContract.unapproved).toContain('유지 노트의 성공·실패 표시 방식과 수명');
+    expect(manifest.buildContract.confirmedDisplay.sustain).toMatchObject({ failedAsset: false, partialSuccess: 'hide-successful-unit', successHidden: true });
   });
 
-  it('릴리즈·유지는 좌우 정상/실패 분리 파일을 제공하고 생성물의 입력은 같은 묶음 안에서 모두 찾을 수 있다', () => {
+  it('이전 릴리즈·유지 비교 기록은 좌우 정상/실패 분리 파일을 보존하고 생성물의 입력은 같은 묶음 안에서 모두 찾을 수 있다', () => {
     for (const role of ['release', 'sustain']) expect(group(`${role}-layers`).states.map(state => state.id).sort()).toEqual(['unit-left', 'unit-left-failed', 'unit-right', 'unit-right-failed']);
     for (const asset of manifest.assets) for (const source of asset.sourceFiles ?? []) expect(readFileSync(new URL(source, here)).length).toBeGreaterThan(0);
     expect(manifest.buildContract.missingRequestedStates).toEqual([]);

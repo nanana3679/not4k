@@ -19961,102 +19961,6 @@
       "sha256": "135747f432b415d44df198fd234a9f4b6ad2aa4857a0ee4deb867711e0088103"
     },
     {
-      "file": "assets/selected-sustain-single-failed.svg",
-      "role": "선택 팔레트 · sustain-single-failed",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-single-palette-mix-050.png",
-        "assets/sustain-single-palette-mix-050@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "all",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 10586,
-      "sha256": "93dad171e034bf2e26581fa0728b626ae9688c87710f035fcfcf1c989b2a8a62"
-    },
-    {
-      "file": "assets/selected-sustain-single-failed.png",
-      "role": "선택 팔레트 · sustain-single-failed",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-single-palette-mix-050.png",
-        "assets/sustain-single-palette-mix-050@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "all",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 2540,
-      "sha256": "5fdd67fa47b0beb68bf546804578f14efae713115117f3abb30e865afbb940ac"
-    },
-    {
-      "file": "assets/selected-sustain-single-failed@2x.png",
-      "role": "선택 팔레트 · sustain-single-failed",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-single-palette-mix-050.png",
-        "assets/sustain-single-palette-mix-050@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "all",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 6273,
-      "sha256": "fc54c6a4ad3691a116a5a091c5fb8f4f1a22b9b8f60b4290c2f422c16fe7392e"
-    },
-    {
       "file": "assets/selected-point-double-failed.svg",
       "role": "선택 팔레트 · point-double-failed",
       "generator": "build-selected-states.mjs",
@@ -21797,486 +21701,6 @@
       "sha256": "d7c6edf8e4954efb73c7217272cff214f6fac906c57b6fdc089a9c4ae66db485"
     },
     {
-      "file": "assets/selected-sustain-double-failed.svg",
-      "role": "선택 팔레트 · sustain-double-failed",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "all",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 8902,
-      "sha256": "1a389fd906901335d795f99873d034b3b5c58fef333f2ee31fa8d0711fdb269b"
-    },
-    {
-      "file": "assets/selected-sustain-double-failed.png",
-      "role": "선택 팔레트 · sustain-double-failed",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "all",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 1985,
-      "sha256": "82d6cb3594fd3356cb708b5384af4f311ab3035266d1a58a93c6ae414c6e8afc"
-    },
-    {
-      "file": "assets/selected-sustain-double-failed@2x.png",
-      "role": "선택 팔레트 · sustain-double-failed",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "all",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 5213,
-      "sha256": "52c30842159eb308a460a0078673e873d983b9501ef0f992589bc5e9cbf9f962"
-    },
-    {
-      "file": "assets/selected-sustain-double-partial-failed-left.svg",
-      "role": "선택 팔레트 · sustain-double-partial-failed-left",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "left",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 8985,
-      "sha256": "f7369db1390c7f37b8193b35fa2a7647431caf669b860cda5de98df9512180de"
-    },
-    {
-      "file": "assets/selected-sustain-double-partial-failed-left.png",
-      "role": "선택 팔레트 · sustain-double-partial-failed-left",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "left",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 3465,
-      "sha256": "315b25745624a726596f1db68e0f0765b084b2451bba5ffd22e47fe181c955ce"
-    },
-    {
-      "file": "assets/selected-sustain-double-partial-failed-left@2x.png",
-      "role": "선택 팔레트 · sustain-double-partial-failed-left",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "left",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 8965,
-      "sha256": "df390c3a2a7fd78fd14a5aed04ac90c7b527e6bce26461027ca2117413bd5c55"
-    },
-    {
-      "file": "assets/selected-sustain-double-partial-failed-right.svg",
-      "role": "선택 팔레트 · sustain-double-partial-failed-right",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "right",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 8985,
-      "sha256": "98fc4ff63a20e8928e9d135a86c558bd35e64dfb976649d78ca24139331aa493"
-    },
-    {
-      "file": "assets/selected-sustain-double-partial-failed-right.png",
-      "role": "선택 팔레트 · sustain-double-partial-failed-right",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "right",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 3479,
-      "sha256": "d3b269c4e20d3848a820bf63bc9bce7210ac927772c73ae06f8fa2b399f4896b"
-    },
-    {
-      "file": "assets/selected-sustain-double-partial-failed-right@2x.png",
-      "role": "선택 팔레트 · sustain-double-partial-failed-right",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "failedSide": "right",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 9011,
-      "sha256": "8ed32f7220e242e7592691a6af58516e85ed2526269c77b71425852fe3fbff4e"
-    },
-    {
-      "file": "assets/selected-sustain-double-unit-left.svg",
-      "role": "선택 팔레트 · sustain-double-unit-left",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "onlySide": "left",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 8912,
-      "sha256": "708bc4aff9c454f4d509265aeb5caac3485c31c1a738732475242b156c574978"
-    },
-    {
-      "file": "assets/selected-sustain-double-unit-left.png",
-      "role": "선택 팔레트 · sustain-double-unit-left",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "onlySide": "left",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 2134,
-      "sha256": "fcbbd7b15866f206dd6459531be80cf87ec3dd431398a31f715b4be7c8bc08bb"
-    },
-    {
-      "file": "assets/selected-sustain-double-unit-left@2x.png",
-      "role": "선택 팔레트 · sustain-double-unit-left",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/sustain-double-palette-mix-075-outline.png",
-        "assets/sustain-double-palette-mix-075-outline@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "onlySide": "left",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 5589,
-      "sha256": "bfa6e671a3a0b708fcf1b1741bb359b8359550f319705362b5d1a9ddd6ba2b06"
-    },
-    {
-      "file": "assets/selected-sustain-double-unit-left-failed.svg",
-      "role": "선택 팔레트 · sustain-double-unit-left-failed",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/selected-sustain-double-failed.png",
-        "assets/selected-sustain-double-failed@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "onlySide": "left",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 7944,
-      "sha256": "9db15a7fcbfb87eb29be0716e78df795b86ef0fa42da6abc73b110c11fc158c2"
-    },
-    {
-      "file": "assets/selected-sustain-double-unit-left-failed.png",
-      "role": "선택 팔레트 · sustain-double-unit-left-failed",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/selected-sustain-double-failed.png",
-        "assets/selected-sustain-double-failed@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "onlySide": "left",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 200,
-      "height": 40,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 1784,
-      "sha256": "346ea1d821ef5320918ff244be7d84ccb8502ae8e8ea8bb0f5861e1d2831108a"
-    },
-    {
-      "file": "assets/selected-sustain-double-unit-left-failed@2x.png",
-      "role": "선택 팔레트 · sustain-double-unit-left-failed",
-      "generator": "build-selected-states.mjs",
-      "sourceFiles": [
-        "assets/selected-sustain-double-failed.png",
-        "assets/selected-sustain-double-failed@2x.png",
-        "build-selected-states.mjs",
-        "state-artwork.mjs"
-      ],
-      "operation": {
-        "onlySide": "left",
-        "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
-      },
-      "approval": "proposed-state-treatment",
-      "skinKey": null,
-      "proposedRuntimePath": null,
-      "width": 400,
-      "height": 80,
-      "targetSize": [
-        200,
-        40
-      ],
-      "padding": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "bytes": 4888,
-      "sha256": "ec4717c4f7ac72585daacd2c3bb1218a05b77eafbbf427aff75ba2b334436b11"
-    },
-    {
       "file": "assets/selected-sustain-double-unit-right.svg",
       "role": "선택 팔레트 · sustain-double-unit-right",
       "generator": "build-selected-states.mjs",
@@ -22373,17 +21797,17 @@
       "sha256": "3003a0db31712dd2150ef9ca4d3c87d01a5e87be8f8d51a5d46a5467e45b6019"
     },
     {
-      "file": "assets/selected-sustain-double-unit-right-failed.svg",
-      "role": "선택 팔레트 · sustain-double-unit-right-failed",
+      "file": "assets/selected-sustain-double-unit-left.svg",
+      "role": "선택 팔레트 · sustain-double-unit-left",
       "generator": "build-selected-states.mjs",
       "sourceFiles": [
-        "assets/selected-sustain-double-failed.png",
-        "assets/selected-sustain-double-failed@2x.png",
+        "assets/sustain-double-palette-mix-075-outline.png",
+        "assets/sustain-double-palette-mix-075-outline@2x.png",
         "build-selected-states.mjs",
         "state-artwork.mjs"
       ],
       "operation": {
-        "onlySide": "right",
+        "onlySide": "left",
         "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
       },
       "approval": "proposed-state-treatment",
@@ -22401,21 +21825,21 @@
         0,
         0
       ],
-      "bytes": 7945,
-      "sha256": "81b702b6a0e6c1477404ba6c74b243beccba974592c155a36913f2c8bf29ea2c"
+      "bytes": 8912,
+      "sha256": "708bc4aff9c454f4d509265aeb5caac3485c31c1a738732475242b156c574978"
     },
     {
-      "file": "assets/selected-sustain-double-unit-right-failed.png",
-      "role": "선택 팔레트 · sustain-double-unit-right-failed",
+      "file": "assets/selected-sustain-double-unit-left.png",
+      "role": "선택 팔레트 · sustain-double-unit-left",
       "generator": "build-selected-states.mjs",
       "sourceFiles": [
-        "assets/selected-sustain-double-failed.png",
-        "assets/selected-sustain-double-failed@2x.png",
+        "assets/sustain-double-palette-mix-075-outline.png",
+        "assets/sustain-double-palette-mix-075-outline@2x.png",
         "build-selected-states.mjs",
         "state-artwork.mjs"
       ],
       "operation": {
-        "onlySide": "right",
+        "onlySide": "left",
         "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
       },
       "approval": "proposed-state-treatment",
@@ -22433,21 +21857,21 @@
         0,
         0
       ],
-      "bytes": 1826,
-      "sha256": "31c8c8aa823bdd9191a73070f8c9822ae4bfdbb2afb3b1abcd7fad8166f0ca88"
+      "bytes": 2134,
+      "sha256": "fcbbd7b15866f206dd6459531be80cf87ec3dd431398a31f715b4be7c8bc08bb"
     },
     {
-      "file": "assets/selected-sustain-double-unit-right-failed@2x.png",
-      "role": "선택 팔레트 · sustain-double-unit-right-failed",
+      "file": "assets/selected-sustain-double-unit-left@2x.png",
+      "role": "선택 팔레트 · sustain-double-unit-left",
       "generator": "build-selected-states.mjs",
       "sourceFiles": [
-        "assets/selected-sustain-double-failed.png",
-        "assets/selected-sustain-double-failed@2x.png",
+        "assets/sustain-double-palette-mix-075-outline.png",
+        "assets/sustain-double-palette-mix-075-outline@2x.png",
         "build-selected-states.mjs",
         "state-artwork.mjs"
       ],
       "operation": {
-        "onlySide": "right",
+        "onlySide": "left",
         "sourceResolution": "matching native / 2x selected PNG; SVG embeds 2x"
       },
       "approval": "proposed-state-treatment",
@@ -22465,8 +21889,8 @@
         0,
         0
       ],
-      "bytes": 4877,
-      "sha256": "c3e2d23f0a87ec0dc182869019e6cb627ea30e62a7c57d1283dae8fe1db08c25"
+      "bytes": 5589,
+      "sha256": "bfa6e671a3a0b708fcf1b1741bb359b8359550f319705362b5d1a9ddd6ba2b06"
     }
   ],
   "stateGroups": [
@@ -22863,13 +22287,19 @@
       "bodyStartCap": false,
       "bodyEndCap": false,
       "implicitPoint": false,
-      "implicitRelease": false
+      "implicitRelease": false,
+      "sustain": {
+        "failedAsset": false,
+        "partialSuccess": "hide-successful-unit",
+        "remainingUnitAlpha": 1,
+        "successHidden": true
+      }
     },
     "missingRequestedStates": [],
     "unapproved": [
       "새 상태별 색·강도",
       "일부 성공·실패가 함께 확정된 더블 릴리즈의 최종 합성",
-      "유지 노트의 성공·실패 표시 방식과 수명"
+      "유지 노트의 실패 시 표시 수명"
     ],
     "currentStatePreview": "selectedStatePreview"
   },
@@ -24212,7 +23642,7 @@
       "single": 0.5,
       "double": 0.75
     },
-    "note": "현재 선택 도안의 파생본. 기존 stateGroups와 원본 파일은 이전 비교 기록으로 보존. 일반/Grace의 일부 성공은 본체 전체 70%, Grace 외곽은 100%. 성공·실패 혼합의 최종 합성과 유지 표시 수명은 기존 미정 사항을 따름.",
+    "note": "현재 선택 도안의 파생본. 기존 stateGroups와 원본 파일은 이전 비교 기록으로 보존. 누름·릴리즈 일부 성공은 본체 전체 70%, Grace 외곽은 100%. 유지는 실패 에셋 없이 성공한 몫만 숨기고 남은 몫은 원래 위치·색·불투명도를 유지. 릴리즈 성공·실패 혼합의 최종 합성은 기존 미정 사항을 따름.",
     "generatedFiles": [
       "assets/selected-point-grace-overlay.svg",
       "assets/selected-point-grace-overlay.png",
@@ -24232,9 +23662,6 @@
       "assets/selected-release-single-pending-grace.svg",
       "assets/selected-release-single-pending-grace.png",
       "assets/selected-release-single-pending-grace@2x.png",
-      "assets/selected-sustain-single-failed.svg",
-      "assets/selected-sustain-single-failed.png",
-      "assets/selected-sustain-single-failed@2x.png",
       "assets/selected-point-double-failed.svg",
       "assets/selected-point-double-failed.png",
       "assets/selected-point-double-failed@2x.png",
@@ -24286,27 +23713,12 @@
       "assets/selected-release-double-unit-right-failed.svg",
       "assets/selected-release-double-unit-right-failed.png",
       "assets/selected-release-double-unit-right-failed@2x.png",
-      "assets/selected-sustain-double-failed.svg",
-      "assets/selected-sustain-double-failed.png",
-      "assets/selected-sustain-double-failed@2x.png",
-      "assets/selected-sustain-double-partial-failed-left.svg",
-      "assets/selected-sustain-double-partial-failed-left.png",
-      "assets/selected-sustain-double-partial-failed-left@2x.png",
-      "assets/selected-sustain-double-partial-failed-right.svg",
-      "assets/selected-sustain-double-partial-failed-right.png",
-      "assets/selected-sustain-double-partial-failed-right@2x.png",
-      "assets/selected-sustain-double-unit-left.svg",
-      "assets/selected-sustain-double-unit-left.png",
-      "assets/selected-sustain-double-unit-left@2x.png",
-      "assets/selected-sustain-double-unit-left-failed.svg",
-      "assets/selected-sustain-double-unit-left-failed.png",
-      "assets/selected-sustain-double-unit-left-failed@2x.png",
       "assets/selected-sustain-double-unit-right.svg",
       "assets/selected-sustain-double-unit-right.png",
       "assets/selected-sustain-double-unit-right@2x.png",
-      "assets/selected-sustain-double-unit-right-failed.svg",
-      "assets/selected-sustain-double-unit-right-failed.png",
-      "assets/selected-sustain-double-unit-right-failed@2x.png"
+      "assets/selected-sustain-double-unit-left.svg",
+      "assets/selected-sustain-double-unit-left.png",
+      "assets/selected-sustain-double-unit-left@2x.png"
     ],
     "groups": [
       {
@@ -24425,10 +23837,11 @@
             "alpha": 1
           },
           {
-            "id": "failed",
-            "label": "전체 실패",
-            "file": "assets/selected-sustain-single-failed.png",
-            "alpha": 1
+            "id": "success",
+            "label": "모두 성공 · 숨김",
+            "file": "assets/sustain-single-palette-mix-050.png",
+            "alpha": 0,
+            "aliasOf": "pending"
           }
         ],
         "grace": false
@@ -24599,22 +24012,25 @@
             "alpha": 1
           },
           {
-            "id": "partial-failed-left",
-            "label": "왼쪽 실패",
-            "file": "assets/selected-sustain-double-partial-failed-left.png",
-            "alpha": 1
+            "id": "partial-success-left",
+            "label": "왼쪽 성공 · 해당 표식 숨김",
+            "file": "assets/selected-sustain-double-unit-right.png",
+            "alpha": 1,
+            "hiddenSide": "left"
           },
           {
-            "id": "partial-failed-right",
-            "label": "오른쪽 실패",
-            "file": "assets/selected-sustain-double-partial-failed-right.png",
-            "alpha": 1
+            "id": "partial-success-right",
+            "label": "오른쪽 성공 · 해당 표식 숨김",
+            "file": "assets/selected-sustain-double-unit-left.png",
+            "alpha": 1,
+            "hiddenSide": "right"
           },
           {
-            "id": "failed",
-            "label": "전체 실패",
-            "file": "assets/selected-sustain-double-failed.png",
-            "alpha": 1
+            "id": "success",
+            "label": "모두 성공 · 숨김",
+            "file": "assets/sustain-double-palette-mix-075-outline.png",
+            "alpha": 0,
+            "aliasOf": "pending"
           }
         ],
         "grace": false
@@ -24848,7 +24264,7 @@
         "id": "sustain-layers",
         "role": "sustain",
         "kind": "double",
-        "label": "유지 · 몫별 레이어",
+        "label": "유지 · 남은 몫",
         "targetSize": [
           200,
           40
@@ -24858,30 +24274,16 @@
           {
             "id": "unit-left",
             "label": "왼쪽 몫",
+            "file": "assets/selected-sustain-double-unit-left.png",
             "alpha": 1,
-            "unitIndex": 0,
-            "file": "assets/selected-sustain-double-unit-left.png"
-          },
-          {
-            "id": "unit-left-failed",
-            "label": "왼쪽 몫 · 실패",
-            "alpha": 1,
-            "unitIndex": 0,
-            "file": "assets/selected-sustain-double-unit-left-failed.png"
+            "unitIndex": 0
           },
           {
             "id": "unit-right",
             "label": "오른쪽 몫",
+            "file": "assets/selected-sustain-double-unit-right.png",
             "alpha": 1,
-            "unitIndex": 1,
-            "file": "assets/selected-sustain-double-unit-right.png"
-          },
-          {
-            "id": "unit-right-failed",
-            "label": "오른쪽 몫 · 실패",
-            "alpha": 1,
-            "unitIndex": 1,
-            "file": "assets/selected-sustain-double-unit-right-failed.png"
+            "unitIndex": 1
           }
         ]
       }

@@ -7,13 +7,13 @@ export function selectedStatesHtml(preview, links) {
   const overviewGroups = ['release-double', 'sustain-double'].map(id => preview.groups.find(group => group.id === id));
   return `<section id="selected-states" aria-labelledby="selected-states-title">
     <h2 id="selected-states-title">선택 팔레트 · 파생 에셋</h2>
-    <p>파랑 50%·금색 75%, 릴리즈 A안과 확대된 유지 표식을 기준으로 만든 상태별 도안입니다. 실패한 부분은 무채색·45% 밝기이며 정상 부분의 색과 윤곽은 유지합니다.</p>
-    <div id="selected-states-overview"><h3>더블 릴리즈·유지 · 정상 / 왼쪽 실패 / 오른쪽 실패 / 전체 실패</h3>
-    ${overviewGroups.map(group => `<div class="selected-state-overview-row" data-role="${group.role}"><h4>${group.label}</h4>${['pending', 'partial-failed-left', 'partial-failed-right', 'failed'].map(id => {
+    <p>파랑 50%·금색 75%, 릴리즈 A안과 확대된 유지 표식을 기준으로 만든 상태별 도안입니다. 누름·바디·릴리즈의 실패한 부분은 무채색·45% 밝기입니다. 유지는 실패 에셋 없이 성공한 쪽만 사라지고, 남은 표식은 원래 위치·색·불투명도를 유지합니다.</p>
+    <div id="selected-states-overview"><h3>더블 릴리즈의 실패 · 유지의 일부 성공</h3>
+    ${overviewGroups.map(group => `<div class="selected-state-overview-row" data-role="${group.role}"><h4>${group.label}</h4>${(group.role === 'sustain' ? ['pending', 'partial-success-left', 'partial-success-right', 'success'] : ['pending', 'partial-failed-left', 'partial-failed-right', 'failed']).map(id => {
       const state = group.states.find(state => state.id === id);
       return `<figure><figcaption>${state.label}</figcaption>${stage(group, state)}</figure>`;
     }).join('')}</div>`).join('')}
-    <p>Grace는 전체 외곽을 따라갑니다. 일부 성공은 본체 전체 70%·외곽 100%이며 모두 성공하면 둘 다 숨깁니다.</p>
+    <p>누름·릴리즈의 Grace는 전체 외곽을 따라갑니다. 일부 성공은 본체 전체 70%·외곽 100%이며 모두 성공하면 둘 다 숨깁니다.</p>
     <div class="selected-state-overview-row" data-role="grace"><h4>더블 릴리즈 Grace</h4>${['pending', 'partial-failed-left', 'partial-failed-right', 'partial-success'].map(id => {
       const group = preview.graceGroups.find(group => group.id === 'release-double-grace');
       const state = group.states.find(state => state.id === id);
@@ -26,7 +26,7 @@ export function selectedStatesHtml(preview, links) {
       <h3>Grace 별도 overlay</h3><nav>${Object.entries(preview.graceOverlays).map(([role, file]) => `<span>${role === 'point' ? '누름' : '릴리즈'}</span>${links(file)}`).join('')}</nav>
       ${preview.layers.map(group => `<h3>${group.label} · 합성 재료</h3>${cards(group)}`).join('')}
     </details>
-    <p>바디·유지에는 Grace를 붙이지 않습니다. 좌우 몫 레이어는 합성 재료이며 일부 성공의 반쪽 숨김을 뜻하지 않습니다. 성공·실패 혼합의 최종 합성과 유지 표시 수명은 기존 검토 범위를 유지합니다.</p>
+    <p>바디·유지에는 Grace를 붙이지 않습니다. 유지의 좌우 레이어는 성공한 표식을 숨긴 뒤 남은 쪽을 표시합니다. 릴리즈 좌우 레이어는 합성 재료이며 일부 성공의 반쪽 숨김을 뜻하지 않습니다. 릴리즈 성공·실패 혼합의 최종 합성은 기존 검토 범위를 유지합니다.</p>
   </section>`.replace(/[ \t]+\n/g, '\n');
 }
 

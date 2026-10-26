@@ -10,6 +10,7 @@ const files = new Set(manifest.assets.map(asset => asset.file));
 await mkdir(new URL('assets/', gallery), { recursive: true });
 for (const file of await readdir(new URL('assets/', gallery))) {
   if (/^terminal-(single|double)-(failed|partial-failed-(left|right))(\.svg|(?:@2x)?\.png)$/.test(file)) await unlink(new URL(`assets/${file}`, gallery));
+  if (file.startsWith('selected-') && !files.has(`assets/${file}`)) await unlink(new URL(`assets/${file}`, gallery));
 }
 for (const file of files) await copyFile(new URL(file, here), new URL(file, gallery));
 for (const file of ['selected-palette-preview.png', 'selected-states-preview.png']) await copyFile(new URL(file, here), new URL(file, gallery));
@@ -52,7 +53,7 @@ const releaseSuccess = `<section id="release-success" aria-labelledby="release-s
 <h3 id="grace-success">Grace 릴리즈 · 본체만 흐리게</h3>
 <div class="success-comparison" data-comparison="grace-progression">${releasePreview.graceProgression.map(item => successSample(releasePreview, item, true)).join('')}</div>
 <p>Grace 일부 성공은 본체 70%·전체 외곽 100%입니다. 모두 성공하면 본체와 외곽을 함께 숨깁니다. 반쪽 숨김 시안은 전체 70% 표시로 대체했습니다.</p>
-<p>실패가 확정된 릴리즈는 실패색으로 바꾸고 스크롤되어 화면 밖으로 나갈 때까지 남깁니다. 바디 실패로 기회를 잃은 릴리즈도 포함하며, 판정 가능·유예 대기 중에는 먼저 실패색으로 바꾸지 않습니다. 성공·실패가 섞인 더블의 최종 합성과 유지 노트 표시는 별도 검토입니다.</p>
+<p>실패가 확정된 릴리즈는 실패색으로 바꾸고 스크롤되어 화면 밖으로 나갈 때까지 남깁니다. 바디 실패로 기회를 잃은 릴리즈도 포함하며, 판정 가능·유예 대기 중에는 먼저 실패색으로 바꾸지 않습니다. 성공·실패가 섞인 더블 릴리즈의 최종 합성은 별도 검토입니다. 유지는 선택본 파생 에셋의 성공한 몫 숨김을 따릅니다.</p>
 </section>`;
 const sustainPreview = manifest.sustainVisibilityPreview;
 const sustainVisibility = `<section id="sustain-visibility" aria-labelledby="sustain-visibility-title"><h2 id="sustain-visibility-title">유지 표식 · 광선 홈 폭 + 윤곽선</h2><p>싱글은 홈 폭 36px와 바로 바깥 파란선까지 넓힌 44px를 비교합니다. 같은 비율로 키우고 어두운 윤곽선을 둘렀습니다. 높이는 일반 노트와 같은 40px 안에 들어갑니다.</p>${sustainPreview.kinds.map(entry => `<h3>${entry.kind === 'single' ? '싱글 · 파란선까지 확대 비교' : '더블 · 각 32px'}</h3><div class="sustain-comparison" data-kind="${entry.kind}">${[['original', '기존'], ['candidate', `홈 폭 · ${entry.kind === 'double' ? '각 ' : ''}${entry.markerWidth}px`], ...(entry.railCandidate ? [['railCandidate', `파란선까지 · ${entry.railMarkerWidth}px${sustainPreview.selected[entry.kind] === entry.railCandidate ? ' (선택)' : ''}`]] : [])].map(([key, label]) => `<article data-variant="${key}"><h4>${label}</h4>${[['held', '바디 활성화', entry.heldBody], ['idle', '바디 대기', entry.idleBody]].map(([state, title, body]) => `<figure><figcaption>${title}</figcaption><div class="sustain-stage" data-body-state="${state}" style="background-image:url('${body}')"><img src="${entry[key]}" width="200" height="40" alt="${entry.kind === 'single' ? '싱글' : '더블'} 유지 ${label}"></div></figure>`).join('')}<figure><figcaption>게임 배율 · 활성 바디</figcaption><div class="sustain-game"><div class="sustain-stage" data-body-state="game-held" style="background-image:url('${entry.heldBody}')"><img src="${entry[key]}" width="200" height="40" alt="게임 배율 유지 ${label}"></div></div></figure><nav aria-label="${entry.kind} ${label} 다운로드">${links(entry[key])}</nav></article>`).join('')}</div>`).join('')}<p>윤곽선은 표식 자체의 경계를 구분하는 선입니다. Grace 외곽이나 별도 발광 효과가 아닙니다. 싱글은 44px 안을 선택했습니다. 더블도 각 32px 확대·윤곽선을 선택했고, 노랑 75% 조합은 위 선택 팔레트에서 확인합니다. 게임 적용은 별도입니다.</p></section>`;

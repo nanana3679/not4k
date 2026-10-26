@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -72,6 +72,21 @@ export async function buildSelectedStates({ here, manifest, page }) {
       const width = role === 'point' ? 212 : 200;
       const normal = role === 'body' ? selection.idleBody : selection[role];
       const states = [{ id: 'pending', label: role === 'body' ? '대기' : '정상', file: normal, alpha: 1 }];
+      if (role === 'sustain') {
+        if (kind === 'double') {
+          const unitStates = [];
+          for (const side of ['left', 'right']) {
+            const remainingSide = side === 'left' ? 'right' : 'left';
+            const file = await transform(`${role}-${kind}-unit-${remainingSide}`, normal, { onlySide: remainingSide });
+            states.push({ id: `partial-success-${side}`, label: `${side === 'left' ? '왼쪽' : '오른쪽'} 성공 · 해당 표식 숨김`, file, alpha: 1, hiddenSide: side });
+            unitStates.push({ id: `unit-${remainingSide}`, label: `${remainingSide === 'left' ? '왼쪽' : '오른쪽'} 몫`, file, alpha: 1, unitIndex: remainingSide === 'left' ? 0 : 1 });
+          }
+          layers.push({ id: `${role}-layers`, role, kind, label: '유지 · 남은 몫', targetSize: [200, 40], body: selection.heldBody, states: unitStates.sort((a, b) => a.unitIndex - b.unitIndex) });
+        }
+        states.push({ id: 'success', label: '모두 성공 · 숨김', file: normal, alpha: 0, aliasOf: 'pending' });
+        groups.push({ id: `${role}-${kind}`, role, kind, label: `${kindName} 유지`, targetSize: [width, 40], body: selection.heldBody, states, grace: false });
+        continue;
+      }
       if (role === 'body') {
         states[0].id = 'idle';
         states.push({ id: 'held', label: '전체 유지', file: selection.heldBody, alpha: 1 });
@@ -114,7 +129,7 @@ export async function buildSelectedStates({ here, manifest, page }) {
         for (const item of states.filter(item => ['partial-success', 'success'].includes(item.id))) graceStates.push({ ...item, overlay, overlayAlpha: item.id === 'success' ? 0 : 1 });
         graceGroups.push({ id: `${role}-${kind}-grace`, role, kind, label: `${kindName} ${roleNames[role]} · Grace`, targetSize: [width, 40], overlaySize: [width + 48, 88], body: selection.heldBody, states: graceStates });
       }
-      if (kind === 'double' && (role === 'release' || role === 'sustain')) {
+      if (kind === 'double' && role === 'release') {
         const states = [];
         for (const side of ['left', 'right']) for (const isFailed of [false, true]) {
           const id = `unit-${side}${isFailed ? '-failed' : ''}`;
@@ -128,11 +143,17 @@ export async function buildSelectedStates({ here, manifest, page }) {
   }
   manifest.selectedStatePreview = {
     source: 'selectedPalettePreview.kinds', sourceSelection: { ...manifest.paletteMixPreview.selectedAmountByKind },
-    note: '현재 선택 도안의 파생본. 기존 stateGroups와 원본 파일은 이전 비교 기록으로 보존. 일반/Grace의 일부 성공은 본체 전체 70%, Grace 외곽은 100%. 성공·실패 혼합의 최종 합성과 유지 표시 수명은 기존 미정 사항을 따름.',
+    note: '현재 선택 도안의 파생본. 기존 stateGroups와 원본 파일은 이전 비교 기록으로 보존. 누름·릴리즈 일부 성공은 본체 전체 70%, Grace 외곽은 100%. 유지는 실패 에셋 없이 성공한 몫만 숨기고 남은 몫은 원래 위치·색·불투명도를 유지. 릴리즈 성공·실패 혼합의 최종 합성은 기존 미정 사항을 따름.',
     generatedFiles: generated, groups, graceOverlays, graceGroups, layers,
   };
   manifest.buildContract.currentStatePreview = 'selectedStatePreview';
-  manifest.buildContract.unapproved = manifest.buildContract.unapproved.filter(item => !['더블 유지 표식 각 32px 확대·어두운 윤곽선', '릴리즈 중앙 꺾쇠 표시'].includes(item));
+  manifest.buildContract.confirmedDisplay.sustain = { failedAsset: false, partialSuccess: 'hide-successful-unit', remainingUnitAlpha: 1, successHidden: true };
+  manifest.buildContract.unapproved = manifest.buildContract.unapproved.filter(item => !['더블 유지 표식 각 32px 확대·어두운 윤곽선', '릴리즈 중앙 꺾쇠 표시', '유지 노트의 성공·실패 표시 방식과 수명'].includes(item));
+  if (!manifest.buildContract.unapproved.includes('유지 노트의 실패 시 표시 수명')) manifest.buildContract.unapproved.push('유지 노트의 실패 시 표시 수명');
+  const generatedFiles = new Set(generated);
+  for (const file of await readdir(new URL('assets/', here))) {
+    if (file.startsWith('selected-') && !generatedFiles.has(`assets/${file}`)) await unlink(new URL(`assets/${file}`, here));
+  }
   return generated.length;
 }
 

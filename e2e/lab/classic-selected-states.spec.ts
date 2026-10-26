@@ -49,11 +49,11 @@ test('선택본 실패는 기본·2배에서 알파를 유지하고 실패 쪽�
   }
 });
 
-test('릴리즈·확대 유지의 좌우 레이어를 합치면 기본·2배 정상본과 실패본의 픽셀이 복원된다', async ({ page }) => {
+test('릴리즈의 정상·실패 및 유지의 정상 좌우 레이어를 합치면 기본·2배 원본의 픽셀이 복원된다', async ({ page }) => {
   await page.goto(route);
   const checks = await page.evaluate(async preview => {
     const checks = [];
-    for (const layerGroup of preview.layers) for (const failed of [false, true]) for (const scale of [1, 2]) {
+    for (const layerGroup of preview.layers) for (const failed of layerGroup.role === 'sustain' ? [false] : [false, true]) for (const scale of [1, 2]) {
       const load = async (file: string) => { const image = new Image(); image.src = file.replace('.png', scale === 1 ? '.png' : '@2x.png'); await image.decode(); return image; };
       const canvas = document.createElement('canvas'); canvas.width = 200 * scale; canvas.height = 40 * scale;
       const context = canvas.getContext('2d')!;
@@ -74,6 +74,58 @@ test('릴리즈·확대 유지의 좌우 레이어를 합치면 기본·2배 정
     return checks;
   }, preview);
   for (const check of checks) expect(check.difference, JSON.stringify(check)).toBeLessThanOrEqual(1);
+});
+
+test('유지 일부 성공은 기본·2배 PNG와 SVG에서 성공한 쪽의 알파만 0으로 만들고 남은 표식의 픽셀과 위치를 유지한다', async ({ page }) => {
+  await page.goto(route + '#selected-states');
+  const sustain = preview.groups.find(group => group.id === 'sustain-double')!;
+  const checks = await page.evaluate(async group => {
+    const checks = [];
+    for (const scale of [1, 2]) for (const format of ['png', 'svg']) {
+      const width = 200 * scale, height = 40 * scale;
+      const read = async (file: string) => {
+        const image = new Image(); image.src = file; await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0, width, height);
+        return context.getImageData(0, 0, width, height).data;
+      };
+      // SVG embeds the selected 2x PNG and scales it to the requested canvas.
+      const normal = await read(group.states[0].file.replace('.png', format === 'svg' || scale === 2 ? '@2x.png' : '.png'));
+      for (const side of ['left', 'right']) {
+        const state = group.states.find(state => state.id === `partial-success-${side}`)!;
+        const actual = await read(state.file.replace('.png', format === 'svg' ? '.svg' : scale === 2 ? '@2x.png' : '.png'));
+        let hiddenAlpha = 0, difference = 0, remainingPixels = 0;
+        for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+          const i = (y * width + x) * 4;
+          if (side === 'left' ? x < width / 2 : x >= width / 2) hiddenAlpha = Math.max(hiddenAlpha, actual[i + 3]);
+          else {
+            if (actual[i + 3] > 0) remainingPixels++;
+            for (const c of [0, 1, 2, 3]) {
+              const premultiply = (pixels: Uint8ClampedArray) => c === 3 ? pixels[i + 3] : pixels[i + c] * pixels[i + 3] / 255;
+              difference = Math.max(difference, Math.abs(premultiply(actual) - premultiply(normal)));
+            }
+          }
+        }
+        checks.push({ scale, format, side, hiddenAlpha, difference, remainingPixels });
+      }
+    }
+    return checks;
+  }, sustain);
+  for (const check of checks) {
+    expect(check.hiddenAlpha, JSON.stringify(check)).toBe(0);
+    expect(check.difference, JSON.stringify(check)).toBeLessThanOrEqual(1);
+    expect(check.remainingPixels, JSON.stringify(check)).toBeGreaterThan(100);
+  }
+  await page.locator('#selected-states details > summary').click();
+  const cards = page.locator('[data-group="sustain-double"]');
+  await expect(cards.locator('article')).toHaveCount(4);
+  for (const side of ['left', 'right']) {
+    const state = sustain.states.find(state => state.id === `partial-success-${side}`)!;
+    const image = cards.locator(`[data-state="${state.id}"] .selected-state-note`).first();
+    await expect(image).toHaveAttribute('src', state.file);
+    await expect(image).toHaveCSS('opacity', '1');
+  }
+  for (const kind of ['single', 'double']) await expect(page.locator(`[data-group="sustain-${kind}"] [data-state="success"] .selected-state-note`).first()).toHaveCSS('opacity', '0');
 });
 
 test('Grace 합성은 선택 본체를 보존하고 한쪽 실패에도 전체 외곽이 같으며 70% 본체와 100% 외곽을 별도로 표시한다', async ({ page }) => {
