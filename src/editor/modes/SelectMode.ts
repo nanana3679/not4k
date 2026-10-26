@@ -90,7 +90,7 @@ export class SelectMode implements EditorMode {
   private resizingOriginalBeat: Beat | null = null;
   private resizeOriginalNotes: DocumentNoteEntity[] | null = null;
   private transactionToken: symbol | null = null;
-  private originalSustainCounts = new Map<number, 1 | 2>();
+  private originalSustainCountByNoteIndex = new Map<number, 1 | 2>();
 
   // Clipboard & paste state
   private clipboardManager: ClipboardManager = new ClipboardManager();
@@ -1531,11 +1531,11 @@ export class SelectMode implements EditorMode {
   /** 주어진 노트들의 원본 좌표를 기록한다(이동용). 기본값은 직접 선택한 notes. */
   private captureNoteOrigins(indices: ReadonlySet<number> = this.sel.notes): void {
     this.originalPositions.clear();
-    this.originalSustainCounts.clear();
+    this.originalSustainCountByNoteIndex.clear();
     for (const idx of indices) {
       const note = this.chart.notes[idx];
       if (!note) continue;
-      if (note.type === "sustain") this.originalSustainCounts.set(idx, note.count);
+      if (note.type === "sustain") this.originalSustainCountByNoteIndex.set(idx, note.count);
       if (this.isRangeNote(note)) {
         this.originalPositions.set(idx, { beat: note.beat, endBeat: note.endBeat, lane: note.lane });
       } else {
@@ -1547,7 +1547,7 @@ export class SelectMode implements EditorMode {
   /** 이동 원본 기록(메인·구간·restZone)을 모두 폐기한다. */
   private clearMoveOrigins(): void {
     this.originalPositions.clear();
-    this.originalSustainCounts.clear();
+    this.originalSustainCountByNoteIndex.clear();
     this.originalZonePositions.clear();
     this.originalRestZonePositions.clear();
   }
@@ -1570,7 +1570,7 @@ export class SelectMode implements EditorMode {
         newNotes[idx] = { ...newNotes[idx], lane: newLane, beat: newBeat };
       }
     }
-    return reconcileMovedSustains(newNotes, this.originalPositions.keys());
+    return reconcileMovedSustains(newNotes, this.originalPositions.keys(), this.originalSustainCountByNoteIndex);
   }
 
   /**
@@ -1727,7 +1727,7 @@ export class SelectMode implements EditorMode {
         };
       }
     }
-    for (const [index, count] of this.originalSustainCounts) {
+    for (const [index, count] of this.originalSustainCountByNoteIndex) {
       const note = newNotes[index];
       if (note.type === 'sustain') newNotes[index] = { ...note, count };
     }

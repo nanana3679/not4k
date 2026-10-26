@@ -153,6 +153,23 @@ describe('명시 노트 실제 선택 집합과 관계 재도출', () => {
     expect(current().extraLaneCount).toBe(4); expect(notes()).toHaveLength(3);
     mode.moveByLane('right'); expect(notes()[2]).toMatchObject({ lane: 7, count: 1 });
   });
+  it('count1 Sustain을 lane2 double Body 위를 지나 바디 없는 lane3에 놓으면 경로와 무관하게 count1로 돌아온다', () => {
+    const { mode } = setup([...family(), { type: 'body', lane: 2, beat: beat(1), endBeat: beat(5), holdCount: 2 }]);
+    mode.selectNote(2);
+    mode.onPointerDown(1, 3, false, false); mode.onPointerMove(2, 3);
+    expect(notes()[2]).toMatchObject({ lane: 2, count: 2 });
+    mode.onPointerMove(3, 3); mode.onPointerUp(3, 3);
+
+    expect(notes()[2]).toEqual({ type: 'sustain', lane: 3, beat: beat(3), count: 1 });
+  });
+  it('8박에 붙여넣은 count1 Sustain을 ArrowUp으로 9박 double 길이0 Body를 지나 10박에 두면 count1로 돌아온다', () => {
+    const { mode } = setup([...family(), { type: 'body', lane: 1, beat: beat(9), endBeat: beat(9), holdCount: 2 }]);
+    mode.selectNote(2); mode.copy(); mode.paste(beat(8));
+    mode.movePasteBySnap('up'); expect(notes().at(-1)).toMatchObject({ beat: beat(9), count: 2 });
+    mode.movePasteBySnap('up');
+
+    expect(notes().at(-1)).toEqual({ type: 'sustain', lane: 1, beat: beat(10), count: 1 });
+  });
   it('Sustain만 8박에 paste하면 zero Body 없이 위반 preview·확정·선택해제가 되고 Undo 1회로 복구된다', () => {
     const { mode } = setup(); const initial = current().chart;
     mode.selectNote(2); expect(mode.copy()).toBe(1); mode.paste(beat(8));

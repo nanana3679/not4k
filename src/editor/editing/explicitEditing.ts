@@ -37,16 +37,24 @@ export function resizeExplicitBodies(
   return result;
 }
 
-/** 옮긴 표식만 새 위치의 유일한 소속 수량에 맞춘다. 바디·owner ID를 만들지 않는다. */
-export function reconcileMovedSustains(notes: readonly DocumentNoteEntity[], moved: Iterable<number>): DocumentNoteEntity[] {
+/**
+ * 옮긴 표식만 새 위치의 유일한 소속 수량에 맞춘다. 바디·owner ID를 만들지 않는다.
+ * 바디 밖에 놓인 표식은 조작 시작 때의 수량(fallbackCountByNoteIndex)으로 돌려 지나온 경로와
+ * 무관하게 한다. 그 기록이 없으면 현재 수량을 유지한다.
+ */
+export function reconcileMovedSustains(
+  notes: readonly DocumentNoteEntity[], moved: Iterable<number>, fallbackCountByNoteIndex?: ReadonlyMap<number, 1 | 2>,
+): DocumentNoteEntity[] {
   const relations = deriveExplicitNoteRelations(notes);
   const result = [...notes];
   for (const index of moved) {
     const note = result[index];
+    if (note?.type !== 'sustain') continue;
     const owner = relations.sustainBodyByNote.get(index);
-    if (note?.type !== 'sustain' || owner === undefined) continue;
-    const count = relations.bodyByNote.get(owner)!.note.holdCount;
-    if (note.count !== count) result[index] = { ...note, count };
+    const count = owner === undefined
+      ? fallbackCountByNoteIndex?.get(index)
+      : relations.bodyByNote.get(owner)!.note.holdCount;
+    if (count !== undefined && note.count !== count) result[index] = { ...note, count };
   }
   return result;
 }
