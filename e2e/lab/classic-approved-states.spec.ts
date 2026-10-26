@@ -2,6 +2,53 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('릴리즈 단순화 시안은 기존 3단 표식을 그대로 쓰고 광선 끝을 싱글 100·더블 84/116에 맞춘다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '릴리즈 단순화' }).click();
+  await expect(page).toHaveURL(/#release-simple-frame$/);
+  const section = page.locator('#release-simple-frame');
+  for (const kind of ['single', 'double']) {
+    const comparison = section.locator(`[data-kind="${kind}"]`);
+    await expect(comparison.locator('article')).toHaveCount(2);
+    await expect(comparison.locator('[data-variant="previous"] .palette-release').first()).toHaveAttribute('src', `assets/release-${kind}-horizontal-junctions.png`);
+    await expect(comparison.locator('[data-variant="candidate"] nav a')).toHaveCount(3);
+  }
+  const results = await page.evaluate(async () => {
+    const results = [];
+    for (const kind of ['single', 'double']) {
+      const symbols = async (file: string) => {
+        const source = await (await fetch(`assets/${file}.svg`)).text();
+        return [...new DOMParser().parseFromString(source, 'image/svg+xml').querySelectorAll('[data-release-symbol]')].map(symbol => symbol.outerHTML);
+      };
+      const currentSymbols = await symbols(`release-${kind}-simple-frame`);
+      const approvedSymbols = await symbols(`release-${kind}-chevron-triple-tight-large`);
+      const image = new Image(); image.src = `assets/release-${kind}-simple-frame@2x.png`; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+      const data = context.getImageData(0, 0, 400, 80).data;
+      const centers = kind === 'single' ? [100] : [84, 116];
+      const offsets = centers.map(center => {
+        let bestScore = -1, peak = 0;
+        for (let x = center * 2 - 10; x < center * 2 + 10; x++) {
+          let score = 0;
+          for (let y = 70; y < 78; y++) { const i = (y * 400 + x) * 4; score += Math.min(data[i], data[i + 1], data[i + 2]); }
+          if (score > bestScore) { bestScore = score; peak = x; }
+        }
+        return Math.abs((peak + .5) / 2 - center);
+      });
+      results.push({ kind, currentSymbols, approvedSymbols, offsets });
+    }
+    return results;
+  });
+  for (const result of results) {
+    expect(result.currentSymbols, result.kind).toEqual(result.approvedSymbols);
+    expect(result.currentSymbols, result.kind).toHaveLength(result.kind === 'single' ? 1 : 2);
+    for (const offset of result.offsets) expect(offset, result.kind).toBeLessThanOrEqual(1);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 for (const variant of [
   { id: 'straight', previous: 'clean', link: '면과 직선 복원', label: '꼭짓점 주변 면 복원' },
   { id: 'horizontal', previous: 'straight', link: 'ㅡ 수평 연결', label: '접점의 수평 연결' },

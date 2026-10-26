@@ -5461,6 +5461,168 @@
       "sha256": "56aabcb9cd25374e3924ab0b32b61ae60cfe39998b252f45d6948a28dc20f4ce"
     },
     {
+      "file": "assets/release-single-simple-frame.svg",
+      "role": "single 릴리즈 · 넓은 면과 끝 띠로 단순화한 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "simple-frame-reference/single.png",
+        "simple-frame-reference/prompts.json",
+        "simple-frame-reference/geometry.json",
+        "assets/release-single-horizontal-junctions.png",
+        "assets/note-single.png",
+        "assets/body-single.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          184,
+          2170,
+          348
+        ],
+        "beamCenters": [
+          100
+        ],
+        "detectedBeamCenters": [
+          100.25
+        ],
+        "referenceSha256": "be76757b7a8620379b0f5421883b12506cfe76ffc9a51997522388690de31aec",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "selected vector chevron geometry and 100/80/50 alpha; point and body originals unchanged"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1222686,
+      "sha256": "6773d5551f6cdb76cb06e4f2d9a728c2392e01b596b8dbbb739f407ca042b582"
+    },
+    {
+      "file": "assets/release-single-simple-frame.png",
+      "role": "single 릴리즈 · 넓은 면과 끝 띠로 단순화한 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "simple-frame-reference/single.png",
+        "simple-frame-reference/prompts.json",
+        "simple-frame-reference/geometry.json",
+        "assets/release-single-horizontal-junctions.png",
+        "assets/note-single.png",
+        "assets/body-single.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          184,
+          2170,
+          348
+        ],
+        "beamCenters": [
+          100
+        ],
+        "detectedBeamCenters": [
+          100.25
+        ],
+        "referenceSha256": "be76757b7a8620379b0f5421883b12506cfe76ffc9a51997522388690de31aec",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "selected vector chevron geometry and 100/80/50 alpha; point and body originals unchanged"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15259,
+      "sha256": "cc6141746c9f9ea3003ec1881b53fa1b5dd6a1a3c981917d1381380be791a50e"
+    },
+    {
+      "file": "assets/release-single-simple-frame@2x.png",
+      "role": "single 릴리즈 · 넓은 면과 끝 띠로 단순화한 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "simple-frame-reference/single.png",
+        "simple-frame-reference/prompts.json",
+        "simple-frame-reference/geometry.json",
+        "assets/release-single-horizontal-junctions.png",
+        "assets/note-single.png",
+        "assets/body-single.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          184,
+          2170,
+          348
+        ],
+        "beamCenters": [
+          100
+        ],
+        "detectedBeamCenters": [
+          100.25
+        ],
+        "referenceSha256": "be76757b7a8620379b0f5421883b12506cfe76ffc9a51997522388690de31aec",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "selected vector chevron geometry and 100/80/50 alpha; point and body originals unchanged"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 51853,
+      "sha256": "40c9ccabfd64bf72b390cd848cd58fe887000e30db3356b1c8cecd42fc0639e3"
+    },
+    {
       "file": "assets/body-single-balance-gentle.svg",
       "role": "single idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -9856,6 +10018,177 @@
       "sha256": "848e352a1d0fa12832022efaa3fed7dd6f305cea58a2a2a16cf690207c27f71b"
     },
     {
+      "file": "assets/release-double-simple-frame.svg",
+      "role": "double 릴리즈 · 넓은 면과 끝 띠로 단순화한 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "simple-frame-reference/double.png",
+        "simple-frame-reference/prompts.json",
+        "simple-frame-reference/geometry.json",
+        "assets/release-double-horizontal-junctions.png",
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          174,
+          2170,
+          358
+        ],
+        "beamCenters": [
+          84,
+          116
+        ],
+        "detectedBeamCenters": [
+          82.75,
+          117.25
+        ],
+        "referenceSha256": "94f7d0ed6ba59080a5f2afeac8a206cfc43da01b68631740b19c8334da145d90",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "selected vector chevron geometry and 100/80/50 alpha; point and body originals unchanged"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1300168,
+      "sha256": "3b9d5b03917c2ca64d8bdf1ef56b5ce29f7ab5fe255cad4b939f1cc9a1ebc2b5"
+    },
+    {
+      "file": "assets/release-double-simple-frame.png",
+      "role": "double 릴리즈 · 넓은 면과 끝 띠로 단순화한 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "simple-frame-reference/double.png",
+        "simple-frame-reference/prompts.json",
+        "simple-frame-reference/geometry.json",
+        "assets/release-double-horizontal-junctions.png",
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          174,
+          2170,
+          358
+        ],
+        "beamCenters": [
+          84,
+          116
+        ],
+        "detectedBeamCenters": [
+          82.75,
+          117.25
+        ],
+        "referenceSha256": "94f7d0ed6ba59080a5f2afeac8a206cfc43da01b68631740b19c8334da145d90",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "selected vector chevron geometry and 100/80/50 alpha; point and body originals unchanged"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17209,
+      "sha256": "21f045c07f3c209125416334775187c79d8dc94c97022649b3fbf7492252a36d"
+    },
+    {
+      "file": "assets/release-double-simple-frame@2x.png",
+      "role": "double 릴리즈 · 넓은 면과 끝 띠로 단순화한 시안",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "simple-frame-reference/double.png",
+        "simple-frame-reference/prompts.json",
+        "simple-frame-reference/geometry.json",
+        "assets/release-double-horizontal-junctions.png",
+        "assets/note-double-anodized-contrast-070.png",
+        "assets/body-double-center-dual-beam.png"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          174,
+          2170,
+          358
+        ],
+        "beamCenters": [
+          84,
+          116
+        ],
+        "detectedBeamCenters": [
+          82.75,
+          117.25
+        ],
+        "referenceSha256": "94f7d0ed6ba59080a5f2afeac8a206cfc43da01b68631740b19c8334da145d90",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "selected vector chevron geometry and 100/80/50 alpha; point and body originals unchanged"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 59335,
+      "sha256": "b8f5e4edc8f05386c4df92b92715c5311dd217f304fd0b8aefab288e717e3a16"
+    },
+    {
       "file": "assets/body-double-balance-gentle.svg",
       "role": "double idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -13330,6 +13663,39 @@
         "point": "assets/note-double-anodized-contrast-070.png",
         "idleBody": "assets/body-double-center-dual-beam.png",
         "heldBody": "assets/body-double-held.png"
+      }
+    ]
+  },
+  "releaseSimpleFramePreview": {
+    "approval": "proposed-artwork",
+    "targetSize": [
+      200,
+      40
+    ],
+    "note": "릴리즈만 복잡하다는 피드백에 따른 전체 면 구성 단순화. 중앙 방패형 홈·분할 장식을 없애고 포인트·바디처럼 넓은 면과 끝 띠로 통일. 기존 3단 표식과 광선 끝 위치 유지.",
+    "kinds": [
+      {
+        "kind": "single",
+        "previous": "assets/release-single-horizontal-junctions.png",
+        "candidate": "assets/release-single-simple-frame.png",
+        "point": "assets/note-single.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png",
+        "symbolCenters": [
+          100
+        ]
+      },
+      {
+        "kind": "double",
+        "previous": "assets/release-double-horizontal-junctions.png",
+        "candidate": "assets/release-double-simple-frame.png",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png",
+        "symbolCenters": [
+          84,
+          116
+        ]
       }
     ]
   }

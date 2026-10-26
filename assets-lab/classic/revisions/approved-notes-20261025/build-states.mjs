@@ -12,6 +12,7 @@ import { releaseSteppedJunctionArtwork } from './release-stepped-junctions.mjs';
 import { releaseForkedJunctionArtwork } from './release-forked-junctions.mjs';
 import { releaseCleanJunctionArtwork } from './release-clean-junctions.mjs';
 import { releaseStraightJunctionArtwork, straightJunctionGeometry } from './release-straight-junctions.mjs';
+import { releaseSimpleFrameArtwork } from './release-simple-frame.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -97,6 +98,11 @@ manifest.releaseStraightJunctionPreview = {
 manifest.releaseHorizontalJunctionPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
   note: '접점의 위로 꺾이는 경계를 수평 연결로 단순화. 가로 경계가 같은 높이로 안쪽 테두리까지 이어지고 면의 명암으로 단차를 표시. 원래 테두리 폭·색·중앙 도안 유지.',
+  kinds: [],
+};
+manifest.releaseSimpleFramePreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '릴리즈만 복잡하다는 피드백에 따른 전체 면 구성 단순화. 중앙 방패형 홈·분할 장식을 없애고 포인트·바디처럼 넓은 면과 끝 띠로 통일. 기존 3단 표식과 광선 끝 위치 유지.',
   kinds: [],
 };
 const page = await browser.newPage();
@@ -396,6 +402,16 @@ try {
       approval: 'proposed-artwork',
     });
     manifest.releaseHorizontalJunctionPreview.kinds.push({ kind, previous: straightCandidate, candidate: horizontalCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
+    const simpleReference = `simple-frame-reference/${kind}.png`;
+    const simpleBytes = await readFile(new URL(simpleReference, here));
+    const simpleGeometry = JSON.parse(await readFile(new URL('simple-frame-reference/geometry.json', here), 'utf8'))[kind];
+    const simpleCandidate = await emit(`release-${kind}-simple-frame`, releaseChevron(releaseSimpleFrameArtwork(simpleBytes, simpleGeometry), { kind, centers: symbolCenters, ...selectedSymbol }), {
+      role: `${kind} 릴리즈 · 넓은 면과 끝 띠로 단순화한 시안`,
+      sourceFiles: [simpleReference, 'simple-frame-reference/prompts.json', 'simple-frame-reference/geometry.json', horizontalCandidate, originals.point, originals.idleBody],
+      operation: { ...simpleGeometry, referenceSha256: createHash('sha256').update(simpleBytes).digest('hex'), symbolVariant: selectedSymbol.id, symbolCenters, preserve: 'selected vector chevron geometry and 100/80/50 alpha; point and body originals unchanged' },
+      approval: 'proposed-artwork',
+    });
+    manifest.releaseSimpleFramePreview.kinds.push({ kind, previous: horizontalCandidate, candidate: simpleCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody, symbolCenters });
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
       { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },

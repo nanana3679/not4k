@@ -1,6 +1,6 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 보존 원본 24개와 복사·상태별 생성물 300개, 총 324개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 306개, 총 330개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
@@ -61,6 +61,14 @@
 새 상태 파일은 `body-double-held`, `body-double-partial-held-{left,right}`, `body-double-failed`, `body-double-partial-failed-{left,right}`, `note-double-failed`, `sustain-{single,double}-failed`, `sustain-double-partial-failed-{left,right}`, `{sustain,release}-double-unit-{left,right}[-failed]`, `unit-mask-{left,right}` 이름으로 찾을 수 있다.
 
 ## 재생성 및 미리보기
+
+### 릴리즈 전체 구성 · 넓은 면과 끝 띠
+
+릴리즈만 디자인이 복잡해 통일감이 없다는 피드백에 따른 전체 형태 시안이다. `#release-simple-frame`은 중앙 방패형 홈·분할된 옆면·떠 있는 빛띠를 덜고, 포인트·바디처럼 넓은 면 하나와 끝부분 띠로 정리한 싱글·더블을 수평 접점 안과 비교한다. 기존 포인트·바디에 연결한 대기/활성 및 게임 크기도 확인한다. 새 형태는 미선택이며 기존 시안을 대체하지 않는다.
+
+내장 `image_gen.imagegen`에 현재 릴리즈를 수정 대상으로, 포인트·바디를 면 구성·재질 참고로 제공했다. 파란 시안을 먼저 만든 뒤 같은 형태의 금색 대응을 생성했다. 원본·색 보정 단계·[전체 프롬프트](simple-frame-reference/prompts.json)를 보존한다. `release-simple-frame.mjs`가 [crop·정렬 좌표](simple-frame-reference/geometry.json)에 따라 200×40으로 내보내며 광선 끝 흰빛을 싱글 x=100·더블 x=84/116에 맞춘다. 선택한 촘촘한 3단 10% 확대 벡터를 그대로 합성하므로 경로·위치·100/80/50 알파는 유지한다.
+
+`release-{single,double}-simple-frame` PNG·2배 PNG·SVG 6개와 `manifest.releaseSimpleFramePreview`를 추가한다. 이전 324개 에셋·실제 스킨·판정 연결은 그대로 둔다.
 
 ### 릴리즈 접점 · ㅡ 수평 연결
 
