@@ -40,7 +40,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     const compiled = compileExplicitJudgmentChart(chart([b(1000, 2000), b(2000, 3000)]));
     expect(compiled.bodies.map(body => [body.source.noteIndex, body.startMs, body.endMs])).toEqual([[0, 1000, 2000], [1, 2000, 3000]]);
     expect(compiled.bodyUnits.map(unit => unit.id)).toEqual(["b0:hold:0", "b1:hold:0"]);
-    expect(compiled.connections[0]).toMatchObject({ predecessorIndex: 0, successorIndex: 1, boundaryMs: 2000, sourceCount: 1, targetCount: 1 });
+    expect(compiled.connections[0]).toMatchObject({ predecessorIndex: 0, successorIndex: 1, boundaryMs: 2000, predecessorHoldCount: 1, successorHoldCount: 1 });
   });
 
   it("single body의 Grace double release는 같은 Grace 두 항목과 가중치6을 보존한다", () => {
@@ -112,7 +112,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     const logical = (compiled: typeof one) => ({
       items: compiled.scoreItems.map(item => [item.kind, item.lane, item.timeMs, item.ordinal, item.weight]),
       bodies: compiled.bodies.map(body => [body.startMs, body.endMs, body.holdCount]),
-      connections: compiled.connections.map(c => [c.boundaryMs, c.sourceCount, c.targetCount]),
+      connections: compiled.connections.map(c => [c.boundaryMs, c.predecessorHoldCount, c.successorHoldCount]),
     });
     expect(logical(two)).toEqual(logical(one));
     expect(two.scoreItems[0].source.noteIndex).toBe(4);

@@ -492,9 +492,9 @@ export class ExplicitJudgmentCore {
       const connection = frame.connections[frame.next++];
       const next = this.bodyByIndex.get(connection.successorIndex);
       if (!next || next.startPoints.length) continue;
-      if (connection.sourceCount === connection.targetCount && frame.unit.body.body.releaseIndices.length === 0) {
+      if (connection.predecessorHoldCount === connection.successorHoldCount && frame.unit.body.body.releaseIndices.length === 0) {
         failOne(next.units[frame.unit.ordinal], frame.factId, true);
-      } else if (connection.sourceCount === 2 && connection.targetCount === 1 && frame.unit.body.units.every(u => u.failedAt !== null)) {
+      } else if (connection.predecessorHoldCount === 2 && connection.successorHoldCount === 1 && frame.unit.body.units.every(u => u.failedAt !== null)) {
         failOne(next.units[0], frame.factId, true);
       }
     }

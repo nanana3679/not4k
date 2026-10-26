@@ -129,7 +129,7 @@ export function compileExplicitJudgmentChart(
           trillZoneIndex: zoneFor(note) });
       } else if (note.type === "release") {
         const bodyIndex = relations.releaseBodyByNote.get(noteIndex);
-        const decreased = relations.connections.some(c => c.predecessorIndex === bodyIndex && c.sourceCount > c.targetCount);
+        const decreased = relations.connections.some(c => c.predecessorIndex === bodyIndex && c.predecessorHoldCount > c.successorHoldCount);
         scoreItems.push({ ...base, kind: "release", grace: note.grace === true, bodyIndex,
           boundaryKind: bodyIndex === undefined ? "standalone" : decreased ? "decrease" : "end" });
       } else {
