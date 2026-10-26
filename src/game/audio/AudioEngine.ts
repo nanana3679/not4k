@@ -110,6 +110,16 @@ export class AudioEngine {
    * @param offsetMs - Starting position in milliseconds (default: 0)
    */
   play(offsetMs: number = 0): void {
+    this.startPlayback(offsetMs, false);
+  }
+
+  /** 음악 준비용 P. 음수 구간은 무음으로 두고 곡 0을 AudioContext에 미리 예약한다. */
+  playWithPreroll(positionMs: number): void {
+    if (!Number.isFinite(positionMs)) throw new RangeError('Preparation position must be finite');
+    this.startPlayback(positionMs, true);
+  }
+
+  private startPlayback(offsetMs: number, allowPreroll: boolean): void {
     if (!this.buffer) {
       throw new Error('No audio loaded');
     }
@@ -131,6 +141,18 @@ export class AudioEngine {
     }
     this.stopActiveSource();
 
+    const positionSeconds = allowPreroll ? offsetMs / 1000
+      : Math.max(0, Math.min(offsetMs / 1000, this.getRangeDurationSeconds()));
+    this.startOffset = positionSeconds;
+    this.startTime = this.ctx.currentTime;
+    this.clockRunning = true;
+    this.pauseTime = 0;
+    if (allowPreroll && positionSeconds >= this.getRangeDurationSeconds()) {
+      this._playing = false;
+      this.audioEnded = true;
+      return;
+    }
+
     // Create new source node
     this.source = this.ctx.createBufferSource();
     this.source.buffer = this.buffer;
@@ -147,19 +169,19 @@ export class AudioEngine {
     };
 
     // Convert offset from ms to seconds
-    const offsetSeconds = Math.max(0, Math.min(offsetMs / 1000, this.getRangeDurationSeconds()));
+    const offsetSeconds = Math.max(0, positionSeconds);
+    const delaySeconds = Math.max(0, -positionSeconds / this._playbackRate);
+    const scheduledAt = this.startTime + delaySeconds;
     const rangeStart = this.getRangeStartSeconds();
     const actualOffsetSeconds = rangeStart + offsetSeconds;
     const remainingSeconds = Math.max(0, this.getRangeDurationSeconds() - offsetSeconds);
 
     // Apply playback rate
     this.source.playbackRate.value = this._playbackRate;
-    this.scheduleRangeFade(this.sourceGain, offsetSeconds);
+    this.scheduleRangeFade(this.sourceGain, offsetSeconds, scheduledAt);
 
     // Start playback
-    this.startOffset = offsetSeconds;
-    this.startTime = this.ctx.currentTime;
-    this.source.start(0, actualOffsetSeconds, remainingSeconds);
+    this.source.start(delaySeconds > 0 ? scheduledAt : 0, actualOffsetSeconds, remainingSeconds);
     this._playing = true;
     this.audioEnded = false;
     this.clockRunning = true;
@@ -363,9 +385,9 @@ export class AudioEngine {
     return Math.min(fadeInGain, fadeOutGain);
   }
 
-  private scheduleRangeFade(gainNode: GainNode, logicalOffsetSeconds: number): void {
+  private scheduleRangeFade(gainNode: GainNode, logicalOffsetSeconds: number, scheduledAt = this.ctx.currentTime): void {
     const gain = gainNode.gain;
-    const now = this.ctx.currentTime;
+    const now = scheduledAt;
     gain.cancelScheduledValues(now);
     gain.setValueAtTime(this.getRangeGainAt(logicalOffsetSeconds), now);
     if (!this.playbackRange) {

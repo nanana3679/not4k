@@ -258,6 +258,19 @@ describe('새 문서와 구형 테스트 플레이 경계', () => {
     expect(navigate).not.toHaveBeenCalled(); expect(pause).not.toHaveBeenCalled(); expect(closeMenu).not.toHaveBeenCalled();
   });
 
+  it('명시 main Point와 새 게임 port가 주입되면 원본문서·음원·0ms·복귀URL을 새 port에 전달한다', () => {
+    const { params, game, navigate } = buildParams({
+      chart: { ...baseChart, notes: [{ type: 'point', kind: 'double', lane: 1, beat: beat(2), grace: true }] },
+    });
+    const startExplicitPlayTest = vi.fn();
+    params.game = { ...game, startExplicitPlayTest };
+    expect(performPlayTest(params)).toBe(true);
+    expect(startExplicitPlayTest).toHaveBeenCalledWith({ document: params.chart, audioBuffer: fakeAudioBuffer,
+      returnUrl: params.returnUrl, startTimeMs: 0 });
+    expect(game.setChartData).not.toHaveBeenCalled(); expect(game.setScreen).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledOnce();
+  });
+
   it('구형 main과 유효한 명시 aux는 기존 게임에 main만 전달하며 aux를 구형으로 cast하지 않는다', () => {
     const main = { type: 'single' as const, lane: 1, beat: beat(0), grace: false };
     const { params, game } = buildParams({ chart: { ...baseChart, notes: [main,

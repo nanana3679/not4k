@@ -12,7 +12,7 @@ import { GAME_HEIGHT, liftPx, suddenCoverPx } from '../renderer/constants';
 import { resolvePlayLogicalWidth } from '../renderer/gearLayout';
 import { font, color, surface, edge, radius, primitives } from '../../shared/theme';
 import { SkinManager } from '../skin';
-import { createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
+import { assertLegacyNotes, createChartTiming, getJudgmentWindows, normalizePlaybackRange } from '../../shared';
 import { DebugLogger } from '../debug/DebugLogger';
 import { canFinishPlaySession, finishPlaySession, stepPlaySession } from './playSessionInput';
 import { keepGearMotionAssets } from './gearMotionKeepAlive';
@@ -95,6 +95,8 @@ export function PlayScreen() {
         : audioBuffer.duration * 1000;
 
       try {
+        // 이전 런타임으로 돌아와도 새 문서를 구형 의미로 실행하거나 변환하지 않는다.
+        assertLegacyNotes(chartData.notes, '이 재생 화면');
         const skin = import.meta.env.DEV
           ? (await import('../../lab/devSkinSelection')).resolveDevSkinSelection(settings.skinId)
           : settings.skinId;
