@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { CreateMode, isEventEntityType } from "./CreateMode";
 import { beat, validateChart, violationsInvolving } from "../../shared";
 import { hitTestNoteAt } from "../timeline/hitTest";
-import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import { makeFakeSpace } from "../timeline/makeFakeSpace.test-utils";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import type { Chart, NoteEntity } from "../../shared";
 

@@ -3,7 +3,7 @@ import { compileJudgmentChart } from "../../game/judgment/compiledJudgmentChart"
 import { NoteJudgmentSession } from "../../game/judgment/NoteJudgmentSession";
 import { validateChart } from "../../shared/validation";
 import { judgmentCaseFromSource } from "./chartCase";
-import { makeTestSkin } from "./makeTestSkin";
+import { makeTestSkin } from "./makeTestSkin.test-utils";
 import {
   createAutoCaseTimeAxis,
   createCaseTimeAxis,
