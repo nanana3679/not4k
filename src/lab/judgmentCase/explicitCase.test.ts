@@ -253,6 +253,15 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
     ]);
   });
 
+  it("PNG 바닥글은 stdout처럼 대표 등급을 Perfect로 쓰고 세션 끝 콤보3을 '현재 콤보 3'으로 표기", () => {
+    const { example, run } = replay(document([point(1000), body(1000, 2000), sustain(1500), release(2000)], [["A", 1000, 2000]]));
+    const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
+    expect(svg).toContain("대표 @1000: Perfect · N1");
+    expect(svg).not.toMatch(/대표 @\d+: (perfect|great|good|miss)/);
+    expect(svg).toContain("현재 콤보 3");
+    expect(summarizeExplicitCase(example, run, "실제")).toContain("현재 콤보 3");
+  });
+
   it("BPM120 길이0 바디1000～1000은 높이0으로 사라지지 않고 Point와 같은 높이로 1000ms 눈금 가운데에 그림", () => {
     const { example, run } = replay(document([point(500), body(1000, 1000)], [["A", 500, 1250]]));
     expect(run.error).toBeNull();

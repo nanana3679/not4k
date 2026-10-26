@@ -92,6 +92,11 @@ export function explicitCaseNoteName(example: ExplicitChartCase, index: number, 
 const gradeLabel = (grade: string | null) => grade === "perfect" ? "Perfect" : grade === "great" ? "Great"
   : grade === "good" ? "Good" : grade === "goodTrill" ? "Good◇" : grade === "miss" ? "Miss" : "없음";
 
+/** stdout 요약과 PNG 바닥글이 같은 등급 표기로 쓰는 대표 판정 줄. */
+export function explicitCaseDisplayLine(example: ExplicitChartCase, display: ExplicitJudgmentDisplayState): string {
+  return `대표 @${display.confirmedAt}: ${gradeLabel(display.grade)} · ${explicitCaseNoteName(example, display.source.noteIndex, display.source.ordinal)} · timing ${display.timingDeltaMs ?? "없음"}`;
+}
+
 /** 무효화된 provisional 기록을 현재 시작·완료로 표시하지 않고, finalize 전의 남은 provisional 기록만 (잠정)으로 표시한다. */
 export function explicitCaseLabels(example: ExplicitChartCase, run: ExplicitCaseRun): ExplicitCaseLabel[] {
   const facts = run.result?.facts ?? [];
@@ -136,7 +141,7 @@ export function summarizeExplicitCase(example: ExplicitChartCase, run: ExplicitC
     : `달성률 ${score?.achievementRate.toFixed(2)}%`;
   const lines = [`[${example.title || "(제목 없음)"} | explicit ${result ? "실제 엔진 실행" : "실행 거부(세션 미생성)"} | ${engineLabel}]`,
     counts ? `Perfect ${counts.perfect} · Great ${counts.great} · Good ${counts.good} · Good◇ ${counts.goodTrill} · Miss ${counts.miss}` : "판정·점수 결과 없음(세션 미생성)",
-    score ? `점수 ${score.earnedScore}/${score.finalDenominatorWeight} · ${achievement} · 콤보 ${result!.combo} · ${!run.finalized ? "판정 불가(finalize 전)" : score.isFullCombo ? "Full Combo" : "Full Combo 아님"}` : "점수·분모·콤보 계산 불가 · 판정 불가(finalize 전)",
+    score ? `점수 ${score.earnedScore}/${score.finalDenominatorWeight} · ${achievement} · 현재 콤보 ${result!.combo} · ${!run.finalized ? "판정 불가(finalize 전)" : score.isFullCombo ? "Full Combo" : "Full Combo 아님"}` : "점수·분모·콤보 계산 불가 · 판정 불가(finalize 전)",
     `점수 항목 ${run.compiled?.totalJudgments ?? "미컴파일"} · 바디 가중치 0 · 미정산 ${result?.snapshot.items.filter(item => item.settlementFactId === null).length ?? "계산 불가"} · 종속 0점 ${result?.snapshot.items.filter(item => item.state === "dependentZero").length ?? "계산 불가"}`,
     `엔진 기본창 Perfect ±${run.defaults.windows.PERFECT} / Great ±${run.defaults.windows.GREAT} / Good ±${run.defaults.windows.GOOD}ms · 유지 유예 ${run.defaults.maintenanceGraceMs}ms · 프레임 ${run.frameMs}ms`];
   lines.push(...example.notes.map(entry => `${entry.id} L${entry.note.lane} ${entry.note.type} ${formatMs(entry.startMs)}${entry.endMs === undefined ? "" : `～${formatMs(entry.endMs)}`}ms`));
@@ -162,7 +167,7 @@ export function summarizeExplicitCase(example: ExplicitChartCase, run: ExplicitC
     const source = run.compiled!.bodyUnits.find(source => source.id === unit.id)!;
     return `${explicitCaseNoteName(example, source.source.noteIndex, source.ref.ordinal)} (${unit.id}) 현재 ${unit.state} · 실제 시작 ${unit.actualStartMs ?? "없음"} · 완료 ${unit.completedAtMs ?? "없음"} · 실패 ${unit.failedAtMs ?? "없음"}`;
   }) ?? []));
-  lines.push(...run.displays.map(display => `대표 @${display.confirmedAt}: ${gradeLabel(display.grade)} · ${explicitCaseNoteName(example, display.source.noteIndex, display.source.ordinal)} · timing ${display.timingDeltaMs ?? "없음"}`));
+  lines.push(...run.displays.map(display => explicitCaseDisplayLine(example, display)));
   lines.push(...run.validationErrors.map(issue => `검증 오류 ${issue.rule}: ${issue.message}`));
   if (run.error) lines.push(`엔진 예외 ${run.error.atMs === null ? "컴파일/finalize" : `${run.error.atMs}ms`}: ${run.error.message}`);
   return lines.join("\n");

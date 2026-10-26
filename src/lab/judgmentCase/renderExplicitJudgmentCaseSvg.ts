@@ -3,7 +3,7 @@ import type { ExplicitSkinAssetId } from "../../game/skin/explicitSkin";
 import type { ExplicitChartCase, ExplicitCaseNote } from "./explicitChartCase";
 import type { ExplicitCaseSkin } from "./explicitCaseSkin";
 import type { ExplicitCaseRun } from "./runExplicitJudgmentCase";
-import { explicitCaseLabels, explicitCaseNoteName } from "./runExplicitJudgmentCase";
+import { explicitCaseDisplayLine, explicitCaseLabels } from "./runExplicitJudgmentCase";
 import { createAutoCaseTimeAxis, createCaseTimeAxis, escapeXml, formatMs, resolveLabelPositions, wrapText } from "./judgmentCaseLayout";
 
 export interface ExplicitCasePanel {
@@ -116,10 +116,10 @@ export function renderExplicitJudgmentCaseSvg(panels: readonly ExplicitCasePanel
     labels.forEach((label, index) => chunks.push(`<path d="M${factX - 16} ${y(label.atMs)} L${factX - 5} ${positions[index]}" stroke="#70758b" fill="none"/>`, text(factX, positions[index] + 4, label.text, label.failure ? "#ff8888" : "#a9edcc")));
     const score = panel.run.result?.score;
     const foot = [
-      score ? `점수 ${score.earnedScore}/${score.finalDenominatorWeight} · 점수 항목 ${panel.run.compiled!.totalJudgments} · 바디 가중치 0 · 콤보 ${panel.run.result!.combo}` : "점수·분모·콤보 계산 불가(세션 미생성)",
+      score ? `점수 ${score.earnedScore}/${score.finalDenominatorWeight} · 점수 항목 ${panel.run.compiled!.totalJudgments} · 바디 가중치 0 · 현재 콤보 ${panel.run.result!.combo}` : "점수·분모·콤보 계산 불가(세션 미생성)",
       `${!panel.run.finalized ? "판정 불가(finalize 전)" : score?.isFullCombo ? "Full Combo" : "Full Combo 아님"} · 미정산 ${panel.run.result?.snapshot.items.filter(item => item.settlementFactId === null).length ?? "계산 불가"} · 종속 0점 ${panel.run.result?.snapshot.items.filter(item => item.state === "dependentZero").length ?? "계산 불가"}`,
       "노트는 대기 도안 · body cap/자동 끝점 없음 · sustain 독립 창 없음 · 점선 띠: 엔진 기본 Good 창",
-      ...panel.run.displays.map(display => `대표 @${display.confirmedAt}: ${display.grade} · ${explicitCaseNoteName(example, display.source.noteIndex, display.source.ordinal)} · timing ${display.timingDeltaMs ?? "없음"}`),
+      ...panel.run.displays.map(display => explicitCaseDisplayLine(example, display)),
       ...panel.run.validationErrors.map(issue => `검증 오류 ${issue.rule}: ${issue.message}`),
       ...(panel.run.error ? [`엔진 예외: ${panel.run.error.message}`] : []), panel.engineLabel, panel.enginePath ?? "",
     ].flatMap(line => wrapText(line, width - 48, 12));
