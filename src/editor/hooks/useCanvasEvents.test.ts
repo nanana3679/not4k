@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beat, beatToFloat } from '../../shared';
@@ -46,6 +46,7 @@ const pointer = (y: number, init: PointerInit = {}) => ({
   button: init.button ?? 0, buttons: init.buttons ?? 1, shiftKey: false, altKey: false, preventDefault: () => {},
 }) as unknown as ReactPointerEvent<HTMLCanvasElement>;
 const rightPointer = (y: number) => pointer(y, { pointerType: 'mouse', button: 2, buttons: 2 });
+const contextMenu = (y: number) => ({ clientX: 30, clientY: y, preventDefault: () => {} }) as unknown as ReactMouseEvent<HTMLCanvasElement>;
 
 let unsubscribe = () => {};
 beforeEach(() => {
@@ -117,6 +118,32 @@ describe('우클릭 삭제', () => {
     expect(current().historyPast).toHaveLength(2);
     current().undo();
     expect(notes().map(note => note.beat)).toEqual([beat(1), beat(4)]);
+  });
+
+  it('1박 Point를 우클릭으로 지운 누름의 contextmenu는 2박 Point를 지우지 않고 그 뒤 키보드 메뉴 키 contextmenu는 2박 Point를 지운다', () => {
+    const { handlers } = setup(chart([
+      { type: 'point', kind: 'single', lane: 1, beat: beat(1) },
+      { type: 'point', kind: 'single', lane: 1, beat: beat(2) },
+    ]), 'select');
+    handlers.handlePointerDown(rightPointer(500));
+    handlers.handlePointerUp(rightPointer(500));
+    expect(notes().map(note => note.beat)).toEqual([beat(2)]);
+
+    handlers.handleContextMenu(contextMenu(1000));
+    expect(notes().map(note => note.beat)).toEqual([beat(2)]);
+    handlers.handleContextMenu(contextMenu(1000));
+    expect(notes()).toEqual([]);
+  });
+});
+
+describe('Delete 모드 터치 탭', () => {
+  it('빈 trillZone 1～3박 안 2박을 터치로 탭하면 구간을 지우고 Undo 1개를 남긴다', () => {
+    const { handlers } = setup(chart([], { trillZones: [{ lane: 1, beat: beat(1), endBeat: beat(3) }] }), 'delete');
+    handlers.handlePointerDown(pointer(1000));
+    handlers.handlePointerUp(pointer(1000));
+
+    expect(current().chart.trillZones).toEqual([]);
+    expect(current().historyPast).toHaveLength(1);
   });
 });
 
