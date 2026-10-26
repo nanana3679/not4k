@@ -3,7 +3,7 @@
 Chart editor 컨텍스트는 차트 제작자가 차트를 만들고 수정하는 작업 언어를 다룬다.
 차트 자체의 도메인 구조는 `src/shared/CONTEXT.md`의 Shared chart model을 따른다.
 
-**적용 상태(2026-10-26 문서 PR)**: [RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 새 에디터 계약은 채택됐으며 이 PR에는 런타임 구현을 포함하지 않는다. 아래 코드 식별자와 구형 조작 설명은 현재 구현을 가리키고, 새 목표 동작은 [새 에디터 계약 요약](#새-에디터-계약-요약)과 [공식 편집 스펙](../../docs/spec/chart-editor.md#새-에디터-채택-계약)을 따른다.
+**적용 상태(2026-10-26, #340)**: [RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 새 에디터 계약은 채택됐으며 구현은 #344다. 아래 코드 식별자와 구형 조작 설명은 현재 구현을 가리키고, 새 목표 동작은 [새 에디터 계약 요약](#새-에디터-계약-요약)과 [공식 편집 스펙](../../docs/spec/chart-editor.md#새-에디터-채택-계약)을 따른다.
 
 명시 테스트는 처음부터/커서부터 모두 음악 준비 3초 뒤 시작하고 커서 앞 항목을 Miss 없이 제외한다. 처음부터 테스트는 곡 시간 0에서 자르지 않아 점수 항목·분모가 일반 재생과 같다. 일시정지 재개의 3초 되감기·시작 하한은 [glossary](../../docs/context/glossary.md#일시정지-후-재개)·[테스트 플레이 스펙](../../docs/spec/chart-editor.md#명시-차트의-테스트-플레이)을 따른다.
 
@@ -148,7 +148,7 @@ _Avoid_: 뷰포트 제스처
 
 ## 새 에디터 계약 요약
 
-다음은 **채택 목표이며 이 PR의 구현 범위 밖**인 편집 계약이다. 정의는 [glossary](../../docs/context/glossary.md), 조작별 세부는 [공식 편집 스펙](../../docs/spec/chart-editor.md#새-에디터-채택-계약), 결정은 [RFD 0037 §6](../../docs/rfd/0037-explicit-score-notes-and-body.md#6-위치-관계와-편집)·[§8](../../docs/rfd/0037-explicit-score-notes-and-body.md#8-구형-차트와-과도기)을 따른다.
+다음은 **채택 목표이며 #344에서 구현하는** 편집 계약이다. 정의는 [glossary](../../docs/context/glossary.md), 조작별 세부는 [공식 편집 스펙](../../docs/spec/chart-editor.md#새-에디터-채택-계약), 결정은 [RFD 0037 §6](../../docs/rfd/0037-explicit-score-notes-and-body.md#6-위치-관계와-편집)·[§8](../../docs/rfd/0037-explicit-score-notes-and-body.md#8-구형-차트와-과도기)을 따른다.
 
 - 바디는 무점수 유지 구간이고 포인트 노트(Point)·릴리즈 노트·유지 노트는 명시적 점수 노트다. 일반 Point 드래그는 시작 Point·바디·끝 릴리즈를, 트릴 드래그는 Point·바디만 만든다([RFD 0038](../../docs/rfd/0038-release-notes-in-trill-zones.md)). 빈 위치 유지 배치는 길이 0 싱글 바디+표식 1개를 만든다. 재클릭의 더블 변경과 표식 수 규칙은 스펙을 따른다.
 - 바디를 새로 선택하면 시작 Point·소속 유지 표식·끝 릴리즈도 선택하지만 미선택 개별 노트 클릭은 해당 노트만 고른다. 이미 선택된 노트를 누르면 선택을 유지하고 끌면 선택 전체를 이동한다. 토글 제외를 보존하고 복사·이동은 실제 선택 집합을 따르며, 관계는 같은 레인의 박 위치에서 도출한다.
