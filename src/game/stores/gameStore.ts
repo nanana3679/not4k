@@ -2,8 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Chart, PlaybackRange } from '../../shared';
 import type { JudgmentMode } from '../../shared/constants/judgment';
-import { prepareExplicitPlayTest } from './explicitPlayRequest';
-import type { ExplicitPlayRequest, ExplicitPlayTestOptions } from './explicitPlayRequest';
+import { prepareExplicitPlayTest, prepareNormalPlay } from './explicitPlayRequest';
+import type { ExplicitPlayRequest, ExplicitPlayTestOptions, NormalPlayOptions } from './explicitPlayRequest';
+import type { ExplicitSessionResult } from '../judgment/ExplicitJudgmentSession';
 
 type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'explicitPlay';
 
@@ -48,6 +49,8 @@ interface PlayResult {
   goodTrillCount: number;
   fastCount: number;
   slowCount: number;
+  /** 구형 결과에는 없으며 새 결과는 실제 세션의 최종 분모를 사용한다. */
+  finalDenominatorWeight?: number;
 }
 
 interface GameState {
@@ -71,6 +74,14 @@ interface GameState {
   chartData: Chart | null;
   audioBuffer: AudioBuffer | null;
   explicitPlay: ExplicitPlayRequest | null;
+  normalPlay: ExplicitPlayRequest | null;
+  normalLoadId: number;
+  startNormalPlay: (options: NormalPlayOptions) => void;
+  beginNormalPlayLoad: () => number;
+  completeNormalPlayLoad: (loadId: number, request: ExplicitPlayRequest) => boolean;
+  cancelNormalPlayLoad: (loadId: number) => void;
+  completeNormalPlay: (request: ExplicitPlayRequest, result: ExplicitSessionResult) => void;
+  releaseNormalPlay: (request: ExplicitPlayRequest) => void;
   startExplicitPlayTest: (options: ExplicitPlayTestOptions) => void;
   clearExplicitPlayTest: () => void;
 
@@ -160,7 +171,7 @@ export function mergePersistedSettings(
 
 export const useGameStore = create<GameState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       screen: 'title',
       settingsOpen: false,
       calibrationActive: false,
@@ -173,9 +184,51 @@ export const useGameStore = create<GameState>()(
       chartData: null,
       audioBuffer: null,
       explicitPlay: null,
+      normalPlay: null,
+      normalLoadId: 0,
+      startNormalPlay: options => {
+        const normalPlay = prepareNormalPlay({ ...options,
+          playbackRange: options.playbackRange === undefined ? get().selectedPlaybackRange : options.playbackRange });
+        set({ normalPlay, normalLoadId: get().normalLoadId + 1, explicitPlay: null, lastResult: null,
+          chartData: null, audioBuffer: null, startTimeMs: 0, editorReturnUrl: null,
+          screen: 'play', settingsOpen: false, calibrationActive: false });
+      },
+      beginNormalPlayLoad: () => {
+        const normalLoadId = get().normalLoadId + 1;
+        set({ normalLoadId, normalPlay: null, explicitPlay: null, lastResult: null,
+          chartData: null, audioBuffer: null, startTimeMs: 0, editorReturnUrl: null,
+          screen: 'loading', settingsOpen: false, calibrationActive: false });
+        return normalLoadId;
+      },
+      completeNormalPlayLoad: (loadId, request) => {
+        if (get().normalLoadId !== loadId || get().screen !== 'loading' || request.purpose !== 'play') return false;
+        set({ normalPlay: request, lastResult: null, screen: 'play' });
+        return true;
+      },
+      cancelNormalPlayLoad: loadId => {
+        if (get().normalLoadId !== loadId || get().screen !== 'loading') return;
+        set({ normalLoadId: loadId + 1, normalPlay: null, lastResult: null, chartData: null, audioBuffer: null });
+      },
+      completeNormalPlay: (request, result) => {
+        const state = get();
+        if (state.normalPlay !== request || state.screen !== 'play') return;
+        const score = result.score;
+        set({ normalPlay: null, screen: 'result', lastResult: {
+          songId: state.selectedSongId ?? request.document.meta.title,
+          difficulty: state.selectedDifficulty ?? request.document.meta.difficultyLabel,
+          achievementRate: score.achievementRate, rank: score.rank, isFullCombo: score.isFullCombo,
+          judgmentCounts: { ...score.judgmentCounts }, goodTrillCount: score.goodTrillCount,
+          fastCount: score.fastCount, slowCount: score.slowCount,
+          finalDenominatorWeight: score.finalDenominatorWeight,
+        } });
+      },
+      releaseNormalPlay: request => {
+        if (get().normalPlay !== request) return;
+        set({ normalPlay: null, lastResult: null, screen: 'songSelect' });
+      },
       startExplicitPlayTest: (options) => {
         const explicitPlay = prepareExplicitPlayTest(options);
-        set({ explicitPlay,
+        set({ explicitPlay, normalPlay: null, normalLoadId: get().normalLoadId + 1,
           lastResult: null, screen: 'explicitPlay', settingsOpen: false, calibrationActive: false });
       },
       clearExplicitPlayTest: () => set({ explicitPlay: null, screen: 'songSelect' }),
@@ -184,9 +237,12 @@ export const useGameStore = create<GameState>()(
 
       // 화면을 전환하면 설정 모달은 항상 닫는다. 모달은 곡 선택 위에만 뜨는 오버레이라
       // 다른 화면으로 넘어간 채 열려 있으면 안 되고, 복귀 시 의도치 않게 재오픈되는 것도 막는다.
-      setScreen: (screen) => set({ screen, settingsOpen: false, calibrationActive: false,
-        ...(screen !== 'explicitPlay' ? { explicitPlay: null } : {}),
-      }),
+      setScreen: (screen) => set(state => ({ screen, settingsOpen: false, calibrationActive: false,
+        ...(screen !== 'play' && screen !== 'result' && screen !== 'explicitPlay'
+          ? { normalPlay: null, explicitPlay: null, lastResult: null, chartData: null, audioBuffer: null,
+            normalLoadId: state.normalLoadId + 1, startTimeMs: 0, editorReturnUrl: null }
+          : {}),
+      })),
 
       setSettingsOpen: (open) => set(open ? { settingsOpen: true } : { settingsOpen: false, calibrationActive: false }),
       setCalibrationActive: (active) => set({ calibrationActive: active }),
@@ -202,13 +258,14 @@ export const useGameStore = create<GameState>()(
         },
       })),
 
-      selectSong: (songId, difficulty, audioUrl, playbackRange = null) => set({
+      selectSong: (songId, difficulty, audioUrl, playbackRange = null) => set(state => ({
         selectedSongId: songId,
         selectedDifficulty: difficulty,
         selectedAudioUrl: audioUrl,
         selectedPlaybackRange: playbackRange ? { ...playbackRange } : null,
-        explicitPlay: null,
-      }),
+        normalLoadId: state.normalLoadId + 1, normalPlay: null, explicitPlay: null, lastResult: null,
+        chartData: null, audioBuffer: null, startTimeMs: 0, editorReturnUrl: null,
+      })),
 
       setResult: (result) => set({ lastResult: result }),
 

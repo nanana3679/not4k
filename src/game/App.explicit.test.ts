@@ -19,7 +19,7 @@ describe('GameApp 명시 화면 분기', () => {
     fixture.screen = 'explicitPlay'; fixture.experience = experience;
     expect(renderToStaticMarkup(createElement(GameApp))).toBe('explicit-play');
   });
-  it.each([['loading', 'legacy-loading'], ['play', 'legacy-play'], ['result', 'official-result']])('%s 기본 화면은 %s 경로를 연다', (screen, expected) => {
+  it.each([['loading', 'legacy-loading'], ['play', 'normal-play'], ['result', 'official-result']])('%s 기본 화면은 %s 경로를 연다', (screen, expected) => {
     fixture.screen = screen; fixture.experience = 'fullGame'; fixture.editorReturnUrl = null;
     expect(renderToStaticMarkup(createElement(GameApp))).toBe(expected);
   });

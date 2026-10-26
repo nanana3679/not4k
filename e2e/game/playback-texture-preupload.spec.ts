@@ -37,6 +37,7 @@ async function installProbe(page: Page) {
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
     type Internals = {
       app: { renderer: { texture: { _initSource(source: Source): unknown } } };
+      explicitTextures: import('pixi.js').Texture[];
       skinManager: import('../../src/game/skin/SkinManager').SkinManager;
     };
 
@@ -52,7 +53,7 @@ async function installProbe(page: Page) {
         }
         return initSource.call(this, source);
       };
-      for (const texture of self.skinManager.getLoadedTextures().values()) {
+      for (const texture of [...self.skinManager.getLoadedTextures().values(), ...self.explicitTextures]) {
         sources.push(texture.source);
         before.push(texture.source.autoGarbageCollect);
       }
@@ -109,17 +110,17 @@ async function startPlay(page: Page) {
     const b = (n: number, d = 1) => ({ n, d });
     const state = useGameStore.getState();
     state.updateSettings({ isFirstLaunch: false, debugMode: false, renderHeight: 720, masterVolume: 0, gearMotion: true });
-    state.setChartData({
+    const document: import('../../src/shared/types/chart').ChartDocument = {
       meta: { title: 'Texture preupload check', artist: 'Local', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
       notes: [
-        { type: 'single', lane: 1, beat: b(2) },
-        { type: 'double', lane: 2, beat: b(5, 2) },
-        { type: 'long', lane: 3, beat: b(3), endBeat: b(4) },
-        { type: 'doubleLong', lane: 4, beat: b(7, 2), endBeat: b(9, 2) },
-        { type: 'single', lane: 1, beat: b(4), grace: true },
-        { type: 'single', lane: 2, beat: b(6) },
-        { type: 'double', lane: 3, beat: b(13, 2) },
-        { type: 'long', lane: 4, beat: b(7), endBeat: b(15, 2) },
+        { type: 'point', kind: 'single', lane: 1, beat: b(2) },
+        { type: 'point', kind: 'double', lane: 2, beat: b(5, 2) },
+        { type: 'body', holdCount: 1, lane: 3, beat: b(3), endBeat: b(4) },
+        { type: 'body', holdCount: 2, lane: 4, beat: b(7, 2), endBeat: b(9, 2) },
+        { type: 'point', kind: 'single', lane: 1, beat: b(4), grace: true },
+        { type: 'point', kind: 'single', lane: 2, beat: b(6) },
+        { type: 'point', kind: 'double', lane: 3, beat: b(13, 2) },
+        { type: 'body', holdCount: 1, lane: 4, beat: b(7), endBeat: b(15, 2) },
       ],
       trillZones: [],
       events: [
@@ -127,9 +128,11 @@ async function startPlay(page: Page) {
         { type: 'timeSignature', beat: b(0), beatPerMeasure: b(4) },
         { type: 'auto', beat: b(0), endBeat: b(5) },
       ],
-    });
-    state.setAudioBuffer(new AudioBuffer({ length: 44100 * 5, sampleRate: 44100, numberOfChannels: 1 }));
-    useGameStore.setState({ screen: 'play', lastResult: null, startTimeMs: 0, editorReturnUrl: null });
+    };
+    const audioBuffer = new AudioBuffer({ length: 44100 * 5, sampleRate: 44100, numberOfChannels: 1 });
+    const fixturePath = '/e2e/normalPlayFixture.ts';
+    const { startNormalFixture } = await import(fixturePath) as typeof import('../normalPlayFixture');
+    startNormalFixture(document, audioBuffer);
   });
 }
 

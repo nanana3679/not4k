@@ -11,9 +11,10 @@ import {
   songAudioPath,
   songJacketPath,
   songChartPath,
+  songChartExtraPath,
 } from "../shared";
-import { deserializeChart } from "../shared";
-import type { Chart } from "../shared";
+import { deserializeChart, deserializeChartDocument, parseExtraNotesDocument, withAuxNotes } from "../shared";
+import type { Chart, ChartDocument } from "../shared";
 
 /**
  * Storage에서 파일의 퍼블릭 URL을 반환한다.
@@ -32,13 +33,37 @@ export async function fetchChart(
   songId: string,
   difficulty: string,
 ): Promise<Chart> {
+  return deserializeChart(await fetchChartText(songId, difficulty));
+}
+
+/** main/aux의 구형·명시 항목과 메타데이터를 보존하는 문서 읽기 경계. */
+export async function fetchChartDocument(songId: string, difficulty: string): Promise<ChartDocument> {
+  const [chartText, extraText] = await Promise.all([
+    fetchChartText(songId, difficulty),
+    fetchExtraChartText(songId, difficulty),
+  ]);
+  const chart = deserializeChartDocument(chartText);
+  const extra = parseExtraNotesDocument(JSON.parse(extraText ?? chartText));
+  if (extraText !== null || extra.extraNotes.length > 0 || extra.extraLaneCount > 0) {
+    return { ...chart, notes: withAuxNotes(chart.notes, extra.extraNotes) };
+  }
+  return chart;
+}
+
+async function fetchExtraChartText(songId: string, difficulty: string): Promise<string | null> {
+  const response = await fetch(getPublicUrl(songChartExtraPath(songId, difficulty)), { cache: 'no-cache' });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Failed to fetch chart extras: ${response.status}`);
+  return response.text();
+}
+
+async function fetchChartText(songId: string, difficulty: string): Promise<string> {
   const url = getPublicUrl(songChartPath(songId, difficulty));
   const response = await fetch(url, { cache: 'no-cache' });
   if (!response.ok) {
     throw new Error(`Failed to fetch chart: ${response.status}`);
   }
-  const text = await response.text();
-  return deserializeChart(text);
+  return response.text();
 }
 
 /**
@@ -107,6 +132,20 @@ export async function loadSongData(
 ): Promise<{ chart: Chart; audioBuffer: AudioBuffer }> {
   const [chart, audioBuffer] = await Promise.all([
     fetchChart(songId, difficulty),
+    fetchAudio(songId, audioCtx, audioUrl),
+  ]);
+  return { chart, audioBuffer };
+}
+
+/** 일반 게임은 문서를 읽은 뒤 재생 요청 경계에서 전체 유효성을 검사한다. */
+export async function loadSongDocumentData(
+  songId: string,
+  difficulty: string,
+  audioCtx: AudioContext,
+  audioUrl?: string,
+): Promise<{ chart: ChartDocument; audioBuffer: AudioBuffer }> {
+  const [chart, audioBuffer] = await Promise.all([
+    fetchChartDocument(songId, difficulty),
     fetchAudio(songId, audioCtx, audioUrl),
   ]);
   return { chart, audioBuffer };

@@ -1,7 +1,5 @@
 # Gameplay
 
-현재 구현 단계: 에디터/Lab 명시 테스트 재생·실입력·자동 입력·고정 3초 되감기를 연결했다. 일반 곡 선택·공식 결과의 기본 전환은 #347이다.
-
 Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력이 판정과 결과로 이어지는 경험을 다룬다.
 노트 타입, 피스, 난이도 용어는 먼저 루트 `CONTEXT.md`의 Core domain을 따른다.
 
@@ -9,7 +7,7 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 
 ## 판정 모델의 전제
 
-[RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 **채택 계약; 구현 진척은 RFD 0037 상단을 따른다**이다. 정식 정의는 glossary, 실행 전 기대값은 [명시적 점수 노트 판정 사례](../../docs/spec/explicit-note-judgment-cases.md)를 따른다.
+[RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 **채택 계약·일반 기본 경로 구현·검증**이다. 정식 정의는 glossary, 실행 전 기대값은 [명시적 점수 노트 판정 사례](../../docs/spec/explicit-note-judgment-cases.md)를 따른다.
 
 - 바디는 hold 수를 요구하는 무점수 구간이고 Point·릴리즈·유지 노트만 명시 점수 항목을 만든다. [바디](../../docs/context/glossary.md#바디)·[점수 항목](../../docs/context/glossary.md#점수-항목과-무점수-miss)을 따른다.
 - 전체 이론 가중치가 0인 유효한 차트도 재생하고 달성률·랭크는 표시하지 않는다. 점수 항목의 전부 Miss는 0%·F다([glossary](../../docs/context/glossary.md#점수-항목과-무점수-miss)).
@@ -88,7 +86,7 @@ _Avoid_: 키 이벤트 처리
 _Avoid_: 가장 가까운 노트 매칭
 
 **release 판정과 keyup 소비**:
-명시된 릴리즈만 실제 up 하나를 소비한다. 바디에 붙으면 실제 시작과 남은 기회가 전제이고 정상 완료 뒤의 창은 유지한다. 같은 키 예외·감소 귀속·Grace는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다(구현은 #342).
+명시된 릴리즈만 실제 up 하나를 소비한다. 바디에 붙으면 실제 시작과 남은 기회가 전제이고 정상 완료 뒤의 창은 유지한다. 같은 키 예외·감소 귀속·Grace는 [glossary](../../docs/context/glossary.md#release-판정)를 따른다(#342에서 구현, 일반·명시 테스트 재생에서 검증).
 _Avoid_: 익명 keyup, 실제 release의 이진 판정
 
 **빈 레인 입력**:
@@ -184,7 +182,7 @@ _Avoid_: 달성률
 - **플레이 화면**은 입력을 **입력-노트 매칭**으로 연결하고 판정을 만든다.
 - **가장 이른 노트 매칭**은 노트 배치 순서와 판정 순서를 일치시킨다.
 - `NoteJudgmentSession`은 판정 코어를 생성 함수 `createCore`로 받는다. 넘기지 않으면 실제 게임이 쓰는 `NoteJudgmentCore`를 만들며, 다른 코어를 같은 세션 경로(drain, `advance`, finalize, 확정 효과)로 시험할 때만 넘긴다. 세부는 [게임 코어 명세](../../docs/spec/game-core.md#판정-실행-구조)를 따른다.
-- **처리된 노트**의 새 표시 계약은 정상 완료 바디·성공 유지 표식의 즉시 숨김과 실패색 잔존을 구별한다. 명시 릴리즈 대기를 바디와 함께 닫지 않는다([glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects), 구현은 #343).
+- **처리된 노트**의 새 표시 계약은 정상 완료 바디·성공 유지 표식의 즉시 숨김과 실패색 잔존을 구별한다. 명시 릴리즈 대기를 바디와 함께 닫지 않는다([glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects), #343에서 구현, 일반·명시 테스트 재생에서 검증).
 - 구형 싱글·더블의 연결 켜짐·터미널 전파 기록과 새 모델의 마감 없음·몫별 상태·표시 수명은 [glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)에서 구분한다. `heldEffect: false` 스킨도 부분 실패·실패를 표시하는 [RFD 0028](../../docs/rfd/0028-skin-held-effect.md)의 원칙은 보존한다.
 - **결과 화면**은 **달성률**, **랭크**, **콤보**, **풀콤보**, **`flightRule`** 결과를 보여준다.
 - Play는 **`flightRule`**에 따라 실패할 수 있으며, 실패 조건 없는 완주와 관찰은 **Observer 계열**이 담당한다.
