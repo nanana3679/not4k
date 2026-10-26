@@ -179,7 +179,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(notes.flatMap(note => note.layers).every(layer => !layer.visible)).toBe(true);
   });
 
-  it("M2 실제 double의 1070ms 늦은 시작·1080ms up 뒤 다른 몫 실패는 부분 실패 바디 alpha 0.7과 남은 실패 표식을 보존한다", () => {
+  it("실제 세션의 double 1070ms 늦은 시작·1080ms up 뒤 다른 몫 실패는 부분 실패 바디 alpha 0.7과 남은 실패 표식을 보존한다", () => {
     const actual = explicitRenderChart([
       { type: "body", lane: 1, beat: beat(2), endBeat: beat(53, 25), holdCount: 2 },
       { type: "sustain", lane: 1, beat: beat(103, 50), count: 2 },
@@ -200,7 +200,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(notes[2].layers[0]).toMatchObject({ assetId: "release.double.partialFailed.right", alpha: 0.7, visible: true });
   });
 
-  it("M2 실제 double 1000～3000ms를 두 키로 시작하고 1500ms B만 떼면 2950ms [active,failed]는 아래끝 432.25로 판정선에 붙고 3000ms 남은 몫 완료로 [complete,failed]가 되면 원래 차트 위치 832.25에서 100ms마다 20px 스크롤한다", () => {
+  it("실제 세션의 double 1000～3000ms를 두 키로 시작하고 1500ms B만 떼면 2950ms [active,failed]는 아래끝 432.25로 판정선에 붙고 3000ms 남은 몫 완료로 [complete,failed]가 되면 원래 차트 위치 832.25에서 100ms마다 20px 스크롤한다", () => {
     const session = new ExplicitJudgmentSession(chart, { maintenanceGraceMs: 20 });
     session.processBatch(1000, [{ key: "A", lane: 1, type: "down" }, { key: "B", lane: 1, type: "down" }]);
     session.processBatch(1500, [{ key: "B", lane: 1, type: "up" }]);
