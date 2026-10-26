@@ -1,6 +1,6 @@
 # not4k — 게임 코어 설계
 
-> 새 판정 규칙은 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)과 [glossary](../context/glossary.md#바디-판정과-실패-종속)의 **채택 계약·구현은 후속 PR**이다. [대표 사례](explicit-note-judgment-cases.md)의 PNG는 엔진 출력과 구별하는 설계 도식이다. 현행 플레이·자동 입력·튜토리얼과 구형 설명은 전환 전까지 보존한다. 미정 사항·실제 이행은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
+> 새 판정 규칙은 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)과 [glossary](../context/glossary.md#바디-판정과-실패-종속)의 **채택 계약**이며 판정 코어·세션·정산은 구현했다. 실제 재생·결과 연결은 #346/#347이다. [대표 사례](explicit-note-judgment-cases.md)의 PNG는 엔진 출력과 구별하는 설계 도식이다. 현행 플레이·자동 입력·튜토리얼과 구형 설명은 전환 전까지 보존한다. 미정 사항·실제 이행은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 
 > **후속 설계(엔진 이행 전):** [RFD 0035](../rfd/0035-release-presence-and-grace.md)에서 롱노트의 유지와 별도 릴리즈 노트의 뗌을 분리하고 `holdOnly`를 폐지했다. 바디 끝에 릴리즈 노트를 명시하는 조합을 허용하며, 릴리즈 없음·일반 릴리즈·그레이스 릴리즈를 구분한다. 바디는 점수 항목·가중치에서 제외하고 유지 판정으로 콤보와 고도에만 관여하되, 유지 실패 시 연결된 릴리즈 기회도 잃는다. 그레이스 릴리즈도 실제 뗌은 필수이며 타이밍 등급만 면제한다. 아래 `holdOnly` 설명은 현재 구현의 기록이고, 새 정의는 [glossary](../context/glossary.md#release-판정)를 따른다.
 
@@ -89,7 +89,7 @@ admin 권한은 Supabase Database의 `profiles` 테이블에서 `is_admin` 플�
 
 ## 새 모델의 입력과 바디 진행
 
-**채택 계약·구현은 후속 PR.** 정식 정의는 [glossary의 바디 판정과 실패 종속](../context/glossary.md#바디-판정과-실패-종속), 승인 근거는 [RFD 0037 §2～5](../rfd/0037-explicit-score-notes-and-body.md#2-구성과-점수-의미)를 따른다.
+**채택 계약·판정 코어·세션 구현. 실제 재생·결과 연결은 #346/#347.** 정식 정의는 [glossary의 바디 판정과 실패 종속](../context/glossary.md#바디-판정과-실패-종속), 승인 근거는 [RFD 0037 §2～5](../rfd/0037-explicit-score-notes-and-body.md#2-구성과-점수-의미)를 따른다.
 
 Point는 가장 이른 적격 down을, 명시 릴리즈는 가장 이른 적격 up 하나를 소비한다. 바디·유지 노트는 down/up을 소비하지 않는다. 같은 down이 Point를 처리하면서 실제 hold로 바디 조건도 충족할 수 있다. Point 탭·교대 up을 숨은 연결 release로 먼저 소비하지 않는다. 창 안의 적격 up이 뒤 명시 릴리즈를 일찍 처리할 수 있으며 배치 의도는 제작 지침에서 확인한다.
 
