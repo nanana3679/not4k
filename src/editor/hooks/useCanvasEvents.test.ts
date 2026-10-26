@@ -191,3 +191,16 @@ describe('연결 경계의 바디 끝 핸들 띠', () => {
     expect(notes()[3]).toEqual(connectedBodies()[3]);
   });
 });
+
+describe('Create 모드 터치 롱프레스', () => {
+  it('Release 엔티티로 끝 Release 바로 위 5.1박 띠를 450ms 누르면 Release만 놓고 Select 모드로 바꿔 바디를 끌지 않는다', () => {
+    const { handlers } = setup(chart(bodyWithEndRelease()), 'create', 'release');
+    handlers.handlePointerDown(pointer(2550));
+    expect(notes()).toHaveLength(4);
+    vi.advanceTimersByTime(450);
+
+    expect(current().mode).toBe('create');
+    expect(bodyEnd()).toBe(5);
+    expect(current().selection.notes.size).toBe(0);
+  });
+});

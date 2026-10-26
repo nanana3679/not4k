@@ -104,6 +104,14 @@ function hasAnyHoldHit(hits: HoldHits): boolean {
 }
 
 /**
+ * create 모드는 노트 hit 없이 잡힌 끝 핸들 띠(점수 노트가 덮은 바디 끝 위 띠)를 hold 히트로 보지 않는다.
+ * 그 자리는 배치가 막히지 않아 down에서 노트가 놓이므로, 롱프레스가 Select 드래그로 넘어가면 안 된다.
+ */
+function holdHitsForMode(mode: EditorTouchMode, hits: HoldHits): HoldHits {
+  return mode === 'create' && hits.noteHit === null ? { ...hits, noteEndHit: null } : hits;
+}
+
+/**
  * down에서 롱프레스 hold 타이머를 걸지 결정한다(= 어떤 hold 후보든 무장되는가).
  *
  * - delete: 항상(빈 곳도 롱프레스 드래그 삭제 시작 지점).
@@ -111,6 +119,7 @@ function hasAnyHoldHit(hits: HoldHits): boolean {
  *   히트가 있을 때만 — 그 노트를 잡는 select-drag로 간다.
  * - 그 외(create-point / select): 노트/끝/엑스트라 히트가 있을 때만.
  *   (히트 없는 create-point는 down에서 점노트가 배치되고, 히트 없는 select는 박스 후보로 간다.)
+ * - create는 노트 hit 없는 끝 핸들 띠만의 히트를 히트로 보지 않는다(holdHitsForMode).
  */
 export function shouldArmHoldTimer(input: {
   mode: EditorTouchMode;
@@ -120,10 +129,11 @@ export function shouldArmHoldTimer(input: {
   hits: HoldHits;
 }): boolean {
   if (input.mode === 'delete') return true;
+  const hits = holdHitsForMode(input.mode, input.hits);
   if (input.mode === 'create' && input.rangeType !== null) {
-    return !input.placementBlocked || hasAnyHoldHit(input.hits);
+    return !input.placementBlocked || hasAnyHoldHit(hits);
   }
-  return hasAnyHoldHit(input.hits);
+  return hasAnyHoldHit(hits);
 }
 
 /** 롱프레스 발화 시 실행할 액션. */
@@ -149,5 +159,5 @@ export function resolveHoldFireAction(input: {
   if (input.mode === 'create' && input.rangeType !== null && !input.placementBlocked) {
     return 'createRange';
   }
-  return hasAnyHoldHit(input.hits) ? 'selectDrag' : 'none';
+  return hasAnyHoldHit(holdHitsForMode(input.mode, input.hits)) ? 'selectDrag' : 'none';
 }

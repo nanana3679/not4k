@@ -127,6 +127,14 @@ describe("shouldArmHoldTimer — 롱프레스 hold 타이머 무장 여부", () 
     expect(shouldArmHoldTimer({ mode: "create", rangeType: null, placementBlocked: true, hits: noteHit })).toBe(true);
   });
 
+  it("create-point에서 노트 히트 없이 끝 핸들 띠의 noteEndHit만 있으면 무장 안 함(그 자리는 down에서 배치됨)", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: null, placementBlocked: false, hits: endHit })).toBe(false);
+  });
+
+  it("create + rangeType + 차단이어도 끝 핸들 띠의 noteEndHit만 있으면 무장 안 함", () => {
+    expect(shouldArmHoldTimer({ mode: "create", rangeType: "long", placementBlocked: true, hits: endHit })).toBe(false);
+  });
+
   it("select은 히트 없으면 무장 안 함(빈 곳은 박스 후보)", () => {
     expect(shouldArmHoldTimer({ mode: "select", rangeType: null, placementBlocked: false, hits: noHits })).toBe(false);
   });
@@ -163,6 +171,10 @@ describe("resolveHoldFireAction — 롱프레스 발화 액션 재도출", () =>
 
   it("create-point + 히트 없음은 none(점노트는 이미 down 배치)", () => {
     expect(resolveHoldFireAction({ mode: "create", rangeType: null, placementBlocked: false, hits: noHits })).toBe("none");
+  });
+
+  it("create-point + 노트 히트 없이 끝 핸들 띠의 noteEndHit만 있으면 none(Select 모드로 넘기지 않음)", () => {
+    expect(resolveHoldFireAction({ mode: "create", rangeType: null, placementBlocked: false, hits: endHit })).toBe("none");
   });
 
   it("select + 노트 히트는 selectDrag", () => {
