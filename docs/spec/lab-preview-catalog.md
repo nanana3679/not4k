@@ -41,6 +41,10 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 `Gameplay` 분류의 `/lab/explicit-renderer`에서 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)의 바디·Point·릴리즈·유지 표식을 승인된 `classic-explicit` 도안으로 비교한다. 공개 상태 fixture와 실제 싱글 세션(ENJ-05 회복) 재생을 구분하며 부분 성공·실패 합성, 독립 수명, 스크롤·리프트·해상도와 초기화, 렌더러 재부착과 표시 진단을 확인한다. 구형 스킨·보관 사례를 덮어쓰지 않는다.
 
+## 명시 차트 실플레이
+
+`Gameplay` 분류의 `/lab/explicit-playtest`에서 새로 작성한 싱글·더블·무점수 바디·트릴 차트를 처음부터 수동·자동 입력으로 연습한다. 실제 `ExplicitJudgmentSession`과 `GameRenderer`를 사용하며 음악 준비·일시정지(고정 3초 되감기)·처음부터 다시·반복·정산·복귀를 제공한다. 튜토리얼 미리보기도 같은 차트와 실제 세션 컨트롤러를 사용한다. 기존 곡 선택·튜토리얼 목록의 기본 경로 전환이나 공식 기록 정책을 대신하지 않는다.
+
 ## restZone Lane
 
 `Rendering` 분류의 `/lab/rest-zone-lane`은 `restZone` 동안 레인 판넬이 판정선을 경첩 삼아 뒤로 넘어갔다 올라오는 연출 시안을 4레인 Pixi 화면(120 BPM, 32박 반복)으로 재생한다. 게임에도 이 판넬을 넣기로 [RFD 0034](../rfd/0034-rest-zone-lane-panel.md)에서 정했고, 구현 전이라 게임은 아직 dim이다([RFD 0019](../rfd/0019-rest-zone-lane-guidance.md)). 게임 값은 이 페이지의 기본값과 같고(테두리 기본값도 게임 값인 `밝은 레인색 둘레`다), 추정 녹숫만 기본 1.5초 대신 차트 Lv.별 값(Lv.1 3000ms부터 Lv.15 500ms까지, `estimatedDwellMs`)을 쓴다.
@@ -107,11 +111,11 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 ## 검증
 
-- `labPreviewCatalog.test.ts`: 8개 인터랙티브 항목의 고유 `id`·경로, 대표 비행 미리보기와 시설 통과·노트 에셋 시연실·명시 노트 표시·restZone Lane·Gear 등록을 확인한다.
+- `labPreviewCatalog.test.ts`: 9개 인터랙티브 항목의 고유 `id`·경로, 대표 비행 미리보기와 시설 통과·노트 에셋 시연실·명시 노트 표시·명시 차트 실플레이·restZone Lane·Gear 등록을 확인한다.
 - `labImageGalleryCatalog.test.ts`: 이미지 HTML 컬렉션 2개의 고유 `id`와 `/lab/images/` 경로를 확인한다.
 - `labImageGalleryDevRequest.test.ts`: 등록된 로컬 alias만 재작성하고 literal·URL 인코딩 traversal을 거부하는지 확인한다.
 - `exportLabImageGalleries.test.ts`: 등록한 HTML·중첩 자산만 복사하고 미등록 컬렉션은 제외하는지 확인한다.
-- `LabIndexPage.test.ts`: 인터랙티브 카탈로그 8개(옛 기어 미리보기 없음)와 `IMAGE GALLERIES` 링크를 확인한다.
+- `LabIndexPage.test.ts`: 인터랙티브 카탈로그 9개(옛 기어 미리보기 없음)와 `IMAGE GALLERIES` 링크를 확인한다.
 - `FlightBackgroundPreviewLabPage.test.ts`·`FacilityPassagePreviewLabPage.test.ts`: 각 iframe 경로·시설 초기값과 Lab 복귀 링크를 확인한다.
 - `e2e/lab/catalog.spec.ts`: `/lab`에서 비행 미리보기를 열어 세 장면 탭이 나타나는지, 이미지 HTML 페이지에 9장이 로드되는지, 390px·912px에서 목록이 넘치지 않는지 확인한다. 시설 통과는 390px·1280px에서 진입·내부 정지·고도 조절·목록 복귀를 검증한다. restZone Lane은 390px·1280px에서 판넬 상태(4.15초 넘어가는 중·4.3초 넘어가 있음·10.35초 올라오는 중·10.6초 평상)를 React 상태 표시와 렌더러가 실제로 그린 진행도(`data-drawn-progress`) 양쪽에서 확인한다. 리프트·서든을 바꿔도 그린 전환 시각이 그대로인지, 추정 녹숫을 바꾸면 바뀌는지, 판넬이 넘어가 있는 동안 리프트·서든·테두리를 바꾸면 렌더러가 판넬 텍스처를 그 높이·테두리로 다시 만드는지(`data-panel-texture-height`·`data-panel-texture-edge`, 기본 테두리는 `rim`), 사용자 녹숫과 추정과의 차이 표시, 추정 녹숫 슬라이더 범위(500～3000ms), 최소 길이 경고, 배치·묶기 조작, 목록 복귀와 재진입, Pixi 경고(`PixiJS Warning`)가 콘솔에 나오지 않는지를 검증한다.
 - `src/game/renderer/restZonePanel.test.ts`·`RestZoneLanePage.test.ts`: 판넬 진행도와 전환 시각(시작 직후 넘어감·끝 − 추정 녹숫에 다 올라옴·짧은 구간), 녹숫 계산, Lv.별 추정 녹숫(Lv.1 3000ms·Lv.8 1750ms·Lv.15 500ms, 범위 밖·소수·숫자 아닌 Lv.), 맞닿은 같은 레인 `restZone` 잇기(3개 이상 연쇄·1/48박 틈·다른 레인·겹침·입력 불변), 최소 길이, 투영 모서리, 판넬 묶기와 공유 카메라(3개 판넬 이음새가 약 3.9px 벌어지는 받아들인 한계 포함), 서버 렌더링한 페이지의 조절 항목과 기본 녹숫·기본 테두리 `rim`·추정 녹숫 슬라이더 범위 표시를 확인한다.
