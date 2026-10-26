@@ -117,7 +117,8 @@ export function stepExplicitPlaySession(
   const autoEvents = autoPlayer.eventsThrough(Math.max(advanceAt, timeline.latestTime));
   enqueueAutoInputs(timeline, autoEvents);
   drainExplicitPlaySessionInputs(timeline, session, Infinity, songTimeMs);
-  if (advanceAt >= session.snapshot.atMs) session.advance(advanceAt, songTimeMs);
+  // 앞선 raw 입력으로 core가 advanceAt보다 앞서 있어도 이번 곡 관측은 남긴다. 그래야 멈춘 곡 시각까지 되감을 수 있다.
+  session.advance(Math.max(advanceAt, session.snapshot.atMs), songTimeMs);
   return autoEvents;
 }
 

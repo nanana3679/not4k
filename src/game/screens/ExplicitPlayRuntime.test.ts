@@ -200,6 +200,16 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onError).not.toHaveBeenCalled();
   });
 
+  it('일반 입력+100ms·L₀20ms에서 J−20의 KeyQ(raw80) 뒤 입력 없이 J5에 멈추면 오류 없이 0으로 되감아 일시정지한다', async () => {
+    fixture.latency = 20;
+    const run = create(false, undefined, { inputOffsetMs: 100 }, 0, 4, {}); await run.player.start();
+    at(-20); key(run.target, 'keydown', 'KeyQ'); frame(-20);
+    at(5); key(run.target, 'keydown', 'Escape');
+    expect(run.onError).not.toHaveBeenCalled();
+    expect(run.onPhase).toHaveBeenLastCalledWith('paused');
+    expect(fixture.renderers[0].restoreExplicitPlaybackState).toHaveBeenCalledWith(0, 1, expect.any(Array));
+  });
+
   it('원본16초의8～12초 구간은 songTime0으로 시작하고 렌더러·완주 기준은4000ms이다', async () => {
     const range = { startTime: 8, endTime: 12, fadeInTime: .2, fadeOutTime: .3 };
     const run = create(false, undefined, {}, 0, 16, { playbackRange: range }); await run.player.start();

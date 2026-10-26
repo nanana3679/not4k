@@ -143,6 +143,15 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     expect(p.session.drainEffects()).toEqual([]);
   });
 
+  it("입력+100ms의 raw80이 core를 앞세운 뒤 입력 없는 J5 프레임도 곡 관측5를 남겨 reconstructAt(0)이 가능", () => {
+    const p = play([point(1000)], 100);
+    p.input(-20, -20); p.frame(-20);
+    expect(p.session.snapshot.atMs).toBe(80);
+    p.frame(5);
+    expect(p.session.snapshot.atMs).toBe(80);
+    expect(() => p.session.reconstructAt(0)).not.toThrow();
+  });
+
   it("1121ms Miss 확정 후 raw1000이 늦게 도착해도 정산과 효과를 되돌리지 않음", () => {
     const p = play([point(1000)]);
     p.frame(1121); p.input(1130, 1000); p.frame(1130);
