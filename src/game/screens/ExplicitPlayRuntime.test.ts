@@ -251,6 +251,29 @@ describe('명시 실제 재생 runtime', () => {
     expect(click).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
   });
 
+  it('테스트 debugMode는 음악 준비 뒤 판정·되감기 목표2000·최종 결과를 기록하고 완주 후 돌아가기까지 합쳐1회만 다운로드한다', async () => {
+    const record = vi.spyOn(ExplicitPlayDebugLog.prototype, 'record');
+    const rewind = vi.spyOn(ExplicitPlayDebugLog.prototype, 'rewind');
+    const finish = vi.spyOn(ExplicitPlayDebugLog.prototype, 'finish');
+    const click = vi.fn(); vi.stubGlobal('document', { createElement: () => ({ click }) });
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:debug');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const run = create(false, undefined, { debugMode: true }, undefined, 8); await run.player.start();
+    wallFrame(3000); at(1000); key(run.target, 'keydown', 'KeyQ'); frame(1000); frame(5000);
+    run.player.togglePause(); run.player.togglePause(); wallFrame(fixture.now + 3000);
+    frame(2000); frame(8200); run.player.downloadDebugLog();
+    expect(record).toHaveBeenCalled(); expect(rewind).toHaveBeenCalledExactlyOnceWith(2000, expect.any(ExplicitJudgmentSession));
+    expect(finish).toHaveBeenCalledExactlyOnceWith(run.onResult.mock.calls[0][0]);
+    expect(click).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('테스트 debugMode는 첫 음악 준비1000ms의 돌아가기에서 로그를1회 다운로드한다', async () => {
+    const download = vi.spyOn(ExplicitPlayDebugLog.prototype, 'download').mockImplementation(() => {});
+    const run = create(false, undefined, { debugMode: true }); await run.player.start(); wallFrame(1000);
+    run.player.downloadDebugLog(); run.player.dispose();
+    expect(download).toHaveBeenCalledOnce();
+  });
+
   it('일반 debugMode 기록 실패는 판정과 완주를 막지 않고 오류 로그만1회 남긴다', async () => {
     vi.spyOn(ExplicitPlayDebugLog.prototype, 'record').mockImplementation(() => { throw new Error('debug'); });
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

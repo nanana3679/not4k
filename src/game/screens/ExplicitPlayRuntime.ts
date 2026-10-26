@@ -117,7 +117,8 @@ export class ExplicitPlayRuntime {
         ...(request.purpose === 'play' ? {} : { startTimeMs: explicitSessionRangeStartMs(request) }),
       });
       this.session = session;
-      if (settings.debugMode && request.purpose === 'play') {
+      // 구형 PlayScreen처럼 에디터·Lab 테스트 재생도 debugMode 로그를 남긴다.
+      if (settings.debugMode) {
         this.withDebug(() => { this.debugLog = new ExplicitPlayDebugLog(session.playbackChart, {
           playbackRate: audio.playbackRate, outputLatencyMs: audio.getOutputLatencyMs(),
           inputOffsetMs: settings.inputOffsetMs, visualOffsetMs: settings.visualOffsetMs,
@@ -306,6 +307,7 @@ export class ExplicitPlayRuntime {
     this.lastFrame = null;
     // P에 L₀·rate를 한 번 더해 실제 3초 뒤 audible J가 목표가 되게 한다.
     audio.playWithPreroll(explicitPreparationPosition(this.targetMs, audio.playbackRate, audio.getOutputLatencyMs()));
+    this.playbackStarted = true;
     this.preparation = { targetMs: this.targetMs, readyAt: performance.now() + EXPLICIT_MUSIC_PREPARATION_MS };
     this.options.onPhase('music-preparation');
   }
