@@ -105,15 +105,14 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('별도 aux 응답이 빈 문자열이면 v3 메인 내장 aux의 false·holdOnly·레인 수를 저장에도 보존한다', async ({ page }) => {
+  test('별도 aux 200 응답 본문이 빈 문자열이면 v3 메인 내장 aux로 돌아가지 않고 Error 화면에 손상 안내를 보이며 아무것도 업로드하지 않는다', async ({ page }) => {
     const embedded: ExtraNotesJson = { extraLaneCount: 3, extraNotes: [
       { type: 'double', extraLane: 2, beat: '0', grace: false },
       { type: 'doubleLong', extraLane: 2, beat: '0', endBeat: '2', holdOnly: true },
     ] };
-    const editor = await openEditor(page, { chart: { ...editorTestChart(), ...embedded, version: 3 }, extra: '' });
-    await saveChart(page, editor);
-    const upload = editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!;
-    expect(readUploadedJson(upload)).toEqual(embedded);
+    const editor = await openEditor(page, { chart: { ...editorTestChart(), ...embedded, version: 3 }, extra: '', expectedLoadState: 'error' });
+    await expect(page.getByText('보조 파일이 유효한 JSON이 아닙니다')).toBeVisible();
+    expect(editor.supabaseWrites).toEqual([]);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
