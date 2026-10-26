@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { beat, serializeChart, serializeExtraNotes, auxNotesAsExtra, ChartFormatError } from '../shared';
+import { beat, serializeChart, serializeExtraNotes, auxNotesAsExtra, ChartFormatError, validateChartDocument } from '../shared';
 import type { ChartDocument } from '../shared';
 import { explicitPlaytestCharts } from '../lab/explicitPlaytestCharts';
 
@@ -76,6 +76,22 @@ describe('일반 곡 문서 Storage 읽기', () => {
       serve(explicitPlaytestCharts[0].chart, extra);
       await expect(fetchChartDocument('song-1', 'NORMAL')).rejects.toBeInstanceOf(ChartFormatError);
     });
+
+  it.each([
+    ['빈 aux 파일이 있으면', () => serializeExtraNotes([], 0)],
+    ['aux가 없고 메인에 예전 extraNotes가 있으면', null],
+    ['aux가 없고 메인에 보조 자료도 없으면', undefined],
+  ] as const)('%s 메인의 lane0 Point를 걸러내지 않아 전체 검증이 거부한다', async (_, auxText) => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    const main = JSON.parse(serializeChart(chart));
+    main.notes.push({ type: 'point', kind: 'single', lane: 0, beat: '1' });
+    if (auxText === null) Object.assign(main, { extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }] });
+    serve(chart, auxText ? auxText() : missingAux, JSON.stringify(main));
+    const loaded = await fetchChartDocument('song-1', 'NORMAL');
+    expect(loaded.notes).toContainEqual({ type: 'point', kind: 'single', lane: 0, beat: beat(1) });
+    expect(validateChartDocument(loaded).structural.map(error => error.rule)).toContain('laneMalformed');
+    expect(validateChartDocument(loaded).canPlayExplicit).toBe(false);
+  });
 
   it('aux 네트워크 실패는 빈 aux로 대체하지 않는다', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
