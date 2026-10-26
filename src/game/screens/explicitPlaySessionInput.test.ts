@@ -326,20 +326,15 @@ describe("InputSystem→GameClock→명시 입력 큐의 수명", () => {
     source.dispose();
   });
 
-  it("reset은 old raw queue와 held를 비워 이전 up을 무시하고 다음 같은 키 down을 새 입력으로 받음", () => {
+  it("dispose는 KeyA down의 raw 큐와 hold를 비우고 두 번 불러도 안전하며 이후 down은 받지 않고 다시 attach하면 오류", () => {
     const p = play([point(1000)]);
     const source = createExplicitPlayInput([{ lane: 1, key: "KeyA" }], p.clock);
     const target = new EventTarget(); source.attach(target);
     keyboard(target, "keydown", 1000);
     expect(source.timeline.size).toBe(1);
-    source.reset();
-    expect(source.timeline.size).toBe(0);
-    expect(source.inputSystem.isLaneHeld(1)).toBe(false);
-    keyboard(target, "keyup", 1100);
-    expect(source.timeline.size).toBe(0);
-    keyboard(target, "keydown", 1200);
-    expect(source.timeline.size).toBe(1);
     source.dispose(); source.dispose();
+    expect(source.timeline.size).toBe(0);
+    expect(source.heldKeys).toEqual([]);
     keyboard(target, "keydown", 1300);
     expect(source.timeline.size).toBe(0);
     expect(() => source.attach(target)).toThrow("dispose");

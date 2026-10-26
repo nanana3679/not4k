@@ -28,7 +28,7 @@ export interface ExplicitPlayInputHooks {
   onLatePreparationHoldChange?(): void;
 }
 
-/** 입력 시각은 수집 시 GameClock으로 한 번만 변환한다. reset은 물리 hold와 raw 큐를 함께 비운다. */
+/** 입력 시각은 수집 시 GameClock으로 한 번만 변환한다. dispose는 물리 hold와 raw 큐를 함께 비운다. */
 export function createExplicitPlayInput(
   bindings: readonly KeyBinding[],
   clock: Pick<GameClock, "toInputTimeMs">,
@@ -36,7 +36,6 @@ export function createExplicitPlayInput(
 ) {
   const timeline = new InputTimeline();
   const heldByKey = new Map<string, KeyBinding>();
-  let target: EventTarget | null = null;
   let disposed = false;
   let judging = true;
   let judgingFromTimestamp = -Infinity;
@@ -62,20 +61,12 @@ export function createExplicitPlayInput(
     },
     attach(nextTarget: EventTarget): void {
       if (disposed) throw new Error("dispose된 명시 입력 소스입니다");
-      target = nextTarget;
-      inputSystem.attach(target);
-    },
-    reset(): void {
-      inputSystem.detach();
-      timeline.clear();
-      heldByKey.clear();
-      if (!disposed && target) inputSystem.attach(target);
+      inputSystem.attach(nextTarget);
     },
     dispose(): void {
       inputSystem.detach();
       timeline.clear();
       heldByKey.clear();
-      target = null;
       disposed = true;
     },
   };
