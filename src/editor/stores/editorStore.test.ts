@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat } from '../../shared';
 import type { ChartDocument, Lane } from '../../shared';
 import { useEditorStore } from './editorStore';
@@ -358,5 +358,44 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
 
     expect(useEditorStore.getState().chart).toBe(valid); // 무변
     expect(useEditorStore.getState().historyPast).toHaveLength(pastBefore); // 무의미한 entry 안 쌓음
+  });
+});
+
+describe('editorStore 편집 transaction 중단 알림', () => {
+  const point = (at: number): ChartDocument['notes'][number] => ({ type: 'point', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeChart([point(1)]), extraLaneCount: 2, mode: 'select', selection: emptySelection(),
+      historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
+    });
+  });
+
+  it.each([
+    ['token 없는 setChart', () => useEditorStore.getState().setChart(makeChart([point(1), point(5)]))],
+    ['setMode', () => useEditorStore.getState().setMode('create')],
+    ['undo', () => useEditorStore.getState().undo()],
+    ['loadChart', () => useEditorStore.getState().loadChart(makeChart([point(7)]))],
+    ['resetHistory', () => useEditorStore.getState().resetHistory()],
+  ])('3박 이동 transaction이 열린 채 %s가 끝내면 소유자 onInterrupt를 1번 부른다', (_name, command) => {
+    const onInterrupt = vi.fn();
+    const token = useEditorStore.getState().beginEditTransaction('selection', onInterrupt)!;
+    useEditorStore.getState().setChart(makeChart([point(3)]), { transaction: token });
+
+    command();
+
+    expect(onInterrupt).toHaveBeenCalledOnce();
+    expect(useEditorStore.getState().editTransaction).toBeNull();
+  });
+
+  it.each(['commit', 'cancel'] as const)('소유자가 자기 token으로 %s하면 onInterrupt를 부르지 않는다', ending => {
+    const onInterrupt = vi.fn();
+    const token = useEditorStore.getState().beginEditTransaction('selection', onInterrupt)!;
+    useEditorStore.getState().setChart(makeChart([point(3)]), { transaction: token });
+
+    if (ending === 'commit') useEditorStore.getState().commitEditTransaction(token);
+    else useEditorStore.getState().cancelEditTransaction(token);
+
+    expect(onInterrupt).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().editTransaction).toBeNull();
   });
 });

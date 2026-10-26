@@ -47,7 +47,8 @@ export interface SelectModeCallbacks {
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) */
   setExtraLaneCount?: (count: number, transaction?: symbol) => void;
   onWarn?: (msg: string) => void;
-  beginTransaction?: () => symbol | null;
+  /** onInterrupt는 독립 명령이 이 transaction을 먼저 확정했을 때 불린다. */
+  beginTransaction?: (onInterrupt: () => void) => symbol | null;
   commitTransaction?: (transaction: symbol) => void;
   cancelTransaction?: (transaction: symbol) => void;
 }
@@ -334,7 +335,32 @@ export class SelectMode implements EditorMode {
   }
 
   private beginTransaction(): void {
-    this.transactionToken = this.callbacks.beginTransaction?.() ?? null;
+    this.transactionToken = this.callbacks.beginTransaction?.(() => this.settleInterruptedInteraction()) ?? null;
+  }
+
+  /**
+   * 독립 명령(G·모드 전환·Undo 등)이 이 모드의 transaction을 먼저 확정했다. 붙여넣기 대기와
+   * 이동·리사이즈 드래그를 그 시점 결과로 끝내 옛 token으로 store에 쓰지 않게 한다.
+   */
+  private settleInterruptedInteraction(): void {
+    this.transactionToken = null;
+    this.clipboardManager.settlePaste();
+    if (this.dragType === "move" || this.dragType === "resize") this.endDragWithoutWrite();
+  }
+
+  /** 드래그 상태만 비운다. 차트 쓰기·transaction 종료는 호출자가 이미 끝냈다. */
+  private endDragWithoutWrite(): void {
+    this.resizingEntityType = null;
+    this.resizingIndex = null;
+    this.resizingOriginalEndBeat = null;
+    this.resizingOriginalBeat = null;
+    this.resizeOriginalNotes = null;
+    this.clearMoveOrigins();
+    this._trillMoveZone = null;
+    this.isDragging = false;
+    this.dragType = null;
+    this.dragStartBeat = null;
+    this.dragStartLane = null;
   }
 
   private finishTransaction(cancel = false): void {

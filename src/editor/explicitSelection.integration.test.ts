@@ -46,12 +46,12 @@ function setup(source = family(), zoneEndHit: number | null = null) {
     setSelection: value => current().setSelection(value), setSelectionTransient: value => current().setSelectionTransient(value),
     onChartUpdate: (value, transaction) => { current().setChart(value, { transaction }); mode.setChart(current().chart); },
     getExtraLaneCount: () => current().extraLaneCount, setExtraLaneCount: (count, transaction) => current().setExtraLaneCount(count, transaction),
-    beginTransaction: () => current().beginEditTransaction(), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token), onWarn: warn,
+    beginTransaction: onInterrupt => current().beginEditTransaction('selection', onInterrupt), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token), onWarn: warn,
   });
   const click = (lane: number, at: number, toggle = false) => { mode.onPointerDown(lane, at, false, false, toggle); mode.onPointerUp(lane, at); };
   const erase = new EraseGesture({
     getChart: () => current().chart, getSelectedNotes: selection, onChartUpdate: (value, transaction) => { current().setChart(value, { transaction }); mode.setChart(value); },
-    beginTransaction: () => current().beginEditTransaction("erase"), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token), onWarn: warn,
+    beginTransaction: onInterrupt => current().beginEditTransaction('erase', onInterrupt), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token), onWarn: warn,
   });
   return { mode, click, space, warn, erase };
 }

@@ -26,6 +26,8 @@ type EditTransaction = {
   before: HistorySnapshot;
   selection: Selection;
   lastValidSnapshot: HistorySnapshot | null;
+  /** 소유자 token 없이 다른 명령이 이 transaction을 끝냈을 때 소유자에게 알린다. */
+  onInterrupt?: () => void;
 };
 
 type HistorySnapshot = {
@@ -104,7 +106,12 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    */
   revertToLastValid: () => void;
   resetHistory: () => void;
-  beginEditTransaction: (kind?: "erase" | "selection") => symbol | null;
+  /**
+   * 한 gesture의 편집을 Undo 1개로 묶는다. 소유자 token 없는 편집·모드 전환·Undo 등
+   * 독립 명령이 transaction을 먼저 확정하면 onInterrupt로 소유자에게 알린다.
+   * 소유자는 그 뒤 옛 token으로 쓰지 말고 진행 중 조작을 정리해야 한다.
+   */
+  beginEditTransaction: (kind?: "erase" | "selection", onInterrupt?: () => void) => symbol | null;
   commitEditTransaction: (transaction?: symbol) => void;
   cancelEditTransaction: (transaction?: symbol) => void;
   addToast: (message: string, type?: ToastType) => void;
@@ -339,38 +346,47 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // lastValidSnapshot은 의도적으로 유지한다 — 씨앗은 loadChart가 검증 통과 시 세팅하고
   // resetHistory는 그 직후 호출되므로 여기서 밀면 씨앗이 날아간다. 현재 곡 전환은 전체 페이지
   // 내비게이션이라 크로스-곡 잔존 경로가 없다. SPA 내 곡 전환을 도입하면 이 계약을 재검토할 것.
-  resetHistory: () => set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null }),
-  beginEditTransaction: (kind = "selection") => {
+  resetHistory: () => {
+    const transaction = get().editTransaction;
+    set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null });
+    transaction?.onInterrupt?.();
+  },
+  beginEditTransaction: (kind = "selection", onInterrupt) => {
     const state = get();
     if (state.editTransaction) return null;
     const token = Symbol("editor transaction");
     set({ editTransaction: {
       token, kind, before: { chart: state.chart, extraLaneCount: state.extraLaneCount },
-      selection: state.selection, lastValidSnapshot: state.lastValidSnapshot,
+      selection: state.selection, lastValidSnapshot: state.lastValidSnapshot, onInterrupt,
     } });
     return token;
   },
-  commitEditTransaction: token => set(state => {
-    const transaction = state.editTransaction;
-    if (!transaction || (token && transaction.token !== token)) return {};
-    const changed = transaction.before.extraLaneCount !== state.extraLaneCount
-      || JSON.stringify(transaction.before.chart) !== JSON.stringify(state.chart);
-    return {
-      editTransaction: null,
-      ...(changed ? {
-        historyPast: [...state.historyPast, transaction.before].slice(-HISTORY_LIMIT),
-        historyFuture: [],
-        // 독립 command 뒤의 일반 편집도 이 gesture에 합쳐지지 않는다.
-        historyLastCaptureAt: 0,
-      } : {}),
-    };
-  }),
-  cancelEditTransaction: token => set(state => {
-    const transaction = state.editTransaction;
-    if (!transaction || (token && transaction.token !== token)) return {};
-    return { ...transaction.before, selection: transaction.selection,
-      lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null };
-  }),
+  commitEditTransaction: token => {
+    const transaction = get().editTransaction;
+    if (!transaction || (token && transaction.token !== token)) return;
+    set(state => {
+      const changed = transaction.before.extraLaneCount !== state.extraLaneCount
+        || JSON.stringify(transaction.before.chart) !== JSON.stringify(state.chart);
+      return {
+        editTransaction: null,
+        ...(changed ? {
+          historyPast: [...state.historyPast, transaction.before].slice(-HISTORY_LIMIT),
+          historyFuture: [],
+          // 독립 command 뒤의 일반 편집도 이 gesture에 합쳐지지 않는다.
+          historyLastCaptureAt: 0,
+        } : {}),
+      };
+    });
+    // token 없는 확정은 독립 명령이 끼어든 것이다. 소유자가 옛 token으로 쓰지 않게 알린다.
+    if (!token) transaction.onInterrupt?.();
+  },
+  cancelEditTransaction: token => {
+    const transaction = get().editTransaction;
+    if (!transaction || (token && transaction.token !== token)) return;
+    set({ ...transaction.before, selection: transaction.selection,
+      lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
+    if (!token) transaction.onInterrupt?.();
+  },
   addToast: (message, type = 'warn') => showToast(message, type),
   setEditingMarker: (marker) => set({ editingMarker: marker }),
 }));

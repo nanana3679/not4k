@@ -7,7 +7,8 @@ interface EraseCallbacks {
   getChart: () => ChartDocument;
   getSelectedNotes: () => ReadonlySet<number>;
   onChartUpdate: (chart: ChartDocument, transaction: symbol) => void;
-  beginTransaction: () => symbol | null;
+  /** onInterrupt는 독립 명령이 이 삭제 transaction을 먼저 확정했을 때 불린다. */
+  beginTransaction: (onInterrupt: () => void) => symbol | null;
   commitTransaction: (transaction: symbol) => void;
   cancelTransaction: (transaction: symbol) => void;
   onWarn?: (message: string) => void;
@@ -17,7 +18,8 @@ interface EraseCallbacks {
 export class EraseGesture {
   private active = false;
   private token: symbol | null = null;
-  private cancelled = false;
+  // Esc 취소나 독립 명령이 이 누름의 삭제를 끝냈다. 버튼을 뗄 때까지 다시 지우지 않는다.
+  private stopped = false;
   private occludersByBody = new Map<DocumentNoteEntity, DocumentNoteEntity[]>();
 
   constructor(private callbacks: EraseCallbacks) {}
@@ -27,16 +29,16 @@ export class EraseGesture {
 
   begin(): boolean {
     if (this.active) return false;
-    this.token = this.callbacks.beginTransaction();
+    this.token = this.callbacks.beginTransaction(() => { this.stopped = true; });
     if (!this.token) return false;
     this.active = true;
-    this.cancelled = false;
+    this.stopped = false;
     this.occludersByBody.clear();
     return true;
   }
 
   erase(lane: number, beatFloat: number): boolean {
-    if (!this.active || this.cancelled) return false;
+    if (!this.active || this.stopped) return false;
     const chart = this.callbacks.getChart();
     const selected = this.callbacks.getSelectedNotes();
     const index = hitTestNoteAt(chart.notes, lane, beatFloat, undefined, selected);
@@ -61,17 +63,17 @@ export class EraseGesture {
   }
 
   cancel(): void {
-    if (!this.active || this.cancelled) return;
-    this.cancelled = true;
+    if (!this.active || this.stopped) return;
+    this.stopped = true;
     this.callbacks.cancelTransaction(this.token!);
   }
 
   finish(): void {
     if (!this.active) return;
-    if (!this.cancelled) this.callbacks.commitTransaction(this.token!);
+    if (!this.stopped) this.callbacks.commitTransaction(this.token!);
     this.active = false;
     this.token = null;
-    this.cancelled = false;
+    this.stopped = false;
     this.occludersByBody.clear();
   }
 }

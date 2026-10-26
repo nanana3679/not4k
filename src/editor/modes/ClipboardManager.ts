@@ -591,23 +591,35 @@ export class ClipboardManager {
 
     const errors = validateFn(chart);
     if (errors.length === 0) {
-      this._isPendingPaste = false;
-      this.prePasteNotes = null;
-      this.prePasteZones = null;
-      this.prePasteRestZones = null;
-      this.prePasteEvents = null;
-      // 정상 확정은 D3 확장을 유지한다(취소만 되돌린다) — 스냅샷만 폐기.
-      this.prePasteExtraLaneCount = null;
-      this.pastedNoteIndices.clear();
-      this.pastedZoneIndices.clear();
-      this.pastedRestZoneIndices.clear();
-      this.pastedEventIndices.clear();
+      this.clearPendingPaste();
       callbacks.onChartUpdate(chart);
       return true;
     } else {
       callbacks.onWarn?.(`제약 위반 ${errors.length}건 — 배치할 수 없습니다`);
       return false;
     }
+  }
+
+  /**
+   * 다른 명령이 붙여넣은 차트를 이미 history에 기록했다. 차트를 다시 쓰지 않고 대기만
+   * 확정 상태로 끝낸다. 대기 중이 아니면 아무것도 하지 않는다.
+   */
+  settlePaste(): void {
+    if (this._isPendingPaste) this.clearPendingPaste();
+  }
+
+  private clearPendingPaste(): void {
+    this._isPendingPaste = false;
+    this.prePasteNotes = null;
+    this.prePasteZones = null;
+    this.prePasteRestZones = null;
+    this.prePasteEvents = null;
+    // 정상 확정은 D3 확장을 유지한다(취소만 되돌린다) — 스냅샷만 폐기.
+    this.prePasteExtraLaneCount = null;
+    this.pastedNoteIndices.clear();
+    this.pastedZoneIndices.clear();
+    this.pastedRestZoneIndices.clear();
+    this.pastedEventIndices.clear();
   }
 
   private _isRangeNote(note: DocumentNoteEntity): note is RangeNote | BodyNote {

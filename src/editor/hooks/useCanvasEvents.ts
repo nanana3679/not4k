@@ -102,7 +102,7 @@ export function useCanvasEvents(
     getChart: () => useEditorStore.getState().chart,
     getSelectedNotes: () => useEditorStore.getState().selection.notes,
     onChartUpdate: (chart, transaction) => useEditorStore.getState().setChart(chart, { transaction }),
-    beginTransaction: () => useEditorStore.getState().beginEditTransaction("erase"),
+    beginTransaction: onInterrupt => useEditorStore.getState().beginEditTransaction("erase", onInterrupt),
     commitTransaction: token => useEditorStore.getState().commitEditTransaction(token),
     cancelTransaction: token => useEditorStore.getState().cancelEditTransaction(token),
     onWarn: message => useEditorStore.getState().addToast(message),
