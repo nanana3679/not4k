@@ -51,7 +51,10 @@ export class ExplicitPlayRuntime {
   private auto: ExplicitAutoPlayer | null = null;
   private debugLog: ExplicitPlayDebugLog | null = null;
   private preparation: { targetMs: number; readyAt: number } | null = null;
-  /** 지금 판정 경계가 음악 준비 종료의 hold seed에서 시작했는지. 일반 첫 시작은 seed가 없다. */
+  /**
+   * 음악 준비 종료에서 hold를 seed한 적이 있는지. 일반 첫 시작의 판정 경계에는 seed가 없어 늦은 준비 입력을 반영하지 않는다.
+   * 일시정지·준비 중에는 판정이 꺼져 늦은 입력 hook이 오지 않으므로 다시 false로 돌리지 않는다.
+   */
   private seededFromPreparation = false;
   private targetMs = 0;
   private frameId: number | null = null;
