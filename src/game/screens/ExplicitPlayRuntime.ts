@@ -62,6 +62,9 @@ export class ExplicitPlayRuntime {
   private lastProgressAt = -Infinity;
   private readonly autoHeldByLane = new Map<number, Set<string>>();
   private readonly autoCursorHistory: { songTimeMs: number; eventCount: number }[] = [];
+  /** 렌더러 고도 기준점마다 그때까지 고도에 반영한 session 효과 수. 키 callback의 정산은 다음 프레임 기준점에 들어간다. */
+  private readonly altitudeCheckpoints: { songTimeMs: number; appliedEffectCount: number }[] = [];
+  private appliedEffectCount = 0;
   private readonly manualHeldKeys = new Set<string>();
   private readonly onKeyDown = (event: Event) => {
     const key = event as KeyboardEvent;
@@ -140,7 +143,7 @@ export class ExplicitPlayRuntime {
       const sections = request.auto ? undefined : request.document.events.filter(event => event.type === 'auto')
         .map(event => ({ startMs: request.compiled.timing.beatToMs(event.beat), endMs: request.compiled.timing.beatToMs(event.endBeat) }));
       this.auto = new ExplicitAutoPlayer(session.playbackChart, { bindings, sections });
-      const adapter = new ExplicitSessionRendererAdapter(session, new ExplicitJudgmentEffectSink(renderer));
+      const adapter = this.createAdapter(session);
       this.adapter = adapter;
       adapter.attach(null);
       // explicit texture도 모두 GPU에 준비한 뒤 audio를 시작한다.
@@ -177,7 +180,7 @@ export class ExplicitPlayRuntime {
             renderer.updateCombo(session.combo);
             renderer.updateAccuracy(score.finalDenominatorWeight > 0 ? score.achievementRate : null);
             renderer.renderFrame(visualTime, this.lastFrame === null ? 0 : timestamp - this.lastFrame);
-            if (!this.preparation) renderer.recordExplicitPlaybackPosition(songTimeMs);
+            if (!this.preparation) this.recordAltitudeCheckpoint(songTimeMs);
             this.lastFrame = timestamp;
             if (timestamp - this.lastProgressAt >= 100) {
               this.options.onProgress?.({ settled: score.processedNotes, combo: session.combo }, visualTime);
@@ -249,8 +252,14 @@ export class ExplicitPlayRuntime {
     const restored = this.session!.reconstructAt(this.targetMs);
     this.adapter!.dispose();
     this.session = restored.session;
-    this.adapter = new ExplicitSessionRendererAdapter(this.session, new ExplicitJudgmentEffectSink(this.renderer!));
+    this.adapter = this.createAdapter(this.session);
     this.adapter.attach(null);
+    // 렌더러는 T 이하 마지막 기준점의 고도로 돌아간다. 그 기준점 뒤에 반영됐던 prefix 효과는 조용히 한 번만 다시 더한다.
+    while (this.altitudeCheckpoints.length && this.altitudeCheckpoints.at(-1)!.songTimeMs > this.targetMs) {
+      this.altitudeCheckpoints.pop();
+    }
+    const retainedEffectCount = this.altitudeCheckpoints.at(-1)?.appliedEffectCount ?? 0;
+    const unrecordedPrefixEffects = restored.prefixEffects.filter(effect => effect.sequence > retainedEffectCount);
     while (this.autoCursorHistory.length && this.autoCursorHistory.at(-1)!.songTimeMs > this.targetMs) {
       this.autoCursorHistory.pop();
     }
@@ -272,8 +281,10 @@ export class ExplicitPlayRuntime {
     this.withDebug(() => this.debugLog?.rewind(this.targetMs, this.session!));
     this.autoCursorHistory.push({ songTimeMs: this.targetMs, eventCount: this.auto!.processedEventCount });
     const renderer = this.renderer!;
-    renderer.restoreExplicitPlaybackState(this.targetMs, this.audio!.playbackRate,
-      boundaryEffects.flatMap(effect => effect.altitudeAction !== 'none' && effect.grade !== null ? [effect.grade] : []));
+    renderer.restoreExplicitPlaybackState(this.targetMs, this.audio!.playbackRate, [...unrecordedPrefixEffects, ...boundaryEffects]
+      .flatMap(effect => effect.altitudeAction !== 'none' && effect.grade !== null ? [effect.grade] : []));
+    this.appliedEffectCount = (boundaryEffects.at(-1) ?? restored.prefixEffects.at(-1))?.sequence ?? 0;
+    this.altitudeCheckpoints.push({ songTimeMs: this.targetMs, appliedEffectCount: this.appliedEffectCount });
     renderer.setExplicitPlaybackChart(this.session.playbackChart);
     const score = this.session.score;
     renderer.updateCombo(this.session.combo);
@@ -330,6 +341,20 @@ export class ExplicitPlayRuntime {
     return [...this.input!.heldKeys, ...autoHeldKeys];
   }
 
+  /** 확정 효과 sink가 고도에 반영한 마지막 효과 순번을 기억한다. */
+  private createAdapter(session: ExplicitJudgmentSession): ExplicitSessionRendererAdapter {
+    const sink = new ExplicitJudgmentEffectSink(this.renderer!);
+    return new ExplicitSessionRendererAdapter(session, { applyConfirmedEffects: effects => {
+      sink.applyConfirmedEffects(effects);
+      this.appliedEffectCount = effects.at(-1)!.sequence;
+    } });
+  }
+
+  private recordAltitudeCheckpoint(songTimeMs: number): void {
+    this.renderer!.recordExplicitPlaybackPosition(songTimeMs);
+    this.altitudeCheckpoints.push({ songTimeMs, appliedEffectCount: this.appliedEffectCount });
+  }
+
   private trackAutoInputs(events: readonly ExplicitAutoInput[]): void {
     for (const event of events) {
       const held = this.autoHeldByLane.get(event.lane) ?? new Set<string>();
@@ -373,6 +398,7 @@ export class ExplicitPlayRuntime {
     this.auto = null;
     this.autoHeldByLane.clear();
     this.autoCursorHistory.length = 0;
+    this.altitudeCheckpoints.length = 0;
   }
 
   private releaseInput(): void {

@@ -295,6 +295,24 @@ describe('명시 실제 재생 runtime', () => {
     expect(snapshot.bodyUnits[0]).toMatchObject({ state: 'active', actualStartMs: 2010 });
   });
 
+  it.each([[false, ['perfect']], [true, []]] as const)('키 callback이 J10에 활성화해 유지 노트0을 정산하고 다음 프레임이1500이면 checkpoint50=%s일 때3100→100 복원은 빠진 고도 기여%j만 한 번 더한다', async (withCheckpoint, grades) => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.notes = [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: 'sustain', count: 1, lane: 1, beat: beat(0) }];
+    const run = create(false, chart, {}, undefined, 8); await run.player.start();
+    wallFrame(1000); key(run.target, 'keydown', 'KeyQ'); wallFrame(2999);
+    fixture.now = 3010; key(run.target, 'keydown', 'KeyP');
+    expect(run.onPhase).toHaveBeenLastCalledWith('playing');
+    if (withCheckpoint) frame(50);
+    frame(1500);
+    const renderer = fixture.renderers[0];
+    expect(renderer.recordFlightJudgment).toHaveBeenCalledExactlyOnceWith('perfect');
+    at(3100); run.player.togglePause();
+    expect(run.onProgress).toHaveBeenLastCalledWith({ settled: 1, combo: 1 }, 100);
+    expect(renderer.restoreExplicitPlaybackState).toHaveBeenCalledExactlyOnceWith(100, 1, grades);
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
   it.each([false, true])('프레임1500～5000 공백에서 auto=%s의1750 Point는2000 복원에 반영되고 과거 타격은 다시 재생하지 않는다', async auto => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'point', kind: 'single', lane: 1, beat: beat(2) },
