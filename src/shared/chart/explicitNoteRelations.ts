@@ -17,8 +17,8 @@ export interface ExplicitBodyConnection {
   readonly successorIndex: number;
   readonly lane: number;
   readonly beat: Beat;
-  readonly sourceCount: 1 | 2;
-  readonly targetCount: 1 | 2;
+  readonly predecessorHoldCount: 1 | 2;
+  readonly successorHoldCount: 1 | 2;
 }
 
 /** 모든 index는 필터·정렬 전 문서 notes를 가리킨다. 잘못된 배치도 지우거나 고치지 않는다. */
@@ -44,7 +44,7 @@ export function deriveExplicitNoteRelations(notes: readonly DocumentNoteEntity[]
         || !beatEq(previous.note.endBeat, next.note.beat)) continue;
       connections.push({ predecessorIndex: previous.noteIndex, successorIndex: next.noteIndex,
         lane: next.note.lane, beat: next.note.beat,
-        sourceCount: previous.note.holdCount, targetCount: next.note.holdCount });
+        predecessorHoldCount: previous.note.holdCount, successorHoldCount: next.note.holdCount });
     }
   }
 

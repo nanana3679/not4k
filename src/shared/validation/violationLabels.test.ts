@@ -34,7 +34,7 @@ const ALL_RULES: ValidationErrorRule[] = [
   "sustainPlacement",
   "sustainCount",
   "releasePlacement",
-  "zeroBodyScore",
+  "zeroLengthBodyOverlap",
 ];
 
 const err = (rule: ValidationErrorRule, message: string): ValidationError => ({

@@ -169,7 +169,7 @@ export function validateChartDocumentSemantic(
     if (a.type === "body" && beatEq(a.beat, a.endBeat)) {
       notes.forEach((other, j) => {
         if ((other.type === "point" || other.type === "release" || (!isExplicitNote(other) && !("endBeat" in other)))
-          && other.lane === a.lane && beatEq(other.beat, a.beat)) add("zeroBodyScore", "길이 0 바디에는 Point·릴리즈를 겹칠 수 없습니다", i, j);
+          && other.lane === a.lane && beatEq(other.beat, a.beat)) add("zeroLengthBodyOverlap", "길이 0 바디에는 Point·릴리즈를 겹칠 수 없습니다", i, j);
       });
     }
     if (a.type === "release") {
@@ -188,7 +188,7 @@ export function validateChartDocumentSemantic(
         if (a.count !== owner.note.holdCount) add("sustainCount", "유지 표식 수는 소속 바디의 hold 수와 같아야 합니다", i, owner.noteIndex);
         if (owner.note.trill) add("sustainPlacement", "트릴 바디에는 유지 표식을 놓을 수 없습니다", i, owner.noteIndex);
         const equalConnections = relations.connections.filter(c => c.successorIndex === owner.noteIndex
-          && c.sourceCount === c.targetCount && beatEq(c.beat, a.beat));
+          && c.predecessorHoldCount === c.successorHoldCount && beatEq(c.beat, a.beat));
         for (const connection of equalConnections) add("sustainPlacement", "같은 hold 수 연결점에는 유지 표식을 놓을 수 없습니다",
           i, connection.predecessorIndex, connection.successorIndex);
       }

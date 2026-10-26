@@ -19,7 +19,7 @@ describe("명시 노트의 정적 위치 관계", () => {
     expect(r.bodyByNote.get(0)?.sustainIndices).toEqual([]);
     expect(r.bodyByNote.get(1)?.sustainIndices).toEqual([2]);
     expect(r.connections).toEqual([{ predecessorIndex: 0, successorIndex: 1, lane: 1,
-      beat: beat(2), sourceCount: 1, targetCount: 2 }]);
+      beat: beat(2), predecessorHoldCount: 1, successorHoldCount: 2 }]);
   });
 
   it("독립 바디의 시작0·내부1·끝2와 길이0 바디의4는 모두 해당 바디에 속한다", () => {

@@ -37,7 +37,7 @@ export const RULE_SEVERITY: Record<ValidationErrorRule, ViolationSeverity> = {
   sustainPlacement: "semantic",
   sustainCount: "semantic",
   releasePlacement: "semantic",
-  zeroBodyScore: "semantic",
+  zeroLengthBodyOverlap: "semantic",
   stopZone: "semantic",
   timeSigNotAtMeasureStart: "semantic",
 };
@@ -51,7 +51,7 @@ const catalogs: Record<string, Record<ValidationErrorRule, string>> = {
     sustainPlacement: "유지 표식 위치 오류",
     sustainCount: "유지 표식 수량 오류",
     releasePlacement: "릴리즈 위치 오류",
-    zeroBodyScore: "길이 0 바디 조합 오류",
+    zeroLengthBodyOverlap: "길이 0 바디 조합 오류",
     laneMalformed: "레인 값 오류",
     rangeInverted: "구간 역전",
     timeSigNotNatural: "박자표 값 오류",

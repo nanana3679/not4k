@@ -52,7 +52,7 @@ export interface ValidationError {
     | "sustainPlacement"
     | "sustainCount"
     | "releasePlacement"
-    | "zeroBodyScore"
+    | "zeroLengthBodyOverlap"
     | "laneMalformed";
   message: string;
   refs?: ValidationRef[];

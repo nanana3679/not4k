@@ -131,8 +131,8 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     expect(rules([body(2, 2, count)])).toEqual([]);
     expect(rules([body(2, 2, count), mark("sustain", 2, count)])).toEqual([]);
   });
-  it.each(["point", "release"] as const)("길이0 body+%s는 zeroBodyScore 의미 위반이다", kind => {
-    expect(rules([body(2, 2), kind === "point" ? point(2) : mark("release", 2)])).toContain("zeroBodyScore");
+  it.each(["point", "release"] as const)("길이0 body+%s는 zeroLengthBodyOverlap 의미 위반이다", kind => {
+    expect(rules([body(2, 2), kind === "point" ? point(2) : mark("release", 2)])).toContain("zeroLengthBodyOverlap");
   });
   it.each([["point", "release"], ["point", "sustain"], ["release", "sustain"]] as const)("같은 위치의 %s+%s는 scoreOverlap이다", (a, b) => {
     const note = (kind: typeof a | typeof b) => kind === "point" ? point(4) : mark(kind, 4);
