@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { beat } from "../shared/types/beat";
 import { ChartFormatError } from "../shared/chart";
 import { fetchEditorExtraText, loadEditorChartAsset } from "./chartAssetLoad";
+import { editorChartErrors } from "./documentValidation";
 
 const main = {
   version: 3, meta: { title: "기존 메타데이터", offsetMs: -20 }, notes: [], trillZones: [], events: [],
@@ -41,11 +42,40 @@ describe('loadEditorChartAsset 문서 로드', () => {
     expect(() => loadEditorChartAsset(JSON.stringify(main), JSON.stringify(extra))).toThrow(ChartFormatError);
   });
 
-  it('document loader도 빈 aux 응답은 메인 내장 Grace 보조 노트로 fallback하고 과거 손상 JSON은 무시한다', () => {
+  it('별도 보조 파일이 없으면(null) 메인 내장 Grace 보조 노트와 extraLaneCount 3을 불러온다', () => {
     const chart = JSON.stringify({ ...main, extraNotes: [{ type: 'double', extraLane: 2, beat: '2', grace: false }], extraLaneCount: 3 });
-    expect(loadEditorChartAsset(chart, '').chart.notes).toEqual([{ type: 'double', lane: 6, beat: beat(2), grace: false }]);
-    expect(loadEditorChartAsset(chart, '').extraLaneCount).toBe(3);
-    expect(loadEditorChartAsset(JSON.stringify(main), 'not json').chart.notes).toEqual([]);
+    expect(loadEditorChartAsset(chart, null).chart.notes).toEqual([{ type: 'double', lane: 6, beat: beat(2), grace: false }]);
+    expect(loadEditorChartAsset(chart, null).extraLaneCount).toBe(3);
+  });
+
+  it('별도 보조 200 응답 본문이 빈 문자열이면 메인 내장 Grace 보조 노트로 돌아가지 않고 ChartFormatError를 전달한다', () => {
+    const chart = JSON.stringify({ ...main, extraNotes: [{ type: 'double', extraLane: 2, beat: '2', grace: false }], extraLaneCount: 3 });
+    expect(() => loadEditorChartAsset(chart, '')).toThrow(ChartFormatError);
+  });
+
+  it.each([
+    ['JSON이 아닌 본문 "not json"', 'not json'],
+    ['업로드가 끊겨 잘린 본문', '{"extraNotes":[{"type":"single","extraLane":1,'],
+  ])('별도 보조 파일이 %s이면 보조 없음(extraLaneCount 0)으로 열지 않고 ChartFormatError를 전달한다', (_label, extraText) => {
+    expect(() => loadEditorChartAsset(JSON.stringify(main), extraText)).toThrow(ChartFormatError);
+    expect(() => loadEditorChartAsset(JSON.stringify(main), extraText)).toThrow('보조 파일이 유효한 JSON이 아닙니다');
+  });
+
+  it.each([
+    ['별도 aux 파일이 있으면', JSON.stringify({ version: 4, extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }] })],
+    ['aux 파일 없이 메인에 예전 extraNotes가 있으면', null],
+  ])('%s 메인의 lane 0·lane 1.5 Point를 병합에서 버리지 않아 laneMalformed 위반으로 보인다', (_label, extraText) => {
+    const chart = JSON.stringify({ ...main, version: 4, extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }], notes: [
+      { type: 'point', kind: 'single', lane: 0, beat: '1' },
+      { type: 'point', kind: 'single', lane: 1.5, beat: '2' },
+    ] });
+    const loaded = loadEditorChartAsset(chart, extraText);
+    expect(loaded.chart.notes).toEqual([
+      { type: 'point', kind: 'single', lane: 0, beat: beat(1) },
+      { type: 'point', kind: 'single', lane: 1.5, beat: beat(2) },
+      { type: 'single', lane: 5, beat: beat(0) },
+    ]);
+    expect(editorChartErrors(loaded.chart).filter(error => error.rule === 'laneMalformed')).toHaveLength(2);
   });
 });
 

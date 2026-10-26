@@ -1,23 +1,22 @@
 import type { ChartDocument } from "../shared/types";
-import { deserializeChartDocument, parseExtraNotesDocument, withAuxNotes, maxAuxLane, toAuxIndex, ChartFormatError } from "../shared/chart";
+import { deserializeChartDocument, parseExtraNotesDocument, extraToNote, isAuxLane, maxAuxLane, toAuxIndex, ChartFormatError } from "../shared/chart";
 
-/** 지원되는 main/aux 문서를 의미 위반도 보존해 수리용으로 연다. */
+/**
+ * 지원되는 main/aux 문서를 의미 위반도 보존해 수리용으로 연다. 미지원·손상 보조 자료를 빈 보조 데이터로 열지 않는다.
+ * `extraText`가 null(별도 보조 파일 없음)일 때만 메인 내장 보조 데이터로 돌아간다.
+ */
 export function loadEditorChartAsset(chartText: string, extraText: string | null): { chart: ChartDocument; extraLaneCount: number; hasExtraLaneCount: boolean } {
   let chart = deserializeChartDocument(chartText);
-  let extraLaneCount = toAuxIndex(maxAuxLane(chart.notes));
-  let hasExtraLaneCount = false;
-  try {
-    const extraJson = JSON.parse(extraText || chartText);
-    const extra = parseExtraNotesDocument(extraJson);
-    hasExtraLaneCount = extraJson.extraLaneCount !== undefined;
-    if (extraText || extra.extraNotes.length > 0 || hasExtraLaneCount) {
-      chart = { ...chart, notes: withAuxNotes(chart.notes, extra.extraNotes) };
-    }
-    extraLaneCount = Math.max(extra.extraLaneCount, toAuxIndex(maxAuxLane(chart.notes)));
-  } catch (error) {
-    // C1의 구형 읽기 행동: 손상 JSON만 무시한다. 인식한 형식 오류는 계속 전달한다.
-    if (!(error instanceof SyntaxError)) throw error;
+  // chartText는 위에서 이미 JSON으로 읽혔다.
+  const extraJson = extraText === null ? JSON.parse(chartText) : parseExtraFileJson(extraText);
+  const extra = parseExtraNotesDocument(extraJson);
+  const hasExtraLaneCount = extraJson.extraLaneCount !== undefined;
+  if (extraText !== null || extra.extraNotes.length > 0 || hasExtraLaneCount) {
+    // 메인의 보조 레인(5+) 항목만 보조 자료로 교체한다. 메인 레인(1～4)만 남기면 lane 0·비정수처럼
+    // 성립하지 않는 레인의 항목이 검증 전에 사라져, 위반 표시 없이 다음 저장에서 지워진다.
+    chart = { ...chart, notes: [...chart.notes.filter(note => !isAuxLane(note.lane)), ...extra.extraNotes.map(note => extraToNote(note))] };
   }
+  const extraLaneCount = Math.max(extra.extraLaneCount, toAuxIndex(maxAuxLane(chart.notes)));
   return { chart, extraLaneCount, hasExtraLaneCount };
 }
 
