@@ -20,9 +20,11 @@ import {
 
 export type EditorModeName = 'create' | 'select' | 'delete';
 type EditorPage = 'songList' | 'chartEditor';
+/** 편집 transaction의 소유 조작. erase = 우클릭·Delete 모드 삭제 gesture, selectModeEdit = Select 모드의 이동·리사이즈·붙여넣기. */
+type EditTransactionKind = "erase" | "selectModeEdit";
 type EditTransaction = {
   token: symbol;
-  kind: "erase" | "selection";
+  kind: EditTransactionKind;
   before: HistorySnapshot;
   selection: Selection;
   lastValidSnapshot: HistorySnapshot | null;
@@ -111,7 +113,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    * 독립 명령이 transaction을 먼저 확정하면 onInterrupt로 소유자에게 알린다.
    * 소유자는 그 뒤 옛 token으로 쓰지 말고 진행 중 조작을 정리해야 한다.
    */
-  beginEditTransaction: (kind?: "erase" | "selection", onInterrupt?: () => void) => symbol | null;
+  beginEditTransaction: (kind: EditTransactionKind, onInterrupt?: () => void) => symbol | null;
   commitEditTransaction: (transaction?: symbol) => void;
   cancelEditTransaction: (transaction?: symbol) => void;
   addToast: (message: string, type?: ToastType) => void;
@@ -371,7 +373,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null });
     transaction?.onInterrupt?.();
   },
-  beginEditTransaction: (kind = "selection", onInterrupt) => {
+  beginEditTransaction: (kind, onInterrupt) => {
     const state = get();
     if (state.editTransaction) return null;
     const token = Symbol("editor transaction");

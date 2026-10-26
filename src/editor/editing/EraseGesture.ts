@@ -1,7 +1,7 @@
 import type { ChartDocument, DocumentNoteEntity } from '../../shared';
 import { beatLte } from '../../shared';
 import { DeleteMode } from '../modes/DeleteMode';
-import { hitTestNoteAt, hitTestRestZoneAt, hitTestTrillZoneAt } from '../timeline/hitTest';
+import { hitTestNoteAt, hitTestRestZoneAt, hitTestTrillZoneAt, isExplicitScoreNote } from '../timeline/hitTest';
 
 interface EraseCallbacks {
   getChart: () => ChartDocument;
@@ -51,7 +51,7 @@ export class EraseGesture {
     }
     const next = DeleteMode.deleteNoteAtPoint(chart, () => index, 0, 0, selected, this.callbacks.onWarn);
     if (!next || next === chart) return false;
-    if (note.type === 'point' || note.type === 'release' || note.type === 'sustain') {
+    if (isExplicitScoreNote(note)) {
       for (const body of chart.notes) {
         if (body.type !== 'body' || body.lane !== note.lane
           || !beatLte(body.beat, note.beat) || !beatLte(note.beat, body.endBeat)) continue;

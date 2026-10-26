@@ -38,7 +38,7 @@ function setup(source: DocumentNoteEntity[] = [{ type: 'point', kind: 'single', 
     onChartUpdate: (value, transaction) => current().setChart(value, { transaction }),
     getExtraLaneCount: () => current().extraLaneCount,
     setExtraLaneCount: (count, transaction) => current().setExtraLaneCount(count, transaction),
-    beginTransaction: onInterrupt => current().beginEditTransaction('selection', onInterrupt),
+    beginTransaction: onInterrupt => current().beginEditTransaction('selectModeEdit', onInterrupt),
     commitTransaction: token => current().commitEditTransaction(token),
     cancelTransaction: token => current().cancelEditTransaction(token),
   });

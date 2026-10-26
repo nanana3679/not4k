@@ -378,7 +378,7 @@ describe('editorStore 편집 transaction 중단 알림', () => {
     ['resetHistory', () => useEditorStore.getState().resetHistory()],
   ])('3박 이동 transaction이 열린 채 %s가 끝내면 소유자 onInterrupt를 1번 부른다', (_name, command) => {
     const onInterrupt = vi.fn();
-    const token = useEditorStore.getState().beginEditTransaction('selection', onInterrupt)!;
+    const token = useEditorStore.getState().beginEditTransaction('selectModeEdit', onInterrupt)!;
     useEditorStore.getState().setChart(makeChart([point(3)]), { transaction: token });
 
     command();
@@ -389,7 +389,7 @@ describe('editorStore 편집 transaction 중단 알림', () => {
 
   it.each(['commit', 'cancel'] as const)('소유자가 자기 token으로 %s하면 onInterrupt를 부르지 않는다', ending => {
     const onInterrupt = vi.fn();
-    const token = useEditorStore.getState().beginEditTransaction('selection', onInterrupt)!;
+    const token = useEditorStore.getState().beginEditTransaction('selectModeEdit', onInterrupt)!;
     useEditorStore.getState().setChart(makeChart([point(3)]), { transaction: token });
 
     if (ending === 'commit') useEditorStore.getState().commitEditTransaction(token);

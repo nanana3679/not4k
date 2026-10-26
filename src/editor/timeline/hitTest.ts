@@ -52,7 +52,7 @@ export function hitTestNoteAt(
 
     if (hit) {
       let priority = NOTE_Z_ORDER[note.type] ?? 0;
-      if (note.type === "point" || note.type === "release" || note.type === "sustain") priority += SELECTED_BONUS;
+      if (isExplicitScoreNote(note)) priority += SELECTED_BONUS;
       if (selectedNotes?.has(i)) {
         priority += SELECTED_BONUS;
       }

@@ -502,7 +502,7 @@ function ChartEditorPage() {
       // 그대로(메인·보조 통합) 쓴다. 이원 축(getExtraNotes/onExtraNotesUpdate/xToExtraLane/
       // hitTestExtraNote)은 소멸했고, 히트테스트는 통합(hitTestUnifiedNote)이다.
       onChartUpdate: (c, transaction) => setChart(c, { transaction }),
-      beginTransaction: onInterrupt => useEditorStore.getState().beginEditTransaction("selection", onInterrupt),
+      beginTransaction: onInterrupt => useEditorStore.getState().beginEditTransaction("selectModeEdit", onInterrupt),
       commitTransaction: token => useEditorStore.getState().commitEditTransaction(token),
       cancelTransaction: token => useEditorStore.getState().cancelEditTransaction(token),
       // 선택의 소유자는 SelectionSlice — SelectMode는 사본 없이 getter/setter로만 읽고 쓴다 (RFD 0016)

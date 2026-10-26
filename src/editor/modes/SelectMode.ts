@@ -11,6 +11,7 @@ import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
 import { resolveLongPressAction } from "./longPressRouting";
 import { resolveGrab, type GrabTarget } from "./resolveGrab";
 import { TOUCH_MOVE_CANCEL_PX } from "../hooks/touchGesture";
+import { isExplicitScoreNote } from "../timeline/hitTest";
 import {
   classifySelection,
   selectionBlockReason,
@@ -429,7 +430,7 @@ export class SelectMode implements EditorMode {
     },
   ): boolean {
     const hit = hits.noteHit === null ? undefined : this.chart.notes[hits.noteHit];
-    const scoreHit = hit && ['point', 'release', 'sustain'].includes(hit.type);
+    const scoreHit = isExplicitScoreNote(hit);
     const action = resolveLongPressAction(scoreHit ? { ...hits, noteEndHit: null } : hits);
     if (action.kind === "resizeNoteEnd") return this.beginNoteEndResizeDrag(action.index);
     if (action.kind === "moveNote") return this.beginTouchMoveDragFromNote(action.index, x, y);

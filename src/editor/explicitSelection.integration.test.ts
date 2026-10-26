@@ -48,7 +48,7 @@ function setup(source = family(), zoneEndHit: number | null = null) {
     setSelection: value => current().setSelection(value), setSelectionTransient: value => current().setSelectionTransient(value),
     onChartUpdate: (value, transaction) => { current().setChart(value, { transaction }); mode.setChart(current().chart); },
     getExtraLaneCount: () => current().extraLaneCount, setExtraLaneCount: (count, transaction) => current().setExtraLaneCount(count, transaction),
-    beginTransaction: onInterrupt => current().beginEditTransaction('selection', onInterrupt), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token), onWarn: warn,
+    beginTransaction: onInterrupt => current().beginEditTransaction('selectModeEdit', onInterrupt), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token), onWarn: warn,
   });
   const click = (lane: number, at: number, toggle = false) => { mode.onPointerDown(lane, at, false, false, toggle); mode.onPointerUp(lane, at); };
   const erase = new EraseGesture({
@@ -96,12 +96,12 @@ describe('명시 노트 실제 선택 집합과 관계 재도출', () => {
     expect(selection()).toEqual(new Set([0, 1, 2]));
     expect(deriveExplicitNoteRelations(notes()).bodyByNote.get(0)?.endReleaseIndices).toEqual([]);
   });
-  it('Body가 이미 선택된 채 Shift추가를 눌러도 제외 Release를 다시 선택하지 않는다', () => {
+  it('Body가 이미 선택된 채 Shift 추가를 눌러도 제외 Release를 다시 선택하지 않는다', () => {
     const { mode, click } = setup(); click(1, 2); click(1, 5, true);
     mode.onPointerDown(1, 2, true, false); mode.onPointerUp(1, 2);
     expect(selection()).toEqual(new Set([0, 1, 2]));
   });
-  it('1/3박 Body를 고르면 같은 시작 2/6박 Point와 4/3박 Release를 rationalBeat로 동반선택한다', () => {
+  it('1/3박 Body를 고르면 같은 시작 2/6박 Point와 4/3박 Release를 rationalBeat로 동반 선택한다', () => {
     const { click } = setup([
       { type: 'body', lane: 1, beat: beat(1, 3), endBeat: beat(4, 3), holdCount: 1 },
       { type: 'point', lane: 1, beat: beat(2, 6), kind: 'single' },
@@ -129,7 +129,7 @@ describe('명시 노트 실제 선택 집합과 관계 재도출', () => {
     expect(notes()).toHaveLength(7); expect(notes()[6]).toMatchObject({ type: 'sustain', count: 2, beat: beat(7) });
     expect(editorChartErrors(current().chart)).toEqual([]);
   });
-  it('Sustain 제외 Body만 1레인 이동하면 표식은 원위치 위반으로 남고 confirm·선택해제가 허용된다', () => {
+  it('Sustain 제외 Body만 1레인 이동하면 표식은 원위치 위반으로 남고 confirm·선택 해제가 허용된다', () => {
     const { mode, click } = setup(); click(1, 2); click(1, 3, true);
     mode.onPointerDown(1, 2, false, false); mode.onPointerMove(2, 2);
     expect(editorChartViolationIndices(current().chart).notes).toContain(2);
@@ -170,7 +170,7 @@ describe('명시 노트 실제 선택 집합과 관계 재도출', () => {
 
     expect(notes().at(-1)).toEqual({ type: 'sustain', lane: 1, beat: beat(10), count: 1 });
   });
-  it('Sustain만 8박에 paste하면 zero Body 없이 위반 preview·확정·선택해제가 되고 Undo 1회로 복구된다', () => {
+  it('Sustain만 8박에 paste하면 zero Body 없이 위반 preview·확정·선택 해제가 되고 Undo 1회로 복구된다', () => {
     const { mode } = setup(); const initial = current().chart;
     mode.selectNote(2); expect(mode.copy()).toBe(1); mode.paste(beat(8));
     expect(notes()).toHaveLength(6); expect(editorChartViolationIndices(current().chart).notes).toContain(5);
@@ -178,12 +178,12 @@ describe('명시 노트 실제 선택 집합과 관계 재도출', () => {
     expect(editorChartErrors(current().chart).some(error => error.rule === 'sustainPlacement')).toBe(true);
     expect(current().historyPast).toHaveLength(1); current().undo(); expect(current().chart).toEqual(initial);
   });
-  it('lane7 Sustain paste로 확장한 extraCount는 Esc취소로 2에 돌아가고 history도 늘지 않는다', () => {
+  it('lane7 Sustain paste로 확장한 extraCount는 Esc 취소로 2에 돌아가고 history도 늘지 않는다', () => {
     const { mode } = setup(family(7)); current().setExtraLaneCount(2); current().resetHistory();
     mode.selectNote(2); mode.copy(); mode.paste(beat(8)); expect(current().extraLaneCount).toBe(3);
     mode.cancelPaste(); expect(current().extraLaneCount).toBe(2); expect(current().historyPast).toHaveLength(0);
   });
-  it('Ctrl+A用selectAllはmain/aux全ノートを実際のsetに置き、Delete一回で全て消す', () => {
+  it('Ctrl+A의 selectAll은 main·aux 노트 10개를 실제 선택 집합에 넣고 Delete 한 번에 모두 지우며 Undo 1개를 남긴다', () => {
     const { mode } = setup([...family(), ...family(7)]); mode.selectAll(); expect(selection().size).toBe(10);
     mode.deleteSelected(); expect(notes()).toEqual([]); expect(current().historyPast).toHaveLength(1);
   });
@@ -251,7 +251,7 @@ describe('기본 끝 Release가 있는 바디 끝 핸들(실제 hit-test)', () =
       space, getSelection: () => current().selection,
       setSelection: value => current().setSelection(value), setSelectionTransient: value => current().setSelectionTransient(value),
       onChartUpdate: (value, transaction) => current().setChart(value, { transaction }),
-      beginTransaction: onInterrupt => current().beginEditTransaction('selection', onInterrupt), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token),
+      beginTransaction: onInterrupt => current().beginEditTransaction('selectModeEdit', onInterrupt), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token),
     });
     unsubscribe = useEditorStore.subscribe(state => mode.setChart(state.chart));
     const mouseDrag = (fromY: number, toY: number) => { mode.onPointerDown(30, fromY, false, false); mode.onPointerMove(30, toY); mode.onPointerUp(30, toY); };
@@ -307,7 +307,7 @@ describe('기본 끝 Release가 있는 바디 끝 핸들(실제 hit-test)', () =
 });
 
 describe('명시 바디 끝 resize와 삭제 보호', () => {
-  it('미선택 5박 handle을 touch로 잡으면 동반선택하고 6박 resize는 선택 Release만 따라간다', () => {
+  it('미선택 5박 handle을 touch로 잡으면 동반 선택하고 6박 resize는 선택 Release만 따라간다', () => {
     const { mode } = setup(); expect(mode.beginNoteEndResizeDrag(0)).toBe(true); expect(selection()).toEqual(new Set([0, 1, 2, 3]));
     mode.onPointerMove(1, 6); mode.onPointerUp(1, 6);
     expect(notes()[0]).toMatchObject({ endBeat: beat(6) }); expect(notes()[3].beat).toEqual(beat(6));
@@ -322,7 +322,7 @@ describe('명시 바디 끝 resize와 삭제 보호', () => {
     mode.onPointerMove(1, 4); mode.onPointerMove(1, 2); mode.onPointerUp(1, 2);
     expect(notes()[0]).toMatchObject({ endBeat: beat(4) }); expect(notes()[2].beat).toEqual(beat(3)); expect(notes()[3].beat).toEqual(beat(4));
   });
-  it.each(['point', 'body'] as const)('명시 trill %s를 구간밖으로 내보내는 zone축소는 마지막유효5박을 유지한다', type => {
+  it.each(['point', 'body'] as const)('명시 trill %s를 구간 밖으로 내보내는 zone 축소는 마지막 유효 5박을 유지한다', type => {
     const source: DocumentNoteEntity[] = type === 'point'
       ? [{ type: 'point', kind: 'trill', lane: 1, beat: beat(4) }]
       : [{ type: 'point', kind: 'trill', lane: 1, beat: beat(2) }, { type: 'body', trill: true, lane: 1, beat: beat(2), endBeat: beat(5), holdCount: 1 }];
@@ -335,21 +335,21 @@ describe('명시 바디 끝 resize와 삭제 보호', () => {
     const { mode } = setup([{ type: 'body', lane: 1, beat: beat(1), endBeat: beat(2), holdCount: 1 }]); mode.selectNote(0);
     mode.resizeEndBySnap('down'); expect(notes()[0]).toMatchObject({ endBeat: beat(1) }); mode.resizeEndBySnap('down'); expect(notes()[0]).toMatchObject({ endBeat: beat(1) });
   });
-  it('끝 resize중 Esc는 Body와 선택된 Release를 원위치로 복구하고 history를 추가하지 않는다', () => {
+  it('끝 resize 중 Esc는 Body와 선택된 Release를 원위치로 복구하고 history를 추가하지 않는다', () => {
     const { mode } = setup(); const initial = current().chart; mode.selectNote(0); mode.beginNoteEndResizeDrag(0); mode.onPointerMove(1, 7); mode.cancel();
     expect(current().chart).toEqual(initial); expect(current().historyPast).toHaveLength(0);
   });
-  it('미선택 Body 우클릭은 연결4개만 지우고 중간 Point를 남기며 Undo1개로 복구한다', () => {
+  it('미선택 Body 우클릭은 연결 4개만 지우고 중간 Point를 남기며 Undo 1개로 복구한다', () => {
     const { erase } = setup(); const initial = current().chart; erase.begin(); erase.erase(1, 2); erase.finish();
     expect(notes()).toEqual([initial.notes[4]]); expect(current().historyPast).toHaveLength(1); current().undo(); expect(current().chart).toEqual(initial);
   });
-  it('선택된 Body 우클릭은 그쪽 현재 set만 지우고 제외 Release·다른 선택Body를 index보정해 남긴다', () => {
+  it('선택된 Body 우클릭은 그쪽 현재 set만 지우고 제외 Release·다른 선택 Body를 index 보정해 남긴다', () => {
     const { erase, mode, click } = setup([...family(), ...family(2)]); mode.selectAll(); click(1, 5, true);
     erase.begin(); erase.erase(1, 2); erase.finish();
     expect(notes().slice(0, 2)).toEqual([family()[3], family()[4]]); expect(notes().slice(2)).toEqual(family(2));
     expect(selection()).toEqual(new Set([1, 2, 3, 4, 5, 6]));
   });
-  it('Sustain 제외 Body Cut은 clipboard·chart·selection·past/future를 모두 보존하고 같은 set의copy는 허용한다', () => {
+  it('Sustain 제외 Body Cut은 clipboard·chart·selection·past/future를 모두 보존하고 같은 set의 copy는 허용한다', () => {
     const { mode, click, warn } = setup(); mode.selectNote(4); mode.copy(); click(1, 2); click(1, 3, true);
     const before = current(); expect(mode.cut()).toBe(0); expect(warn).toHaveBeenCalledOnce();
     expect(current().chart).toBe(before.chart); expect(current().selection).toBe(before.selection);
@@ -357,31 +357,31 @@ describe('명시 바디 끝 resize와 삭제 보호', () => {
     mode.paste(beat(8)); mode.confirmPlacement(); expect(notes().at(-1)).toMatchObject({ type: 'point', kind: 'double' });
     expect(mode.copy()).toBe(1);
   });
-  it('Sustain 제외 Body의 Delete와 직접우클릭 모두 chart·set·history를 바꾸지 않는다', () => {
+  it('Sustain 제외 Body의 Delete와 직접 우클릭 모두 chart·set·history를 바꾸지 않는다', () => {
     const { mode, click, erase, warn } = setup(); click(1, 2); click(1, 3, true); const initial = current();
     mode.deleteSelected(); expect(current().chart).toBe(initial.chart); expect(current().selection).toBe(initial.selection);
     erase.begin(); erase.erase(1, 2); erase.finish();
     expect(current().chart).toBe(initial.chart); expect(current().selection).toBe(initial.selection); expect(current().historyPast).toBe(initial.historyPast);
     expect(warn).toHaveBeenCalledTimes(2); expect(mode.copy()).toBe(3);
   });
-  it('Sustain 제외 상태의 키보드 끝축소도 3박 표식 아래로 내리면 마지막3박과 history를 유지한다', () => {
+  it('Sustain 제외 상태의 키보드 끝 축소도 3박 표식 아래로 내리면 마지막 3박과 history를 유지한다', () => {
     const { mode, click } = setup(); click(1, 2); click(1, 3, true); mode.resizeEndBySnap('down'); mode.resizeEndBySnap('down');
     const before = current(); mode.resizeEndBySnap('down'); expect(current().chart).toBe(before.chart); expect(current().historyPast).toBe(before.historyPast);
     expect(notes()[0]).toMatchObject({ endBeat: beat(3) });
   });
-  it('zero Body 위 double Sustain 직접삭제는 표식 전체 한개만 지우고 Body는 남긴다', () => {
+  it('zero Body 위 double Sustain 직접 삭제는 표식 전체 한 개만 지우고 Body는 남긴다', () => {
     const { space } = setup([{ type: 'body', lane: 1, beat: beat(0), endBeat: beat(0), holdCount: 2 }, { type: 'sustain', lane: 1, beat: beat(0), count: 2 }]);
     const next = DeleteMode.deleteNoteAtPoint(current().chart, space.hitTestUnifiedNote, 1, 0)!; current().setChart(next);
     expect(notes()).toEqual([{ type: 'body', lane: 1, beat: beat(0), endBeat: beat(0), holdCount: 2 }]);
   });
-  it.each(['point', 'release'] as const)('double %s 직접삭제는 수량2 전체를 한번에 지운다', type => {
+  it.each(['point', 'release'] as const)('double %s 직접 삭제는 수량 2 전체를 한 번에 지운다', type => {
     const node: DocumentNoteEntity = type === 'point' ? { type, lane: 1, beat: beat(0), kind: 'double' } : { type, lane: 1, beat: beat(0), count: 2 };
     const { erase } = setup([node]); erase.begin(); erase.erase(1, 0); erase.finish(); expect(notes()).toEqual([]);
   });
 });
 
 describe('우클릭 gesture transaction·취소·Undo 수명', () => {
-  it('3초 넘는 연속삭제 전체는 Undo1개이며 직후 새gesture와 일반편집은 각각 독립Undo다', () => {
+  it('3초 넘는 연속 삭제 전체는 Undo 1개이며 직후 새 gesture와 일반 편집은 각각 독립 Undo다', () => {
     vi.useFakeTimers(); const { erase } = setup([1, 2, 3, 4].map(at => ({ type: 'point', kind: 'single', lane: 1, beat: beat(at) })));
     erase.begin(); erase.erase(1, 1); vi.advanceTimersByTime(3000); erase.erase(1, 2); erase.finish(); expect(current().historyPast).toHaveLength(1);
     erase.begin(); erase.erase(1, 3); erase.finish(); expect(current().historyPast).toHaveLength(2);
@@ -389,21 +389,21 @@ describe('우클릭 gesture transaction·취소·Undo 수명', () => {
     expect(current().historyPast).toHaveLength(3); current().undo(); expect(notes()).toHaveLength(1); current().undo(); expect(notes()).toHaveLength(2); current().undo(); expect(notes()).toHaveLength(4);
     current().redo(); expect(notes()).toHaveLength(2);
   });
-  it('Sustain 삭제 후 같은 3박에서 반복이동해도 드러난Body는 남고 새gesture에서는 지울수있다', () => {
+  it('Sustain 삭제 후 같은 3박에서 반복 이동해도 드러난 Body는 남고 새 gesture에서는 지울 수 있다', () => {
     const { erase } = setup(); erase.begin(); erase.erase(1, 3); erase.erase(1, 3); erase.erase(1, 3.02); erase.finish();
     expect(notes().some(note => note.type === 'body')).toBe(true); expect(notes().some(note => note.type === 'sustain')).toBe(false);
     erase.begin(); erase.erase(1, 3); erase.finish(); expect(notes().some(note => note.type === 'body')).toBe(false);
   });
-  it('노트 지운 자리보호는 다른위치의 바디 직접삭제를 막지 않는다', () => {
+  it('노트를 지운 자리 보호는 다른 위치의 바디 직접 삭제를 막지 않는다', () => {
     const { erase } = setup(); erase.begin(); erase.erase(1, 3); erase.erase(1, 2); erase.finish(); expect(notes().some(note => note.type === 'body')).toBe(false);
   });
-  it('이전편집 뒤 erase중 Esc는 해당삭제만 복구하고 버튼up전 move를 무시하며 past/future를 보존한다', () => {
+  it('이전 편집 뒤 erase 중 Esc는 해당 삭제만 복구하고 버튼 up 전 move를 무시하며 past/future를 보존한다', () => {
     const { erase } = setup(); current().setChart({ ...current().chart, notes: [...notes(), { type: 'release', lane: 2, beat: beat(8), count: 1 }] });
     const before = current(); erase.begin(); erase.erase(1, 3); erase.cancel(); erase.erase(1, 1); erase.erase(2, 8);
     expect(current().chart).toBe(before.chart); expect(current().historyPast).toBe(before.historyPast); expect(current().historyFuture).toBe(before.historyFuture);
     erase.finish(); expect(current().historyPast).toHaveLength(1); current().undo(); expect(notes()).toEqual(family());
   });
-  it.each(['편집', 'Undo', 'Redo', 'mode', 'load'] as const)('erase중 %s 독립명령 뒤 Esc·move는 해당명령과 history를 바꾸지 않는다', command => {
+  it.each(['편집', 'Undo', 'Redo', 'mode', 'load'] as const)('erase 중 %s 독립 명령 뒤 Esc·move는 해당 명령과 history를 바꾸지 않는다', command => {
     const { erase } = setup();
     if (command === 'Redo') {
       current().setChart({ ...current().chart, notes: [...notes(), { type: 'release', lane: 2, beat: beat(9), count: 1 }] });
@@ -419,13 +419,13 @@ describe('우클릭 gesture transaction·취소·Undo 수명', () => {
     expect(current().chart).toBe(afterCommand.chart); expect(current().historyPast).toBe(afterCommand.historyPast); expect(current().historyFuture).toBe(afterCommand.historyFuture);
     expect(current().editTransaction).toBeNull();
   });
-  it('Redo기록이 있는 상태의 삭제gesture를 Esc취소하면 future와 이전선택을 그대로 복구한다', () => {
+  it('Redo 기록이 있는 상태의 삭제 gesture를 Esc로 취소하면 future와 이전 선택을 그대로 복구한다', () => {
     const { mode, erase } = setup(); current().setChart({ ...current().chart, notes: [...notes(), { type: 'release', lane: 2, beat: beat(7), count: 1 }] }); current().undo();
     mode.setChart(current().chart); mode.selectNote(0); const before = current(); erase.begin(); erase.erase(1, 3); erase.cancel(); erase.finish();
     expect(current().chart).toBe(before.chart); expect(current().selection).toBe(before.selection); expect(current().historyFuture).toBe(before.historyFuture);
     current().redo(); expect(notes()).toHaveLength(6);
   });
-  it('빈 gesture와 같은위치 클릭만 한 move는 새history를 만들지 않는다', () => {
+  it('빈 gesture와 같은 위치 클릭만 한 move는 새 history를 만들지 않는다', () => {
     const { erase, click } = setup(); erase.begin(); erase.erase(2, 9); erase.finish(); click(1, 2); expect(current().historyPast).toHaveLength(0);
   });
 });
