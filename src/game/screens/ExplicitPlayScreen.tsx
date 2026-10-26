@@ -97,8 +97,10 @@ export function ExplicitPlayScreen({ request: suppliedRequest, onExit, presentat
       <label><input type="checkbox" checked={repeat} onChange={event => setRepeat(event.target.checked)} />반복</label>
       <button onClick={back}>돌아가기</button>
     </div>}
-    {request && !error && phase === 'loading' && <p className="explicit-play__notice" role="status">음원과 표시 준비 중</p>}
-    {phase === 'music-preparation' && <p className="explicit-play__notice" role="status">음악 준비 중 · 키를 자유롭게 바꿀 수 있습니다</p>}
+    {request && !error && phase === 'loading' && <p className="explicit-play__notice" role="status">
+      {presentation === 'play' ? 'Preparing audio and graphics' : '음원과 표시 준비 중'}</p>}
+    {phase === 'music-preparation' && <p className="explicit-play__notice" role="status">
+      {presentation === 'play' ? 'Get ready · You can switch keys freely' : '음악 준비 중 · 키를 자유롭게 바꿀 수 있습니다'}</p>}
     {presentation === 'test' && phase === 'paused' && <p className="explicit-play__notice" role="status">일시정지 · Esc로 계속</p>}
     {presentation === 'play' && phase === 'paused' && <div className={`explicit-play__pause${import.meta.env.DEV ? ' explicit-play__pause--dev' : ''}`}>
       <section className="explicit-play__pause-menu" aria-label="Paused" style={normalStyles.panel}>
@@ -112,7 +114,7 @@ export function ExplicitPlayScreen({ request: suppliedRequest, onExit, presentat
     </div>}
     {(!request || error) && (presentation === 'play'
       ? <div className="explicit-play__error" style={primitives.screen}>
-        <p role="alert" style={{ color: color.danger }}>{error ?? '재생할 차트가 없습니다.'}</p>
+        <p role="alert" style={{ color: color.danger }}>{error ?? 'No chart to play.'}</p>
         <button style={normalStyles.resume} onClick={back}>Back to Song Select</button>
       </div>
       : <p className="explicit-play__notice" role="alert">{error ?? '테스트할 명시 차트가 없습니다.'}</p>)}
