@@ -388,12 +388,10 @@ export class SelectMode implements EditorMode {
   beginTouchMoveDragFromNote(index: number, x: number, y: number): boolean {
     if (index < 0 || index >= this.chart.notes.length) return false;
 
-    // 이미 선택된 노트면 혼합 선택(구간 포함)을 유지한 채 전체를 이동한다.
-    // 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"로 취급 — 잡아 끌면 단독 선택으로
-    // 교체하지 않고 유닛째 이동한다 (RFD 0016 §4.2 실행 시점 파생).
-    const note = this.chart.notes[index];
-    const directScore = ['point', 'release', 'sustain'].includes(note.type);
-    if (directScore || (!this.sel.notes.has(index) && !this.zoneDerivedNoteIndices().has(index))) {
+    // 이미 선택된 노트면 혼합 선택(구간 포함)을 유지한 채 전체를 이동한다. 명시 Point·릴리즈·
+    // 유지 노트도 같다(RFD 0016 §6-6). 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"로 취급 —
+    // 잡아 끌면 단독 선택으로 교체하지 않고 유닛째 이동한다 (RFD 0016 §4.2 실행 시점 파생).
+    if (!this.sel.notes.has(index) && !this.zoneDerivedNoteIndices().has(index)) {
       if (!this.selectNote(index)) return false;
     }
 
@@ -590,12 +588,6 @@ export class SelectMode implements EditorMode {
         // 단독 선택으로 교체하지 않는다 (RFD 0016 §4.2 실행 시점 파생).
         const isZoneDerived = !isAlreadySelected && this.zoneDerivedNoteIndices().has(hitIndex);
 
-        const hitNote = this.chart.notes[hitIndex];
-        if (!toggleSelection && !shiftKey && !altKey && ['point', 'release', 'sustain'].includes(hitNote.type)) {
-          if (this.selectNote(hitIndex)) this.beginMoveDrag(x, y);
-          return;
-        }
-
         // 수식자(토글/Shift/Alt) 경로는 zones·restZones를 보존한다 — 일반 노트와 구간
         // 유닛(trillZone·restZone)은 공존하고(RFD 0016 §4.1 · RFD 0019),
         // 트릴 노트가 들어오면 게이트가 zones를 자동으로 비운다.
@@ -618,7 +610,7 @@ export class SelectMode implements EditorMode {
           notes.delete(hitIndex);
           this.commitSelection({ notes });
         } else if ((isAlreadySelected && this.sel.notes.size > 0) || isZoneDerived) {
-          // Start move drag on selected note (zones가 있으면 혼합 선택째 이동)
+          // 선택된 노트(명시 Point·릴리즈·유지 포함)를 누르면 선택 전체를 이동한다 (RFD 0016 §6-6).
           this.beginMoveDrag(x, y);
         } else {
           // 단순 클릭은 선택 전체 교체(zones·restZones 포함 해제). 트릴 쌍은 클릭 선택에서도 한 단위.

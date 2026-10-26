@@ -63,10 +63,15 @@ describe('명시 노트 실제 선택 집합과 관계 재도출', () => {
     const { click } = setup(); click(1, 2); expect(selection()).toEqual(new Set([0, 1, 2, 3]));
     expect(current().historyPast).toHaveLength(0);
   });
-  it.each([1, 3, 4, 5])('%s박 점수 노트는 선택된 바디보다 hit가 앞서고 클릭하면 해당 노트만 선택한다', at => {
+  it.each([1, 3, 5])('바디 클릭 뒤 이미 선택된 %s박 점수 노트를 클릭하면 선택 0～3을 그대로 유지한다', at => {
     const { click } = setup(); click(1, 2); click(1, at);
 
-    expect(selection()).toEqual(new Set([at === 1 ? 1 : at === 3 ? 2 : at === 4 ? 4 : 3]));
+    expect(selection()).toEqual(new Set([0, 1, 2, 3]));
+  });
+  it('바디 클릭 뒤 미선택 4박 중간 Point는 선택된 바디보다 hit가 앞서 클릭하면 그 Point만 선택한다', () => {
+    const { click } = setup(); click(1, 2); click(1, 4);
+
+    expect(selection()).toEqual(new Set([4]));
   });
   it('0박 zero Body+Sustain은 중심에서 표식만 고르고 0.08박 주변에서는 바디와 표식을 고른다', () => {
     const { click } = setup([{ type: 'body', lane: 1, beat: beat(0), endBeat: beat(0), holdCount: 1 }, { type: 'sustain', lane: 1, beat: beat(0), count: 1 }]);
@@ -162,6 +167,54 @@ describe('명시 노트 실제 선택 집합과 관계 재도출', () => {
   it('Ctrl+A用selectAllはmain/aux全ノートを実際のsetに置き、Delete一回で全て消す', () => {
     const { mode } = setup([...family(), ...family(7)]); mode.selectAll(); expect(selection().size).toBe(10);
     mode.deleteSelected(); expect(notes()).toEqual([]); expect(current().historyPast).toHaveLength(1);
+  });
+});
+
+describe('이미 선택된 명시 노트 누름은 선택 전체 이동', () => {
+  const twoPoints = (): DocumentNoteEntity[] => [
+    { type: 'point', kind: 'single', lane: 1, beat: beat(1) },
+    { type: 'point', kind: 'single', lane: 1, beat: beat(2) },
+  ];
+  const touchDrag = (mode: SelectMode, space: ReturnType<typeof setup>['space'], from: number, to: number) => {
+    mode.beginLongPressDrag(1, from, { noteEndHit: space.hitTestNoteEnd(1, from), noteHit: space.hitTestUnifiedNote(1, from), zoneHit: null });
+    mode.onPointerMove(1, to); mode.onPointerUp(1, to);
+  };
+
+  it('마우스로 선택된 1박·2박 Point 중 1박 Point를 3박으로 끌면 두 Point가 3박·4박으로 함께 가고 선택을 유지한다', () => {
+    const { mode } = setup(twoPoints()); mode.selectAll();
+    mode.onPointerDown(1, 1, false, false); mode.onPointerMove(1, 3); mode.onPointerUp(1, 3);
+
+    expect(notes().map(note => note.beat)).toEqual([beat(3), beat(4)]);
+    expect(selection()).toEqual(new Set([0, 1]));
+  });
+  it('터치 롱프레스로 선택된 1박·2박 Point 중 1박 Point를 3박으로 끌면 두 Point가 3박·4박으로 함께 간다', () => {
+    const { mode, space } = setup(twoPoints()); mode.selectAll();
+    touchDrag(mode, space, 1, 3);
+
+    expect(notes().map(note => note.beat)).toEqual([beat(3), beat(4)]);
+    expect(selection()).toEqual(new Set([0, 1]));
+  });
+  it('마우스로 바디를 클릭해 선택한 뒤 1박 시작 Point를 2박으로 끌면 Body·Point·Sustain·Release가 함께 1박 뒤로 가고 중간 Point는 남는다', () => {
+    const { mode, click } = setup(); click(1, 2);
+    mode.onPointerDown(1, 1, false, false); mode.onPointerMove(1, 2); mode.onPointerUp(1, 2);
+
+    expect(notes().map(note => beatToFloat(note.beat))).toEqual([2, 2, 4, 6, 4]);
+    expect(notes()[0]).toMatchObject({ endBeat: beat(6) });
+    expect(selection()).toEqual(new Set([0, 1, 2, 3]));
+  });
+  it('바디를 클릭해 선택한 뒤 1박 시작 Point를 터치 롱프레스로 2박까지 끌면 선택한 4개가 함께 1박 뒤로 간다', () => {
+    const { mode, click, space } = setup(); click(1, 2);
+    touchDrag(mode, space, 1, 2);
+
+    expect(notes().map(note => beatToFloat(note.beat))).toEqual([2, 2, 4, 6, 4]);
+    expect(selection()).toEqual(new Set([0, 1, 2, 3]));
+  });
+  it('마우스로 미선택 2박 Point를 누르면 기존 1박 선택을 그 Point로 바꾸고 그 Point만 3박으로 옮긴다', () => {
+    const { mode } = setup(twoPoints()); mode.selectNote(0);
+    mode.onPointerDown(1, 2, false, false); mode.onPointerMove(1, 3); mode.onPointerUp(1, 3);
+
+    expect(notes().map(note => note.beat)).toEqual([beat(1), beat(3)]);
+    expect(selection()).toEqual(new Set([1]));
   });
 });
 

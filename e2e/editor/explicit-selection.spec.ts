@@ -29,13 +29,13 @@ const pageErrors = new WeakMap<Page, string[]>();
 test.beforeEach(({ page }) => { const errors: string[] = []; pageErrors.set(page, errors); page.on('pageerror', error => errors.push(error.message)); });
 test.afterEach(({ page }) => { expect(pageErrors.get(page)).toEqual([]); });
 
-test('바디 선택·Release 제외·lane이동은 실제 set만 옮기고 노트 직접클릭은 해당 항목만 고른다', async ({ page }) => {
+test('바디 선택·Release 제외·lane이동은 실제 set만 옮기고 선택된 Sustain 클릭은 set을 유지하며 미선택 Release 직접클릭은 그 항목만 고른다', async ({ page }) => {
   await openEditor(page, { chart: family() }); await selectMode(page);
   await click(page, 1.5); expect((await state(page)).selection).toEqual([0, 1, 2, 3]);
   await click(page, 3, 1, true); expect((await state(page)).selection).toEqual([0, 1, 2]);
   await page.keyboard.press('ArrowRight');
   expect((await notes(page)).map(note => note.lane)).toEqual([2, 2, 2, 1, 1]);
-  await click(page, 2, 2); expect((await state(page)).selection).toEqual([2]);
+  await click(page, 2, 2); expect((await state(page)).selection).toEqual([0, 1, 2]);
   await click(page, 3); expect((await state(page)).selection).toEqual([3]);
 });
 
