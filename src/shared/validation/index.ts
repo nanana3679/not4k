@@ -47,6 +47,12 @@ export interface ValidationError {
     | "rangeInverted"
     | "beatMalformed"
     | "noteConstraint"
+    | "noteMalformed"
+    | "scoreOverlap"
+    | "sustainPlacement"
+    | "sustainCount"
+    | "releasePlacement"
+    | "zeroBodyScore"
     | "laneMalformed";
   message: string;
   refs?: ValidationRef[];
@@ -1180,3 +1186,4 @@ export function violationsInvolving(
 // rule → 사람이 읽는 라벨 카탈로그 (RFD 0017 §7 위반 시각화 언어).
 // violationLabels는 이 파일에서 타입만 가져오므로 순환 없음(타입 import는 컴파일 시 소거).
 export * from "./violationLabels";
+export * from "./documentValidation";

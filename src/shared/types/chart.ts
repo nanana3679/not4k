@@ -91,14 +91,56 @@ export interface RangeNote {
 /** 노트 엔티티 유니온 */
 export type NoteEntity = PointNote | RangeNote;
 
-/** Grace 노트 여부 확인 — PointNote이면서 grace 플래그가 true */
-export function isGraceNote(note: NoteEntity): boolean {
-  return !("endBeat" in note) && (note as PointNote).grace === true;
+/** RFD 0037 명시 Point. 구형 Point의 type을 문서 버전으로 재해석하지 않는다. */
+export interface ExplicitPointNote {
+  type: "point";
+  kind: "single" | "double" | "trill";
+  lane: number;
+  beat: Beat;
+  grace?: boolean;
+}
+
+/** 무점수 바디. 끝 릴리즈/유지 표식을 내장하지 않으며 실제 경계를 보존한다. */
+export type BodyNote = {
+  type: "body";
+  lane: number;
+  beat: Beat;
+  endBeat: Beat;
+} & ({ holdCount: 1; trill?: true } | { holdCount: 2; trill?: never });
+
+/** count는 바디 holdCount와 독립적이다. 더블 전체에 하나의 Grace 종류를 적용한다. */
+export interface ReleaseNote {
+  type: "release";
+  lane: number;
+  beat: Beat;
+  count: 1 | 2;
+  grace?: boolean;
+}
+
+/** 명시 유지 표식 수. 소속 관계/수량의 의미 검증은 저장 파서와 분리한다. */
+export interface SustainNote {
+  type: "sustain";
+  lane: number;
+  beat: Beat;
+  count: 1 | 2;
+}
+
+export type ExplicitNoteEntity = ExplicitPointNote | BodyNote | ReleaseNote | SustainNote;
+/** 읽기·수리·혼합 저장용 문서 항목. NoteEntity는 현행 구형 소비자의 계약으로 유지한다. */
+export type DocumentNoteEntity = NoteEntity | ExplicitNoteEntity;
+
+export function isExplicitNote(note: DocumentNoteEntity): note is ExplicitNoteEntity {
+  return note.type === "point" || note.type === "body" || note.type === "release" || note.type === "sustain";
+}
+
+/** 구형/명시 Point 또는 명시 릴리즈의 Grace 여부. */
+export function isGraceNote(note: DocumentNoteEntity): boolean {
+  return "grace" in note && note.grace === true;
 }
 
 /** hold-only 노트 여부 확인 — RangeNote이면서 holdOnly 플래그가 true */
-export function isHoldOnlyNote(note: NoteEntity): boolean {
-  return "endBeat" in note && (note as RangeNote).holdOnly === true;
+export function isHoldOnlyNote(note: DocumentNoteEntity): boolean {
+  return "holdOnly" in note && note.holdOnly === true;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,22 +148,20 @@ export function isHoldOnlyNote(note: NoteEntity): boolean {
 // ---------------------------------------------------------------------------
 
 /** Extra 포인트 노트 */
-export interface ExtraPointNote {
-  type: "single" | "double" | "trill";
+export interface ExtraPointNote extends Omit<PointNote, "lane"> {
   extraLane: number; // 1~10
-  beat: Beat;
 }
 
 /** Extra 구간 노트 */
-export interface ExtraRangeNote {
-  type: "long" | "doubleLong" | "trillLong";
+export interface ExtraRangeNote extends Omit<RangeNote, "lane"> {
   extraLane: number; // 1~10
-  beat: Beat;
-  endBeat: Beat;
 }
 
 /** Extra 노트 엔티티 유니온 */
 export type ExtraNoteEntity = ExtraPointNote | ExtraRangeNote;
+
+type WithExtraLane<T> = T extends { lane: number } ? Omit<T, "lane"> & { extraLane: number } : never;
+export type DocumentExtraNoteEntity = WithExtraLane<DocumentNoteEntity>;
 
 // ---------------------------------------------------------------------------
 // trillZone
@@ -242,9 +282,9 @@ export type EventMarker = ChartEvent;
 // 차트 전체
 // ---------------------------------------------------------------------------
 
-export interface Chart {
+export interface ChartDocument {
   meta: ChartMeta;
-  notes: NoteEntity[];
+  notes: DocumentNoteEntity[];
   trillZones: TrillZone[];
   /**
    * 휴지 구간 (RFD 0019). 이 필드 도입 전의 Chart 생성 경로(게임·에디터의
@@ -253,4 +293,9 @@ export interface Chart {
    */
   restZones?: RestZone[];
   events: ChartEvent[];
+}
+
+/** 현행 에디터·판정기의 구형 전용 입력. 문서 입출력은 ChartDocument를 사용한다. */
+export interface Chart extends ChartDocument {
+  notes: NoteEntity[];
 }

@@ -14,6 +14,28 @@ function makeSource(overrides: Partial<ChartTimingSource>): ChartTimingSource {
 }
 
 describe("createChartTiming", () => {
+  it("120 BPM에서 명시 길이 0 바디·Point·릴리즈·유지의 시간은 보존하고 구형 판정 수 집계는 거부한다", () => {
+    const timing = createChartTiming(makeSource({ notes: [
+      { type: "body", lane: 1, beat: beat(1), endBeat: beat(1), holdCount: 2 },
+      { type: "point", kind: "double", lane: 2, beat: beat(2) },
+      { type: "release", lane: 2, beat: beat(3), count: 1 },
+      { type: "sustain", lane: 2, beat: beat(4), count: 2 },
+    ] }));
+    expect([...timing.noteTimesMs.values()]).toEqual([500, 1000, 1500, 2000]);
+    expect([...timing.noteEndTimesMs]).toEqual([[0, 500]]);
+    expect(() => timing.judgmentCounts()).toThrow("구형 judgmentCounts");
+    expect(() => timing.judgmentCounts(1000)).toThrow("명시적 노트 형식");
+  });
+
+  it("구형 single과 명시 body 혼합 차트도 시간 파생은 허용하고 구형 분모 추정은 거부한다", () => {
+    const timing = createChartTiming(makeSource({ notes: [
+      { type: "single", lane: 1, beat: beat(0) },
+      { type: "body", lane: 1, beat: beat(0), endBeat: beat(2), holdCount: 1 },
+    ] }));
+    expect(timing.noteEndTimesMs.get(1)).toBe(1000);
+    expect(() => timing.judgmentCounts()).toThrow("구형 judgmentCounts");
+  });
+
   it("120 BPM offset 0에서 0박·1박·2박 노트 → 0/500/1000ms", () => {
     const notes: NoteEntity[] = [
       { type: "single", lane: 1, beat: BEAT_ZERO },
