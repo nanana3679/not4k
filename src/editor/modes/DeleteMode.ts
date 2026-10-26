@@ -1,4 +1,4 @@
-import type { Chart } from "../../shared";
+import type { ChartDocument } from "../../shared";
 import {
   deleteChartNoteAtIndex,
   deleteEmptyTrillZoneAtIndex,
@@ -6,11 +6,14 @@ import {
 } from "../editing/editApplication";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
+import { bodyCompanionIndices, bodyDeletionBlockReason } from '../editing/explicitEditing';
+import { deleteChartNotesAtIndices } from '../editing/editApplication';
 
 export interface DeleteModeCallbacks {
-  onChartUpdate: (chart: Chart) => void;
+  onChartUpdate: (chart: ChartDocument) => void;
   space: TimelineSpace;
   onWarn?: (message: string) => void;
+  getSelectedNotes?: () => ReadonlySet<number>;
 }
 
 /**
@@ -19,15 +22,15 @@ export interface DeleteModeCallbacks {
  * 깨진 차트(통합 이동·paste 이후)에서도 클릭한 노트가 정확히 삭제된다 (RFD 0018 ④d).
  */
 export class DeleteMode implements EditorMode {
-  private chart: Chart;
+  private chart: ChartDocument;
   private callbacks: DeleteModeCallbacks;
 
-  constructor(chart: Chart, callbacks: DeleteModeCallbacks) {
+  constructor(chart: ChartDocument, callbacks: DeleteModeCallbacks) {
     this.chart = chart;
     this.callbacks = callbacks;
   }
 
-  setChart(chart: Chart): void {
+  setChart(chart: ChartDocument): void {
     this.chart = chart;
   }
 
@@ -53,7 +56,9 @@ export class DeleteMode implements EditorMode {
       this.chart,
       this.callbacks.space.hitTestUnifiedNote,
       x,
-      y
+      y,
+      this.callbacks.getSelectedNotes?.(),
+      this.callbacks.onWarn,
     );
 
     if (result !== null) {
@@ -61,6 +66,9 @@ export class DeleteMode implements EditorMode {
       this.callbacks.onChartUpdate(result);
       return;
     }
+
+    // 삭제 보호에 걸린 노트 뒤의 구간을 대신 지우지 않는다.
+    if (this.callbacks.space.hitTestUnifiedNote(x, y) !== null) return;
 
     // Try deleting a trill zone (only if empty)
     const zoneIdx = this.callbacks.space.hitTestTrillZone(x, y);
@@ -88,13 +96,23 @@ export class DeleteMode implements EditorMode {
 
   /** Right-click delete (mode-independent, also called from other modes) */
   static deleteNoteAtPoint(
-    chart: Chart,
+    chart: ChartDocument,
     hitTestNote: (x: number, y: number) => number | null,
     x: number,
-    y: number
-  ): Chart | null {
+    y: number,
+    selected: ReadonlySet<number> = new Set(),
+    onWarn?: (message: string) => void,
+  ): ChartDocument | null {
     const hitIndex = hitTestNote(x, y);
     if (hitIndex === null) return null;
+    if (chart.notes[hitIndex]?.type === 'body') {
+      const companions = bodyCompanionIndices(chart.notes, hitIndex);
+      const indices = selected.has(hitIndex)
+        ? new Set([...companions].filter(index => selected.has(index))) : companions;
+      const reason = bodyDeletionBlockReason(chart.notes, indices);
+      if (reason) { onWarn?.(reason); return null; }
+      return deleteChartNotesAtIndices(chart, indices);
+    }
     return deleteChartNoteAtIndex(chart, hitIndex);
   }
 }

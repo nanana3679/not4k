@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestRestZoneAt, noteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
 import { beat } from "../../shared";
-import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
+import type { DocumentNoteEntity, DocumentExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // hitTestNoteAt
 // ---------------------------------------------------------------------------
 
 describe("hitTestNoteAt", () => {
-  const notes: NoteEntity[] = [
+  const notes: DocumentNoteEntity[] = [
     { type: "single", lane: 1 as const, beat: beat(0) },           // index 0: beat 0
     { type: "single", lane: 2 as const, beat: beat(1) },           // index 1: beat 1
     { type: "single", lane: 1 as const, beat: beat(3, 16) },       // index 2: beat 3/16 (non-snap position)
@@ -56,7 +56,7 @@ describe("hitTestNoteAt", () => {
   });
 
   it("길이 0인 롱노트도 tolerance 이내에서 히트", () => {
-    const zeroLengthNotes: NoteEntity[] = [
+    const zeroLengthNotes: DocumentNoteEntity[] = [
       { type: "long", lane: 1 as const, beat: beat(2), endBeat: beat(2) },
     ];
     expect(hitTestNoteAt(zeroLengthNotes, 1, 2)).toBe(0);
@@ -88,7 +88,7 @@ describe("hitTestNoteAt", () => {
 
 describe("hitTestNoteAt selectedNotes 우선순위", () => {
   // 롱노트 A: beat=0~4, 롱노트 B: beat=4~8, 같은 레인
-  const sharedNotes: NoteEntity[] = [
+  const sharedNotes: DocumentNoteEntity[] = [
     { type: "long", lane: 1 as const, beat: beat(0), endBeat: beat(4) },  // index 0
     { type: "long", lane: 1 as const, beat: beat(4), endBeat: beat(8) },  // index 1
   ];
@@ -115,7 +115,7 @@ describe("hitTestNoteAt selectedNotes 우선순위", () => {
 
   it("선택 우선순위가 z-order보다 높음", () => {
     // single(z=2)과 long(z=1)이 겹칠 때, long이 선택되어 있으면 long 우선
-    const mixed: NoteEntity[] = [
+    const mixed: DocumentNoteEntity[] = [
       { type: "long", lane: 1 as const, beat: beat(0), endBeat: beat(4) },  // index 0, z=1
       { type: "single", lane: 1 as const, beat: beat(4) },                  // index 1, z=2
     ];
@@ -140,7 +140,7 @@ describe("hitTestNoteAt selectedNotes 우선순위", () => {
 // ---------------------------------------------------------------------------
 
 describe("hitTestExtraNoteAt", () => {
-  const extraNotes: ExtraNoteEntity[] = [
+  const extraNotes: DocumentExtraNoteEntity[] = [
     { type: "single", extraLane: 1, beat: beat(2) },
     { type: "long", extraLane: 2, beat: beat(1), endBeat: beat(3) },
   ];
@@ -261,7 +261,7 @@ describe("hitTestRestZoneAt", () => {
 // ---------------------------------------------------------------------------
 
 describe("noteExistsAtSnap", () => {
-  const notes: NoteEntity[] = [
+  const notes: DocumentNoteEntity[] = [
     { type: "single", lane: 1 as const, beat: beat(1) },            // beat 1.0
     { type: "single", lane: 1 as const, beat: beat(3, 16) },        // beat 0.1875
     { type: "long", lane: 2 as const, beat: beat(0), endBeat: beat(2) },
@@ -367,5 +367,27 @@ describe("hitTestRangeNoteRegion", () => {
     expect(hitTestRangeNoteRegion(rangeNote, 2.4, 0.5)).toBe("head");
     // tolerance=0.01 → 2.02는 head 밖
     expect(hitTestRangeNoteRegion(rangeNote, 2.02, 0.01)).toBe("body");
+  });
+});
+
+describe('명시 점수 노트 hit 우선순위', () => {
+  it.each(['point', 'release', 'sustain'] as const)('선택한 바디 위의 %s는 배열 순서와 무관하게 바디보다 먼저 잡힌다', type => {
+    const body: DocumentNoteEntity = { type: 'body', holdCount: 2, lane: 1, beat: beat(0), endBeat: beat(4) };
+    const score: DocumentNoteEntity = type === 'point' ? { type, kind: 'double', lane: 1, beat: beat(2) }
+      : { type, count: 2, lane: 1, beat: beat(2) };
+    expect(hitTestNoteAt([body, score], 1, 2, undefined, new Set([0]))).toBe(1);
+    expect(hitTestNoteAt([score, body], 1, 2, undefined, new Set([1]))).toBe(0);
+  });
+
+  it('길이 0 바디의 2박에서 0.08박 떨어진 위치는 잡히고 같은 위치의 Point는 잡히지 않는다', () => {
+    expect(hitTestNoteAt([{ type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(2) }], 1, 2.08)).toBe(0);
+    expect(hitTestNoteAt([{ type: 'point', kind: 'single', lane: 1, beat: beat(2) }], 1, 2.08)).toBeNull();
+  });
+
+  it('aux1 바디 뒤에 있는 더블 릴리즈도 보조 hit에서 릴리즈 전체 항목 하나를 반환한다', () => {
+    expect(hitTestExtraNoteAt([
+      { type: 'body', holdCount: 2, extraLane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: 'release', count: 2, extraLane: 1, beat: beat(4) },
+    ], 1, 4)).toBe(1);
   });
 });

@@ -1,4 +1,4 @@
-import type { Chart } from "../shared/types";
+import type { Chart, ChartDocument } from "../shared/types";
 import {
   assertLegacyNotes, deserializeChartDocument, parseExtraNotesDocument,
   requireLegacyChart, withAuxNotes, maxAuxLane, toAuxIndex, ChartFormatError,
@@ -20,6 +20,26 @@ export function loadLegacyEditorChartAsset(chartText: string, extraText: string 
     extraLaneCount = Math.max(extra.extraLaneCount, toAuxIndex(maxAuxLane(document.notes)));
   }
   return { chart: requireLegacyChart(document, "현재 에디터"), extraLaneCount };
+}
+
+/** 지원되는 main/aux 문서를 의미 위반도 보존해 수리용으로 연다. */
+export function loadEditorChartAsset(chartText: string, extraText: string | null): { chart: ChartDocument; extraLaneCount: number; hasExtraLaneCount: boolean } {
+  let chart = deserializeChartDocument(chartText);
+  let extraLaneCount = toAuxIndex(maxAuxLane(chart.notes));
+  let hasExtraLaneCount = false;
+  try {
+    const extraJson = JSON.parse(extraText || chartText);
+    const extra = parseExtraNotesDocument(extraJson);
+    hasExtraLaneCount = extraJson.extraLaneCount !== undefined;
+    if (extraText || extra.extraNotes.length > 0 || hasExtraLaneCount) {
+      chart = { ...chart, notes: withAuxNotes(chart.notes, extra.extraNotes) };
+    }
+    extraLaneCount = Math.max(extra.extraLaneCount, toAuxIndex(maxAuxLane(chart.notes)));
+  } catch (error) {
+    // C1의 구형 읽기 행동: 손상 JSON만 무시한다. 인식한 형식 오류는 계속 전달한다.
+    if (!(error instanceof SyntaxError)) throw error;
+  }
+  return { chart, extraLaneCount, hasExtraLaneCount };
 }
 
 /**

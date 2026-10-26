@@ -19,9 +19,8 @@
  *   개별 트릴 선택만 구간 유닛과 배타로 남는다.
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
  */
-import type { Chart, NoteEntity, TrillZone, ValidationRef } from '../../shared';
-import { beatToFloat, validateChart, violationsInvolving } from '../../shared';
-import { showToast } from '../../shared/toast';
+import type { ChartDocument, DocumentNoteEntity, TrillZone } from '../../shared';
+import { beatToFloat } from '../../shared';
 import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
 
 /**
@@ -53,13 +52,14 @@ export function emptySelection(): Selection {
  * 아니므로 유닛 이동·삭제·복사에 끌려가면 안 된다.
  */
 export function zoneContainedNoteIndices(
-  notes: readonly NoteEntity[],
+  notes: readonly DocumentNoteEntity[],
   zone: TrillZone,
 ): Set<number> {
   const result = new Set<number>();
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];
-    if (n.type !== 'trill' && n.type !== 'trillLong') continue;
+    if (n.type !== 'trill' && n.type !== 'trillLong'
+      && !(n.type === 'point' && n.kind === 'trill') && !(n.type === 'body' && n.trill)) continue;
     const endBeat = 'endBeat' in n ? n.endBeat : n.beat;
     if (
       n.lane === zone.lane &&
@@ -101,7 +101,7 @@ function pruneBounds(indices: ReadonlySet<number>, length: number): Set<number> 
  */
 export function normalizeSelection(
   input: Selection,
-  chart: Pick<Chart, 'notes' | 'trillZones' | 'restZones'>,
+  chart: Pick<ChartDocument, 'notes' | 'trillZones' | 'restZones'>,
 ): Selection {
   const zones = pruneBounds(input.zones, chart.trillZones.length);
 
@@ -129,40 +129,21 @@ export function normalizeSelection(
 
 export interface SelectionSlice {
   selection: Selection;
-  /**
-   * 전체 선택 값을 쓴다. 정규화 게이트 + 선택 해제 게이트(§3-5)를 지난다.
-   * 게이트가 전이를 거부하면 false — 호출자는 후속 동작(이동 시작 등)을 이어가면 안 된다
-   * (stale 선택을 대상으로 조작하게 된다).
-   */
+  /** 범위·트릴 동질성을 정규화한다. 의미 위반도 해제·교체할 수 있다(RFD 0037). */
   setSelection: (input: Selection) => boolean;
-  /**
-   * 드래그 프리뷰 전용 — 정규화만 하고 §3-5 게이트를 지나지 않는다.
-   * "전이 = 확정된 선택 변경"(§3-5): 박스 드래그의 사전 clear·프레임 재구성은
-   * 전이가 아니라 프리뷰다. 제스처 종료 시 반드시 setSelection(게이트)으로 확정할 것.
-   */
+  /** 박스 드래그 프리뷰도 같은 정규화를 쓴다. 취소 시 시작 전 선택으로 복구한다. */
   setSelectionTransient: (input: Selection) => void;
   clearSelection: () => boolean;
 }
 
 /** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 차트(보조 노트도 chart.notes에 포함). */
 interface SelectionHost {
-  chart: Chart;
+  chart: ChartDocument;
 }
 
 type SliceSet = (
   partial: Partial<SelectionSlice> | ((state: SelectionSlice) => Partial<SelectionSlice>),
 ) => void;
-
-// §3-5 게이트 토스트 억제 — 박스 드래그처럼 매 pointer-move마다 전이가 시도되는 경로에서
-// 같은 사유의 토스트가 연발되지 않게 한다(전이 거부 자체는 매번 수행).
-let lastGateToastAt = 0;
-
-function gateToast(message: string): void {
-  const now = Date.now();
-  if (now - lastGateToastAt < 1000) return;
-  lastGateToastAt = now;
-  showToast(message, 'warn');
-}
 
 export function createSelectionSlice(
   set: SliceSet,
@@ -172,43 +153,8 @@ export function createSelectionSlice(
     selection: emptySelection(),
 
     setSelection: (input) => {
-      const { chart, selection } = get();
-      const normalized = normalizeSelection(input, chart);
-
-      // 선택 해제 게이트(RFD 0017 §3-5): 이 전이에서 빠지는(removed = 현재 − 다음)
-      // 노트·구간이 의미 위반에 관여한 채 남으면 전이를 거부한다 — 선택 유지 + 토스트.
-      // 위반 노트를 선택에서 놓는 순간 = 편집 묶음 마무리 신호이므로 그 이탈만 봉쇄한다
-      // (place-then-fix 유지: 재드래그로 해소하거나 undo로 되돌리면 통과).
-      // 차트를 함께 바꾸는 경로(undo/redo·삭제·붙여넣기 취소)는 원자 set()으로 선택을
-      // 쓰므로 여기를 지나지 않는다 — 탈출구는 특례가 아니라 발화 경계의 귀결이다.
-      const removed: ValidationRef[] = [];
-      for (const i of selection.notes) {
-        if (!normalized.notes.has(i)) removed.push({ kind: 'note', index: i });
-      }
-      for (const i of selection.zones) {
-        if (!normalized.zones.has(i)) removed.push({ kind: 'trillZone', index: i });
-      }
-      for (const i of selection.restZones) {
-        if (!normalized.restZones.has(i)) removed.push({ kind: 'restZone', index: i });
-      }
-      // notes는 통합 인덱스(메인·보조 모두 chart.notes)라 보조 위반 해제도 이 단일 루프가 흡수한다
-      // — 보조 위반도 chart.notes에서 검증되므로 메인과 대칭으로 봉쇄된다 (RFD 0018 §3-6 동일 취급).
-      if (removed.length > 0) {
-        const involved = violationsInvolving(
-          validateChart({
-            notes: chart.notes,
-            trillZones: chart.trillZones,
-            restZones: chart.restZones,
-            events: chart.events,
-          }),
-          removed,
-        );
-        if (involved.length > 0) {
-          gateToast(`위반이 남아 있어 선택을 해제할 수 없습니다: ${involved[0].message}`);
-          return false;
-        }
-      }
-
+      // RFD 0037 §6-3: 의미 위반도 선택 해제·교체하며 수리할 수 있다.
+      const normalized = normalizeSelection(input, get().chart);
       set({ selection: normalized });
       return true;
     },
@@ -217,7 +163,7 @@ export function createSelectionSlice(
       set({ selection: normalizeSelection(input, chart) });
     },
     clearSelection: () => {
-      // 전체 비우기도 하나의 해제 전이 — 같은 게이트를 지난다(§3-5 단일 규칙).
+      // 전체 비우기도 같은 정규화 통로를 쓴다.
       return get().setSelection(emptySelection());
     },
   };

@@ -2,7 +2,7 @@
  * useCanvasEvents — 캔버스 포인터 이벤트 핸들러들
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
@@ -13,8 +13,8 @@ import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
 import { noteExistsAtSnap } from '../timeline/hitTest';
 import { beatToMs, fromAuxIndex } from '../../shared';
 import { useEditorStore } from '../stores';
+import { EraseGesture } from '../editing/EraseGesture';
 import {
-  deleteChartNoteAtLaneBeat,
   deleteEmptyTrillZoneAtIndex,
 } from '../editing/editApplication';
 import type { TimelineSpace } from '../timeline/TimelineSpace';
@@ -98,6 +98,15 @@ export function useCanvasEvents(
   const addToast = useEditorStore((s) => s.addToast);
 
   const rightDragDeletedRef = useRef(false);
+  const eraseGestureRef = useRef(new EraseGesture({
+    getChart: () => useEditorStore.getState().chart,
+    getSelectedNotes: () => useEditorStore.getState().selection.notes,
+    onChartUpdate: (chart, transaction) => useEditorStore.getState().setChart(chart, { transaction }),
+    beginTransaction: () => useEditorStore.getState().beginEditTransaction("erase"),
+    commitTransaction: token => useEditorStore.getState().commitEditTransaction(token),
+    cancelTransaction: token => useEditorStore.getState().cancelEditTransaction(token),
+    onWarn: message => useEditorStore.getState().addToast(message),
+  }));
   const recognizerRef = useRef(new GestureRecognizer());
   // 롱프레스 hold 생명주기(arm/moved/발화/결말)는 recognizer가 소유한다.
   // 훅은 tick을 ~450ms 시점에 한 번 poke하는 타이머만 붙든다(Time-A 스케줄러).
@@ -134,8 +143,14 @@ export function useCanvasEvents(
   }, []);
 
   const deleteAtPoint = useCallback((x: number, y: number) => {
-    deleteModeRef.current?.onPointerDown(x, y);
-  }, [deleteModeRef]);
+    if (eraseGestureRef.current.isActive) {
+      const lane = space.xToUnifiedLane(x);
+      if (lane !== null) {
+        const beat = space.yToBeatRaw(y);
+        eraseGestureRef.current.erase(lane, beat.n / beat.d);
+      }
+    } else deleteModeRef.current?.onPointerDown(x, y);
+  }, [deleteModeRef, space]);
 
   // 터치 down에서 롱프레스 hold 타이머를 무장한다. arm 여부는 (mode, rangeType, 히트)로 결정한다.
   // 발화(~450ms)하면 recognizer.tick을 poke해 longPress를 확인하고, 발화 좌표를 다시 히트테스트해
@@ -173,9 +188,10 @@ export function useCanvasEvents(
       if (action === 'none') return;
       suppressContextMenuUntilRef.current = Date.now() + 1200;
       if (action === 'delete') {
+        eraseGestureRef.current.begin();
         deleteAtPoint(fx, fy);
       } else if (action === 'createRange' && rangeType) {
-        createModeRef.current?.beginRangeNoteAt(fx, fy, rangeType);
+        createModeRef.current?.beginPointDragAt(fx, fy, entityType === "double" ? "double" : "single");
         rendererRef.current?.hideGhostNote();
       } else if (action === 'selectDrag') {
         touchMultiSelectRef.current = true;
@@ -223,6 +239,7 @@ export function useCanvasEvents(
   // 남은 후보(empty-select/tap-toggle)만 정리하고, 발화했을 수 있는 create 드래그를 취소한다.
   const handleEditCancel = useCallback(() => {
     clearHoldTimer();
+    eraseGestureRef.current.finish();
     touchEmptySelectCandidateRef.current = null;
     touchTapToggleRef.current = null;
     createModeRef.current?.cancelDrag();
@@ -234,6 +251,35 @@ export function useCanvasEvents(
     }
     rendererRef.current?.hideGhostNote();
   }, [clearHoldTimer, createModeRef, selectModeRef, rendererRef]);
+
+  useEffect(() => {
+    const cancelCreate = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && mode === 'create') {
+        event.preventDefault();
+        handleEditCancel();
+      }
+    };
+    window.addEventListener('keydown', cancelCreate);
+    return () => window.removeEventListener('keydown', cancelCreate);
+  }, [mode, handleEditCancel]);
+
+  useEffect(() => {
+    const cancelErase = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !eraseGestureRef.current.isActive) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      clearHoldTimer();
+      eraseGestureRef.current.cancel();
+    };
+    const finishErase = () => eraseGestureRef.current.finish();
+    window.addEventListener('keydown', cancelErase, true);
+    window.addEventListener('blur', finishErase);
+    return () => {
+      window.removeEventListener('keydown', cancelErase, true);
+      window.removeEventListener('blur', finishErase);
+      finishErase();
+    };
+  }, [clearHoldTimer]);
 
   const routeViewportGestures = useCallback((gestures: Gesture[], rect: DOMRect) => {
     for (const g of gestures) {
@@ -343,8 +389,31 @@ export function useCanvasEvents(
     const touchExtraHit = e.pointerType === 'touch' ? space.hitTestExtraNote(x, y) : null;
 
     if (e.button === 2) {
-      rightDragDeletedRef.current = false;
+      rightDragDeletedRef.current = true;
       canvasRef.current?.setPointerCapture(e.pointerId);
+      eraseGestureRef.current.begin();
+      const lane = space.xToUnifiedLane(x);
+      const hit = space.hitTestUnifiedNote(x, y);
+      if (hit !== null && lane !== null) {
+        const beat = space.yToBeatRaw(y);
+        eraseGestureRef.current.erase(lane, beat.n / beat.d);
+      } else {
+        const current = useEditorStore.getState().chart;
+        const zone = space.hitTestTrillZone(x, y);
+        if (zone !== null) {
+          const result = deleteEmptyTrillZoneAtIndex(current, zone);
+          if (result.blockedReason) addToast(result.blockedReason);
+          if (result.chart) setChart(result.chart, { transaction: eraseGestureRef.current.transaction });
+        } else {
+          const hit = hitTestMarker(x, y);
+          const event = hit && current.events[hit.index];
+          if (hit && event) {
+            if (event.beat.n === 0 && (event.type === 'bpm' || event.type === 'timeSignature')) {
+              addToast('Cannot delete initial event marker');
+            } else setChart({ ...current, events: current.events.filter((_, index) => index !== hit.index) }, { transaction: eraseGestureRef.current.transaction });
+          }
+        }
+      }
       return;
     }
 
@@ -402,7 +471,7 @@ export function useCanvasEvents(
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
-    selectModeRef, onNavigationInteraction,
+    selectModeRef, onNavigationInteraction, addToast, setChart, hitTestMarker,
   ]);
 
   // 모드가 반환한 EditResult를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
@@ -596,18 +665,10 @@ export function useCanvasEvents(
 
     // 우클릭 드래그 삭제 — 메인·보조 모두 통합 lane으로 chart.notes에서 제자리 삭제 (RFD 0018 ④d)
     if (e.buttons & 2) {
-      const rawBeatDel = space.yToBeatRaw(y);
-      const beatFloat = rawBeatDel.n / rawBeatDel.d;
-
-      const extraLaneHit = space.xToExtraLane(x);
-      const lane = space.xToLane(x) ?? (extraLaneHit !== null ? fromAuxIndex(extraLaneHit) : null);
-      if (lane === null) return;
-
-      const current = useEditorStore.getState().chart;
-      const updatedChart = deleteChartNoteAtLaneBeat(current, { lane, beatFloat });
-      if (updatedChart !== null) {
-        rightDragDeletedRef.current = true;
-        setChart(updatedChart);
+      const lane = space.xToUnifiedLane(x);
+      if (lane !== null) {
+        const beat = space.yToBeatRaw(y);
+        eraseGestureRef.current.erase(lane, beat.n / beat.d);
       }
       return;
     }
@@ -675,7 +736,7 @@ export function useCanvasEvents(
     }
   }, [
     mode, entityType, space,
-    isTimeInBounds, setChart,
+    isTimeInBounds,
     toSample, updateTouchMovement,
     routeViewportGestures, canvasRef, createModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
@@ -721,7 +782,10 @@ export function useCanvasEvents(
       return;
     }
 
-    if (e.button === 2) return;
+    if (e.button === 2) {
+      eraseGestureRef.current.finish();
+      return;
+    }
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -733,8 +797,10 @@ export function useCanvasEvents(
     // 드래그 삭제(발화) / 탭 삭제(무이동). delete 모드에서 hold가 있었을 때만.
     if (mode === 'delete' && holdDown) {
       if (shouldDeleteOnUp({ fired: holdFired, moved: holdMoved })) {
+        if (!eraseGestureRef.current.isActive) eraseGestureRef.current.begin();
         deleteAtPoint(x, y);
       }
+      eraseGestureRef.current.finish();
       rendererRef.current?.hideGhostNote();
       return;
     }
@@ -822,6 +888,7 @@ export function useCanvasEvents(
   ]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    eraseGestureRef.current.finish();
     if (e.pointerType === 'touch') {
       // recognizer.feed(cancel)이 hold를 버린다(holdEnd 반환은 무시 — 취소 경로는 결말을 쓰지 않는다).
       recognizerRef.current.feed(toSample(e, 'cancel'));
@@ -834,7 +901,8 @@ export function useCanvasEvents(
     rendererRef.current?.clearMoveOrigins();
     rendererRef.current?.clearBoxSelectRect();
     createModeRef.current?.cancelDrag();
-  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, toSample, rendererRef]);
+    selectModeRef.current?.cancel();
+  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, selectModeRef, toSample, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();
@@ -869,12 +937,13 @@ export function useCanvasEvents(
 
     // 통합 히트테스트 — 메인·보조 노트를 chart.notes 통합 인덱스로 한 경로에서 삭제 (RFD 0018 ④d)
     const currentChart = useEditorStore.getState().chart;
-    const result = DeleteMode.deleteNoteAtPoint(currentChart, space.hitTestUnifiedNote, x, y);
+    const result = DeleteMode.deleteNoteAtPoint(currentChart, space.hitTestUnifiedNote, x, y, useEditorStore.getState().selection.notes, addToast);
     if (result) {
       setChart(result);
       return;
     }
 
+    if (space.hitTestUnifiedNote(x, y) !== null) return;
     const zoneIdx = space.hitTestTrillZone(x, y);
     if (zoneIdx !== null) {
       const zoneDelete = deleteEmptyTrillZoneAtIndex(currentChart, zoneIdx);

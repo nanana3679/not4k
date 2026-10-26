@@ -5,7 +5,7 @@
 
 import { Container, Graphics } from "pixi.js";
 import { beatToMs } from "../../shared";
-import type { Chart, Beat, NoteEntity, BpmMarker, Lane } from "../../shared";
+import type { ChartDocument, Beat, DocumentNoteEntity, BpmMarker, Lane } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
@@ -21,7 +21,7 @@ import { drawTrillZoneHandles, drawNoteResizeHandle, drawResizeCap } from "./tri
 
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
-  readonly chart: Chart | null;
+  readonly chart: ChartDocument | null;
   readonly selectedNotes: Set<number>;
   readonly selectedTrillZones: Set<number>;
   readonly selectedRestZones: Set<number>;
@@ -31,7 +31,7 @@ export interface OverlayHost {
   readonly violatingTrillZoneIndices: Set<number>;
   readonly violatingRestZoneIndices: Set<number>;
   readonly violatingEventIndices: Set<number>;
-  readonly moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
+  readonly moveOrigins: { note: DocumentNoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
   readonly boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null;
   readonly scrollY: number;
   readonly contentOffsetX: number;
@@ -85,7 +85,7 @@ export class OverlayRenderer {
         }
 
         const gfx = new Graphics();
-        if (note.type === "trill") {
+        if (note.type === "trill" || (note.type === "point" && note.kind === "trill")) {
           const cx = x + LANE_WIDTH / 2;
           gfx.moveTo(cx, y - h / 2);
           gfx.lineTo(cx + w / 2, y);
@@ -318,7 +318,7 @@ export class OverlayRenderer {
         this.host.noteRenderer.drawRangeNoteOutline(topY, bottomY, x, laneW, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.host.hoverLayer);
       } else {
         const gfx = new Graphics();
-        if (note.type === "trill") {
+        if (note.type === "trill" || (note.type === "point" && note.kind === "trill")) {
           const cx = x + laneW / 2;
           gfx.moveTo(cx, startY - h / 2);
           gfx.lineTo(cx + w / 2, startY);

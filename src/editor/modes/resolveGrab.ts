@@ -48,11 +48,14 @@ export function resolveGrab(input: {
    * chart 전체를 주입하지 않고 술어 하나로 접는다(store·chart 무지 유지).
    */
   isRangeNote: (noteIndex: number) => boolean;
+  isScoreNote?: (noteIndex: number) => boolean;
 }): GrabTarget {
   const { x, y, space, sel, isRangeNote } = input;
 
   // 1. RangeNote 끝(리사이즈) — 끝 캡을 잡으면 리사이즈. 게이트: 선택됐거나 z-order 최상위.
   //    미선택 끝 노트를 리사이즈가 가로채면 끝 노트 클릭이 안 되므로 topmost로 제한.
+  const front = space.hitTestUnifiedNote(x, y);
+  if (front !== null && input.isScoreNote?.(front)) return { kind: 'note', index: front };
   const endHit = space.hitTestNoteEnd(x, y);
   if (endHit !== null && isRangeNote(endHit)) {
     if (sel.notes.has(endHit) || space.hitTestUnifiedNote(x, y) === endHit) {

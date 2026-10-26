@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Container, Graphics } from "pixi.js";
 import { beat } from "../../shared";
-import type { BpmMarker, Chart, Lane, TimeSignatureMarker } from "../../shared";
+import type { BpmMarker, ChartDocument, Lane, TimeSignatureMarker } from "../../shared";
 import { MinimapRenderer, type MinimapHost } from "./MinimapRenderer";
 
 /** 테스트에서 private 필드(_viewport·_violationTicks)에 접근하기 위한 캐스트. */
@@ -13,7 +13,7 @@ function internals(renderer: MinimapRenderer): MinimapRendererInternals {
   return renderer as unknown as MinimapRendererInternals;
 }
 
-function makeChart(noteCount: number): Chart {
+function makeChart(noteCount: number): ChartDocument {
   return {
     meta: {
       title: "perf",
@@ -39,7 +39,7 @@ function makeChart(noteCount: number): Chart {
 }
 
 function makeHost(
-  chart: Chart,
+  chart: ChartDocument,
   minimapLayer: Container,
   overrides: Partial<MinimapHost> = {},
 ): MinimapHost {
@@ -100,7 +100,7 @@ describe("MinimapRenderer", () => {
   });
 
   it("보조 레인(lane 5~8) 노트만 있는 차트는 노트 0개 차트와 미니맵 자식 수가 같다 (보조는 미니맵 미표시)", () => {
-    const render = (chart: Chart): number => {
+    const render = (chart: ChartDocument): number => {
       const minimapLayer = new Container();
       new MinimapRenderer(makeHost(chart, minimapLayer)).render();
       return minimapLayer.children.length;
@@ -120,14 +120,14 @@ describe("MinimapRenderer", () => {
   });
 
   it("restZone 2개(L3·L4 beat 8~10)가 있는 차트는 restZone 없는 차트보다 미니맵 자식이 2개(밴드 Graphics) 많다", () => {
-    const render = (chart: Chart): number => {
+    const render = (chart: ChartDocument): number => {
       const minimapLayer = new Container();
       new MinimapRenderer(makeHost(chart, minimapLayer)).render();
       return minimapLayer.children.length;
     };
 
     const withoutRest = makeChart(4);
-    const withRest: Chart = {
+    const withRest: ChartDocument = {
       ...makeChart(4),
       restZones: [
         { lane: 3 as Lane, beat: beat(8), endBeat: beat(10) },
@@ -139,20 +139,20 @@ describe("MinimapRenderer", () => {
   });
 
   it("restZones가 undefined인 차트(하위호환)도 render가 restZone 없는 차트와 동일하게 동작한다", () => {
-    const render = (chart: Chart): number => {
+    const render = (chart: ChartDocument): number => {
       const minimapLayer = new Container();
       new MinimapRenderer(makeHost(chart, minimapLayer)).render();
       return minimapLayer.children.length;
     };
 
     const noField = makeChart(4); // restZones 필드 자체가 없음
-    const emptyField: Chart = { ...makeChart(4), restZones: [] };
+    const emptyField: ChartDocument = { ...makeChart(4), restZones: [] };
 
     expect(render(noField)).toBe(render(emptyField));
   });
 
   it("위반 restZone Set만 주입해도 위반 틱 Graphics가 자식으로 1개 추가된다", () => {
-    const chart: Chart = {
+    const chart: ChartDocument = {
       ...makeChart(4),
       restZones: [{ lane: 2 as Lane, beat: beat(4), endBeat: beat(6) }],
     };
@@ -171,7 +171,7 @@ describe("MinimapRenderer", () => {
   });
 
   it("위반 노트·트릴존·이벤트 Set을 주입하면 위반 없는 렌더보다 자식이 정확히 1개(단일 batch Graphics) 많다", () => {
-    const chart: Chart = {
+    const chart: ChartDocument = {
       ...makeChart(4),
       trillZones: [{ lane: 1 as Lane, beat: beat(8), endBeat: beat(10) }],
     };
@@ -210,7 +210,7 @@ describe("MinimapRenderer", () => {
   it("화면(뷰포트) 밖 beat의 위반 노트도 미니맵 위반 틱으로 그려진다 (클리핑 없음)", () => {
     // scrollY 0에서 timeToY(600_000ms) = 20_000 → 캔버스(600px) 밖이지만
     // 미니맵은 전체 타임라인을 축소하므로 틱이 그려져야 한다.
-    const chart: Chart = {
+    const chart: ChartDocument = {
       ...makeChart(0),
       notes: [
         { type: "single", lane: 1 as Lane, beat: beat(1200) }, // 600_000ms @ 120BPM

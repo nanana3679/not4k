@@ -246,3 +246,24 @@ describe('performPlayTest', () => {
     expect(navigate).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('새 문서와 구형 테스트 플레이 경계', () => {
+  it('명시 main Point가 있어도 새 게임 port가 주입되지 않으면 안내 후 오디오·게임 상태·화면을 보존한다', () => {
+    const { params, game, navigate, pause, closeMenu, addToast } = buildParams({ isPlaying: true,
+      chart: { ...baseChart, notes: [{ type: 'point', kind: 'double', lane: 1, beat: beat(2), grace: true }] },
+    });
+    expect(performPlayTest(params)).toBe(false);
+    expect(addToast).toHaveBeenCalledWith('명시적 노트의 테스트 플레이는 새 게임 연결 후 사용할 수 있습니다', 'error');
+    expect(game.setChartData).not.toHaveBeenCalled(); expect(game.setAudioBuffer).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled(); expect(pause).not.toHaveBeenCalled(); expect(closeMenu).not.toHaveBeenCalled();
+  });
+
+  it('구형 main과 유효한 명시 aux는 기존 게임에 main만 전달하며 aux를 구형으로 cast하지 않는다', () => {
+    const main = { type: 'single' as const, lane: 1, beat: beat(0), grace: false };
+    const { params, game } = buildParams({ chart: { ...baseChart, notes: [main,
+      { type: 'release', count: 2, lane: 7, beat: beat(2), grace: true },
+    ] } });
+    expect(performPlayTest(params)).toBe(true);
+    expect(game.setChartData).toHaveBeenCalledWith({ ...baseChart, notes: [main] });
+  });
+});

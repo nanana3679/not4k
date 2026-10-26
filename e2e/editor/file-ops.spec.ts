@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
-import type { ChartJsonV3 } from '../../src/shared/chart';
+import type { ChartJsonV3, ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
 import {
   EDITOR_TEST_AUDIO_FILE,
   EDITOR_TEST_CHART_UPLOAD_PATH,
+  EDITOR_TEST_EXTRA_UPLOAD_PATH,
   editorTestChart,
   openEditor,
   readUploadedJson,
@@ -10,12 +11,12 @@ import {
 } from './editorTestSetup';
 
 /** Save chart를 누르고 저장이 끝난 뒤 Storage에 업로드된 차트 JSON을 돌려준다. */
-async function saveChart(page: Page, editor: OpenedEditor): Promise<ChartJsonV3> {
+async function saveChart(page: Page, editor: OpenedEditor): Promise<ChartJsonV3 | ChartJsonV4> {
   await page.getByRole('button', { name: 'Save chart', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
   const upload = editor.supabaseWrites.find((write) => write.method === 'POST' && write.path === EDITOR_TEST_CHART_UPLOAD_PATH);
   expect(upload, `${EDITOR_TEST_CHART_UPLOAD_PATH} 업로드가 없다`).toBeDefined();
-  return readUploadedJson(upload!) as ChartJsonV3;
+  return readUploadedJson(upload!) as ChartJsonV3 | ChartJsonV4;
 }
 
 test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
@@ -39,6 +40,80 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     const uploaded = await saveChart(page, editor);
 
     expect(uploaded.notes).toEqual(notes);
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('v3 메인과 version 999 보조 파일을 열면 Error를 보이고 타임라인·Save chart·업로드가 없다', async ({ page }) => {
+    const editor = await openEditor(page, {
+      chart: editorTestChart([{ type: 'single', lane: 1, beat: '0' }]),
+      extra: {
+        version: 999,
+        extraNotes: [{ type: 'single', extraLane: 1, beat: '1', grace: true }],
+        extraLaneCount: 1,
+      },
+      expectedLoadState: 'error',
+    });
+
+    await expect(page.getByRole('heading', { name: 'Error', exact: true })).toBeVisible();
+    await expect(page.getByText('차트 파싱 실패: 지원하지 않는 version: 999', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Back to Songs', exact: true })).toBeVisible();
+    await expect(page.locator('canvas')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toHaveCount(0);
+    expect(editor.supabaseWrites).toEqual([]);
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('구형 보조 노트의 grace·holdOnly가 true·false이면 로드 후 Save chart의 보조 업로드에도 값을 보존한다', async ({ page }) => {
+    const chart = editorTestChart([{ type: 'single', lane: 1, beat: '0' }]);
+    const extra: ExtraNotesJson = {
+      extraNotes: [
+        { type: 'single', extraLane: 1, beat: '0', grace: true },
+        { type: 'long', extraLane: 1, beat: '0', endBeat: '2', holdOnly: true },
+        { type: 'double', extraLane: 2, beat: '4', grace: false },
+        { type: 'doubleLong', extraLane: 2, beat: '4', endBeat: '6', holdOnly: false },
+      ],
+      extraLaneCount: 2,
+    };
+    const editor = await openEditor(page, { chart, extra });
+
+    const uploaded = await saveChart(page, editor);
+
+    expect(uploaded.notes).toEqual(chart.notes);
+    const extraUpload = editor.supabaseWrites.find((write) => write.method === 'POST' && write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH);
+    expect(extraUpload, `${EDITOR_TEST_EXTRA_UPLOAD_PATH} 업로드가 없다`).toBeDefined();
+    expect(readUploadedJson(extraUpload!)).toEqual(extra);
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('보조 파일이 404이면 v3 메인에 내장된 보조 노트 2개를 열고 Save chart로 별도 파일에 보존한다', async ({ page }) => {
+    const embeddedExtra = {
+      extraNotes: [
+        { type: 'single', extraLane: 2, beat: '0', grace: true },
+        { type: 'long', extraLane: 2, beat: '0', endBeat: '2', holdOnly: true },
+      ],
+      extraLaneCount: 2,
+    } satisfies ExtraNotesJson;
+    const chart = { ...editorTestChart([{ type: 'double', lane: 3, beat: '4' }]), ...embeddedExtra };
+    const editor = await openEditor(page, { chart });
+
+    const uploaded = await saveChart(page, editor);
+
+    expect(uploaded.notes).toEqual(chart.notes);
+    const extraUpload = editor.supabaseWrites.find((write) => write.method === 'POST' && write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH);
+    expect(extraUpload, `${EDITOR_TEST_EXTRA_UPLOAD_PATH} 업로드가 없다`).toBeDefined();
+    expect(readUploadedJson(extraUpload!)).toEqual(embeddedExtra);
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('별도 aux 응답이 빈 문자열이면 v3 메인 내장 aux의 false·holdOnly·레인 수를 저장에도 보존한다', async ({ page }) => {
+    const embedded: ExtraNotesJson = { extraLaneCount: 3, extraNotes: [
+      { type: 'double', extraLane: 2, beat: '0', grace: false },
+      { type: 'doubleLong', extraLane: 2, beat: '0', endBeat: '2', holdOnly: true },
+    ] };
+    const editor = await openEditor(page, { chart: { ...editorTestChart(), ...embedded, version: 3 }, extra: '' });
+    await saveChart(page, editor);
+    const upload = editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!;
+    expect(readUploadedJson(upload)).toEqual(embedded);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 

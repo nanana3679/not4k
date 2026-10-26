@@ -9,7 +9,7 @@
  * 뷰포트 클리핑 없이 전부 계산한다.
  */
 
-import type { NoteEntity, TrillZone, RestZone, ChartEvent, BpmMarker, Beat } from "../../shared/types";
+import type { DocumentNoteEntity, TrillZone, RestZone, ChartEvent, BpmMarker, Beat } from "../../shared/types";
 import { beatToMs } from "../../shared/timing";
 
 export interface MinimapViolationRect {
@@ -29,7 +29,7 @@ export interface MinimapViolationParams {
   violatingTrillZoneIndices: ReadonlySet<number>;
   violatingRestZoneIndices: ReadonlySet<number>;
   violatingEventIndices: ReadonlySet<number>;
-  notes: readonly NoteEntity[];
+  notes: readonly DocumentNoteEntity[];
   trillZones: readonly TrillZone[];
   restZones: readonly RestZone[];
   events: readonly ChartEvent[];

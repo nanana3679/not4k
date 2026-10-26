@@ -1,3 +1,4 @@
+import { editorChartErrors } from '../documentValidation';
 /**
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
@@ -6,7 +7,7 @@ import { useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import { serializeChart, serializeExtraNotes, validateChart, buildViolationList, mainNotes, auxNotesAsExtra } from '../../shared';
+import {serializeChart, serializeExtraNotes,  buildViolationList, mainNotes, auxNotesAsExtra, isExplicitNote} from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
@@ -567,8 +568,8 @@ interface EditorToolbarProps {
   onOpenCustomSnap: () => void;
 }
 
-const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'trillZone', 'restZone'];
-const compactNoteTypeOptions: EntityType[] = ['single', 'double', 'trillZone', 'restZone'];
+const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'release', 'doubleRelease', 'sustain', 'trillZone', 'restZone'];
+const compactNoteTypeOptions: EntityType[] = noteTypeOptions;
 const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop', 'tutorialInput', 'tutorialDiagram'];
 const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
 const extraLaneOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -576,8 +577,11 @@ const extraLaneOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 const entityLabels: Record<EntityType, string> = {
   single: 'Single',
   double: 'Double',
-  long: 'Long',
-  doubleLong: 'D.Long',
+  release: 'Release 1',
+  doubleRelease: 'Release 2',
+  sustain: 'Sustain',
+  long: 'Body 1',
+  doubleLong: 'Body 2',
   trillZone: 'Trill',
   restZone: 'Rest',
   bpm: 'BPM',
@@ -671,7 +675,7 @@ export function EditorToolbar({
   // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.
   // 보조 레인 위반도 동일하게 본다(RFD 0018 §3-6) — performPlayTest 게이트와 같은 입력.
   // 같은 결과를 위반 배지·리스트 팝오버(§7 위반 시각화 언어)도 공유한다.
-  const violationItems = buildViolationList(validateChart({
+  const violationItems = buildViolationList(editorChartErrors({
     notes: chart.notes,
     trillZones: chart.trillZones,
     restZones: chart.restZones,
@@ -683,6 +687,7 @@ export function EditorToolbar({
   // 자기 컴포넌트 대상 조건부 보정이라 다음 렌더에 조건이 풀려 무한루프 없음.
   if (violationCount === 0 && showViolationList) setShowViolationList(false);
   const playTestDisabled = violationCount > 0;
+  const hasExplicitMain = mainNotes(chart.notes).some(isExplicitNote);
   const playTestDisabledTitle = `배치 제약 위반 ${violationCount}건을 해소한 뒤 플레이할 수 있습니다`;
 
   const compactIconStyle = {
@@ -1212,14 +1217,14 @@ export function EditorToolbar({
           <optgroup label="Notes">
             {noteTypeOptions.map((type) => (
               <option key={type} value={type}>
-                {type}
+                {entityLabels[type]}
               </option>
             ))}
           </optgroup>
           <optgroup label="Events">
             {eventTypeOptions.map((type) => (
               <option key={type} value={type}>
-                {type}
+                {entityLabels[type]}
               </option>
             ))}
           </optgroup>
@@ -1229,7 +1234,7 @@ export function EditorToolbar({
         <button
           style={{ ...styles.button, ...(graceMode ? styles.buttonActive : {}) }}
           onClick={() => setGraceMode(!graceMode)}
-          title="Grace mode: 배치 시 면제 플래그 부여 (포인트→grace, 싱글롱→hold-only)"
+          title="Grace mode: Point·릴리즈에 Grace 적용 (바디·유지 표식 제외)"
         >
           Grace
         </button>
@@ -1310,7 +1315,7 @@ export function EditorToolbar({
               disabled={playTestDisabled}
               title={playTestDisabled ? playTestDisabledTitle : undefined}
             >
-              처음부터 시작
+              {hasExplicitMain ? '처음부터 시작 · 명시 차트' : '처음부터 시작'}
             </button>
             <button
               style={{ ...styles.compactMenuButton, ...styles.compactPlayButton, ...(playTestDisabled ? styles.compactButtonDisabled : {}) }}
@@ -1328,7 +1333,7 @@ export function EditorToolbar({
 
       {renderViolationBadge()}
 
-      {/* Save Chart (아이콘 + 변경사항 칩) */}
+      {/* Save ChartDocument (아이콘 + 변경사항 칩) */}
       <button
         style={{
           ...getIconButtonStyle(false, saving || deleting),

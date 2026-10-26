@@ -108,3 +108,40 @@ describe("fetchEditorExtraText", () => {
     await expect(fetchEditorExtraText("aux", failing)).rejects.toThrow("Failed to fetch");
   });
 });
+
+describe('loadEditorChartAsset 문서 로드', () => {
+  it('v4 혼합 main과 의미 위반 aux sustain도 원본 배열 순서·false·수량과 함께 수리용으로 읽는다', async () => {
+    const { loadEditorChartAsset } = await import('./chartAssetLoad');
+    const loaded = loadEditorChartAsset(JSON.stringify({ ...main, version: 4, notes: [
+      { type: 'single', lane: 1, beat: '8', grace: false },
+      { type: 'release', count: 2, lane: 2, beat: '4', grace: false },
+    ] }), JSON.stringify({ version: 4, extraLaneCount: 4, extraNotes: [
+      { type: 'sustain', count: 2, extraLane: 3, beat: '2' },
+    ] }));
+    expect(loaded.chart.notes).toEqual([
+      { type: 'single', lane: 1, beat: beat(8), grace: false },
+      { type: 'release', count: 2, lane: 2, beat: beat(4), grace: false },
+      { type: 'sustain', count: 2, lane: 7, beat: beat(2) },
+    ]);
+    expect(loaded.extraLaneCount).toBe(4);
+  });
+
+  it('별도 aux가 명시적으로 비어 있으면 내장 aux를 다시 끌어오지 않는다', async () => {
+    const { loadEditorChartAsset } = await import('./chartAssetLoad');
+    expect(loadEditorChartAsset(JSON.stringify({ ...main, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }] }),
+      JSON.stringify({ extraNotes: [], extraLaneCount: 2 })).chart.notes).toEqual([]);
+  });
+
+  it.each([JSON.stringify({ version: 999, extraNotes: [] }), JSON.stringify({ version: 4, extraNotes: [{ type: 'future', extraLane: 1, beat: '0' }] })])('인식한 aux 형식 오류 %s는 빈 자료로 열지 않고 실패를 전달한다', async text => {
+    const { loadEditorChartAsset } = await import('./chartAssetLoad');
+    expect(() => loadEditorChartAsset(JSON.stringify(main), text)).toThrow();
+  });
+});
+
+  it('document loader도 빈 aux 응답은 메인 내장 Grace 보조 노트로 fallback하고 과거 손상 JSON은 무시한다', async () => {
+    const { loadEditorChartAsset } = await import('./chartAssetLoad');
+    const chart = JSON.stringify({ ...main, extraNotes: [{ type: 'double', extraLane: 2, beat: '2', grace: false }], extraLaneCount: 3 });
+    expect(loadEditorChartAsset(chart, '').chart.notes).toEqual([{ type: 'double', lane: 6, beat: beat(2), grace: false }]);
+    expect(loadEditorChartAsset(chart, '').extraLaneCount).toBe(3);
+    expect(loadEditorChartAsset(JSON.stringify(main), 'not json').chart.notes).toEqual([]);
+  });

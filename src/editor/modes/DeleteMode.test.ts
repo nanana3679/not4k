@@ -17,11 +17,11 @@ import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
 import { beat } from "../../shared";
 import { hitTestNoteAt, hitTestRestZoneAt } from "../timeline/hitTest";
-import type { Chart, NoteEntity, RestZone, Beat, Lane } from "../../shared";
+import type { ChartDocument, DocumentNoteEntity, RestZone, Beat, Lane } from "../../shared";
 
 vi.mock("../../shared/toast", () => ({ showToast: vi.fn() }));
 
-function fullChart(notes: NoteEntity[], restZones: RestZone[] = []): Chart {
+function fullChart(notes: DocumentNoteEntity[], restZones: RestZone[] = []): ChartDocument {
   return {
     meta: {
       title: "Test",
@@ -43,7 +43,7 @@ function fullChart(notes: NoteEntity[], restZones: RestZone[] = []): Chart {
   };
 }
 
-function seedChart(notes: NoteEntity[], restZones: RestZone[] = []) {
+function seedChart(notes: DocumentNoteEntity[], restZones: RestZone[] = []) {
   useEditorStore.setState({
     chart: fullChart(notes, restZones),
     selection: emptySelection(),
@@ -79,7 +79,7 @@ const hitTestRestZone = (x: number, y: number): number | null => {
 
 function wireDeleteModeAsApp(): DeleteMode {
   return new DeleteMode(useEditorStore.getState().chart, {
-    onChartUpdate: (c: Chart) => useEditorStore.getState().setChart(c),
+    onChartUpdate: (c: ChartDocument) => useEditorStore.getState().setChart(c),
     space: makeFakeSpace({ hitTestUnifiedNote, hitTestRestZone }),
   });
 }
@@ -88,7 +88,7 @@ function wireDeleteModeAsApp(): DeleteMode {
 function wireSelectMode(): SelectMode {
   const modeRef: { current: SelectMode | null } = { current: null };
   const cb = {
-    onChartUpdate: (c: Chart) => {
+    onChartUpdate: (c: ChartDocument) => {
       useEditorStore.getState().setChart(c);
       modeRef.current?.setChart(useEditorStore.getState().chart);
     },
@@ -114,7 +114,7 @@ function wireSelectMode(): SelectMode {
   return mode;
 }
 
-const noteKey = (n: NoteEntity) => `${n.type}:${n.lane}@${n.beat.n}/${n.beat.d}`;
+const noteKey = (n: DocumentNoteEntity) => `${n.type}:${n.lane}@${n.beat.n}/${n.beat.d}`;
 
 beforeEach(() => {
   vi.clearAllMocks();

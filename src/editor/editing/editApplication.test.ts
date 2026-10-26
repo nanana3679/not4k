@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Chart, Lane, NoteEntity, TrillZone, RestZone } from "../../shared";
+import type { ChartDocument, Lane, DocumentNoteEntity, TrillZone, RestZone } from "../../shared";
 import { beat } from "../../shared";
 import {
   deleteChartNoteAtIndex,
@@ -10,10 +10,10 @@ import {
 } from "./editApplication";
 
 function makeChart(input: {
-  notes?: NoteEntity[];
+  notes?: DocumentNoteEntity[];
   trillZones?: TrillZone[];
   restZones?: RestZone[];
-} = {}): Chart {
+} = {}): ChartDocument {
   return {
     meta: {
       title: "Test",

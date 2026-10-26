@@ -3,6 +3,7 @@
  */
 
 import { useEffect } from 'react';
+import { toggleNoteGrace } from '../editing/noteProperties';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { SelectMode } from '../modes';
@@ -34,6 +35,14 @@ export function useEditorKeyboard(
       // Disable shortcuts while focused editor UI is open.
       if (editingMarker || showMetaModal || showCustomSnapModal || showDeleteConfirm || showLeaveConfirm || showSaveAsModal || showOffsetToolbar || validationErrorsCount > 0) return;
 
+      // 누른 채 들어온 독립 명령은 삭제를 먼저 확정한다. 뒤늦은 Esc는 그 명령을 취소하지 않는다.
+      const key = e.key.toLowerCase();
+      if (useEditorStore.getState().editTransaction?.kind === 'erase'
+        && (((e.ctrlKey || e.metaKey) && ['z', 'y', 'a', 'c', 'x', 'v'].includes(key))
+          || ['c', 's', 'd', 'g', 'delete', 'backspace', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key))) {
+        useEditorStore.getState().commitEditTransaction();
+      }
+
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
         const state = useEditorStore.getState();
@@ -56,6 +65,12 @@ export function useEditorKeyboard(
           state.redo();
           addToast('Redo', 'info');
         }
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && mode === 'select') {
+        e.preventDefault();
+        selectModeRef.current?.selectAll();
         return;
       }
 
@@ -119,18 +134,9 @@ export function useEditorKeyboard(
           let toggled = 0;
           for (const idx of selected) {
             const note = newNotes[idx];
-            if (note && !('endBeat' in note)) {
-              const pn = { ...note } as import('../../shared').PointNote;
-              pn.grace = !pn.grace;
-              if (!pn.grace) delete pn.grace;
-              newNotes[idx] = pn;
-              toggled++;
-            } else if (note && 'endBeat' in note && (note.type === 'long' || note.type === 'doubleLong')) {
-              // 싱글·더블 롱노트: hold-only 토글 (grace와 동일한 G 조작)
-              const rn = { ...note } as import('../../shared').RangeNote;
-              rn.holdOnly = !rn.holdOnly;
-              if (!rn.holdOnly) delete rn.holdOnly;
-              newNotes[idx] = rn;
+            const updated = note && toggleNoteGrace(note);
+            if (updated) {
+              newNotes[idx] = updated;
               toggled++;
             }
           }
@@ -160,6 +166,13 @@ export function useEditorKeyboard(
         if (e.key === 'Escape' && isPaste) {
           e.preventDefault();
           selectModeRef.current.cancelPaste();
+          return;
+        }
+
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          selectModeRef.current.cancel();
+          useEditorStore.getState().clearSelection();
           return;
         }
 

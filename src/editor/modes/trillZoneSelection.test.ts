@@ -15,7 +15,7 @@ import {
   selectionFromBox,
 } from "./trillZoneSelection";
 import { beat, beatToFloat } from "../../shared";
-import type { NoteEntity, RestZone, TrillZone } from "../../shared";
+import type { DocumentNoteEntity, RestZone, TrillZone } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // trillZoneOverlapsNote
@@ -61,7 +61,7 @@ describe("getSelectedTrillZoneIndices", () => {
     { lane: 1, beat: beat(2), endBeat: beat(4) }, // index 0
     { lane: 2, beat: beat(6), endBeat: beat(8) }, // index 1
   ];
-  const notes: NoteEntity[] = [
+  const notes: DocumentNoteEntity[] = [
     { type: "single", lane: 1, beat: beat(3) }, // index 0 → zone 0
     { type: "single", lane: 2, beat: beat(7) }, // index 1 → zone 1
     { type: "single", lane: 1, beat: beat(10) }, // index 2 → 어느 구간도 아님
@@ -140,7 +140,7 @@ describe("classifySelection / canAddNoteToSelection / selectionBlockReason", () 
     { lane: 1, beat: beat(2), endBeat: beat(4) }, // index 0
     { lane: 2, beat: beat(6), endBeat: beat(8) }, // index 1
   ];
-  const notes: NoteEntity[] = [
+  const notes: DocumentNoteEntity[] = [
     { type: "trill", lane: 1, beat: beat(2) },   // 0: zone 0
     { type: "trill", lane: 1, beat: beat(3) },   // 1: zone 0
     { type: "trill", lane: 2, beat: beat(7) },   // 2: zone 1
@@ -184,7 +184,7 @@ describe("filterHomogeneousSelection", () => {
     { lane: 1, beat: beat(2), endBeat: beat(4) }, // index 0
     { lane: 2, beat: beat(6), endBeat: beat(8) }, // index 1
   ];
-  const notes: NoteEntity[] = [
+  const notes: DocumentNoteEntity[] = [
     { type: "trill", lane: 1, beat: beat(2) },   // 0: zone 0
     { type: "single", lane: 3, beat: beat(1) },  // 1: normal
     { type: "trill", lane: 1, beat: beat(3) },   // 2: zone 0
@@ -205,7 +205,7 @@ describe("filterHomogeneousSelection", () => {
   });
 
   it("일반만 있으면 모두 유지", () => {
-    const onlyNormal: NoteEntity[] = [
+    const onlyNormal: DocumentNoteEntity[] = [
       { type: "single", lane: 1, beat: beat(1) },
       { type: "single", lane: 2, beat: beat(2) },
     ];
@@ -316,7 +316,7 @@ describe("selectionFromBox", () => {
     { lane: 1, beat: beat(2), endBeat: beat(4) }, // 구간0
     { lane: 2, beat: beat(2), endBeat: beat(4) }, // 구간1
   ];
-  const notes: NoteEntity[] = [
+  const notes: DocumentNoteEntity[] = [
     { type: "trill", lane: 1, beat: beat(2) },   // 0: 구간0
     { type: "trill", lane: 1, beat: beat(3) },   // 1: 구간0
     { type: "trill", lane: 2, beat: beat(3) },   // 2: 구간1
@@ -371,7 +371,7 @@ describe("selectionFromBox", () => {
   });
 
   it("어느 zone에도 안 속한 고아 트릴 노트도 박스 안이면 개별 선택된다", () => {
-    const orphanNotes: NoteEntity[] = [
+    const orphanNotes: DocumentNoteEntity[] = [
       { type: "trill", lane: 3, beat: beat(3) }, // 0: 고아 트릴 (zone 없음)
     ];
     const sel = selectionFromBox(zones, orphanNotes, [], enclosingBox);

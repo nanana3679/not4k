@@ -1,5 +1,6 @@
-import type { Chart, Lane, NoteEntity, RangeNote } from "../../shared";
+import type { ChartDocument, Lane, DocumentNoteEntity, RangeNote } from "../../shared";
 import { beatEq } from "../../shared";
+import { bodyDeletionBlockReason } from './explicitEditing';
 
 const DEFAULT_POINT_TOLERANCE = 1 / 16;
 
@@ -7,7 +8,7 @@ function beatFloatOf(beat: { n: number; d: number }): number {
   return beat.n / beat.d;
 }
 
-function isRangeNote(note: NoteEntity): note is RangeNote {
+function isRangeNote(note: DocumentNoteEntity): note is RangeNote {
   return (
     note.type === "long" ||
     note.type === "doubleLong" ||
@@ -26,7 +27,7 @@ function isMatchingRangeZone(
   );
 }
 
-export function deleteChartNoteAtIndex(chart: Chart, index: number): Chart | null {
+export function deleteChartNoteAtIndex(chart: ChartDocument, index: number): ChartDocument | null {
   if (index < 0 || index >= chart.notes.length) return null;
   return deleteChartNotesAtIndices(chart, new Set([index]));
 }
@@ -39,7 +40,7 @@ export function deleteChartNoteAtIndex(chart: Chart, index: number): Chart | nul
  * 한 단위이므로 삭제도 한 단위로 대칭시킨다.)
  */
 export function expandTrillPairIndices(
-  notes: readonly NoteEntity[],
+  notes: readonly DocumentNoteEntity[],
   indices: ReadonlySet<number>,
 ): Set<number> {
   const expanded = new Set(indices);
@@ -60,14 +61,15 @@ export function expandTrillPairIndices(
   return expanded;
 }
 
-export function deleteChartNotesAtIndices(chart: Chart, indices: ReadonlySet<number>): Chart {
+export function deleteChartNotesAtIndices(chart: ChartDocument, indices: ReadonlySet<number>): ChartDocument {
   if (indices.size === 0) return chart;
 
   const expandedIndices = expandTrillPairIndices(chart.notes, indices);
+  if (bodyDeletionBlockReason(chart.notes, expandedIndices)) return chart;
 
   const selectedNotes = Array.from(expandedIndices)
     .map((index) => chart.notes[index])
-    .filter((note): note is NoteEntity => Boolean(note));
+    .filter((note): note is DocumentNoteEntity => Boolean(note));
 
   const notes = chart.notes.filter((_note, index) => !expandedIndices.has(index));
   const trillZones = chart.trillZones.filter((zone) => (
@@ -82,14 +84,14 @@ export function deleteChartNotesAtIndices(chart: Chart, indices: ReadonlySet<num
 }
 
 export function deleteChartNoteAtLaneBeat(
-  chart: Chart,
+  chart: ChartDocument,
   input: {
     /** 통합 lane — 메인 1..4, 보조 5+ 모두 이 한 경로로 삭제한다 (RFD 0018 ④d) */
     lane: number;
     beatFloat: number;
     pointTolerance?: number;
   },
-): Chart | null {
+): ChartDocument | null {
   const tolerance = input.pointTolerance ?? DEFAULT_POINT_TOLERANCE;
 
   for (let i = 0; i < chart.notes.length; i++) {
@@ -97,7 +99,7 @@ export function deleteChartNoteAtLaneBeat(
     if (note.lane !== input.lane) continue;
 
     const startBeat = beatFloatOf(note.beat);
-    if (isRangeNote(note)) {
+    if ("endBeat" in note) {
       const endBeat = beatFloatOf(note.endBeat);
       if (input.beatFloat >= startBeat && input.beatFloat <= endBeat) {
         return deleteChartNoteAtIndex(chart, i);
@@ -111,9 +113,9 @@ export function deleteChartNoteAtLaneBeat(
 }
 
 export function deleteEmptyTrillZoneAtIndex(
-  chart: Chart,
+  chart: ChartDocument,
   index: number,
-): { chart: Chart | null; blockedReason?: string } {
+): { chart: ChartDocument | null; blockedReason?: string } {
   const zone = chart.trillZones[index];
   if (!zone) return { chart: null };
 
@@ -143,7 +145,7 @@ export function deleteEmptyTrillZoneAtIndex(
  * restZone은 내부 노트 개념이 없으므로(시각 안내 + 배치 제약 전용) empty 가드 없이
  * 해당 인덱스만 filter-out한 새 chart를 반환한다. 인덱스가 무효면 null.
  */
-export function deleteRestZoneAtIndex(chart: Chart, index: number): Chart | null {
+export function deleteRestZoneAtIndex(chart: ChartDocument, index: number): ChartDocument | null {
   const restZones = chart.restZones ?? [];
   if (!restZones[index]) return null;
 

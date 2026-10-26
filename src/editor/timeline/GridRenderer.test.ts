@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Container, Graphics } from "pixi.js";
 import type { GraphicsPath, Polygon } from "pixi.js";
 import { beat } from "../../shared";
-import type { Chart, ChartEvent, RestZone, BpmMarker, TimeSignatureMarker } from "../../shared";
+import type { ChartDocument, ChartEvent, RestZone, BpmMarker, TimeSignatureMarker } from "../../shared";
 import { NOTE_HEIGHT, LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, COLORS } from "./constants";
 import { GridRenderer } from "./GridRenderer";
 import type { GridHost } from "./GridRenderer";
@@ -24,7 +24,7 @@ vi.mock("pixi.js", async (importOriginal) => {
   return { ...actual, Text: TextStub };
 });
 
-function makeChart(events: ChartEvent[], restZones?: RestZone[]): Chart {
+function makeChart(events: ChartEvent[], restZones?: RestZone[]): ChartDocument {
   return {
     meta: {
       title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1,
@@ -37,7 +37,7 @@ function makeChart(events: ChartEvent[], restZones?: RestZone[]): Chart {
   };
 }
 
-function makeHost(chart: Chart): GridHost {
+function makeHost(chart: ChartDocument): GridHost {
   const bpmMarkers: BpmMarker[] = [{ beat: beat(0), bpm: 120 }];
   const timeSignatures: TimeSignatureMarker[] = [{ measure: 0, beatPerMeasure: beat(4) }];
   return {

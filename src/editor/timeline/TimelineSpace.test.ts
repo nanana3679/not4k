@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createTimelineSpace, type TimelineSpaceSource } from "./TimelineSpace";
 import { beat } from "../../shared";
-import type { Chart, NoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
+import type { ChartDocument, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // fake source — 가변 필드로 라이브 읽기(no-stale)를 검증한다 (mock 아님, 진짜 조립)
 // ---------------------------------------------------------------------------
 
-function makeChart(overrides?: Partial<Chart>): Chart {
+function makeChart(overrides?: Partial<ChartDocument>): ChartDocument {
   return {
     meta: {
       title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1,
@@ -24,7 +24,7 @@ function makeChart(overrides?: Partial<Chart>): Chart {
 }
 
 interface FakeSourceState {
-  chart: Chart;
+  chart: ChartDocument;
   snapDivision: number;
   selectedNotes: Set<number>;
   extraLaneCount: number;
@@ -81,7 +81,7 @@ describe("TimelineSpace — 라이브 읽기 (no-stale)", () => {
   });
 
   it("source의 selectedNotes에 노트를 넣으면 space 재생성 없이 겹친 노트 중 선택된 쪽이 우선 히트", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1, beat: beat(2, 1) },
       { type: "single", lane: 1, beat: beat(2, 1) },
     ];
@@ -229,7 +229,7 @@ describe("TimelineSpace — 히트테스트", () => {
   });
 
   it("hitTestUnifiedNote: 보조 노트(lane 5)도 x=250에서 chart.notes 통합 인덱스 1을 반환", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1, beat: beat(0, 1) },
       { type: "single", lane: 5, beat: beat(2, 1) },
     ];
@@ -241,7 +241,7 @@ describe("TimelineSpace — 히트테스트", () => {
   });
 
   it("hitTestExtraNote: 보조 노트(lane 5)는 aux 파생 배열 인덱스 0을 반환, 다른 보조 레인은 미스", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1, beat: beat(2, 1) }, // 메인 — aux 배열에 없음
       { type: "single", lane: 5, beat: beat(2, 1) },
     ];
@@ -252,7 +252,7 @@ describe("TimelineSpace — 히트테스트", () => {
   });
 
   it("hitTestNoteEnd: 롱노트 endBeat=2를 y=1000에서 히트(tolerance 1/16), y=1100(0.2박 차이)은 미스", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "long", lane: 1, beat: beat(0, 1), endBeat: beat(2, 1) },
     ];
     const { source } = makeFakeSource({ chart: makeChart({ notes }) });

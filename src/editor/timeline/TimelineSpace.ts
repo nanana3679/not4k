@@ -34,14 +34,14 @@ import {
   fromAuxIndex,
   extractBpmMarkers,
 } from "../../shared";
-import type { Beat, Lane, BpmMarker, Chart, ChartEvent } from "../../shared";
+import type { Beat, Lane, BpmMarker, ChartDocument, ChartEvent } from "../../shared";
 
 /**
  * TimelineSpace가 의존하는 외부 사실의 주입 통로.
  * 어댑터(useTimelineSpace)가 store·renderer를 여기에 접어 넘긴다.
  */
 export interface TimelineSpaceSource {
-  getChart(): Chart;
+  getChart(): ChartDocument;
   getSnapDivision(): number;
   getSelectedNotes(): Set<number>;
   getExtraLaneCount(): number;
@@ -175,12 +175,14 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
   };
 
   const hitTestNoteEnd = (x: number, y: number): number | null => {
-    const lane = xToLane(x);
+    const lane = xToUnifiedLane(x);
     if (lane === null) return null;
     const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 16;
     const notes = source.getChart().notes;
+    const front = hitTestNoteAt(notes, lane, testBeatFloat);
+    if (front !== null && (notes[front].type === "point" || notes[front].type === "release" || notes[front].type === "sustain")) return null;
     for (let i = 0; i < notes.length; i++) {
       const note = notes[i];
       if (note.lane !== lane) continue;

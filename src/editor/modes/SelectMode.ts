@@ -1,5 +1,7 @@
-import type { Chart, NoteEntity, RangeNote, Beat } from "../../shared";
-import { validateChartStructural, beatToFloat, isVisibleLane, isMainLane } from "../../shared";
+import { bodyCompanionIndices, bodyDeletionBlockReason, reconcileMovedSustains, resizeExplicitBodies } from '../editing/explicitEditing';
+import { editorChartErrors } from "../documentValidation";
+import type { ChartDocument, DocumentNoteEntity, RangeNote, BodyNote, Beat } from "../../shared";
+import { validateChartDocumentStructural, beatToFloat, isVisibleLane, isMainLane } from "../../shared";
 import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
 import {
   deleteChartNotesAtIndices,
@@ -31,24 +33,27 @@ import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDat
  * isVisibleLane(1..4+extraLaneCount)으로 클램프한다(메인4↔보조5 한 칸 연속).
  */
 export interface SelectModeCallbacks {
-  onChartUpdate: (chart: Chart) => void;
+  onChartUpdate: (chart: ChartDocument, transaction?: symbol) => void;
   /** 선택의 소유자(SelectionSlice)에서 현재 선택을 읽는다. 사본 저장 금지. */
   getSelection: () => Selection;
-  /** 선택 전체 값을 정규화+해제 게이트(§3-5)를 지나 커밋한다. 게이트 거부 시 false. */
+  /** 선택 전체 값을 정규화해 커밋한다. */
   setSelection: (sel: Selection) => boolean;
-  /** 드래그 프리뷰 전용 — 정규화만, §3-5 게이트 미적용 (박스 프레임 등 미확정 상태). */
+  /** 드래그 프리뷰의 선택을 정규화한다. 취소하면 시작 전 선택을 복구한다. */
   setSelectionTransient: (sel: Selection) => void;
   /** 좌표 공간(변환·스냅·히트테스트) — TimelineSpace deep module 주입 */
   space: TimelineSpace;
   /** 현재 보조 레인 수 — 레인 이동 클램프(isVisibleLane)에 쓴다 */
   getExtraLaneCount?: () => number;
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) */
-  setExtraLaneCount?: (count: number) => void;
+  setExtraLaneCount?: (count: number, transaction?: symbol) => void;
   onWarn?: (msg: string) => void;
+  beginTransaction?: () => symbol | null;
+  commitTransaction?: (transaction: symbol) => void;
+  cancelTransaction?: (transaction: symbol) => void;
 }
 
 export class SelectMode implements EditorMode {
-  private chart: Chart;
+  private chart: ChartDocument;
   private callbacks: SelectModeCallbacks;
 
   // Drag state
@@ -82,12 +87,14 @@ export class SelectMode implements EditorMode {
   private resizingIndex: number | null = null;
   private resizingOriginalEndBeat: Beat | null = null;
   private resizingOriginalBeat: Beat | null = null;
+  private resizeOriginalNotes: DocumentNoteEntity[] | null = null;
+  private transactionToken: symbol | null = null;
+  private originalSustainCounts = new Map<number, 1 | 2>();
 
   // Clipboard & paste state
   private clipboardManager: ClipboardManager = new ClipboardManager();
 
-  // 박스 드래그 시작 전 선택 스냅샷 — §3-5 "전이 = 확정된 선택 변경".
-  // 박스 프레임은 프리뷰(transient)로 커밋되고, 종료 시 (시작 전 → 최종) 전이 하나로 게이트한다.
+  // 박스 드래그 취소 시 복구할 시작 전 선택.
   private preDragSelection: Selection | null = null;
 
   // 미선택 존 몸통에서 시작한 박스의 탭 후보(§6-6) — up에서 움직임이 없었으면
@@ -100,7 +107,7 @@ export class SelectMode implements EditorMode {
   // 포인터가 레인 밖에 있는 동안 레인 오프셋을 고정하기 위한 마지막 유효값.
   private _lastMoveLaneOffset = 0;
 
-  constructor(chart: Chart, callbacks: SelectModeCallbacks) {
+  constructor(chart: ChartDocument, callbacks: SelectModeCallbacks) {
     this.chart = chart;
     this.callbacks = callbacks;
   }
@@ -114,15 +121,12 @@ export class SelectMode implements EditorMode {
    * 선택의 일부를 병합해 한 번에 커밋한다. store 게이트가 정규화(범위 보정 +
    * 동질성 + 트릴 모드 시 zones 비움, RFD 0016)하므로,
    * 커밋 직후 this.sel은 정규화된 값을 돌려준다.
-   *
-   * §3-5 해제 게이트가 전이를 거부하면 false — 호출자는 이어지는 동작(이동·리사이즈
-   * 시작)을 진행하면 안 된다. stale(직전) 선택을 대상으로 조작하게 되기 때문이다.
    */
   private commitSelection(partial: Partial<Selection>): boolean {
     return this.callbacks.setSelection({ ...this.sel, ...partial });
   }
 
-  /** 박스 드래그 프레임 전용 커밋 — 프리뷰라 §3-5 게이트를 지나지 않는다(정규화만). */
+  /** 박스 드래그 프레임의 선택을 정규화한다. */
   private commitSelectionTransient(partial: Partial<Selection>): void {
     this.callbacks.setSelectionTransient({ ...this.sel, ...partial });
   }
@@ -132,13 +136,16 @@ export class SelectMode implements EditorMode {
     return {
       space: this.callbacks.space,
       getExtraLaneCount: this.callbacks.getExtraLaneCount,
-      setExtraLaneCount: this.callbacks.setExtraLaneCount,
+      setExtraLaneCount: count => {
+        if (this.transactionToken) this.callbacks.setExtraLaneCount?.(count, this.transactionToken);
+        else this.callbacks.setExtraLaneCount?.(count);
+      },
       onWarn: this.callbacks.onWarn,
-      onChartUpdate: this.callbacks.onChartUpdate,
+      onChartUpdate: chart => this.callbacks.onChartUpdate(chart, this.transactionToken ?? undefined),
     };
   }
 
-  setChart(chart: Chart): void {
+  setChart(chart: ChartDocument): void {
     // 선택 보정(범위·동질·구간 파생)은 store 변이 액션이 같은 트랜잭션에서 수행한다
     this.chart = chart;
   }
@@ -300,17 +307,42 @@ export class SelectMode implements EditorMode {
     this.commitSelection({ notes: new Set(), zones: new Set(), restZones: new Set() });
   }
 
-  /** Select a specific note. §3-5 게이트 거부 시 false. */
+  /** 새 노트 선택. 범위 밖 index이면 false. */
   selectNote(index: number): boolean {
     if (index >= 0 && index < this.chart.notes.length) {
       // 단순 클릭 선택 = 전체 교체 — zones·restZones도 함께 해제한다 (공존 축이지만 교체는 전축)
       return this.commitSelection({
-        notes: this.withTrillPairs(new Set([index])),
+        notes: this.newNoteSelection(index),
         zones: new Set(),
         restZones: new Set(),
       });
     }
     return false;
+  }
+
+  /** 명시 바디 동반 선택은 진입점에서만 계산한다. */
+  private newNoteSelection(index: number): Set<number> {
+    return this.withTrillPairs(bodyCompanionIndices(this.chart.notes, index));
+  }
+
+  selectAll(): void {
+    // 구간 유닛은 내부 트릴 노트를 대표하므로 기존 트릴 정규화를 보존한다.
+    const selection = selectionFromBox(this.chart.trillZones, this.chart.notes, this.chart.restZones ?? [], {
+      minLane: 1, maxLane: Infinity, minBeat: { n: 0, d: 1 }, maxBeat: { n: Number.MAX_SAFE_INTEGER, d: 1 },
+    });
+    this.callbacks.setSelection(selection);
+  }
+
+  private beginTransaction(): void {
+    this.transactionToken = this.callbacks.beginTransaction?.() ?? null;
+  }
+
+  private finishTransaction(cancel = false): void {
+    const token = this.transactionToken;
+    if (!token) return;
+    this.transactionToken = null;
+    if (cancel) this.callbacks.cancelTransaction?.(token);
+    else this.callbacks.commitTransaction?.(token);
   }
 
   /**
@@ -333,8 +365,9 @@ export class SelectMode implements EditorMode {
     // 이미 선택된 노트면 혼합 선택(구간 포함)을 유지한 채 전체를 이동한다.
     // 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"로 취급 — 잡아 끌면 단독 선택으로
     // 교체하지 않고 유닛째 이동한다 (RFD 0016 §4.2 실행 시점 파생).
-    if (!this.sel.notes.has(index) && !this.zoneDerivedNoteIndices().has(index)) {
-      // §3-5 게이트가 선택 교체를 거부하면 이동을 시작하지 않는다(stale 선택 오이동 방지)
+    const note = this.chart.notes[index];
+    const directScore = ['point', 'release', 'sustain'].includes(note.type);
+    if (directScore || (!this.sel.notes.has(index) && !this.zoneDerivedNoteIndices().has(index))) {
       if (!this.selectNote(index)) return false;
     }
 
@@ -353,10 +386,7 @@ export class SelectMode implements EditorMode {
     const note = this.chart.notes[index];
     if (!note || !this.isRangeNote(note)) return false;
 
-    // §3-5 게이트가 선택 교체를 거부하면 리사이즈도 시작하지 않는다
-    if (!this.commitSelection({ notes: new Set([index]), zones: new Set(), restZones: new Set() })) {
-      return false;
-    }
+    if (!this.sel.notes.has(index) && !this.selectNote(index)) return false;
     this.startResize("note", index, note.beat, note.endBeat);
     return true;
   }
@@ -374,7 +404,9 @@ export class SelectMode implements EditorMode {
       zoneHit?: number | null;
     },
   ): boolean {
-    const action = resolveLongPressAction(hits);
+    const hit = hits.noteHit === null ? undefined : this.chart.notes[hits.noteHit];
+    const scoreHit = hit && ['point', 'release', 'sustain'].includes(hit.type);
+    const action = resolveLongPressAction(scoreHit ? { ...hits, noteEndHit: null } : hits);
     if (action.kind === "resizeNoteEnd") return this.beginNoteEndResizeDrag(action.index);
     if (action.kind === "moveNote") return this.beginTouchMoveDragFromNote(action.index, x, y);
     if (action.kind === "moveZone") return this.beginTouchMoveDragFromZone(action.index, x, y);
@@ -389,7 +421,6 @@ export class SelectMode implements EditorMode {
   beginTouchMoveDragFromZone(index: number, x: number, y: number): boolean {
     if (index < 0 || index >= this.chart.trillZones.length) return false;
     if (!this.sel.zones.has(index)) {
-      // §3-5 게이트가 유닛 선택 교체를 거부하면 이동을 시작하지 않는다(stale 선택 오이동 방지)
       if (!this.selectZoneUnit(index)) return false;
     }
     this.startMainMoveDrag(x, y);
@@ -404,6 +435,7 @@ export class SelectMode implements EditorMode {
   private tryAddNoteToSelection(index: number): Set<number> | null {
     const note = this.chart.notes[index];
     if (!note) return null;
+    if (this.sel.notes.has(index)) return new Set(this.sel.notes);
     const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.sel.notes);
     const reason = selectionBlockReason(kind, this.chart.trillZones, note);
     if (reason) {
@@ -411,7 +443,7 @@ export class SelectMode implements EditorMode {
       return null;
     }
     const notes = new Set(this.sel.notes);
-    notes.add(index);
+    for (const candidate of this.newNoteSelection(index)) notes.add(candidate);
     return this.withTrillPairs(notes);
   }
 
@@ -461,6 +493,7 @@ export class SelectMode implements EditorMode {
       y,
       space: this.callbacks.space,
       sel: this.sel, // getSelection() 라이브 getter — 사본 금지, 캡 게이트가 이 값을 읽는다.
+      isScoreNote: i => ['point', 'release', 'sustain'].includes(this.chart.notes[i]?.type),
       isRangeNote: (i) => {
         const n = this.chart.notes[i];
         return n !== undefined && this.isRangeNote(n);
@@ -483,21 +516,23 @@ export class SelectMode implements EditorMode {
 
     // grab 우선순위 사다리는 resolveGrab이 단독 소유한다(#143). 마우스·터치가 같은 함수를
     // 소비하므로 z-order 변경은 그 한 곳이다. 여기 case 본문은 대상 확정 "후"의
-    // 수식자(toggle/Shift/Alt)·§3-5 커밋·드래그 시작만 담는다 — 사다리와 독립.
-    const target = this.resolveGrabAt(x, y);
+    // 수식자(toggle/Shift/Alt)·선택 커밋·드래그 시작만 담는다 — 사다리와 독립.
+    let target = this.resolveGrabAt(x, y);
+    if (target.kind === 'noteEndCap' && (shiftKey || altKey || toggleSelection)) {
+      target = { kind: 'note', index: target.index };
+    }
 
     switch (target.kind) {
       case "noteEndCap": {
-        // 끝 캡을 잡으면 리사이즈. 미선택이었으면 먼저 단독 선택으로 교체하고,
-        // §3-5 게이트가 그 교체를 거부하면 리사이즈도 시작하지 않는다(선택 표시와 조작 대상 불일치 방지).
+        // 미선택 바디 끝은 동반 선택하고, 선택된 바디 끝은 현재 set을 보존한다.
         const endHit = target.index;
         const isSelected = this.sel.notes.has(endHit);
         if (!isSelected) {
-          if (!this.commitSelection({ notes: new Set([endHit]), zones: new Set(), restZones: new Set() })) {
+          if (!this.commitSelection({ notes: this.newNoteSelection(endHit), zones: new Set(), restZones: new Set() })) {
             return;
           }
         }
-        const note = this.chart.notes[endHit] as RangeNote;
+        const note = this.chart.notes[endHit] as RangeNote | BodyNote;
         this.startResize("note", endHit, note.beat, note.endBeat);
         return;
       }
@@ -529,6 +564,12 @@ export class SelectMode implements EditorMode {
         // 단독 선택으로 교체하지 않는다 (RFD 0016 §4.2 실행 시점 파생).
         const isZoneDerived = !isAlreadySelected && this.zoneDerivedNoteIndices().has(hitIndex);
 
+        const hitNote = this.chart.notes[hitIndex];
+        if (!toggleSelection && !shiftKey && !altKey && ['point', 'release', 'sustain'].includes(hitNote.type)) {
+          if (this.selectNote(hitIndex)) this.beginMoveDrag(x, y);
+          return;
+        }
+
         // 수식자(토글/Shift/Alt) 경로는 zones·restZones를 보존한다 — 일반 노트와 구간
         // 유닛(trillZone·restZone)은 공존하고(RFD 0016 §4.1 · RFD 0019),
         // 트릴 노트가 들어오면 게이트가 zones를 자동으로 비운다.
@@ -555,10 +596,8 @@ export class SelectMode implements EditorMode {
           this.beginMoveDrag(x, y);
         } else {
           // 단순 클릭은 선택 전체 교체(zones·restZones 포함 해제). 트릴 쌍은 클릭 선택에서도 한 단위.
-          // §3-5 게이트가 교체를 거부하면 이동을 시작하지 않는다 — stale(직전 위반) 선택이
-          // 새 클릭 좌표를 앵커로 조용히 이동하는 은닉 오편집을 막는다.
           const committed = this.commitSelection({
-            notes: this.withTrillPairs(new Set([hitIndex])),
+            notes: this.newNoteSelection(hitIndex),
             zones: new Set(),
             restZones: new Set(),
           });
@@ -641,8 +680,7 @@ export class SelectMode implements EditorMode {
 
   /** 기존 선택을 비우고 박스 셀렉트 드래그를 시작한다. */
   private startBoxSelect(x: number, y: number): void {
-    // §3-5: 사전 clear·프레임 재구성은 프리뷰라 게이트를 지나지 않는다(전이 아님).
-    // 시작 전 선택을 캡처해 두고, 드래그 종료 시 (시작 전 → 최종) 전이로 한 번만 게이트한다.
+    // 박스 프레임은 미리보기다. 취소에 대비해 시작 전 선택을 보관한다.
     this.preDragSelection = this.sel;
     this.callbacks.setSelectionTransient(emptySelection());
     this.isDragging = true;
@@ -693,12 +731,16 @@ export class SelectMode implements EditorMode {
           ? this.resizingOriginalBeat
           : currentBeat;
 
-        let tentativeChart: Chart | null = null;
+        let tentativeChart: ChartDocument | null = null;
         if (this.resizingEntityType === "note") {
           const note = this.chart.notes[this.resizingIndex];
           if (this.isRangeNote(note)) {
-            const newNotes = [...this.chart.notes];
-            newNotes[this.resizingIndex] = { ...note, endBeat: newEndBeat } as RangeNote;
+            const source = this.resizeOriginalNotes ?? this.chart.notes;
+            const newNotes = note.type === 'body'
+              ? resizeExplicitBodies(source, new Map([[this.resizingIndex, newEndBeat]]), this.sel.notes)
+              : [...this.chart.notes];
+            if (!newNotes) return;
+            if (note.type !== 'body') newNotes[this.resizingIndex] = { ...note, endBeat: newEndBeat };
             tentativeChart = { ...this.chart, notes: newNotes };
           }
         } else if (this.resizingEntityType === "event") {
@@ -722,10 +764,17 @@ export class SelectMode implements EditorMode {
           }
         }
 
-        // 낙관적 편집(RFD 0017 §3-3): 프리뷰는 위반 위치도 그대로 표시한다.
+        // 낙관적 편집(RFD 0017 §3-3): 의미 위반은 보통 프리뷰에 반영한다.
+        // 단, 추가 4의 trillZone 끝 축소로 새 트릴 구간 위반이 생기면 마지막 유효 상태를 유지한다.
         if (tentativeChart !== null) {
+          if (
+            this.resizingEntityType === "trillZone" &&
+            introducesTrillExclusivityViolation(this.chart, tentativeChart)
+          ) {
+            return;
+          }
           this.chart = tentativeChart;
-          this.callbacks.onChartUpdate(this.chart);
+          this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
         }
       }
       return;
@@ -797,7 +846,7 @@ export class SelectMode implements EditorMode {
           trillZones: newZones,
           ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
         };
-        this.callbacks.onChartUpdate(this.chart);
+        this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
       }
     } else if (this.dragType === "boxSelect") {
       this._boxEndBeat = this.callbacks.space.yToBeatRaw(y);
@@ -818,7 +867,7 @@ export class SelectMode implements EditorMode {
 
     if (this.dragType === "resize") {
       // 낙관적 편집(RFD 0017): 리사이즈는 endBeat clamp라 구조 위반을 못 만들어 그대로 커밋.
-      this.callbacks.onChartUpdate(this.chart);
+      this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
       this.resizingEntityType = null;
       this.resizingIndex = null;
       this.resizingOriginalEndBeat = null;
@@ -841,7 +890,7 @@ export class SelectMode implements EditorMode {
       const tappedZone = this.pendingTapTarget(this._pendingZoneSelect);
       const tappedRestZone = this.pendingTapTarget(this._pendingRestZoneSelect);
 
-      // §3-5: 프리뷰로 쌓인 박스 결과를 (드래그 시작 전 → 최종) 전이 하나로 확정한다.
+      // 프리뷰로 쌓인 최종 박스 선택을 확정한다.
       if (this.preDragSelection) {
         const finalSel: Selection = tappedZone !== null
           // 트릴존 탭 = 유닛 선택으로 전체 교체 — restZones도 비운다(단순 탭=전축 교체, 리뷰 C4)
@@ -856,6 +905,8 @@ export class SelectMode implements EditorMode {
       }
     }
 
+    this.finishTransaction();
+    this.resizeOriginalNotes = null;
     this._pendingZoneSelect = null;
     this._pendingRestZoneSelect = null;
     this._boxEndBeat = null;
@@ -897,10 +948,12 @@ export class SelectMode implements EditorMode {
     } else if (this.dragType === "move") {
       this.rollbackMove();
     }
-    // boxSelect는 차트를 변이하지 않지만 프리뷰(transient) 선택은 시작 전으로 복원한다(§3-5).
+    // boxSelect 취소는 차트를 건드리지 않고 시작 전 선택만 복원한다.
     if (this.dragType === "boxSelect" && this.preDragSelection) {
       this.callbacks.setSelectionTransient(this.preDragSelection);
     }
+    this.finishTransaction(true);
+    this.resizeOriginalNotes = null;
     this.preDragSelection = null;
     this._pendingZoneSelect = null;
     this._pendingRestZoneSelect = null;
@@ -940,7 +993,7 @@ export class SelectMode implements EditorMode {
       { minLane, maxLane, minBeat, maxBeat },
     );
 
-    // 프레임 커밋은 프리뷰(transient) — §3-5 게이트는 드래그 종료 시 한 번만 적용된다.
+    // 프레임 선택은 취소 가능한 프리뷰다.
     this.commitSelectionTransient({ notes, zones, restZones });
   }
 
@@ -979,7 +1032,7 @@ export class SelectMode implements EditorMode {
     if (snapTrillZone) {
       const positions = [...this.sel.notes]
         .map((i) => this.chart.notes[i])
-        .filter((n): n is NoteEntity => Boolean(n))
+        .filter((n): n is DocumentNoteEntity => Boolean(n))
         .map((n) => ({ beat: n.beat, endBeat: "endBeat" in n ? n.endBeat : undefined }));
       const clamped = clampTrillBeatOffset(snapTrillZone, positions, offset);
       if (beatToFloat(clamped) !== beatToFloat(offset)) {
@@ -1012,7 +1065,7 @@ export class SelectMode implements EditorMode {
     };
 
     // 낙관적 편집(RFD 0017): 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋.
-    this.callbacks.onChartUpdate(this.chart);
+    this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
     this.clearMoveOrigins();
   }
 
@@ -1077,12 +1130,12 @@ export class SelectMode implements EditorMode {
 
     this.chart = {
       ...this.chart,
-      notes: newNotes,
+      notes: reconcileMovedSustains(newNotes, selNotes),
       ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
     };
 
     // 낙관적 편집(RFD 0017): 레인 이동은 구조 위반을 못 만들어 검증 없이 커밋.
-    this.callbacks.onChartUpdate(this.chart);
+    this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
     this.clearMoveOrigins();
   }
 
@@ -1095,49 +1148,25 @@ export class SelectMode implements EditorMode {
     // ArrowUp = extend end later (add snap), ArrowDown = shrink end earlier (subtract snap)
     const offset = direction === "up" ? snapStep : beatSub({ n: 0, d: 1 }, snapStep);
 
-    // Store original positions
-    this.originalPositions.clear();
+    const endsByBody = new Map<number, Beat>();
+    let newNotes = [...this.chart.notes];
     for (const idx of this.sel.notes) {
       const note = this.chart.notes[idx];
-      if (this.isRangeNote(note)) {
-        this.originalPositions.set(idx, {
-          beat: note.beat,
-          endBeat: note.endBeat,
-          lane: note.lane,
-        });
+      if (!this.isRangeNote(note)) continue;
+      const endBeat = beatAdd(note.endBeat, offset);
+      if (note.type === 'body') endsByBody.set(idx, endBeat);
+      else {
+        if (beatLte(endBeat, note.beat)) return;
+        newNotes[idx] = { ...note, endBeat };
       }
     }
-
-    // Apply resize (only to range notes, enforce start < end)
-    const newNotes = [...this.chart.notes];
-    let blocked = false;
-    for (const idx of this.sel.notes) {
-      const note = newNotes[idx];
-      if (this.isRangeNote(note)) {
-        const rangeNote = note as RangeNote;
-        const newEndBeat = beatAdd(rangeNote.endBeat, offset);
-        // Prevent endBeat from going at or before startBeat
-        if (beatLte(newEndBeat, rangeNote.beat)) {
-          blocked = true;
-          break;
-        }
-        newNotes[idx] = {
-          ...rangeNote,
-          endBeat: newEndBeat,
-        };
-      }
-    }
-
-    if (blocked) {
-      this.originalPositions.clear();
-      return;
-    }
-
+    const resized = resizeExplicitBodies(this.chart.notes, endsByBody, this.sel.notes);
+    if (!resized) return;
+    newNotes = newNotes.map((note, index) => this.chart.notes[index].type === 'body'
+      || this.chart.notes[index].type === 'release' ? resized[index] : note);
+    if (JSON.stringify(newNotes) === JSON.stringify(this.chart.notes)) return;
     this.chart = { ...this.chart, notes: newNotes };
-
-    // 낙관적 편집(RFD 0017): 검증 없이 커밋.
-    this.callbacks.onChartUpdate(this.chart);
-    this.originalPositions.clear();
+    this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
   }
 
   /** Confirm placement (Enter key or empty click) */
@@ -1146,9 +1175,9 @@ export class SelectMode implements EditorMode {
       // 낙관적 편집(RFD 0017 §2): 붙여넣기 확정도 이동과 동형 — 구조 위반만 거부.
       this.clipboardManager.confirmPaste(
         this.chart,
-        this.callbacks,
+        this.clipboardCallbacks(),
         (chart) => {
-          const errors = validateChartStructural({
+          const errors = validateChartDocumentStructural({
             notes: chart.notes,
             trillZones: chart.trillZones,
             restZones: chart.restZones,
@@ -1157,6 +1186,7 @@ export class SelectMode implements EditorMode {
           return errors.map((e) => String(e));
         },
       );
+      this.finishTransaction();
       return;
     }
 
@@ -1178,9 +1208,10 @@ export class SelectMode implements EditorMode {
    * (rollbackMove는 cancel(Esc) 전용으로 남는다.)
    */
   private commitMove(): void {
-    this.callbacks.onChartUpdate(this.chart);
+    this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
     this.clearMoveOrigins();
     this._trillMoveZone = null;
+    this.finishTransaction();
   }
 
   // ---------------------------------------------------------------------------
@@ -1196,6 +1227,7 @@ export class SelectMode implements EditorMode {
   private trillZonesToCopy(): Set<number> {
     if (this.sel.zones.size > 0) return new Set(this.sel.zones);
     const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.sel.notes);
+    if ([...this.sel.notes].some(index => ["point", "body", "release", "sustain"].includes(this.chart.notes[index].type))) return new Set();
     if (kind.kind === "trill" && kind.zoneIndex >= 0) return new Set([kind.zoneIndex]);
     return new Set();
   }
@@ -1222,6 +1254,8 @@ export class SelectMode implements EditorMode {
   /** Cut selected notes (copy + delete) */
   cut(): number {
     if (this.clipboardManager.isPendingPaste) return 0;
+    const reason = bodyDeletionBlockReason(this.chart.notes, this.effectiveNoteIndices());
+    if (reason) { this.callbacks.onWarn?.(reason); return 0; }
     const count = this.copy();
     if (count > 0) {
       this.deleteSelected();
@@ -1231,13 +1265,15 @@ export class SelectMode implements EditorMode {
 
   /** Paste clipboard at the given target beat. Returns count of pasted notes, 0 if clipboard empty. */
   paste(targetBeat: Beat): number {
+    if (this.isPendingPaste) this.confirmPlacement();
+    this.beginTransaction();
     const result = this.clipboardManager.paste(
       this.chart,
       targetBeat,
       this.clipboardCallbacks(),
       () => this.clearSelection(),
     );
-    if (result === null) return 0;
+    if (result === null) { this.finishTransaction(true); return 0; }
 
     this.chart = result.chart;
     // 차트 갱신(onChartUpdate) 후 커밋 — 붙여넣은 인덱스가 게이트 범위 보정에서 살아남는다.
@@ -1253,9 +1289,10 @@ export class SelectMode implements EditorMode {
   cancelPaste(): void {
     this.chart = this.clipboardManager.cancelPaste(
       this.chart,
-      this.callbacks,
+      this.clipboardCallbacks(),
       () => this.clearSelection(),
     );
+    this.finishTransaction(true);
   }
 
   /**
@@ -1290,10 +1327,12 @@ export class SelectMode implements EditorMode {
 
   /** Delete selected notes */
   deleteSelected(): void {
+    const reason = bodyDeletionBlockReason(this.chart.notes, this.effectiveNoteIndices());
+    if (reason) { this.callbacks.onWarn?.(reason); return; }
     // restZone은 공존 축 — 선택된 restZone은 노트·존 삭제와 한 커밋으로 함께 지운다 (RFD 0019).
     // 순서 주의: 차트 커밋(setChart가 축소를 감지해 선택을 원자적으로 비움) → 해제.
     const selectedRest = this.sel.restZones;
-    const withRestRemoved = (chart: Chart): Chart =>
+    const withRestRemoved = (chart: ChartDocument): ChartDocument =>
       selectedRest.size > 0
         ? { ...chart, restZones: (chart.restZones ?? []).filter((_z, i) => !selectedRest.has(i)) }
         : chart;
@@ -1306,8 +1345,8 @@ export class SelectMode implements EditorMode {
       const notes = this.chart.notes.filter((_n, i) => !noteIndices.has(i));
       const trillZones = this.chart.trillZones.filter((_z, i) => !zones.has(i));
       this.chart = withRestRemoved({ ...this.chart, notes, trillZones });
-      // 차트 축소 커밋이 선택을 원자적으로 비운다(setChart, §3-5 면제 경로).
-      this.callbacks.onChartUpdate(this.chart);
+      // 차트 축소와 선택 index 보정은 store에서 함께 적용한다.
+      this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
       this.clearSelection();
       return;
     }
@@ -1316,15 +1355,15 @@ export class SelectMode implements EditorMode {
       // restZone-only 선택 삭제
       if (selectedRest.size === 0) return;
       this.chart = withRestRemoved(this.chart);
-      this.callbacks.onChartUpdate(this.chart);
+      this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
       this.clearSelection();
       return;
     }
 
     // sel.notes는 메인·보조 통합 인덱스 — deleteChartNotesAtIndices가 둘 다 삭제한다 (RFD 0018 ④).
     this.chart = withRestRemoved(deleteChartNotesAtIndices(this.chart, this.sel.notes));
-    // 순서 주의: 차트 커밋 → 선택 해제. 반대면 §3-5 게이트가 위반 노트 삭제를 막는다.
-    this.callbacks.onChartUpdate(this.chart);
+    // 차트와 선택 index를 보정한 뒤 명령의 선택을 해제한다.
+    this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
     this.clearSelection();
   }
 
@@ -1340,6 +1379,7 @@ export class SelectMode implements EditorMode {
       return;
     }
 
+    this.beginTransaction();
     this.isDragging = true;
     this.dragType = "move";
     this.dragStartBeat = this.callbacks.space.yToBeat(y);
@@ -1474,9 +1514,11 @@ export class SelectMode implements EditorMode {
   /** 주어진 노트들의 원본 좌표를 기록한다(이동용). 기본값은 직접 선택한 notes. */
   private captureNoteOrigins(indices: ReadonlySet<number> = this.sel.notes): void {
     this.originalPositions.clear();
+    this.originalSustainCounts.clear();
     for (const idx of indices) {
       const note = this.chart.notes[idx];
       if (!note) continue;
+      if (note.type === "sustain") this.originalSustainCounts.set(idx, note.count);
       if (this.isRangeNote(note)) {
         this.originalPositions.set(idx, { beat: note.beat, endBeat: note.endBeat, lane: note.lane });
       } else {
@@ -1488,12 +1530,13 @@ export class SelectMode implements EditorMode {
   /** 이동 원본 기록(메인·구간·restZone)을 모두 폐기한다. */
   private clearMoveOrigins(): void {
     this.originalPositions.clear();
+    this.originalSustainCounts.clear();
     this.originalZonePositions.clear();
     this.originalRestZonePositions.clear();
   }
 
   /** 기록된 원본 좌표에 오프셋을 적용한 새 노트 배열을 만든다. lane은 통합 lane 공간이다. */
-  private buildMovedNotes(laneOffset: number, beatOffset: Beat): NoteEntity[] {
+  private buildMovedNotes(laneOffset: number, beatOffset: Beat): DocumentNoteEntity[] {
     const newNotes = [...this.chart.notes];
     for (const [idx, original] of this.originalPositions) {
       const newLane = original.lane + laneOffset;
@@ -1505,12 +1548,12 @@ export class SelectMode implements EditorMode {
           lane: newLane,
           beat: newBeat,
           endBeat: beatAdd(newBeat, duration),
-        } as RangeNote;
+        } as RangeNote | BodyNote;
       } else {
         newNotes[idx] = { ...newNotes[idx], lane: newLane, beat: newBeat };
       }
     }
-    return newNotes;
+    return reconcileMovedSustains(newNotes, this.originalPositions.keys());
   }
 
   /**
@@ -1549,7 +1592,7 @@ export class SelectMode implements EditorMode {
     };
     // 낙관적 편집(RFD 0017): 존 이동은 평행이동이라 구조 위반을 못 만들어 검증 없이 커밋한다.
     this.chart = candidate;
-    this.callbacks.onChartUpdate(this.chart);
+    this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
     this.clearMoveOrigins();
   }
 
@@ -1568,16 +1611,16 @@ export class SelectMode implements EditorMode {
 
     // 낙관적 편집(RFD 0017): 평행이동은 구조 위반을 못 만들어 검증 없이 커밋한다.
     this.chart = { ...this.chart, restZones: newRestZones };
-    this.callbacks.onChartUpdate(this.chart);
+    this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
     this.clearMoveOrigins();
   }
 
-  private isRangeNote(note: NoteEntity): note is RangeNote {
+  private isRangeNote(note: DocumentNoteEntity): note is RangeNote | BodyNote {
     return "endBeat" in note;
   }
 
   /** Check if all notes in the array are within timeline bounds [0, maxBeat] */
-  private areNotesInBounds(notes: NoteEntity[], indices: Set<number>): boolean {
+  private areNotesInBounds(notes: DocumentNoteEntity[], indices: Set<number>): boolean {
     const maxFloat = this.callbacks.space.getMaxBeatFloat();
 
     for (const idx of indices) {
@@ -1598,6 +1641,8 @@ export class SelectMode implements EditorMode {
     startBeat: Beat,
     endBeat: Beat,
   ): void {
+    this.beginTransaction();
+    this.resizeOriginalNotes = this.chart.notes;
     this.isDragging = true;
     this.dragType = "resize";
     this.resizingEntityType = entityType;
@@ -1610,10 +1655,10 @@ export class SelectMode implements EditorMode {
     if (this.resizingIndex === null || this.resizingOriginalEndBeat === null) return;
 
     if (this.resizingEntityType === "note") {
-      const newNotes = [...this.chart.notes];
+      const newNotes = [...(this.resizeOriginalNotes ?? this.chart.notes)];
       const note = newNotes[this.resizingIndex];
       if (this.isRangeNote(note)) {
-        newNotes[this.resizingIndex] = { ...note, endBeat: this.resizingOriginalEndBeat } as RangeNote;
+        newNotes[this.resizingIndex] = { ...note, endBeat: this.resizingOriginalEndBeat } as RangeNote | BodyNote;
         this.chart = { ...this.chart, notes: newNotes };
       }
     } else if (this.resizingEntityType === "event") {
@@ -1635,7 +1680,7 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    this.callbacks.onChartUpdate(this.chart);
+    this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
   }
 
   private rollbackMove(): void {
@@ -1656,7 +1701,7 @@ export class SelectMode implements EditorMode {
           lane: original.lane,
           beat: original.beat,
           endBeat: original.endBeat!,
-        } as RangeNote;
+        } as RangeNote | BodyNote;
       } else {
         newNotes[idx] = {
           ...newNotes[idx],
@@ -1664,6 +1709,10 @@ export class SelectMode implements EditorMode {
           beat: original.beat,
         };
       }
+    }
+    for (const [index, count] of this.originalSustainCounts) {
+      const note = newNotes[index];
+      if (note.type === 'sustain') newNotes[index] = { ...note, count };
     }
     // 구간(트릴존·restZone) 단위 이동이었다면 그 구간들도 원위치로 되돌린다.
     const restoredZones = this.restoredZones();
@@ -1673,8 +1722,21 @@ export class SelectMode implements EditorMode {
       trillZones: restoredZones,
       ...(this.originalRestZonePositions.size > 0 ? { restZones: this.restoredRestZones() } : {}),
     };
-    this.callbacks.onChartUpdate(this.chart);
+    this.callbacks.onChartUpdate(this.chart, this.transactionToken ?? undefined);
     this.clearMoveOrigins();
     this._trillMoveZone = null;
   }
+}
+
+/** `trillZone` resize가 기존에 유효한 trill note를 구간 밖으로 내보내는 경우만 막는다. */
+function introducesTrillExclusivityViolation(before: ChartDocument, after: ChartDocument): boolean {
+  const violatedNoteIndices = (chart: ChartDocument): Set<number> =>
+    new Set(
+      editorChartErrors(chart)
+        .filter((error) => error.rule === "trillExclusive")
+        .flatMap((error) => (error.refs ?? []).filter((ref) => ref.kind === "note").map((ref) => ref.index)),
+    );
+
+  const previousViolations = violatedNoteIndices(before);
+  return [...violatedNoteIndices(after)].some((index) => !previousViolations.has(index));
 }

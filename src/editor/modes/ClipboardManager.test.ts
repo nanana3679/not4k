@@ -2,9 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { beat, beatToFloat } from "../../shared";
-import type { Chart, ChartEvent, Lane, NoteEntity, TrillZone, RestZone } from "../../shared";
+import type { ChartDocument, ChartEvent, Lane, DocumentNoteEntity, TrillZone, RestZone } from "../../shared";
 
-function makeChart(overrides?: Partial<Chart>): Chart {
+function makeChart(overrides?: Partial<ChartDocument>): ChartDocument {
   return {
     meta: {
       title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1,
@@ -36,7 +36,7 @@ const bf = (b: { n: number; d: number }) => beatToFloat(b);
 
 describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () => {
   it("copy는 선택 beat-span [0,4] 안 이벤트(auto[1,2]·bpm@4)를 담되 timeSignature@2는 제외한다", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1 as Lane, beat: beat(0) },
       { type: "single", lane: 2 as Lane, beat: beat(4) },
     ];
@@ -64,7 +64,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
   });
 
   it("copy는 span [0,4] 밖 이벤트(bpm@5·auto[6,8])를 안 담는다", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1 as Lane, beat: beat(0) },
       { type: "single", lane: 2 as Lane, beat: beat(4) },
     ];
@@ -81,7 +81,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
   });
 
   it("구간 이벤트 stop[3,6]가 span [0,4]와 부분 겹치면 담는다", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1 as Lane, beat: beat(0) },
       { type: "single", lane: 2 as Lane, beat: beat(4) },
     ];
@@ -98,7 +98,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
   });
 
   it("롱노트(beat0~endBeat4) 선택 시 span이 endBeat까지 확장돼 bpm@3 이벤트를 담는다", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "long", lane: 1 as Lane, beat: beat(0), endBeat: beat(4) },
     ];
     const events: ChartEvent[] = [{ type: "bpm", beat: beat(3), bpm: 200 }];
@@ -126,7 +126,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
   });
 
   it("paste는 이벤트를 beatOffset만큼 평행이동해 chart.events에 주입한다(editorLane=3 유지)", () => {
-    const notes: NoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(0) }];
+    const notes: DocumentNoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(0) }];
     const events: ChartEvent[] = [{ type: "bpm", beat: beat(0), bpm: 120, editorLane: 3 }];
     const chart = makeChart({ notes, events });
     const cm = new ClipboardManager();
@@ -140,7 +140,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
   });
 
   it("movePasteByLane은 노트 lane만 바꾸고 주입 이벤트의 editorLane=2·beat는 불변", () => {
-    const notes: NoteEntity[] = [{ type: "single", lane: 2 as Lane, beat: beat(0) }];
+    const notes: DocumentNoteEntity[] = [{ type: "single", lane: 2 as Lane, beat: beat(0) }];
     const events: ChartEvent[] = [{ type: "bpm", beat: beat(0), bpm: 120, editorLane: 2 }];
     const chart = makeChart({ notes, events });
     const cm = new ClipboardManager();
@@ -157,7 +157,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
   });
 
   it("movePasteBySnap(up, snap=1)은 주입 이벤트도 beat 5→6으로 함께 이동한다(endBeat 동반)", () => {
-    const notes: NoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(0) }];
+    const notes: DocumentNoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(0) }];
     const events: ChartEvent[] = [{ type: "auto", beat: beat(0), endBeat: beat(1) }];
     const chart = makeChart({ notes, events });
     const cm = new ClipboardManager();
@@ -172,7 +172,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
   });
 
   it("cancelPaste는 주입한 이벤트를 제거하고 원본 events 1건으로 원상복구한다", () => {
-    const notes: NoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(0) }];
+    const notes: DocumentNoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(0) }];
     const events: ChartEvent[] = [{ type: "auto", beat: beat(0), endBeat: beat(1) }];
     const chart = makeChart({ notes, events });
     const cm = new ClipboardManager();
@@ -188,7 +188,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
   });
 
   it("confirmPaste는 주입 이벤트를 확정한다 — 확정 후 cancelPaste로 되돌릴 수 없다", () => {
-    const notes: NoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(0) }];
+    const notes: DocumentNoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(0) }];
     const events: ChartEvent[] = [{ type: "auto", beat: beat(0), endBeat: beat(1) }];
     const chart = makeChart({ notes, events });
     const cm = new ClipboardManager();
@@ -204,7 +204,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
   });
 
   it("timeSignature@1만 있는 선택 범위 [0,4]는 이벤트 0건 복사", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1 as Lane, beat: beat(0) },
       { type: "single", lane: 2 as Lane, beat: beat(4) },
     ];
@@ -234,7 +234,7 @@ describe("ClipboardManager — 이벤트 클립보드 (RFD 0016 §3-4 D1)", () =
 
   it("span 시작에 걸친 구간 이벤트(stop[2,6])가 붙여넣기 시 음수 beat로 나가면 붙여넣기를 거부한다", () => {
     // note@4만 선택 → span=[4,4], stop[2,6]은 폐구간 겹침(2<=4 && 6>=4)으로 수집(beat 2 < anchor 4).
-    const notes: NoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(4) }];
+    const notes: DocumentNoteEntity[] = [{ type: "single", lane: 1 as Lane, beat: beat(4) }];
     const events: ChartEvent[] = [{ type: "stop", beat: beat(2), endBeat: beat(6) }];
     const chart = makeChart({ notes, events });
     const cm = new ClipboardManager();

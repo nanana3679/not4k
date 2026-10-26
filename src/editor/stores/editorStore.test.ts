@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { beat } from '../../shared';
-import type { Chart, Lane } from '../../shared';
+import type { ChartDocument, Lane } from '../../shared';
 import { useEditorStore } from './editorStore';
 import { emptySelection } from './selectionSlice';
 
-function makeChart(notes: Chart['notes'] = [], restZones?: Chart['restZones']): Chart {
+function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument['restZones']): ChartDocument {
   return {
     meta: {
       title: 'Test',
