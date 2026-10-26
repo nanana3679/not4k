@@ -2,6 +2,52 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('셀 채색 4안은 싱글·더블 8종에서 기존 3단 표식과 광선 끝을 유지하고 24개 다운로드를 제공한다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '셀 채색 4안' }).click();
+  const section = page.locator('#release-cel-balance');
+  await expect(section.locator('.cel-row')).toHaveCount(5);
+  await expect(section.locator('.cel-cards article')).toHaveCount(4);
+  await expect(section.locator('a[download]')).toHaveCount(24);
+  const checks = await page.evaluate(async () => {
+    const symbols = async (file: string) => {
+      const xml = new DOMParser().parseFromString(await (await fetch(`assets/${file}.svg`)).text(), 'image/svg+xml');
+      return [...xml.querySelectorAll('[data-release-symbol]')].map(symbol => symbol.outerHTML);
+    };
+    const pixels = async (file: string) => {
+      const image = new Image(); image.src = `assets/${file}@2x.png`; await image.decode();
+      const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80;
+      const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+      return context.getImageData(0, 0, 400, 80).data;
+    };
+    const checks = [];
+    for (const kind of ['single', 'double']) {
+      const expectedSymbols = await symbols(`release-${kind}-chevron-triple-tight-large`);
+      const original = await pixels(`release-${kind}-simplified-original`);
+      for (const id of ['a', 'b', 'c', 'd']) {
+        const file = `release-${kind}-cel-${id}`;
+        const actual = await pixels(file);
+        let alphaDifference = 0, lightDifference = 0;
+        for (let y = 0; y < 80; y++) for (let x = 0; x < 400; x++) {
+          const i = (y * 400 + x) * 4;
+          alphaDifference = Math.max(alphaDifference, Math.abs(actual[i + 3] - original[i + 3]));
+          if (x >= 124 && x < 276 && y >= 65) for (const c of [0, 1, 2]) lightDifference = Math.max(lightDifference, Math.abs(actual[i + c] - original[i + c]));
+        }
+        checks.push({ kind, id, expectedSymbols, actualSymbols: await symbols(file), alphaDifference, lightDifference });
+      }
+    }
+    return checks;
+  });
+  for (const check of checks) {
+    expect(check.actualSymbols, `${check.kind} ${check.id}`).toEqual(check.expectedSymbols);
+    // SVG compositing can round an antialiased boundary by one 8-bit alpha level.
+    expect(check.alphaDifference).toBeLessThanOrEqual(1);
+    expect(check.lightDifference).toBeLessThanOrEqual(1);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('원형 유지 단순화는 싱글·더블 중앙 면과 화살표·광선 끝 및 투명도를 기본/2배에서 보존한다', async ({ page }) => {
   await page.goto(route);
   await page.locator('.jump').getByRole('link', { name: '원형 유지 단순화' }).click();

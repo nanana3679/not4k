@@ -57,6 +57,7 @@
 @media(max-width:600px){.boundary-comparison{grid-template-columns:1fr}}
 @media(max-width:760px){.success-comparison{grid-template-columns:1fr}.success-comparison article{max-width:440px;width:100%;margin:auto}}
 @media(max-width:600px){main{padding:24px 16px}.states{grid-template-columns:1fr}article{padding-inline:8px}h3{min-height:0}}
+.cel-overview{display:grid;gap:20px}.cel-row{display:grid;grid-template-columns:170px minmax(0,1fr) minmax(0,1fr);align-items:center;gap:20px;border-top:1px solid #303945;padding-top:18px}.cel-row h3{min-height:0;margin:0 0 6px}.cel-row p{font-size:12px;margin:0}.cel-row figure{margin:0}.cel-row figcaption,.cel-body-pair figcaption{text-align:center;color:#b5c4d5;font-size:12px;margin-bottom:10px}.cel-row img{display:block;width:100%;height:auto;max-width:400px;margin:auto}.cel-assemblies-title{margin-top:36px;min-height:0}.cel-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}.cel-cards h4{margin:0}.cel-body-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cel-body-pair figure{margin:0 0 18px}.cel-body-pair nav{justify-content:center}.cel-body-pair .palette-game-pair{gap:8px}@media(max-width:1000px){.cel-cards{grid-template-columns:1fr}}@media(max-width:650px){.cel-row{grid-template-columns:1fr;gap:14px}.cel-body-pair{grid-template-columns:1fr}.cel-body-pair>div+div{margin-top:20px}}
 
 .release-junction-diagram{display:block;width:100%;max-width:800px;margin:18px auto}
 .release-junction-sketches{max-width:720px;margin:auto}

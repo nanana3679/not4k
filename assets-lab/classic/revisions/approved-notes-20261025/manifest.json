@@ -5809,6 +5809,570 @@
       "sha256": "d6f5645bef90d09242100a88ae7c0a61335db3504738816c675596c752aba19e"
     },
     {
+      "file": "assets/release-single-cel-a.svg",
+      "role": "single 릴리즈 · A · 부드러운 면 분리",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/a-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2171,
+          724
+        ],
+        "crop": [
+          0,
+          140,
+          2171,
+          438
+        ],
+        "referenceSha256": "57113f5ca5db1e89f2cc99ca3f4d0f08b0b3fa77618f565cd8c75a8f6564fee0",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1472292,
+      "sha256": "3ccffd7e486b0bb4a80d92ad82493cf211ac46e26ff7dc4c4c9c36bd009f2c21"
+    },
+    {
+      "file": "assets/release-single-cel-a.png",
+      "role": "single 릴리즈 · A · 부드러운 면 분리",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/a-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2171,
+          724
+        ],
+        "crop": [
+          0,
+          140,
+          2171,
+          438
+        ],
+        "referenceSha256": "57113f5ca5db1e89f2cc99ca3f4d0f08b0b3fa77618f565cd8c75a8f6564fee0",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15934,
+      "sha256": "d7fc26b26a2f415d513db8cf53ff1d50b7b67d8386e2cd2b6b56c9457e63da34"
+    },
+    {
+      "file": "assets/release-single-cel-a@2x.png",
+      "role": "single 릴리즈 · A · 부드러운 면 분리",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/a-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2171,
+          724
+        ],
+        "crop": [
+          0,
+          140,
+          2171,
+          438
+        ],
+        "referenceSha256": "57113f5ca5db1e89f2cc99ca3f4d0f08b0b3fa77618f565cd8c75a8f6564fee0",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 54716,
+      "sha256": "6fdf424622d8f78acb7204e1ee0e14c544e1772421d1f48081bbb16aee7c9288"
+    },
+    {
+      "file": "assets/release-single-cel-b.svg",
+      "role": "single 릴리즈 · B · 면과 빛의 균형",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/b-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          142,
+          2172,
+          437
+        ],
+        "referenceSha256": "ac05ded1e58b790bd1e978027f9e5b7eda962f16675d60f9b6ae75c07dd442ea",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1522108,
+      "sha256": "7b071c11a248d345b610f5df64b4f79957c209423bb71e50e46c809fe86d7d4f"
+    },
+    {
+      "file": "assets/release-single-cel-b.png",
+      "role": "single 릴리즈 · B · 면과 빛의 균형",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/b-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          142,
+          2172,
+          437
+        ],
+        "referenceSha256": "ac05ded1e58b790bd1e978027f9e5b7eda962f16675d60f9b6ae75c07dd442ea",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15821,
+      "sha256": "85016c5a9038e139d151f797f79ffe09097619a29bdc4b2900429a6b91eab0a3"
+    },
+    {
+      "file": "assets/release-single-cel-b@2x.png",
+      "role": "single 릴리즈 · B · 면과 빛의 균형",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/b-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          142,
+          2172,
+          437
+        ],
+        "referenceSha256": "ac05ded1e58b790bd1e978027f9e5b7eda962f16675d60f9b6ae75c07dd442ea",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 54479,
+      "sha256": "e194c8c46dfd767903bc751c935e20c218d27dca72ce00d3123af400e6172b88"
+    },
+    {
+      "file": "assets/release-single-cel-c.svg",
+      "role": "single 릴리즈 · C · 셀 채색 중심",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/c-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          138,
+          2170,
+          429
+        ],
+        "referenceSha256": "d094b80b0c72215905fb71864f2aa5158aebc6495ef5a320453b9940701ef4d9",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1299168,
+      "sha256": "f6752412cc0e3dbad58e1142a4fe47e7bcdaceb6fa90cd6f48f3a7ab02a6d4e5"
+    },
+    {
+      "file": "assets/release-single-cel-c.png",
+      "role": "single 릴리즈 · C · 셀 채색 중심",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/c-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          138,
+          2170,
+          429
+        ],
+        "referenceSha256": "d094b80b0c72215905fb71864f2aa5158aebc6495ef5a320453b9940701ef4d9",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14283,
+      "sha256": "8ab13cdfbf35f9c823b0db63f04eec1a108d57e54b72244f06275b64bc2276ec"
+    },
+    {
+      "file": "assets/release-single-cel-c@2x.png",
+      "role": "single 릴리즈 · C · 셀 채색 중심",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/c-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          138,
+          2170,
+          429
+        ],
+        "referenceSha256": "d094b80b0c72215905fb71864f2aa5158aebc6495ef5a320453b9940701ef4d9",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 50013,
+      "sha256": "66b52d85ffde1a1450ba4108ddd22ea8f04f67b4a22330daa4da903b6d21466d"
+    },
+    {
+      "file": "assets/release-single-cel-d.svg",
+      "role": "single 릴리즈 · D · 광원만 부드럽게",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/d-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          142,
+          2170,
+          441
+        ],
+        "referenceSha256": "009aef15b9ca4564c73ccf3c61714dbc4ec1d193b067cf4b776202484f27de57",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1375872,
+      "sha256": "cbfab52cf84243e30b218ce11d7f5b52b623c0e4e6616445a85f74f6a309ebb6"
+    },
+    {
+      "file": "assets/release-single-cel-d.png",
+      "role": "single 릴리즈 · D · 광원만 부드럽게",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/d-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          142,
+          2170,
+          441
+        ],
+        "referenceSha256": "009aef15b9ca4564c73ccf3c61714dbc4ec1d193b067cf4b776202484f27de57",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 14788,
+      "sha256": "ff6d8bc99ac14bf88592d844747538c5efce027c74ec7c190d0ae0c1dd2cd9b8"
+    },
+    {
+      "file": "assets/release-single-cel-d@2x.png",
+      "role": "single 릴리즈 · D · 광원만 부드럽게",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-simplified-original.png",
+        "assets/release-single-simplified-original@2x.png",
+        "cel-balance-reference/d-single.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          142,
+          2170,
+          441
+        ],
+        "referenceSha256": "009aef15b9ca4564c73ccf3c61714dbc4ec1d193b067cf4b776202484f27de57",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          100
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 51537,
+      "sha256": "7550b8ed9c61a5d3e10502b4308ec5c5849dc037ac8f5131a35d8ca3b3d87b9f"
+    },
+    {
       "file": "assets/body-single-balance-gentle.svg",
       "role": "single idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -10561,6 +11125,582 @@
       "sha256": "10f38a1f8b8191649b939d117bd54be4c9350a5b0d246dab7ed6ccb75031b5cc"
     },
     {
+      "file": "assets/release-double-cel-a.svg",
+      "role": "double 릴리즈 · A · 부드러운 면 분리",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/a-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          133,
+          2172,
+          441
+        ],
+        "referenceSha256": "609ddce302fd01d785f8d499d44931e747932a9855154b08346e314d5b611f74",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1684003,
+      "sha256": "4b1b9d1eb2ba77823b1fbacbed066caf3d4e1a5b27fed6297630ffca8fa60f5e"
+    },
+    {
+      "file": "assets/release-double-cel-a.png",
+      "role": "double 릴리즈 · A · 부드러운 면 분리",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/a-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          133,
+          2172,
+          441
+        ],
+        "referenceSha256": "609ddce302fd01d785f8d499d44931e747932a9855154b08346e314d5b611f74",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 18258,
+      "sha256": "3e42f7632608cc972465efd9c7afa246860bb3eee95e46412c049123f37c75cc"
+    },
+    {
+      "file": "assets/release-double-cel-a@2x.png",
+      "role": "double 릴리즈 · A · 부드러운 면 분리",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/a-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          133,
+          2172,
+          441
+        ],
+        "referenceSha256": "609ddce302fd01d785f8d499d44931e747932a9855154b08346e314d5b611f74",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 61996,
+      "sha256": "d72e34897cee265f2abae715197b92760a775ae00df10f4de8a4e6a1af4a5b56"
+    },
+    {
+      "file": "assets/release-double-cel-b.svg",
+      "role": "double 릴리즈 · B · 면과 빛의 균형",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/b-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          137,
+          2172,
+          441
+        ],
+        "referenceSha256": "979e8d8df27a7a3199d37b8f3dce2e76720e19ef89e8e50b4794cec3bf845c3d",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1681287,
+      "sha256": "ee78a77c2ee84763ffe6dc615e1ba9b96ba77939000238e086862718cb9d2d1a"
+    },
+    {
+      "file": "assets/release-double-cel-b.png",
+      "role": "double 릴리즈 · B · 면과 빛의 균형",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/b-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          137,
+          2172,
+          441
+        ],
+        "referenceSha256": "979e8d8df27a7a3199d37b8f3dce2e76720e19ef89e8e50b4794cec3bf845c3d",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17802,
+      "sha256": "2ce7e95ee674db74f9e798ebd1d0a1ab42c035e486447e8910900954c4ba2257"
+    },
+    {
+      "file": "assets/release-double-cel-b@2x.png",
+      "role": "double 릴리즈 · B · 면과 빛의 균형",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/b-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2172,
+          724
+        ],
+        "crop": [
+          0,
+          137,
+          2172,
+          441
+        ],
+        "referenceSha256": "979e8d8df27a7a3199d37b8f3dce2e76720e19ef89e8e50b4794cec3bf845c3d",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 60759,
+      "sha256": "991c8c7138810ecd62664270c8c1a27b045530e429478249d911159981025647"
+    },
+    {
+      "file": "assets/release-double-cel-c.svg",
+      "role": "double 릴리즈 · C · 셀 채색 중심",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/c-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          137,
+          2170,
+          424
+        ],
+        "referenceSha256": "b200d16acecc3cbae3dc706bbcd82df67a834a1a1b6e40b8318c3e5c26d008cf",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1403699,
+      "sha256": "d767c59f5c49f812a95f2675aca2d320ba6218df4ee0d7fe579f080ac2a24cfb"
+    },
+    {
+      "file": "assets/release-double-cel-c.png",
+      "role": "double 릴리즈 · C · 셀 채색 중심",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/c-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          137,
+          2170,
+          424
+        ],
+        "referenceSha256": "b200d16acecc3cbae3dc706bbcd82df67a834a1a1b6e40b8318c3e5c26d008cf",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 16849,
+      "sha256": "f01448204b0c329ba667e78752aad8bd1071a61833198431ab742d05239d7be3"
+    },
+    {
+      "file": "assets/release-double-cel-c@2x.png",
+      "role": "double 릴리즈 · C · 셀 채색 중심",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/c-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          137,
+          2170,
+          424
+        ],
+        "referenceSha256": "b200d16acecc3cbae3dc706bbcd82df67a834a1a1b6e40b8318c3e5c26d008cf",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 57037,
+      "sha256": "4a09fbd42018bae125ea411b7160e353a205a0efcb8ce33b3a1adf4be86caee3"
+    },
+    {
+      "file": "assets/release-double-cel-d.svg",
+      "role": "double 릴리즈 · D · 광원만 부드럽게",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/d-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2169,
+          725
+        ],
+        "crop": [
+          0,
+          141,
+          2169,
+          433
+        ],
+        "referenceSha256": "bcef14a00e84da67938addfe38cd51177bf6acaad233c790cb75d8b8927cdaab",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1660103,
+      "sha256": "c98afb7d5b4ea97600102f78018f363ad4c5975412c7bf4aaca892611279e033"
+    },
+    {
+      "file": "assets/release-double-cel-d.png",
+      "role": "double 릴리즈 · D · 광원만 부드럽게",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/d-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2169,
+          725
+        ],
+        "crop": [
+          0,
+          141,
+          2169,
+          433
+        ],
+        "referenceSha256": "bcef14a00e84da67938addfe38cd51177bf6acaad233c790cb75d8b8927cdaab",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17539,
+      "sha256": "bc530c9d0c283b9c3741b0f789ee25b61a3d9e29faef6437ce476b85df33cc3b"
+    },
+    {
+      "file": "assets/release-double-cel-d@2x.png",
+      "role": "double 릴리즈 · D · 광원만 부드럽게",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-simplified-original.png",
+        "assets/release-double-simplified-original@2x.png",
+        "cel-balance-reference/d-double.png",
+        "cel-balance-reference/prompts.json",
+        "cel-balance-reference/variants.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2169,
+          725
+        ],
+        "crop": [
+          0,
+          141,
+          2169,
+          433
+        ],
+        "referenceSha256": "bcef14a00e84da67938addfe38cd51177bf6acaad233c790cb75d8b8927cdaab",
+        "symbolVariant": "triple-tight-large",
+        "symbolCenters": [
+          84,
+          116
+        ],
+        "preserve": "approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 60334,
+      "sha256": "4e36453f5f52cc5f2019d7d34f378bfc84479ba0797b8de83eb6ca47f0d32a8e"
+    },
+    {
       "file": "assets/body-double-balance-gentle.svg",
       "role": "double idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -14077,6 +15217,7 @@
       200,
       40
     ],
+    "feedback": "사용자가 형태를 선호함. 셀 채색과 광원 그라데이션 비중은 releaseCelBalancePreview에서 추가 비교.",
     "note": "원래 릴리즈의 중앙 사선 면·테두리·화살표·광선 끝을 원본 그대로 유지하고 양옆 흰 띠와 작은 면 분할만 제거한 시안.",
     "kinds": [
       {
@@ -14094,6 +15235,96 @@
         "point": "assets/note-double-anodized-contrast-070.png",
         "idleBody": "assets/body-double-center-dual-beam.png",
         "heldBody": "assets/body-double-held.png"
+      }
+    ]
+  },
+  "releaseCelBalancePreview": {
+    "approval": "proposed-artwork",
+    "targetSize": [
+      200,
+      40
+    ],
+    "note": "선호한 단순화 형태 위에서 넓은 면의 셀 채색과 광원 부근 그라데이션을 조율한 A～D. 테두리·광선 끝·3단 표식은 기존 위치 유지.",
+    "variants": [
+      {
+        "id": "a",
+        "label": "A · 부드러운 면 분리",
+        "note": "넓은 빛 번짐과 은은한 사선 명암"
+      },
+      {
+        "id": "b",
+        "label": "B · 면과 빛의 균형",
+        "note": "세로 색면과 광원 주변의 부드러운 빛"
+      },
+      {
+        "id": "c",
+        "label": "C · 셀 채색 중심",
+        "note": "선명한 사선 명암과 좁은 빛 번짐"
+      },
+      {
+        "id": "d",
+        "label": "D · 광원만 부드럽게",
+        "note": "넓은 단색면과 광선 끝에 모인 빛"
+      }
+    ],
+    "kinds": [
+      {
+        "kind": "single",
+        "original": "assets/release-single-simplified-original.png",
+        "point": "assets/note-single.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png",
+        "variants": [
+          {
+            "id": "a",
+            "label": "A · 부드러운 면 분리",
+            "file": "assets/release-single-cel-a.png"
+          },
+          {
+            "id": "b",
+            "label": "B · 면과 빛의 균형",
+            "file": "assets/release-single-cel-b.png"
+          },
+          {
+            "id": "c",
+            "label": "C · 셀 채색 중심",
+            "file": "assets/release-single-cel-c.png"
+          },
+          {
+            "id": "d",
+            "label": "D · 광원만 부드럽게",
+            "file": "assets/release-single-cel-d.png"
+          }
+        ]
+      },
+      {
+        "kind": "double",
+        "original": "assets/release-double-simplified-original.png",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png",
+        "variants": [
+          {
+            "id": "a",
+            "label": "A · 부드러운 면 분리",
+            "file": "assets/release-double-cel-a.png"
+          },
+          {
+            "id": "b",
+            "label": "B · 면과 빛의 균형",
+            "file": "assets/release-double-cel-b.png"
+          },
+          {
+            "id": "c",
+            "label": "C · 셀 채색 중심",
+            "file": "assets/release-double-cel-c.png"
+          },
+          {
+            "id": "d",
+            "label": "D · 광원만 부드럽게",
+            "file": "assets/release-double-cel-d.png"
+          }
+        ]
       }
     ]
   }

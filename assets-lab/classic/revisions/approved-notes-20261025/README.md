@@ -1,6 +1,6 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 보존 원본 24개와 복사·상태별 생성물 312개, 총 336개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 336개, 총 360개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
@@ -61,6 +61,12 @@
 새 상태 파일은 `body-double-held`, `body-double-partial-held-{left,right}`, `body-double-failed`, `body-double-partial-failed-{left,right}`, `note-double-failed`, `sustain-{single,double}-failed`, `sustain-double-partial-failed-{left,right}`, `{sustain,release}-double-unit-{left,right}[-failed]`, `unit-mask-{left,right}` 이름으로 찾을 수 있다.
 
 ## 재생성 및 미리보기
+
+### 셀 채색과 광원 그라데이션 · 4안
+
+`#release-cel-balance`는 사용자가 선호한 단순화 형태를 유지하며 채색만 조율한 A～D다. A는 은은한 사선 명암과 넓은 빛, B는 바디처럼 세로로 나눈 색면, C는 더 선명한 사선 명암과 좁은 빛, D는 넓은 단색면과 광선 끝 중심의 빛을 비교한다. 명칭은 생성 결과의 차이를 설명하며 수치화한 셀/그라데이션 면적 비율은 아니다. 싱글·더블 총 8종을 현재 안과 함께 보고 활성 바디·게임 크기 및 PNG·2배 PNG·SVG 24개를 제공한다. 채색 선택은 아직 하지 않았다.
+
+내장 `image_gen.imagegen`으로 파란 4안과 각 금색 대응을 생성했다. [전체 프롬프트](cel-balance-reference/prompts.json), 원본 8장, [crop·시안 정보](cel-balance-reference/variants.json)를 보존한다. `release-cel-balance.mjs`는 생성본의 넓은 색면만 합성하고 원래 외곽 알파·U 테두리·광선 끝을 유지한다. 선택한 3단 벡터를 동일한 위치·100/80/50 알파로 다시 얹는다. 이전 336개 파일·포인트·바디·게임 스킨·판정 연결은 변경하지 않는다.
 
 ### 원래 릴리즈 · 양옆 장식만 단순화
 

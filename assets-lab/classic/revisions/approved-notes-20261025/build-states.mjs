@@ -14,6 +14,7 @@ import { releaseCleanJunctionArtwork } from './release-clean-junctions.mjs';
 import { releaseStraightJunctionArtwork, straightJunctionGeometry } from './release-straight-junctions.mjs';
 import { releaseSimpleFrameArtwork } from './release-simple-frame.mjs';
 import { releaseSimplifiedOriginalArtwork } from './release-simplified-original.mjs';
+import { releaseCelBalanceArtwork } from './release-cel-balance.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -108,8 +109,15 @@ manifest.releaseSimpleFramePreview = {
 };
 manifest.releaseSimplifiedOriginalPreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
+  feedback: '사용자가 형태를 선호함. 셀 채색과 광원 그라데이션 비중은 releaseCelBalancePreview에서 추가 비교.',
   note: '원래 릴리즈의 중앙 사선 면·테두리·화살표·광선 끝을 원본 그대로 유지하고 양옆 흰 띠와 작은 면 분할만 제거한 시안.',
   kinds: [],
+};
+const celVariants = JSON.parse(await readFile(new URL('cel-balance-reference/variants.json', here), 'utf8'));
+manifest.releaseCelBalancePreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '선호한 단순화 형태 위에서 넓은 면의 셀 채색과 광원 부근 그라데이션을 조율한 A～D. 테두리·광선 끝·3단 표식은 기존 위치 유지.',
+  variants: celVariants.map(({ id, label, note }) => ({ id, label, note })), kinds: [],
 };
 const page = await browser.newPage();
 const read = name => readFile(new URL(`assets/${name}`, here));
@@ -429,6 +437,22 @@ try {
       approval: 'proposed-artwork',
     });
     manifest.releaseSimplifiedOriginalPreview.kinds.push({ kind, previous: horizontalCandidate, candidate: simplifiedCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
+    const celKind = { kind, original: simplifiedCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody, variants: [] };
+    for (const variant of celVariants) {
+      const reference = `cel-balance-reference/${variant.id}-${kind}.png`;
+      const bytes = await readFile(new URL(reference, here));
+      const geometry = variant.kinds[kind];
+      const artwork = original => releaseChevron(releaseCelBalanceArtwork(original, bytes, geometry), { kind, centers: symbolCenters, ...selectedSymbol });
+      const file = await emit(`release-${kind}-cel-${variant.id}`, artwork(await readFile(new URL(simplifiedCandidate.replace('.png', '@2x.png'), here))), {
+        nativeSource: artwork(await readFile(new URL(simplifiedCandidate, here))),
+        role: `${kind} 릴리즈 · ${variant.label}`,
+        sourceFiles: [simplifiedCandidate, simplifiedCandidate.replace('.png', '@2x.png'), reference, 'cel-balance-reference/prompts.json', 'cel-balance-reference/variants.json'],
+        operation: { ...geometry, referenceSha256: createHash('sha256').update(bytes).digest('hex'), symbolVariant: selectedSymbol.id, symbolCenters, preserve: 'approved outer alpha, U rim and beam-end highlights; identical selected chevron vectors; replace painted faces only' },
+        approval: 'proposed-artwork',
+      });
+      celKind.variants.push({ id: variant.id, label: variant.label, file });
+    }
+    manifest.releaseCelBalancePreview.kinds.push(celKind);
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
       { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },
