@@ -10,7 +10,7 @@ export const CASE_NOTE_HEIGHT = GAME_NOTE_HEIGHT * LANE_SCALE;
 const NOTE_H = CASE_NOTE_HEIGHT;
 const designPx = (value: number) => playfieldPx(value) * LANE_SCALE;
 
-/** 그릴 대상의 모양·좌표만 받는다. grace는 point 또는 끝 terminal의 표시다. */
+/** 그릴 대상의 모양·좌표만 받는다. overlay는 point의 Grace 또는 끝 terminal의 holdOnly를 나타내는 같은 overlay 표시다. */
 export interface CaseNoteDrawing {
   index: number;
   kind: JudgmentCaseNoteKind;
@@ -18,7 +18,7 @@ export interface CaseNoteDrawing {
   lane: number;
   startMs: number;
   endMs?: number;
-  grace?: boolean;
+  overlay?: boolean;
   /** 호출자가 XML 이스케이프한 추적 속성. 사용자 입력을 그대로 넣지 않는다. */
   attributes: string;
 }
@@ -74,7 +74,7 @@ function drawBody(skin: JudgmentCaseSkin, sprite: JudgmentCaseSkinSprite, box: B
 }
 
 /**
- * Grace 표시. overlay 에셋이 있으면 사방 graceOverlayPaddingPx 여백을 두고 그 이미지를,
+ * Grace·holdOnly 표시. overlay 에셋이 있으면 사방 graceOverlayPaddingPx 여백을 두고 그 이미지를,
  * 없으면 게임 GameNoteRenderer의 대체 글로우(흰 둥근 사각형 4겹 + 바깥 2px 흰 윤곽)를 그린다.
  */
 function graceOverlay(skin: JudgmentCaseSkin, kind: "point" | "terminal", x: number, y: number, width: number, attrs: string): string {
@@ -119,7 +119,7 @@ export function drawCaseNotes(entries: readonly CaseNoteDrawing[], skin: Judgmen
 
     if (entry.shape === "point") {
       const top = noteBoxTopY(yOf(entry.startMs), h);
-      if (entry.grace === true) layers.points.push(graceOverlay(skin, "point", lx, top, LANE_W, part("overlay")));
+      if (entry.overlay === true) layers.points.push(graceOverlay(skin, "point", lx, top, LANE_W, part("overlay")));
       // src/game/renderer/GameNoteRenderer.ts renderPointNote의 그림자 분기를 따른다: 싱글·더블은 pointContactShadow, trill은 pointContactShadowTrill(예전 pointShadow는 고르지 않음).
       const reach = skin.pointContactShadow;
       if (kind !== "trill" && reach && skin.contactShadow) {
@@ -137,7 +137,7 @@ export function drawCaseNotes(entries: readonly CaseNoteDrawing[], skin: Judgmen
 
     const startY = yOf(entry.startMs);
     const endY = yOf(entry.endMs ?? entry.startMs);
-    const terminalGrace = entry.grace === true;
+    const terminalOverlay = entry.overlay === true;
     const overhang = fullHeight ? (designPx(skin.terminalFrameOverhangPx) * bodyWidth) / LANE_W : 0;
     const terminalX = bodyX - overhang;
     const terminalWidth = bodyWidth + overhang * 2;
@@ -145,7 +145,7 @@ export function drawCaseNotes(entries: readonly CaseNoteDrawing[], skin: Judgmen
 
     if (entry.shape === "terminal") {
       const top = noteBoxTopY(startY, h);
-      if (terminalGrace) layers.points.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
+      if (terminalOverlay) layers.points.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
       layers.points.push(skinImage(skin.terminal[kind], { x: terminalX, y: top, width: terminalWidth, height: h }, part("terminal")));
       continue;
     }
@@ -156,7 +156,7 @@ export function drawCaseNotes(entries: readonly CaseNoteDrawing[], skin: Judgmen
       const terminal = fullHeight
         ? { x: terminalX, y: noteBoxTopY(endY, h), width: terminalWidth, height: h }
         : { x: lx, y: noteBoxTopY(endY, h), width: LANE_W, height: h };
-      if (terminalGrace) layers.ends.push(graceOverlay(skin, "terminal", terminalX, noteBoxTopY(endY, h), terminalWidth, part("overlay")));
+      if (terminalOverlay) layers.ends.push(graceOverlay(skin, "terminal", terminalX, noteBoxTopY(endY, h), terminalWidth, part("overlay")));
       layers.ends.push(skinImage(skin.terminal.trill, terminal, part("end")));
       continue;
     }
@@ -169,9 +169,9 @@ export function drawCaseNotes(entries: readonly CaseNoteDrawing[], skin: Judgmen
     const capKind = kind === "double" ? "double" : "single";
     if (fullHeight) {
       if (!zeroLength) {
-        if (terminalGrace) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
+        if (terminalOverlay) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
         layers.ends.push(skinImage(skin.terminal[kind], { x: terminalX, y: top, width: terminalWidth, height: h }, part("end")));
-      } else if (terminalGrace) {
+      } else if (terminalOverlay) {
         layers.heads.push(graceOverlay(skin, "terminal", terminalX, noteBoxTopY(startY, h), terminalWidth, part("overlay")));
       }
       layers.heads.push(skinImage(skin.terminal[kind], { x: terminalX, y: noteBoxTopY(startY, h), width: terminalWidth, height: h }, part("start"), true));
@@ -180,7 +180,7 @@ export function drawCaseNotes(entries: readonly CaseNoteDrawing[], skin: Judgmen
     // split-cap: 바디 안쪽 위·아래 끝에 반쪽 캡(최대 노트 높이의 절반, 짧은 바디는 가운데 WIRE_MIN_PX를 남긴다).
     const cap = skin.cap?.[capKind] ?? skin.terminal[kind];
     const capHeight = Math.max(0, Math.min(h / 2, (bottom - top - designPx(WIRE_MIN_PX)) / 2));
-    if (terminalGrace) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
+    if (terminalOverlay) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
     layers.ends.push(skinImage(cap, { x: terminalX, y: top, width: terminalWidth, height: capHeight }, part("end")));
     layers.heads.push(skinImage(cap, { x: terminalX, y: bottom - capHeight, width: terminalWidth, height: capHeight }, part("start"), true));
   }

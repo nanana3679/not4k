@@ -619,7 +619,8 @@ function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: 
     lane: entry.note.lane,
     startMs: entry.startMs,
     endMs: entry.endMs,
-    grace: isRange(entry.note) ? entry.note.holdOnly === true : entry.note.grace === true,
+    // Grace 포인트와 holdOnly 바디의 끝 terminal은 서로 다른 개념이지만 같은 overlay로 그린다.
+    overlay: isRange(entry.note) ? entry.note.holdOnly === true : entry.note.grace === true,
     attributes: `data-note-index="${entry.index}" data-note-type="${entry.note.type}"`,
   }));
   return drawCaseNotes(entries, skin, panelIndex, laneX, yOf);
