@@ -13,6 +13,7 @@ import { releaseForkedJunctionArtwork } from './release-forked-junctions.mjs';
 import { releaseCleanJunctionArtwork } from './release-clean-junctions.mjs';
 import { releaseStraightJunctionArtwork, straightJunctionGeometry } from './release-straight-junctions.mjs';
 import { releaseSimpleFrameArtwork } from './release-simple-frame.mjs';
+import { releaseSimplifiedOriginalArtwork } from './release-simplified-original.mjs';
 
 const here = new URL('./', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', here), 'utf8'));
@@ -103,6 +104,11 @@ manifest.releaseHorizontalJunctionPreview = {
 manifest.releaseSimpleFramePreview = {
   approval: 'proposed-artwork', targetSize: [200, 40],
   note: '릴리즈만 복잡하다는 피드백에 따른 전체 면 구성 단순화. 중앙 방패형 홈·분할 장식을 없애고 포인트·바디처럼 넓은 면과 끝 띠로 통일. 기존 3단 표식과 광선 끝 위치 유지.',
+  kinds: [],
+};
+manifest.releaseSimplifiedOriginalPreview = {
+  approval: 'proposed-artwork', targetSize: [200, 40],
+  note: '원래 릴리즈의 중앙 사선 면·테두리·화살표·광선 끝을 원본 그대로 유지하고 양옆 흰 띠와 작은 면 분할만 제거한 시안.',
   kinds: [],
 };
 const page = await browser.newPage();
@@ -412,6 +418,17 @@ try {
       approval: 'proposed-artwork',
     });
     manifest.releaseSimpleFramePreview.kinds.push({ kind, previous: horizontalCandidate, candidate: simpleCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody, symbolCenters });
+    const simplifiedReference = `simplified-original-reference/${kind}.png`;
+    const simplifiedBytes = await readFile(new URL(simplifiedReference, here));
+    const simplifiedGeometry = JSON.parse(await readFile(new URL('simplified-original-reference/geometry.json', here), 'utf8'))[kind];
+    const simplifiedCandidate = await emit(`release-${kind}-simplified-original`, releaseSimplifiedOriginalArtwork(await readFile(new URL(horizontalCandidate.replace('.png', '@2x.png'), here)), simplifiedBytes, simplifiedGeometry), {
+      nativeSource: releaseSimplifiedOriginalArtwork(await readFile(new URL(horizontalCandidate, here)), simplifiedBytes, simplifiedGeometry),
+      role: `${kind} 릴리즈 · 원래 중앙 구조를 보존하고 양옆 장식만 단순화`,
+      sourceFiles: [horizontalCandidate, horizontalCandidate.replace('.png', '@2x.png'), simplifiedReference, 'simplified-original-reference/prompts.json', 'simplified-original-reference/geometry.json'],
+      operation: { ...simplifiedGeometry, referenceSha256: createHash('sha256').update(simplifiedBytes).digest('hex'), mirroredRight: true, protectedCenter2x: [[90, 0], [310, 0], [282, 80], [118, 80]], preserve: 'original central face, sloping rim, chevrons, beam-end highlights and alpha; replace outer wings only' },
+      approval: 'proposed-artwork',
+    });
+    manifest.releaseSimplifiedOriginalPreview.kinds.push({ kind, previous: horizontalCandidate, candidate: simplifiedCandidate, point: originals.point, idleBody: originals.idleBody, heldBody: originals.heldBody });
     const balanceVariants = [{ id: 'original', label: '기존 조합', ...originals }];
     for (const treatment of [
       { id: 'gentle', label: 'A · 원색을 더 살림', bodyAmount: .2, releaseAmount: .45 },

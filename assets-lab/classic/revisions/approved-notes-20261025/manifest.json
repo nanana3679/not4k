@@ -5623,6 +5623,192 @@
       "sha256": "40c9ccabfd64bf72b390cd848cd58fe887000e30db3356b1c8cecd42fc0639e3"
     },
     {
+      "file": "assets/release-single-simplified-original.svg",
+      "role": "single 릴리즈 · 원래 중앙 구조를 보존하고 양옆 장식만 단순화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-horizontal-junctions.png",
+        "assets/release-single-horizontal-junctions@2x.png",
+        "simplified-original-reference/single.png",
+        "simplified-original-reference/prompts.json",
+        "simplified-original-reference/geometry.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          140,
+          450,
+          426
+        ],
+        "referenceSha256": "429db8cd031df02a7ee41dde7b1bfe7151f58eb8f2d461b3a526caa7af945d93",
+        "mirroredRight": true,
+        "protectedCenter2x": [
+          [
+            90,
+            0
+          ],
+          [
+            310,
+            0
+          ],
+          [
+            282,
+            80
+          ],
+          [
+            118,
+            80
+          ]
+        ],
+        "preserve": "original central face, sloping rim, chevrons, beam-end highlights and alpha; replace outer wings only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1649156,
+      "sha256": "3e274f9416537e38735f14f01eedd8441ec7aa633c197b64805b2666c0c9a367"
+    },
+    {
+      "file": "assets/release-single-simplified-original.png",
+      "role": "single 릴리즈 · 원래 중앙 구조를 보존하고 양옆 장식만 단순화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-horizontal-junctions.png",
+        "assets/release-single-horizontal-junctions@2x.png",
+        "simplified-original-reference/single.png",
+        "simplified-original-reference/prompts.json",
+        "simplified-original-reference/geometry.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          140,
+          450,
+          426
+        ],
+        "referenceSha256": "429db8cd031df02a7ee41dde7b1bfe7151f58eb8f2d461b3a526caa7af945d93",
+        "mirroredRight": true,
+        "protectedCenter2x": [
+          [
+            90,
+            0
+          ],
+          [
+            310,
+            0
+          ],
+          [
+            282,
+            80
+          ],
+          [
+            118,
+            80
+          ]
+        ],
+        "preserve": "original central face, sloping rim, chevrons, beam-end highlights and alpha; replace outer wings only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 15879,
+      "sha256": "5db4e748162ab61b68142ec9323813ce6c94eb430740a7bd28330ab688eea2b2"
+    },
+    {
+      "file": "assets/release-single-simplified-original@2x.png",
+      "role": "single 릴리즈 · 원래 중앙 구조를 보존하고 양옆 장식만 단순화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-single-horizontal-junctions.png",
+        "assets/release-single-horizontal-junctions@2x.png",
+        "simplified-original-reference/single.png",
+        "simplified-original-reference/prompts.json",
+        "simplified-original-reference/geometry.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          140,
+          450,
+          426
+        ],
+        "referenceSha256": "429db8cd031df02a7ee41dde7b1bfe7151f58eb8f2d461b3a526caa7af945d93",
+        "mirroredRight": true,
+        "protectedCenter2x": [
+          [
+            90,
+            0
+          ],
+          [
+            310,
+            0
+          ],
+          [
+            282,
+            80
+          ],
+          [
+            118,
+            80
+          ]
+        ],
+        "preserve": "original central face, sloping rim, chevrons, beam-end highlights and alpha; replace outer wings only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 55277,
+      "sha256": "d6f5645bef90d09242100a88ae7c0a61335db3504738816c675596c752aba19e"
+    },
+    {
       "file": "assets/body-single-balance-gentle.svg",
       "role": "single idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -10189,6 +10375,192 @@
       "sha256": "b8f5e4edc8f05386c4df92b92715c5311dd217f304fd0b8aefab288e717e3a16"
     },
     {
+      "file": "assets/release-double-simplified-original.svg",
+      "role": "double 릴리즈 · 원래 중앙 구조를 보존하고 양옆 장식만 단순화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-horizontal-junctions.png",
+        "assets/release-double-horizontal-junctions@2x.png",
+        "simplified-original-reference/double.png",
+        "simplified-original-reference/prompts.json",
+        "simplified-original-reference/geometry.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          140,
+          450,
+          426
+        ],
+        "referenceSha256": "fc7eaba2e7eb4af49e7a419c3eda26292446b8277c592ce39d3acde30bf6fab5",
+        "mirroredRight": true,
+        "protectedCenter2x": [
+          [
+            90,
+            0
+          ],
+          [
+            310,
+            0
+          ],
+          [
+            282,
+            80
+          ],
+          [
+            118,
+            80
+          ]
+        ],
+        "preserve": "original central face, sloping rim, chevrons, beam-end highlights and alpha; replace outer wings only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 1794260,
+      "sha256": "3f725463a64e1cfb2ccffd93fd40387dc1543fc50ba89cb56822930b3fcd2441"
+    },
+    {
+      "file": "assets/release-double-simplified-original.png",
+      "role": "double 릴리즈 · 원래 중앙 구조를 보존하고 양옆 장식만 단순화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-horizontal-junctions.png",
+        "assets/release-double-horizontal-junctions@2x.png",
+        "simplified-original-reference/double.png",
+        "simplified-original-reference/prompts.json",
+        "simplified-original-reference/geometry.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          140,
+          450,
+          426
+        ],
+        "referenceSha256": "fc7eaba2e7eb4af49e7a419c3eda26292446b8277c592ce39d3acde30bf6fab5",
+        "mirroredRight": true,
+        "protectedCenter2x": [
+          [
+            90,
+            0
+          ],
+          [
+            310,
+            0
+          ],
+          [
+            282,
+            80
+          ],
+          [
+            118,
+            80
+          ]
+        ],
+        "preserve": "original central face, sloping rim, chevrons, beam-end highlights and alpha; replace outer wings only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 200,
+      "height": 40,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 17354,
+      "sha256": "1323f65e20ae17c2fcf396a51e6d1291c738ade09df0d6724d90b8ae430017ed"
+    },
+    {
+      "file": "assets/release-double-simplified-original@2x.png",
+      "role": "double 릴리즈 · 원래 중앙 구조를 보존하고 양옆 장식만 단순화",
+      "generator": "build-states.mjs",
+      "sourceFiles": [
+        "assets/release-double-horizontal-junctions.png",
+        "assets/release-double-horizontal-junctions@2x.png",
+        "simplified-original-reference/double.png",
+        "simplified-original-reference/prompts.json",
+        "simplified-original-reference/geometry.json"
+      ],
+      "operation": {
+        "sourceSize": [
+          2170,
+          725
+        ],
+        "crop": [
+          0,
+          140,
+          450,
+          426
+        ],
+        "referenceSha256": "fc7eaba2e7eb4af49e7a419c3eda26292446b8277c592ce39d3acde30bf6fab5",
+        "mirroredRight": true,
+        "protectedCenter2x": [
+          [
+            90,
+            0
+          ],
+          [
+            310,
+            0
+          ],
+          [
+            282,
+            80
+          ],
+          [
+            118,
+            80
+          ]
+        ],
+        "preserve": "original central face, sloping rim, chevrons, beam-end highlights and alpha; replace outer wings only"
+      },
+      "approval": "proposed-artwork",
+      "skinKey": null,
+      "proposedRuntimePath": null,
+      "width": 400,
+      "height": 80,
+      "targetSize": [
+        200,
+        40
+      ],
+      "padding": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bytes": 60510,
+      "sha256": "10f38a1f8b8191649b939d117bd54be4c9350a5b0d246dab7ed6ccb75031b5cc"
+    },
+    {
       "file": "assets/body-double-balance-gentle.svg",
       "role": "double idleBody · 포인트 고정 A · 원색을 더 살림",
       "generator": "build-states.mjs",
@@ -13696,6 +14068,32 @@
           84,
           116
         ]
+      }
+    ]
+  },
+  "releaseSimplifiedOriginalPreview": {
+    "approval": "proposed-artwork",
+    "targetSize": [
+      200,
+      40
+    ],
+    "note": "원래 릴리즈의 중앙 사선 면·테두리·화살표·광선 끝을 원본 그대로 유지하고 양옆 흰 띠와 작은 면 분할만 제거한 시안.",
+    "kinds": [
+      {
+        "kind": "single",
+        "previous": "assets/release-single-horizontal-junctions.png",
+        "candidate": "assets/release-single-simplified-original.png",
+        "point": "assets/note-single.png",
+        "idleBody": "assets/body-single.png",
+        "heldBody": "assets/body-single-held.png"
+      },
+      {
+        "kind": "double",
+        "previous": "assets/release-double-horizontal-junctions.png",
+        "candidate": "assets/release-double-simplified-original.png",
+        "point": "assets/note-double-anodized-contrast-070.png",
+        "idleBody": "assets/body-double-center-dual-beam.png",
+        "heldBody": "assets/body-double-held.png"
       }
     ]
   }

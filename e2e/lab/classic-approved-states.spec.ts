@@ -2,6 +2,45 @@ import { expect, test } from '@playwright/test';
 
 const route = '/lab/images/classic-approved-states-20261025/';
 
+test('원형 유지 단순화는 싱글·더블 중앙 면과 화살표·광선 끝 및 투명도를 기본/2배에서 보존한다', async ({ page }) => {
+  await page.goto(route);
+  await page.locator('.jump').getByRole('link', { name: '원형 유지 단순화' }).click();
+  const section = page.locator('#release-simplified-original');
+  await expect(section.locator('article')).toHaveCount(4);
+  await expect(section.locator('[data-variant="candidate"] nav a')).toHaveCount(6);
+  const results = await page.evaluate(async () => {
+    const results = [];
+    for (const kind of ['single', 'double']) for (const scale of [1, 2]) {
+      const width = 200 * scale, height = 40 * scale;
+      const pixels = async (variant: string) => {
+        const image = new Image(); image.src = `assets/release-${kind}-${variant}${scale === 2 ? '@2x' : ''}.png`; await image.decode();
+        const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
+        const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+        return context.getImageData(0, 0, width, height).data;
+      };
+      const before = await pixels('horizontal-junctions'), after = await pixels('simplified-original');
+      let centerDifference = 0, alphaDifference = 0, changedWingPixels = 0;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        alphaDifference = Math.max(alphaDifference, Math.abs(before[i + 3] - after[i + 3]));
+        const difference = Math.max(...[0, 1, 2].map(channel => Math.abs(before[i + channel] - after[i + channel])));
+        // Exclude the antialiased join between the replacement wing and the original rim.
+        if (x >= 47 * scale + .35 * y && x < 153 * scale - .35 * y) centerDifference = Math.max(centerDifference, difference);
+        else if (difference > 5) changedWingPixels++;
+      }
+      results.push({ kind, scale, centerDifference, alphaDifference, changedWingPixels });
+    }
+    return results;
+  });
+  for (const result of results) {
+    expect(result.centerDifference, `${result.kind} ${result.scale}배 중앙`).toBeLessThanOrEqual(1);
+    expect(result.alphaDifference, `${result.kind} ${result.scale}배 윤곽`).toBe(0);
+    expect(result.changedWingPixels).toBeGreaterThan(1000);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+});
+
 test('릴리즈 단순화 시안은 기존 3단 표식을 그대로 쓰고 광선 끝을 싱글 100·더블 84/116에 맞춘다', async ({ page }) => {
   await page.goto(route);
   await page.locator('.jump').getByRole('link', { name: '릴리즈 단순화' }).click();

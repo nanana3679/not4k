@@ -1,6 +1,6 @@
 # Classic 확정 도안과 상태별 에셋 · 판정 연결 검토용
 
-2026-10-25. 보존 원본 24개와 복사·상태별 생성물 306개, 총 330개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
+2026-10-25. 보존 원본 24개와 복사·상태별 생성물 312개, 총 336개 파일을 `assets/`에 묶었다. 이 묶음은 판정·렌더러 담당자가 적용 위치와 상태 대응을 검토하기 위한 자료다. 현재 `public/skins/classic/`, 스킨 로더, 판정 엔진은 변경하지 않는다.
 
 `manifest.json`에는 각 파일의 크기·SHA-256·용도와 제안 스킨 키·런타임 경로를 적었다. `skinKey`와 `proposedRuntimePath`는 구현 제안이며 기존 API나 확정된 도메인 모델이 아니다. `source`는 제작 워크스페이스의 출처 기록이다. 이 묶음의 PNG·SVG는 모두 자체 포함 파일이며 해당 출처 경로나 Lab 갤러리 없이 열 수 있다.
 
@@ -61,6 +61,12 @@
 새 상태 파일은 `body-double-held`, `body-double-partial-held-{left,right}`, `body-double-failed`, `body-double-partial-failed-{left,right}`, `note-double-failed`, `sustain-{single,double}-failed`, `sustain-double-partial-failed-{left,right}`, `{sustain,release}-double-unit-{left,right}[-failed]`, `unit-mask-{left,right}` 이름으로 찾을 수 있다.
 
 ## 재생성 및 미리보기
+
+### 원래 릴리즈 · 양옆 장식만 단순화
+
+`#release-simplified-original`은 원래 릴리즈의 중앙 사선 면·테두리·화살표·광선 끝의 빛을 살리고 양옆 흰 띠와 작은 면 분할만 덜어낸 시안이다. 직전 사각 패널 탐색 대신 수평 접점 안을 직접 수정한다. 싱글·더블의 원본/수정, 바디 연결, 게임 크기와 PNG·2배 PNG·SVG 6개를 제공한다. 새 시안은 미선택이다.
+
+내장 `image_gen.imagegen`으로 원래 도안의 주변 장식을 줄였다. [전체 프롬프트](simplified-original-reference/prompts.json)와 생성 원본을 보존한다. `release-simplified-original.mjs`는 [crop 좌표](simplified-original-reference/geometry.json)의 왼쪽 넓은 면을 양옆에 합성하고 오른쪽은 반전한다. 중앙은 각 배율의 기존 PNG를 직접 유지하여 3단 표식의 100/80/50 알파와 광선 중심을 보존한다. 원본 알파 위에 합성하므로 외곽 투명도도 유지된다. 이전 330개 에셋과 실제 스킨·판정 연결은 변경하지 않는다.
 
 ### 릴리즈 전체 구성 · 넓은 면과 끝 띠
 
