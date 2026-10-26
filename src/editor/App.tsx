@@ -13,11 +13,11 @@ import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { deserializeChart, normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
-import { serializeExtraNotes, parseExtraNotes } from '../shared';
+import { normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
+import { serializeExtraNotes } from '../shared';
 import { chartViolationIndices } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
-import { toAuxIndex, mainNotes, maxAuxLane, auxNotesAsExtra, withAuxNotes } from '../shared';
+import { toAuxIndex, mainNotes, auxNotesAsExtra } from '../shared';
 import { supabase } from '../supabase';
 import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
 import type { PlaybackRange, ValidationError } from '../shared';
@@ -34,6 +34,7 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
+import { loadLegacyEditorChartAsset } from './chartAssetLoad';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 
@@ -140,24 +141,9 @@ export default function EditorApp() {
 
     Promise.all([chartFetch, extraFetch])
       .then(([chartText, extraText]) => {
-        const chart = deserializeChart(chartText);
-        // 보조 노트를 lane 5+로 chart.notes에 병합한 뒤 로드한다 (RFD 0018 ③ 로드 병합).
-        // Parse extra lane data: separate file first, fallback to legacy embedded data
-        let merged = chart;
-        let mergedExtraLaneCount = 0;
-        try {
-          const extraJson = extraText
-            ? JSON.parse(extraText)
-            : JSON.parse(chartText); // legacy: extra was embedded in chart JSON
-          const extra = parseExtraNotes(extraJson);
-          if (extra.extraNotes.length > 0 || extra.extraLaneCount > 0) {
-            // withAuxNotes가 [...main, ...aux] 정규형으로 병합해 aux 상대 순서를 보존한다
-            // — 재저장 바이트 동일성(§6-3a)이 이 순서 보존에 의존한다.
-            merged = { ...chart, notes: withAuxNotes(chart.notes, extra.extraNotes) };
-            // 노트가 존재하는 최대 보조 레인 이상으로 extraLaneCount 보장(숨김 예방, §8-7 계승)
-            mergedExtraLaneCount = Math.max(extra.extraLaneCount, toAuxIndex(maxAuxLane(merged.notes)));
-          }
-        } catch { /* ignore parse errors for extra data */ }
+        // 보조 형식·내용 오류는 빈 보조 데이터로 열지 않고 아래 catch의 로드 오류로 보낸다.
+        // 열린 뒤 저장이 기존 .extra.json을 지우는 유실을 막는다.
+        const { chart: merged, extraLaneCount: mergedExtraLaneCount } = loadLegacyEditorChartAsset(chartText, extraText);
         // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
         useEditorStore.getState().loadChart(merged);
         if (mergedExtraLaneCount > 0) useEditorStore.getState().setExtraLaneCount(mergedExtraLaneCount);
