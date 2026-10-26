@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat, ChartFormatError, type ChartDocument } from '../../shared';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
 import { useGameStore } from '../stores/gameStore';
+import { openNormalPlayForTest } from '../stores/normalPlayTestHarness';
 
 const fixture = vi.hoisted(() => ({ effect: null as (() => (() => void)) | null,
   error: null as string | null, load: vi.fn(), close: vi.fn(async () => undefined) }));
@@ -97,7 +98,7 @@ describe('일반 곡 LoadingScreen', () => {
   });
 
   it('읽기 실패 뒤에는 이전 결과·요청을 남기지 않고 AudioContext를 닫는다', async () => {
-    useGameStore.getState().startNormalPlay({ document: explicitPlaytestCharts[0].chart, audioBuffer });
+    openNormalPlayForTest(explicitPlaytestCharts[0].chart, audioBuffer);
     fixture.load.mockRejectedValue(new Error('network unavailable'));
     mount();
     await vi.waitFor(() => expect(fixture.error).toContain('Unable to load this song'));

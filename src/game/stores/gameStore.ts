@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Chart, PlaybackRange } from '../../shared';
 import type { JudgmentMode } from '../../shared/constants/judgment';
-import { prepareExplicitPlayTest, prepareNormalPlay } from './explicitPlayRequest';
-import type { ExplicitPlayRequest, ExplicitPlayTestOptions, NormalPlayOptions } from './explicitPlayRequest';
+import { prepareExplicitPlayTest } from './explicitPlayRequest';
+import type { ExplicitPlayRequest, ExplicitPlayTestOptions } from './explicitPlayRequest';
 import type { ExplicitSessionResult } from '../judgment/ExplicitJudgmentSession';
 
 type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'explicitPlay';
@@ -76,7 +76,6 @@ interface GameState {
   explicitPlay: ExplicitPlayRequest | null;
   normalPlay: ExplicitPlayRequest | null;
   normalLoadId: number;
-  startNormalPlay: (options: NormalPlayOptions) => void;
   beginNormalPlayLoad: () => number;
   completeNormalPlayLoad: (loadId: number, request: ExplicitPlayRequest) => boolean;
   cancelNormalPlayLoad: (loadId: number) => void;
@@ -186,13 +185,6 @@ export const useGameStore = create<GameState>()(
       explicitPlay: null,
       normalPlay: null,
       normalLoadId: 0,
-      startNormalPlay: options => {
-        const normalPlay = prepareNormalPlay({ ...options,
-          playbackRange: options.playbackRange === undefined ? get().selectedPlaybackRange : options.playbackRange });
-        set({ normalPlay, normalLoadId: get().normalLoadId + 1, explicitPlay: null, lastResult: null,
-          chartData: null, audioBuffer: null, startTimeMs: 0, editorReturnUrl: null,
-          screen: 'play', settingsOpen: false, calibrationActive: false });
-      },
       beginNormalPlayLoad: () => {
         const normalLoadId = get().normalLoadId + 1;
         set({ normalLoadId, normalPlay: null, explicitPlay: null, lastResult: null,

@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../stores/gameStore';
+import { openNormalPlayForTest } from '../stores/normalPlayTestHarness';
 import type { ExplicitPlayRequest } from '../stores/explicitPlayRequest';
 import { ExplicitJudgmentSession, type ExplicitSessionResult } from '../judgment/ExplicitJudgmentSession';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
@@ -22,7 +23,7 @@ const { NormalPlayScreen } = await import('./NormalPlayScreen');
 afterEach(() => { useGameStore.setState(useGameStore.getInitialState(), true); fixture.props = null; fixture.effect = null; });
 function mount(index = 0) {
   useGameStore.getState().selectSong('song-1', 'NORMAL', 'custom.mp3');
-  useGameStore.getState().startNormalPlay({ document: explicitPlaytestCharts[index].chart, audioBuffer: { duration: 4 } as AudioBuffer });
+  openNormalPlayForTest(explicitPlaytestCharts[index].chart, { duration: 4 } as AudioBuffer);
   renderToStaticMarkup(createElement(NormalPlayScreen));
   return fixture.props!;
 }

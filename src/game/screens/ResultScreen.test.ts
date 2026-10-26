@@ -2,6 +2,7 @@ import { Children, createElement, isValidElement, type ReactElement, type ReactN
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../stores/gameStore';
+import { openNormalPlayForTest } from '../stores/normalPlayTestHarness';
 import { ExplicitJudgmentSession } from '../judgment/ExplicitJudgmentSession';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
 
@@ -11,8 +12,7 @@ vi.mock('../stores', () => ({ useGameStore: () => useGameStore.getState() }));
 const { ResultScreen } = await import('./ResultScreen');
 afterEach(() => { useGameStore.setState(useGameStore.getInitialState(), true); fixture.navigate.mockReset(); });
 function finish(index: number, success = false) {
-  useGameStore.getState().startNormalPlay({ document: explicitPlaytestCharts[index].chart, audioBuffer: { duration: 4 } as AudioBuffer });
-  const request = useGameStore.getState().normalPlay!;
+  const request = openNormalPlayForTest(explicitPlaytestCharts[index].chart, { duration: 4 } as AudioBuffer);
   const session = new ExplicitJudgmentSession(request.compiled);
   if (success) {
     session.processBatch(1000, [{ key: 'A', lane: 1, type: 'down' }]);

@@ -195,21 +195,15 @@ describe('일반 곡 로딩·결과 수명', () => {
     return play;
   };
 
-  it('startNormalPlay는 선택한 곡·음원 구간을 유지하며 완성된 일반 요청을 원자적으로 연다', () => {
+  it('선택한 곡의 음원 구간으로 만든 요청을 로딩 완료로 열면 선택 곡·음원을 유지한 purpose=play 요청과 play 화면이 열린다', () => {
     const state = useGameStore.getState();
     const playbackRange = { startTime: 1, endTime: 3, fadeInTime: .1, fadeOutTime: .2 };
     state.selectSong('song-1', 'NORMAL', 'selected.mp3', playbackRange);
-    state.startNormalPlay({ document: explicitPlaytestCharts[0].chart, audioBuffer: { duration: 4 } as AudioBuffer });
+    const id = state.beginNormalPlayLoad();
+    state.completeNormalPlayLoad(id, prepareNormalPlay({ document: explicitPlaytestCharts[0].chart,
+      audioBuffer: { duration: 4 } as AudioBuffer, playbackRange: useGameStore.getState().selectedPlaybackRange }));
     expect(useGameStore.getState()).toMatchObject({ screen: 'play', selectedSongId: 'song-1', selectedAudioUrl: 'selected.mp3',
       normalPlay: { purpose: 'play', startTimeMs: 0, auto: false, playbackRange }, lastResult: null, explicitPlay: null });
-  });
-
-  it('startNormalPlay 검증 실패는 반쯤 만든 요청을 게시하지 않고 호출 전 상태를 보존한다', () => {
-    const document = structuredClone(explicitPlaytestCharts[0].chart);
-    document.notes[0] = { ...document.notes[0], type: 'single' } as typeof document.notes[number];
-    const before = useGameStore.getState();
-    expect(() => before.startNormalPlay({ document, audioBuffer: { duration: 4 } as AudioBuffer })).toThrow();
-    expect(useGameStore.getState()).toBe(before);
   });
 
   it('새 로딩은 이전 결과·요청·구형 음원을 지우고 완성된 요청과 play 화면을 한 번에 공개한다', () => {
