@@ -36,6 +36,7 @@ import {
   type EditorTouchMode,
   type HoldHits,
 } from './touchEditRouting';
+import { resolveContextMenuDelete } from './contextMenuRouting';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -390,6 +391,7 @@ export function useCanvasEvents(
     const touchExtraHit = e.pointerType === 'touch' ? space.hitTestExtraNote(x, y) : null;
 
     if (e.button === 2) {
+      // 삭제는 여기서 시작한다. 이 누름이 만들 contextmenu 한 번은 삭제하지 않는다.
       rightDragDeletedRef.current = true;
       canvasRef.current?.setPointerCapture(e.pointerId);
       eraseGestureRef.current.begin();
@@ -926,8 +928,13 @@ export function useCanvasEvents(
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
 
-    if (Date.now() < suppressContextMenuUntilRef.current) return;
-    if (rightDragDeletedRef.current) return;
+    const decision = resolveContextMenuDelete({
+      now: Date.now(),
+      suppressUntil: suppressContextMenuUntilRef.current,
+      rightPressPending: rightDragDeletedRef.current,
+    });
+    rightDragDeletedRef.current = decision.rightPressPending;
+    if (!decision.shouldDelete) return;
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
