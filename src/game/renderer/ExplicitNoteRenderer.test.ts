@@ -28,7 +28,7 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     expect(originals).toHaveLength(7);
     renderer.render(snapshot, 1100);
     expect(renderer.root.children.flatMap(layer => (layer as Container).children)).toEqual(originals);
-    expect(renderer.pooledSpriteCount).toBe(7);
+    expect(renderer.spriteCount).toBe(7);
     expect(children(renderer, "point").children.every(sprite => sprite instanceof Sprite)).toBe(true);
     renderer.dispose();
   });
@@ -43,16 +43,16 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     renderer.dispose();
   });
 
-  it("실패 snapshot을 아래로 스크롤하면 pool을 비우고 과거 시각 재조회는 snapshot으로 다시 그린다", () => {
+  it("실패 snapshot을 아래로 스크롤하면 Sprite를 모두 파괴해 spriteCount 0이 되고 과거 시각 재조회는 snapshot으로 다시 그린다", () => {
     const { renderer } = setup();
     const snapshot = explicitRenderSnapshot(chart, { body: ["failed", "failed"],
       items: { 0: ["miss", "miss"], 1: ["dependentZero", "dependentZero"], 3: ["miss", "miss"] } });
     renderer.render(snapshot);
     const body = children(renderer, "body").children[0];
     renderer.render(snapshot, 8000);
-    expect(renderer.pooledSpriteCount).toBe(0); expect(body.destroyed).toBe(true);
+    expect(renderer.spriteCount).toBe(0); expect(body.destroyed).toBe(true);
     renderer.render(snapshot, 2000);
-    expect(renderer.pooledSpriteCount).toBeGreaterThan(0);
+    expect(renderer.spriteCount).toBeGreaterThan(0);
     renderer.dispose();
   });
 
@@ -68,13 +68,13 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     renderer.dispose();
   });
 
-  it("setChart와 dispose는 자신이 만든 pool·레이어만 정리하고 부모와 공유 texture는 보존한다", () => {
+  it("setChart와 dispose는 자신이 만든 Sprite·레이어만 정리하고 부모와 공유 texture는 보존한다", () => {
     const { renderer, parent, skin } = setup();
     renderer.render(explicitRenderSnapshot(chart));
     const textureDestroy = vi.spyOn(skin.getTexture("body.double.idle"), "destroy");
     const old = children(renderer, "body").children[0];
     renderer.setChart(chart);
-    expect(old.destroyed).toBe(true); expect(renderer.pooledSpriteCount).toBe(0);
+    expect(old.destroyed).toBe(true); expect(renderer.spriteCount).toBe(0);
     renderer.render(explicitRenderSnapshot(chart));
     renderer.dispose(); renderer.dispose();
     expect(parent.children).toHaveLength(0); expect(parent.destroyed).toBe(false);

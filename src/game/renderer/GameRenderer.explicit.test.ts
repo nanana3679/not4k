@@ -173,7 +173,7 @@ describe('GameRenderer 명시 seam', () => {
     expect(sprites(explicit.root, 'body')[0].y).toBeCloseTo(before - 30);
     session.advance(2000); renderer.renderFrame(2000, 0);
     expect(sprites(explicit.root, 'body')[0].alpha).toBe(.7);
-    renderer.renderFrame(8000, 0); expect(explicit.pooledSpriteCount).toBe(0);
+    renderer.renderFrame(8000, 0); expect(explicit.spriteCount).toBe(0);
   });
 
   it('명시 차트 뒤 legacy setChart는 explicit 계층과 query를 해제하고 구형 single만 구형 renderer에 전달한다', async () => {

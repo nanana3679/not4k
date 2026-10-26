@@ -73,8 +73,8 @@ export class ExplicitNoteRenderer {
       if (sprite instanceof TilingSprite) {
         const metadata = getExplicitSkinAsset(this.skin.view, model.assetId);
         // Texture의 resolution/원본 픽셀 수와 무관하게 같은 논리 200×40 타일을 반복한다.
-        sprite.tileScale.set(model.tileScaleX * metadata.logicalSize.width / texture.width,
-          model.tileScaleY * metadata.logicalSize.height / texture.height);
+        sprite.tileScale.set(model.laneScaleX * metadata.logicalSize.width / texture.width,
+          model.laneScaleY * metadata.logicalSize.height / texture.height);
         sprite.tilePosition.set(0, 0);
       }
     }
@@ -85,8 +85,8 @@ export class ExplicitNoteRenderer {
     return notes;
   }
 
-  /** 완료·화면 밖 Sprite는 즉시 반환하므로 pool 크기는 현재 표시 수를 넘지 않는다. */
-  get pooledSpriteCount(): number { return this.spritesByKey.size; }
+  /** 완료·화면 밖 Sprite는 즉시 파괴하므로(재사용 pool 없음) 현재 표시 중인 Sprite 수와 같다. */
+  get spriteCount(): number { return this.spritesByKey.size; }
 
   dispose(): void {
     if (this.disposed) return;

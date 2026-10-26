@@ -70,7 +70,7 @@ export default function ExplicitRendererPage() {
         const sprites = renderer!.root.children.flatMap(layer => (layer as Container).children.map(sprite => ({
           key: sprite.label, layer: layer.label, x: sprite.x, y: sprite.y, width: sprite.width, height: sprite.height, alpha: sprite.alpha,
         })));
-        setDiagnostics(JSON.stringify({ mode, atMs: current.atMs, pool: renderer!.pooledSpriteCount, sprites }, null, 2));
+        setDiagnostics(JSON.stringify({ mode, atMs: current.atMs, spriteCount: renderer!.spriteCount, sprites }, null, 2));
         app.renderer.render(app.stage);
       };
       controller.current = { draw, reattach: () => {

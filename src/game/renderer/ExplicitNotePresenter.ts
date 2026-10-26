@@ -29,8 +29,8 @@ export interface ExplicitPresentedLayer {
   readonly width: number;
   readonly height: number;
   readonly alpha: number;
-  readonly tileScaleX: number;
-  readonly tileScaleY: number;
+  readonly laneScaleX: number;
+  readonly laneScaleY: number;
 }
 
 export interface ExplicitPresentedNote {
@@ -45,7 +45,7 @@ export interface ExplicitPresentedNote {
 type SourceGroup = { kind: "body"; body: ExplicitCompiledBody }
   | { kind: ExplicitScoreItem["kind"]; items: readonly ExplicitScoreItem[] };
 const side = (ordinal: number) => ordinal === 0 ? "left" : "right";
-const failedItem = (item: ExplicitItemSnapshot) => item.state === "miss" || item.state === "dependentZero";
+const isFailedItem = (item: ExplicitItemSnapshot) => item.state === "miss" || item.state === "dependentZero";
 
 /** 컴파일된 배치와 공개 상태만 읽는다. 키·입력 창·연결 hold 추론·효과 이력은 받지 않는다. */
 export class ExplicitNotePresenter {
@@ -85,7 +85,7 @@ export class ExplicitNotePresenter {
       const x = layout.laneAreaX + (lane - 0.5) * laneWidth - width * asset.anchor.x;
       return { key: `${index}:${overlay ? "overlay" : layer}:${ordinal ?? "whole"}`, assetId: asset.id,
         ordinal, layer, overlay, visible, inViewport: y + height >= 0 && y <= layout.height,
-        x, y, width, height, alpha, tileScaleX: scaleX, tileScaleY: scaleY };
+        x, y, width, height, alpha, laneScaleX: scaleX, laneScaleY: scaleY };
     };
     const required = <T>(value: T | undefined, id: string): T => {
       if (!value) throw new Error(`공개 snapshot에 명시 상태가 없습니다: ${id}`);
@@ -136,7 +136,7 @@ export class ExplicitNotePresenter {
         return state;
       });
       const success = items.filter(item => item.state === "success").length;
-      const failed = items.filter(failedItem);
+      const failed = items.filter(isFailedItem);
       let alpha = success > 0 && success < items.length ? 0.7 : 1;
       const visible = success !== items.length;
       const layers: ExplicitPresentedLayer[] = [];
@@ -144,7 +144,7 @@ export class ExplicitNotePresenter {
       if (first.kind === "sustain") {
         alpha = 1;
         for (const item of items) layers.push(sprite(index, first.lane, first.timeMs,
-          `sustain.${items.length === 2 ? "double" : "single"}.${failedItem(item) ? "failed" : "pending"}${items.length === 2 ? `.${side(item.ordinal)}` : ""}`,
+          `sustain.${items.length === 2 ? "double" : "single"}.${isFailedItem(item) ? "failed" : "pending"}${items.length === 2 ? `.${side(item.ordinal)}` : ""}`,
           "sustain", 1, item.state !== "success", item.ordinal));
       } else {
         let id: string;
@@ -159,7 +159,7 @@ export class ExplicitNotePresenter {
           for (const item of items) {
             const half = side(item.ordinal);
             const full = sprite(index, first.lane, first.timeMs,
-              `point.double.${failedItem(item) ? "failed" : "pending"}`, "point", alpha, visible, item.ordinal);
+              `point.double.${isFailedItem(item) ? "failed" : "pending"}`, "point", alpha, visible, item.ordinal);
             layers.push({ ...full, crop: half, width: full.width / 2, x: full.x + (half === "right" ? full.width / 2 : 0) });
           }
         } else layers.push(sprite(index, first.lane, first.timeMs, id, first.kind, alpha, visible));

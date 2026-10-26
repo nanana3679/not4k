@@ -271,7 +271,7 @@ export class GameRenderer {
   private judgmentUI!: JudgmentUI;
   private noteRenderer!: GameNoteRenderer;
   private explicitNoteRenderer: ExplicitNoteRenderer | null = null;
-  private explicitSnapshot: (() => ExplicitJudgmentSnapshot) | null = null;
+  private explicitSnapshotQuery: (() => ExplicitJudgmentSnapshot) | null = null;
   private explicitTextures: readonly Texture[] = [];
 
   constructor(options: GameRendererOptions) {
@@ -933,7 +933,7 @@ export class GameRenderer {
   ): void {
     this.explicitNoteRenderer?.dispose();
     this.explicitNoteRenderer = null;
-    this.explicitSnapshot = null;
+    this.explicitSnapshotQuery = null;
     this.explicitTextures = [];
     this.setChartVisible(true);
     this.timing = timing;
@@ -997,7 +997,7 @@ export class GameRenderer {
   setExplicitChart(
     compiled: ExplicitCompiledChart,
     textures: ExplicitSkinLoader,
-    snapshot: () => ExplicitJudgmentSnapshot,
+    snapshotQuery: () => ExplicitJudgmentSnapshot,
     document: Pick<ChartDocument, "trillZones" | "restZones" | "events">,
     durationMs: number,
   ): void {
@@ -1006,7 +1006,7 @@ export class GameRenderer {
       (document.restZones ?? []).filter(zone => zone.lane >= 1 && zone.lane <= 4), document.events, compiled.timing, durationMs);
     this.explicitNoteRenderer = new ExplicitNoteRenderer(this.laneContentLayer, textures, this.explicitLayout());
     this.explicitNoteRenderer.setChart(compiled);
-    this.explicitSnapshot = snapshot;
+    this.explicitSnapshotQuery = snapshotQuery;
     this.explicitTextures = loaded;
   }
 
@@ -1088,8 +1088,8 @@ export class GameRenderer {
     this.renderRestZones(songTimeMs);
     this.renderMeasureLines(songTimeMs);
     this.renderTrillZones(songTimeMs);
-    if (this.explicitNoteRenderer && this.explicitSnapshot) {
-      this.explicitNoteRenderer.render(this.explicitSnapshot(), songTimeMs);
+    if (this.explicitNoteRenderer && this.explicitSnapshotQuery) {
+      this.explicitNoteRenderer.render(this.explicitSnapshotQuery(), songTimeMs);
     }
 
     for (const data of this.noteRenderData) {
@@ -1441,7 +1441,7 @@ export class GameRenderer {
     this.gearTextures = [];
     this.explicitNoteRenderer?.dispose();
     this.explicitNoteRenderer = null;
-    this.explicitSnapshot = null;
+    this.explicitSnapshotQuery = null;
     this.explicitTextures = [];
     this.noteRenderer.dispose();
     // Boolean true also clears Pixi's global pools in v8. Other tutorial
