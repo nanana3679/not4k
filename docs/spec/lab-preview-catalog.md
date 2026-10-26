@@ -37,6 +37,10 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 `Rendering` 분류의 `/lab/note-assets`에서 Classic·Simple 노트, 롱노트, 터미널과 키봄을 실제 튜토리얼 재생기로 비교한다. 기본 시안은 Classic이며 시안 선택과 에셋 랙은 기존 시연실을 그대로 사용한다. 시연실의 `← Lab 목록` 링크는 공통 카탈로그로 돌아온다. 자세한 동작은 [노트 에셋 Lab](note-asset-lab.md)을 따른다.
 
+## 명시 노트 표시
+
+`Gameplay` 분류의 `/lab/explicit-renderer`에서 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)의 바디·Point·릴리즈·유지 표식을 승인된 `classic-explicit` 도안으로 비교한다. 공개 상태 fixture와 실제 싱글 세션(ENJ-05 회복) 재생을 구분하며 부분 성공·실패 합성, 독립 수명, 스크롤·리프트·해상도와 초기화, 렌더러 재부착과 표시 진단을 확인한다. 구형 스킨·보관 사례를 덮어쓰지 않는다.
+
 ## restZone Lane
 
 `Rendering` 분류의 `/lab/rest-zone-lane`은 `restZone` 동안 레인 판넬이 판정선을 경첩 삼아 뒤로 넘어갔다 올라오는 연출 시안을 4레인 Pixi 화면(120 BPM, 32박 반복)으로 재생한다. 게임에도 이 판넬을 넣기로 [RFD 0034](../rfd/0034-rest-zone-lane-panel.md)에서 정했고, 구현 전이라 게임은 아직 dim이다([RFD 0019](../rfd/0019-rest-zone-lane-guidance.md)). 게임 값은 이 페이지의 기본값과 같고(테두리 기본값도 게임 값인 `밝은 레인색 둘레`다), 추정 녹숫만 기본 1.5초 대신 차트 Lv.별 값(Lv.1 3000ms부터 Lv.15 500ms까지, `estimatedDwellMs`)을 쓴다.
@@ -103,11 +107,11 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 ## 검증
 
-- `labPreviewCatalog.test.ts`: 7개 인터랙티브 항목의 고유 `id`·경로, 대표 비행 미리보기와 시설 통과·노트 에셋 시연실·restZone Lane·Gear 등록을 확인한다.
+- `labPreviewCatalog.test.ts`: 8개 인터랙티브 항목의 고유 `id`·경로, 대표 비행 미리보기와 시설 통과·노트 에셋 시연실·명시 노트 표시·restZone Lane·Gear 등록을 확인한다.
 - `labImageGalleryCatalog.test.ts`: 이미지 HTML 컬렉션 2개의 고유 `id`와 `/lab/images/` 경로를 확인한다.
 - `labImageGalleryDevRequest.test.ts`: 등록된 로컬 alias만 재작성하고 literal·URL 인코딩 traversal을 거부하는지 확인한다.
 - `exportLabImageGalleries.test.ts`: 등록한 HTML·중첩 자산만 복사하고 미등록 컬렉션은 제외하는지 확인한다.
-- `LabIndexPage.test.ts`: 인터랙티브 카탈로그 7개(옛 기어 미리보기 없음)와 `IMAGE GALLERIES` 링크를 확인한다.
+- `LabIndexPage.test.ts`: 인터랙티브 카탈로그 8개(옛 기어 미리보기 없음)와 `IMAGE GALLERIES` 링크를 확인한다.
 - `FlightBackgroundPreviewLabPage.test.ts`·`FacilityPassagePreviewLabPage.test.ts`: 각 iframe 경로·시설 초기값과 Lab 복귀 링크를 확인한다.
 - `e2e/lab/catalog.spec.ts`: `/lab`에서 비행 미리보기를 열어 세 장면 탭이 나타나는지, 이미지 HTML 페이지에 9장이 로드되는지, 390px·912px에서 목록이 넘치지 않는지 확인한다. 시설 통과는 390px·1280px에서 진입·내부 정지·고도 조절·목록 복귀를 검증한다. restZone Lane은 390px·1280px에서 판넬 상태(4.15초 넘어가는 중·4.3초 넘어가 있음·10.35초 올라오는 중·10.6초 평상)를 React 상태 표시와 렌더러가 실제로 그린 진행도(`data-drawn-progress`) 양쪽에서 확인한다. 리프트·서든을 바꿔도 그린 전환 시각이 그대로인지, 추정 녹숫을 바꾸면 바뀌는지, 판넬이 넘어가 있는 동안 리프트·서든·테두리를 바꾸면 렌더러가 판넬 텍스처를 그 높이·테두리로 다시 만드는지(`data-panel-texture-height`·`data-panel-texture-edge`, 기본 테두리는 `rim`), 사용자 녹숫과 추정과의 차이 표시, 추정 녹숫 슬라이더 범위(500～3000ms), 최소 길이 경고, 배치·묶기 조작, 목록 복귀와 재진입, Pixi 경고(`PixiJS Warning`)가 콘솔에 나오지 않는지를 검증한다.
 - `src/game/renderer/restZonePanel.test.ts`·`RestZoneLanePage.test.ts`: 판넬 진행도와 전환 시각(시작 직후 넘어감·끝 − 추정 녹숫에 다 올라옴·짧은 구간), 녹숫 계산, Lv.별 추정 녹숫(Lv.1 3000ms·Lv.8 1750ms·Lv.15 500ms, 범위 밖·소수·숫자 아닌 Lv.), 맞닿은 같은 레인 `restZone` 잇기(3개 이상 연쇄·1/48박 틈·다른 레인·겹침·입력 불변), 최소 길이, 투영 모서리, 판넬 묶기와 공유 카메라(3개 판넬 이음새가 약 3.9px 벌어지는 받아들인 한계 포함), 서버 렌더링한 페이지의 조절 항목과 기본 녹숫·기본 테두리 `rim`·추정 녹숫 슬라이더 범위 표시를 확인한다.
@@ -117,4 +121,4 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 - 공개 미리보기 자체는 해당 시연 폴더의 Vitest와 Playwright 검사를 계속 사용한다.
 - `src/game/renderer/{gearMotionTiming,gearMotionData,gearMotion}.test.ts`·`frameTimeStats.test.ts`: 광원 띠 중심(0초 −841·30초 768·60초 −841), 액체(5초 −320), 기포·발광선(2.2초 0.85)·하단 바 빛(0.88초 85px, 1.76초 170px·투명)의 시간 곡선과 ease-in-out, `gear-motion.json` 읽기·오류(atlas frame이 텍스처 밖이면 오류)와 게임 경로(`/gear/gear-motion/`), 장갑 atlas frame 4개(675,328px), 레이어 구성(atlas frame 위치 지정·띠 밖 어둡게의 armor-lit `tint`·마스크·혼합·불투명도 8비트 보정·띠 반폭 702·부드러운 띠 프로파일)과 갱신(같은 시각을 다시 갱신하면 같은 상태, 결과 객체 재사용)·레이어 끄기·정리(구성 도중 실패해도 서브 텍스처 정리), 게이지 채움 컨테이너(`gaugeFill`), 게임 모듈이 Lab·React를 import하지 않는지, 프레임 간격 평균·p95를 확인한다.
 - `e2e/lab/gear-motion-compare.spec.ts`: 게임과 같은 공유 로더로 acquire한 `gearMotion` 에셋으로 만든 비교 Pixi 화면(원본 크기 1024×1536)과 같은 시각으로 멈춘 `gearMotion` 시안 SVG를 캔버스에 그려 기어 실루엣(기어 그림 알파 > 0, 레인 창 제외)에서 픽셀을 비교한다. 0·15·30·45초 네 레이어 모두는 평균 ≤ 1.5/255·99번째 백분위 ≤ 6/255이고 `gearMotion` 없는 바탕보다 4배 넘게 가까워야 한다(측정 평균 0.18～0.39, 99번째 백분위 1～2). 레이어 하나씩(A 실루엣, B 유리관 상자, C 실루엣, D 바 상자)은 평균 ≤ 1/255다. 광원 띠 경계 1.5px 안에서는 스텐실의 최대 차이(약 12/255)가 MSAA로 0.6배 아래, 알파 마스크로 4/255 이하가 되는지 본다. 구성 도중 실패하면 비교 앱이 오류를 알리고 WebGL 컨텍스트를 해제하는지, 안티앨리어싱·알파 마스크 체크가 새 캔버스로 앱을 다시 만들고(generation 증가, MSAA 샘플 > 0) 끄면 돌아오는지, 비교 시각 30초에 SVG 애니메이션이 모두 멈추고 currentTime 30000·광원 표시점 y 768인지, 왼쪽 장갑 보기의 같은 CSS 크기(480×720, devicePixelRatio 1) 두 패널 평균 차이가 1.5/255 아래이고 `gearMotion`을 끈 Pixi의 절반 아래인지(전체 보기는 1024px를 480px로 줄이는 필터 차이가 약 2.2/255라 쓰지 않는다), 보기 viewBox·패널 비율, 재생·일시정지, 레이어 체크가 SVG에도 걸리는지, 비교 구역을 늦게 읽는지, 390px 세로 배치를 확인한다. 픽셀 비교 묶음은 한 워커에서 차례로 돈다.
-- `pnpm run build:lab`: Pages base, 7개 인터랙티브 직링크와 기어 그림(`gear/gear.png`)·고도 게이지 빈 유리(`gear/gear-gauge-empty.png`)·`gearMotion` 에셋(`gear/gear-motion/`의 `gear-motion.json`과 텍스처 9개)·비교 기준 SVG, 이미지 HTML 컬렉션 2개, 세 비행 장면, 서버 코드 제외를 정적 산출물에서 확인하고, 지운 옛 기어 미리보기·자산(`lab/gear-light`·`lab/gear-measure-pulse`·`lab/gear-samples`·`gear/gear-frame.png`·보관본 기어 공개본)과 #231에서 이름을 바꾼 옛 경로(`lab/classic-frame-fit` — 옛 Lab 컷아웃·`gearMotion` 에셋 복사본 포함, `gear/classic-frame.png`·`gear/classic-frame-motion`)가 없는지 확인한다.
+- `pnpm run build:lab`: Pages base, 8개 인터랙티브 직링크와 기어 그림(`gear/gear.png`)·고도 게이지 빈 유리(`gear/gear-gauge-empty.png`)·`gearMotion` 에셋(`gear/gear-motion/`의 `gear-motion.json`과 텍스처 9개)·비교 기준 SVG, 이미지 HTML 컬렉션 2개, 세 비행 장면, 서버 코드 제외를 정적 산출물에서 확인하고, 지운 옛 기어 미리보기·자산(`lab/gear-light`·`lab/gear-measure-pulse`·`lab/gear-samples`·`gear/gear-frame.png`·보관본 기어 공개본)과 #231에서 이름을 바꾼 옛 경로(`lab/classic-frame-fit` — 옛 Lab 컷아웃·`gearMotion` 에셋 복사본 포함, `gear/classic-frame.png`·`gear/classic-frame-motion`)가 없는지 확인한다.
