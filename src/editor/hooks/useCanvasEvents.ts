@@ -394,6 +394,10 @@ export function useCanvasEvents(
       // 삭제는 여기서 시작한다. 이 누름이 만들 contextmenu 한 번은 삭제하지 않는다.
       rightDragDeletedRef.current = true;
       canvasRef.current?.setPointerCapture(e.pointerId);
+      // 붙여넣기 대기처럼 다른 조작의 transaction이 열려 있으면 키보드 명령처럼 먼저 확정한다.
+      // 소유 모드는 onInterrupt로 붙여넣기를 확정하고, 삭제 gesture가 새 transaction을 연다.
+      const openTransaction = useEditorStore.getState().editTransaction;
+      if (openTransaction && openTransaction.kind !== 'erase') useEditorStore.getState().commitEditTransaction();
       eraseGestureRef.current.begin();
       const lane = space.xToUnifiedLane(x);
       const hit = space.hitTestUnifiedNote(x, y);
