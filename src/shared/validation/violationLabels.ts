@@ -38,6 +38,7 @@ export const RULE_SEVERITY: Record<ValidationErrorRule, ViolationSeverity> = {
   sustainCount: "semantic",
   releasePlacement: "semantic",
   zeroLengthBodyOverlap: "semantic",
+  sameHoldCountConnectionWithoutPointOrRelease: "semantic",
   stopZone: "semantic",
   timeSigNotAtMeasureStart: "semantic",
 };
@@ -52,6 +53,7 @@ const catalogs: Record<string, Record<ValidationErrorRule, string>> = {
     sustainCount: "유지 표식 수량 오류",
     releasePlacement: "릴리즈 위치 오류",
     zeroLengthBodyOverlap: "길이 0 바디 조합 오류",
+    sameHoldCountConnectionWithoutPointOrRelease: "Point·릴리즈 없는 같은 hold 수 바디 연결",
     laneMalformed: "레인 값 오류",
     rangeInverted: "구간 역전",
     timeSigNotNatural: "박자표 값 오류",

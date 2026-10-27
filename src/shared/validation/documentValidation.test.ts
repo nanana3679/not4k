@@ -15,6 +15,7 @@ const createEmptyChart = (): Chart => ({ meta: { title: "C2", artist: "", diffic
   events: [{ type: "bpm", beat: beat(0), bpm: 120 }] });
 const document = (notes: DocumentNoteEntity[]): ChartDocument => ({ ...createEmptyChart(), notes });
 const rules = (notes: DocumentNoteEntity[]) => validateChartDocument(document(notes)).semantic.map(e => e.rule);
+const SAME_HOLD_COUNT_CONNECTION_RULE = "sameHoldCountConnectionWithoutPointOrRelease";
 
 describe("명시 문서의 구조·의미·재생 진단", () => {
   it("서로 다른 레인의 구형 single과 explicit body·sustain 혼합 문서는 저장 가능하고 새 재생만 거부한다", () => {
@@ -123,9 +124,96 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
   it.each([[1, 2], [2, 1]] as const)("%s→%s 경계 유지 표식은 뒤 바디 hold 수를 사용한다", (before, after) => {
     expect(rules([body(0, 2, before), body(2, 4, after), mark("sustain", 2, after)])).toEqual([]);
   });
-  it.each([1, 2] as const)("%s→같은 수 연결점의 sustain은 의미 위반이고 표식 없는 경계는 유효하다", count => {
-    expect(rules([body(0, 2, count), body(2, 4, count)])).toEqual([]);
-    expect(rules([body(0, 2, count), body(2, 4, count), mark("sustain", 2, count)])).toEqual(["sustainPlacement"]);
+  it.each([1, 2] as const)("hold %s→같은 수 연결점 2의 sustain은 sustainPlacement이고 Point·릴리즈가 없는 경계 위반도 함께 보고한다", count => {
+    expect(rules([body(0, 2, count), body(2, 4, count), mark("sustain", 2, count)]))
+      .toEqual(["sustainPlacement", SAME_HOLD_COUNT_CONNECTION_RULE]);
+  });
+
+  describe("같은 hold 수로 맞닿은 바디 경계의 Point·릴리즈 요구", () => {
+    it.each([1, 2] as const)("hold %s→같은 수 바디 [0,2]·[2,4] 경계에 Point·릴리즈가 없으면 앞·뒤 바디를 가리키는 의미 위반이며 저장·재생을 막는다", count => {
+      const result = validateChartDocument(document([body(0, 2, count), body(2, 4, count)]));
+      expect(result.semantic.map(e => [e.rule, e.refs])).toEqual([
+        [SAME_HOLD_COUNT_CONNECTION_RULE, [{ kind: "note", index: 0 }, { kind: "note", index: 1 }]]]);
+      expect(result).toMatchObject({ canSave: false, canPlayExplicit: false });
+    });
+
+    it("문서 순서가 뒤 바디 [2,4]·앞 바디 [0,2]여도 refs는 앞 바디 index1·뒤 바디 index0 순서다", () => {
+      expect(validateChartDocument(document([body(2, 4), body(0, 2)])).semantic.map(e => e.refs)).toEqual([
+        [{ kind: "note", index: 1 }, { kind: "note", index: 0 }]]);
+    });
+
+    it("다른 레인2의 Point2는 레인1 경계 2를 표시하지 않아 위반이 남는다", () => {
+      expect(rules([body(0, 2), body(2, 4), point(2, 2)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
+    });
+
+    const jointMarks = ([1, 2] as const).flatMap(holdCount => [
+      { holdCount, name: "일반 single Point", note: point(2) },
+      { holdCount, name: "double Point", note: { type: "point", kind: "double", lane: 1, beat: beat(2) } as DocumentNoteEntity },
+      { holdCount, name: "Grace single Point", note: { type: "point", kind: "single", lane: 1, beat: beat(2), grace: true } as DocumentNoteEntity },
+      { holdCount, name: "릴리즈 count1", note: mark("release", 2, 1) },
+      { holdCount, name: "릴리즈 count2", note: mark("release", 2, 2) },
+      { holdCount, name: "Grace 릴리즈 count1", note: { type: "release", lane: 1, beat: beat(2), count: 1, grace: true } as DocumentNoteEntity },
+    ]);
+    it.each(jointMarks)("hold $holdCount→같은 수 경계 2의 $name은 경계를 표시하므로 유효하다", ({ holdCount, note }) => {
+      expect(rules([body(0, 2, holdCount), body(2, 4, holdCount), note])).toEqual([]);
+    });
+
+    it.each([[1, 2], [2, 1]] as const)("hold %s→%s처럼 수가 다른 경계 2는 Point·릴리즈가 없어도 유효하다", (before, after) => {
+      expect(rules([body(0, 2, before), body(2, 4, after)])).toEqual([]);
+    });
+
+    it.each([1, 2] as const)("hold %s 바디 [0,2] 끝에 맞닿은 같은 수 길이0 바디 [2,2]도 위반이다", count => {
+      expect(validateChartDocument(document([body(0, 2, count), body(2, 2, count)])).semantic.map(e => [e.rule, e.refs])).toEqual([
+        [SAME_HOLD_COUNT_CONNECTION_RULE, [{ kind: "note", index: 0 }, { kind: "note", index: 1 }]]]);
+    });
+
+    it.each(["point", "release"] as const)("길이0 뒤 바디 [2,2]에 놓은 경계 %s는 zeroLengthBodyOverlap이라 표시로 인정해도 저장할 수 없다", kind => {
+      const notes = [body(0, 2), body(2, 2), kind === "point" ? point(2) : mark("release", 2)];
+      expect(rules(notes)).toEqual(["zeroLengthBodyOverlap"]);
+      expect(validateChartDocument(document(notes)).canSave).toBe(false);
+    });
+
+    it("보조 lane5의 같은 수 바디 [0,2]·[2,4]도 Point·릴리즈가 없으면 위반이다", () => {
+      expect(rules([body(0, 2, 1, 5), body(2, 4, 1, 5)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
+      expect(rules([body(0, 2, 2, 5), body(2, 4, 2, 5), mark("release", 2, 2, 5)])).toEqual([]);
+    });
+
+    const trillBody = (start: number, end: number, lane = 1): DocumentNoteEntity =>
+      ({ type: "body", lane, beat: beat(start), endBeat: beat(end), holdCount: 1, trill: true });
+    const trillPoint = (at: number, lane = 1): DocumentNoteEntity => ({ type: "point", kind: "trill", lane, beat: beat(at) });
+
+    it("보조 lane5의 트릴 바디 [0,2] 뒤 일반 바디 [2,4]는 이어 보이지 않으므로 Point·릴리즈 없이 유효하다", () => {
+      expect(rules([trillBody(0, 2, 5), body(2, 4, 1, 5)])).toEqual([]);
+    });
+
+    it("메인 레인1의 트릴 바디 [0,2] 뒤 일반 바디 [2,4]는 zone [0,2] 끝의 trillExclusive만 보고하고 같은 수 경계 위반은 내지 않는다", () => {
+      const chart = document([trillPoint(0), trillBody(0, 2), body(2, 4)]);
+      chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(2) }];
+      expect(validateChartDocument(chart).semantic.map(e => e.rule)).toEqual(["trillExclusive"]);
+    });
+
+    it("보조 lane5의 일반 바디 [0,2] 뒤 트릴 바디 [2,4]는 트릴 여부가 달라 Point·릴리즈 없이 유효하다", () => {
+      expect(rules([body(0, 2, 1, 5), trillBody(2, 4, 5)])).toEqual([]);
+    });
+
+    it("보조 lane5의 트릴 바디 [0,2]·[2,4] 경계에 Point·릴리즈가 없으면 위반이다", () => {
+      expect(rules([trillBody(0, 2, 5), trillBody(2, 4, 5)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
+    });
+
+    it("메인 레인1의 트릴 바디 [0,2]·[2,4] 경계에 트릴 Point가 없으면 trillLongInvalid만 보고하고 트릴 Point를 놓으면 유효하다", () => {
+      const chart = document([trillPoint(0), trillBody(0, 2), trillBody(2, 4)]);
+      chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
+      expect(validateChartDocument(chart).semantic.map(e => [e.rule, e.refs])).toEqual([
+        ["trillLongInvalid", [{ kind: "note", index: 2 }]]]);
+      chart.notes.push(trillPoint(2));
+      expect(validateChartDocument(chart).semantic).toEqual([]);
+    });
+
+    it("구형 long [0,2]와 명시 바디 [2,4]가 맞닿으면 어느 순서든 같은 수 경계 위반을 내지 않는다", () => {
+      const legacy = (start: number, end: number): DocumentNoteEntity => ({ type: "long", lane: 1, beat: beat(start), endBeat: beat(end) });
+      expect(rules([legacy(0, 2), body(2, 4)])).toEqual([]);
+      expect(rules([body(0, 2), legacy(2, 4)])).toEqual([]);
+    });
   });
   it.each([1, 2] as const)("길이0 body hold%s는 단독·동일 수 sustain과 유효하다", count => {
     expect(rules([body(2, 2, count)])).toEqual([]);

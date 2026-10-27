@@ -53,6 +53,7 @@ export interface ValidationError {
     | "sustainCount"
     | "releasePlacement"
     | "zeroLengthBodyOverlap"
+    | "sameHoldCountConnectionWithoutPointOrRelease"
     | "laneMalformed";
   message: string;
   refs?: ValidationRef[];
