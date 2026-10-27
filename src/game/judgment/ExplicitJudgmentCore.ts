@@ -466,8 +466,9 @@ export class ExplicitJudgmentCore {
   }
 
   /**
-   * 실패와 연결 공유 실패를 깊이 우선 순서로 확정한다. 긴 연결 사슬에서도 호출 스택을 쓰지 않도록 명시적 stack으로 걷는다.
-   * 각 연결의 공유 조건은 앞 연결의 전파를 모두 마친 뒤에 판단한다.
+   * 실패와 연결 공유 실패를 깊이 우선 순서로 확정한다. 공유는 뒤 시작 Point가 없는 2→1 감소에서 앞 두 몫이 모두
+   * 실패했을 때 뒤 single 하나로만 번진다. single에서 나가는 1→1·1→2 연결은 공유하지 않으므로 전파는 한 단계에서 멈춘다.
+   * 같은 hold 수의 표식 없는 연결은 `sameHoldCountConnectionWithoutPointOrRelease` 검증이 컴파일 전에 막는다. 각 연결의 공유 조건은 앞 연결의 전파를 모두 마친 뒤에 판단한다.
    */
   private fail(unit: UnitRuntime, at: number, reason: "startTimeout" | "maintenance" | "pointMiss", causeFactId: string | null): void {
     const stack: { readonly unit: UnitRuntime; readonly factId: string; readonly connections: readonly ExplicitCompiledConnection[]; next: number }[] = [];
@@ -492,9 +493,7 @@ export class ExplicitJudgmentCore {
       const connection = frame.connections[frame.next++];
       const next = this.bodyByIndex.get(connection.successorIndex);
       if (!next || next.startPoints.length) continue;
-      if (connection.predecessorHoldCount === connection.successorHoldCount && frame.unit.body.body.releaseIndices.length === 0) {
-        failOne(next.units[frame.unit.ordinal], frame.factId, true);
-      } else if (connection.predecessorHoldCount === 2 && connection.successorHoldCount === 1 && frame.unit.body.units.every(u => u.failedAt !== null)) {
+      if (connection.predecessorHoldCount === 2 && connection.successorHoldCount === 1 && frame.unit.body.units.every(u => u.failedAt !== null)) {
         failOne(next.units[0], frame.factId, true);
       }
     }
