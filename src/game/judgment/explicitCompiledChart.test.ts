@@ -153,9 +153,10 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
   });
 });
 
-describe("ENJ18·HC81 실행 fixture의 컴파일 단계 증거", () => {
-  it("독립 fixture는 ENJ-01～18과 HC001～081 ID를 빠짐없이 보존한다", () => {
-    expect(explicitEnjFixtures.map(f => f.id)).toEqual(Array.from({ length: 18 }, (_, i) => `ENJ-${String(i + 1).padStart(2, "0")}`));
+describe("ENJ17·HC81 실행 fixture의 컴파일 단계 증거", () => {
+  it("독립 fixture는 삭제한 ENJ-10을 뺀 ENJ-01～18 17건과 HC001～081 81건 ID를 빠짐없이 보존한다", () => {
+    expect(explicitEnjFixtures.map(f => f.id)).toEqual(Array.from({ length: 18 }, (_, i) => `ENJ-${String(i + 1).padStart(2, "0")}`)
+      .filter(id => id !== "ENJ-10"));
     expect(explicitHcFixtures.map(f => f.id)).toEqual(Array.from({ length: 81 }, (_, i) => `HC${String(i + 1).padStart(3, "0")}`));
     expect(explicitHcFixtures[0].source).toContain("noteJudgmentBodyHeldCountCases.test.ts:74");
     expect(explicitHcFixtures.filter(f => f.expected.scope === "partial").map(f => [f.id, f.expected.assertionNoteIndices]))

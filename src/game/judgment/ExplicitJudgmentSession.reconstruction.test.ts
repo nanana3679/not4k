@@ -396,7 +396,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
   });
 });
 
-describe("ENJ18·HC81의 되감기 후 동일 입력은 같은 확정 결과", () => {
+describe("ENJ17·HC81의 되감기 후 동일 입력은 같은 확정 결과", () => {
   it.each([...explicitEnjFixtures, ...explicitHcFixtures])("$id 중간 관측까지 복원하고 나머지를 재생하면 점수·콤보·바디·확정 사실이 일치", data => {
     const original = new ExplicitJudgmentSession(compileExplicitJudgmentChart(data.chart), {
       maintenanceGraceMs: data.maintenanceGraceMs,

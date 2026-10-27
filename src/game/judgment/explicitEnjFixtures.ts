@@ -3,6 +3,7 @@ import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRel
 
 // 승인 자료를 독립적인 typed 실행 차트로 옮긴 고정 fixture다.
 // 설계 JSON·구형 차트를 실행 중 변환하지 않으며 실제 세션 기대값은 M1/M2에서 검증한다.
+// ENJ-10(같은 수의 표식 없는 연결의 탈락 공유)은 그 배치를 금지한 사용자 결정(2026-10-27)으로 지웠고 번호는 비워 둔다.
 export const explicitEnjFixtures = [
   // ENJ-01 — preheld는 880ms가 아니라 1000ms에 시작
   fixture('ENJ-01', 'docs/spec/fixtures/explicit-note-cases/enj-01.json',
@@ -49,11 +50,6 @@ export const explicitEnjFixtures = [
     [b(1000, 2000, 1, 1), r(2000, 1, 1, true)],
     [["A",1000,null,1]],
     { scoreItemCount: 1, theoreticalWeight: 3, earnedScore: 0, scope: 'whole', events: { perfect: 0, great: 0, good: 0, pointMiss: 0, releaseMiss: 1, maintenanceMiss: 0, dependentZero: 0 } }),
-  // ENJ-10 — 같은 수의 표식 없는 연결은 탈락 공유
-  fixture('ENJ-10', 'docs/spec/fixtures/explicit-note-cases/enj-10.json',
-    [b(1000, 2000, 1, 1), b(2000, 3000, 1, 1), s(2500, 1, 1), r(3000, 1, 1)],
-    [["A",1000,1500,1],["A",1990,3000,1]],
-    { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 0, scope: 'whole', events: { perfect: 0, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 1, dependentZero: 2 } }),
   // ENJ-11 — 1→2는 앞 single 탈락 뒤 두 몫 모두 새 시작
   fixture('ENJ-11', 'docs/spec/fixtures/explicit-note-cases/enj-11.json',
     [b(1000, 2000, 1, 1), b(2000, 3000, 2, 1), s(2000, 2, 1), r(3000, 2, 1)],
