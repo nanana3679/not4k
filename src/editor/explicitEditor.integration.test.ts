@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { beat, serializeChart, serializeExtraNotes, mainNotes, auxNotesAsExtra } from '../shared';
+import { beat, serializeChart, serializeExtraNotes, mainNotes, auxNotesAsExtra, buildViolationList } from '../shared';
 import type { ChartDocument } from '../shared';
 import { useEditorStore } from './stores';
 import { CreateMode } from './modes/CreateMode';
@@ -114,5 +114,26 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     expect(hiddenViolationLanes(errors, moved.notes, 2)).toEqual([7]);
     useEditorStore.getState().undo(); expect(useEditorStore.getState().chart).toEqual(invalid);
     warn.mockRestore();
+  });
+
+  it('Point 없는 4～8박 싱글 바디 앞에 바디 도구로 0～4박 싱글 바디를 그리면 두 바디가 sameHoldCountConnectionWithoutPointOrRelease 위반으로 저장이 막히고 Undo 한 번에 유효 차트로 돌아간다', () => {
+    const valid: ChartDocument = { ...seed(), notes: [{ type: 'body', lane: 1, beat: beat(4), endBeat: beat(8), holdCount: 1 }] };
+    useEditorStore.getState().loadChart(valid); useEditorStore.getState().resetHistory();
+    expect(editorChartErrors(valid)).toEqual([]);
+    const mode = create(); mode.entityType = 'long'; mode.onPointerDown(1, 0); mode.onPointerUp(1, 4);
+    const touched = useEditorStore.getState().chart;
+    // 바디 도구는 Point·릴리즈 없이 바디만 만들므로 4박 경계에 표식이 없다.
+    expect(touched.notes).toEqual([...valid.notes, { type: 'body', lane: 1, beat: beat(0), endBeat: beat(4), holdCount: 1 }]);
+    const errors = editorChartErrors(touched);
+    expect(errors).toEqual([expect.objectContaining({
+      rule: 'sameHoldCountConnectionWithoutPointOrRelease', refs: [{ kind: 'note', index: 1 }, { kind: 'note', index: 0 }],
+    })]);
+    expect(editorChartViolationIndices(touched).notes).toEqual(new Set([0, 1]));
+    expect(buildViolationList(errors)).toEqual([expect.objectContaining({ label: 'Point·릴리즈 없는 같은 hold 수 바디 연결', severity: 'semantic' })]);
+    // 저장·다른 이름 저장은 editorChartErrors가 비어 있지 않으면 멈춘다. 막다른 탈출 지점도 위반 전 차트에 남는다.
+    expect(useEditorStore.getState().lastValidSnapshot?.chart).toBe(valid);
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().chart).toEqual(valid);
+    expect(editorChartErrors(useEditorStore.getState().chart)).toEqual([]);
   });
 });
