@@ -74,7 +74,7 @@ describe("원본 출처를 보존하는 명시 재생 범위", () => {
   });
 
   it("같은 1500ms 범위를 두 번 선택해도 source index·연결·점수 항목이 바뀌지 않음", () => {
-    const source = compile([b(500, 1000), b(1000, 2000), b(2000, 2500)]);
+    const source = compile([b(500, 1000), b(1000, 2000, 2), b(2000, 2500)]);
     const once = createExplicitPlaybackChartView(source, 1500, source.scoreItems);
     const twice = createExplicitPlaybackChartView(once, 1500, once.scoreItems);
     expect(twice).toEqual(once);

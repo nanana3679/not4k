@@ -36,11 +36,12 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(compiled.connections).toHaveLength(1);
   });
 
-  it("같은 수 body 두 개는 실제 경계2000ms와 독립 body unit ID를 보존한다", () => {
-    const compiled = compileExplicitJudgmentChart(chart([b(1000, 2000), b(2000, 3000)]));
+  it("경계 2000 릴리즈로 이어진 같은 수 body 두 개는 실제 경계 2000ms와 독립 body unit ID를 보존하고 릴리즈는 앞 body 끝에 속한다", () => {
+    const compiled = compileExplicitJudgmentChart(chart([b(1000, 2000), b(2000, 3000), r(2000)]));
     expect(compiled.bodies.map(body => [body.source.noteIndex, body.startMs, body.endMs])).toEqual([[0, 1000, 2000], [1, 2000, 3000]]);
     expect(compiled.bodyUnits.map(unit => unit.id)).toEqual(["b0:hold:0", "b1:hold:0"]);
     expect(compiled.connections[0]).toMatchObject({ predecessorIndex: 0, successorIndex: 1, boundaryMs: 2000, predecessorHoldCount: 1, successorHoldCount: 1 });
+    expect(compiled.scoreItems).toMatchObject([{ kind: "release", bodyIndex: 0, boundaryKind: "end", timeMs: 2000 }]);
   });
 
   it("single body의 Grace double release는 같은 Grace 두 항목과 가중치6을 보존한다", () => {

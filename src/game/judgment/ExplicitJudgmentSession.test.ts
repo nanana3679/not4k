@@ -141,13 +141,16 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, processedNotes: 2, judgmentCounts: { miss: 0 } });
   });
 
-  it("앞 연결 바디가 제외된 커서1500 세션의 시작 실패1620은 뒤 살아 있는 연결에만 공유되어 Miss1회를 유지", () => {
-    const chart = compileExplicitJudgmentChart(fixture([b(500, 1000), b(1000, 2000), b(2000, 3000)]).chart);
+  it("앞 1→2 연결 바디가 제외된 커서1500 세션에서 double 두 몫의 시작 실패1620은 뒤 2→1 연결의 single에만 공유되어 Miss는 몫마다 1회씩 2회", () => {
+    const chart = compileExplicitJudgmentChart(fixture([b(500, 1000), b(1000, 2000, 2), b(2000, 3000)]).chart);
     const session = new ExplicitJudgmentSession(chart, { ...options, startTimeMs: 1500 });
+    expect(session.playbackChart.connections).toHaveLength(1);
     session.resumeAt(1500, []);
     session.advance(1621);
-    expect(session.snapshot.bodyUnits.map(unit => [unit.id, unit.state])).toEqual([["b1:hold:0", "failed"], ["b2:hold:0", "failed"]]);
-    expect(session.finalize().score.judgmentCounts.miss).toBe(1);
+    expect(session.snapshot.bodyUnits.map(unit => [unit.id, unit.state])).toEqual([
+      ["b1:hold:0", "failed"], ["b1:hold:1", "failed"], ["b2:hold:0", "failed"],
+    ]);
+    expect(session.finalize().score.judgmentCounts.miss).toBe(2);
   });
 
   it("1000～2000ms 바디를 1500ms에 B preheld로 재개하면 새 down 없이 1500ms에 시작하고 기존 사실·점수·효과를 보존", () => {
@@ -817,7 +820,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
 
   it("double·connection·더블 릴리즈를 컴파일하면 요구한 몫과 명시 점수 항목을 보존", () => {
     expect(makeSession([b(1000, 2000, 2)]).snapshot.bodyUnits).toHaveLength(2);
-    expect(makeSession([b(1000, 2000), b(2000, 3000)]).snapshot.bodyUnits).toHaveLength(2);
+    expect(makeSession([b(1000, 2000), r(2000), b(2000, 3000)]).snapshot.bodyUnits).toHaveLength(2);
     expect(makeSession([p(1000, "double")]).snapshot.items).toHaveLength(2);
     expect(makeSession([b(1000, 2000), r(2000, 2)]).snapshot.items).toHaveLength(2);
   });

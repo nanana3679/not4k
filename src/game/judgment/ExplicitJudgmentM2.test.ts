@@ -528,43 +528,17 @@ describe("연결 바디 실패 전파", () => {
     ? `${fact.id} bodyFailed ${fact.bodyUnitId} cause=${fact.causeFactId} miss=${fact.unscoredMiss}`
     : fact.kind === "settlement" ? `${fact.id} ${fact.outcome} ${fact.itemId} cause=${fact.causeFactId}` : `${fact.id} ${fact.kind}`;
 
-  it("Point·릴리즈 없는 single 바디 3개 연결에서 첫 시작 실패 1120은 앞 바디부터 실패·유지 종속 0점을 차례로 확정하고 끝 릴리즈만 종속 0점", () => {
-    const session = makeSession([b(1000, 2000), s(1500), b(2000, 3000), s(2500), b(3000, 4000), s(3500), r(4000)]);
-    session.advance(1121);
-    expect(session.facts.map(factLine)).toEqual([
-      "fact:0 bodyFailed b0:hold:0 cause=null miss=true",
-      "fact:1 dependentZero n1:sustain:0 cause=fact:0",
-      "fact:2 bodyFailed b2:hold:0 cause=fact:0 miss=false",
-      "fact:3 dependentZero n3:sustain:0 cause=fact:2",
-      "fact:4 bodyFailed b4:hold:0 cause=fact:2 miss=false",
-      "fact:5 dependentZero n5:sustain:0 cause=fact:4",
-      "fact:6 dependentZero n6:release:0 cause=fact:4",
-    ]);
-    expect(session.score.judgmentCounts.miss).toBe(1);
-  });
-
-  it("double 2→2→1 연결의 두 몫 시작 실패 1120은 몫별 연결을 먼저 따라간 뒤 두 몫이 모두 실패한 감소 연결의 single을 실패시킴", () => {
-    const session = makeSession([b(1000, 2000, 2), b(2000, 3000, 2), b(3000, 4000), r(4000)]);
+  it("Point 없는 double 2→1 연결의 두 몫 시작 실패 1120은 둘째 몫까지 실패한 뒤에만 single을 그 실패 원인으로 실패시키고 끝 릴리즈는 종속 0점", () => {
+    const session = makeSession([b(1000, 2000, 2), b(2000, 3000), r(3000)]);
     session.advance(1121);
     expect(session.facts.map(factLine)).toEqual([
       "fact:0 bodyFailed b0:hold:1 cause=null miss=true",
-      "fact:1 bodyFailed b1:hold:1 cause=fact:0 miss=false",
-      "fact:2 bodyFailed b0:hold:0 cause=null miss=true",
-      "fact:3 bodyFailed b1:hold:0 cause=fact:2 miss=false",
-      "fact:4 bodyFailed b2:hold:0 cause=fact:3 miss=false",
-      "fact:5 dependentZero n3:release:0 cause=fact:4",
+      "fact:1 bodyFailed b0:hold:0 cause=null miss=true",
+      "fact:2 bodyFailed b1:hold:0 cause=fact:1 miss=false",
+      "fact:3 dependentZero n2:release:0 cause=fact:2",
     ]);
+    expect(session.score.judgmentCounts.miss).toBe(2);
   });
-
-  it("Point·릴리즈 없는 single 바디 3000개 연결의 첫 시작 실패 1120은 호출 스택 초과 없이 3000개를 모두 실패시키고 Miss 1개·끝 릴리즈 종속 0점", () => {
-    const bodies = Array.from({ length: 3000 }, (_, index) => b(1000 + index * 100, 1100 + index * 100));
-    const session = makeSession([...bodies, r(301000)]);
-    session.advance(1121);
-    expect(session.snapshot.bodyUnits.every(unit => unit.state === "failed" && unit.failedAtMs === 1120)).toBe(true);
-    expect(session.facts.filter(fact => fact.kind === "bodyFailed" && fact.unscoredMiss)).toHaveLength(1);
-    expect(settlements(session)).toMatchObject([{ itemKind: "release", outcome: "dependentZero" }]);
-    expect(session.score.judgmentCounts.miss).toBe(1);
-  }, 20000);
 });
 
 describe("이른 완료 창 E−Good 직전의 hold 부족과 유지 유예", () => {
