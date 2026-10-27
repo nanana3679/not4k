@@ -271,9 +271,9 @@ ENJ-10은 금지 배치(같은 hold 수 바디의 표식 없는 연결)를 다�
 근거: [RFD 0037 §4·§5](../rfd/0037-explicit-score-notes-and-body.md) / 논의 [§11](../research/explicit-score-notes-discussion.md#11-double-바디에-릴리즈-한-몫이-있을-때의-일부-유지-실패)·[§19](../research/explicit-score-notes-discussion.md#19-21-감소의-일부-실패와-릴리즈-귀속)·[§48](../research/explicit-score-notes-discussion.md#48-point-없는-21-감소에서-두-몫-탈락-시-뒤-single도-탈락-유지)·[§98](../research/explicit-score-notes-discussion.md#98-21-감소의-예시는-싱글-릴리즈이며-잘못-확대한-질문을-철회).
 
 <a id="enj-13"></a>
-## ENJ-13 — 2→1 전체 탈락 뒤 재누름은 single을 복구하지 않음
+## ENJ-13 — 2→1 전체 탈락 뒤 재누름으로 single이 새로 시작
 
-![ENJ-13 — 2→1 전체 탈락 뒤 재누름은 single을 복구하지 않음 — 설계 기대값·엔진 미실행](images/explicit-note-cases/enj-13.png)
+![ENJ-13 — 2→1 전체 탈락 뒤 재누름으로 single이 새로 시작 — 설계 기대값·엔진 미실행](images/explicit-note-cases/enj-13.png)
 
 [설계 입력 JSON](fixtures/explicit-note-cases/enj-13.json)
 
@@ -283,13 +283,14 @@ ENJ-10은 금지 배치(같은 hold 수 바디의 표식 없는 연결)를 다�
 
 기대 진행·효과:
 
-- N1, 1520ms: 두 몫 모두 유지 기한을 넘겨 탈락한다.
-- N2, 1990ms: 시작 창 안 재누름으로 뒤 N2를 새로 살리지 못한다.
-- N3, 1520ms: 뒤 single 기준인 N3 한 표식도 종속 0점. N4도 실패 종속을 따른다.
+- N1, 1520ms: 두 몫 모두 유지 기한을 넘겨 각각 유지 실패한다. 원인 유지 Miss는 몫마다 하나씩 2개다(사용자 결정, 2026-10-26).
+- N2, 1990ms: 앞 N1의 실패를 이어받지 않는다. 시작 창 안의 A 재누름(새 down)으로 뒤 N2가 새로 시작한다(사용자 결정, 2026-10-27).
+- N3, 2000ms: 뒤 single 기준인 N3 한 표식은 새로 시작한 N2의 정상 유지로 Perfect.
+- N4, 3000ms: A up으로 N4 릴리즈 Perfect.
 
-기대 정산: N3·N4 0/6점. N1의 두 몫이 같은 시각에 함께 유지 실패하므로 원인 유지 Miss는 몫마다 하나씩 2개다(사용자 결정, 2026-10-26). 감소 위치에 표식 하나만 놓으며 감소 릴리즈를 자동 생성하지 않는다. 표식 자체가 새 시작 지점을 만들지 않는다. 라벨은 경계 의미 설명이며 정산 시각 실측이 아니다.
+기대 정산: N3·N4 6/6점. N1 두 몫의 원인 유지 Miss 2개는 남아 Full Combo가 아니며 앞의 확정 실패를 되돌리지 않는다. 감소 위치에 표식 하나만 놓으며 감소 릴리즈를 자동 생성하지 않는다. 표식 자체가 새 시작 지점을 만들지 않고 N2의 시작은 A 재누름에서 온다. 재누름이 없으면 N2는 2120ms 시작 기한을 넘겨 자기 무점수 Miss로 실패하고 N3·N4는 종속 0점이다(기존 시작 규칙의 적용). 라벨은 경계 의미 설명이며 정산 시각 실측이 아니다.
 
-근거: [RFD 0037 §4·§5·§6-1](../rfd/0037-explicit-score-notes-and-body.md) / 논의 [§48](../research/explicit-score-notes-discussion.md#48-point-없는-21-감소에서-두-몫-탈락-시-뒤-single도-탈락-유지)·[§52](../research/explicit-score-notes-discussion.md#52-21-감소-위치의-유지-노트는-뒤-single-기준)·[§56](../research/explicit-score-notes-discussion.md#56-유지-노트의-독립-허용-창과-선판정-폐지)·[§57](../research/explicit-score-notes-discussion.md#57-같은-hold-수의-유지-노트-연결-금지와-증가감소-위치-허용).
+근거: [RFD 0037 §3-1·§4·§5·§6-1](../rfd/0037-explicit-score-notes-and-body.md) / 논의 [§52](../research/explicit-score-notes-discussion.md#52-21-감소-위치의-유지-노트는-뒤-single-기준)·[§56](../research/explicit-score-notes-discussion.md#56-유지-노트의-독립-허용-창과-선판정-폐지)·[§57](../research/explicit-score-notes-discussion.md#57-같은-hold-수의-유지-노트-연결-금지와-증가감소-위치-허용)·[§106](../research/explicit-score-notes-discussion.md#106-point-없는-21에서-두-몫-탈락-뒤-single-새-시작). 이전 기대값(뒤 single 탈락 유지, 0/6점)의 근거였던 [§48](../research/explicit-score-notes-discussion.md#48-point-없는-21-감소에서-두-몫-탈락-시-뒤-single도-탈락-유지)은 §106에서 번복했다.
 
 <a id="enj-14"></a>
 ## ENJ-14 — 건강한 승계는 짧은 바디 Point 미처리여도 1000ms 시작
