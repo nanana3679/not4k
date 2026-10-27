@@ -1,6 +1,6 @@
 # 명시적 점수 노트 판정 사례
 
-[RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)의 채택 계약을 회귀 테스트로 옮기기 위한 대표 사례 18개다. 아래 그림은 **엔진을 실행하지 않은 설계 도식**이며 실행 결과와 구별한다. ENJ-14·15의 입력은 [논의 기록](../research/explicit-score-notes-discussion.md) [§99](../research/explicit-score-notes-discussion.md#99-건강하게-이어받은-바디도-미리-누름-규칙대로-시작)·[§100](../research/explicit-score-notes-discussion.md#100-시작-point를-처리한-재누름-예외를-싱글-바디의-더블-릴리즈에도-적용)에서 확인한 사례를 옮겼고, 나머지는 승인 규칙에서 도출한 구체적인 대조다. 이전 [구형 판정 사례](note-judgment-cases.md)의 입력·기대값·실행 기록은 보존한다. [기존 81건 전체의 이전 대응표](judgment-case-migration.md)는 이 대표 목록과 별도다.
+[RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)의 채택 계약을 회귀 테스트로 옮기기 위한 대표 사례 17개다(ENJ-10은 삭제해 번호를 비워 둠). 아래 그림은 **엔진을 실행하지 않은 설계 도식**이며 실행 결과와 구별한다. ENJ-14·15의 입력은 [논의 기록](../research/explicit-score-notes-discussion.md) [§99](../research/explicit-score-notes-discussion.md#99-건강하게-이어받은-바디도-미리-누름-규칙대로-시작)·[§100](../research/explicit-score-notes-discussion.md#100-시작-point를-처리한-재누름-예외를-싱글-바디의-더블-릴리즈에도-적용)에서 확인한 사례를 옮겼고, 나머지는 승인 규칙에서 도출한 구체적인 대조다. 이전 [구형 판정 사례](note-judgment-cases.md)의 입력·기대값·실행 기록은 보존한다. [기존 81건 전체의 이전 대응표](judgment-case-migration.md)는 이 대표 목록과 별도다.
 
 ## 공통 조건과 읽는 법
 
@@ -220,25 +220,9 @@ done
 근거: [RFD 0037 §2·§3-2·§7](../rfd/0037-explicit-score-notes-and-body.md) / 논의 [§8](../research/explicit-score-notes-discussion.md#8-정상-유지-완료와-릴리즈-대기의-분리)·[§13](../research/explicit-score-notes-discussion.md#13-일반grace-릴리즈의-최대-허용-창-공유)·[§70](../research/explicit-score-notes-discussion.md#70-실패한-릴리즈는-실패색으로-화면-밖까지-남김)·[§78](../research/explicit-score-notes-discussion.md#78-grace-릴리즈-외곽은-본체가-보이는-동안-유지)·[§79](../research/explicit-score-notes-discussion.md#79-정상-완료된-바디는-연결-여부와-관계없이-즉시-숨김).
 
 <a id="enj-10"></a>
-## ENJ-10 — 같은 수의 표식 없는 연결은 탈락 공유
+## ENJ-10 — 삭제
 
-![ENJ-10 — 같은 수의 표식 없는 연결은 탈락 공유 — 설계 기대값·엔진 미실행](images/explicit-note-cases/enj-10.png)
-
-[설계 입력 JSON](fixtures/explicit-note-cases/enj-10.json)
-
-노트: N1 L1 바디 ×1 1000～2000ms; N2 L1 바디 ×1 2000～3000ms; N3 L1 유지 노트 ×1 2500ms; N4 L1 릴리즈 ×1 3000ms.
-
-입력: L1 A↓1000 → A↑1500; L1 A↓1990 → A↑3000.
-
-기대 진행·효과:
-
-- N1, 1520ms: 회복 없이 유지 기한을 넘기면 N1 탈락.
-- N2, 1990ms: N2 시작 창 안의 재누름이어도 앞뒤가 탈락을 공유하므로 복구하지 않는다.
-- N3, 1520ms: N3·N4는 소멸한 기회에 따라 0점·원래 가중치로 정산하며 추가 실패 효과는 없다.
-
-기대 정산: N3·N4 합계 0/6점. 두 바디 경계는 보존하고 연결점에는 유지 표식을 놓지 않는다. N3는 N2 내부의 합법 표식이며 표식 유무가 바디 탈락을 바꾸지 않는다. 그림의 라벨 시각은 정산 실측 시각이 아니다.
-
-근거: [RFD 0037 §4·§5·§6-1](../rfd/0037-explicit-score-notes-and-body.md) / 논의 [§22](../research/explicit-score-notes-discussion.md#22-이어진-경계-자체가-바디-시작)·[§46](../research/explicit-score-notes-discussion.md#46-같은-hold-수의-표식-없는-단순-연결도-탈락-공유)·[§56](../research/explicit-score-notes-discussion.md#56-유지-노트의-독립-허용-창과-선판정-폐지)·[§57](../research/explicit-score-notes-discussion.md#57-같은-hold-수의-유지-노트-연결-금지와-증가감소-위치-허용).
+ENJ-10은 금지 배치(같은 hold 수 바디의 표식 없는 연결)를 다뤄 2026-10-27에 삭제했다. 번호는 비워 둔다. 근거는 [RFD 0037 §6-1](../rfd/0037-explicit-score-notes-and-body.md#6-1-배치와-소속)이다.
 
 <a id="enj-11"></a>
 ## ENJ-11 — 1→2는 앞 single 탈락 뒤 두 몫 모두 새 시작
