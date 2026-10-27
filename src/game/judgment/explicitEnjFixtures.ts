@@ -60,12 +60,13 @@ export const explicitEnjFixtures = [
     [b(1000, 2000, 2, 1), b(2000, 3000, 1, 1), r(2000, 1, 1), s(2500, 1, 1), r(3000, 1, 1)],
     [["A",1000,1500,1],["B",1000,3000,1]],
     { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 1, dependentZero: 1 } }),
-  // ENJ-13 — 2→1 전체 탈락 뒤 재누름은 single을 복구하지 않음
+  // ENJ-13 — 2→1 전체 탈락 뒤 재누름으로 single이 새로 시작
+  // 앞 double 두 몫이 모두 탈락해도 뒤 single은 실패를 물려받지 않고 시작 창 안 1990 down으로 시작한다(사용자 결정 2026-10-27, 논의 §48 번복).
   // maintenanceMiss 2: 두 몫이 같은 시각에 함께 유지 실패해도 원인 유지 Miss는 몫마다 하나다(사용자 결정 2026-10-26).
   fixture('ENJ-13', 'docs/spec/fixtures/explicit-note-cases/enj-13.json',
     [b(1000, 2000, 2, 1), b(2000, 3000, 1, 1), s(2000, 1, 1), r(3000, 1, 1)],
     [["A",1000,1500,1],["B",1000,1500,1],["A",1990,3000,1]],
-    { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 0, scope: 'whole', events: { perfect: 0, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 2, dependentZero: 2 } }),
+    { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 2, dependentZero: 0 } }),
   // ENJ-14 — 건강한 승계는 짧은 바디 Point 미처리여도 1000ms 시작
   fixture('ENJ-14', 'docs/spec/fixtures/explicit-note-cases/enj-14.json',
     [p(600, 'single', 1), b(600, 1000, 1, 1), p(1000, 'single', 1), b(1000, 1060, 1, 1), r(1060, 1, 1)],

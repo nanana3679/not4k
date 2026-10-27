@@ -523,21 +523,75 @@ describe("같은 키 Point 재누름 예외도 double의 실제 두 키 요구�
   });
 });
 
-describe("연결 바디 실패 전파", () => {
+// 사용자 결정 D-G(2026-10-27): "=-"는 "-- + -"로도 "= + -"로도 칠 수 있으므로 앞 double 두 몫이 모두 탈락해도 뒤 single은 자기 시작 조건으로 새로 시작한다.
+describe("Point 없는 2→1 감소는 바디 사이 실패를 전파하지 않음", () => {
+  const chart = [p(1000, "double"), b(1000, 2000, 2), b(2000, 3000), r(3000)];
+  const failures = (session: ExplicitJudgmentSession) => session.facts.flatMap(fact => fact.kind === "bodyFailed"
+    ? [[fact.bodyUnitId, fact.atMs, fact.reason, fact.causeFactId === null ? "원인 없음" : "원인 있음", fact.unscoredMiss] as const] : []);
   const factLine = (fact: ExplicitConfirmedFact) => fact.kind === "bodyFailed"
-    ? `${fact.id} bodyFailed ${fact.bodyUnitId} cause=${fact.causeFactId} miss=${fact.unscoredMiss}`
+    ? `${fact.id} bodyFailed ${fact.bodyUnitId} ${fact.reason} cause=${fact.causeFactId} miss=${fact.unscoredMiss}`
     : fact.kind === "settlement" ? `${fact.id} ${fact.outcome} ${fact.itemId} cause=${fact.causeFactId}` : `${fact.id} ${fact.kind}`;
 
-  it("Point 없는 double 2→1 연결의 두 몫 시작 실패 1120은 둘째 몫까지 실패한 뒤에만 single을 그 실패 원인으로 실패시키고 끝 릴리즈는 종속 0점", () => {
+  it("Point 없는 double 바디 1000～2000 → single 2000～3000에서 아무 키도 누르지 않으면 두 몫의 1120 시작 시간 초과는 single로 번지지 않고 single은 2120 자기 시작 시간 초과로 실패해 Miss 3·끝 릴리즈는 그 실패 원인으로 종속 0점", () => {
     const session = makeSession([b(1000, 2000, 2), b(2000, 3000), r(3000)]);
     session.advance(1121);
     expect(session.facts.map(factLine)).toEqual([
-      "fact:0 bodyFailed b0:hold:1 cause=null miss=true",
-      "fact:1 bodyFailed b0:hold:0 cause=null miss=true",
-      "fact:2 bodyFailed b1:hold:0 cause=fact:1 miss=false",
+      "fact:0 bodyFailed b0:hold:1 startTimeout cause=null miss=true",
+      "fact:1 bodyFailed b0:hold:0 startTimeout cause=null miss=true",
+    ]);
+    expect(session.snapshot.bodyUnits[2]).toMatchObject({ id: "b1:hold:0", state: "waiting" });
+    session.advance(2121);
+    expect(session.facts.map(factLine).slice(2)).toEqual([
+      "fact:2 bodyFailed b1:hold:0 startTimeout cause=null miss=true",
       "fact:3 dependentZero n2:release:0 cause=fact:2",
     ]);
-    expect(session.score.judgmentCounts.miss).toBe(2);
+    expect(session.score.judgmentCounts.miss).toBe(3);
+  });
+
+  it("double Point 1000 + double 바디 1000～2000 → Point 없는 single 2000～3000에서 A·B를 1000～1500만 누르면 두 몫은 1520 유지 실패, single은 2120 자기 시작 시간 초과로 Miss 3·릴리즈 종속 0점·6/9점", () => {
+    const session = makeSession(chart);
+    session.processBatch(1000, [down("A"), down("B")]);
+    session.processBatch(1500, [up("A"), up("B")]);
+    session.advance(1521);
+    expect(session.snapshot.bodyUnits.map(unit => [unit.id, unit.state])).toEqual([
+      ["b1:hold:0", "failed"], ["b1:hold:1", "failed"], ["b2:hold:0", "waiting"],
+    ]);
+    const result = session.finalize();
+    expect(failures(session)).toEqual([
+      ["b1:hold:1", 1520, "maintenance", "원인 없음", true],
+      ["b1:hold:0", 1520, "maintenance", "원인 없음", true],
+      ["b2:hold:0", 2120, "startTimeout", "원인 없음", true],
+    ]);
+    expect(settlements(session).filter(fact => fact.itemKind === "release")).toMatchObject([{ outcome: "dependentZero", atMs: 2120 }]);
+    expect(result.score).toMatchObject({ earnedScore: 6, finalDenominatorWeight: 9, judgmentCounts: { perfect: 2, miss: 3 } });
+  });
+
+  it("같은 차트에서 A·B를 1500에 뗀 뒤 A를 1990에 다시 눌러 3000까지 쥐면 single이 시작 창 안 새 down으로 1990에 시작해 릴리즈 3000 Perfect·Miss는 두 몫 유지 실패 2·9/9점", () => {
+    const session = makeSession(chart);
+    session.processBatch(1000, [down("A"), down("B")]);
+    session.processBatch(1500, [up("A"), up("B")]);
+    session.processBatch(1990, [down("A")]);
+    session.advance(2121);
+    expect(session.snapshot.bodyUnits[2]).toMatchObject({ id: "b2:hold:0", state: "active", actualStartMs: 1990, failedAtMs: null });
+    session.processBatch(3000, [up("A")]);
+    const result = session.finalize();
+    expect(failures(session).map(([id]) => id)).toEqual(["b1:hold:1", "b1:hold:0"]);
+    expect(settlements(session).filter(fact => fact.itemKind === "release")).toMatchObject([{ outcome: "graded", grade: "perfect", atMs: 3000 }]);
+    expect(result.score).toMatchObject({ earnedScore: 9, finalDenominatorWeight: 9, judgmentCounts: { perfect: 3, miss: 2 } });
+  });
+
+  it("같은 차트에서 B만 1500에 떼고 A를 3000까지 쥐면 B 몫만 1520 유지 실패하고 건강한 A 몫이 single을 이어 릴리즈 3000 Perfect·Miss 1·9/9점", () => {
+    const session = makeSession(chart);
+    session.processBatch(1000, [down("A"), down("B")]);
+    session.processBatch(1500, [up("B")]);
+    session.processBatch(3000, [up("A")]);
+    const result = session.finalize();
+    expect(failures(session)).toEqual([["b1:hold:1", 1520, "maintenance", "원인 없음", true]]);
+    expect(result.snapshot.bodyUnits.map(unit => [unit.id, unit.state, unit.actualStartMs])).toEqual([
+      ["b1:hold:0", "complete", 1000], ["b1:hold:1", "failed", 1000], ["b2:hold:0", "complete", 2000],
+    ]);
+    expect(settlements(session).filter(fact => fact.itemKind === "release")).toMatchObject([{ outcome: "graded", grade: "perfect", atMs: 3000 }]);
+    expect(result.score).toMatchObject({ earnedScore: 9, finalDenominatorWeight: 9, judgmentCounts: { perfect: 3, miss: 1 } });
   });
 });
 

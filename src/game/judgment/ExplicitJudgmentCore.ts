@@ -1,7 +1,7 @@
 import { JUDGMENT_WINDOWS, MAINTENANCE_GRACE_MS } from "../../shared/constants/judgment";
 import type { JudgmentWindows } from "../../shared/constants/judgment";
 import { LaneHoldTracker } from "./LaneHoldTracker";
-import type { ExplicitCompiledBody, ExplicitCompiledChart, ExplicitCompiledConnection, ExplicitScoreItem } from "./explicitCompiledChart";
+import type { ExplicitCompiledBody, ExplicitCompiledChart, ExplicitScoreItem } from "./explicitCompiledChart";
 import { createExplicitPlaybackChartView, selectExplicitPlaybackChart } from "./explicitPlaybackChart";
 import type {
   ExplicitBodyUnitSnapshot, ExplicitConfirmationPhase, ExplicitConfirmedFact, ExplicitGrade,
@@ -466,37 +466,21 @@ export class ExplicitJudgmentCore {
   }
 
   /**
-   * 실패와 연결 공유 실패를 깊이 우선 순서로 확정한다. 공유는 뒤 시작 Point가 없는 2→1 감소에서 앞 두 몫이 모두
-   * 실패했을 때 뒤 single 하나로만 번진다. single에서 나가는 1→1·1→2 연결은 공유하지 않으므로 전파는 한 단계에서 멈춘다.
-   * 같은 hold 수의 표식 없는 연결은 `sameHoldCountConnectionWithoutPointOrRelease` 검증이 컴파일 전에 막는다. 각 연결의 공유 조건은 앞 연결의 전파를 모두 마친 뒤에 판단한다.
+   * 한 몫의 실패를 확정하고 그 몫의 남은 유지 노트와 잃은 릴리즈를 종속 0점으로 정산한다. 실패는 연결된 다른 바디로 번지지 않는다.
+   * Point 없는 2→1 감소에서 앞 두 몫이 모두 실패해도 뒤 single은 자기 시작 조건(시작 창 안 새 down 또는 차트 시작 시각 hold)으로
+   * 새로 시작하고, 시작하지 못하면 자기 시작 시간 초과로 실패한다(사용자 결정 2026-10-27).
    */
   private fail(unit: UnitRuntime, at: number, reason: "startTimeout" | "maintenance" | "pointMiss", causeFactId: string | null): void {
-    const stack: { readonly unit: UnitRuntime; readonly factId: string; readonly connections: readonly ExplicitCompiledConnection[]; next: number }[] = [];
-    const failOne = (target: UnitRuntime, cause: string | null, shared: boolean): void => {
-      if (!this.open(target)) return;
-      target.failedAt = at;
-      const fact = this.confirm({ kind: "bodyFailed", bodyUnitId: target.id, lane: target.body.body.lane,
-        atMs: at, confirmedAt: Math.max(at, this.clock), phase: "deadline", reason, causeFactId: cause, unscoredMiss: !shared && reason !== "pointMiss" });
-      target.failureFactId = fact.id;
-      for (const item of this.items) if (!item.settlement && item.item.kind === "sustain"
-        && item.item.bodyIndex === target.body.body.source.noteIndex && item.item.bodyUnit.ordinal === target.ordinal) {
-        this.settle(item, null, at, "deadline", null, null, fact.id);
-      }
-      this.settleLostReleases(target.body, at, fact.id);
-      stack.push({ unit: target, factId: fact.id, next: 0,
-        connections: this.chart.connections.filter(c => c.predecessorIndex === target.body.body.source.noteIndex) });
-    };
-    failOne(unit, causeFactId, false);
-    while (stack.length) {
-      const frame = stack[stack.length - 1];
-      if (frame.next >= frame.connections.length) { stack.pop(); continue; }
-      const connection = frame.connections[frame.next++];
-      const next = this.bodyByIndex.get(connection.successorIndex);
-      if (!next || next.startPoints.length) continue;
-      if (connection.predecessorHoldCount === 2 && connection.successorHoldCount === 1 && frame.unit.body.units.every(u => u.failedAt !== null)) {
-        failOne(next.units[0], frame.factId, true);
-      }
+    if (!this.open(unit)) return;
+    unit.failedAt = at;
+    const fact = this.confirm({ kind: "bodyFailed", bodyUnitId: unit.id, lane: unit.body.body.lane,
+      atMs: at, confirmedAt: Math.max(at, this.clock), phase: "deadline", reason, causeFactId, unscoredMiss: reason !== "pointMiss" });
+    unit.failureFactId = fact.id;
+    for (const item of this.items) if (!item.settlement && item.item.kind === "sustain"
+      && item.item.bodyIndex === unit.body.body.source.noteIndex && item.item.bodyUnit.ordinal === unit.ordinal) {
+      this.settle(item, null, at, "deadline", null, null, fact.id);
     }
+    this.settleLostReleases(unit.body, at, fact.id);
   }
 
   private settleLostReleases(runtime: BodyRuntime, at: number, cause: string): void {
