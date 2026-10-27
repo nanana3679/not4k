@@ -116,7 +116,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     warn.mockRestore();
   });
 
-  it('Point 없는 4～8박 싱글 바디 앞에 바디 도구로 0～4박 싱글 바디를 그리면 두 바디가 sameHoldCountConnectionWithoutPointOrRelease 위반으로 저장이 막히고 Undo 한 번에 유효 차트로 돌아간다', () => {
+  it('Point 없는 4～8박 싱글 바디 앞에 바디 도구로 0～4박 싱글 바디를 그리면 두 바디가 sameHoldCountConnectionWithoutPointOrRelease 위반으로 표시되어 저장 게이트(editorChartErrors)가 비지 않고 Undo 한 번에 유효 차트로 돌아간다', () => {
     const valid: ChartDocument = { ...seed(), notes: [{ type: 'body', lane: 1, beat: beat(4), endBeat: beat(8), holdCount: 1 }] };
     useEditorStore.getState().loadChart(valid); useEditorStore.getState().resetHistory();
     expect(editorChartErrors(valid)).toEqual([]);
