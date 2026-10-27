@@ -4,11 +4,11 @@ import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRel
 // 승인 자료를 독립적인 typed 실행 차트로 옮긴 고정 fixture다.
 // 설계 JSON·구형 차트를 실행 중 변환하지 않으며 실제 세션 기대값은 M1/M2에서 검증한다.
 export const explicitHcFixtures = [
-  // HC001: holdOnly 자동 점수 제거; 뒤 Point 입력 공유
+  // HC001: holdOnly 끝 점수를 경계 1500 Grace 릴리즈로 옮김; 뒤 Point 입력 공유
   fixture('HC001', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:74',
-    [b(1000, 1500, 1), b(1500, 1560, 1), p(1560, 'single'), b(1560, 1760, 1), r(1760, 1)],
+    [b(1000, 1500, 1), r(1500, 1, 1, true), b(1500, 1560, 1), p(1560, 'single'), b(1560, 1760, 1), r(1760, 1)],
     [["A",1000,1430],["D",1490,1760]],
-    { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 5, scope: 'whole', events: { perfect: 1, great: 1, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
+    { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 8, scope: 'whole', events: { perfect: 2, great: 1, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
   // HC002: 1820 유지 실패 한 몫, 나머지 hold 유지
   fixture('HC002', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:83',
     [b(1000, 3000, 2), r(3000, 2)],
@@ -319,11 +319,11 @@ export const explicitHcFixtures = [
     [b(1000, 1950, 2), p(1950, 'single'), b(1950, 2000, 2), b(2000, 3000, 1), r(2000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,1945],["C",1950,2010]],
     { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 9, scope: 'whole', events: { perfect: 3, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC064: holdOnly 자동 점수/소비 제거; A up2041이 뒤 릴리즈 Good
+  // HC064: holdOnly 끝 점수를 경계 2000 Grace 릴리즈로 옮김; A up2041이 경계 Grace 릴리즈, B up2160이 뒤 릴리즈
   fixture('HC064', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:470',
-    [b(1000, 2000, 1), b(2000, 2160, 1), r(2160, 1)],
+    [b(1000, 2000, 1), r(2000, 1, 1, true), b(2000, 2160, 1), r(2160, 1)],
     [["A",1000,2041],["B",2040,2160]],
-    { scoreItemCount: 1, theoreticalWeight: 3, earnedScore: 1, scope: 'whole', events: { perfect: 0, great: 0, good: 1, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
+    { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
   // HC065: Point 유지본: holdOnly 바디 무점수, 겹치는 감소 릴리즈 없음
   fixture('HC065', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:476',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2060, 1)],
@@ -384,11 +384,11 @@ export const explicitHcFixtures = [
     [p(1000, 'single'), b(1010, 1500, 1)],
     [["A",1000,1030]],
     { scoreItemCount: 1, theoreticalWeight: 3, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 1, dependentZero: 0 } }),
-  // HC077: holdOnly 제거 후 정상 앞 종료·뒤 새 시작; 앞 자동 점수 없음
+  // HC077: holdOnly 끝 점수를 경계 2000 Grace 릴리즈로 옮김; 앞 정상 종료·뒤 새 시작
   fixture('HC077', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:547',
-    [b(1000, 2000, 1), b(2000, 3000, 1), r(3000, 1)],
+    [b(1000, 2000, 1), r(2000, 1, 1, true), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,1990],["B",2030,3000]],
-    { scoreItemCount: 1, theoreticalWeight: 3, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
+    { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
   // HC078: 실제 증가 경계의 두 몫 재충전
   fixture('HC078', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:553',
     [b(1000, 2000, 1), b(2000, 3000, 2), r(3000, 2)],
