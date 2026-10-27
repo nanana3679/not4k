@@ -13,6 +13,7 @@
 - 원본의 바디 위치·길이·hold 수, 별도 Point와 입력 시각을 유지한다. 구형 `holdOnly` 속성은 새 바디에 붙이지 않는다.
 - 새 릴리즈는 표에 적은 위치·수량만 **명시**한다. 같은 수 연결의 숨은 up 소비, 감소량의 자동 릴리즈와 바디 자동 점수는 없다.
 - 이 81건 대응본에는 유지 표식을 임의 추가하지 않는다. 유지 노트의 별도 대표 사례는 새 명세에 고정한다. 원래 `holdOnly` 점수를 보존하려고 금지된 같은 수 경계에 유지 표식을 끼워 넣지 않는다.
+- 구형 `holdOnly` 끝이 같은 hold 수의 표식 없는 접점이 되는 원본(HC001·HC064·HC077)은 그 접점에 **Grace 릴리즈를 명시한 합법본**으로 옮긴다. 새 모델에서 이 접점은 Point나 릴리즈가 없으면 의미 위반이다([RFD 0037 §6-1](../rfd/0037-explicit-score-notes-and-body.md#6-1-배치와-소속), 사용자 결정, 2026-10-27). 세 건의 기대값은 원본 테스트의 기대값과 같다.
 - Point와 감소 릴리즈가 같은 위치에 필요했던 원본은 이 대응표에서 **경계 Point를 남기고 감소 릴리즈를 두지 않은 합법본**을 선택했다. 이는 제품의 자동 수리 우선순위가 아니며 원본 차트가 새 형식에서도 합법이라는 뜻도 아니다.
 - Normal 창은 Perfect ±41ms·Great ±82ms·Good ±120ms, 유지 유예는 사례 설정인 임시 20ms다. 숫자를 최종 튜닝 결정으로 고정하지 않는다.
 
@@ -24,14 +25,14 @@
 
 모든 행의 근거는 [RFD 0037 §2～5](../rfd/0037-explicit-score-notes-and-body.md#2-구성과-점수-의미)와 충돌하지 않는 원본 RFD 0032 해당 절이다. 목표 단계 4는 바디/릴리즈 기본 판정, 6은 연결·감소·짧은 패턴의 세션 회귀 확대다. 새 모델 구현 때 각 기대값을 일반 회귀 테스트로 옮기고 실제로 실행한 결과를 따로 기록한다.
 
-분류 집계: 그대로 적용 0건, 차트 표현을 옮겨 적용 37건, 규칙 대체 44건, 결정 후 적용 0건 (합계 81건).
+분류 집계: 그대로 적용 0건, 차트 표현을 옮겨 적용 40건, 규칙 대체 41건, 결정 후 적용 0건 (합계 81건).
 
 
 ## RFD 0032 §1-1 기존 결정과 문제
 
 | 원본 | 분류 | 새 명시 릴리즈(ms×수량) | 기대 정산 | 점수 | 근거/변화 | 단계 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [HC001](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L74) | 규칙 대체 | 1760×1 | P1 Gr1 | 5/6 | holdOnly 자동 점수 제거; 뒤 Point 입력 공유 | 6 |
+| [HC001](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L74) | 표현 이전 | 1500×1 Grace · 1760×1 | P2 Gr1 | 8/9 | 같은 수 접점 1500의 holdOnly 끝을 Grace 릴리즈로 명시: A up1430 Perfect, D down이 Point Great | 6 |
 
 ## RFD 0032 §2-1 hold 수로 시작과 유지 판단
 
@@ -214,7 +215,7 @@
 
 | 원본 | 분류 | 새 명시 릴리즈(ms×수량) | 기대 정산 | 점수 | 근거/변화 | 단계 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [HC064](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L470) | 규칙 대체 | 2160×1 | Go1 | 1/3 | holdOnly 자동 점수/소비 제거; A up2041이 뒤 릴리즈 Good | 6 |
+| [HC064](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L470) | 표현 이전 | 2000×1 Grace · 2160×1 | P2 | 6/6 | 같은 수 접점 2000의 holdOnly 끝을 Grace 릴리즈로 명시: A up2041이 그 릴리즈 Perfect, B up이 끝 릴리즈 Perfect | 6 |
 | [HC065](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L476) | 규칙 대체 | 없음 | P1 | 3/3 | Point 유지본: holdOnly 바디 무점수, 겹치는 감소 릴리즈 없음 | 6 |
 | [HC066](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L481) | 규칙 대체 | 3000×1 | P2 | 6/6 | holdOnly 자동 점수/면제 제거; Point와 마지막 릴리즈만 정산 | 6 |
 
@@ -247,7 +248,7 @@
 
 | 원본 | 분류 | 새 명시 릴리즈(ms×수량) | 기대 정산 | 점수 | 근거/변화 | 단계 |
 | --- | --- | --- | --- | --- | --- | --- |
-| [HC077](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L547) | 규칙 대체 | 3000×1 | P1 | 3/3 | holdOnly 제거 후 정상 앞 종료·뒤 새 시작; 앞 자동 점수 없음 | 6 |
+| [HC077](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L547) | 표현 이전 | 2000×1 Grace · 3000×1 | P2 | 6/6 | 같은 수 접점 2000의 holdOnly 끝을 Grace 릴리즈로 명시: A up1990 Perfect, B 2030 새 시작 뒤 끝 Perfect | 6 |
 | [HC078](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L553) | 표현 이전 | 3000×2 | P2 | 6/6 | 실제 증가 경계의 두 몫 재충전 | 6 |
 
 ## RFD 0032 §9-2 허용 입력(탈출구)

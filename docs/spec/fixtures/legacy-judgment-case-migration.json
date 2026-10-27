@@ -24,11 +24,16 @@
       "legacyGroup": "RFD 0032 §1-1 기존 결정과 문제",
       "legacyName": "holdOnly [1000,1500] → long [1500,1560] → head 1560 + long [1560,1760]에서 A 1000–1430·D 1490–1760이면 D down이 N3를 Great(−70)로 치고 D의 hold 1개로 N2·N4를 유지해 Perfect 2·Great 1·Miss 0",
       "legacyRegistration": "it.fails",
-      "classification": "규칙 대체",
+      "classification": "차트 표현을 옮겨 적용",
       "newChart": {
         "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
         "pointItemCount": 1,
         "releases": [
+          {
+            "atMs": 1500,
+            "count": 1,
+            "grace": true
+          },
           {
             "atMs": 1760,
             "count": 1
@@ -38,7 +43,7 @@
       },
       "expected": {
         "events": {
-          "P": 1,
+          "P": 2,
           "Gr": 1,
           "Go": 0,
           "PM": 0,
@@ -46,10 +51,10 @@
           "MM": 0,
           "Z": 0
         },
-        "earnedScore": 5,
-        "theoreticalScore": 6,
+        "earnedScore": 8,
+        "theoreticalScore": 9,
         "scope": "전체 정산",
-        "note": "holdOnly 자동 점수 제거; 뒤 Point 입력 공유"
+        "note": "같은 수 접점 1500의 holdOnly 끝을 Grace 릴리즈로 명시: A up1430 Perfect, D down이 Point Great"
       },
       "basis": "RFD 0037 §2～5 및 충돌하지 않는 원본 RFD 0032 해당 절",
       "targetPhase": 6,
@@ -2462,11 +2467,16 @@
       "legacyGroup": "RFD 0032 §7-1 holdOnly 끝은 Good 창 안의 up을 가져간다",
       "legacyName": "holdOnly [1000,2000] → long [2000,2160]에서 A 1000–2041·B 2040–2160이면 A up을 holdOnly 끝이 가져가 N2는 B up으로 Perfect 2",
       "legacyRegistration": "it.fails",
-      "classification": "규칙 대체",
+      "classification": "차트 표현을 옮겨 적용",
       "newChart": {
         "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
         "pointItemCount": 0,
         "releases": [
+          {
+            "atMs": 2000,
+            "count": 1,
+            "grace": true
+          },
           {
             "atMs": 2160,
             "count": 1
@@ -2476,18 +2486,18 @@
       },
       "expected": {
         "events": {
-          "P": 0,
+          "P": 2,
           "Gr": 0,
-          "Go": 1,
+          "Go": 0,
           "PM": 0,
           "RM": 0,
           "MM": 0,
           "Z": 0
         },
-        "earnedScore": 1,
-        "theoreticalScore": 3,
+        "earnedScore": 6,
+        "theoreticalScore": 6,
         "scope": "전체 정산",
-        "note": "holdOnly 자동 점수/소비 제거; A up2041이 뒤 릴리즈 Good"
+        "note": "같은 수 접점 2000의 holdOnly 끝을 Grace 릴리즈로 명시: A up2041이 그 릴리즈 Perfect, B up이 끝 릴리즈 Perfect"
       },
       "basis": "RFD 0037 §2～5 및 충돌하지 않는 원본 RFD 0032 해당 절",
       "targetPhase": 6,
@@ -2941,11 +2951,16 @@
       "legacyGroup": "RFD 0032 §8-2 head 없는 경계",
       "legacyName": "holdOnly [1000,2000] → head 없는 long [2000,3000]에서 A 1000–1990·B 2030–3000이면 A up이 N1을 끝내고 N2는 S+Good까지 채우면 되어 Perfect 2",
       "legacyRegistration": "it",
-      "classification": "규칙 대체",
+      "classification": "차트 표현을 옮겨 적용",
       "newChart": {
         "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
         "pointItemCount": 0,
         "releases": [
+          {
+            "atMs": 2000,
+            "count": 1,
+            "grace": true
+          },
           {
             "atMs": 3000,
             "count": 1
@@ -2955,7 +2970,7 @@
       },
       "expected": {
         "events": {
-          "P": 1,
+          "P": 2,
           "Gr": 0,
           "Go": 0,
           "PM": 0,
@@ -2963,10 +2978,10 @@
           "MM": 0,
           "Z": 0
         },
-        "earnedScore": 3,
-        "theoreticalScore": 3,
+        "earnedScore": 6,
+        "theoreticalScore": 6,
         "scope": "전체 정산",
-        "note": "holdOnly 제거 후 정상 앞 종료·뒤 새 시작; 앞 자동 점수 없음"
+        "note": "같은 수 접점 2000의 holdOnly 끝을 Grace 릴리즈로 명시: A up1990 Perfect, B 2030 새 시작 뒤 끝 Perfect"
       },
       "basis": "RFD 0037 §2～5 및 충돌하지 않는 원본 RFD 0032 해당 절",
       "targetPhase": 6,
