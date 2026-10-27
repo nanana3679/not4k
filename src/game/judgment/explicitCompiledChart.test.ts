@@ -44,6 +44,26 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(compiled.scoreItems).toMatchObject([{ kind: "release", bodyIndex: 0, boundaryKind: "end", timeMs: 2000 }]);
   });
 
+  it.each([1, 2] as const)("hold 수 %i인 body 1000～2000·2000～3000을 경계 Point·릴리즈 없이 이으면 sameHoldCountConnectionWithoutPointOrRelease로 compile을 거부한다", holdCount => {
+    const document = chart([b(1000, 2000, holdCount), b(2000, 3000, holdCount)]);
+    expect(() => compileExplicitJudgmentChart(document)).toThrow(ExplicitChartCompileError);
+    try { compileExplicitJudgmentChart(document); } catch (error) {
+      expect((error as ExplicitChartCompileError).validation.semantic).toEqual([expect.objectContaining({
+        rule: "sameHoldCountConnectionWithoutPointOrRelease",
+        refs: expect.arrayContaining([{ kind: "note", index: 0 }, { kind: "note", index: 1 }]) })]);
+    }
+  });
+
+  it("트릴 바디 1000～2000 끝에 Point 없이 붙은 일반 single 바디 2000～3000은 같은 hold 수 연결이 아니라 zone 끝 2000을 포함하는 trillExclusive로만 compile을 거부한다", () => {
+    const document = chart([p(1000, "trill"), { type: "body", lane: 1, beat: beat(2), endBeat: beat(4), holdCount: 1, trill: true }, b(2000, 3000)]);
+    document.trillZones = [{ lane: 1, beat: beat(2), endBeat: beat(4) }];
+    expect(() => compileExplicitJudgmentChart(document)).toThrow(ExplicitChartCompileError);
+    try { compileExplicitJudgmentChart(document); } catch (error) {
+      expect((error as ExplicitChartCompileError).validation.semantic).toEqual([
+        expect.objectContaining({ rule: "trillExclusive", refs: [{ kind: "note", index: 2 }] })]);
+    }
+  });
+
   it("single body의 Grace double release는 같은 Grace 두 항목과 가중치6을 보존한다", () => {
     const compiled = compileExplicitJudgmentChart(chart([b(1000, 2000), r(2000, 2, 1, true)]));
     expect(compiled.scoreItems).toHaveLength(2);
