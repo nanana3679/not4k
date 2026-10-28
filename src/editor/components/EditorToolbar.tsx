@@ -2,7 +2,7 @@
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
@@ -666,8 +666,12 @@ export function EditorToolbar({
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
   // 현재 차트를 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 store의 savedChartJson과 비교한다 (RFD 0018 ③).
-  const isDirty = isChartDirty(chart, extraLaneCount, savedChartJson)
-    || pendingPreviewRange != null || pendingGameplayRange != null;
+  // 재생 중에는 페이지가 currentTimeMs를 구독해 툴바도 매 프레임 다시 렌더된다. 차트 전체 직렬화는 비교 입력이 바뀔 때만 한다.
+  const chartDirty = useMemo(
+    () => isChartDirty(chart, extraLaneCount, savedChartJson),
+    [chart, extraLaneCount, savedChartJson],
+  );
+  const isDirty = chartDirty || pendingPreviewRange != null || pendingGameplayRange != null;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
   // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.
