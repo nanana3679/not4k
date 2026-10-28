@@ -21,7 +21,7 @@ import { supabase } from '../supabase';
 import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
 import type { PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
-import { MarkerEditModal } from './components/MarkerEditModal';
+import { EventEditModal } from './components/EventEditModal';
 import { MetaEditModal } from './components/MetaEditModal';
 import { CustomSnapModal } from './components/CustomSnapModal';
 import { SaveAsModal } from './components/SaveAsModal';
@@ -270,14 +270,14 @@ function ChartEditorPage() {
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const addToast = useEditorStore((s) => s.addToast);
-  const editingMarker = useEditorStore((s) => s.editingMarker);
-  const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
+  const editingEvent = useEditorStore((s) => s.editingEvent);
+  const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const mode = useEditorStore((s) => s.mode);
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // TimelineSpace deep module — 좌표 변환 / 히트테스트
-  const { space, bpmMarkers } = useTimelineSpace(rendererRef);
+  const { space, bpmChanges } = useTimelineSpace(rendererRef);
 
   // isTimeInBounds 헬퍼
   const isTimeInBounds = useCallback((y: number): boolean => {
@@ -374,8 +374,8 @@ function ChartEditorPage() {
 
   // 키보드 단축키 훅
   useEditorKeyboard(
-    playbackRef, selectModeRef, bpmMarkers,
-    editingMarker, showMetaModal, showCustomSnapModal,
+    playbackRef, selectModeRef, bpmChanges,
+    editingEvent, showMetaModal, showCustomSnapModal,
     showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar,
     validationErrors.length,
   );
@@ -732,7 +732,7 @@ function ChartEditorPage() {
     return () => document.removeEventListener('wheel', preventBrowserZoom);
   }, []);
 
-  const editingEvt = editingMarker ? chart.events[editingMarker.index] : null;
+  const editingEvt = editingEvent ? chart.events[editingEvent.index] : null;
   const isEditingInitial = editingEvt && editingEvt.beat.n === 0 && (editingEvt.type === 'bpm' || editingEvt.type === 'timeSignature');
 
   return (
@@ -781,15 +781,15 @@ function ChartEditorPage() {
         />
       </div>
 
-      {/* 마커 편집 모달 */}
-      {editingMarker && (
-        <MarkerEditModal
-          editingMarker={editingMarker}
+      {/* 이벤트 편집 모달 */}
+      {editingEvent && (
+        <EventEditModal
+          editingEvent={editingEvent}
           chart={chart}
           isBeatZero={!!isEditingInitial}
-          onSave={fileOps.handleMarkerSave}
-          onDelete={fileOps.handleMarkerDelete}
-          onClose={() => setEditingMarker(null)}
+          onSave={fileOps.handleEventSave}
+          onDelete={fileOps.handleEventDelete}
+          onClose={() => setEditingEvent(null)}
         />
       )}
 

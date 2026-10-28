@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Container } from "pixi.js";
 import type { Graphics, GraphicsPath, Polygon, Rectangle } from "pixi.js";
 import { beat } from "../../shared";
-import type { ChartDocument, BpmMarker, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
+import type { ChartDocument, BpmChange, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
 import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
@@ -75,7 +75,7 @@ function makeHost(
     boxSelectRect: null,
     scrollY: 0,
     contentOffsetX: 0,
-    cachedBpmMarkers: [{ beat: beat(0), bpm: 120 }] as BpmMarker[],
+    cachedBpmChanges: [{ beat: beat(0), bpm: 120 }] as BpmChange[],
     getVisibleTimeRange: () => ({ minTimeMs: -1_000_000, maxTimeMs: 1_000_000 }),
     timeToY: (ms: number) => ms / 10,
     ghostLayer: new Container(),
@@ -141,7 +141,7 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     expect(indices.notes.size).toBeGreaterThan(0);
     expect(host.violationLayer.children.length).toBeGreaterThan(0);
   });
-  it("BpmEvent 중복 위반(editorLane 없음→1)은 x=TIMELINE_WIDTH에 포인트 해칭(endMs=null) 2개 (RFD 0017 §7)", () => {
+  it("BpmChangeEvent 중복 위반(editorLane 없음→1)은 x=TIMELINE_WIDTH에 포인트 해칭(endMs=null) 2개 (RFD 0017 §7)", () => {
     const chart = makeChart([], [], [
       { type: "bpm", beat: beat(2), bpm: 120 },
       { type: "bpm", beat: beat(2), bpm: 180 }, // 같은 박 BPM 중복

@@ -742,9 +742,21 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상)
 
 ## 차트 이벤트
 
-### ChartEvent
+### `ChartEvent`
 
-차트에 배치되는 이벤트의 통합 타입. `type` 필드로 구분되는 디스크리미네이티드 유니온이다. 시점 이벤트(BPM, 박자표)와 구간 이벤트(메시지, auto, stop)로 나뉜다.
+차트에 배치되는 이벤트의 통합 타입. `type` 필드로 구분되는 디스크리미네이티드 유니온이다. 시점 이벤트(`BpmChangeEvent`, `TimeSignatureChangeEvent`)와 구간 이벤트(`TextEvent`, `AutoEvent`, `StopEvent`, `TutorialInputEvent`, `TutorialDiagramEvent`)로 나뉜다. 저장 데이터와 에디터의 편집·렌더링에서 같은 이벤트를 가리키며, 화면에 그렸다는 이유로 별도 도메인 개념인 “마커”로 부르지 않는다. 명명 근거는 [RFD 0067](../rfd/0067-chart-event-names.md)를 따른다.
+
+### `BpmChangeEvent`
+
+`bpm` 타입의 시점 이벤트. 해당 박부터 다음 `BpmChangeEvent` 전까지의 BPM을 정의한다. 0박의 초기 BPM 설정도 포함한다. BPM은 박과 실제 시간의 관계를 정하며 게임의 스크롤 속도와 구별한다. 저장 JSON의 `type: "bpm"`은 유지한다.
+
+### `TimeSignatureChangeEvent`
+
+`timeSignature` 타입의 시점 이벤트. 해당 박부터 다음 `TimeSignatureChangeEvent` 전까지 한 마디의 박 수(`beatPerMeasure`)를 정의한다. 0박의 초기 박자 설정도 포함하며, 이후 변경은 마디 경계에 둔다. 분수 박 수(예: `7/2`)를 허용한다. 저장 JSON의 `type: "timeSignature"`는 유지한다.
+
+### `BpmChange`·`TimeSignatureChange`
+
+시간 계산을 위해 시점 이벤트에서 추출한 데이터다. `BpmChange`는 `{ beat, bpm }`으로 박↔시간 변환에 쓰이고, `TimeSignatureChange`는 `{ measure, beatPerMeasure }`로 마디 시작 계산에 쓰인다. 후자의 `measure`는 이벤트의 `beat`에서 계산한 마디 번호다. 초기 설정도 변경 목록에 포함한다. 이벤트 자체나 화면 표식을 뜻하지 않으며 별도로 저장하지 않는다.
 
 ### `AutoEvent` (구 표기: Auto 구간)
 

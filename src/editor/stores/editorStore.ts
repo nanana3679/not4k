@@ -37,7 +37,7 @@ type HistorySnapshot = {
   extraLaneCount: number;
 };
 
-export type EditingMarker =
+export type EditingEvent =
   | { type: 'event'; index: number }
   | null;
 
@@ -79,8 +79,8 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // 로드가 invalid 차트도 수용하므로 "로드=valid"를 가정하지 않는다 — 씨앗도 검증 통과가 조건.
   lastValidSnapshot: HistorySnapshot | null;
 
-  // Marker editing
-  editingMarker: EditingMarker;
+  // Event editing
+  editingEvent: EditingEvent;
 
   // Actions
   setActivePage: (page: EditorPage) => void;
@@ -117,7 +117,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   commitEditTransaction: (transaction?: symbol) => void;
   cancelEditTransaction: (transaction?: symbol) => void;
   addToast: (message: string, type?: ToastType) => void;
-  setEditingMarker: (marker: EditingMarker) => void;
+  setEditingEvent: (event: EditingEvent) => void;
 }
 
 const createDefaultChart = (): ChartDocument => ({
@@ -203,7 +203,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   historyLastCaptureAt: 0,
   editTransaction: null,
   lastValidSnapshot: null,
-  editingMarker: null,
+  editingEvent: null,
 
   // Actions
   setActivePage: (activePage) => set({ activePage }),
@@ -410,5 +410,5 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!token) transaction.onInterrupt?.();
   },
   addToast: (message, type = 'warn') => showToast(message, type),
-  setEditingMarker: (marker) => set({ editingMarker: marker }),
+  setEditingEvent: (event) => set({ editingEvent: event }),
 }));

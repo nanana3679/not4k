@@ -14,28 +14,32 @@ Shared chart model 컨텍스트는 게임 클라이언트와 차트 편집기가
 _Avoid_: 초, 프레임
 
 **마디**:
-박자 마커가 정의하는 박 묶음이며 차트 탐색과 그리드 표시의 큰 단위이다.
+`TimeSignatureChangeEvent`가 정의하는 박 묶음이며 차트 탐색과 그리드 표시의 큰 단위이다.
 _Avoid_: 섹션
 
 **차트 메타데이터**:
 곡 제목, 아티스트, 난이도명, Lv., 에셋 참조, 오프셋처럼 차트 전체를 설명하는 정보이다.
 _Avoid_: 곡 메타데이터
 
-**시점 마커**:
-특정 박 이후의 시간 해석을 바꾸는 BPM 또는 박자 마커이다.
+**시점 이벤트**:
+특정 박 이후의 시간 해석을 바꾸는 `BpmChangeEvent` 또는 `TimeSignatureChangeEvent`이다. 0박 초기 설정도 포함한다([glossary](../../docs/context/glossary.md#차트-이벤트)).
 _Avoid_: 구간 이벤트
 
-**BPM 마커**:
-특정 박 이후의 BPM을 정의하는 시점 마커이다.
+**`BpmChangeEvent`**:
+특정 박 이후의 BPM을 정의하는 시점 이벤트이다.
 _Avoid_: 스크롤 속도
 
-**박자 마커**:
-특정 마디 이후 한 마디가 몇 박인지 정의하는 시점 마커이다.
-_Avoid_: BPM 마커
+**`TimeSignatureChangeEvent`**:
+마디 경계의 박부터 한 마디가 몇 박인지 정의하는 시점 이벤트이다. 저장 위치는 `beat`다([glossary](../../docs/context/glossary.md#timesignaturechangeevent)).
+_Avoid_: `BpmChangeEvent`
+
+**`BpmChange`·`TimeSignatureChange`**:
+시점 이벤트에서 추출한 시간 계산용 데이터다. 각각 박 기준 BPM과 마디 번호 기준 박 수를 담는다([glossary](../../docs/context/glossary.md#bpmchangetimesignaturechange)).
+_Avoid_: 이벤트의 시각 표현
 
 **구간 이벤트**:
 시작 박과 끝 박을 가지며 일정 구간 동안 의미가 유지되는 차트 이벤트이다.
-_Avoid_: 시점 마커
+_Avoid_: 시점 이벤트
 
 **`TextEvent`**:
 특정 구간 동안 튜토리얼 설명 문구를 보여주는 구간 이벤트이다.
@@ -90,8 +94,8 @@ _Avoid_: 노트 타임맵, 시간 맵
 - 하나의 **차트**는 하나의 **차트 메타데이터**를 가진다.
 - **차트 메타데이터**는 **난이도명**과 **Lv.**를 함께 가진다.
 - **박**은 차트의 시간 좌표이고 **스냅**은 박을 나눈 배치 격자의 한 칸(또는 위치를 그 칸에 맞추는 편집 보조)이다([glossary](../../docs/context/glossary.md#스냅-snap)).
-- **BPM 마커**와 **박자 마커**는 **박자 그리드**를 계산하는 기준이다.
-- **시점 마커**는 한 시점 이후에 영향을 주고, **구간 이벤트**는 시작과 끝 사이에 영향을 준다.
+- **`BpmChangeEvent`**와 **`TimeSignatureChangeEvent`**는 **박자 그리드**를 계산하는 기준이다.
+- **시점 이벤트**는 한 시점 이후에 영향을 주고, **구간 이벤트**는 시작과 끝 사이에 영향을 준다.
 - **`TextEvent`**, **`AutoEvent`**, **`StopEvent`**은 모두 **구간 이벤트**이다.
 - **구간 노트**는 시작 박과 끝 박을 가지며, **탭 노트**·**릴리즈 노트**·**틱 노트**와 구형 포인트 노트(`PointNote`)는 특정 박 하나에 놓인다.
 - 하나의 **차트**는 **`trillZone`** 목록을 가진다. **`trillZone`**과 **트릴 노트**는 상호 배타적이다 — 트릴 노트는 `trillZone` 안에만, 일반 노트는 밖에만 놓인다.
@@ -118,7 +122,7 @@ _Avoid_: 노트 타임맵, 시간 맵
 ## Example dialogue
 
 > **Dev:** "BPM이 바뀌면 노트 낙하 속도도 바뀌나요?"
-> **Domain expert:** "아니요. **BPM 마커**는 박과 시간의 관계를 바꾸지만, 플레이의 스크롤 속도는 별도 설정입니다."
+> **Domain expert:** "아니요. **`BpmChangeEvent`**는 박과 시간의 관계를 바꾸지만, 플레이의 스크롤 속도는 별도 설정입니다."
 >
 > **Dev:** "메시지는 노트처럼 한 박에만 놓이나요?"
 > **Domain expert:** "아니요. **`TextEvent`**는 시작 박과 끝 박을 가지는 **구간 이벤트**입니다."

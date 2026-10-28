@@ -11,7 +11,7 @@
 import { beat } from "../shared/types/beat";
 import type { Chart, NoteEntity, TrillZone } from "../shared/types/chart";
 import type { ChartEvent } from "../shared/types/chart";
-import { extractBpmMarkers, beatToMs } from "../shared/timing";
+import { extractBpmChanges, beatToMs } from "../shared/timing";
 
 const BPM = 120;
 
@@ -260,17 +260,17 @@ export function metronomeClickTimesMs(chart: Chart): number[] {
 
 /** 노트 시작 시각(ms) — 강조 클릭용. */
 export function noteOnsetTimesMs(chart: Chart): number[] {
-  const markers = extractBpmMarkers(chart.events);
-  return chart.notes.map((n) => beatToMs(n.beat, markers, chart.meta.offsetMs));
+  const bpmChanges = extractBpmChanges(chart.events);
+  return chart.notes.map((n) => beatToMs(n.beat, bpmChanges, chart.meta.offsetMs));
 }
 
 /** 차트 마지막 노트 끝 시각(ms) + 여유. */
 export function chartEndMs(chart: Chart): number {
-  const markers = extractBpmMarkers(chart.events);
+  const bpmChanges = extractBpmChanges(chart.events);
   let maxMs = 0;
   for (const n of chart.notes) {
     const endBeat = "endBeat" in n ? n.endBeat : n.beat;
-    maxMs = Math.max(maxMs, beatToMs(endBeat, markers, chart.meta.offsetMs));
+    maxMs = Math.max(maxMs, beatToMs(endBeat, bpmChanges, chart.meta.offsetMs));
   }
   return maxMs + 1500;
 }

@@ -3,7 +3,7 @@
  *
  * 노트 시작/끝 ms, trillZone 시작 ms(레인별), 마디 시작 ms, 판정 수 집계를
  * 소유하는 deep module. beat→ms 파생은 콜사이트에 인라인하지 않고 항상 이
- * 뷰를 통해 읽는다. BPM 마커/박자표 마커는 1회 추출·캐시하고, offsetMs는
+ * 뷰를 통해 읽는다. BPM 변경/박자 변경은 1회 추출·캐시하고, offsetMs는
  * 인스턴스가 흡수해 콜사이트가 스레딩하지 않도록 한다.
  */
 
@@ -14,8 +14,8 @@ import type { Lane } from "../constants/note";
 import {
   beatToMs,
   enumerateMeasureStartsMs,
-  extractBpmMarkers,
-  extractTimeSignatures,
+  extractBpmChanges,
+  extractTimeSignatureChanges,
 } from "./index";
 
 /** ChartTiming이 시간 뷰를 파생하는 데 필요한 최소 차트 표면. */
@@ -34,7 +34,7 @@ export interface ChartTiming {
   readonly noteEndTimesMs: ReadonlyMap<number, number>;
   /** 레인별 trillZone 시작 ms (오름차순) */
   readonly trillZoneStartTimesMs: ReadonlyMap<Lane, readonly number[]>;
-  /** offsetMs를 흡수한 beat→ms 변환. BPM 마커가 없으면 throw. */
+  /** offsetMs를 흡수한 beat→ms 변환. BPM 변경이 없으면 throw. */
   beatToMs(target: Beat): number;
   /** enumerateMeasureStartsMs 위임 — limitMs 이내 마디 시작 ms 순증 배열. */
   measureStartsMs(limitMs: number): number[];
@@ -57,14 +57,14 @@ function noteJudgmentCount(note: NoteEntity): number {
 }
 
 export function createChartTiming(chart: ChartTimingSource): ChartTiming {
-  const bpmMarkers = extractBpmMarkers(chart.events);
-  const timeSignatures = extractTimeSignatures(chart.events);
+  const bpmChanges = extractBpmChanges(chart.events);
+  const timeSignatureChanges = extractTimeSignatureChanges(chart.events);
   const offsetMs = chart.meta.offsetMs;
 
   const beatToMsHere = (target: Beat): number =>
-    beatToMs(target, bpmMarkers, offsetMs);
+    beatToMs(target, bpmChanges, offsetMs);
 
-  // eager 계산 — beatToMs가 빈 마커에서 throw하는 시점을 팩토리 호출 시점으로 보존.
+  // eager 계산 — beatToMs가 빈 BPM 변경 목록에서 throw하는 시점을 팩토리 호출 시점으로 보존.
   const noteTimesMs = new Map<number, number>();
   const noteEndTimesMs = new Map<number, number>();
   chart.notes.forEach((note, index) => {
@@ -91,7 +91,7 @@ export function createChartTiming(chart: ChartTimingSource): ChartTiming {
     trillZoneStartTimesMs,
     beatToMs: beatToMsHere,
     measureStartsMs: (limitMs: number): number[] =>
-      enumerateMeasureStartsMs(limitMs, bpmMarkers, timeSignatures, offsetMs),
+      enumerateMeasureStartsMs(limitMs, bpmChanges, timeSignatureChanges, offsetMs),
     judgmentCounts: (startTimeMs: number = 0) => {
       assertLegacyNotes(chart.notes, "구형 judgmentCounts");
       let totalJudgments = 0;

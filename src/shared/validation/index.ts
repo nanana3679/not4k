@@ -22,8 +22,8 @@ import type {
   ChartEvent,
   RangeEvent,
   TutorialInputEvent,
-  TimeSignatureMarker,
-  TimeSignatureEvent,
+  TimeSignatureChange,
+  TimeSignatureChangeEvent,
   StopEvent,
 } from "../types/chart";
 import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat, isWellFormedBeat } from "../types/beat";
@@ -565,7 +565,7 @@ export function validateNoEventDuplicate(events: readonly ChartEvent[]): Validat
 }
 
 // ---------------------------------------------------------------------------
-// 규칙 6: 이벤트 마커 겹침 금지
+// 규칙 6: 이벤트 겹침 금지
 // ---------------------------------------------------------------------------
 
 /**
@@ -747,15 +747,15 @@ export function validateTimeSigNatural(events: readonly ChartEvent[]): Validatio
 
 /**
  * 주어진 beat 위치가 마디의 시작 위치인지 검사한다.
- * timeSignatures가 비어있으면 판단 불가이므로 false를 반환한다.
+ * timeSignatureChanges가 비어있으면 판단 불가이므로 false를 반환한다.
  */
 export function isMeasureBoundary(
   targetBeat: Beat,
-  timeSignatures: readonly TimeSignatureMarker[],
+  timeSignatureChanges: readonly TimeSignatureChange[],
 ): boolean {
-  if (timeSignatures.length === 0) return false;
+  if (timeSignatureChanges.length === 0) return false;
 
-  const sorted = [...timeSignatures].sort((a, b) => a.measure - b.measure);
+  const sorted = [...timeSignatureChanges].sort((a, b) => a.measure - b.measure);
   const targetFloat = beatToFloat(targetBeat);
 
   // 마디 0부터 순회하며 각 마디의 시작 beat를 계산
@@ -793,7 +793,7 @@ export function validateTimeSigAtMeasureStart(events: readonly ChartEvent[]): Va
   const errors: ValidationError[] = [];
 
   // 원본 인덱스를 유지한 채 timeSignature 이벤트만 추려 정렬한다
-  const tsEventsRaw: { event: TimeSignatureEvent; index: number }[] = [];
+  const tsEventsRaw: { event: TimeSignatureChangeEvent; index: number }[] = [];
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     if (e.type === "timeSignature") {

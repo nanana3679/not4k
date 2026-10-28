@@ -3,7 +3,7 @@
  * Extracted for testability — no PixiJS dependency.
  */
 
-import type { TrillZone, BpmMarker } from "../../shared/types";
+import type { TrillZone, BpmChange } from "../../shared/types";
 import { beatToMs } from "../../shared/timing";
 
 export interface MinimapTrillZoneRect {
@@ -17,7 +17,7 @@ export interface MinimapTrillZoneRect {
  * Compute minimap rectangles for trill zones.
  *
  * @param trillZones - trill zone definitions
- * @param bpmMarkers - BPM markers for beat→ms conversion
+ * @param bpmChanges - BPM changes for beat→ms conversion
  * @param offsetMs   - chart offset in ms
  * @param timeToY    - converts ms to container-local Y
  * @param toMinimapY - converts container Y to minimap Y
@@ -26,7 +26,7 @@ export interface MinimapTrillZoneRect {
  */
 export function computeMinimapTrillZoneRects(
   trillZones: readonly TrillZone[],
-  bpmMarkers: readonly BpmMarker[],
+  bpmChanges: readonly BpmChange[],
   offsetMs: number,
   timeToY: (ms: number) => number,
   toMinimapY: (containerY: number) => number,
@@ -36,8 +36,8 @@ export function computeMinimapTrillZoneRects(
   const rects: MinimapTrillZoneRect[] = [];
 
   for (const zone of trillZones) {
-    const startMs = beatToMs(zone.beat, bpmMarkers, offsetMs);
-    const endMs = beatToMs(zone.endBeat, bpmMarkers, offsetMs);
+    const startMs = beatToMs(zone.beat, bpmChanges, offsetMs);
+    const endMs = beatToMs(zone.endBeat, bpmChanges, offsetMs);
     const startContainerY = timeToY(startMs);
     const endContainerY = timeToY(endMs);
     const startMy = toMinimapY(startContainerY);

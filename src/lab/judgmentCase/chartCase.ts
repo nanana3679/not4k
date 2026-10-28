@@ -7,7 +7,7 @@
 
 import { deserializeChart } from "../../shared/chart";
 import { createChartTiming } from "../../shared/timing/chartTiming";
-import { beatToMs, extractBpmMarkers } from "../../shared/timing";
+import { beatToMs, extractBpmChanges } from "../../shared/timing";
 import type { Chart, NoteEntity } from "../../shared/types";
 import { getTutorialInputTimings } from "../../game/screens/songSelect/tutorialPreviewChart";
 import { parseJudgmentCase } from "./parseJudgmentCase";
@@ -109,11 +109,11 @@ export function judgmentCaseFromChart(chart: Chart, options: JudgmentCaseChartOp
     ...(input.upMs === null ? [] : [{ action: { atMs: input.upMs, key: input.key, lane: input.lane, type: "up" as const, inputIndex }, order: inputIndex * 2 + 1 }]),
   ]).sort((a, b) => a.action.atMs - b.action.atMs || a.order - b.order);
 
-  const bpmMarkers = extractBpmMarkers(chart.events);
+  const bpmChanges = extractBpmChanges(chart.events);
   const trillZones = chart.trillZones.map((zone): JudgmentCaseZone => ({
     lane: zone.lane,
-    startMs: beatToMs(zone.beat, bpmMarkers, chart.meta.offsetMs),
-    endMs: beatToMs(zone.endBeat, bpmMarkers, chart.meta.offsetMs),
+    startMs: beatToMs(zone.beat, bpmChanges, chart.meta.offsetMs),
+    endMs: beatToMs(zone.endBeat, bpmChanges, chart.meta.offsetMs),
   }));
 
   return {

@@ -11,7 +11,7 @@ import {
   songJacketPath,
   songAudioPath,
   encodeWavBlob,
-  extractTimeSignatures,
+  extractTimeSignatureChanges,
   isMeasureBoundary,
 } from '../../shared';
 import type { Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
@@ -32,8 +32,8 @@ export interface FileOperationHandlers {
   handleSaveAs: (targetDifficulty: string, targetLevel: number) => Promise<void>;
   handlePlayTest: (fromCursor: boolean) => void;
   handleDeleteChart: () => Promise<void>;
-  handleMarkerSave: (values: Record<string, string>) => void;
-  handleMarkerDelete: () => void;
+  handleEventSave: (values: Record<string, string>) => void;
+  handleEventDelete: () => void;
 }
 
 /**
@@ -104,8 +104,8 @@ export function useFileOperations(
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const addToast = useEditorStore((s) => s.addToast);
-  const editingMarker = useEditorStore((s) => s.editingMarker);
-  const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
+  const editingEvent = useEditorStore((s) => s.editingEvent);
+  const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
 
   const handleSaveChart = useCallback(async () => {
     if (!activeSongId) {
@@ -355,16 +355,16 @@ export function useFileOperations(
     }
   }, [chart, activeSongId, addToast, setDeleting, setShowDeleteConfirm]);
 
-  // 마커 편집 핸들러
-  const editingEvt = editingMarker ? chart.events[editingMarker.index] : null;
+  // 이벤트 편집 핸들러
+  const editingEvt = editingEvent ? chart.events[editingEvent.index] : null;
   const isEditingInitial = editingEvt && editingEvt.beat.n === 0 && (editingEvt.type === 'bpm' || editingEvt.type === 'timeSignature');
 
-  const handleMarkerSave = useCallback((values: Record<string, string>) => {
-    if (!editingMarker) return;
+  const handleEventSave = useCallback((values: Record<string, string>) => {
+    if (!editingEvent) return;
 
     const updated = { ...chart };
     updated.events = [...chart.events];
-    const evt = updated.events[editingMarker.index];
+    const evt = updated.events[editingEvent.index];
     const isBeatZeroEvent = evt.beat.n === 0;
 
     // Build updated event based on its existing type
@@ -380,7 +380,7 @@ export function useFileOperations(
         addToast('박자표 분자/분모는 자연수(양의 정수)만 가능합니다'); return;
       }
       if (!isBeatZeroEvent) {
-        const currentTimeSigs = extractTimeSignatures(chart.events);
+        const currentTimeSigs = extractTimeSignatureChanges(chart.events);
         if (currentTimeSigs.length > 0 && !isMeasureBoundary(evt.beat, currentTimeSigs)) {
           addToast('박자표는 마디의 시작 위치에만 배치할 수 있습니다'); return;
         }
@@ -417,34 +417,34 @@ export function useFileOperations(
       newEvt = evt;
     }
 
-    updated.events[editingMarker.index] = newEvt;
+    updated.events[editingEvent.index] = newEvt;
 
     setChart(updated);
     rendererRef.current?.setChart(updated);
-    setEditingMarker(null);
-  }, [editingMarker, chart, rendererRef, setChart, setEditingMarker, addToast]);
+    setEditingEvent(null);
+  }, [editingEvent, chart, rendererRef, setChart, setEditingEvent, addToast]);
 
-  const handleMarkerDelete = useCallback(() => {
-    if (!editingMarker) return;
+  const handleEventDelete = useCallback(() => {
+    if (!editingEvent) return;
 
     if (isEditingInitial) {
-      addToast('Cannot delete initial event marker');
+      addToast('Cannot delete initial event');
       return;
     }
 
     setChart({
       ...chart,
-      events: chart.events.filter((_, i) => i !== editingMarker.index),
+      events: chart.events.filter((_, i) => i !== editingEvent.index),
     });
-    setEditingMarker(null);
-  }, [editingMarker, isEditingInitial, chart, setChart, setEditingMarker, addToast]);
+    setEditingEvent(null);
+  }, [editingEvent, isEditingInitial, chart, setChart, setEditingEvent, addToast]);
 
   return {
     handleSaveChart,
     handleSaveAs,
     handlePlayTest,
     handleDeleteChart,
-    handleMarkerSave,
-    handleMarkerDelete,
+    handleEventSave,
+    handleEventDelete,
   };
 }

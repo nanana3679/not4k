@@ -31,6 +31,8 @@
 | 인게임 구간 | `gameplayRange` (UI 라벨은 화면 표시 예외로 "인게임 구간" 유지) | `gameplayRange` |
 | Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.GOOD_TRILL` |
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
+| BPM 마커·BPM 이벤트 | `BpmChangeEvent` | `BpmChangeEvent`(type `"bpm"`), 0박 초기 설정 포함. 계산용 데이터는 `BpmChange` |
+| 박자 마커·박자 이벤트 | `TimeSignatureChangeEvent` | `TimeSignatureChangeEvent`(type `"timeSignature"`), 0박 초기 설정 포함. 마디 번호 기준 계산용 데이터는 `TimeSignatureChange` |
 | 차트 시간 뷰 | `ChartTiming` | `ChartTiming`/`createChartTiming`/`ChartTimingSource` |
 | 메시지 이벤트 | `TextEvent` (⚠️ 2026-06-30 A1을 재전환) | `TextEvent`(type `"text"`) |
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |

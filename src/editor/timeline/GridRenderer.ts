@@ -5,7 +5,7 @@
 
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt } from "../../shared";
-import type { BpmMarker, TimeSignatureMarker } from "../../shared";
+import type { BpmChange, TimeSignatureChange } from "../../shared";
 import {
   LANE_COUNT,
   LANE_WIDTH,
@@ -30,8 +30,8 @@ export interface GridHost {
   readonly currentTimelineWidth: number;
   readonly waveformPeaks: Float32Array | null;
   readonly waveformDurationMs: number;
-  readonly cachedBpmMarkers: BpmMarker[];
-  readonly cachedTimeSignatures: TimeSignatureMarker[];
+  readonly cachedBpmChanges: BpmChange[];
+  readonly cachedTimeSignatureChanges: TimeSignatureChange[];
   readonly measureLabelStyle: TextStyle | null;
   setMeasureLabelStyle(style: TextStyle): void;
   getVisibleTimeRange(): { minTimeMs: number; maxTimeMs: number };
@@ -143,13 +143,13 @@ export class GridRenderer {
     const chart = this.host.chart;
     if (!chart) return;
 
-    const bpmMarkers = this.host.cachedBpmMarkers;
-    const timeSignatures = this.host.cachedTimeSignatures;
+    const bpmChanges = this.host.cachedBpmChanges;
+    const timeSignatureChanges = this.host.cachedTimeSignatureChanges;
     const meta = chart.meta;
-    if (bpmMarkers.length === 0 || timeSignatures.length === 0) return;
+    if (bpmChanges.length === 0 || timeSignatureChanges.length === 0) return;
 
     const totalTimelineMs = this.host.getTotalTimelineMs();
-    const sortedTS = [...timeSignatures].sort((a, b) => a.measure - b.measure);
+    const sortedTS = [...timeSignatureChanges].sort((a, b) => a.measure - b.measure);
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
     // Ensure measureLabelStyle is created
@@ -164,12 +164,12 @@ export class GridRenderer {
     }
 
     for (let m = 0; ; m++) {
-      const mStartBeat = measureStartBeat(m, timeSignatures);
-      const mStartMs = beatToMs(mStartBeat, bpmMarkers, meta.offsetMs);
+      const mStartBeat = measureStartBeat(m, timeSignatureChanges);
+      const mStartMs = beatToMs(mStartBeat, bpmChanges, meta.offsetMs);
       if (mStartMs > totalTimelineMs || mStartMs > maxTimeMs) break;
 
-      const nextMStartBeat = measureStartBeat(m + 1, timeSignatures);
-      const nextMStartMs = beatToMs(nextMStartBeat, bpmMarkers, meta.offsetMs);
+      const nextMStartBeat = measureStartBeat(m + 1, timeSignatureChanges);
+      const nextMStartMs = beatToMs(nextMStartBeat, bpmChanges, meta.offsetMs);
       if (!(nextMStartMs > mStartMs)) break; // 마디 미전진(구조 위반: 분자 0 박자표) 방어 — continue보다 위
       if (nextMStartMs < minTimeMs) continue;
 
@@ -204,7 +204,7 @@ export class GridRenderer {
       // Beat lines (skip the first = measure line)
       for (let b = 1; b < bpm.n; b++) {
         const bBeat = beatAdd(mStartBeat, beatMulInt(subdivBeat, b));
-        const bMs = beatToMs(bBeat, bpmMarkers, meta.offsetMs);
+        const bMs = beatToMs(bBeat, bpmChanges, meta.offsetMs);
         if (bMs > totalTimelineMs) break;
 
         const bY = this.host.timeToY(bMs);
@@ -224,7 +224,7 @@ export class GridRenderer {
         if ((s * 4 * bpm.d) % this.host.snap === 0) continue;
 
         const snapBeatVal = beatAdd(mStartBeat, beat(s * 4, this.host.snap));
-        const snapMs = beatToMs(snapBeatVal, bpmMarkers, meta.offsetMs);
+        const snapMs = beatToMs(snapBeatVal, bpmChanges, meta.offsetMs);
         if (snapMs > totalTimelineMs) break;
 
         const snapY = this.host.timeToY(snapMs);
@@ -248,13 +248,13 @@ export class GridRenderer {
   }
 
   /**
-   * 마커 렌더링 (BPM/박자 마커, 이벤트 마커)
+   * 이벤트 렌더링 (BPM/박자 변경, 이벤트)
    */
-  renderMarkers(noteLayer: Container, eventLabelStyle: TextStyle | null, setEventLabelStyle: (style: TextStyle) => void): void {
+  renderEvents(noteLayer: Container, eventLabelStyle: TextStyle | null, setEventLabelStyle: (style: TextStyle) => void): void {
     const chart = this.host.chart;
     if (!chart) return;
 
-    const bpmMarkers = this.host.cachedBpmMarkers;
+    const bpmChanges = this.host.cachedBpmChanges;
     const { events, meta } = chart;
     const eventRenderWidth = EXTRA_LANE_WIDTH;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
@@ -263,8 +263,8 @@ export class GridRenderer {
       const evt = events[i];
       const eventRenderX = eventLaneToX(evt.editorLane ?? 1);
 
-      const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
-      const endMs = 'endBeat' in evt ? beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs) : startMs;
+      const startMs = beatToMs(evt.beat, bpmChanges, meta.offsetMs);
+      const endMs = 'endBeat' in evt ? beatToMs(evt.endBeat, bpmChanges, meta.offsetMs) : startMs;
 
       const lo = Math.min(startMs, endMs);
       const hi = Math.max(startMs, endMs);
@@ -277,7 +277,7 @@ export class GridRenderer {
       const topY = rawHeight > 0 ? Math.min(startY, endY) : Math.min(startY, endY) - NOTE_HEIGHT / 2;
       const gfx = new Graphics();
       gfx.rect(eventRenderX, topY, eventRenderWidth, height);
-      gfx.fill({ color: COLORS.EVENT_MARKER, alpha: 0.5 });
+      gfx.fill({ color: COLORS.EVENT_FILL, alpha: 0.5 });
       gfx.stroke({ width: 1.5, color: 0xffbbdd, alpha: 0.6, alignment: 0 });
       noteLayer.addChild(gfx);
 
@@ -334,13 +334,13 @@ export class GridRenderer {
     if (!chart) return;
 
     const { trillZones, meta } = chart;
-    const bpmMarkers = this.host.cachedBpmMarkers;
+    const bpmChanges = this.host.cachedBpmChanges;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
     for (let i = 0; i < trillZones.length; i++) {
       const zone = trillZones[i];
-      const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
-      const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+      const startMs = beatToMs(zone.beat, bpmChanges, meta.offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmChanges, meta.offsetMs);
 
       const lo = Math.min(startMs, endMs);
       const hi = Math.max(startMs, endMs);
@@ -382,15 +382,15 @@ export class GridRenderer {
 
     const restZones = chart.restZones ?? [];
     const { meta } = chart;
-    const bpmMarkers = this.host.cachedBpmMarkers;
+    const bpmChanges = this.host.cachedBpmChanges;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
     const visibleYA = this.host.timeToY(minTimeMs);
     const visibleYB = this.host.timeToY(maxTimeMs);
 
     for (let i = 0; i < restZones.length; i++) {
       const zone = restZones[i];
-      const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
-      const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+      const startMs = beatToMs(zone.beat, bpmChanges, meta.offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmChanges, meta.offsetMs);
 
       const lo = Math.min(startMs, endMs);
       const hi = Math.max(startMs, endMs);

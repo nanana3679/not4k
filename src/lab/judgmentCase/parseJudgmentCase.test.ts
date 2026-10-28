@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RangeNote, TutorialInputEvent } from "../../shared/types";
 import { beat } from "../../shared/types/beat";
-import { beatToMs, extractBpmMarkers } from "../../shared/timing";
+import { beatToMs, extractBpmChanges } from "../../shared/timing";
 import { JudgmentCaseSyntaxError, parseJudgmentCase } from "./parseJudgmentCase";
 
 const D4 = [
@@ -70,10 +70,10 @@ describe("parseJudgmentCase — 머리글", () => {
 describe("parseJudgmentCase — 노트 토큰", () => {
   it("1ms = 1박(BPM 60000)으로 저장해 beatToMs가 적은 ms를 그대로 돌려줌", () => {
     const { chart } = parseJudgmentCase("노트: long 1500-1560");
-    const markers = extractBpmMarkers(chart.events);
+    const bpmChanges = extractBpmChanges(chart.events);
     const note = chart.notes[0] as RangeNote;
-    expect(beatToMs(note.beat, markers, chart.meta.offsetMs)).toBe(1500);
-    expect(beatToMs(note.endBeat, markers, chart.meta.offsetMs)).toBe(1560);
+    expect(beatToMs(note.beat, bpmChanges, chart.meta.offsetMs)).toBe(1500);
+    expect(beatToMs(note.endBeat, bpmChanges, chart.meta.offsetMs)).toBe(1560);
   });
 
   it("소수 ms 1000.5는 Beat 2001/2로 저장", () => {

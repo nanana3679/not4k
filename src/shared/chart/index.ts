@@ -62,14 +62,14 @@ interface RestZoneJson {
 
 // -- v3 이벤트 JSON (디스크리미네이티드 유니온) --
 
-interface BpmEventJson {
+interface BpmChangeEventJson {
   type: "bpm";
   beat: string;
   bpm: number;
   editorLane?: number;
 }
 
-interface TimeSignatureEventJson {
+interface TimeSignatureChangeEventJson {
   type: "timeSignature";
   beat: string;
   beatPerMeasure: string;
@@ -117,8 +117,8 @@ interface TutorialDiagramEventJson {
 }
 
 type ChartEventJson =
-  | BpmEventJson
-  | TimeSignatureEventJson
+  | BpmChangeEventJson
+  | TimeSignatureChangeEventJson
   | TextEventJson
   | AutoEventJson
   | StopEventJson

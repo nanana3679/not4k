@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ChartDocument, ChartEvent } from '../../shared';
-import type { EditingMarker } from '../stores';
+import type { EditingEvent } from '../stores';
 import { modalStyles } from './modalStyles';
 
 // ---------------------------------------------------------------------------
@@ -9,8 +9,8 @@ import { modalStyles } from './modalStyles';
 
 function getEventTypeLabel(evt: ChartEvent): string {
   switch (evt.type) {
-    case 'bpm': return 'BPM';
-    case 'timeSignature': return 'Time Signature';
+    case 'bpm': return 'BPM Change';
+    case 'timeSignature': return 'Time Signature Change';
     case 'text': return 'Text';
     case 'auto': return 'Auto Section';
     case 'stop': return 'Stop Zone';
@@ -171,11 +171,11 @@ function EventFields({ evt, values, setValues }: {
 }
 
 // ---------------------------------------------------------------------------
-// Marker Edit Modal
+// Event Edit Modal
 // ---------------------------------------------------------------------------
 
-export interface MarkerEditModalProps {
-  editingMarker: NonNullable<EditingMarker>;
+export interface EventEditModalProps {
+  editingEvent: NonNullable<EditingEvent>;
   chart: ChartDocument;
   isBeatZero: boolean;
   onSave: (values: Record<string, string>) => void;
@@ -183,8 +183,8 @@ export interface MarkerEditModalProps {
   onClose: () => void;
 }
 
-export function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, onClose }: MarkerEditModalProps) {
-  const evt = chart.events[editingMarker.index];
+export function EventEditModal({ editingEvent, chart, isBeatZero, onSave, onDelete, onClose }: EventEditModalProps) {
+  const evt = chart.events[editingEvent.index];
   const [values, setValues] = useState<Record<string, string>>(() =>
     evt ? getInitialValues(evt) : {},
   );
@@ -210,7 +210,7 @@ export function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDe
             style={{ ...modalStyles.deleteBtn, opacity: isBeatZero ? 0.4 : 1 }}
             onClick={onDelete}
             disabled={isBeatZero}
-            title={isBeatZero ? 'Cannot delete first marker' : 'Delete marker'}
+            title={isBeatZero ? 'Cannot delete initial event' : 'Delete event'}
           >
             Delete
           </button>

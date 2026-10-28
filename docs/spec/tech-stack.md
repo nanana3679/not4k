@@ -199,12 +199,10 @@ storage/
     "jacketImage": "jacket.jpg",
     "offset": 0
   },
-  "bpmMarkers": [
-    { "beat": "0", "bpm": 150 },
-    { "beat": "64", "bpm": 180 }
-  ],
-  "timeSignatureMarkers": [
-    { "beat": "0", "beatPerMeasure": "4" }
+  "events": [
+    { "type": "bpm", "beat": "0", "bpm": 150 },
+    { "type": "bpm", "beat": "64", "bpm": 180 },
+    { "type": "timeSignature", "beat": "0", "beatPerMeasure": "4" }
   ],
   "notes": [
     { "type": "single", "lane": 1, "beat": "0" },
@@ -499,9 +497,9 @@ not4k/
 │   ├── editor/              # 차트 에디터 (타임라인, 모드, 에디터 로직)
 │   ├── supabase/            # Supabase 클라이언트 설정
 │   ├── shared/              # 공유 도메인
-│   │   ├── types/           # ChartData, NoteEntity, EventMarker, Beat 등
+│   │   ├── types/           # ChartData, NoteEntity, ChartEvent, Beat 등
 │   │   ├── chart/           # 분수 박자 연산, 차트 유틸리티
-│   │   ├── timing/          # beat→time 변환, BPM 마커 처리
+│   │   ├── timing/          # beat→time 변환, `BpmChangeEvent` 처리
 │   │   ├── validation/      # 배치 제약 조건 검증
 │   │   ├── constants/       # 노트 타입 enum, 판정 윈도우
 │   │   ├── storage/         # Supabase Storage 접근 유틸리티

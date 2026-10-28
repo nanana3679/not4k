@@ -46,7 +46,7 @@
 |---------|------|------|
 | **노트 배치** | Create 모드 — 싱글/롱/트릴/더블 전 타입 | 전 노트 타입이 필요 |
 | **노트 편집** | Select 모드(기본 선택 + 이동), Delete 모드(클릭 삭제) | 최소 편집 기능 |
-| **마커** | BPM 마커, 박자 마커 배치 + 값 편집 | 차트 타이밍 정의 필수 |
+| **이벤트** | `BpmChangeEvent`, `TimeSignatureChangeEvent` 배치 + 값 편집 | 차트 타이밍 정의 필수 |
 | **파형** | 음원 파형 기본 표시 | BPM 정렬에 필수 |
 | **재생** | 재생/정지 | 배치 확인 |
 | **스냅** | 고정 스냅 (1/4, 1/8, 1/16) | 정확한 노트 배치 |
@@ -58,9 +58,9 @@
 
 | 모듈 | 내용 |
 |------|------|
-| `types/` | ChartData, NoteEntity, EventMarker, Beat |
+| `types/` | ChartData, NoteEntity, ChartEvent, Beat |
 | `chart/` | 분수 박자 연산, 차트 유틸리티 |
-| `timing/` | beat→time 변환, BPM 마커 처리 |
+| `timing/` | beat→time 변환, `BpmChangeEvent` 처리 |
 | `validation/` | 배치 제약 조건 검증 |
 | `constants/` | 노트 타입 enum, 판정 윈도우 |
 | `storage/` | Supabase Storage 접근 유틸리티 |

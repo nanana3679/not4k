@@ -6,6 +6,8 @@
 
 ## 문서와 항목
 
+`BpmChangeEvent`·`TimeSignatureChangeEvent`는 `events`에 각각 `type: "bpm"`·`type: "timeSignature"`로 저장한다. 0박 초기 설정도 같은 이벤트이며, 이름 정리로 JSON 필드나 파일 버전을 변경하지 않는다. 계산용 `BpmChange`·`TimeSignatureChange`는 저장하지 않는다([RFD 0067](../rfd/0067-chart-event-names.md)).
+
 메타데이터·`trillZones`·`restZones`·`events`는 기존 차트 구조를 보존한다. `notes: DocumentNoteEntity[]`에는 구형과 신형 항목을 섞어 저장할 수 있다. 코드의 박은 `Beat`, JSON의 박은 기존과 같은 문자열이다. 박 문자열은 안전 정수 하나(`"7"`) 또는 안전 정수 분자·분모(`"7/2"`)이며 `"1.5"`·`"1oops"`처럼 정수가 아닌 값은 앞부분을 잘라 읽지 않고 형식 오류로 거부한다. 같은 이유로 문서 검증은 정수가 아닌 분자나 양수가 아닌 분모의 `Beat`를 `beatMalformed` 구조 오류로 보고 저장을 막는다. 노트의 배열 상대 순서를 보존하며 맞닿은 바디를 병합하거나 누락된 노트를 자동 생성하지 않는다.
 
 | 타입 | 필수 필드 | 선택 필드와 의미 |
