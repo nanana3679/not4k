@@ -1,9 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { beat, type NoteEntity, type TrillZone } from "../../shared";
+import { beat, type DocumentNoteEntity, type NoteEntity, type TrillZone, UnsupportedChartContentError } from "../../shared";
 import { compileJudgmentChart } from "./compiledJudgmentChart";
 import { ScoreManager } from "../scoring/ScoreManager";
 
 describe("compileJudgmentChart", () => {
+  it("명시 Point·바디·릴리즈·유지는 구형 compiler에서 head/자동 끝 점수로 해석하지 않고 거부한다", () => {
+    const explicit: DocumentNoteEntity[] = [
+      { type: "point", kind: "single", lane: 1, beat: beat(0) },
+      { type: "body", lane: 1, beat: beat(0), endBeat: beat(1), holdCount: 1 },
+      { type: "release", lane: 1, beat: beat(1), count: 2, grace: true },
+      { type: "sustain", lane: 1, beat: beat(1, 2), count: 1 },
+    ];
+    for (const note of explicit) {
+      // JS/JSON에서 타입 경계를 우회한 입력도 런타임에서 차단해야 한다.
+      // @ts-expect-error 명시 문서는 구형 compiler의 정적 입력 계약도 충족하지 않는다.
+      expect(() => compileJudgmentChart([note], [0], [500])).toThrow(UnsupportedChartContentError);
+    }
+  });
+
   it("NJ-C02: Beat가 정확히 맞닿은 같은 레인 바디만 connection으로 연결한다", () => {
     const notes: NoteEntity[] = [
       { type: "long", lane: 1, beat: beat(0), endBeat: beat(1) },

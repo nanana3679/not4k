@@ -39,3 +39,33 @@ export {
   type JudgmentScoreItem,
   type JudgmentScoreItemKind,
 } from "./compiledJudgmentChart";
+export {
+  compileExplicitJudgmentChart,
+  ExplicitChartCompileError,
+  type ExplicitCompiledChart,
+  type ExplicitCompiledBody,
+  type ExplicitCompiledBodyUnit,
+  type ExplicitCompiledConnection,
+  type ExplicitScoreItem,
+  type ExplicitSourceRef,
+  type ExplicitBodyUnitRef,
+} from "./explicitCompiledChart";
+export { ExplicitJudgmentCore } from "./ExplicitJudgmentCore";
+export type { ExplicitJudgmentCoreOptions } from "./ExplicitJudgmentCore";
+export { ExplicitJudgmentSession } from "./ExplicitJudgmentSession";
+export type { ExplicitSessionResult } from "./ExplicitJudgmentSession";
+export { ExplicitJudgmentEffectSink } from "./ExplicitJudgmentEffectSink";
+export type { ExplicitJudgmentEffectPort } from "./ExplicitJudgmentEffectSink";
+export type {
+  ExplicitJudgmentInput,
+  ExplicitObservedInputBatch,
+  ExplicitGrade,
+  ExplicitConfirmationPhase,
+  ExplicitConfirmedFact,
+  ExplicitBodyUnitSnapshot,
+  ExplicitItemSnapshot,
+  ExplicitJudgmentSnapshot,
+  ExplicitJudgmentEffect,
+  ExplicitDisplaySource,
+  ExplicitJudgmentDisplayState,
+} from "./ExplicitJudgmentState";
