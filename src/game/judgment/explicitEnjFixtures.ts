@@ -3,7 +3,7 @@ import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRel
 
 // 승인 자료를 독립적인 typed 실행 차트로 옮긴 고정 fixture다.
 // 설계 JSON·구형 차트를 실행 중 변환하지 않으며 실제 세션 기대값은 M1/M2에서 검증한다.
-// ENJ-10(같은 수의 표식 없는 연결의 탈락 공유)은 그 배치를 금지한 사용자 결정(2026-10-27)으로 지웠고 번호는 비워 둔다.
+// ENJ-10(같은 수 바디 경계에 Point도 릴리즈도 없는 연결의 탈락 공유)은 그 배치를 금지한 사용자 결정(2026-10-27)으로 지웠고 번호는 비워 둔다.
 export const explicitEnjFixtures = [
   // ENJ-01 — preheld는 880ms가 아니라 1000ms에 시작
   fixture('ENJ-01', 'docs/spec/fixtures/explicit-note-cases/enj-01.json',
