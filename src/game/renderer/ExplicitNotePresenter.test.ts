@@ -56,7 +56,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(show({ items: { 0: ["success", "pending"] } }).find(note => note.kind === "body")!.bodyAlpha).toBe(1);
   });
 
-  it("틱 왼쪽만 성공하면 해당 틱만 숨기고 오른쪽 200×40 캔버스·x116 틱의 크기·밝기를 유지한다", () => {
+  it("틱 왼쪽만 성공하면 해당 쪽 도안만 숨기고 오른쪽 200×40 캔버스·x116 틱의 크기·밝기를 유지한다", () => {
     const before = show()[1].layers;
     const after = show({ items: { 1: ["success", "pending"] } })[1].layers;
     expect(after[0].visible).toBe(false);

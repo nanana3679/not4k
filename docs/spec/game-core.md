@@ -132,7 +132,7 @@ admin 권한은 Supabase Database의 `profiles` 테이블에서 `is_admin` 플�
 | Grace 릴리즈 외곽 | 실패를 포함해 본체가 보이는 동안 전체 원래 밝기. 본체 alpha와 분리하고 본체 제거와 함께 숨김 |
 | 바디 시작·끝 | 별도 마감 에셋 없음. 명시 탭·릴리즈·틱 노트만 자기 상태로 표시 |
 
-기존 스킨·타격 설정과 판정선·리프트 배치를 따른다. 더블 틱 노트는 표시 개수로 요구 수를 표현하므로 전체 alpha 0.7 규칙의 예외다. 구체적인 근거는 [RFD 0037 §7](../rfd/0037-explicit-score-notes-and-body.md#7-표시와-확정-효과), 정산은 [스코어링](scoring.md#명시적-점수-항목과-정산), 설계 기대값은 [새 판정 사례](explicit-note-judgment-cases.md)를 따른다.
+기존 스킨·타격 설정과 판정선·리프트 배치를 따른다. 더블 틱 노트는 틱 개수로 요구 수를 표현하므로 전체 alpha 0.7 규칙의 예외다. 구체적인 근거는 [RFD 0037 §7](../rfd/0037-explicit-score-notes-and-body.md#7-표시와-확정-효과), 정산은 [스코어링](scoring.md#명시적-점수-항목과-정산), 설계 기대값은 [새 판정 사례](explicit-note-judgment-cases.md)를 따른다.
 
 ### AutoPlayer·튜토리얼과 입력 수명
 
