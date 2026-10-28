@@ -4,6 +4,7 @@ import type {
   BodyNote, ChartDocument, DocumentNoteEntity, PointNote, RangeNote, ReleaseNote, TapNote, TickNote, TrillZone,
 } from "../types/chart";
 import { validateChartDocument } from "../validation/documentValidation";
+import type { ValidationErrorRule } from "../validation";
 import { convertLegacyChart, hasLegacyNotes, type LegacyConversionItem } from "./index";
 
 // 박은 정수 박(beat(n))만 쓴다. 레인 1～4는 메인, 5 이후는 보조 레인이다.
@@ -29,9 +30,12 @@ const body = (start: number, end: number, holdCount: 1 | 2 = 1, options: { lane?
 const release = (at: number, count: 1 | 2 = 1, lane = 1): ReleaseNote => ({ type: "release", lane, beat: beat(at), count });
 const tick = (at: number, count: 1 | 2 = 1, lane = 1): TickNote => ({ type: "tick", lane, beat: beat(at), count });
 
-const item = (kind: Exclude<LegacyConversionItem["kind"], "holdCountChangeConnection">, at: number,
+const item = (kind: Exclude<LegacyConversionItem["kind"], "holdCountChangeConnection" | "violationBeforeConversion">, at: number,
   legacyItemCount: number, legacyNoteIndices: number[], lane = 1): LegacyConversionItem =>
   ({ kind, lane, beat: beat(at), legacyItemCount, legacyNoteIndices });
+/** 변환 전 입력의 위반 항목. 손실 수는 세지 않아 0이다. */
+const inputViolation = (rule: ValidationErrorRule, at: number, legacyNoteIndices: number[], lane = 1): LegacyConversionItem =>
+  ({ kind: "violationBeforeConversion", rule, lane, beat: beat(at), legacyItemCount: 0, legacyNoteIndices });
 
 /** 변환 결과의 구조·의미 위반 rule 이름. 빈 배열이면 저장할 수 있다. */
 const violations = (document: ChartDocument) => {
@@ -73,11 +77,19 @@ describe("convertLegacyChart — 구형 패턴 대응표 M1～M13", () => {
     expect(violations(result.chart)).toEqual([]);
   });
 
-  it("M6: 사슬 끝 2가 holdOnly인 head 0 + long [0,2]는 릴리즈 없는 바디 [0,2]가 되고 보고 항목이 없다", () => {
+  it("M6: 사슬 끝 2가 holdOnly인 head 0 + long [0,2]는 릴리즈 없는 바디 [0,2]가 되고 보고 항목 없이 잃은 holdOnly 항목 1개만 센다", () => {
     const result = convertLegacyChart(chart([point("single", 0), range("long", 0, 2, { holdOnly: true })]));
     expect(result.chart.notes).toEqual([tap("single", 0), body(0, 2)]);
     expect(result.report.items).toEqual([]);
+    expect(result.report.counts.terminalHoldOnlyItemsDropped).toBe(1);
     expect(violations(result.chart)).toEqual([]);
+  });
+
+  it("M6: 사슬 끝 2가 holdOnly인 doubleLong [0,2]는 릴리즈 없는 hold 수 2 바디만 되고 보고 항목 없이 terminalHoldOnlyItemsDropped 2를 센다", () => {
+    const result = convertLegacyChart(chart([range("doubleLong", 0, 2, { holdOnly: true })]));
+    expect(result.chart.notes).toEqual([body(0, 2, 2)]);
+    expect(result.report.items).toEqual([]);
+    expect(result.report.counts).toEqual({ taps: 0, bodies: 1, releases: 0, ticks: 0, mergedConnections: 0, terminalHoldOnlyItemsDropped: 2 });
   });
 
   it("M7: head 1·2가 있는 같은 hold 수 사슬 long [0,1]→[1,2]→[2,3]은 경계 1·2에 탭 노트만 두고 사슬 끝 3에만 릴리즈를 둔다", () => {
@@ -135,10 +147,24 @@ describe("convertLegacyChart — 구형 패턴 대응표 M1～M13", () => {
       expect(violations(result.chart)).toEqual([]);
     });
 
-  it("M10: head·holdOnly 없이 같은 hold 수로 맞닿은 long [0,1]→long [1,2](구형 NJ-C02 위반)는 두 바디로 옮겨 보고하고 명시 검증도 막는다", () => {
+  it("M9: double 0 + doubleLong [0,2]에서 trill 2 + trillLong [2,4](trillZone [2,4])로 이어지는 2→1 연결은 트릴 탭 노트 2만 두고 hasHead인 감소 연결로 1개 손실을 보고한다", () => {
+    const input = chart([point("double", 0), range("doubleLong", 0, 2), point("trill", 2), range("trillLong", 2, 4)], [zone(2, 4)]);
+    expect(violations(input)).toEqual([]);
+    const result = convertLegacyChart(input);
+    expect(result.chart.notes).toEqual([tap("double", 0), body(0, 2, 2), tap("trill", 2), body(2, 4, 1, { trill: true })]);
+    expect(result.report.items).toEqual([
+      { kind: "holdCountChangeConnection", lane: 1, beat: beat(2), predecessorHoldCount: 2, successorHoldCount: 1, hasHead: true,
+        predecessorHoldOnly: false, legacyItemCount: 1, legacyNoteIndices: [1, 3] },
+      item("releaseOmittedTrillBodyEnd", 4, 1, [3]),
+    ]);
+    expect(violations(result.chart)).toEqual([]);
+  });
+
+  it("M10: head·holdOnly 없이 같은 hold 수로 맞닿은 long [0,1]→long [1,2](구형 NJ-C02 위반)는 두 바디로 옮겨 연결과 변환 전 noteConstraint를 보고하고 명시 검증도 막는다", () => {
     const result = convertLegacyChart(chart([range("long", 0, 1), range("long", 1, 2)]));
     expect(result.chart.notes).toEqual([body(0, 1), body(1, 2), release(2)]);
-    expect(result.report.items).toEqual([item("sameHoldCountConnectionWithoutHeadOrHoldOnly", 1, 0, [0, 1])]);
+    expect(result.report.items).toEqual([item("sameHoldCountConnectionWithoutHeadOrHoldOnly", 1, 0, [0, 1]),
+      inputViolation("noteConstraint", 1, [0, 1])]);
     expect(violations(result.chart)).toEqual(["sameHoldCountConnectionWithoutTapOrRelease"]);
   });
 
@@ -151,6 +177,15 @@ describe("convertLegacyChart — 구형 패턴 대응표 M1～M13", () => {
 
   it("M12: 같은 레인 trillZone [4,8]의 시작 4에서 끝나는 head 0 + long [0,4]는 끝 4에 릴리즈를 두지 않고 보고한다", () => {
     const result = convertLegacyChart(chart([point("single", 0), range("long", 0, 4)], [zone(4, 8)]));
+    expect(result.chart.notes).toEqual([tap("single", 0), body(0, 4)]);
+    expect(result.report.items).toEqual([item("releaseOmittedInTrillZone", 4, 1, [1])]);
+    expect(violations(result.chart)).toEqual([]);
+  });
+
+  it("M12: 같은 레인 trillZone [2,4]의 끝 4에서 끝나는 head 0 + long [0,4]는 구간 끝을 구간 안으로 보아 끝 4에 릴리즈를 두지 않고 보고한다", () => {
+    const input = chart([point("single", 0), range("long", 0, 4)], [zone(2, 4)]);
+    expect(violations(input)).toEqual([]);
+    const result = convertLegacyChart(input);
     expect(result.chart.notes).toEqual([tap("single", 0), body(0, 4)]);
     expect(result.report.items).toEqual([item("releaseOmittedInTrillZone", 4, 1, [1])]);
     expect(violations(result.chart)).toEqual([]);
@@ -171,19 +206,21 @@ describe("convertLegacyChart — 구형 패턴 대응표 M1～M13", () => {
 });
 
 describe("convertLegacyChart — 규칙이 바로 정하지 않은 경우", () => {
-  it("(a) 보조 레인 6의 holdOnly trillLong [0,1]→trillLong [1,2]는 트릴 바디 [0,2] 하나로 합치되 틱 노트 없이 보고하고 끝 2에 릴리즈를 둔다", () => {
+  it("(a) 보조 레인 6의 holdOnly trillLong [0,1]→trillLong [1,2]는 트릴 바디 [0,2] 하나로 합치되 틱 노트 없이 보고하고 끝 2에도 릴리즈 없이 보고한다", () => {
     const result = convertLegacyChart(chart([range("trillLong", 0, 1, { lane: 6, holdOnly: true }), range("trillLong", 1, 2, { lane: 6 })]));
-    expect(result.chart.notes).toEqual([body(0, 2, 1, { lane: 6, trill: true }), release(2, 1, 6)]);
+    expect(result.chart.notes).toEqual([body(0, 2, 1, { lane: 6, trill: true })]);
     expect(result.report.counts.mergedConnections).toBe(1);
-    expect(result.report.items).toEqual([item("holdOnlyConnectionNotTickable", 1, 1, [0, 1], 6)]);
+    expect(result.report.items).toEqual([item("holdOnlyConnectionNotTickable", 1, 1, [0, 1], 6),
+      item("releaseOmittedTrillBodyEnd", 2, 1, [1], 6)]);
     expect(violations(result.chart)).toEqual([]);
   });
 
-  it("(a) 보조 레인 6의 holdOnly long [0,1]→trillLong [1,2]는 바디를 합치지 않고 경계 1에 틱 노트 없이 보고한다", () => {
+  it("(a) 보조 레인 6의 holdOnly long [0,1]→trillLong [1,2]는 바디를 합치지 않고 경계 1에 틱 노트 없이, 트릴 바디 끝 2에 릴리즈 없이 보고한다", () => {
     const result = convertLegacyChart(chart([range("long", 0, 1, { lane: 6, holdOnly: true }), range("trillLong", 1, 2, { lane: 6 })]));
-    expect(result.chart.notes).toEqual([body(0, 1, 1, { lane: 6 }), body(1, 2, 1, { lane: 6, trill: true }), release(2, 1, 6)]);
+    expect(result.chart.notes).toEqual([body(0, 1, 1, { lane: 6 }), body(1, 2, 1, { lane: 6, trill: true })]);
     expect(result.report.counts.mergedConnections).toBe(0);
-    expect(result.report.items).toEqual([item("holdOnlyConnectionNotTickable", 1, 1, [0, 1], 6)]);
+    expect(result.report.items).toEqual([item("holdOnlyConnectionNotTickable", 1, 1, [0, 1], 6),
+      item("releaseOmittedTrillBodyEnd", 2, 1, [1], 6)]);
     expect(violations(result.chart)).toEqual([]);
   });
 
@@ -195,9 +232,10 @@ describe("convertLegacyChart — 규칙이 바로 정하지 않은 경우", () =
     expect(violations(result.chart)).toEqual([]);
   });
 
-  it("(e) 구형에서도 위반인 길이 0 trillLong 1은 길이 0 트릴 바디로 그대로 옮겨 trillLongInvalid로 남긴다", () => {
+  it("(e) 메인 레인에서 구형에서도 위반인 길이 0 trillLong 1은 길이 0 트릴 바디로 그대로 옮겨 trillLongInvalid로 남기고 변환 전 위반으로 보고한다", () => {
     const result = convertLegacyChart(chart([range("trillLong", 1, 1)], [zone(0, 2)]));
     expect(result.chart.notes).toEqual([body(1, 1, 1, { trill: true })]);
+    expect(result.report.items).toEqual([inputViolation("trillLongInvalid", 1, [0])]);
     expect(violations(result.chart)).toEqual(["trillLongInvalid"]);
   });
 
@@ -206,20 +244,34 @@ describe("convertLegacyChart — 규칙이 바로 정하지 않은 경우", () =
     expect(result.chart.notes).toEqual([tap("single", 0, { grace: true }), body(0, 2), release(2)]);
   });
 
-  it("(g) 명시 릴리즈 2가 이미 있는 구형 long [0,2]의 끝에는 릴리즈를 더하지 않고 보고하며 명시 노트는 같은 참조로 남긴다", () => {
+  it("(g) 명시 릴리즈 2가 이미 있는 구형 long [0,2]의 끝에는 릴리즈를 더하지 않고 그 릴리즈가 맡으므로 잃은 항목 0개로 보고하며 명시 노트는 같은 참조로 남긴다", () => {
     const input = chart([range("long", 0, 2), release(2)]);
     const result = convertLegacyChart(input);
     expect(result.chart.notes).toEqual([body(0, 2), release(2)]);
     expect(result.chart.notes[1]).toBe(input.notes[1]);
-    expect(result.report.items).toEqual([item("explicitNoteAtLegacyEnd", 2, 1, [0])]);
+    expect(result.report.items).toEqual([item("explicitNoteAtLegacyPosition", 2, 0, [0])]);
     expect(violations(result.chart)).toEqual([]);
   });
 
-  it("(g) 구형 long [0,2]의 끝 2에서 명시 바디 [2,4]가 시작하면 경계에 아무것도 더하지 않고 보고한다", () => {
+  it("(g) 명시 릴리즈 ×1이 있는 구형 doubleLong [0,2]의 끝 2에는 릴리즈를 더하지 않고 모자란 1몫을 잃은 항목 1개로 보고한다", () => {
+    const result = convertLegacyChart(chart([range("doubleLong", 0, 2), release(2)]));
+    expect(result.chart.notes).toEqual([body(0, 2, 2), release(2)]);
+    expect(result.report.items).toEqual([item("explicitNoteAtLegacyPosition", 2, 1, [0])]);
+    expect(violations(result.chart)).toEqual([]);
+  });
+
+  it("(g) 구형 long [0,2]의 끝 2에서 명시 바디 [2,4]가 시작하면 경계에 아무것도 더하지 않고 head 없는 같은 hold 수 연결로 보아 잃은 항목 0개로 보고한다", () => {
     const result = convertLegacyChart(chart([range("long", 0, 2), body(2, 4), release(4)]));
     expect(result.chart.notes).toEqual([body(0, 2), body(2, 4), release(4)]);
-    expect(result.report.items).toEqual([item("explicitNoteAtLegacyEnd", 2, 1, [0])]);
+    expect(result.report.items).toEqual([item("explicitNoteAtLegacyPosition", 2, 0, [0])]);
     expect(violations(result.chart)).toEqual(["sameHoldCountConnectionWithoutTapOrRelease"]);
+  });
+
+  it("(g) 명시 탭 노트 2와 명시 바디 [2,4]가 이어지는 구형 long [0,2]의 끝 2는 head 있는 같은 hold 수 연결로 보아 잃은 항목 0개로 보고한다", () => {
+    const result = convertLegacyChart(chart([range("long", 0, 2), tap("single", 2), body(2, 4), release(4)]));
+    expect(result.chart.notes).toEqual([body(0, 2), tap("single", 2), body(2, 4), release(4)]);
+    expect(result.report.items).toEqual([item("explicitNoteAtLegacyPosition", 2, 0, [0])]);
+    expect(violations(result.chart)).toEqual([]);
   });
 
   it("(g) 명시 탭 노트 1이 있는 구형 long [0,1]→long [1,2] 경계는 head로 보아 아무것도 더하지 않고 보고하지 않는다", () => {
@@ -235,6 +287,114 @@ describe("convertLegacyChart — 규칙이 바로 정하지 않은 경우", () =
     const result = convertLegacyChart(chart([range("long", 0, 2, { lane: 5 }), range("long", 4, 6, { lane: 5, holdOnly: true })]));
     expect(result.chart.notes).toEqual([body(0, 2, 1, { lane: 5 }), release(2, 1, 5), body(4, 6, 1, { lane: 5 })]);
     expect(result.report.items).toEqual([]);
+    expect(result.report.counts.terminalHoldOnlyItemsDropped).toBe(1);
+  });
+});
+
+describe("convertLegacyChart — 보조 레인 트릴 롱노트(사용자 결정, 2026-10-28)", () => {
+  it("보조 레인 5의 head 없는 trillLong [0,2]는 메인 레인처럼 트릴 바디 [0,2]만 되고 끝 2에 릴리즈 없이 1개 손실의 releaseOmittedTrillBodyEnd로 보고한다", () => {
+    const input = chart([range("trillLong", 0, 2, { lane: 5 })]);
+    expect(violations(input)).toEqual([]);
+    const result = convertLegacyChart(input);
+    expect(result.chart.notes).toEqual([body(0, 2, 1, { lane: 5, trill: true })]);
+    expect(result.report.items).toEqual([item("releaseOmittedTrillBodyEnd", 2, 1, [0], 5)]);
+    expect(violations(result.chart)).toEqual([]);
+  });
+
+  it.each([{ holdOnly: false }, { holdOnly: true }])(
+    "구형에서 합법인 보조 레인 5의 길이 0 trillLong 1(holdOnly $holdOnly)은 길이 0 트릴 바디로 옮기고 릴리즈·틱 노트 없이 1개 손실의 auxZeroLengthTrillBody로 보고한다",
+    ({ holdOnly }) => {
+      const input = chart([range("trillLong", 1, 1, { lane: 5, holdOnly })]);
+      expect(violations(input)).toEqual([]);
+      const result = convertLegacyChart(input);
+      expect(result.chart.notes).toEqual([body(1, 1, 1, { lane: 5, trill: true })]);
+      expect(result.report.items).toEqual([item("auxZeroLengthTrillBody", 1, 1, [0], 5)]);
+      expect(result.report.counts).toEqual({ taps: 0, bodies: 1, releases: 0, ticks: 0, mergedConnections: 0, terminalHoldOnlyItemsDropped: 0 });
+      expect(violations(result.chart)).toEqual([]);
+    });
+});
+
+describe("convertLegacyChart — 명시 노트가 섞인 입력", () => {
+  it.each([
+    { name: "long [2,4]", explicit: body(0, 2), legacy: range("long", 2, 4), converted: [body(2, 4), release(4)], dropped: 0 },
+    { name: "holdOnly long [2,4]", explicit: body(0, 2), legacy: range("long", 2, 4, { holdOnly: true }), converted: [body(2, 4)], dropped: 1 },
+    { name: "doubleLong [2,4]", explicit: body(0, 2, 2), legacy: range("doubleLong", 2, 4), converted: [body(2, 4, 2), release(4, 2)], dropped: 0 },
+  ])("(a) 명시 바디 [0,2]가 끝나는 2에서 시작하는 구형 $name은 경계 2에 아무것도 더하지 않고 잃은 항목 0개로 보고하며 명시 검증이 그 경계를 막는다",
+    ({ explicit, legacy, converted, dropped }) => {
+      const input = chart([explicit, legacy]);
+      expect(violations(input)).toEqual([]);
+      const result = convertLegacyChart(input);
+      expect(result.chart.notes).toEqual([explicit, ...converted]);
+      expect(result.chart.notes[0]).toBe(input.notes[0]);
+      expect(result.report.items).toEqual([item("explicitNoteAtLegacyPosition", 2, 0, [1])]);
+      expect(result.report.counts.terminalHoldOnlyItemsDropped).toBe(dropped);
+      expect(violations(result.chart)).toEqual(["sameHoldCountConnectionWithoutTapOrRelease"]);
+    });
+
+  it("(b) 명시 릴리즈 2가 있는 길이 0 long 2는 릴리즈를 더하지 않고 기존 릴리즈만 남기며 그 릴리즈가 맡으므로 잃은 항목 0개로 보고한다", () => {
+    const input = chart([range("long", 2, 2), release(2)]);
+    expect(violations(input)).toEqual([]);
+    const result = convertLegacyChart(input);
+    expect(result.chart.notes).toEqual([release(2)]);
+    expect(result.chart.notes[0]).toBe(input.notes[1]);
+    expect(result.report.items).toEqual([item("explicitNoteAtLegacyPosition", 2, 0, [0])]);
+    expect(result.report.counts.releases).toBe(0);
+    expect(violations(result.chart)).toEqual([]);
+  });
+
+  it("(c) 명시 릴리즈 ×2가 있는 길이 0 holdOnly long 2는 길이 0 바디·틱 노트를 더하지 않고 릴리즈가 맡지 못하는 holdOnly 항목 1개를 잃은 것으로 보고한다", () => {
+    const input = chart([range("long", 2, 2, { holdOnly: true }), release(2, 2)]);
+    expect(violations(input)).toEqual([]);
+    const result = convertLegacyChart(input);
+    expect(result.chart.notes).toEqual([release(2, 2)]);
+    expect(result.report.items).toEqual([item("explicitNoteAtLegacyPosition", 2, 1, [0])]);
+    expect(violations(result.chart)).toEqual([]);
+  });
+
+  it("(d) 명시 바디 [2,5]의 끝 5에 놓인 길이 0 holdOnly long 5는 길이 0 바디·틱 노트를 더하지 않고 holdOnly 항목 1개를 잃은 것으로 보고한다", () => {
+    const input = chart([body(2, 5), range("long", 5, 5, { holdOnly: true })]);
+    expect(violations(input)).toEqual([]);
+    const result = convertLegacyChart(input);
+    expect(result.chart.notes).toEqual([body(2, 5)]);
+    expect(result.report.items).toEqual([item("explicitNoteAtLegacyPosition", 5, 1, [1])]);
+    expect(violations(result.chart)).toEqual([]);
+  });
+});
+
+describe("convertLegacyChart — 변환 전 입력의 위반", () => {
+  it("구형 long [0,4] 안의 single 2(구형 longOverlap)는 합법인 바디 중간 탭 노트가 되므로 레인 1 박 2의 변환 전 longOverlap으로 보고한다", () => {
+    const result = convertLegacyChart(chart([point("single", 0), range("long", 0, 4), point("single", 2)]));
+    expect(result.chart.notes).toEqual([tap("single", 0), body(0, 4), release(4), tap("single", 2)]);
+    expect(result.report.items).toEqual([inputViolation("longOverlap", 2, [1, 2])]);
+    expect(violations(result.chart)).toEqual([]);
+  });
+
+  it("holdOnly long [0,1]의 끝 1에 single이 놓인 구형 위반은 탭 노트 1과 두 바디로 옮기고 박 1의 변환 전 noteConstraint로 보고한다", () => {
+    const result = convertLegacyChart(chart([range("long", 0, 1, { holdOnly: true }), point("single", 1), range("long", 1, 2)]));
+    expect(result.chart.notes).toEqual([body(0, 1), tap("single", 1), body(1, 2), release(2)]);
+    expect(result.report.items).toEqual([inputViolation("noteConstraint", 1, [0, 1])]);
+    expect(violations(result.chart)).toEqual([]);
+  });
+
+  it("끝이 시작보다 앞선 holdOnly long [1,0](rangeInverted)은 사슬·합침에서 빼고 구형 노트 그대로 남기며 박 1의 변환 전 rangeInverted로 보고한다", () => {
+    const input = chart([range("long", 0, 1, { holdOnly: true }), range("long", 1, 0, { holdOnly: true })]);
+    const result = convertLegacyChart(input);
+    expect(result.chart.notes).toEqual([body(0, 1), input.notes[1]]);
+    expect(result.chart.notes[1]).toBe(input.notes[1]);
+    expect(hasLegacyNotes(result.chart.notes)).toBe(true);
+    expect(result.report.items).toEqual([inputViolation("rangeInverted", 1, [1])]);
+    expect(result.report.counts).toEqual({ taps: 0, bodies: 1, releases: 0, ticks: 0, mergedConnections: 0, terminalHoldOnlyItemsDropped: 1 });
+  });
+
+  it("보조 레인 5의 head 없는 long [0,1]→trillLong [1,2](구형 NJ-C02 위반)는 두 바디로 옮겨 연결과 변환 전 noteConstraint를 보고하며 일반→트릴 경계라 명시 검증은 막지 않는다", () => {
+    const result = convertLegacyChart(chart([range("long", 0, 1, { lane: 5 }), range("trillLong", 1, 2, { lane: 5 })]));
+    expect(result.chart.notes).toEqual([body(0, 1, 1, { lane: 5 }), body(1, 2, 1, { lane: 5, trill: true })]);
+    expect(result.report.items).toEqual([
+      item("sameHoldCountConnectionWithoutHeadOrHoldOnly", 1, 0, [0, 1], 5),
+      inputViolation("noteConstraint", 1, [0, 1], 5),
+      item("releaseOmittedTrillBodyEnd", 2, 1, [1], 5),
+    ]);
+    expect(violations(result.chart)).toEqual([]);
   });
 });
 
@@ -243,7 +403,7 @@ describe("convertLegacyChart — 입출력 계약", () => {
     const input = chart([tap("single", 0), body(0, 2), release(2)]);
     const result = convertLegacyChart(input);
     expect(result.chart).toBe(input);
-    expect(result.report).toEqual({ counts: { taps: 0, bodies: 0, releases: 0, ticks: 0, mergedConnections: 0 }, items: [] });
+    expect(result.report).toEqual({ counts: { taps: 0, bodies: 0, releases: 0, ticks: 0, mergedConnections: 0, terminalHoldOnlyItemsDropped: 0 }, items: [] });
   });
 
   it("변환 결과를 다시 변환하면 첫 결과 차트와 같은 참조를 돌려준다", () => {
@@ -283,7 +443,7 @@ describe("convertLegacyChart — 입출력 계약", () => {
     expect(hasLegacyNotes([tap("single", 0), body(0, 2), release(2), tick(1)])).toBe(false);
   });
 
-  it("o-*-*-*·Grace o-o-·D=-·트릴·길이 0 holdOnly·보조 holdOnly 예시 차트는 탭 5·바디 8·릴리즈 2·틱 3·합친 연결 2와 보고 2건이 되고 위반이 없다", () => {
+  it("o-*-*-*·Grace o-o-·D=-·트릴·길이 0 holdOnly·보조 holdOnly 예시 차트는 탭 5·바디 8·릴리즈 2·틱 3·합친 연결 2·사슬 끝 holdOnly 손실 2와 보고 2건이 되고 위반이 없다", () => {
     const input = chart([
       point("single", 0), range("long", 0, 1, { holdOnly: true }), range("long", 1, 2, { holdOnly: true }), range("long", 2, 3, { holdOnly: true }),
       point("single", 0, { lane: 2, grace: true }), range("long", 0, 1, { lane: 2 }), point("single", 1, { lane: 2 }), range("long", 1, 2, { lane: 2 }),
@@ -299,7 +459,7 @@ describe("convertLegacyChart — 입출력 계약", () => {
       tap("trill", 4, { lane: 4 }), body(4, 6, 1, { lane: 4, trill: true }), body(8, 8, 1, { lane: 4 }), tick(8, 1, 4),
       body(4, 6, 1, { lane: 5 }),
     ]);
-    expect(result.report.counts).toEqual({ taps: 5, bodies: 8, releases: 2, ticks: 3, mergedConnections: 2 });
+    expect(result.report.counts).toEqual({ taps: 5, bodies: 8, releases: 2, ticks: 3, mergedConnections: 2, terminalHoldOnlyItemsDropped: 2 });
     expect(result.report.items).toEqual([
       { kind: "holdCountChangeConnection", lane: 3, beat: beat(1), predecessorHoldCount: 2, successorHoldCount: 1,
         hasHead: false, predecessorHoldOnly: false, legacyItemCount: 1, legacyNoteIndices: [9, 10] },
