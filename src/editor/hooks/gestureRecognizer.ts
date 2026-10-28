@@ -2,12 +2,12 @@
  * GestureRecognizer — raw pointer 샘플을 편집/뷰포트 제스처로 인식하는 순수 상태머신.
  *
  * 도메인(히트테스트/스냅)을 전혀 모른다(형태 A: 입력층/도메인층 2층 분리). 시간은
- * `sample.timeMs`와 `tick(nowMs)`로만 주입받는다(Time-A) — `Date.now()`/`setTimeout`을
- * 쓰지 않아 `(샘플들 + tick들)`에 대한 순수 reducer로서 시퀀스 단위로 테스트 가능하다.
+ * `sample.timeMs`와 `advanceTo(nowMs)`로만 주입받는다(Time-A) — `Date.now()`/`setTimeout`을
+ * 쓰지 않아 `(샘플들 + advanceTo 호출들)`에 대한 순수 reducer로서 시퀀스 단위로 테스트 가능하다.
  *
  * 슬라이스 1a: 터치 포인트 추적 + 두 손가락 내비게이션(pinch/pan) 인식만 담는다.
  * 편집 제스처(click/longPress/drag/box)와 롱프레스 타이머는 후속 슬라이스(1c)에서 이 모듈로
- * 이관된다 — 그때 `tick`이 채워지고 `EditGesture`가 확장된다.
+ * 이관된다 — 그때 `advanceTo`가 채워지고 `EditGesture`가 확장된다.
  */
 import {
   advanceTouchNavigationSession,
@@ -142,7 +142,7 @@ export class GestureRecognizer {
    * 주입된 시각으로 시간 기반 제스처(롱프레스)를 발화한다. 어댑터가 down 이후 적절한 시점에 부른다.
    * 단일 터치가 click-slop 안에서 LONG_PRESS_MS 이상 유지되면 longPress를 한 번 방출한다.
    */
-  tick(nowMs: number): Gesture[] {
+  advanceTo(nowMs: number): Gesture[] {
     const hold = this.hold;
     if (
       hold &&

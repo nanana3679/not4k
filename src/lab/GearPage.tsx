@@ -931,7 +931,7 @@ function GearPreviewRenderer({
         let startNow = performance.now();
         let previousNow = startNow;
         const beams = [false, false, false, false];
-        const tick = (now: number) => {
+        const step = (now: number) => {
           const frameDelta = now - previousNow;
           const deltaMs = Math.min(48, Math.max(0, frameDelta));
           previousNow = now;
@@ -942,8 +942,8 @@ function GearPreviewRenderer({
             startNow = now;
             songMs = 0;
           }
-          const step = stepGearPreviewLoop(schedule, loopState, songMs);
-          if (step.wrapped) {
+          const loopStep = stepGearPreviewLoop(schedule, loopState, songMs);
+          if (loopStep.wrapped) {
             // 차트 끝에서 처음으로 되감는다. setChart가 노트 처리·놓침 표시와 비행 배경 고도를 처음으로 돌리고,
             // resetTransientState가 키빔을 끄므로 키빔 캐시도 함께 비운다.
             active.resetTransientState();
@@ -952,7 +952,7 @@ function GearPreviewRenderer({
           }
           const missedBefore = loopState.missed;
           const comboBefore = loopState.combo;
-          for (const event of step.events) {
+          for (const event of loopStep.events) {
             // 숨은 탭에서 돌아와 시간이 건너뛰었으면 오래된 이벤트의 키봄·판정 글자는 생략하고 노트 표시만 맞춘다.
             if (event.type === 'hit') {
               if (event.stale) continue;
@@ -965,10 +965,10 @@ function GearPreviewRenderer({
               if (!event.stale) active.showJudgment(JudgmentGrade.MISS);
             }
           }
-          loopState = step.state;
-          if (loopState.combo !== comboBefore || step.wrapped) active.updateCombo(loopState.combo);
+          loopState = loopStep.state;
+          if (loopState.combo !== comboBefore || loopStep.wrapped) active.updateCombo(loopState.combo);
           if (loopState.missed !== missedBefore) publishView();
-          step.beamLanes.forEach((on, index) => {
+          loopStep.beamLanes.forEach((on, index) => {
             if (beams[index] === on) return;
             beams[index] = on;
             active.setKeyBeam(index + 1, on);
@@ -989,7 +989,7 @@ function GearPreviewRenderer({
         const loop = (now: number) => {
           if (disposed) return;
           try {
-            tick(now);
+            step(now);
           } catch (error) {
             // `gear-preview-stage`가 준비됨으로 남은 채 조용히 멈추지 않도록 오류 상태로 바꾸고 루프를 멈춘다.
             console.error('GearPage: render loop failed', error);

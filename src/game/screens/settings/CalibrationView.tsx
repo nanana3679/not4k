@@ -142,12 +142,12 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
 
   // --- Audio calibration: play beeps at intervals ---
   const startAudioLoop = useCallback((audioCtx: AudioContext) => {
-    const tick = () => {
+    const step = () => {
       if (!runningRef.current) return;
       const now = performance.now();
       const startTime = startTimeRef.current;
       if (now < startTime) {
-        animFrameRef.current = requestAnimationFrame(tick);
+        animFrameRef.current = requestAnimationFrame(step);
         return;
       }
 
@@ -162,10 +162,10 @@ export function CalibrationView({ onExit }: CalibrationViewProps) {
         beatIndexRef.current = currentBeatIdx + 1;
       }
 
-      animFrameRef.current = requestAnimationFrame(tick);
+      animFrameRef.current = requestAnimationFrame(step);
     };
 
-    animFrameRef.current = requestAnimationFrame(tick);
+    animFrameRef.current = requestAnimationFrame(step);
   }, []);
 
   const stopRun = useCallback(() => {

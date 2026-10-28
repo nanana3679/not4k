@@ -868,7 +868,7 @@ press는 `AutoEvent` 안에서만 생성하고, 구간에서 시작한 누름의
 
 ### GestureRecognizer
 
-raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상태머신. 도메인(히트 테스트·스냅)을 전혀 모르며(입력층/도메인층 분리), 마우스·터치·펜을 정규화된 **`PointerSample`**로 받아 **`EditGesture`**/**`ViewportGesture`**를 방출한다. 시간을 `PointerSample.timeMs`와 `tick(nowMs)`로 주입받아(`Date.now`/`setTimeout` 미사용) 포인터 시퀀스 단위로 테스트된다. 편집 모드는 인식기가 방출한 제스처만 받고 터치 상태(롱프레스 타이머·후보·핀치 세션)는 모른다. 두 손가락이 닿으면 진행 중 편집을 `editCancel`로 폐기한다.
+raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상태머신. 도메인(히트 테스트·스냅)을 전혀 모르며(입력층/도메인층 분리), 마우스·터치·펜을 정규화된 **`PointerSample`**로 받아 **`EditGesture`**/**`ViewportGesture`**를 방출한다. 시간을 `PointerSample.timeMs`와 `advanceTo(nowMs)`로 주입받아(`Date.now`/`setTimeout` 미사용) 포인터 시퀀스 단위로 테스트된다. 편집 모드는 인식기가 방출한 제스처만 받고 터치 상태(롱프레스 타이머·후보·핀치 세션)는 모른다. 두 손가락이 닿으면 진행 중 편집을 `editCancel`로 폐기한다.
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`. 내비게이션 순수 함수는 `touchGesture.ts`를 내부 부품으로 재사용.
 

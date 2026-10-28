@@ -110,7 +110,7 @@ export function useCanvasEvents(
   }));
   const recognizerRef = useRef(new GestureRecognizer());
   // 롱프레스 hold 생명주기(arm/moved/발화/결말)는 recognizer가 소유한다.
-  // 훅은 tick을 ~450ms 시점에 한 번 poke하는 타이머만 붙든다(Time-A 스케줄러).
+  // 훅은 advanceTo를 ~450ms 시점에 한 번 poke하는 타이머만 붙든다(Time-A 스케줄러).
   const holdTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const touchEmptySelectCandidateRef = useRef<TouchEmptySelectCandidate | null>(null);
   const touchMultiSelectRef = useRef(false);
@@ -165,7 +165,7 @@ export function useCanvasEvents(
   }, [deleteModeRef, space]);
 
   // 터치 down에서 롱프레스 hold 타이머를 무장한다. arm 여부는 (mode, rangeType, 히트)로 결정한다.
-  // 발화(~450ms)하면 recognizer.tick을 poke해 longPress를 확인하고, 발화 좌표를 다시 히트테스트해
+  // 발화(~450ms)하면 recognizer.advanceTo를 poke해 longPress를 확인하고, 발화 좌표를 다시 히트테스트해
   // 액션(범위 생성/선택 드래그/삭제)을 재도출한다 — 후보 payload를 훅에 두지 않아 form A를 지킨다.
   // mode·entityType은 arm 시점 값을 클로저로 고정한다(수동 hold 동안 불변).
   const armHoldTimer = useCallback((
@@ -183,7 +183,7 @@ export function useCanvasEvents(
     clearHoldTimer();
     holdTimerRef.current = window.setTimeout(() => {
       const fired = recognizerRef.current
-        .tick(performance.now())
+        .advanceTo(performance.now())
         .find((g): g is Extract<Gesture, { kind: 'longPress' }> => g.kind === 'longPress');
       if (!fired) return;
       const { x: fx, y: fy } = fired;
@@ -239,7 +239,7 @@ export function useCanvasEvents(
       y: canvasY,
       clientX: e.clientX,
       clientY: e.clientY,
-      // tick(performance.now())과 반드시 같은 시계여야 경과 계산이 맞다(Time-A).
+      // advanceTo(performance.now())와 반드시 같은 시계여야 경과 계산이 맞다(Time-A).
       timeMs: performance.now(),
       button: e.button,
       buttons: e.buttons,

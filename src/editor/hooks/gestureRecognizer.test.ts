@@ -132,50 +132,50 @@ describe("GestureRecognizer — 롱프레스(Time-A)", () => {
   it("단일 터치를 450ms 유지하면 longPress를 down 좌표로 방출한다", () => {
     const r = new GestureRecognizer();
     expect(r.feed(touch("down", 1, 100, 200, 0))).toEqual([]);
-    expect(r.tick(449)).toEqual([]);
-    expect(r.tick(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
+    expect(r.advanceTo(449)).toEqual([]);
+    expect(r.advanceTo(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
   });
 
   it("449ms까지는 롱프레스가 발화하지 않는다", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
-    expect(r.tick(200)).toEqual([]);
-    expect(r.tick(449)).toEqual([]);
+    expect(r.advanceTo(200)).toEqual([]);
+    expect(r.advanceTo(449)).toEqual([]);
   });
 
-  it("발화 후 다시 tick해도 롱프레스를 재방출하지 않는다", () => {
+  it("발화 후 다시 advanceTo해도 롱프레스를 재방출하지 않는다", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
-    expect(r.tick(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
-    expect(r.tick(600)).toEqual([]);
+    expect(r.advanceTo(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
+    expect(r.advanceTo(600)).toEqual([]);
   });
 
   it("click-slop(10px)을 넘게 움직이면 롱프레스가 취소된다", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("move", 1, 100, 215, 100)); // 15px 이동 > 10
-    expect(r.tick(450)).toEqual([]);
+    expect(r.advanceTo(450)).toEqual([]);
   });
 
   it("click-slop 안(5px) 이동은 롱프레스를 취소하지 않고 down 좌표로 발화한다", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("move", 1, 103, 204, 100)); // hypot(3,4)=5 <= 10
-    expect(r.tick(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
+    expect(r.advanceTo(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
   });
 
   it("두 번째 손가락이 닿으면 롱프레스가 취소된다", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("down", 2, 300, 200, 10));
-    expect(r.tick(450)).toEqual([]);
+    expect(r.advanceTo(450)).toEqual([]);
   });
 
   it("손가락을 떼면 롱프레스가 취소된다", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("up", 1, 100, 200, 100));
-    expect(r.tick(450)).toEqual([]);
+    expect(r.advanceTo(450)).toEqual([]);
   });
 });
 
@@ -197,17 +197,17 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     ]);
   });
 
-  it("이동으로 봉인된 hold는 이후 tick해도 longPress를 발화하지 않는다", () => {
+  it("이동으로 봉인된 hold는 이후 advanceTo해도 longPress를 발화하지 않는다", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("move", 1, 100, 215, 100)); // 15px > 10 → moved 봉인
-    expect(r.tick(450)).toEqual([]);
+    expect(r.advanceTo(450)).toEqual([]);
   });
 
   it("450ms 유지로 발화한 뒤 뗀 up은 holdEnd{fired:true, moved:false} (드래그)", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
-    expect(r.tick(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
+    expect(r.advanceTo(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
     expect(r.feed(touch("up", 1, 100, 200, 500))).toEqual([
       { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: true, moved: false },
     ]);
@@ -216,7 +216,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
   it("발화 후 click-slop 안 이동은 moved를 켜지 않는다 (발화 뒤 드래그는 스크롤성 아님)", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
-    r.tick(450); // 발화
+    r.advanceTo(450); // 발화
     r.feed(touch("move", 1, 100, 250, 500)); // 발화 후 이동
     expect(r.feed(touch("up", 1, 100, 250, 600))).toEqual([
       { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: true, moved: false },
@@ -234,7 +234,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("move", 1, 103, 204, 100)); // hypot(3,4)=5 <= 10
-    expect(r.tick(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
+    expect(r.advanceTo(450)).toEqual([{ kind: "longPress", x: 100, y: 200 }]);
     expect(r.feed(touch("up", 1, 103, 204, 200))).toEqual([
       { kind: "holdEnd", pointerId: 1, x: 100, y: 200, fired: true, moved: false },
     ]);
