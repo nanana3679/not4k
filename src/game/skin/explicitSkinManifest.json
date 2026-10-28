@@ -1,0 +1,1299 @@
+{
+  "schemaVersion": 1,
+  "id": "classic-explicit",
+  "runtimePath": "/skins/classic-explicit",
+  "provenance": {
+    "sourceCommit": "e563cb5d48580db81e8bc3483d2563bee2410a56",
+    "archiveManifestSha256": "a7a7d4abe0811f9bc0fc030cfb89993716768d175e13a36e76d3e3559a741f0b",
+    "historicalManifestSha256": "3d342f3f75d4acbb21926781ef6eca3bffadb8da26089262148ffd3e29b9fdc7"
+  },
+  "body": {
+    "mode": "repeat",
+    "axis": "y",
+    "tileSize": {
+      "width": 200,
+      "height": 40
+    },
+    "laneReferenceWidth": 212,
+    "startCap": false,
+    "endCap": false
+  },
+  "assets": [
+    {
+      "id": "point.single.pending",
+      "role": "point",
+      "variant": "single",
+      "state": "pending",
+      "file": "note-single.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-single.png",
+      "pixelSize": {
+        "width": 212,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 5740,
+      "sha256": "49c6b45cd6c5692b70516479d2f9a77c615d1f0c3aa274a300c0ee34b66bdf61",
+      "logicalSize": {
+        "width": 212,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 212,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "approved-artwork"
+    },
+    {
+      "id": "point.double.pending",
+      "role": "point",
+      "variant": "double",
+      "state": "pending",
+      "file": "note-double-anodized-contrast-070.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-anodized-contrast-070.png",
+      "pixelSize": {
+        "width": 212,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 11467,
+      "sha256": "ab66a0be35809110a9ea68b5326e168308eb4b49860fb87939c5d24b6682b329",
+      "logicalSize": {
+        "width": 212,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 212,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "approved-artwork"
+    },
+    {
+      "id": "point.double.failed",
+      "role": "point",
+      "variant": "double",
+      "state": "failed",
+      "file": "note-double-failed.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-failed.png",
+      "pixelSize": {
+        "width": 212,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 5246,
+      "sha256": "cecf2792f1ce69ece65bb31a0ad1869fd729d437edbfbf2186dce7d505dfe7da",
+      "logicalSize": {
+        "width": 212,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 212,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "note-double-failed@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-failed@2x.png",
+        "pixelSize": {
+          "width": 424,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 17477,
+        "sha256": "573cb387314af3f19a400b5a9f9b3298c4a9621a27d9c27a88c0db81db4f5c36"
+      }
+    },
+    {
+      "id": "point.trill.pending",
+      "role": "point",
+      "variant": "trill",
+      "state": "pending",
+      "file": "note-trill.png",
+      "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 8073,
+      "sha256": "38159ccc0361771180b3666c2fdb3105445b41e7bb04519ac27516526aaa2e9a",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "historical-runtime-v014"
+    },
+    {
+      "id": "point.trill.failed",
+      "role": "point",
+      "variant": "trill",
+      "state": "failed",
+      "file": "note-trill-failed.png",
+      "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill-failed.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 5343,
+      "sha256": "e31f9716fee44d55d0df3c13140df7e6790011581e3539ee874cc8b7d7e855e5",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "historical-runtime-v014"
+    },
+    {
+      "id": "body.single.idle",
+      "role": "body",
+      "variant": "single",
+      "state": "idle",
+      "file": "body-single.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 927,
+      "sha256": "80655da690f6612b8dca32ea3b79e1b38f58123e94cb5c127c296335d90f674e",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "approved-artwork"
+    },
+    {
+      "id": "body.single.held",
+      "role": "body",
+      "variant": "single",
+      "state": "held",
+      "file": "body-single-held.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-held.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 3053,
+      "sha256": "09ed16ca9851dece42f69bbe004a1dfdf1706243d153c7a91844c7401600af22",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "body-single-held@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-held@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 10870,
+        "sha256": "513b1150838658c7eac63d8a1dbddca5b0dda42df889cb0a424db9468382fef1"
+      }
+    },
+    {
+      "id": "body.single.failed",
+      "role": "body",
+      "variant": "single",
+      "state": "failed",
+      "file": "body-single-failed.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-failed.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 703,
+      "sha256": "84d24b864eb9f2abcb7d8cac769f4d14ff07e22efd1ea2eeb66f563c80e9b41e",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "body-single-failed@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-failed@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 1556,
+        "sha256": "93ceed80c77fb107b86c9f41ac51bbff6cf8ef3c4bdd72ebef57acb256d71016"
+      }
+    },
+    {
+      "id": "body.double.idle",
+      "role": "body",
+      "variant": "double",
+      "state": "idle",
+      "file": "body-double-center-dual-beam.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-center-dual-beam.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 810,
+      "sha256": "a625b7e95f55d3d42319d6b1699be3ceb48b51e02e657a83add44f4c056eb808",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "approved-artwork"
+    },
+    {
+      "id": "body.double.held",
+      "role": "body",
+      "variant": "double",
+      "state": "held",
+      "file": "body-double-held.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-held.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 3968,
+      "sha256": "db9f195225d5380c4c2df2ca54f95cabb4e7c8b143bb35e99aae57fec2f75eea",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "body-double-held@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-held@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 15504,
+        "sha256": "72a8aee678d36d13600a63912c7cd1783518748a7b7ce696db85c65f708b04d7"
+      }
+    },
+    {
+      "id": "body.double.failed",
+      "role": "body",
+      "variant": "double",
+      "state": "failed",
+      "file": "body-double-failed.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-failed.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 683,
+      "sha256": "7b9264f6db74e650d7768c9a12d0596e384d3ed30d6402b40ac7e3dd65fa2597",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "body-double-failed@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-failed@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 1551,
+        "sha256": "527131fa04d2c1358604fe9f128f80783dc148b0681c16872ffbbbd08231ba65"
+      }
+    },
+    {
+      "id": "body.trill.idle",
+      "role": "body",
+      "variant": "trill",
+      "state": "idle",
+      "file": "body-trill.png",
+      "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 7776,
+      "sha256": "3028532871a6a235e270a066bb717e390117cc02d715c990299710a36d803e46",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "historical-runtime-v014"
+    },
+    {
+      "id": "body.trill.held",
+      "role": "body",
+      "variant": "trill",
+      "state": "held",
+      "file": "body-trill-held.png",
+      "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill-held.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 944,
+      "sha256": "9b7699e69f8b4f09b1ead55218d692f8acba1437f403020673ad7c0c003efd09",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "historical-runtime-v014"
+    },
+    {
+      "id": "body.trill.failed",
+      "role": "body",
+      "variant": "trill",
+      "state": "failed",
+      "file": "body-trill-failed.png",
+      "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill-failed.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 4360,
+      "sha256": "8741c7e77fd466cc76e271248b4f1c5e1d3e36d4c6cccd706283110c59963b72",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "historical-runtime-v014"
+    },
+    {
+      "id": "body.double.partialHeld.left",
+      "role": "body",
+      "variant": "double",
+      "state": "partialHeld",
+      "side": "left",
+      "sideMeaning": "unmet",
+      "file": "body-double-partial-held-left.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-left.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 825,
+      "sha256": "a2c8f6cc37bb9609b3a5fb44d9b91b708981f25739d85f81df25807bce92c0fa",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "body-double-partial-held-left@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-left@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 1815,
+        "sha256": "cb4089d4ced26b7397129be0dedc1d976990ab11d942908e9be6cf016777e990"
+      }
+    },
+    {
+      "id": "body.double.partialHeld.right",
+      "role": "body",
+      "variant": "double",
+      "state": "partialHeld",
+      "side": "right",
+      "sideMeaning": "unmet",
+      "file": "body-double-partial-held-right.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-right.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 825,
+      "sha256": "c3f6171d87cf5a5d1a9303eb5f919aa0f905c624d7a93d9df364eac53e00ece0",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "body-double-partial-held-right@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-right@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 1815,
+        "sha256": "df30126501b7cfae50a8465dfa08d7e97e4b769c2124fb3d7e603df22355d20d"
+      }
+    },
+    {
+      "id": "body.double.partialFailed.left",
+      "role": "body",
+      "variant": "double",
+      "state": "partialFailed",
+      "side": "left",
+      "sideMeaning": "failed",
+      "file": "body-double-partial-failed-left.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-left.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 855,
+      "sha256": "073cf8e08e68cc29470939b17dea10a344ec10989021456d14e10aac23858701",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "body-double-partial-failed-left@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-left@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 1843,
+        "sha256": "319dd2c5fd2742798c413c70743b951b524e51a6a1708b34ef2313c0fb44d7e6"
+      }
+    },
+    {
+      "id": "body.double.partialFailed.right",
+      "role": "body",
+      "variant": "double",
+      "state": "partialFailed",
+      "side": "right",
+      "sideMeaning": "failed",
+      "file": "body-double-partial-failed-right.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-right.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 858,
+      "sha256": "81be63693e78f0a8b83cf80f37e027b453ee1bdda272760c5bbf62ac5cbb3583",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "body-double-partial-failed-right@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-right@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 1850,
+        "sha256": "c331df566e975d2e3bd787f66f12e64213f867d02d4dd61200aa8a6a384bc963"
+      }
+    },
+    {
+      "id": "release.single.pending",
+      "role": "release",
+      "variant": "single",
+      "state": "pending",
+      "file": "release-single.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 16511,
+      "sha256": "2092e33ad0d37e321a21336a544105ae17a5e55963a4c5f158fde48b8b14be9a",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "approved-artwork",
+      "highResolution": {
+        "file": "release-single@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 56541,
+        "sha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448"
+      }
+    },
+    {
+      "id": "release.single.failed",
+      "role": "release",
+      "variant": "single",
+      "state": "failed",
+      "file": "release-single-failed.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single-failed.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 8580,
+      "sha256": "86ae60d9d6cdbe91383255da1367b8d77fa973f1fd42f0ceb2494b5f1b26cde4",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "release-single-failed@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single-failed@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 28408,
+        "sha256": "fa9d1d138c938d0ff56cd2a572bb39b60d3667cb72c19443842787941902dc09"
+      }
+    },
+    {
+      "id": "release.double.pending",
+      "role": "release",
+      "variant": "double",
+      "state": "pending",
+      "file": "release-double.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 17704,
+      "sha256": "caea0ae0028ae120998c4e3ac653a4f025ddf15068f0fb9508fa7e20c57fd8bd",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "approved-artwork",
+      "highResolution": {
+        "file": "release-double@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 62472,
+        "sha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc"
+      }
+    },
+    {
+      "id": "release.double.failed",
+      "role": "release",
+      "variant": "double",
+      "state": "failed",
+      "file": "release-double-failed.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-failed.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 9205,
+      "sha256": "390d674af827c0f79bcb1a5b0ed12698abc9b43abd2b62c1e745d935bfa95711",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "release-double-failed@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-failed@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 28780,
+        "sha256": "047688ca6d6e1035dd9ee6be203ed9dd7ceacb76487126a6532d7ac750e237b6"
+      }
+    },
+    {
+      "id": "release.double.partialFailed.left",
+      "role": "release",
+      "variant": "double",
+      "state": "partialFailed",
+      "side": "left",
+      "sideMeaning": "failed",
+      "file": "release-double-partial-failed-left.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-left.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 14342,
+      "sha256": "40a71e1e202038ba69ab16cabe67656ca4bc7cbb73589fa0af75409926c7adbf",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "release-double-partial-failed-left@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-left@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 48393,
+        "sha256": "1b28a17954522c3d2723d3c77869db4d8a52739e66335143a839e095ffa83e8a"
+      }
+    },
+    {
+      "id": "release.double.partialFailed.right",
+      "role": "release",
+      "variant": "double",
+      "state": "partialFailed",
+      "side": "right",
+      "sideMeaning": "failed",
+      "file": "release-double-partial-failed-right.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-right.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 14506,
+      "sha256": "8eb78d8c69b027fb8340d1e15db4e5fbd8ad652cfa5f9591a830a73a02a3ae21",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "release-double-partial-failed-right@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-right@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 48602,
+        "sha256": "6696135f6fc7675dc4a9e22604eb130b092e1f1e0b97a379e02658aeb53db546"
+      }
+    },
+    {
+      "id": "sustain.single.pending",
+      "role": "sustain",
+      "variant": "single",
+      "state": "pending",
+      "markerCenter": {
+        "x": 100,
+        "y": 20
+      },
+      "file": "sustain-single.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 1510,
+      "sha256": "67bea757a4a6463b233c3721de649d64fdfa25d805d903cc1ab0c28fa36fec12",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "approved-artwork",
+      "highResolution": {
+        "file": "sustain-single@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 3619,
+        "sha256": "8f92271b086a4e35d7f1c51d584bd259a8ac3d51982ff85c3901a2d9c5ba1d95"
+      }
+    },
+    {
+      "id": "sustain.double.pending.left",
+      "role": "sustain",
+      "variant": "double",
+      "state": "pending",
+      "side": "left",
+      "sideMeaning": "marker",
+      "markerCenter": {
+        "x": 84,
+        "y": 20
+      },
+      "file": "sustain-double-unit-left.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 1474,
+      "sha256": "bd50f617db9d51524f23e3eece581f5989a59f23a197f0602dbe540f5f1f6e8b",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "sustain-double-unit-left@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 3651,
+        "sha256": "1512ebd64eeaef9e3899c74f963584767c8d376258ebcd0a5159db71ffc749da"
+      }
+    },
+    {
+      "id": "sustain.double.pending.right",
+      "role": "sustain",
+      "variant": "double",
+      "state": "pending",
+      "side": "right",
+      "sideMeaning": "marker",
+      "markerCenter": {
+        "x": 116,
+        "y": 20
+      },
+      "file": "sustain-double-unit-right.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 1517,
+      "sha256": "30f0325be661e83a8fc2332ced11ee453713d214f18f9d2c6bfe283fa1315e51",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "sustain-double-unit-right@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 3638,
+        "sha256": "145728630cc978c7e48cd88e00107a6cd2943b81149144c26115fb6dc9c76173"
+      }
+    },
+    {
+      "id": "sustain.single.failed",
+      "role": "sustain",
+      "variant": "single",
+      "state": "failed",
+      "markerCenter": {
+        "x": 100,
+        "y": 20
+      },
+      "file": "sustain-single-failed.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single-failed.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 1375,
+      "sha256": "e448c8df244955435eb778185de27563565b865f43f6e117482c0aa0ce39a744",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "sustain-single-failed@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single-failed@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 3418,
+        "sha256": "999e6e4b3637deaed93e21956b3d1a7ffbf16752f45a338185295428f50ef0f2"
+      }
+    },
+    {
+      "id": "sustain.double.failed.left",
+      "role": "sustain",
+      "variant": "double",
+      "state": "failed",
+      "side": "left",
+      "sideMeaning": "marker",
+      "markerCenter": {
+        "x": 84,
+        "y": 20
+      },
+      "file": "sustain-double-unit-left-failed.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left-failed.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 1308,
+      "sha256": "ca8d82bc79e4625f2b5aee897f3649562ac33d3402e043bb1bd1f6469be92cef",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "sustain-double-unit-left-failed@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left-failed@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 3322,
+        "sha256": "cee9d8900b5056db057c4ad050aea47f93850bf8ca5e79333ccd2cfe72b8c413"
+      }
+    },
+    {
+      "id": "sustain.double.failed.right",
+      "role": "sustain",
+      "variant": "double",
+      "state": "failed",
+      "side": "right",
+      "sideMeaning": "marker",
+      "markerCenter": {
+        "x": 116,
+        "y": 20
+      },
+      "file": "sustain-double-unit-right-failed.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right-failed.png",
+      "pixelSize": {
+        "width": 200,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 1360,
+      "sha256": "023e1d284afece4cf4d1e53d250206f66b7dae53e871a453bbe0fd7a97c65c41",
+      "logicalSize": {
+        "width": 200,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "sustain-double-unit-right-failed@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right-failed@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 3331,
+        "sha256": "51484f495859770a71997ad435df818536176fa5a7e68623712671b00a3bc8f2"
+      }
+    },
+    {
+      "id": "graceOverlay.point.overlay",
+      "role": "graceOverlay",
+      "variant": "point",
+      "state": "overlay",
+      "file": "point-grace-overlay.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/point-grace-overlay.png",
+      "pixelSize": {
+        "width": 260,
+        "height": 88
+      },
+      "resolution": 1,
+      "bytes": 4242,
+      "sha256": "517c94785eabbf024b26dbb504a9cba4ce65e6922de6d719e81971c3e9fa8e0d",
+      "logicalSize": {
+        "width": 260,
+        "height": 88
+      },
+      "contentRect": {
+        "x": 24,
+        "y": 24,
+        "width": 212,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "approved-artwork"
+    },
+    {
+      "id": "graceOverlay.trill.overlay",
+      "role": "graceOverlay",
+      "variant": "trill",
+      "state": "overlay",
+      "file": "trill-grace-overlay.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/trill-grace-overlay.png",
+      "pixelSize": {
+        "width": 248,
+        "height": 88
+      },
+      "resolution": 1,
+      "bytes": 9207,
+      "sha256": "4dc12da5cbe10a623684fe828553a6b35dbbd44bf5b3067f0a128470e342edcf",
+      "logicalSize": {
+        "width": 248,
+        "height": 88
+      },
+      "contentRect": {
+        "x": 24,
+        "y": 24,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "approved-artwork"
+    },
+    {
+      "id": "graceOverlay.release.overlay",
+      "role": "graceOverlay",
+      "variant": "release",
+      "state": "overlay",
+      "file": "release-grace-overlay.png",
+      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-grace-overlay.png",
+      "pixelSize": {
+        "width": 248,
+        "height": 88
+      },
+      "resolution": 1,
+      "bytes": 1943,
+      "sha256": "7b6cc9d2b451ca915ad082519e53f8edc692665e084e59ad7a8c8e37ee7b1715",
+      "logicalSize": {
+        "width": 248,
+        "height": 88
+      },
+      "contentRect": {
+        "x": 24,
+        "y": 24,
+        "width": 200,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "release-grace-overlay@2x.png",
+        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-grace-overlay@2x.png",
+        "pixelSize": {
+          "width": 496,
+          "height": 176
+        },
+        "resolution": 2,
+        "bytes": 5464,
+        "sha256": "b1cebdd0b5f28f4f4072c504f029006ded55c80c4303cde9671573910eb7c78c"
+      }
+    }
+  ]
+}

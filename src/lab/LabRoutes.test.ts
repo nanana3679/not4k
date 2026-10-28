@@ -19,6 +19,12 @@ async function renderLabPath(path: string) {
 }
 
 describe('LabRoutes', () => {
+  it('/lab/explicit-renderer를 직접 열면 명시 노트 fixture와 실제 M1 세션 시연이 표시된다', async () => {
+    const markup = await renderLabPath('/lab/explicit-renderer');
+    expect(markup).toContain('data-lab-page="explicit-renderer"');
+    expect(markup).toContain('실제 M1 세션');
+    expect(markup).toContain('href="/lab"');
+  });
   it.each(['/lab', '/lab/'])('%s에 접근하면 에셋과 비행 시연을 모두 열 수 있는 공통 Lab 목록을 표시한다', async (path) => {
     const markup = await renderLabPath(path);
 

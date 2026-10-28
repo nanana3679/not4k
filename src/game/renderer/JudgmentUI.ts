@@ -8,6 +8,7 @@ import { Container, Text, TextStyle } from "pixi.js";
 import { JudgmentGrade, JUDGMENT_WINDOWS } from "../../shared";
 import { COLORS, playfieldPx } from "./constants";
 import { formatTimingDiff } from "./formatTimingDiff";
+import type { ExplicitJudgmentDisplayState } from "../judgment/ExplicitJudgmentState";
 
 // 판정선 위 글자 크기·높이(레인 100 기준 설계값 × PLAYFIELD_SCALE, RFD 0029)
 const JUDGMENT_FONT_SIZE = playfieldPx(36);
@@ -23,6 +24,7 @@ export class JudgmentUI {
   private timingDiffText: Text;
 
   private judgmentTimer: number = 0;
+  private judgmentGroupId: string | null = null;
   private showFastSlow: boolean = true;
   private showTimingDiff: boolean = false;
   private perfectWindow: number = JUDGMENT_WINDOWS.PERFECT;
@@ -72,14 +74,25 @@ export class JudgmentUI {
   }
 
   showJudgment(grade: JudgmentGrade, deltaMs?: number): void {
+    this.judgmentGroupId = null;
     this.judgmentTimer = 500; // 500ms fade duration
+    this.setJudgmentText(grade, deltaMs, 1);
+  }
 
+  /** 동일 확정 묶음의 개정은 남은 fade 수명을 그대로 사용한다. */
+  showJudgmentGroup(state: ExplicitJudgmentDisplayState): void {
+    if (this.judgmentGroupId !== state.groupId) this.judgmentTimer = 500;
+    this.judgmentGroupId = state.groupId;
+    this.setJudgmentText(state.grade, state.timingDeltaMs ?? undefined, Math.max(0, this.judgmentTimer / 500));
+  }
+
+  private setJudgmentText(grade: JudgmentGrade, deltaMs: number | undefined, alpha: number): void {
     const gradeText = grade === "goodTrill" ? "GOOD◇" : grade.toUpperCase();
     this.judgmentText.text = gradeText;
 
     const color = this.getJudgmentColor(grade);
     this.judgmentText.style.fill = color;
-    this.judgmentText.alpha = 1;
+    this.judgmentText.alpha = alpha;
 
     // FAST/SLOW 표시 (Perfect 윈도우 내측 절반에서는 숨김)
     const fastSlowThreshold = this.perfectWindow / 2;
@@ -92,11 +105,11 @@ export class JudgmentUI {
       if (deltaMs < 0) {
         this.fastSlowText.text = "FAST";
         this.fastSlowText.style.fill = COLORS.FAST_TEXT;
-        this.fastSlowText.alpha = 1;
+        this.fastSlowText.alpha = alpha;
       } else if (deltaMs > 0) {
         this.fastSlowText.text = "SLOW";
         this.fastSlowText.style.fill = COLORS.SLOW_TEXT;
-        this.fastSlowText.alpha = 1;
+        this.fastSlowText.alpha = alpha;
       } else {
         this.fastSlowText.text = "";
         this.fastSlowText.alpha = 0;
@@ -112,7 +125,7 @@ export class JudgmentUI {
       : null;
     if (timingDiffStr) {
       this.timingDiffText.text = timingDiffStr;
-      this.timingDiffText.alpha = 1;
+      this.timingDiffText.alpha = alpha;
     } else {
       this.timingDiffText.text = "";
       this.timingDiffText.alpha = 0;
@@ -124,15 +137,16 @@ export class JudgmentUI {
     if (this.judgmentTimer > 0) {
       this.judgmentTimer -= deltaMs;
       const alpha = Math.max(0, this.judgmentTimer / 500);
-      this.judgmentText.alpha = alpha;
-      this.fastSlowText.alpha = alpha;
-      this.timingDiffText.alpha = alpha;
+      for (const text of [this.judgmentText, this.fastSlowText, this.timingDiffText]) {
+        text.alpha = text.text ? alpha : 0;
+      }
     }
   }
 
   /** 같은 렌더러로 다른 차트를 이어 그릴 때 이전 판정 표시와 페이드 타이머를 지운다. */
   reset(): void {
     this.judgmentTimer = 0;
+    this.judgmentGroupId = null;
     for (const text of [this.judgmentText, this.fastSlowText, this.timingDiffText]) {
       text.text = "";
       text.alpha = 0;

@@ -1,0 +1,277 @@
+[
+  {
+    "id": "point.single.pending",
+    "role": "point",
+    "variant": "single",
+    "state": "pending",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-single.png"
+  },
+  {
+    "id": "point.double.pending",
+    "role": "point",
+    "variant": "double",
+    "state": "pending",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-anodized-contrast-070.png"
+  },
+  {
+    "id": "point.double.failed",
+    "role": "point",
+    "variant": "double",
+    "state": "failed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-failed.png"
+  },
+  {
+    "id": "point.trill.pending",
+    "role": "point",
+    "variant": "trill",
+    "state": "pending",
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill.png"
+  },
+  {
+    "id": "point.trill.failed",
+    "role": "point",
+    "variant": "trill",
+    "state": "failed",
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill-failed.png"
+  },
+  {
+    "id": "body.single.idle",
+    "role": "body",
+    "variant": "single",
+    "state": "idle",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single.png"
+  },
+  {
+    "id": "body.single.held",
+    "role": "body",
+    "variant": "single",
+    "state": "held",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-held.png"
+  },
+  {
+    "id": "body.single.failed",
+    "role": "body",
+    "variant": "single",
+    "state": "failed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-failed.png"
+  },
+  {
+    "id": "body.double.idle",
+    "role": "body",
+    "variant": "double",
+    "state": "idle",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-center-dual-beam.png"
+  },
+  {
+    "id": "body.double.held",
+    "role": "body",
+    "variant": "double",
+    "state": "held",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-held.png"
+  },
+  {
+    "id": "body.double.failed",
+    "role": "body",
+    "variant": "double",
+    "state": "failed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-failed.png"
+  },
+  {
+    "id": "body.trill.idle",
+    "role": "body",
+    "variant": "trill",
+    "state": "idle",
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill.png"
+  },
+  {
+    "id": "body.trill.held",
+    "role": "body",
+    "variant": "trill",
+    "state": "held",
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill-held.png"
+  },
+  {
+    "id": "body.trill.failed",
+    "role": "body",
+    "variant": "trill",
+    "state": "failed",
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill-failed.png"
+  },
+  {
+    "id": "body.double.partialHeld.left",
+    "role": "body",
+    "variant": "double",
+    "state": "partialHeld",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-left.png",
+    "side": "left",
+    "sideMeaning": "unmet"
+  },
+  {
+    "id": "body.double.partialHeld.right",
+    "role": "body",
+    "variant": "double",
+    "state": "partialHeld",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-right.png",
+    "side": "right",
+    "sideMeaning": "unmet"
+  },
+  {
+    "id": "body.double.partialFailed.left",
+    "role": "body",
+    "variant": "double",
+    "state": "partialFailed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-left.png",
+    "side": "left",
+    "sideMeaning": "failed"
+  },
+  {
+    "id": "body.double.partialFailed.right",
+    "role": "body",
+    "variant": "double",
+    "state": "partialFailed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-right.png",
+    "side": "right",
+    "sideMeaning": "failed"
+  },
+  {
+    "id": "release.single.pending",
+    "role": "release",
+    "variant": "single",
+    "state": "pending",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single.png"
+  },
+  {
+    "id": "release.single.failed",
+    "role": "release",
+    "variant": "single",
+    "state": "failed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single-failed.png"
+  },
+  {
+    "id": "release.double.pending",
+    "role": "release",
+    "variant": "double",
+    "state": "pending",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double.png"
+  },
+  {
+    "id": "release.double.failed",
+    "role": "release",
+    "variant": "double",
+    "state": "failed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-failed.png"
+  },
+  {
+    "id": "release.double.partialFailed.left",
+    "role": "release",
+    "variant": "double",
+    "state": "partialFailed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-left.png",
+    "side": "left",
+    "sideMeaning": "failed"
+  },
+  {
+    "id": "release.double.partialFailed.right",
+    "role": "release",
+    "variant": "double",
+    "state": "partialFailed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-right.png",
+    "side": "right",
+    "sideMeaning": "failed"
+  },
+  {
+    "id": "sustain.single.pending",
+    "role": "sustain",
+    "variant": "single",
+    "state": "pending",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single.png",
+    "markerCenter": {
+      "x": 100,
+      "y": 20
+    }
+  },
+  {
+    "id": "sustain.double.pending.left",
+    "role": "sustain",
+    "variant": "double",
+    "state": "pending",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left.png",
+    "side": "left",
+    "sideMeaning": "marker",
+    "markerCenter": {
+      "x": 84,
+      "y": 20
+    }
+  },
+  {
+    "id": "sustain.double.pending.right",
+    "role": "sustain",
+    "variant": "double",
+    "state": "pending",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right.png",
+    "side": "right",
+    "sideMeaning": "marker",
+    "markerCenter": {
+      "x": 116,
+      "y": 20
+    }
+  },
+  {
+    "id": "sustain.single.failed",
+    "role": "sustain",
+    "variant": "single",
+    "state": "failed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single-failed.png",
+    "markerCenter": {
+      "x": 100,
+      "y": 20
+    }
+  },
+  {
+    "id": "sustain.double.failed.left",
+    "role": "sustain",
+    "variant": "double",
+    "state": "failed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left-failed.png",
+    "side": "left",
+    "sideMeaning": "marker",
+    "markerCenter": {
+      "x": 84,
+      "y": 20
+    }
+  },
+  {
+    "id": "sustain.double.failed.right",
+    "role": "sustain",
+    "variant": "double",
+    "state": "failed",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right-failed.png",
+    "side": "right",
+    "sideMeaning": "marker",
+    "markerCenter": {
+      "x": 116,
+      "y": 20
+    }
+  },
+  {
+    "id": "graceOverlay.point.overlay",
+    "role": "graceOverlay",
+    "variant": "point",
+    "state": "overlay",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/point-grace-overlay.png"
+  },
+  {
+    "id": "graceOverlay.trill.overlay",
+    "role": "graceOverlay",
+    "variant": "trill",
+    "state": "overlay",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/trill-grace-overlay.png"
+  },
+  {
+    "id": "graceOverlay.release.overlay",
+    "role": "graceOverlay",
+    "variant": "release",
+    "state": "overlay",
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-grace-overlay.png"
+  }
+]

@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.tooling.json && tsc -p tsconfig.scripts.json",
     "build:skins": "node scripts/build-skins.ts",
     "build:classic": "node scripts/build-classic-skin.ts",
+    "build:explicit-skin": "node scripts/build-explicit-skin.ts",
     "backup": "node scripts/backup-supabase.ts",
     "case:image": "node scripts/judgment-case-image.ts"
   },

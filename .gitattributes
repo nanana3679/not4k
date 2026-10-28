@@ -19,3 +19,8 @@ assets-lab/classic/revisions/selected-notes-20261026/*.test.ts -linguist-generat
 docs/spec/images/explicit-note-cases/** linguist-generated=true
 docs/spec/fixtures/explicit-note-cases/** linguist-generated=true
 docs/spec/fixtures/legacy-judgment-case-migration.json linguist-generated=true
+
+# 명시 스킨 생성 메타데이터. 플레이어가 보는 PNG는 접지 않는다.
+assets-lab/classic/explicit/provenance.json linguist-generated=true
+src/game/skin/explicitSkinManifest.json linguist-generated=true
+public/skins/classic-explicit/manifest.json linguist-generated=true
