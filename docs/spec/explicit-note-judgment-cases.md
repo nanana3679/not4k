@@ -222,7 +222,7 @@ done
 <a id="enj-10"></a>
 ## ENJ-10 — 삭제
 
-ENJ-10은 금지 배치(같은 hold 수 바디의 표식 없는 연결)를 다뤄 2026-10-27에 삭제했다. 번호는 비워 둔다. 근거는 [RFD 0037 §6-1](../rfd/0037-explicit-score-notes-and-body.md#6-1-배치와-소속)이다.
+ENJ-10은 금지 배치(경계에 Point도 릴리즈도 없는 같은 hold 수 바디 연결)를 다뤄 2026-10-27에 삭제했다. 번호는 비워 둔다. 근거는 [RFD 0037 §6-1](../rfd/0037-explicit-score-notes-and-body.md#6-1-배치와-소속)이다.
 
 <a id="enj-11"></a>
 ## ENJ-11 — 1→2는 앞 single 탈락 뒤 두 몫 모두 새 시작
