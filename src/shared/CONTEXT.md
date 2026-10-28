@@ -95,7 +95,7 @@ _Avoid_: 노트 타임맵, 시간 맵
 - 하나의 **차트**는 **`trillZone`** 목록을 가진다. **`trillZone`**과 **트릴 노트**는 상호 배타적이다 — 트릴 노트는 `trillZone` 안에만, 일반 노트는 밖에만 놓인다.
 - 새 **바디**는 release를 내장하지 않으며 일반·그레이스 **릴리즈 노트** 모두 실제 뗌을 요구한다. 유지 실패의 릴리즈 기회 소멸은 [glossary](../../docs/context/glossary.md#release-판정)를 따른다.
 - 같은 레인·시각의 **바디 끝 + 릴리즈 노트**는 허용하는 조합이다. 이전의 양수 바디 끝과 별도 길이 0 롱노트 중복 금지([NJ-C01](../../docs/spec/note-judgment-cases.md#nj-c01))를 새 조합에 적용하지 않는다. 새 트릴 바디는 시작 트릴 Point를 요구하며 아래 구형 배치 의미와 구별한다.
-- 새 **바디**의 실제 경계는 맞닿아도 저장·컴파일에서 보존한다. 정상 승계와 새 시작을 구별하며 확정 실패는 뒤 바디로 전파하지 않는다([glossary](../../docs/context/glossary.md#바디-판정과-실패-종속)). 같은 hold 수로 맞닿은 바디에 Point도 릴리즈도 없으면 의미 위반이며(보조 레인의 일반 바디 → 트릴 바디 포함), 트릴 바디 → 일반 바디만 빠진다([glossary](../../docs/context/glossary.md#의미-위반과-수리)).
+- 새 **바디**의 실제 경계는 맞닿아도 저장·컴파일에서 보존한다. 정상 승계와 새 시작을 구별하며 확정 실패는 뒤 바디로 전파하지 않는다([glossary](../../docs/context/glossary.md#바디-판정과-실패-종속)). 같은 hold 수·같은 트릴 여부로 맞닿은 바디에 Point도 릴리즈도 없으면 의미 위반이며, 트릴 바디와 일반 바디의 경계는 방향과 관계없이 빠진다([glossary](../../docs/context/glossary.md#의미-위반과-수리)).
 - 새 **유지 노트**는 바디 hold 수에 맞춰 1개·2개이며 같은 hold 수 연결점·트릴 바디 위는 금지다. 독립 길이 0과 1→2·2→1의 뒤 바디 기준 표식은 허용한다([glossary](../../docs/context/glossary.md#유지-노트)).
 - 현재 **명시 릴리즈**는 `trillZone` 안에 도입하지 않는다. 같은 레인의 시작·끝과 바디 끝도 포함한다([glossary](../../docs/context/glossary.md#릴리즈-노트), [RFD 0038](../../docs/rfd/0038-release-notes-in-trill-zones.md)).
 - 같은 위치의 서로 다른 점수 의미와 길이 0 바디+Point/릴리즈는 금지한다. 의미 위반의 편집 확정·선택 해제는 허용하되 저장·플레이 검증은 유지한다([glossary](../../docs/context/glossary.md#의미-위반과-수리)).

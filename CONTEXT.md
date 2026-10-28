@@ -233,7 +233,7 @@ _Avoid_: 유지 판정
 _Avoid_: `connection`
 
 **`connection`**:
-같은 레인의 앞 바디 끝과 뒤 시작이 맞닿는 관계다. 경계를 보존하며 자체 점수·입력 소비는 없고 바디 사이에 실패를 전파하지 않는다. 승계·새 시작은 [glossary](docs/context/glossary.md#바디-판정과-실패-종속)를 따른다. 같은 hold 수의 경계에는 Point나 릴리즈가 필요하며 트릴 바디 → 일반 바디만 빠진다([의미 위반](docs/context/glossary.md#의미-위반과-수리)).
+같은 레인의 앞 바디 끝과 뒤 시작이 맞닿는 관계다. 경계를 보존하며 자체 점수·입력 소비는 없고 바디 사이에 실패를 전파하지 않는다. 승계·새 시작은 [glossary](docs/context/glossary.md#바디-판정과-실패-종속)를 따른다. 같은 hold 수·같은 트릴 여부의 경계에는 Point나 릴리즈가 필요하며, 트릴 바디와 일반 바디의 경계는 방향과 관계없이 빠진다([의미 위반](docs/context/glossary.md#의미-위반과-수리)).
 _Avoid_: `termination`
 
 **유예 시간**:
