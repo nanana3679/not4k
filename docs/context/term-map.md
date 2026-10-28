@@ -21,6 +21,7 @@
 | 현 한국어 표제어 | → 캐논 | 코드 식별자 |
 |---|---|---|
 | 저장·편집 차트 문서 | `ChartDocument` | `ChartDocument`/`DocumentNoteEntity`/`DocumentExtraNoteEntity` — 구형 `Chart`·`NoteEntity` 소비자와 구별. [정의](glossary.md#chartdocument) |
+| 구형 차트 1차 기계 변환 | `convertLegacyChart` | `convertLegacyChart`/`hasLegacyNotes`/`LegacyConversionReport`/`LegacyConversionItem` — 사용자가 에디터 모달에서 승인할 때만 실행. [정의](glossary.md#convertlegacychart) |
 | 트릴 구간 | `trillZone` | `trillZone`/`TrillZone`/`trillZones` |
 | 휴지 구간 | `restZone` | `restZone`/`RestZone`/`restZones` |
 | 공릴리즈 — **폐지** (RFD 0015, 역사적 언급만) | `emptyRelease` | 없음 (도장 구현 삭제됨) |
@@ -72,7 +73,7 @@
 | 바디 몫 | 바디 몫 | single 1개·double 2개의 시작·유지·완료·실패 단위. 고정 물리 키 소유가 아니다. unit/body unit은 설명용 병기이며 새 타입명 강제 아님 |
 | 점수 항목 | 점수 항목 | 명시 노트의 요구 한 몫당 가중치 3인 항목. 바디 자체는 만들지 않는다([glossary](glossary.md#점수-항목과-무점수-miss)) |
 | 종속 0점 | 종속 0점 | 기회 소멸은 원래 가중치의 0점 정산이며 추가 Miss 효과가 없다([glossary](glossary.md#점수-항목과-무점수-miss)) |
-| 구형 차트와 과도기 | 구형 차트와 과도기 | 미수정 구형 의미 보존·혼합 저장·새 재생 차단·사람의 수리. 종료 시점은 사용자 지정([glossary](glossary.md#구형-차트와-과도기)) |
+| 구형 차트와 과도기 | 구형 차트와 과도기 | 미수정 구형 의미 보존·혼합 저장·새 재생 차단·사용자가 승인한 1차 기계 변환(`convertLegacyChart`)과 사람의 수리. 종료 시점은 사용자 지정([glossary](glossary.md#구형-차트와-과도기)) |
 | 피스류(비트 복합 트릴, 레인 내 분리, 롱끝 교대→트릴, 가변 분할 피스 등) | 한국어 이름 | 표기법 + PP 코드 |
 | 고도 게이지 시연 (← 게이지 "승인 시연" 개명. "승인"으로는 누가 언제 승인했는지 드러나지 않는다, 2026-10-13) | 고도 게이지 시연 | `lab/image-galleries/frame-keywords-six-20260929/press-animation.html`의 게이지 슬라이더와 `게이지 자동 변화`. 게임 고도 게이지가 빈 유리·유리 안쪽 마스크·8px 경계·약 300ms ease-out을 따른 기준. 디자인 기록은 [게이지 채움 조절](../design/classic-frame-keywords-20260929.md#게이지-채움-조절) |
 
