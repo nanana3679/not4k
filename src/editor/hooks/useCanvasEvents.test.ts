@@ -136,8 +136,8 @@ describe('우클릭 삭제', () => {
   });
 });
 
-describe('Delete 모드 터치 탭', () => {
-  it('빈 trillZone 1～3박 안 2박을 터치로 탭하면 구간을 지우고 Undo 1개를 남긴다', () => {
+describe('Delete 모드 짧은 터치', () => {
+  it('빈 trillZone 1～3박 안 2박을 터치하면 구간을 지우고 Undo 1개를 남긴다', () => {
     const { handlers } = setup(chart([], { trillZones: [{ lane: 1, beat: beat(1), endBeat: beat(3) }] }), 'delete');
     handlers.handlePointerDown(pointer(1000));
     handlers.handlePointerUp(pointer(1000));

@@ -6,7 +6,7 @@ import {
   scheduleFromGrabTarget,
   shouldArmHoldTimer,
   shouldDeleteOnUp,
-  shouldFireTapToggle,
+  shouldFireClickToggle,
 } from "./touchEditRouting";
 import type { GrabTarget } from "../modes/resolveGrab";
 
@@ -26,9 +26,9 @@ describe("resolveTouchCreateUpAction — create 후보 up 확정", () => {
       .toBe("cancelDrag");
   });
 
-  it("발화 없음 + 이동 없음 + 시작점 범위 안이면 createPointTap(탭=단노트)", () => {
+  it("발화 없음 + 이동 없음 + 시작점 범위 안이면 createPointClick(클릭=단노트)", () => {
     expect(resolveTouchCreateUpAction({ fired: false, moved: false, endInBounds: true, candidateStartInBounds: true }))
-      .toBe("createPointTap");
+      .toBe("createPointClick");
   });
 
   it("발화 없음 + 이동 있으면 none(스크롤/취소로 흘려보냄)", () => {
@@ -42,17 +42,17 @@ describe("resolveTouchCreateUpAction — create 후보 up 확정", () => {
   });
 });
 
-describe("shouldFireTapToggle — 노트/엑스트라 탭 토글 발화 여부", () => {
+describe("shouldFireClickToggle — 노트/엑스트라 클릭 토글 발화 여부", () => {
   it("이동 없음 + 롱프레스 미발화면 true", () => {
-    expect(shouldFireTapToggle({ moved: false, longPressFired: false })).toBe(true);
+    expect(shouldFireClickToggle({ moved: false, longPressFired: false })).toBe(true);
   });
 
-  it("이동했으면 false(탭 아님)", () => {
-    expect(shouldFireTapToggle({ moved: true, longPressFired: false })).toBe(false);
+  it("이동했으면 false(클릭 아님)", () => {
+    expect(shouldFireClickToggle({ moved: true, longPressFired: false })).toBe(false);
   });
 
   it("롱프레스가 발화했으면 false(이미 드래그로 처리됨)", () => {
-    expect(shouldFireTapToggle({ moved: false, longPressFired: true })).toBe(false);
+    expect(shouldFireClickToggle({ moved: false, longPressFired: true })).toBe(false);
   });
 });
 
@@ -61,7 +61,7 @@ describe("shouldDeleteOnUp — delete 후보 up 삭제 여부", () => {
     expect(shouldDeleteOnUp({ fired: true, moved: true })).toBe(true);
   });
 
-  it("이동 없이 뗀 탭이면 true", () => {
+  it("이동 없이 뗀 클릭이면 true", () => {
     expect(shouldDeleteOnUp({ fired: false, moved: false })).toBe(true);
   });
 
@@ -74,8 +74,8 @@ describe("shouldDeleteOnUp — delete 후보 up 삭제 여부", () => {
 // 우선순위 사다리·존끝 선택게이트 의미론은 이제 resolveGrab.test.ts(사다리 1~8·게이트)가
 // 소유하고, GrabTarget→스케줄 2택 매핑만 아래 describe가 덮는다.
 describe("scheduleFromGrabTarget — GrabTarget을 터치 select down 스케줄로 접기", () => {
-  it("GrabTarget이 note면 tapToggle 예약(순수 노트 탭)", () => {
-    expect(scheduleFromGrabTarget({ kind: "note", index: 3 })).toBe("tapToggle");
+  it("GrabTarget이 note면 clickToggle 예약(순수 노트 클릭)", () => {
+    expect(scheduleFromGrabTarget({ kind: "note", index: 3 })).toBe("clickToggle");
   });
 
   it("GrabTarget이 trillZoneEndCap이면 emptySelectBox 예약(지연-드래그 재생으로 리사이즈 진입)", () => {
@@ -97,8 +97,8 @@ describe("scheduleFromGrabTarget — GrabTarget을 터치 select down 스케줄�
     }
   });
 
-  it("note 인덱스가 0(falsy)이어도 tapToggle 예약(kind 판별이라 falsy 함정 없음)", () => {
-    expect(scheduleFromGrabTarget({ kind: "note", index: 0 })).toBe("tapToggle");
+  it("note 인덱스가 0(falsy)이어도 clickToggle 예약(kind 판별이라 falsy 함정 없음)", () => {
+    expect(scheduleFromGrabTarget({ kind: "note", index: 0 })).toBe("clickToggle");
   });
 });
 

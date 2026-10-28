@@ -970,9 +970,9 @@ export class TimelineRenderer {
     this._violatingRestZoneIndices = restZoneIndices;
     this._violatingEventIndices = eventIndices;
     this.overlayRenderer.renderViolationOverlay();
-    // 미니맵 위반 틱(RFD 0017 §7)만 경량 갱신 — 전체 render는 O(N) 노트 순회+자식 재생성이라
-    // 낙관적 편집 드래그 중 매 프레임 2회 돌면 비싸다(fable 리뷰 MEDIUM). 전용 틱 Graphics만 갱신.
-    this.minimapRenderer.renderViolationTicks();
+    // 미니맵 위반 지시자(RFD 0017 §7)만 경량 갱신 — 전체 render는 O(N) 노트 순회+자식 재생성이라
+    // 낙관적 편집 드래그 중 매 프레임 2회 돌면 비싸다(fable 리뷰 MEDIUM). 전용 지시자 Graphics만 갱신.
+    this.minimapRenderer.renderViolationIndicators();
     this.app?.render();
   }
 

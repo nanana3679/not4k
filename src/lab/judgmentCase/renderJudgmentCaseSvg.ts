@@ -74,7 +74,7 @@ const LABEL_H = 19;
 /** 판정 라벨 둘째 줄(실패 이유) */
 const REASON_FONT = 13;
 const REASON_INDENT = 14;
-const TICK_FONT = 12;
+const AXIS_FONT = 12;
 const JUDGE_LEADER_W = 22;
 const MIN_JUDGE_W = 220;
 /** 노트 이름표 열: 레인 오른쪽 가장자리 → 구간 괄호 → 리더선 → 이름표 */
@@ -642,7 +642,7 @@ function drawNoteBoundaries(prepared: PreparedPanel, laneX: (lane: number) => nu
 }
 
 /**
- * 레인 오른쪽 이름표: 바디는 구간 괄호, 포인트는 짧은 눈금에서 리더선으로 이름표를 잇는다.
+ * 레인 오른쪽 이름표: 바디는 구간 괄호, 포인트는 레인에서 뻗은 짧은 선(stub)에서 리더선으로 이름표를 잇는다.
  * 레인이 여럿이면 오른쪽 레인일수록 괄호를 레인 가까이에 둔다.
  */
 function drawNoteLabels(prepared: PreparedPanel, laneX1: number, yOf: (t: number) => number, yOfOffset: (offset: number) => number): string {
@@ -661,7 +661,7 @@ function drawNoteLabels(prepared: PreparedPanel, laneX1: number, yOf: (t: number
       const top = Math.min(yOf(entry.startMs), yOf(entry.endMs)) + 2;
       out.push(`<path data-note-span="${escapeXml(entry.id)}" d="M${spanX - 5} ${bottom} H${spanX} V${top} H${spanX - 5}" fill="none" stroke="${color}" stroke-width="1.5"/>`);
     } else {
-      out.push(`<path data-note-tick="${escapeXml(entry.id)}" d="M${laneX1 + 1} ${anchorY} H${spanX}" fill="none" stroke="${color}" stroke-width="1.5"/>`);
+      out.push(`<path data-note-stub="${escapeXml(entry.id)}" d="M${laneX1 + 1} ${anchorY} H${spanX}" fill="none" stroke="${color}" stroke-width="1.5"/>`);
     }
     out.push(`<polyline points="${spanX},${anchorY} ${spanX + 5},${anchorY} ${textX - 3},${y}" fill="none" stroke="${color}" stroke-width="1" stroke-opacity="0.7"/>`);
     const spans = label.segments.map((segment) => `<tspan fill="${toneColor(segment, prepared)}"${segment.tone === "note" ? ' font-weight="700"' : ""}>${escapeXml(segment.text)}</tspan>`).join("");
@@ -752,7 +752,7 @@ function drawPanel(prepared: PreparedPanel, index: number, skin: JudgmentCaseSki
     const isNote = noteTimes.has(t);
     const fill = isNote && inputTimes.has(t) ? "#ffffff" : isNote ? "#cfd3e6" : "#ffc58a";
     out.push(`<line x1="${axisX - 5}" y1="${y}" x2="${axisX}" y2="${y}" stroke="${fill}" stroke-width="1"/>`);
-    out.push(`<text data-tick-ms="${formatMs(t)}" x="${axisX - 8}" y="${y}" font-size="${TICK_FONT}" fill="${fill}" text-anchor="end" dominant-baseline="central" ${HALO}${isNote ? ' font-weight="700"' : ""}>${formatMs(t)}</text>`);
+    out.push(`<text data-axis-ms="${formatMs(t)}" x="${axisX - 8}" y="${y}" font-size="${AXIS_FONT}" fill="${fill}" text-anchor="end" dominant-baseline="central" ${HALO}${isNote ? ' font-weight="700"' : ""}>${formatMs(t)}</text>`);
   }
 
   // 줄인 빈 구간: 축 위에 물결 표시

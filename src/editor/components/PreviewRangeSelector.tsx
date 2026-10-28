@@ -265,7 +265,7 @@ export function PreviewRangeSelector({
       sourceRef.current = null;
     };
 
-    const tick = () => {
+    const step = () => {
       if (!audioCtxRef.current) return;
       const elapsed = audioCtxRef.current.currentTime - playStartRef.current;
       const currentTime = playOffsetRef.current + elapsed;
@@ -274,9 +274,9 @@ export function PreviewRangeSelector({
         return;
       }
       setPlaybackTime(currentTime);
-      rafRef.current = requestAnimationFrame(tick);
+      rafRef.current = requestAnimationFrame(step);
     };
-    rafRef.current = requestAnimationFrame(tick);
+    rafRef.current = requestAnimationFrame(step);
   }, [audioBuffer, startTime, endTime, stopPlayback]);
 
   const togglePlayback = useCallback(() => {

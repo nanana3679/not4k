@@ -32,9 +32,14 @@ T 앞부분의 음악만 재생하는 **실제 시간 3초의 준비 → T부터
 
 유저가 양손으로 4개의 레인을 어떻게 나누어 담당하는지를 가리킨다. 기존 4키 게임은 2/2 고정이지만, not4k에서는 트릴 노트의 존재로 인해 1/3, 3/1, 0.5/3/0.5 등 가변적인 분할이 가능해진다.
 
-### 틱 (Tick)
+### 스냅 (Snap)
 
-차트에서 시간의 최소 단위. 비트 분할(4비트, 8비트, 16비트)에 따라 틱 간격이 달라진다. 피스 표기법에서 한 행이 한 틱에 대응한다.
+두 뜻을 함께 가리킨다.
+
+- **배치 격자의 한 칸**: 비트 분할(4비트, 8비트, 16비트)로 박을 나눈 배치 격자의 한 칸. 비트 분할에 따라 스냅 간격이 달라진다. 피스 표기법에서 한 행이 한 스냅에 대응하고, 에디터의 "한 스냅씩 이동"은 지금 고른 간격 한 칸만큼 옮긴다는 뜻이다.
+- **편집 보조**: 에디터에서 노트 배치·이동 위치를 이 격자의 가장 가까운 칸에 맞추는 기능. 간격은 `snapDivision`(1/N박, 예: 1/4박·1/8박·1/16박)으로 고른다.
+
+스냅은 편집 중 위치 보정이며 차트 해상도 제약이 아니다. 차트의 박은 임의의 분수를 가질 수 있고, 지금 격자 밖에 놓인 기존 노트(예: 스냅 1/4박에서 1/16박 위치)도 그대로 hover·선택·삭제할 수 있다. 히트 테스트는 스냅과 무관하게 실제 위치를 쓴다([차트 에디터 스펙](../spec/chart-editor.md#스냅)).
 
 ### 비트 분할 (Bit Division)
 
@@ -236,7 +241,7 @@ not4k가 전제하는 손가락 배치 — 약지, 중지, 검지, 엄지의 4�
 
 ### `trillZone` (구 표기: 트릴 구간)
 
-트릴 노트가 등장할 수 있는 시각적 영역. `trillZone` 자체는 입력을 요구하지 않으며, 예고·시각적 구분·긴장도 유지의 역할을 한다. 구간 내 빈 틱에서의 입력은 구간 밖의 빈 틱과 동일하게 동작한다 — `trillZone`이 있든 없든 결과가 같다. 표기: `{` (시작) / `}` (종료) / `~` (구간 내 빈 틱)
+트릴 노트가 등장할 수 있는 시각적 영역. `trillZone` 자체는 입력을 요구하지 않으며, 예고·시각적 구분·긴장도 유지의 역할을 한다. 구간 내 빈 스냅에서의 입력은 구간 밖의 빈 스냅과 동일하게 동작한다 — `trillZone`이 있든 없든 결과가 같다. 표기: `{` (시작) / `}` (종료) / `~` (구간 내 빈 스냅)
 
 ### `restZone` (구 표기: 휴지 구간)
 
@@ -793,13 +798,13 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상)
 | `o`       | 싱글 노트                                 |
 | `t`       | 트릴 노트                                 |
 | `D`       | 더블 노트                                 |
-| `.`       | 빈 틱                                     |
+| `.`       | 빈 스냅                                    |
 | `-`       | 싱글 롱노트 유지 (바디)                   |
 | `=`       | 더블 롱노트 유지 (바디)                   |
 | `-o`      | 홀드 중 탭 (피스)                       |
 | `D=-`     | 분할 릴리즈 (더블 롱노트의 시간차 릴리즈) |
 | `{` / `}` | `trillZone` 시작/종료                       |
-| `~`       | `trillZone` 내 빈 틱                        |
+| `~`       | `trillZone` 내 빈 스냅                       |
 
 ---
 
@@ -868,19 +873,19 @@ press는 `AutoEvent` 안에서만 생성하고, 구간에서 시작한 누름의
 
 ### GestureRecognizer
 
-raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상태머신. 도메인(히트 테스트·스냅)을 전혀 모르며(입력층/도메인층 분리), 마우스·터치·펜을 정규화된 **`PointerSample`**로 받아 **`EditGesture`**/**`ViewportGesture`**를 방출한다. 시간을 `PointerSample.timeMs`와 `tick(nowMs)`로 주입받아(`Date.now`/`setTimeout` 미사용) 포인터 시퀀스 단위로 테스트된다. 편집 모드는 인식기가 방출한 제스처만 받고 터치 상태(롱프레스 타이머·후보·핀치 세션)는 모른다. 두 손가락이 닿으면 진행 중 편집을 `editCancel`로 폐기한다.
+raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상태머신. 도메인(히트 테스트·스냅)을 전혀 모르며(입력층/도메인층 분리), 마우스·터치·펜을 정규화된 **`PointerSample`**로 받아 **`EditGesture`**/**`ViewportGesture`**를 방출한다. 시간을 `PointerSample.timeMs`와 `advanceTo(nowMs)`로 주입받아(`Date.now`/`setTimeout` 미사용) 포인터 시퀀스 단위로 테스트된다. 편집 모드는 인식기가 방출한 제스처만 받고 터치 상태(롱프레스 타이머·후보·핀치 세션)는 모른다. 두 손가락이 닿으면 진행 중 편집을 `editCancel`로 폐기한다.
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`. 내비게이션 순수 함수는 `touchGesture.ts`를 내부 부품으로 재사용.
 
 ### PointerSample
 
-DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|touch|pen), phase(down|move|up|cancel), x, y, clientX, clientY, timeMs, button, buttons}`. 마우스·터치를 같은 모양으로 만들어 **`GestureRecognizer`**에 넣는다. client 좌표는 tap-slop·멀티터치 거리 계산에, x/y는 방출 제스처에 실려 모드로 전달된다.
+DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|touch|pen), phase(down|move|up|cancel), x, y, clientX, clientY, timeMs, button, buttons}`. 마우스·터치를 같은 모양으로 만들어 **`GestureRecognizer`**에 넣는다. client 좌표는 click-slop·멀티터치 거리 계산에, x/y는 방출 제스처에 실려 모드로 전달된다.
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`.
 
 ### EditGesture
 
-차트를 편집하는 의미를 갖는 제스처. 현재: `editCancel`(두 손가락 내비가 편집을 가로챌 때 진행 중 편집 폐기), `longPress`(단일 터치를 tap-slop 안에서 유지; 좌표는 down 시점). 무엇을 뜻하는지(이동/리사이즈/범위생성/삭제)는 모드·히트 테스트를 아는 어댑터가 순수 라우팅 함수로 정한다. tap/drag/box 트랜잭션은 후속 슬라이스에서 이 어휘로 이관된다.
+차트를 편집하는 의미를 갖는 제스처. 현재: `editCancel`(두 손가락 내비가 편집을 가로챌 때 진행 중 편집 폐기), `longPress`(단일 터치를 click-slop 안에서 유지; 좌표는 down 시점). 무엇을 뜻하는지(이동/리사이즈/범위생성/삭제)는 모드·히트 테스트를 아는 어댑터가 순수 라우팅 함수로 정한다. click/drag/box 트랜잭션은 후속 슬라이스에서 이 어휘로 이관된다.
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`(타입), 라우팅 `longPressRouting.ts`·`touchEditRouting.ts`.
 
@@ -894,7 +899,7 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 정하는 순수 우선순위 사다리. z-order 8단계(끝 리사이즈 캡 4종 `noteEndCap`·`eventEndCap`·`trillZoneEndCap`·`restZoneEndCap` > 통합 `note` > 몸통 `trillZoneBody`·`restZoneBody` > `empty`)를 **단독으로 소유**한다. 캡 게이트(사다리 1·3·4)는 down 시점 선택(`sel`)을 읽어, 미선택 구간의 끝 캡은 리사이즈로 잡지 않고 겹친 노트/몸통으로 하강한다(RFD 0016 §6-6). 범위 노트 끝 캡의 hit 영역(`hitTestNoteEnd`)은 명시 Point·릴리즈·유지 노트와 겹친 자리를 비우고, 그 노트가 덮은 끝은 노트 hit 바로 위 띠(끝+1/16～3/16박)로 옮긴다. 그 띠에 겹친 노트가 없으면 미선택 바디도 사다리 1에서 바로 잡힌다. 연결 경계처럼 이어진 뒤 바디가 그 띠를 덮어도 띠는 앞 바디의 끝 hit이며, 사다리 1의 게이트(선택됐거나 최상위)에 따라 앞 바디가 선택됐을 때만 끝 캡으로 잡히고 미선택이면 뒤 바디를 잡는다. 선택 게이트가 없는 끝 캡 롱프레스는 그 띠에서 앞 바디 끝을 리사이즈한다. 수식자(shift/alt/toggle)는 대상 확정 "후"의 동작이라 사다리에 나타나지 않는다.
 
-**불변식**: grab 우선순위를 아는 코드는 `resolveGrab` 한 곳뿐이다. 마우스(`SelectMode.onPointerDown`)와 터치(`useCanvasEvents` → `scheduleFromGrabTarget`)는 `SelectMode.resolveGrabAt(x, y)`라는 **같은 seam**을 소비하므로 두 경로로 갈라질 코드 위치가 없다. 터치 스케줄은 `GrabTarget`을 "`note`면 탭 토글, 그 외 전부 지연-드래그(재생 위임)"의 2택으로 접기만 한다. 롱프레스 발화 사다리(`resolveLongPressAction`)는 선택 게이트 없는 별개 "직접 조작" 축이라 흡수하지 않는다(#143). 구현은 `src/editor/modes/resolveGrab.ts`.
+**불변식**: grab 우선순위를 아는 코드는 `resolveGrab` 한 곳뿐이다. 마우스(`SelectMode.onPointerDown`)와 터치(`useCanvasEvents` → `scheduleFromGrabTarget`)는 `SelectMode.resolveGrabAt(x, y)`라는 **같은 seam**을 소비하므로 두 경로로 갈라질 코드 위치가 없다. 터치 스케줄은 `GrabTarget`을 "`note`면 클릭 토글, 그 외 전부 지연-드래그(재생 위임)"의 2택으로 접기만 한다. 롱프레스 발화 사다리(`resolveLongPressAction`)는 선택 게이트 없는 별개 "직접 조작" 축이라 흡수하지 않는다(#143). 구현은 `src/editor/modes/resolveGrab.ts`.
 
 ### 차트 변이 게이트 (Chart Mutation Gate)
 
@@ -910,7 +915,7 @@ Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 
 
 **축소 커밋과 선택**: 노트·구간 개수가 줄어드는 커밋은 같은 트랜잭션에서 선택을 **엔티티 identity로 재매핑**한다 — 남은 엔티티는 새 인덱스로 계속 선택되고 지워진 엔티티만 빠진다. 인덱스 밀림으로 엉뚱한 엔티티가 선택되는 것을 막으면서, 선택된 바디 우클릭처럼 일부만 지우는 삭제가 다른 선택을 잃지 않게 한다. 개수가 줄지 않는 커밋은 재정규화만 한다.
 
-**편집 transaction**: 붙여넣기 대기·이동 드래그·끝점 리사이즈·우클릭 드래그 삭제처럼 한 조작의 여러 쓰기는 `beginEditTransaction`이 준 token을 달고 history를 쌓지 않다가, 소유자가 확정하면 Undo 한 단위로 기록하고 취소하면 시작 전 차트·선택으로 돌린다. token 없는 쓰기·모드 전환·Undo/Redo·로드 같은 독립 명령은 열린 transaction을 먼저 확정하고 소유자에게 `onInterrupt`로 알린다. 소유자(`SelectMode`·`EraseGesture`)는 그때 진행 중 조작을 끝내 옛 token으로 쓰지 않는다. 끊긴 조작의 마우스·터치 누름은 손을 뗄 때까지 같은 누름으로 새 조작을 다시 열지 않는다(터치의 지연 박스·탭 토글·롱프레스 후보 포함). Undo 가능 여부(`selectCanUndo`)는 아직 history에 들어가지 않은 transaction 변경도 셈한다.
+**편집 transaction**: 붙여넣기 대기·이동 드래그·끝점 리사이즈·우클릭 드래그 삭제처럼 한 조작의 여러 쓰기는 `beginEditTransaction`이 준 token을 달고 history를 쌓지 않다가, 소유자가 확정하면 Undo 한 단위로 기록하고 취소하면 시작 전 차트·선택으로 돌린다. token 없는 쓰기·모드 전환·Undo/Redo·로드 같은 독립 명령은 열린 transaction을 먼저 확정하고 소유자에게 `onInterrupt`로 알린다. 소유자(`SelectMode`·`EraseGesture`)는 그때 진행 중 조작을 끝내 옛 token으로 쓰지 않는다. 끊긴 조작의 마우스·터치 누름은 손을 뗄 때까지 같은 누름으로 새 조작을 다시 열지 않는다(터치의 지연 박스·클릭 토글·롱프레스 후보 포함). Undo 가능 여부(`selectCanUndo`)는 아직 history에 들어가지 않은 transaction 변경도 셈한다.
 
 **`loadChart`**: 레거시/외부 위반 차트를 구조·의미 모두 열어 수리를 허용한다(경고만). 재저장은 저장 게이트가 차단하므로 위반 상태가 저장·전파되지는 않는다 — "열 수는 있되, 다 고쳐야 저장할 수 있다".
 

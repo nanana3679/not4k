@@ -18,7 +18,7 @@ function windowBounds(svg: string, index: number) {
   const rect = group.match(/<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/)!;
   return { top: Number(rect[2]), bottom: Number(rect[2]) + Number(rect[4]) };
 }
-function tickY(svg: string, ms: number) {
+function axisY(svg: string, ms: number) {
   return Number(svg.match(new RegExp(`<text x="70" y="([^"]+)"[^>]*>${ms}</text>`))![1]) - 4;
 }
 
@@ -59,7 +59,7 @@ describe("설계 도식", () => {
     expect(svg).not.toContain('data-design-placeholder="true"');
     expect(svg).not.toMatch(/data-skin-asset="[^"]*Failed/);
     const pointY = Number(svg.match(/data-note-part="point"[^>]* y="([^"]+)"/)![1]);
-    expect(pointY + 8).toBeCloseTo(tickY(svg, 1000), 1);
+    expect(pointY + 8).toBeCloseTo(axisY(svg, 1000), 1);
     if (id === "classic") {
       expect(svg).toContain('<pattern id="jc-tile-0-0"');
       expect(svg).toContain('data-note-part="shadow" data-skin-asset="pointContactShadow"');
@@ -90,11 +90,11 @@ describe("설계 도식", () => {
     const { svg } = renderJudgmentCaseDesignSvg([design({ inputs: [{ key: "A", downMs: 1700, upMs: 3000 }],
       windows: [{ note: "N1", startMs: 1880, endMs: 2120, label: "Good" }] })], { pxPerMs });
     const window = windowBounds(svg, 1);
-    expect(window.top).toBeCloseTo(tickY(svg, 2120));
-    expect(window.bottom).toBeCloseTo(tickY(svg, 1880));
-    expect(tickY(svg, 1700)).toBeGreaterThan(window.bottom);
-    expect(tickY(svg, 2000)).toBeGreaterThan(window.top);
-    expect(tickY(svg, 2000)).toBeLessThan(window.bottom);
+    expect(window.top).toBeCloseTo(axisY(svg, 2120));
+    expect(window.bottom).toBeCloseTo(axisY(svg, 1880));
+    expect(axisY(svg, 1700)).toBeGreaterThan(window.bottom);
+    expect(axisY(svg, 2000)).toBeGreaterThan(window.top);
+    expect(axisY(svg, 2000)).toBeLessThan(window.bottom);
   });
 
   it("같은 N1의 겹치는 비대칭 창 1600～2050·1950～2300을 각자 경계와 이름으로 표시", () => {

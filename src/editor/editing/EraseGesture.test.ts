@@ -53,7 +53,7 @@ describe('EraseGesture 독립 명령 중단', () => {
 describe('Delete 모드 터치 삭제의 구간 삭제', () => {
   const zoneAt1to4 = { lane: 1 as const, beat: beat(1), endBeat: beat(4) };
 
-  it('빈 1～4박 trillZone의 2박을 탭하면 같은 transaction에서 구간을 지우고 Undo 1번에 돌아온다', () => {
+  it('빈 1～4박 trillZone의 2박을 터치하면 같은 transaction에서 구간을 지우고 Undo 1번에 돌아온다', () => {
     const initial = chart([], { trillZones: [zoneAt1to4] });
     const { erase } = setup(initial);
     erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(true); erase.finish();
@@ -63,7 +63,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
     current().undo(); expect(current().chart).toEqual(initial);
   });
 
-  it('3박 트릴 Point가 든 1～4박 trillZone의 2박을 탭하면 구간을 지우지 않고 경고한다', () => {
+  it('3박 트릴 Point가 든 1～4박 trillZone의 2박을 터치하면 구간을 지우지 않고 경고한다', () => {
     const initial = chart([{ type: 'point', kind: 'trill', lane: 1, beat: beat(3) }], { trillZones: [zoneAt1to4] });
     const { erase, warn } = setup(initial);
     erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
@@ -72,7 +72,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
     expect(warn).toHaveBeenCalledWith('Zone contains notes — remove them first');
   });
 
-  it('1～4박 restZone의 2박을 탭하면 restZone을 지운다', () => {
+  it('1～4박 restZone의 2박을 터치하면 restZone을 지운다', () => {
     const { erase } = setup(chart([], { restZones: [zoneAt1to4] }));
     erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(true); erase.finish();
 
@@ -91,7 +91,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
     expect(warn).toHaveBeenCalledOnce();
   });
 
-  it('Esc로 취소한 누름은 같은 누름의 2박 탭으로 빈 trillZone을 지우지 않는다', () => {
+  it('Esc로 취소한 누름은 같은 누름의 2박 터치로 빈 trillZone을 지우지 않는다', () => {
     const initial = chart([], { trillZones: [zoneAt1to4] });
     const { erase } = setup(initial);
     erase.begin(); erase.cancel(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();

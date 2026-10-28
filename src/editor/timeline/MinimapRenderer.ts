@@ -47,9 +47,9 @@ export class MinimapRenderer {
   // Reusable viewport indicator Graphics (avoids 60fps destroy/create on scroll)
   private _viewport: Graphics | null = null;
 
-  // Reusable violation tick Graphics (RFD 0017 §7). 전체 render 없이 위반만 경량 갱신
+  // Reusable violation indicator Graphics (RFD 0017 §7). 전체 render 없이 위반만 경량 갱신
   // (낙관적 편집 드래그 중 setViolations가 매 pointer-move 호출되므로 O(N) 전체 render 회피).
-  private _violationTicks: Graphics | null = null;
+  private _violationIndicators: Graphics | null = null;
 
   // Reusable TextStyle cache
   private _timeLabelStyle: TextStyle | null = null;
@@ -163,7 +163,7 @@ export class MinimapRenderer {
     }
     minimapLayer.removeChildren();
     this._viewport = null; // destroyed above, will be recreated
-    this._violationTicks = null; // destroyed above, will be recreated by renderViolationTicks()
+    this._violationIndicators = null; // destroyed above, will be recreated by renderViolationIndicators()
 
     if (!this.host.minimapVisible) return;
 
@@ -325,9 +325,9 @@ export class MinimapRenderer {
       minimapLayer.addChild(batch.gfx);
     }
 
-    // (4.5) Violation ticks — 미니맵 우측 경계 빨간 틱, 종류 무관 단일 채널 (RFD 0017 §7).
-    // 전용 Graphics(_violationTicks)로 분리 — setViolations 경로에서 전체 render 없이 갱신.
-    this.renderViolationTicks();
+    // (4.5) Violation indicators — 미니맵 우측 경계 빨간 지시자, 종류 무관 단일 채널 (RFD 0017 §7).
+    // 전용 Graphics(_violationIndicators)로 분리 — setViolations 경로에서 전체 render 없이 갱신.
+    this.renderViolationIndicators();
 
     // (5) Viewport indicator (reusable)
     this.updateViewport();
@@ -366,40 +366,40 @@ export class MinimapRenderer {
   }
 
   /**
-   * 위반 틱만 경량 갱신한다(전체 render 없이). setViolations에서 매 변경마다 호출되므로
-   * 노트 등 다른 자식을 재생성하지 않고 전용 _violationTicks Graphics만 clear·재그린다
+   * 위반 지시자만 경량 갱신한다(전체 render 없이). setViolations에서 매 변경마다 호출되므로
+   * 노트 등 다른 자식을 재생성하지 않고 전용 _violationIndicators Graphics만 clear·재그린다
    * (뷰포트 인디케이터의 updateViewport 패턴과 동일, RFD 0017 §7 fable 리뷰 MEDIUM).
    *
-   * z-order 불변: 뷰포트 인디케이터가 항상 틱 위에 오도록, 그린 뒤 _viewport를 최상위로 재정렬한다
-   * (render 경로·setViolations 경로 모두 "뷰포트가 틱 위" 유지).
+   * z-order 불변: 뷰포트 인디케이터가 항상 지시자 위에 오도록, 그린 뒤 _viewport를 최상위로 재정렬한다
+   * (render 경로·setViolations 경로 모두 "뷰포트가 지시자 위" 유지).
    */
-  renderViolationTicks(): void {
+  renderViolationIndicators(): void {
     if (!this.host.minimapVisible) return;
 
     const rects = this.computeViolationRects();
     if (rects.length === 0) {
-      // 위반 없음: 기존 틱이 있으면 비우고, 없으면 자식을 추가하지 않는다(자식 수 예산 유지).
-      this._violationTicks?.clear();
+      // 위반 없음: 기존 지시자가 있으면 비우고, 없으면 자식을 추가하지 않는다(자식 수 예산 유지).
+      this._violationIndicators?.clear();
       return;
     }
 
-    if (!this._violationTicks) {
-      this._violationTicks = new Graphics();
+    if (!this._violationIndicators) {
+      this._violationIndicators = new Graphics();
     }
-    const g = this._violationTicks;
+    const g = this._violationIndicators;
     // render()의 removeChildren로 떼어졌거나 최초 생성 시 붙인다.
     if (g.parent !== this.host.minimapLayer) {
       this.host.minimapLayer.addChild(g);
     }
 
-    // 자식 수 예산 준수: 틱 전부를 단일 Graphics로 batch.
+    // 자식 수 예산 준수: 지시자 전부를 단일 Graphics로 batch.
     g.clear();
     for (const r of rects) {
       g.rect(r.x, r.y, r.width, r.height);
     }
-    g.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.MINIMAP_VIOLATION_TICK_ALPHA });
+    g.fill({ color: COLORS.VIOLATION_HATCH, alpha: COLORS.MINIMAP_VIOLATION_INDICATOR_ALPHA });
 
-    // 뷰포트를 항상 틱 위로 재정렬(addChild가 기존 자식을 최상위로 이동).
+    // 뷰포트를 항상 지시자 위로 재정렬(addChild가 기존 자식을 최상위로 이동).
     if (this._viewport && this._viewport.parent === this.host.minimapLayer) {
       this.host.minimapLayer.addChild(this._viewport);
     }
@@ -442,6 +442,6 @@ export class MinimapRenderer {
     this._endTimeLabelStyle?.destroy();
     this._endTimeLabelStyle = null;
     this._viewport = null;
-    this._violationTicks = null;
+    this._violationIndicators = null;
   }
 }

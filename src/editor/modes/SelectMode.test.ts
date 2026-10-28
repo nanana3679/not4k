@@ -179,7 +179,7 @@ describe("SelectMode — resolveGrabAt 공개 seam", () => {
     expect(mode.resolveGrabAt(1, 0)).toEqual({ kind: "note", index: 0 });
   });
 
-  it("미선택 trillZone 끝+겹친 노트 터치 down은 스케줄까지 이어 tapToggle이다 (#143 핵심 fix — 존끝 게이트 터치 적용)", () => {
+  it("미선택 trillZone 끝+겹친 노트 터치 down은 스케줄까지 이어 clickToggle이다 (#143 핵심 fix — 존끝 게이트 터치 적용)", () => {
     const chart = makeChart({
       notes: [{ type: "single", lane: 1 as Lane, beat: beat(6) }],
       trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
@@ -188,7 +188,7 @@ describe("SelectMode — resolveGrabAt 공개 seam", () => {
     const mode = makeMode(chart, cb);
 
     // 사다리(resolveGrabAt) → 터치 스케줄(scheduleFromGrabTarget) 계약을 한 문장으로 고정.
-    expect(scheduleFromGrabTarget(mode.resolveGrabAt(1, 0))).toBe("tapToggle");
+    expect(scheduleFromGrabTarget(mode.resolveGrabAt(1, 0))).toBe("clickToggle");
   });
 });
 
@@ -469,7 +469,7 @@ describe("SelectMode — 복사/잘라내기", () => {
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — 모바일 터치 선택", () => {
-  it("터치 토글 선택에서 선택되지 않은 노트를 탭하면 기존 선택을 유지하고 추가", () => {
+  it("터치 토글 선택에서 선택되지 않은 노트를 터치하면 기존 선택을 유지하고 추가", () => {
     const chart = makeChart({
       notes: [
         { type: "single", lane: 1 as Lane, beat: beat(0) },
@@ -488,7 +488,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     expect([...selected].sort()).toEqual([0, 1]);
   });
 
-  it("터치 토글 선택에서 이미 선택된 노트를 탭하면 선택에서 제거", () => {
+  it("터치 토글 선택에서 이미 선택된 노트를 터치하면 선택에서 제거", () => {
     const chart = makeChart({
       notes: [
         { type: "single", lane: 1 as Lane, beat: beat(0) },
@@ -791,12 +791,12 @@ describe("SelectMode — 모바일 터치 선택", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 터치 탭 tapAt — 뗀 시점에 발화하는 탭은 down+up 한 쌍이다 (#154)
-// 아래 호출 순서는 useCanvasEvents를 그대로 따른다: 탭 up에서 tapAt, 빈 곳 박스는 move·up마다
+// 짧은 터치 clickAt — 뗀 시점에 발화하는 짧은 터치는 down+up 한 쌍이다 (#154)
+// 아래 호출 순서는 useCanvasEvents를 그대로 따른다: 짧은 터치의 up에서 clickAt, 빈 곳 박스는 move·up마다
 // onPointerDown(시작점 재생) 뒤 onPointerMove/onPointerUp, 노트 위 드래그는 beginBoxSelect 승격.
 // ---------------------------------------------------------------------------
 
-describe("SelectMode — 터치 탭 tapAt (down+up 한 쌍, #154)", () => {
+describe("SelectMode — 짧은 터치 clickAt (down+up 한 쌍, #154)", () => {
   // 노트 0 = lane 1·beat 0 → 좌표 (1, 0), 노트 1 = lane 2·beat 1 → 좌표 (2, 1)
   function setupTwoNotes() {
     const chart = makeChart({
@@ -816,28 +816,28 @@ describe("SelectMode — 터치 탭 tapAt (down+up 한 쌍, #154)", () => {
     return { cb, mode, priv };
   }
 
-  it("래치 off에서 미선택 노트 0을 tapAt(1, 0, false)하면 선택이 {0}이 되고 isMoveDragging은 false다", () => {
+  it("래치 off에서 미선택 노트 0을 clickAt(1, 0, false)하면 선택이 {0}이 되고 isMoveDragging은 false다", () => {
     const { cb, mode } = setupTwoNotes();
 
-    mode.tapAt(1, 0, false);
+    mode.clickAt(1, 0, false);
 
     expect([...cb.getSelectionState().notes]).toEqual([0]);
     expect(mode.isMoveDragging).toBe(false);
   });
 
-  it("래치 off에서 이미 선택된 노트 0을 tapAt(1, 0, false)해도 선택 {0}을 유지하고 isMoveDragging은 false다", () => {
+  it("래치 off에서 이미 선택된 노트 0을 clickAt(1, 0, false)해도 선택 {0}을 유지하고 isMoveDragging은 false다", () => {
     const { cb, mode } = setupTwoNotes();
     mode.selectNote(0);
 
-    mode.tapAt(1, 0, false);
+    mode.clickAt(1, 0, false);
 
     expect([...cb.getSelectionState().notes]).toEqual([0]);
     expect(mode.isMoveDragging).toBe(false);
   });
 
-  it("노트 0을 tapAt한 뒤 빈 곳 (3, 5)에서 (2, 0)까지 박스를 끌면 박스가 그려져 노트 1만 선택되고 노트 0은 lane 1·beat 0에 남는다", () => {
+  it("노트 0을 clickAt한 뒤 빈 곳 (3, 5)에서 (2, 0)까지 박스를 끌면 박스가 그려져 노트 1만 선택되고 노트 0은 lane 1·beat 0에 남는다", () => {
     const { cb, mode, priv } = setupTwoNotes();
-    mode.tapAt(1, 0, false);
+    mode.clickAt(1, 0, false);
 
     mode.onPointerDown(3, 5, false, false);
     const result = mode.onPointerMove(2, 0);
@@ -852,9 +852,9 @@ describe("SelectMode — 터치 탭 tapAt (down+up 한 쌍, #154)", () => {
     expect(cb.getSelectionState().notes).toEqual(new Set([1])); // lane 2~3 × beat 0~5
   });
 
-  it("노트 0을 tapAt한 뒤 노트 1 위 (2, 1)에서 시작한 드래그를 beginBoxSelect로 승격하면 박스가 그려져 노트 1만 선택되고 노트 0은 lane 1·beat 0에 남는다", () => {
+  it("노트 0을 clickAt한 뒤 노트 1 위 (2, 1)에서 시작한 드래그를 beginBoxSelect로 승격하면 박스가 그려져 노트 1만 선택되고 노트 0은 lane 1·beat 0에 남는다", () => {
     const { cb, mode, priv } = setupTwoNotes();
-    mode.tapAt(1, 0, false);
+    mode.clickAt(1, 0, false);
 
     mode.beginBoxSelect(2, 1);
     mode.onPointerDown(2, 1, false, false);
@@ -870,18 +870,18 @@ describe("SelectMode — 터치 탭 tapAt (down+up 한 쌍, #154)", () => {
     expect(cb.getSelectionState().notes).toEqual(new Set([1])); // lane 2~4 × beat 1~3
   });
 
-  it("래치 on에서 선택 {0, 1} 중 노트 0을 tapAt(1, 0, true)하면 선택이 {1}로 줄고 isMoveDragging은 false다", () => {
+  it("래치 on에서 선택 {0, 1} 중 노트 0을 clickAt(1, 0, true)하면 선택이 {1}로 줄고 isMoveDragging은 false다", () => {
     const { cb, mode } = setupTwoNotes();
     mode.selectNote(0);
     addNotesToSelection(cb, 1);
 
-    mode.tapAt(1, 0, true);
+    mode.clickAt(1, 0, true);
 
     expect([...cb.getSelectionState().notes]).toEqual([1]);
     expect(mode.isMoveDragging).toBe(false);
   });
 
-  it("마우스 onPointerDown(1, 0)은 이동 드래그를 열고 move·up (3, 2)에서 노트 0을 lane 3·beat 2로 옮긴다(tapAt 도입 전과 동일)", () => {
+  it("마우스 onPointerDown(1, 0)은 이동 드래그를 열고 move·up (3, 2)에서 노트 0을 lane 3·beat 2로 옮긴다(clickAt 도입 전과 동일)", () => {
     const { mode, priv } = setupTwoNotes();
 
     mode.onPointerDown(1, 0, false, false);
@@ -1937,7 +1937,7 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 구간 단위 선택 (존 몸통 탭으로 구간+노트 선택, 자유 이동 — RFD 0016 §6-6)
+// 구간 단위 선택 (존 몸통 클릭으로 구간+노트 선택, 자유 이동 — RFD 0016 §6-6)
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — 구간 단위 선택", () => {
@@ -1964,12 +1964,12 @@ describe("SelectMode — 구간 단위 선택", () => {
     expect([...zoneSel]).toEqual([0]);
   });
 
-  it("존 몸통 탭(움직임 없이 뗌)으로 구간 유닛만 선택된다(notes 주입 없음)", () => {
+  it("존 몸통 클릭(움직임 없이 뗌)으로 구간 유닛만 선택된다(notes 주입 없음)", () => {
     const cb = makeCallbacks({
       hitTestTrillZone: () => 0,
     });
     const mode = makeMode(makeChartZ(), cb);
-    mode.onPointerDown(1, 0, false, false); // 미선택 몸통 → 탭 후보
+    mode.onPointerDown(1, 0, false, false); // 미선택 몸통 → 클릭 후보
     mode.onPointerUp(1, 0);                 // 움직임 없이 뗌 → 구간0 유닛 선택
 
     expect([...mode.selectedZones]).toEqual([0]);
@@ -1999,7 +1999,7 @@ describe("SelectMode — 구간 단위 선택", () => {
     expect([...cb.getSelectionState().zones]).toEqual([0]);
   });
 
-  it("존 몸통 토글 탭은 일반 노트 선택을 유지한 채 zones만 바꾼다(공존)", () => {
+  it("존 몸통 토글 클릭은 일반 노트 선택을 유지한 채 zones만 바꾼다(공존)", () => {
     const chart = makeChart({
       notes: [{ type: "single", lane: 3 as Lane, beat: beat(9) }],
       trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(4) }],
@@ -2010,7 +2010,7 @@ describe("SelectMode — 구간 단위 선택", () => {
     const mode = makeMode(chart, cb);
 
     mode.selectNote(0);
-    mode.onPointerDown(1, 0, false, false, true); // 토글 탭으로 구간0 추가
+    mode.onPointerDown(1, 0, false, false, true); // 토글 클릭으로 구간0 추가
 
     const sel = cb.getSelectionState();
     expect([...sel.notes]).toEqual([0]); // 일반 노트 유지
@@ -2120,32 +2120,32 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     expect(beatToFloat(updated.notes[0].beat)).toBe(5);
   });
 
-  it("미선택 존 몸통 탭(움직임 없이 뗌)은 그 존을 유닛 선택한다(notes 주입 없음)", () => {
+  it("미선택 존 몸통 클릭(움직임 없이 뗌)은 그 존을 유닛 선택한다(notes 주입 없음)", () => {
     const cb = makeCallbacks({ hitTestTrillZone: (x: number) => (x === 1 ? 0 : null) });
     const mode = makeMode(makeChartB(), cb);
 
-    mode.onPointerDown(1, 0, false, false); // 미선택 몸통 → 박스로 시작(탭 후보)
+    mode.onPointerDown(1, 0, false, false); // 미선택 몸통 → 박스로 시작(클릭 후보)
     expect(mode.isMoveDragging).toBe(false);
-    mode.onPointerUp(1, 0);                 // 움직임 없이 뗌 = 탭
+    mode.onPointerUp(1, 0);                 // 움직임 없이 뗌 = 클릭
 
     expect([...mode.selectedZones]).toEqual([0]);
     expect([...mode.selection]).toEqual([]);
     expect([...cb.getSelectionState().zones]).toEqual([0]);
   });
 
-  it("존 몸통 down 후 2px 드리프트 up(같은 레인)도 탭으로 인정해 그 존을 선택한다(zero-slop 회귀)", () => {
+  it("존 몸통 down 후 2px 드리프트 up(같은 레인)도 클릭으로 인정해 그 존을 선택한다(zero-slop 회귀)", () => {
     const cb = makeCallbacks({ hitTestTrillZone: (x: number) => (x === 1 ? 0 : null) });
     const mode = makeMode(makeChartB(), cb);
 
     mode.onPointerDown(1, 0, false, false); // 미선택 몸통 → 박스 후보(_boxStartY=0)
-    mode.onPointerUp(1, 2);                  // y 2px 드리프트 — tap-slop(10px) 안이라 탭
+    mode.onPointerUp(1, 2);                  // y 2px 드리프트 — click-slop(10px) 안이라 클릭
 
     expect([...mode.selectedZones]).toEqual([0]);
     expect([...cb.getSelectionState().zones]).toEqual([0]);
   });
 
   it("미선택 존 몸통에서 드래그하면 박스 선택이 된다(부분 겹침 beat3~5 → 박스 안 트릴만 개별 선택)", () => {
-    // 1px=0.1beat 스케일 — 드래그(20px)를 존 몸통 tap-slop(10px, §6-6) 넘게 해 박스로 확정한다.
+    // 1px=0.1beat 스케일 — 드래그(20px)를 존 몸통 click-slop(10px, §6-6) 넘게 해 박스로 확정한다.
     const cb = makeCallbacks({
       hitTestTrillZone: (x: number) => (x === 1 ? 0 : null),
       yToBeatRaw: (y: number): Beat => beat(y, 10),
@@ -2155,7 +2155,7 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     mode.onPointerDown(1, 30, false, false); // 미선택 몸통(beat3)에서 시작
     mode.onPointerMove(1, 50);
     expect(mode.isBoxSelecting).toBe(true);
-    mode.onPointerUp(1, 50);                 // 박스 [3,5], 20px 이동 → tap 아님
+    mode.onPointerUp(1, 50);                 // 박스 [3,5], 20px 이동 → 클릭 아님
 
     const sel = cb.getSelectionState();
     expect([...sel.notes]).toEqual([1]);    // beat3 트릴만 개별 선택
@@ -2210,15 +2210,15 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     if (lastChart) expect(beatToFloat(lastChart.trillZones[0].endBeat)).toBe(4);
   });
 
-  it("미선택 존 몸통 드래그를 cancel하면 탭 후보가 소멸해, 이후 빈 곳 탭이 그 존을 선택하지 않는다", () => {
+  it("미선택 존 몸통 드래그를 cancel하면 클릭 후보가 소멸해, 이후 빈 곳 클릭이 그 존을 선택하지 않는다", () => {
     const cb = makeCallbacks({ hitTestTrillZone: (x: number) => (x === 1 ? 0 : null) });
     const mode = makeMode(makeChartB(), cb);
 
-    mode.onPointerDown(1, 0, false, false); // 몸통 탭 후보
+    mode.onPointerDown(1, 0, false, false); // 몸통 클릭 후보
     mode.cancel();
 
     mode.onPointerDown(3, 0, false, false); // 빈 곳(노트·존 없음) 박스
-    mode.onPointerUp(3, 0);                 // 탭 — stale 후보가 남았다면 존이 선택된다
+    mode.onPointerUp(3, 0);                 // 클릭 — stale 후보가 남았다면 존이 선택된다
 
     expect([...cb.getSelectionState().zones]).toEqual([]);
   });
@@ -2423,7 +2423,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
     const mode = makeMode(makeChartM(), cb);
     mode.selectZoneUnit(0);
 
-    mode.onPointerDown(0, 0, false, false, true); // 토글 탭으로 트릴 노트(인덱스0) 추가
+    mode.onPointerDown(0, 0, false, false, true); // 토글 클릭으로 트릴 노트(인덱스0) 추가
 
     const sel = cb.getSelectionState();
     expect([...sel.notes]).toEqual([0]);
@@ -3112,7 +3112,7 @@ describe("SelectMode — 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-
 
 // ---------------------------------------------------------------------------
 // restZone — 선택·이동·리사이즈·삭제 (RFD 0019 스텝4 슬라이스 D)
-// trillZone 경로 미러이되 내부 노트가 없는 **독립 공존 축**: 단순 클릭/탭은 다른
+// trillZone 경로 미러이되 내부 노트가 없는 **독립 공존 축**: 단순 클릭은 다른
 // 엔티티처럼 선택 전체를 교체하고, 박스·shift 등 다축 경로에서 note/zone과 공존한다.
 // ---------------------------------------------------------------------------
 
@@ -3130,13 +3130,13 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
 
   const restHitByLane = (x: number): number | null => (x === 2 ? 0 : x === 4 ? 1 : null);
 
-  it("restZone 몸통 탭(움직임 없이 뗌)은 {notes:∅, zones:∅, restZones:{0}}로 선택이 교체된다", () => {
+  it("restZone 몸통 클릭(움직임 없이 뗌)은 {notes:∅, zones:∅, restZones:{0}}로 선택이 교체된다", () => {
     const cb = makeCallbacks({ hitTestRestZone: restHitByLane });
     const mode = makeMode(makeChartR(), cb);
 
-    mode.onPointerDown(2, 0, false, false); // 미선택 restZone 몸통 → 탭 후보(박스 시작)
+    mode.onPointerDown(2, 0, false, false); // 미선택 restZone 몸통 → 클릭 후보(박스 시작)
     expect(mode.isMoveDragging).toBe(false);
-    mode.onPointerUp(2, 0);                 // 움직임 없이 뗌 = 탭
+    mode.onPointerUp(2, 0);                 // 움직임 없이 뗌 = 클릭
 
     const sel = cb.getSelectionState();
     expect([...sel.restZones]).toEqual([0]);
@@ -3144,7 +3144,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     expect([...sel.zones]).toEqual([]);
   });
 
-  it("노트 {0}이 선택된 상태에서 restZone 탭 → 선택이 교체되어 restZones {0}만 남는다", () => {
+  it("노트 {0}이 선택된 상태에서 restZone 클릭 → 선택이 교체되어 restZones {0}만 남는다", () => {
     const cb = makeCallbacks({ hitTestRestZone: restHitByLane });
     const mode = makeMode(makeChartR(), cb);
     mode.selectNote(0);
@@ -3322,7 +3322,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     mode.onPointerDown(2, 30, false, false); // 미선택 몸통(beat3)에서 시작
     mode.onPointerMove(2, 50);
     expect(mode.isBoxSelecting).toBe(true);
-    mode.onPointerUp(2, 50); // 20px 이동 → tap 아님, 박스 [3,5]×lane2가 구간[2,6]과 겹침
+    mode.onPointerUp(2, 50); // 20px 이동 → 클릭 아님, 박스 [3,5]×lane2가 구간[2,6]과 겹침
 
     const sel = cb.getSelectionState();
     expect([...sel.restZones]).toEqual([0]); // 부분 겹침으로 픽업

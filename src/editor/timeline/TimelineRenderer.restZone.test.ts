@@ -40,7 +40,7 @@ describe("TimelineRenderer restZone 배선 (소스 수준)", () => {
     );
   });
 
-  it("MinimapRenderer host에 violatingRestZoneIndices getter가 배선된다 (미니맵 위반 틱)", () => {
+  it("MinimapRenderer host에 violatingRestZoneIndices getter가 배선된다 (미니맵 위반 지시자)", () => {
     const hostStart = timelineRendererSource.indexOf("new MinimapRenderer({");
     expect(hostStart).toBeGreaterThanOrEqual(0);
     const hostEnd = timelineRendererSource.indexOf("});", hostStart);
