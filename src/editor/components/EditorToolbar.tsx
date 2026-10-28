@@ -664,7 +664,7 @@ export function EditorToolbar({
   const selectedCount = selectedNotes.size;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
-  // 저장 기준(store의 savedChartJson)과 저장 분리(saveChartAsset)처럼 메인/보조를 나눠 비교한다 (RFD 0018 ③).
+  // 현재 차트를 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 store의 savedChartJson과 비교한다 (RFD 0018 ③).
   const isDirty = isChartDirty(chart, extraLaneCount, savedChartJson)
     || pendingPreviewRange != null || pendingGameplayRange != null;
 

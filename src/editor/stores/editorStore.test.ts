@@ -402,10 +402,10 @@ describe('editorStore 편집 transaction 중단 알림', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 저장 기준(savedChartJson) — dirty 비교 기준. 페이지가 다시 마운트돼도(테스트 플레이 복귀) store가 유지한다.
+// savedChartJson — dirty 비교 대상. 페이지가 다시 마운트돼도(테스트 플레이 복귀) store가 유지한다.
 // ---------------------------------------------------------------------------
 
-describe('editorStore 저장 기준 savedChartJson', () => {
+describe('editorStore savedChartJson', () => {
   const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
   const dirty = () => {
     const state = useEditorStore.getState();
@@ -433,7 +433,7 @@ describe('editorStore 저장 기준 savedChartJson', () => {
     expect(dirty()).toBe(false);
   });
 
-  it('노트 추가 setChart·Undo·보조 레인 수 2 → 3 변경은 저장 기준을 바꾸지 않아 노트 추가 뒤 dirty, Undo 뒤 dirty 아님, 레인 수 변경 뒤 dirty', () => {
+  it('노트 추가 setChart·Undo·보조 레인 수 2 → 3 변경은 savedChartJson을 바꾸지 않아 노트 추가 뒤 dirty, Undo 뒤 dirty 아님, 레인 수 변경 뒤 dirty', () => {
     const loaded = makeChart([tap(1)]);
     useEditorStore.getState().loadChart(loaded);
     useEditorStore.getState().setSavedChartJson(toSavedChartJson(loaded, 2));
@@ -463,7 +463,7 @@ describe('editorStore 저장 기준 savedChartJson', () => {
     expect(dirty()).toBe(true);
   });
 
-  it('loadChart로 다른 차트를 열면 이전 차트의 저장 기준을 지워 savedChartJson이 null', () => {
+  it('loadChart로 다른 차트를 열면 이전 차트의 savedChartJson을 지워 null', () => {
     const first = makeChart([tap(1)]);
     useEditorStore.getState().loadChart(first);
     useEditorStore.getState().setSavedChartJson(toSavedChartJson(first, 2));

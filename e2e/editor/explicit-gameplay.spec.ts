@@ -365,7 +365,7 @@ test('노트 1개를 추가한 뒤 처음부터 테스트 플레이하고 돌아
   // 돌아온 에디터는 음원을 다시 읽는 동안 화면 전체를 덮는 로딩 표시로 입력을 막는다.
   await expect(page.getByRole('status').filter({ hasText: 'Loading audio...' })).toBeHidden({ timeout: 15000 });
   expect(await notes(page)).toEqual(edited);
-  // 페이지가 다시 마운트돼도 저장 기준은 불러온 차트다. 돌아온 차트를 저장 기준으로 삼으면 여기서 'Save chart'가 된다.
+  // 페이지가 다시 마운트돼도 savedChartJson은 불러온 차트의 값이다. 돌아온 차트로 다시 만들면 여기서 'Save chart'가 된다.
   await expect(unsavedSave).toBeVisible();
 
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();

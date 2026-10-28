@@ -22,7 +22,7 @@ const mainNote = { type: 'single', lane: 1 as Lane, beat: beat(0) } as const;
 const auxNote = { type: 'single', lane: 5 as Lane, beat: beat(1) } as const;
 
 describe('isChartDirty', () => {
-  it('저장 기준을 만든 차트·보조 레인 수 2 그대로면 dirty 아님', () => {
+  it('savedChartJson을 만든 차트·보조 레인 수 2 그대로면 dirty 아님', () => {
     const chart = makeChart([mainNote]);
     expect(isChartDirty(chart, 2, toSavedChartJson(chart, 2))).toBe(false);
   });
@@ -43,7 +43,7 @@ describe('isChartDirty', () => {
     expect(isChartDirty(chart, 3, toSavedChartJson(chart, 2))).toBe(true);
   });
 
-  it('저장 기준이 null이면(서버 상태를 모름) 차트와 무관하게 dirty로 본다', () => {
+  it('savedChartJson이 null이면(불러온 차트 없음) 차트와 무관하게 dirty로 본다', () => {
     expect(isChartDirty(makeChart(), 2, null)).toBe(true);
   });
 });

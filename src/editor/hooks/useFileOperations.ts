@@ -230,7 +230,10 @@ export function useFileOperations(
         setPendingGameplayRange(null);
       }
 
-      // 업로드한 메인·보조 JSON이 새 저장 기준이다. 저장 중에 더한 편집은 이 기준과 달라 dirty로 남는다.
+      // 업로드한 메인·보조 JSON(저장을 시작할 때의 chartToSave)을 savedChartJson으로 정한다.
+      // 재킷·오디오 교체가 함께 있으면 위의 setChart(chartToSave)가 라이브 차트를 chartToSave로 바꾼다. 그래서 그 전까지
+      // 저장 중에 더한 편집은 화면에서 사라져 Undo 기록에만 남고 dirty로 보이지 않는다(기존 동작, 후속 #372).
+      // 교체가 없으면 저장 중 편집은 라이브 차트에 남아 savedChartJson과 달라 dirty다.
       setSavedChartJson({ chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson });
       addToast('Chart saved', 'info');
     } catch (err: unknown) {

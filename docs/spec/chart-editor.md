@@ -643,12 +643,14 @@ Select 모드, 메인 레인(1～4) 롱노트 기준이다. 보조 레인 롱노
 - Supabase Storage에 차트를 **업로드**(저장)할 수 있다. Google OAuth(관리자 전용)로 인증한 뒤 업로드한다.
 - 서버에 저장된 차트를 **로드**(불러오기)하여 편집을 이어갈 수 있다.
 
-#### 저장 기준과 dirty 상태
+#### dirty 상태
 
-- 에디터는 서버에 있는 차트의 메인·보조 직렬화를 **저장 기준**(store의 `savedChartJson`)으로 들고 있다. 현재 차트와 보조 레인 수를 저장할 때와 같은 방식(메인/보조 분리)으로 직렬화해 저장 기준과 다르면 dirty다.
-- 저장 기준은 서버에서 차트를 새로 불러올 때와 Save Chart·Save As가 성공했을 때만 바뀐다. 편집·Undo·테스트 플레이는 바꾸지 않는다.
+- 에디터 store의 `savedChartJson`은 마지막으로 불러오거나 저장한 차트를 Save가 쓰는 방식(메인 `{difficulty}.json`·보조 `{difficulty}.extra.json`)으로 직렬화한 값이다. 불러올 때는 불러온(메인·보조를 합친) 차트를 그때의 보조 레인 수로 직렬화하고, Save Chart·Save As가 성공하면 업로드한 메인·보조 JSON으로 바꾼다.
+- `savedChartJson`은 서버에서 받은 파일 텍스트 자체가 아니다. 예를 들어 `.extra.json`도 `extraLaneCount`도 없는 차트는 보조 레인 수 기본값 2로 직렬화하므로 불러온 직후 dirty가 아니지만, Save하면 보조 레인 수 2인 `.extra.json`을 새로 만든다.
+- 현재 차트와 보조 레인 수를 같은 방식(메인/보조 분리)으로 직렬화해 `savedChartJson`과 다르면 dirty다.
+- `savedChartJson`은 차트를 새로 불러올 때와 Save Chart·Save As가 성공했을 때만 바뀐다. 편집·Undo·테스트 플레이·실패한 저장은 바꾸지 않는다.
 - dirty이면 Save Chart 버튼에 변경 표시가 붙고, Back to Songs는 "Unsaved Changes" 확인을 띄운다. Leave를 누르면 `/game`으로 나가고, Cancel을 누르면 에디터에 남는다.
-- 테스트 플레이에서 에디터로 돌아와도 저장 기준은 그대로다. 저장하지 않고 테스트 플레이한 편집은 돌아온 뒤에도 dirty로 남아 나갈 때 확인을 거친다.
+- 테스트 플레이에서 에디터로 돌아와도 `savedChartJson`은 그대로다. 저장하지 않고 테스트 플레이한 편집은 돌아온 뒤에도 dirty로 남아 나갈 때 확인을 거친다.
 
 ### 다른 이름으로 저장 (Save As)
 
@@ -682,7 +684,7 @@ Select 모드, 메인 레인(1～4) 롱노트 기준이다. 보조 레인 롱노
 
 #### 더티 상태
 
-- Save As 성공 후, 저장 기준(`savedChartJson`)이 새 난이도로 저장한 차트로 갱신되어 더티 상태가 초기화된다.
+- Save As 성공 후, `savedChartJson`이 새 난이도로 업로드한 메인·보조 JSON으로 갱신되어 더티 상태가 초기화된다.
 - 원본 난이도의 차트는 영향을 받지 않는다(Save As 전에 저장하지 않은 변경 사항은 원본에 반영되지 않음).
 
 ### 차트 공개/비공개

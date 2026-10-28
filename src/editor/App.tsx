@@ -116,7 +116,7 @@ export default function EditorApp() {
     }
 
     // Skip chart fetch if already loaded for this song (e.g., returning from test play).
-    // 저장 기준(savedChartJson)도 store에 그대로 남아, 저장하지 않은 편집은 돌아와도 dirty다.
+    // savedChartJson도 store에 그대로 남아, 저장하지 않은 편집은 돌아와도 dirty다.
     const existingStore = useEditorStore.getState();
     if (existingStore.activeSongId === songId) {
       // Re-fetch audio URL so PlaybackController reloads audio
@@ -147,7 +147,8 @@ export default function EditorApp() {
         // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
         useEditorStore.getState().loadChart(merged);
         if (mergedExtraLaneCount > 0 || hasExtraLaneCount) useEditorStore.getState().setExtraLaneCount(mergedExtraLaneCount);
-        // 막 불러온 차트가 서버에 있는 상태다 — 보조 레인 수까지 정한 뒤 저장 기준으로 삼는다.
+        // 불러온 차트를 Save가 쓰는 방식으로 직렬화해 savedChartJson으로 삼는다. 보조 레인 수를 정한 뒤여야 한다
+        // (먼저 만들면 기본값 2로 직렬화해, 보조 레인 수 3인 차트가 열자마자 dirty가 된다).
         const loaded = useEditorStore.getState();
         loaded.setSavedChartJson(toSavedChartJson(loaded.chart, loaded.extraLaneCount));
         setActiveSongId(songId);
