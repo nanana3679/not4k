@@ -306,7 +306,7 @@ describe("TimelineSpace — 히트테스트", () => {
       });
 
       it("5.125박 유지 노트가 덮는 5.1박(y=2550)은 점수 노트가 이겨 hitTestNoteEnd가 null이다", () => {
-        const notes: DocumentNoteEntity[] = [...connectedBodies(), { type: "sustain", lane: 1, beat: beat(41, 8), count: 1 }];
+        const notes: DocumentNoteEntity[] = [...connectedBodies(), { type: "tick", lane: 1, beat: beat(41, 8), count: 1 }];
         const { source } = makeFakeSource({ chart: makeChart({ notes }) });
         const space = createTimelineSpace(source);
         expect(space.hitTestUnifiedNote(30, 2550)).toBe(3);

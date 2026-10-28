@@ -17,9 +17,9 @@ describe("createChartTiming", () => {
   it("120 BPM에서 명시 길이 0 바디·Point·릴리즈·유지의 시간은 보존하고 구형 판정 수 집계는 거부한다", () => {
     const timing = createChartTiming(makeSource({ notes: [
       { type: "body", lane: 1, beat: beat(1), endBeat: beat(1), holdCount: 2 },
-      { type: "point", kind: "double", lane: 2, beat: beat(2) },
+      { type: "tap", kind: "double", lane: 2, beat: beat(2) },
       { type: "release", lane: 2, beat: beat(3), count: 1 },
-      { type: "sustain", lane: 2, beat: beat(4), count: 2 },
+      { type: "tick", lane: 2, beat: beat(4), count: 2 },
     ] }));
     expect([...timing.noteTimesMs.values()]).toEqual([500, 1000, 1500, 2000]);
     expect([...timing.noteEndTimesMs]).toEqual([[0, 500]]);

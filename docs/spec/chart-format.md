@@ -10,10 +10,10 @@
 
 | 타입 | 필수 필드 | 선택 필드와 의미 |
 | --- | --- | --- |
-| `ExplicitPointNote` | `type: "point"`, `kind: "single" \| "double" \| "trill"`, `lane`, `beat` | `grace`는 Point 전체에 적용 |
+| `TapNote` | `type: "tap"`, `kind: "single" \| "double" \| "trill"`, `lane`, `beat` | `grace`는 Point 전체에 적용 |
 | `BodyNote` | `type: "body"`, `lane`, `beat`, `endBeat`, `holdCount: 1 \| 2` | `trill: true`는 hold 수 1인 트릴 바디에만 사용. `holdOnly`나 내장 점수 항목 없음 |
 | `ReleaseNote` | `type: "release"`, `lane`, `beat`, `count: 1 \| 2` | `grace`는 릴리즈 전체에 적용. 더블 안에 일반/Grace를 섞지 않음 |
-| `SustainNote` | `type: "sustain"`, `lane`, `beat`, `count: 1 \| 2` | 명시 표식 수. 바디 소속과 수량 일치 여부는 위치 관계의 의미 검증 소유 |
+| `TickNote` | `type: "tick"`, `lane`, `beat`, `count: 1 \| 2` | 명시 표식 수. 바디 소속과 수량 일치 여부는 위치 관계의 의미 검증 소유 |
 | 구형 `PointNote` | `type: "single" \| "double" \| "trill"`, `lane`, `beat` | 기존 `grace` 보존 |
 | 구형 `RangeNote` | `type: "long" \| "doubleLong" \| "trillLong"`, `lane`, `beat`, `endBeat` | 기존 `holdOnly` 의미 보존 |
 
@@ -29,6 +29,8 @@
 | v4 | 구형·명시 타입을 항목별로 읽기 | 명시 항목이 있는 신형·혼합 문서는 v4 출력 |
 
 지원하지 않는 버전이나 구형 포맷에 명시 타입을 숨긴 입력을 현재 구형 의미로 추정해 읽지 않는다. v4 안의 구형 항목도 그대로 구형이다. 구형 항목만 남은 문서는 기존 정규 출력으로 돌아갈 수 있으며 이 정규화는 항목의 의미를 바꾸지 않는다.
+
+명시 점수 노트의 저장 이름은 `tap`·`release`·`tick`·`body`다([RFD 0041](../rfd/0041-explicit-score-note-names-tap-tick.md)). 이름 변경 전의 `"point"`·`"sustain"`은 별칭으로 읽지 않고 "지원하지 않는 노트 type"으로 거부한다. 원격 저장소에 그 이름으로 저장된 v4 차트는 없다.
 
 옵션 플래그 `grace`·`holdOnly`는 부재·`true`·명시한 `false`를 보존한다. 바디의 `trill`은 `true`만 쓰고 트릴 바디가 아니면 생략하며, 바디 `trill: false`는 형식 오류다. 기존 메인 codec이 생략하던 명시 `false`도 새 codec에서는 출력될 수 있다. 비교 기준점과 현재 문서는 같은 codec을 사용하고, 한 번 읽어 저장한 뒤의 왕복 표현은 안정적이어야 한다.
 
@@ -54,7 +56,7 @@ dirty 비교는 저장과 같은 항목·속성·수량·메타데이터·보조
 
 혼합 문서에서도 구형 범위가 소유한 배치 제약은 유지한다. 구형 `holdOnly` 끝의 Point 금지, 길이 0 구형 롱노트의 head Point 금지, 같은 unit 수의 구형 연결 경계의 head 필요, 구형 트릴 롱노트의 트릴 head 필요는 명시 Point도 Point로 인식해 검사한다. 구형 범위를 새 바디로, 명시 바디·릴리즈·유지를 구형 항목으로 다시 해석하지는 않는다.
 
-명시 바디 둘이 같은 레인에서 맞닿고(앞 바디 끝 = 뒤 바디 시작) hold 수와 트릴 여부가 같으면(일반 바디 → 일반 바디, 트릴 바디 → 트릴 바디) 화면에서 한 바디와 구별되지 않으므로 경계에 Point나 릴리즈가 있어야 한다. 둘 다 없으면 두 바디를 가리키는 `sameHoldCountConnectionWithoutPointOrRelease` 의미 위반으로 저장을 막는다. 길이 0 뒤 바디와 보조 레인에도 적용하며, 경계의 유지 표식은 경계의 Point·릴리즈로 인정하지 않는다. 메인 레인의 트릴 바디 → 트릴 바디 경계에서 시작 트릴 Point 누락은 `trillLongInvalid`가 보고하므로 이 위반을 겹쳐 내지 않는다.
+명시 바디 둘이 같은 레인에서 맞닿고(앞 바디 끝 = 뒤 바디 시작) hold 수와 트릴 여부가 같으면(일반 바디 → 일반 바디, 트릴 바디 → 트릴 바디) 화면에서 한 바디와 구별되지 않으므로 경계에 Point나 릴리즈가 있어야 한다. 둘 다 없으면 두 바디를 가리키는 `sameHoldCountConnectionWithoutTapOrRelease` 의미 위반으로 저장을 막는다. 길이 0 뒤 바디와 보조 레인에도 적용하며, 경계의 유지 표식은 경계의 Point·릴리즈로 인정하지 않는다. 메인 레인의 트릴 바디 → 트릴 바디 경계에서 시작 트릴 Point 누락은 `trillLongInvalid`가 보고하므로 이 위반을 겹쳐 내지 않는다.
 
 트릴 바디와 일반 바디는 모양이 달라 맞닿아도 구별되므로 어느 방향이든 이 규칙에서 제외한다. 트릴 바디 → 일반 바디는 사용자 결정(2026-10-27)이고, 일반 바디 → 트릴 바디는 사용자 정정(2026-10-28)이다. 같은 날 앞서 보조 레인의 일반 바디 → 트릴 바디를 막기로 한 답은 질문을 잘못 이해한 것이었다고 사용자가 바로잡았다. 기존 규칙의 적용(사용자 결정이 아님): 메인 레인에서 트릴 바디로 들어가는 경계는 이 제외와 관계없이 기존 `trillLongInvalid`가 시작 트릴 Point를 요구한다. 메인 레인의 트릴 바디 → 일반 바디는 뒤 바디 시작이 `trillZone` 끝에 걸려 `trillExclusive`가 따로 막는다. 그래서 두 방향의 제외가 결과를 바꾸는 곳은 판정하지 않는 보조 레인뿐이다.
 

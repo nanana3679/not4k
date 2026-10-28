@@ -92,8 +92,8 @@ export interface RangeNote {
 export type NoteEntity = PointNote | RangeNote;
 
 /** RFD 0037 명시 Point. 구형 Point의 type을 문서 버전으로 재해석하지 않는다. */
-export interface ExplicitPointNote {
-  type: "point";
+export interface TapNote {
+  type: "tap";
   kind: "single" | "double" | "trill";
   lane: number;
   beat: Beat;
@@ -118,19 +118,19 @@ export interface ReleaseNote {
 }
 
 /** 명시 유지 표식 수. 소속 관계/수량의 의미 검증은 저장 파서와 분리한다. */
-export interface SustainNote {
-  type: "sustain";
+export interface TickNote {
+  type: "tick";
   lane: number;
   beat: Beat;
   count: 1 | 2;
 }
 
-export type ExplicitNoteEntity = ExplicitPointNote | BodyNote | ReleaseNote | SustainNote;
+export type ExplicitNoteEntity = TapNote | BodyNote | ReleaseNote | TickNote;
 /** 읽기·수리·혼합 저장용 문서 항목. NoteEntity는 현행 구형 소비자의 계약으로 유지한다. */
 export type DocumentNoteEntity = NoteEntity | ExplicitNoteEntity;
 
 export function isExplicitNote(note: DocumentNoteEntity): note is ExplicitNoteEntity {
-  return note.type === "point" || note.type === "body" || note.type === "release" || note.type === "sustain";
+  return note.type === "tap" || note.type === "body" || note.type === "release" || note.type === "tick";
 }
 
 /** 구형/명시 Point 또는 명시 릴리즈의 Grace 여부. */

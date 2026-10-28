@@ -9,7 +9,7 @@
 
 import type {
   ChartDocument,
-  ExplicitPointNote,
+  TapNote,
   BodyNote,
   DocumentNoteEntity,
   TrillZone,
@@ -30,7 +30,7 @@ export type EntityType =
   | "doubleLong"
   | "release"
   | "doubleRelease"
-  | "sustain"
+  | "tick"
   | "trillZone"
   | "restZone"
   | "bpm"
@@ -49,7 +49,7 @@ const ENTITY_TYPES: readonly EntityType[] = [
   "doubleLong",
   "release",
   "doubleRelease",
-  "sustain",
+  "tick",
   "trillZone",
   "restZone",
 ] as const;
@@ -95,7 +95,7 @@ export class CreateMode implements EditorMode {
   private _dragEntityTypeOverride: RangeNoteEntityType | null = null;
   // single/double로 시작한 드래그에서, 길이 0이면 점노트로 떨어뜨리기 위한 폴백 타입.
   // 명시적 long/doubleLong 드래그(=beginRangeNoteAt, 또는 long 엔티티)에서는 null로 둔다.
-  private _dragPointFallback: "single" | "double" | null = null;
+  private _dragTapFallback: "single" | "double" | null = null;
 
   constructor(chart: ChartDocument, callbacks: CreateModeCallbacks) {
     this.chart = chart;
@@ -196,9 +196,9 @@ export class CreateMode implements EditorMode {
   }
 
   /** 터치 롱프레스도 Point 도구의 드래그와 같은 생성 조합을 사용한다. */
-  beginPointDragAt(x: number, y: number, kind: "single" | "double"): boolean {
+  beginTapToolDragAt(x: number, y: number, kind: "single" | "double"): boolean {
     const started = this.beginRangeNoteAt(x, y, kind === "double" ? "doubleLong" : "long");
-    if (started) this._dragPointFallback = kind;
+    if (started) this._dragTapFallback = kind;
     return started;
   }
 
@@ -219,7 +219,7 @@ export class CreateMode implements EditorMode {
   isPlacementBlocked(x: number, y: number): boolean {
     if (!this.callbacks.isTimeInBounds(y)) return true;
     // 명시 표식은 바디 안에도 놓는다. 중복·소속은 공용 의미 검증으로 표시한다.
-    if (this.selectedEntityType === "sustain" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
+    if (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
     const unifiedHit = this.callbacks.space.hitTestUnifiedNote(x, y);
     if (unifiedHit !== null && this.chart.notes[unifiedHit]?.type === "body") return false;
     const hitIdx = this.callbacks.space.hitTestNote(x, y);
@@ -248,8 +248,8 @@ export class CreateMode implements EditorMode {
     const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
     const unifiedLane = this.callbacks.space.xToUnifiedLane(x);
-    if (unifiedLane !== null && (this.selectedEntityType === "sustain" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease")) {
-      if (this.selectedEntityType === "sustain") this.createSustain(unifiedLane, beat);
+    if (unifiedLane !== null && (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease")) {
+      if (this.selectedEntityType === "tick") this.createTickNote(unifiedLane, beat);
       else this.commitNotes([...this.chart.notes, { type: "release", lane: unifiedLane, beat, count: this.selectedEntityType === "doubleRelease" ? 2 : 1, ...(this._graceMode ? { grace: true } : {}) }]);
       return;
     }
@@ -285,7 +285,7 @@ export class CreateMode implements EditorMode {
         this._dragExtraLane = extraLane;
         this._dragType = "extraRangeNote";
         this._dragEntityTypeOverride = this.selectedEntityType === "double" ? "doubleLong" : "long";
-        this._dragPointFallback = this.selectedEntityType;
+        this._dragTapFallback = this.selectedEntityType;
         return;
       }
       if (this.selectedEntityType === "long" || this.selectedEntityType === "doubleLong") {
@@ -315,7 +315,7 @@ export class CreateMode implements EditorMode {
       this.dragStartLane = lane;
       this._dragType = "rangeNote";
       this._dragEntityTypeOverride = this.selectedEntityType === "double" ? "doubleLong" : "long";
-      this._dragPointFallback = this.selectedEntityType;
+      this._dragTapFallback = this.selectedEntityType;
       return;
     }
 
@@ -365,7 +365,7 @@ export class CreateMode implements EditorMode {
     this._dragType = null;
     this._dragExtraLane = null;
     this._dragEntityTypeOverride = null;
-    this._dragPointFallback = null;
+    this._dragTapFallback = null;
   }
 
   /** 두 Beat가 같은 값인지(분수 동치) */
@@ -382,8 +382,8 @@ export class CreateMode implements EditorMode {
     if (this._dragType === "rangeNote") {
       if (this.dragStartLane !== null && this.dragStartBeat !== null) {
         // single/double 통합 드래그가 길이 0이면 단노트로 떨어뜨린다.
-        if (this._dragPointFallback && this.isSameBeat(this.dragStartBeat, endBeat)) {
-          this.createPointNote(this.dragStartLane, this.dragStartBeat);
+        if (this._dragTapFallback && this.isSameBeat(this.dragStartBeat, endBeat)) {
+          this.createTapNote(this.dragStartLane, this.dragStartBeat);
         } else {
           this.createRangeNote(this.dragStartLane, this.dragStartBeat, endBeat);
         }
@@ -402,8 +402,8 @@ export class CreateMode implements EditorMode {
       }
     } else if (this._dragType === "extraRangeNote") {
       if (this._dragExtraLane !== null && this.dragStartBeat !== null) {
-        if (this._dragPointFallback && this.isSameBeat(this.dragStartBeat, endBeat)) {
-          this.createExtraPointNote(this._dragExtraLane, this.dragStartBeat);
+        if (this._dragTapFallback && this.isSameBeat(this.dragStartBeat, endBeat)) {
+          this.createExtraTapNote(this._dragExtraLane, this.dragStartBeat);
         } else {
           this.createExtraRangeNote(this._dragExtraLane, this.dragStartBeat, endBeat);
         }
@@ -417,7 +417,7 @@ export class CreateMode implements EditorMode {
     this._dragType = null;
     this._dragExtraLane = null;
     this._dragEntityTypeOverride = null;
-    this._dragPointFallback = null;
+    this._dragTapFallback = null;
   }
 
   /** Handle C+wheel for entity type cycling */
@@ -452,9 +452,9 @@ export class CreateMode implements EditorMode {
     this.callbacks.onChartUpdate(this.chart);
   }
 
-  private createPointNote(lane: number, beat: Beat): void {
-    const newNote: ExplicitPointNote = {
-      type: "point", kind: this.isInsideTrillZone(lane, beat) ? "trill" : this.selectedEntityType === "double" ? "double" : "single",
+  private createTapNote(lane: number, beat: Beat): void {
+    const newNote: TapNote = {
+      type: "tap", kind: this.isInsideTrillZone(lane, beat) ? "trill" : this.selectedEntityType === "double" ? "double" : "single",
       lane, beat, ...(this._graceMode ? { grace: true } : {}),
     };
     this.commitNotes([...this.chart.notes, newNote]);
@@ -470,8 +470,8 @@ export class CreateMode implements EditorMode {
       : { type: "body", lane, beat: start, endBeat: end, holdCount: 1, ...(inTrill ? { trill: true } : {}) };
     const notes: DocumentNoteEntity[] = [body];
     // Point 도구로 시작한 양수 드래그만 점수 노트를 함께 만든다. 바디 도구는 바디만 만든다.
-    if (this._dragPointFallback && !beatEq(start, end)) {
-      notes.unshift({ type: "point", kind: inTrill ? "trill" : holdCount === 2 ? "double" : "single",
+    if (this._dragTapFallback && !beatEq(start, end)) {
+      notes.unshift({ type: "tap", kind: inTrill ? "trill" : holdCount === 2 ? "double" : "single",
         lane, beat: start, ...(this._graceMode ? { grace: true } : {}) });
       if (!inTrill) notes.push({ type: "release", count: holdCount, lane, beat: end,
         ...(this._graceMode ? { grace: true } : {}) });
@@ -479,22 +479,22 @@ export class CreateMode implements EditorMode {
     this.commitNotes([...this.chart.notes, ...notes]);
   }
 
-  private createSustain(lane: number, at: Beat): void {
-    const probe: DocumentNoteEntity = { type: "sustain", lane, beat: at, count: 1 };
+  private createTickNote(lane: number, at: Beat): void {
+    const probe: DocumentNoteEntity = { type: "tick", lane, beat: at, count: 1 };
     const relations = deriveExplicitNoteRelations([...this.chart.notes, probe]);
-    const bodyIndex = relations.sustainBodyByNote.get(this.chart.notes.length);
+    const bodyIndex = relations.tickBodyByNote.get(this.chart.notes.length);
     if (bodyIndex !== undefined) {
       const body = this.chart.notes[bodyIndex];
       if (body.type !== "body" || body.trill) return;
-      const existingIndex = this.chart.notes.findIndex(n => n.type === "sustain" && n.lane === lane && beatEq(n.beat, at));
+      const existingIndex = this.chart.notes.findIndex(n => n.type === "tick" && n.lane === lane && beatEq(n.beat, at));
       if (existingIndex >= 0) {
         if (body.holdCount === 2 || !beatEq(body.beat, body.endBeat)) return;
         const notes = [...this.chart.notes];
         notes[bodyIndex] = { type: "body", lane: body.lane, beat: body.beat, endBeat: body.endBeat, holdCount: 2 };
-        notes[existingIndex] = { type: "sustain", lane, beat: at, count: 2 };
+        notes[existingIndex] = { type: "tick", lane, beat: at, count: 2 };
         this.commitNotes(notes);
       } else {
-        this.commitNotes([...this.chart.notes, { type: "sustain", lane, beat: at, count: body.holdCount }]);
+        this.commitNotes([...this.chart.notes, { type: "tick", lane, beat: at, count: body.holdCount }]);
       }
       return;
     }
@@ -629,8 +629,8 @@ export class CreateMode implements EditorMode {
   // 보조 노트는 표시 전용이라 editorChartErrors 배치 제약을 적용하지 않는다(기존 동작 계승).
   // -------------------------------------------------------------------------
 
-  private createExtraPointNote(extraLane: number, at: Beat): void {
-    this.createPointNote(fromAuxIndex(extraLane), at);
+  private createExtraTapNote(extraLane: number, at: Beat): void {
+    this.createTapNote(fromAuxIndex(extraLane), at);
   }
 
   private createExtraRangeNote(extraLane: number, startBeat: Beat, endBeat: Beat): void {

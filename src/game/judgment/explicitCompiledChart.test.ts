@@ -6,7 +6,7 @@ import { ExplicitChartCompileError, compileExplicitJudgmentChart } from "./expli
 import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
 import { explicitEnjFixtures } from "./explicitEnjFixtures";
 import { explicitHcFixtures } from "./explicitHcFixtures";
-import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRelease as r, explicitFixtureSustain as s,
+import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelease as r, explicitFixtureTick as s,
   makeExplicitReplayFixture, replayExplicitFixture } from "./explicitJudgmentTestHarness";
 
 const chart = (notes: DocumentNoteEntity[]): ChartDocument => ({ ...explicitEnjFixtures[0].chart, notes });
@@ -15,7 +15,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
   it("double Point2+body2+sustain2+release1은 점수5개·가중치15와 바디2몫을 만든다", () => {
     const compiled = compileExplicitJudgmentChart(chart([p(1000, "double"), b(1000, 2000, 2), s(1500, 2), r(2000)]));
     expect(compiled.format).toBe("explicit");
-    expect(compiled.scoreItems.map(item => item.kind)).toEqual(["point", "point", "sustain", "sustain", "release"]);
+    expect(compiled.scoreItems.map(item => item.kind)).toEqual(["tap", "tap", "tick", "tick", "release"]);
     expect(compiled.totalJudgments).toBe(5);
     expect(compiled.theoreticalWeight).toBe(15);
     expect(compiled.bodyUnits).toHaveLength(2);
@@ -49,7 +49,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(() => compileExplicitJudgmentChart(document)).toThrow(ExplicitChartCompileError);
     try { compileExplicitJudgmentChart(document); } catch (error) {
       expect((error as ExplicitChartCompileError).validation.semantic).toEqual([expect.objectContaining({
-        rule: "sameHoldCountConnectionWithoutPointOrRelease",
+        rule: "sameHoldCountConnectionWithoutTapOrRelease",
         refs: expect.arrayContaining([{ kind: "note", index: 0 }, { kind: "note", index: 1 }]) })]);
     }
   });
@@ -74,10 +74,10 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
   it("2→1 경계 release는 앞 body 감소 끝, 같은 경계 sustain은 뒤 body 몫을 가리킨다", () => {
     const release = compileExplicitJudgmentChart(chart([b(1000, 2000, 2), b(2000, 3000), r(2000)]));
     expect(release.scoreItems[0]).toMatchObject({ source: { noteIndex: 2 }, bodyIndex: 0, boundaryKind: "decrease" });
-    const sustain = compileExplicitJudgmentChart(chart([b(1000, 2000, 2), b(2000, 3000), s(2000)]));
-    expect(sustain.scoreItems[0]).toMatchObject({ source: { noteIndex: 2 }, bodyIndex: 1, bodyUnit: { bodyIndex: 1, ordinal: 0 } });
-    expect(sustain.bodies[0].sustainIndices).toEqual([]);
-    expect(sustain.bodies[1].sustainIndices).toEqual([2]);
+    const tick = compileExplicitJudgmentChart(chart([b(1000, 2000, 2), b(2000, 3000), s(2000)]));
+    expect(tick.scoreItems[0]).toMatchObject({ source: { noteIndex: 2 }, bodyIndex: 1, bodyUnit: { bodyIndex: 1, ordinal: 0 } });
+    expect(tick.bodies[0].tickIndices).toEqual([]);
+    expect(tick.bodies[1].tickIndices).toEqual([2]);
   });
 
   it("바디 밖 release는 standalone이며 몸통·시작 Point나 자동 owner를 만들지 않는다", () => {
@@ -104,7 +104,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     ]));
     expect(compiled.bodies.map(body => body.source.noteIndex)).toEqual([1]);
     expect(compiled.scoreItems.map(item => item.source.noteIndex)).toEqual([3]);
-    expect(compiled.relations.sustainBodyByNote.get(2)).toBe(4);
+    expect(compiled.relations.tickBodyByNote.get(2)).toBe(4);
   });
 
   it.each(["single", "long"] as const)("게임 레인에 남은 구형 %s는 변환 없이 compiler에서 거부한다", type => {
@@ -144,7 +144,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     const marked = compileExplicitJudgmentChart(chart([p(1000), b(1000, 2000), r(2000), s(1500)]));
     expect(marked.bodyUnits).toEqual(base.bodyUnits);
     expect(marked.connections).toEqual(base.connections);
-    expect(marked.scoreItems.filter(item => item.kind !== "sustain")).toEqual(base.scoreItems);
+    expect(marked.scoreItems.filter(item => item.kind !== "tick")).toEqual(base.scoreItems);
   });
 
   it("trill Point·무점수 body는 zone index1을 보존하며 끝 release·holdOnly 점수를 자동 생성하지 않는다", () => {
@@ -152,8 +152,8 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     document.trillZones = [{ lane: 2, beat: beat(0), endBeat: beat(4) }, { lane: 1, beat: beat(0), endBeat: beat(4) }];
     const compiled = compileExplicitJudgmentChart(document);
     expect(compiled.bodies[0].trillZoneIndex).toBe(1);
-    expect(compiled.scoreItems[0]).toMatchObject({ kind: "point", pointKind: "trill", trillZoneIndex: 1 });
-    expect(compiled.scoreItems.map(item => item.kind)).toEqual(["point"]);
+    expect(compiled.scoreItems[0]).toMatchObject({ kind: "tap", tapKind: "trill", trillZoneIndex: 1 });
+    expect(compiled.scoreItems.map(item => item.kind)).toEqual(["tap"]);
     expect(compiled.theoreticalWeight).toBe(3);
     expect(compiled.bodyUnits.map(unit => unit.weight)).toEqual([0]);
   });

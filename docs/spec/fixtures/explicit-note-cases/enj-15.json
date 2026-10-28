@@ -3,7 +3,7 @@
   "title": "ENJ-15 — 싱글 바디 더블 릴리즈도 시작 Point 재누름 예외 적용",
   "notes": [
     {
-      "kind": "point",
+      "kind": "tap",
       "atMs": 600,
       "count": 1,
       "lane": 1
@@ -16,7 +16,7 @@
       "lane": 1
     },
     {
-      "kind": "point",
+      "kind": "tap",
       "atMs": 1000,
       "count": 1,
       "lane": 1

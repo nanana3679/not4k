@@ -20,8 +20,8 @@
   },
   "assets": [
     {
-      "id": "point.single.pending",
-      "role": "point",
+      "id": "tap.single.pending",
+      "role": "tap",
       "variant": "single",
       "state": "pending",
       "file": "note-single.png",
@@ -50,8 +50,8 @@
       "sourceApproval": "approved-artwork"
     },
     {
-      "id": "point.double.pending",
-      "role": "point",
+      "id": "tap.double.pending",
+      "role": "tap",
       "variant": "double",
       "state": "pending",
       "file": "note-double-anodized-contrast-070.png",
@@ -80,8 +80,8 @@
       "sourceApproval": "approved-artwork"
     },
     {
-      "id": "point.double.failed",
-      "role": "point",
+      "id": "tap.double.failed",
+      "role": "tap",
       "variant": "double",
       "state": "failed",
       "file": "note-double-failed.png",
@@ -121,8 +121,8 @@
       }
     },
     {
-      "id": "point.trill.pending",
-      "role": "point",
+      "id": "tap.trill.pending",
+      "role": "tap",
       "variant": "trill",
       "state": "pending",
       "file": "note-trill.png",
@@ -151,8 +151,8 @@
       "sourceApproval": "historical-runtime-v014"
     },
     {
-      "id": "point.trill.failed",
-      "role": "point",
+      "id": "tap.trill.failed",
+      "role": "tap",
       "variant": "trill",
       "state": "failed",
       "file": "note-trill-failed.png",
@@ -917,8 +917,8 @@
       }
     },
     {
-      "id": "sustain.single.pending",
-      "role": "sustain",
+      "id": "tick.single.pending",
+      "role": "tick",
       "variant": "single",
       "state": "pending",
       "markerCenter": {
@@ -962,8 +962,8 @@
       }
     },
     {
-      "id": "sustain.double.pending.left",
-      "role": "sustain",
+      "id": "tick.double.pending.left",
+      "role": "tick",
       "variant": "double",
       "state": "pending",
       "side": "left",
@@ -1009,8 +1009,8 @@
       }
     },
     {
-      "id": "sustain.double.pending.right",
-      "role": "sustain",
+      "id": "tick.double.pending.right",
+      "role": "tick",
       "variant": "double",
       "state": "pending",
       "side": "right",
@@ -1056,8 +1056,8 @@
       }
     },
     {
-      "id": "sustain.single.failed",
-      "role": "sustain",
+      "id": "tick.single.failed",
+      "role": "tick",
       "variant": "single",
       "state": "failed",
       "markerCenter": {
@@ -1101,8 +1101,8 @@
       }
     },
     {
-      "id": "sustain.double.failed.left",
-      "role": "sustain",
+      "id": "tick.double.failed.left",
+      "role": "tick",
       "variant": "double",
       "state": "failed",
       "side": "left",
@@ -1148,8 +1148,8 @@
       }
     },
     {
-      "id": "sustain.double.failed.right",
-      "role": "sustain",
+      "id": "tick.double.failed.right",
+      "role": "tick",
       "variant": "double",
       "state": "failed",
       "side": "right",
@@ -1195,9 +1195,9 @@
       }
     },
     {
-      "id": "graceOverlay.point.overlay",
+      "id": "graceOverlay.tap.overlay",
       "role": "graceOverlay",
-      "variant": "point",
+      "variant": "tap",
       "state": "overlay",
       "file": "point-grace-overlay.png",
       "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/point-grace-overlay.png",

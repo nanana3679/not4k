@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { compileExplicitJudgmentChart } from "./explicitCompiledChart";
 import { createExplicitPlaybackChartView, selectExplicitPlaybackChart } from "./explicitPlaybackChart";
-import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRelease as r,
-  explicitFixtureSustain as s, makeExplicitReplayFixture } from "./explicitJudgmentTestHarness";
+import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelease as r,
+  explicitFixtureTick as s, makeExplicitReplayFixture } from "./explicitJudgmentTestHarness";
 
 const compile = (notes: Parameters<typeof makeExplicitReplayFixture>[2]) => compileExplicitJudgmentChart(
   makeExplicitReplayFixture("ENJ-playback", "I2 재생 범위", notes, [],
@@ -12,16 +12,16 @@ describe("원본 출처를 보존하는 명시 재생 범위", () => {
   it("커서 1500ms 앞 Point·유지를 제외하고 정확히 1500ms 유지와 2000ms 릴리즈만 2항목·6점으로 포함", () => {
     const source = compile([p(1000), b(1000, 2000), s(1490), s(1500), r(2000)]);
     const view = selectExplicitPlaybackChart(source, 1500);
-    expect(view.scoreItems.map(item => [item.id, item.timeMs])).toEqual([["n3:sustain:0", 1500], ["n4:release:0", 2000]]);
+    expect(view.scoreItems.map(item => [item.id, item.timeMs])).toEqual([["n3:tick:0", 1500], ["n4:release:0", 2000]]);
     expect(view).toMatchObject({ totalJudgments: 2, theoreticalWeight: 6 });
     expect(view.bodies[0]).toMatchObject({ source: { noteIndex: 1 }, startMs: 1500, endMs: 2000,
-      startPointIndices: [], sustainIndices: [3], releaseIndices: [4] });
+      startTapIndices: [], tickIndices: [3], releaseIndices: [4] });
     expect(source).toMatchObject({ totalJudgments: 4, theoreticalWeight: 12 });
-    expect(source.bodies[0].startPointIndices).toEqual([0]);
+    expect(source.bodies[0].startTapIndices).toEqual([0]);
   });
 
-  it.each(["point", "release", "sustain"] as const)("%s의 명시 시각 1500ms는 cut1500에 포함하고 cut1500.001에는 제외", kind => {
-    const source = compile(kind === "point" ? [p(1500)] : kind === "release" ? [r(1500)] : [b(1000, 2000), s(1500)]);
+  it.each(["tap", "release", "tick"] as const)("%s의 명시 시각 1500ms는 cut1500에 포함하고 cut1500.001에는 제외", kind => {
+    const source = compile(kind === "tap" ? [p(1500)] : kind === "release" ? [r(1500)] : [b(1000, 2000), s(1500)]);
     expect(selectExplicitPlaybackChart(source, 1500).scoreItems).toHaveLength(1);
     expect(selectExplicitPlaybackChart(source, 1500.001).scoreItems).toHaveLength(0);
   });
@@ -61,7 +61,7 @@ describe("원본 출처를 보존하는 명시 재생 범위", () => {
     expect(view.scoreItems).toEqual(source.scoreItems);
     expect(view.totalJudgments).toBe(4);
     expect(view.theoreticalWeight).toBe(12);
-    expect(view.bodies[0].startPointIndices).toEqual([0]);
+    expect(view.bodies[0].startTapIndices).toEqual([0]);
   });
 
   it("1500ms 이전에 끝난 바디는 표시에서 제외하고 정확히 1500ms 끝·길이0·시작은 원본 index로 보존", () => {
@@ -87,7 +87,7 @@ describe("원본 출처를 보존하는 명시 재생 범위", () => {
     const view = createExplicitPlaybackChartView(source, 1500, source.scoreItems);
     for (const value of [view, view.bodies, view.bodies[0], view.bodies[0].source, view.bodies[0].units,
       view.bodyUnits, view.bodyUnits[0], view.bodyUnits[0].ref, view.scoreItems, view.scoreItems[0], view.scoreItems[0].source,
-      view.bodies[0].startPointIndices, view.bodies[0].releaseIndices, view.bodies[0].sustainIndices]) {
+      view.bodies[0].startTapIndices, view.bodies[0].releaseIndices, view.bodies[0].tickIndices]) {
       expect(Object.isFrozen(value)).toBe(true);
     }
     expect(Object.isFrozen(source)).toBe(false);

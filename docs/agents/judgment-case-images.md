@@ -44,7 +44,7 @@ pnpm case:image --explicit chart-v4.json --out /tmp/explicit.png
 pnpm case:image --explicit chart-v4.json --engine . --engine ../other-explicit-engine --out /tmp/compare.png
 ```
 
-`--explicit`은 `version: 4`인 `ChartDocument` JSON만 받는다. 노트의 `point`·`body`·`release`·`sustain` 의미를 그대로 새 compiler/session에 전달하며 구형 `NoteEntity`로 변환하지 않는다. 구형 텍스트·v3와 `judgment-case-design` JSON은 거부한다. 기본 legacy 모드에 v4를 넘기면 `--explicit`, `judgment-case-design` JSON을 넘기면 `--design` 사용 안내와 함께 거부한다. 깨진 JSON은 기존처럼 차트 파서의 `유효한 JSON이 아닙니다` 오류로 알린다.
+`--explicit`은 `version: 4`인 `ChartDocument` JSON만 받는다. 노트의 `tap`·`body`·`release`·`tick` 의미를 그대로 새 compiler/session에 전달하며 구형 `NoteEntity`로 변환하지 않는다. 구형 텍스트·v3와 `judgment-case-design` JSON은 거부한다. 기본 legacy 모드에 v4를 넘기면 `--explicit`, `judgment-case-design` JSON을 넘기면 `--design` 사용 안내와 함께 거부한다. 깨진 JSON은 기존처럼 차트 파서의 `유효한 JSON이 아닙니다` 오류로 알린다.
 
 아래는 BPM 120에서 `N1` Point 1000ms, `N2` 바디 1000～2000ms, `N3` 유지 1500ms, `N4` 릴리즈 2000ms를 실제 입력으로 실행하는 v4 예시다.
 
@@ -53,9 +53,9 @@ pnpm case:image --explicit chart-v4.json --engine . --engine ../other-explicit-e
   "version": 4,
   "meta": { "title": "실제 명시 릴리즈", "artist": "case", "difficultyLabel": "NORMAL", "difficultyLevel": 1, "imageFile": "", "audioFile": "", "previewAudioFile": "", "offsetMs": 0 },
   "notes": [
-    { "type": "point", "kind": "single", "lane": 1, "beat": "2/1" },
+    { "type": "tap", "kind": "single", "lane": 1, "beat": "2/1" },
     { "type": "body", "holdCount": 1, "lane": 1, "beat": "2/1", "endBeat": "4/1" },
-    { "type": "sustain", "count": 1, "lane": 1, "beat": "3/1" },
+    { "type": "tick", "count": 1, "lane": 1, "beat": "3/1" },
     { "type": "release", "count": 1, "lane": 1, "beat": "4/1" }
   ],
   "trillZones": [],
@@ -92,8 +92,8 @@ pnpm case:image --design design.json --out /tmp/design.png --skin classic
   "title": "비대칭 창을 직접 지정한 설계 예시",
   "notes": [
     { "kind": "body", "startMs": 1000, "endMs": 2000 },
-    { "kind": "point", "atMs": 1000 },
-    { "kind": "maintain", "atMs": 1500 },
+    { "kind": "tap", "atMs": 1000 },
+    { "kind": "tick", "atMs": 1500 },
     { "kind": "release", "atMs": 2000 }
   ],
   "inputs": [{ "key": "A", "downMs": 950, "upMs": 1950 }],
@@ -114,7 +114,7 @@ pnpm case:image --design design.json --out /tmp/design.png --skin classic
 | --- | --- |
 | `format` | 반드시 `judgment-case-design`. 에디터 JSON과 구분한다 |
 | `title` | 이미지 밖에 표시할 제목. 생략하면 파일 이름, 표준 입력이면 `설계 예시` |
-| `notes` | 1개 이상. `kind`는 `body`·`point`·`release`·`maintain`·`marker`(자유 표식). `body`는 `startMs`·`endMs`, 나머지는 `atMs`를 쓴다 |
+| `notes` | 1개 이상. `kind`는 `body`·`tap`·`release`·`tick`·`marker`(자유 표식). `body`는 `startMs`·`endMs`, 나머지는 `atMs`를 쓴다 |
 | 노트 `id`·`name` | `id`를 생략하면 배열 순서대로 `N1`, `N2`, …. `id`는 중복 불가이며 창·설명이 참조하는 이름이다. `name`은 선택 부연 이름이다 |
 | 노트 `lane`·`count` | 각각 기본 1인 양의 정수. `count`는 그림의 수량 표기이며 점수 유닛 생성이나 물리 키 배정을 뜻하지 않는다 |
 | `inputs` | 선택 배열. `key`·`downMs`, 선택 `lane`(기본 1)·`upMs`. 뗌을 생략하거나 `null`이면 계속 누르는 입력이다 |
@@ -124,8 +124,8 @@ pnpm case:image --design design.json --out /tmp/design.png --skin classic
 | `summary`·`memo` | 선택 문자열. 이미지 밖의 텍스트와 표준 출력에 표시한다 |
 
 - 시각은 유한한 숫자(ms)이며 음수를 허용한다. 구간 끝이 시작보다 이르거나 참조 노트가 없거나 알 수 없는 필드를 쓰면 출처와 필드 위치를 붙여 실패한다.
-- `count` 1·2인 `point`·`body`는 기본 모드와 같은 single·double 에셋, 크기, 타일링, 캡, 접촉 그림자를 쓴다. 실패 설명을 적어도 노트 자체는 기본 모드처럼 대기 상태로 표시한다. `release` 표시는 기존 대기 terminal 에셋을 재사용하며, 새로운 release 에셋 디자인을 확정하는 것은 아니다.
-- 전용 에셋이 없는 `maintain`은 ◇, 자유 표식 `marker`와 3개 이상 수량은 ○로 표시한다(바디 구간은 점선). 해당 사례의 바닥글에 **임시 표식(전용 에셋 없음)**을 명시하며 정식 노트 디자인으로 설명하지 않는다.
+- `count` 1·2인 `tap`·`body`는 기본 모드와 같은 single·double 에셋, 크기, 타일링, 캡, 접촉 그림자를 쓴다. 실패 설명을 적어도 노트 자체는 기본 모드처럼 대기 상태로 표시한다. `release` 표시는 기존 대기 terminal 에셋을 재사용하며, 새로운 release 에셋 디자인을 확정하는 것은 아니다.
+- 전용 에셋이 없는 `tick`은 ◇, 자유 표식 `marker`와 3개 이상 수량은 ○로 표시한다(바디 구간은 점선). 해당 사례의 바닥글에 **임시 표식(전용 에셋 없음)**을 명시하며 정식 노트 디자인으로 설명하지 않는다.
 - **게임의 배치 규칙은 검사하지 않는다.** 같은 위치에 서로 다른 종류를 놓은 금지 예시도 그릴 수 있다. 단, 그림으로 표현하는 구조가 잘못된 입력은 거부한다.
 - 창은 `W1`, `W2`, … 번호와 반투명 띠·점선 경계로 표시한다. 노트·입력·라벨과 같은 시간 축을 쓰며, 지정한 끝점을 축 눈금에 포함한다. 라벨이 밀려도 창의 경계는 실제 지정 시각에 남는다. 현재 엔진의 Good 창으로 치환하지 않는다. `label` 없는 설명 본문은 이미지의 축·배치에 영향을 주지 않는다.
 - `--scale`과 표준 입력 `-`도 사용할 수 있다. 여러 설계 파일은 각자 시간 축을 가진 패널로 **세로로** 쌓는다.

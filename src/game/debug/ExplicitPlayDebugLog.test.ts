@@ -18,7 +18,7 @@ describe('명시 플레이 debug log', () => {
     session.processBatch(1000, [{ type: 'down', lane: 1, key: 'KeyQ' }]); session.advance(1500);
     log.record(session, observation); log.record(session, observation);
     const text = log.exportAsText();
-    expect(text).toContain('"kind":"point"'); expect(text).toContain('"kind":"sustain"');
+    expect(text).toContain('"kind":"tap"'); expect(text).toContain('"kind":"tick"');
     expect(text).toContain('"source":{"noteIndex":'); expect(text).toContain('"songTimeMs":1500');
     expect(text).toContain('"inputTimeMs":1420'); expect(text).toContain('"visualTimeMs":1640');
     expect(text).toContain('"frameDeltaMs":16'); expect(text).toContain('timing=n/a');

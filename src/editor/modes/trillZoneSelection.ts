@@ -87,7 +87,7 @@ export function getSelectedTrillZoneIndices(
 /** 노트가 트릴 노트(trill/trillLong)인지 판정한다. */
 export function isTrillNote(note: DocumentNoteEntity): boolean {
   return note.type === "trill" || note.type === "trillLong"
-    || (note.type === "point" && note.kind === "trill") || (note.type === "body" && note.trill === true);
+    || (note.type === "tap" && note.kind === "trill") || (note.type === "body" && note.trill === true);
 }
 
 /** 트릴 노트가 속한 트릴존 인덱스를 반환한다. 트릴이 아니거나 어느 구간에도 없으면 null. */

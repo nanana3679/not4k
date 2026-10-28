@@ -1,7 +1,7 @@
 /** 정적 도안 가용성이다. 판정 상태 선택·성공 알파·표시 수명은 포함하지 않는다. */
 export const EXPLICIT_SKIN_ASSET_IDS = [
-  "point.single.pending", "point.double.pending", "point.double.failed",
-  "point.trill.pending", "point.trill.failed",
+  "tap.single.pending", "tap.double.pending", "tap.double.failed",
+  "tap.trill.pending", "tap.trill.failed",
   "body.single.idle", "body.single.held", "body.single.failed",
   "body.double.idle", "body.double.held", "body.double.failed",
   "body.trill.idle", "body.trill.held", "body.trill.failed",
@@ -10,15 +10,15 @@ export const EXPLICIT_SKIN_ASSET_IDS = [
   "release.single.pending", "release.single.failed",
   "release.double.pending", "release.double.failed",
   "release.double.partialFailed.left", "release.double.partialFailed.right",
-  "sustain.single.pending", "sustain.single.failed",
-  "sustain.double.pending.left", "sustain.double.pending.right",
-  "sustain.double.failed.left", "sustain.double.failed.right",
-  "graceOverlay.point.overlay", "graceOverlay.trill.overlay", "graceOverlay.release.overlay",
+  "tick.single.pending", "tick.single.failed",
+  "tick.double.pending.left", "tick.double.pending.right",
+  "tick.double.failed.left", "tick.double.failed.right",
+  "graceOverlay.tap.overlay", "graceOverlay.trill.overlay", "graceOverlay.release.overlay",
 ] as const;
 
 export type ExplicitSkinAssetId = typeof EXPLICIT_SKIN_ASSET_IDS[number];
-export type ExplicitSkinRole = "point" | "body" | "release" | "sustain" | "graceOverlay";
-export type ExplicitSkinVariant = "single" | "double" | "trill" | "point" | "release";
+export type ExplicitSkinRole = "tap" | "body" | "release" | "tick" | "graceOverlay";
+export type ExplicitSkinVariant = "single" | "double" | "trill" | "tap" | "release";
 export type ExplicitSkinArtworkState = "pending" | "idle" | "held" | "failed" | "partialHeld" | "partialFailed" | "overlay";
 export interface ExplicitSkinSize { width: number; height: number }
 export interface ExplicitSkinPosition { x: number; y: number }
@@ -84,7 +84,7 @@ export function validateExplicitSkinManifest(manifest: ExplicitSkinManifest): vo
       throw new Error(`Explicit skin role/side mismatch: ${asset.id}`);
     }
     const overlay = asset.role === "graceOverlay";
-    const contentWidth = (asset.role === "point" && asset.variant !== "trill") || (overlay && asset.variant === "point") ? 212 : 200;
+    const contentWidth = (asset.role === "tap" && asset.variant !== "trill") || (overlay && asset.variant === "tap") ? 212 : 200;
     const padding = overlay ? 24 : 0;
     if (asset.logicalSize.width !== contentWidth + padding * 2 || asset.logicalSize.height !== 40 + padding * 2
       || asset.contentRect.x !== padding || asset.contentRect.y !== padding
@@ -93,11 +93,11 @@ export function validateExplicitSkinManifest(manifest: ExplicitSkinManifest): vo
       throw new Error(`Invalid explicit skin geometry: ${asset.id}`);
     }
     const sideMeaning = asset.state === "partialHeld" ? "unmet" : asset.state === "partialFailed" ? "failed"
-      : asset.role === "sustain" && asset.variant === "double" ? "marker" : undefined;
+      : asset.role === "tick" && asset.variant === "double" ? "marker" : undefined;
     if (asset.sideMeaning !== sideMeaning || Boolean(asset.side) !== Boolean(sideMeaning)) {
       throw new Error(`Invalid explicit skin side: ${asset.id}`);
     }
-    if (asset.role === "sustain") {
+    if (asset.role === "tick") {
       const x = asset.variant === "single" ? 100 : asset.side === "left" ? 84 : 116;
       if (asset.markerCenter?.x !== x || asset.markerCenter.y !== 20) {
         throw new Error(`Invalid sustain marker position: ${asset.id}`);

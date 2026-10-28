@@ -203,7 +203,7 @@ export function useCanvasEvents(
         eraseGestureRef.current.begin();
         deleteAtPoint(fx, fy);
       } else if (action === 'createRange' && rangeType) {
-        createModeRef.current?.beginPointDragAt(fx, fy, entityType === "double" ? "double" : "single");
+        createModeRef.current?.beginTapToolDragAt(fx, fy, entityType === "double" ? "double" : "single");
         rendererRef.current?.hideGhostNote();
       } else if (action === 'selectDrag') {
         touchMultiSelectRef.current = true;

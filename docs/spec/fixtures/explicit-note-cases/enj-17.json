@@ -10,25 +10,25 @@
       "lane": 1
     },
     {
-      "kind": "maintain",
+      "kind": "tick",
       "atMs": 1500,
       "count": 1,
       "lane": 1
     },
     {
-      "kind": "point",
+      "kind": "tap",
       "atMs": 1530,
       "count": 1,
       "lane": 2
     },
     {
-      "kind": "point",
+      "kind": "tap",
       "atMs": 1480,
       "count": 1,
       "lane": 3
     },
     {
-      "kind": "point",
+      "kind": "tap",
       "atMs": 1400,
       "count": 1,
       "lane": 4,

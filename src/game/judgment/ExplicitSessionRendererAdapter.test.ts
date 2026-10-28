@@ -14,11 +14,11 @@ const reconstructionChart: ChartDocument = {
   trillZones: [],
   events: [{ type: "bpm", beat: beat(0), bpm: 120 }, { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) }],
   notes: [
-    { type: "point", kind: "single", lane: 1, beat: beat(2) },
+    { type: "tap", kind: "single", lane: 1, beat: beat(2) },
     { type: "body", holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(4) },
-    { type: "sustain", count: 1, lane: 1, beat: beat(3) },
+    { type: "tick", count: 1, lane: 1, beat: beat(3) },
     { type: "release", count: 1, lane: 1, beat: beat(4) },
-    { type: "point", kind: "single", lane: 2, beat: beat(6), grace: true },
+    { type: "tap", kind: "single", lane: 2, beat: beat(6), grace: true },
   ],
 };
 

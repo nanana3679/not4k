@@ -11,9 +11,9 @@ export function explicitRenderChart(notes?: DocumentNoteEntity[], trillZones: Ch
       imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 },
     notes: notes ?? [
       { type: "release", beat: beat(6), lane: 1, count: 2, grace: true },
-      { type: "sustain", beat: beat(4), lane: 1, count: 2 },
+      { type: "tick", beat: beat(4), lane: 1, count: 2 },
       { type: "body", beat: beat(2), endBeat: beat(6), lane: 1, holdCount: 2 },
-      { type: "point", beat: beat(2), lane: 1, kind: "double", grace: true },
+      { type: "tap", beat: beat(2), lane: 1, kind: "double", grace: true },
     ],
     events: [{ type: "bpm", beat: beat(0), bpm: 120 }], trillZones,
   };
@@ -35,7 +35,7 @@ export function explicitRenderSnapshot(chart: ExplicitCompiledChart, options: {
         failedAtMs: state === "failed" ? unit.startMs + 200 : null,
         failureFactId: state === "failed" ? `fixture-failure:${unit.id}` : null,
         maintenanceSinceMs: state === "recovering" ? 1990 : null,
-        maintenanceDeadlineMs: state === "recovering" ? 2010 : null, pointStatus: "none" };
+        maintenanceDeadlineMs: state === "recovering" ? 2010 : null, tapStatus: "none" };
     }),
     items: chart.scoreItems.map(item => {
       const state = options.items?.[item.source.noteIndex]?.[item.ordinal] ?? "pending";

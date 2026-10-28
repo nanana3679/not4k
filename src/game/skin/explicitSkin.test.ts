@@ -12,11 +12,11 @@ describe("명시적 노트 정적 스킨 view", () => {
   it("33개 역할을 조회하면 승인 도안과 같은 역할·좌우 파일을 반환한다", () => {
     const view = buildExplicitSkinView("/");
     const expected = {
-      "point.single.pending": "note-single.png",
-      "point.double.pending": "note-double-anodized-contrast-070.png",
-      "point.double.failed": "note-double-failed.png",
-      "point.trill.pending": "note-trill.png",
-      "point.trill.failed": "note-trill-failed.png",
+      "tap.single.pending": "note-single.png",
+      "tap.double.pending": "note-double-anodized-contrast-070.png",
+      "tap.double.failed": "note-double-failed.png",
+      "tap.trill.pending": "note-trill.png",
+      "tap.trill.failed": "note-trill-failed.png",
       "body.single.idle": "body-single.png",
       "body.single.held": "body-single-held.png",
       "body.single.failed": "body-single-failed.png",
@@ -36,13 +36,13 @@ describe("명시적 노트 정적 스킨 view", () => {
       "release.double.failed": "release-double-failed.png",
       "release.double.partialFailed.left": "release-double-partial-failed-left.png",
       "release.double.partialFailed.right": "release-double-partial-failed-right.png",
-      "sustain.single.pending": "sustain-single.png",
-      "sustain.single.failed": "sustain-single-failed.png",
-      "sustain.double.pending.left": "sustain-double-unit-left.png",
-      "sustain.double.pending.right": "sustain-double-unit-right.png",
-      "sustain.double.failed.left": "sustain-double-unit-left-failed.png",
-      "sustain.double.failed.right": "sustain-double-unit-right-failed.png",
-      "graceOverlay.point.overlay": "point-grace-overlay.png",
+      "tick.single.pending": "sustain-single.png",
+      "tick.single.failed": "sustain-single-failed.png",
+      "tick.double.pending.left": "sustain-double-unit-left.png",
+      "tick.double.pending.right": "sustain-double-unit-right.png",
+      "tick.double.failed.left": "sustain-double-unit-left-failed.png",
+      "tick.double.failed.right": "sustain-double-unit-right-failed.png",
+      "graceOverlay.tap.overlay": "point-grace-overlay.png",
       "graceOverlay.trill.overlay": "trill-grace-overlay.png",
       "graceOverlay.release.overlay": "release-grace-overlay.png",
     };
@@ -66,10 +66,10 @@ describe("명시적 노트 정적 스킨 view", () => {
 
   it("Point 212×40과 body·release·sustain 200×40을 중앙에 놓으면 폭을 섞지 않는다", () => {
     const view = buildExplicitSkinView("/");
-    expect(getExplicitSkinAsset(view, "point.double.pending").logicalSize).toEqual({ width: 212, height: 40 });
+    expect(getExplicitSkinAsset(view, "tap.double.pending").logicalSize).toEqual({ width: 212, height: 40 });
     for (const asset of Object.values(view.assetsById)) {
       expect(asset.anchor).toEqual({ x: 0.5, y: 0.5 });
-      if (["body", "release", "sustain"].includes(asset.role)) {
+      if (["body", "release", "tick"].includes(asset.role)) {
         expect(asset.logicalSize, asset.id).toEqual({ width: 200, height: 40 });
         expect(asset.contentRect, asset.id).toEqual({ x: 0, y: 0, width: 200, height: 40 });
       }
@@ -80,9 +80,9 @@ describe("명시적 노트 정적 스킨 view", () => {
 
   it("Grace overlay를 조회하면 24px 패딩 안에 Point 212×40 또는 release·trill 200×40 본체를 정렬한다", () => {
     const view = buildExplicitSkinView("/");
-    const point = getExplicitSkinAsset(view, "graceOverlay.point.overlay");
-    expect(point.logicalSize).toEqual({ width: 260, height: 88 });
-    expect(point.contentRect).toEqual({ x: 24, y: 24, width: 212, height: 40 });
+    const tap = getExplicitSkinAsset(view, "graceOverlay.tap.overlay");
+    expect(tap.logicalSize).toEqual({ width: 260, height: 88 });
+    expect(tap.contentRect).toEqual({ x: 24, y: 24, width: 212, height: 40 });
     for (const variant of ["trill", "release"]) {
       const overlay = getExplicitSkinAsset(view, `graceOverlay.${variant}.overlay`);
       expect(overlay.logicalSize).toEqual({ width: 248, height: 88 });
@@ -95,7 +95,7 @@ describe("명시적 노트 정적 스킨 view", () => {
     const view = buildExplicitSkinView("/");
     for (const [side, x] of [["left", 84], ["right", 116]] as const) {
       for (const state of ["pending", "failed"]) {
-        const marker = getExplicitSkinAsset(view, `sustain.double.${state}.${side}`);
+        const marker = getExplicitSkinAsset(view, `tick.double.${state}.${side}`);
         expect(marker.logicalSize).toEqual({ width: 200, height: 40 });
         expect(marker.markerCenter).toEqual({ x, y: 20 });
         expect(marker.sideMeaning).toBe("marker");
@@ -103,7 +103,7 @@ describe("명시적 노트 정적 스킨 view", () => {
         expect(marker).not.toHaveProperty("visible");
       }
     }
-    expect(getExplicitSkinAsset(view, "sustain.single.pending").markerCenter).toEqual({ x: 100, y: 20 });
+    expect(getExplicitSkinAsset(view, "tick.single.pending").markerCenter).toEqual({ x: 100, y: 20 });
   });
 
   it("partialHeld.left는 왼쪽 미충족이고 partialFailed.right는 오른쪽 실패로 구별한다", () => {
@@ -113,7 +113,7 @@ describe("명시적 노트 정적 스킨 view", () => {
     expect(getExplicitSkinAsset(view, "release.double.partialFailed.right")).toMatchObject({ role: "release", side: "right", sideMeaning: "failed" });
   });
 
-  it.each(["point.single.failed", "point.double.partialFailed.left", "release.trill.pending", "sustain.double.pending", "graceOverlay.body.overlay", "terminal.single.idle", "toString"])(
+  it.each(["tap.single.failed", "tap.double.partialFailed.left", "release.trill.pending", "tick.double.pending", "graceOverlay.body.overlay", "terminal.single.idle", "toString"])(
     "%s 도안이 없을 때 조회하면 다른 역할로 fallback하지 않고 거부한다", id => {
       expect(() => getExplicitSkinAsset(buildExplicitSkinView("/"), id)).toThrow(`Unsupported explicit skin asset: ${id}`);
     },
@@ -133,7 +133,7 @@ describe("명시적 노트 정적 스킨 view", () => {
 
   it("double sustain 왼쪽 표식을 100×40으로 자르면 캔버스 계약 위반으로 거부한다", () => {
     const manifest = freshManifest();
-    manifest.assets.find(asset => asset.id === "sustain.double.pending.left")!.logicalSize.width = 100;
+    manifest.assets.find(asset => asset.id === "tick.double.pending.left")!.logicalSize.width = 100;
     expect(() => buildExplicitSkinView("/", manifest)).toThrow("Invalid explicit skin geometry");
   });
 

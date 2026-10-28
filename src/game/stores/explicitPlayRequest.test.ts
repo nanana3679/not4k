@@ -61,7 +61,7 @@ describe('명시 테스트 진입 게이트', () => {
 
   it.each([0, 1500])('startTimeMs=%s에서 시각0ms의 aux lane5에 소속 없는 Sustain이 있으면 부작용 전에 거부한다', startTimeMs => {
     const input = options();
-    input.document.notes.push({ type: 'sustain', lane: 5, beat: beat(0), count: 1 });
+    input.document.notes.push({ type: 'tick', lane: 5, beat: beat(0), count: 1 });
     const before = useGameStore.getState();
     expect(() => before.startExplicitPlayTest({ ...input, startTimeMs })).toThrow('컴파일 실패');
     expect(useGameStore.getState()).toBe(before);
@@ -69,7 +69,7 @@ describe('명시 테스트 진입 게이트', () => {
 
   it('aux 의미 위반과 NaN 시작 시각이 함께 있으면 전체 문서 오류를 먼저 보고한다', () => {
     const input = options();
-    input.document.notes.push({ type: 'sustain', lane: 5, beat: beat(0), count: 1 });
+    input.document.notes.push({ type: 'tick', lane: 5, beat: beat(0), count: 1 });
     expect(() => prepareExplicitPlayTest({ ...input, startTimeMs: NaN })).toThrow('컴파일 실패');
   });
 
@@ -98,10 +98,10 @@ describe('명시 테스트 진입 게이트', () => {
     expect(request.compiled.totalJudgments).toBe(3);
     expect(request.compiled.theoreticalWeight).toBe(9);
     expect(request.compiled.scoreItems.map(item => [item.id, item.timeMs])).toEqual([
-      ['n3:sustain:0', 1500], ['n4:release:0', 2000], ['n5:point:0', 3000],
+      ['n3:tick:0', 1500], ['n4:release:0', 2000], ['n5:tap:0', 3000],
     ]);
     expect(request.compiled.bodies[0]).toMatchObject({ source: { noteIndex: 2 },
-      beat: beat(2), endBeat: beat(4), startMs: 1500, endMs: 2000, startPointIndices: [] });
+      beat: beat(2), endBeat: beat(4), startMs: 1500, endMs: 2000, startTapIndices: [] });
     expect(request.compiled.bodyUnits[0]).toMatchObject({ id: 'b2:hold:0', startMs: 1500, endMs: 2000, weight: 0 });
     expect(request.compiled.timing.noteTimesMs.get(2)).toBe(1000);
     expect(request.document).toEqual(original);
@@ -196,7 +196,7 @@ describe('일반 곡 재생 요청', () => {
     const input = options();
     input.document.notes.push({ type: 'single', lane: 5, beat: beat(0) });
     expect(prepareNormalPlay(input).document.notes.at(-1)).toEqual(input.document.notes.at(-1));
-    input.document.notes.push({ type: 'sustain', lane: 6, beat: beat(0), count: 1 });
+    input.document.notes.push({ type: 'tick', lane: 6, beat: beat(0), count: 1 });
     expect(() => prepareNormalPlay(input)).toThrow('컴파일 실패');
   });
 

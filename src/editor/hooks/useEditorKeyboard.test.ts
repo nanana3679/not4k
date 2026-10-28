@@ -22,7 +22,7 @@ const chart = (source: DocumentNoteEntity[]): ChartDocument => ({
 let unsubscribe = () => {};
 afterEach(() => unsubscribe());
 
-function setup(source: DocumentNoteEntity[] = [{ type: 'point', kind: 'single', lane: 1, beat: beat(1) }]) {
+function setup(source: DocumentNoteEntity[] = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }]) {
   useEditorStore.setState({
     chart: chart(source), mode: 'select', selection: emptySelection(), extraLaneCount: 2,
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null,
@@ -60,7 +60,7 @@ describe('붙여넣기·드래그 중 독립 명령', () => {
     const { mode, press, pasteCopyOfFirstNoteAt8 } = setup(); const initial = current().chart;
     pasteCopyOfFirstNoteAt8();
     press('g');
-    expect(notes()[1]).toMatchObject({ type: 'point', beat: beat(8), grace: true });
+    expect(notes()[1]).toMatchObject({ type: 'tap', beat: beat(8), grace: true });
     expect(mode.isPendingPaste).toBe(false);
 
     press('Escape');

@@ -23,7 +23,7 @@
       "lane": 1
     },
     {
-      "kind": "maintain",
+      "kind": "tick",
       "atMs": 2500,
       "count": 1,
       "lane": 1

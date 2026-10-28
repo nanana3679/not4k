@@ -52,11 +52,11 @@ describe("명시 스킨 shared asset 수명", () => {
     const metadata = view();
     const a = new ExplicitSkinLoader(metadata), b = new ExplicitSkinLoader(metadata);
     await Promise.all([a.load(), b.load()]);
-    const path = metadata.assetsById["sustain.single.pending"].url;
+    const path = metadata.assetsById["tick.single.pending"].url;
     expect(sharedAssetReferenceCount(path)).toBe(2);
     a.dispose(); await flush();
     expect(unload).not.toHaveBeenCalled();
-    expect(b.getTexture("sustain.single.pending")).toBeTruthy();
+    expect(b.getTexture("tick.single.pending")).toBeTruthy();
     b.dispose(); await flush();
     expect(sharedAssetReferenceCount(path)).toBe(0);
     expect(unload).toHaveBeenCalledTimes(33);
@@ -68,7 +68,7 @@ describe("명시 스킨 shared asset 수명", () => {
     load.mockImplementationOnce(() => pending.promise);
     const loader = new ExplicitSkinLoader(view());
     await expect(loader.load()).rejects.toThrow("PNG 404");
-    expect(() => loader.getTexture("point.single.pending")).toThrow("not loaded");
+    expect(() => loader.getTexture("tap.single.pending")).toThrow("not loaded");
     pending.resolve({}); await flush();
     expect(unload).toHaveBeenCalledTimes(33);
     expect(Object.values(loader.view.assetsById).every(asset => sharedAssetReferenceCount(asset.url) === 0)).toBe(true);

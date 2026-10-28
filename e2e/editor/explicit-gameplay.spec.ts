@@ -36,10 +36,10 @@ test('새 에디터 Double 제작·Undo·저장·reload 후 처음부터 실제 
   await page.getByRole('button', { name: 'Grace', exact: true }).click();
   await drag(page, 1, 2, 4);
   const created = await notes(page);
-  expect(created).toMatchObject([{ type: 'point', kind: 'double' }, { type: 'body', holdCount: 2 }, { type: 'release', count: 2 }]);
+  expect(created).toMatchObject([{ type: 'tap', kind: 'double' }, { type: 'body', holdCount: 2 }, { type: 'release', count: 2 }]);
   await page.getByRole('button', { name: 'Undo', exact: true }).click(); expect(await notes(page)).toEqual([]);
   await page.getByRole('button', { name: 'Redo', exact: true }).click(); expect(await notes(page)).toEqual(created);
-  await tool.selectOption('sustain');
+  await tool.selectOption('tick');
   const position = await canvasPosition(page, 1, 3); await page.mouse.click(position.x, position.y);
   const authored = await notes(page); expect(authored).toHaveLength(4);
   await page.getByRole('button', { name: 'Select', exact: true }).click();
@@ -77,9 +77,9 @@ test('새 에디터 Double 제작·Undo·저장·reload 후 처음부터 실제 
 
 test('1500ms 커서에서 미리 누른 키로 남은 바디를 시작하고 커서의 Sustain·뒤 Release만 2항목6점으로 정산한다', async ({ page }) => {
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [
-    { type: 'point', kind: 'single', lane: 1, beat: '2' },
+    { type: 'tap', kind: 'single', lane: 1, beat: '2' },
     { type: 'body', holdCount: 1, lane: 1, beat: '2', endBeat: '4' },
-    { type: 'sustain', count: 1, lane: 1, beat: '3' },
+    { type: 'tick', count: 1, lane: 1, beat: '3' },
     { type: 'release', count: 1, lane: 1, beat: '4' },
   ] };
   const extra: ExtraNotesJson = { version: 3, extraLaneCount: 1,
@@ -110,7 +110,7 @@ test('1500ms 커서에서 미리 누른 키로 남은 바디를 시작하고 커
   expect(request.notes).toEqual(before);
   expect(request.returnUrl).toBe('/editor?songId=e2e-editor-song&difficulty=normal');
   expect(request.body).toMatchObject({ source: { noteIndex: 1 }, startMs: 1500, endMs: 2000 });
-  expect(request.scoreIds).toEqual(['n2:sustain:0', 'n3:release:0']);
+  expect(request.scoreIds).toEqual(['n2:tick:0', 'n3:release:0']);
   await waitAt(page, 2000);
   await page.keyboard.up('q');
   await expect(page.getByTestId('explicit-play-result')).toBeVisible({ timeout: 20000 });
@@ -131,15 +131,15 @@ for (const auto of [false, true]) test(`${auto ? 'Auto' : '수동'} 4500ms 재�
   const prefixCount = auto ? 2 : 3;
   const totalCount = auto ? 6 : 7;
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [
-    { type: 'point', kind: 'single', lane: 1, beat: '2' },
+    { type: 'tap', kind: 'single', lane: 1, beat: '2' },
     { type: 'body', holdCount: 1, lane: 1, beat: '2', endBeat: '8' },
-    { type: 'sustain', count: 1, lane: 1, beat: '5/2' },
-    { type: 'sustain', count: 1, lane: 1, beat: '5' },
+    { type: 'tick', count: 1, lane: 1, beat: '5/2' },
+    { type: 'tick', count: 1, lane: 1, beat: '5' },
     { type: 'release', count: 1, lane: 1, beat: '8' },
-    { type: 'point', kind: 'single', lane: 2, beat: '4' },
-    { type: 'point', kind: 'single', lane: 2, beat: '11' },
+    { type: 'tap', kind: 'single', lane: 2, beat: '4' },
+    { type: 'tap', kind: 'single', lane: 2, beat: '11' },
     { type: 'body', holdCount: 1, lane: 3, beat: '1', endBeat: '5/2' },
-    ...(!auto ? [{ type: 'point' as const, kind: 'single' as const, lane: 2 as const, beat: '77/25', grace: true }] : []),
+    ...(!auto ? [{ type: 'tap' as const, kind: 'single' as const, lane: 2 as const, beat: '77/25', grace: true }] : []),
   ], events: [...editorTestChart().events, ...(auto ? [{ type: 'auto' as const, beat: '0', endBeat: '12' }] : [])] };
   const extra: ExtraNotesJson = { version: 3, extraLaneCount: 1,
     extraNotes: [{ type: 'single', extraLane: 1, beat: '3', grace: false }] };
@@ -178,10 +178,10 @@ for (const auto of [false, true]) test(`${auto ? 'Auto' : '수동'} 4500ms 재�
   expect(preparing.session?.snapshot.items.filter(item => item.state !== 'success').every(item => item.state === 'pending')).toBe(true);
   expect(preparing.session?.facts.filter(fact => fact.confirmedAt < 1500)).toEqual(prefixFacts);
   if (!auto) {
-    const earlyPoint = preparing.session!.snapshot.items.find(item => item.sourceNoteIndex === 8)!;
-    expect(earlyPoint).toMatchObject({ state: 'success', grade: 'perfect' });
-    expect(originalRequest.scoreItems.find(item => item.id === earlyPoint.id)!.timeMs).toBeGreaterThan(target);
-    expect(preparing.session!.facts.find(fact => fact.id === earlyPoint.settlementFactId)!.confirmedAt).toBeLessThan(target);
+    const earlyTap = preparing.session!.snapshot.items.find(item => item.sourceNoteIndex === 8)!;
+    expect(earlyTap).toMatchObject({ state: 'success', grade: 'perfect' });
+    expect(originalRequest.scoreItems.find(item => item.id === earlyTap.id)!.timeMs).toBeGreaterThan(target);
+    expect(preparing.session!.facts.find(fact => fact.id === earlyTap.settlementFactId)!.confirmedAt).toBeLessThan(target);
   }
   expect(preparing.session?.snapshot.bodyUnits[0].state).not.toBe('failed');
   expect(preparing.session?.snapshot.bodyUnits[1].state).toBe(auto ? 'complete' : 'failed');
@@ -225,9 +225,9 @@ for (const auto of [false, true]) test(`${auto ? 'Auto' : '수동'} 4500ms 재�
 
 test('커서1500ms에서 시작해 2300ms에 재개하면 1500ms 하한·원본 source·aux·6점 분모를 보존하고 준비 재정지도 같은 목표를 쓴다', async ({ page }) => {
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [
-    { type: 'point', kind: 'single', lane: 1, beat: '2' },
+    { type: 'tap', kind: 'single', lane: 1, beat: '2' },
     { type: 'body', holdCount: 1, lane: 1, beat: '2', endBeat: '5' },
-    { type: 'sustain', count: 1, lane: 1, beat: '4' },
+    { type: 'tick', count: 1, lane: 1, beat: '4' },
     { type: 'release', count: 1, lane: 1, beat: '5' },
   ] };
   const extra: ExtraNotesJson = { version: 3, extraLaneCount: 1,
@@ -248,7 +248,7 @@ test('커서1500ms에서 시작해 2300ms에 재개하면 1500ms 하한·원본 
   const originalRequest = await playRequest(page);
   expect(originalRequest).toMatchObject({ startTimeMs: 1500, returnUrl: '/editor?songId=e2e-editor-song&difficulty=normal' });
   expect(originalRequest.document.notes).toEqual(originalNotes);
-  expect(originalRequest.scoreItems.map(item => item.id)).toEqual(['n2:sustain:0', 'n3:release:0']);
+  expect(originalRequest.scoreItems.map(item => item.id)).toEqual(['n2:tick:0', 'n3:release:0']);
   expect(originalRequest.bodies[0]).toMatchObject({ source: { noteIndex: 1 }, startMs: 1500, endMs: 2500 });
   await waitAt(page, 2300);
   const firstPass = await probe(page);
@@ -292,7 +292,7 @@ test('커서1500ms에서 시작해 2300ms에 재개하면 1500ms 하한·원본 
 
 for (const fromCursor of [false, true]) test(`fromCursor=${fromCursor}에서 커서 앞 mixed main의 legacy single은 문서·커서·저장 상태와 메뉴를 보존한다`, async ({ page }) => {
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [
-    { type: 'point', kind: 'single', lane: 1, beat: '2' }, { type: 'single', lane: 4, beat: '0', grace: false },
+    { type: 'tap', kind: 'single', lane: 1, beat: '2' }, { type: 'single', lane: 4, beat: '0', grace: false },
   ] };
   const editor = await openEditor(page, { chart, audio: true }); const before = await notes(page);
   await page.evaluate(async () => {
@@ -310,9 +310,9 @@ for (const fromCursor of [false, true]) test(`fromCursor=${fromCursor}에서 커
 
 test('legacy aux는 저장한 그대로 보존하며 explicit main만 auto 물리입력으로 3항목9점을 정산한다', async ({ page }) => {
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [
-    { type: 'point', kind: 'single', lane: 1, beat: '2' },
+    { type: 'tap', kind: 'single', lane: 1, beat: '2' },
     { type: 'body', holdCount: 1, lane: 1, beat: '2', endBeat: '4' },
-    { type: 'sustain', count: 1, lane: 1, beat: '3' }, { type: 'release', count: 1, lane: 1, beat: '4' },
+    { type: 'tick', count: 1, lane: 1, beat: '3' }, { type: 'release', count: 1, lane: 1, beat: '4' },
   ], events: [...editorTestChart().events, { type: 'auto', beat: '0', endBeat: '6' }] };
   const extra: ExtraNotesJson = { version: 3, extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '2', grace: false }] };
   const editor = await openEditor(page, { chart, extra, audio: true }); const before = await notes(page);
@@ -334,9 +334,9 @@ test('legacy aux는 저장한 그대로 보존하며 explicit main만 auto 물�
 });
 
 test('aux의 소속 없는 Sustain은 새 테스트 버튼과 저장을 함께 차단하여 원본문서 위반을 숨기지 않는다', async ({ page }) => {
-  const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [{ type: 'point', kind: 'single', lane: 1, beat: '2' }] };
+  const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [{ type: 'tap', kind: 'single', lane: 1, beat: '2' }] };
   const editor = await openEditor(page, { chart, audio: true, extra: { version: 4, extraLaneCount: 1,
-    extraNotes: [{ type: 'sustain', count: 1, extraLane: 1, beat: '2' }] } });
+    extraNotes: [{ type: 'tick', count: 1, extraLane: 1, beat: '2' }] } });
   await page.getByRole('button', { name: 'Playback options', exact: true }).click();
   await expect(page.getByRole('button', { name: '처음부터 시작 · 명시 차트', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: '커서부터 시작', exact: true })).toBeDisabled();

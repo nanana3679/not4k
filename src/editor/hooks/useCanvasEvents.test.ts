@@ -35,7 +35,7 @@ const chart = (source: DocumentNoteEntity[], extra: Partial<ChartDocument> = {})
 
 const bodyWithEndRelease = (): DocumentNoteEntity[] => [
   { type: 'body', lane: 1, beat: beat(1), endBeat: beat(5), holdCount: 1 },
-  { type: 'point', kind: 'single', lane: 1, beat: beat(1) },
+  { type: 'tap', kind: 'single', lane: 1, beat: beat(1) },
   { type: 'release', lane: 1, beat: beat(5), count: 1 },
 ];
 const bodyEnd = () => beatToFloat((notes()[0] as Extract<DocumentNoteEntity, { type: 'body' }>).endBeat);
@@ -106,7 +106,7 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
 
 describe('우클릭 삭제', () => {
   it('붙여넣기 대기 중 4박에 붙여넣은 Point를 우클릭하면 붙여넣기를 확정한 뒤 그 Point를 지우고 Undo 1번에 붙여넣은 Point가 돌아온다', () => {
-    const { handlers, selectMode } = setup(chart([{ type: 'point', kind: 'single', lane: 1, beat: beat(1) }]), 'select');
+    const { handlers, selectMode } = setup(chart([{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }]), 'select');
     selectMode.selectNote(0); selectMode.copy(); selectMode.paste(beat(4));
     expect(notes()).toHaveLength(2);
 
@@ -114,7 +114,7 @@ describe('우클릭 삭제', () => {
     handlers.handlePointerUp(rightPointer(2000));
 
     expect(selectMode.isPendingPaste).toBe(false);
-    expect(notes()).toEqual([{ type: 'point', kind: 'single', lane: 1, beat: beat(1) }]);
+    expect(notes()).toEqual([{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }]);
     expect(current().historyPast).toHaveLength(2);
     current().undo();
     expect(notes().map(note => note.beat)).toEqual([beat(1), beat(4)]);
@@ -122,8 +122,8 @@ describe('우클릭 삭제', () => {
 
   it('1박 Point를 우클릭으로 지운 누름의 contextmenu는 2박 Point를 지우지 않고 그 뒤 키보드 메뉴 키 contextmenu는 2박 Point를 지운다', () => {
     const { handlers } = setup(chart([
-      { type: 'point', kind: 'single', lane: 1, beat: beat(1) },
-      { type: 'point', kind: 'single', lane: 1, beat: beat(2) },
+      { type: 'tap', kind: 'single', lane: 1, beat: beat(1) },
+      { type: 'tap', kind: 'single', lane: 1, beat: beat(2) },
     ]), 'select');
     handlers.handlePointerDown(rightPointer(500));
     handlers.handlePointerUp(rightPointer(500));
@@ -201,7 +201,7 @@ describe('연결 경계의 바디 끝 핸들 띠', () => {
   // holdCount 2 바디 1～5박과 holdCount 1 바디 5～9박이 5박 Release에서 이어진다. 5.1박(y=2550)은 뒤 바디 안이다.
   const connectedBodies = (): DocumentNoteEntity[] => [
     { type: 'body', lane: 1, beat: beat(1), endBeat: beat(5), holdCount: 2 },
-    { type: 'point', kind: 'double', lane: 1, beat: beat(1) },
+    { type: 'tap', kind: 'double', lane: 1, beat: beat(1) },
     { type: 'release', lane: 1, beat: beat(5), count: 1 },
     { type: 'body', lane: 1, beat: beat(5), endBeat: beat(9), holdCount: 1 },
   ];

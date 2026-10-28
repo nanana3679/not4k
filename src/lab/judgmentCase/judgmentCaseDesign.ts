@@ -2,7 +2,7 @@
 import { formatMs } from "./judgmentCaseLayout";
 
 export type DesignTone = "neutral" | "success" | "failure" | "proposal";
-export type DesignNoteKind = "body" | "point" | "release" | "maintain" | "marker";
+export type DesignNoteKind = "body" | "tap" | "release" | "tick" | "marker";
 export interface DesignNote {
   id: string;
   name: string;
@@ -35,7 +35,7 @@ export interface JudgmentCaseDesign {
 
 export const DESIGN_BANNER = "설계 예시 · 엔진 미실행 · 판정과 설명은 직접 지정";
 export const DESIGN_KIND_LABELS: Record<DesignNoteKind, string> = {
-  body: "바디", point: "Point", release: "release", maintain: "유지 노트", marker: "표식",
+  body: "바디", tap: "Point", release: "release", tick: "유지 노트", marker: "표식",
 };
 export const DESIGN_TONE_LABELS: Record<DesignTone, string> = {
   neutral: "설명", success: "성공 가정", failure: "실패 가정", proposal: "제안",
@@ -90,7 +90,7 @@ export function parseJudgmentCaseDesign(source: string, fallbackTitle = ""): Jud
     const id = obj.id === undefined ? `N${index + 1}` : string(obj.id, `${loc}.id`);
     if (ids.has(id)) throw new Error(`${loc}.id: 중복 노트 이름 ${id}`);
     ids.add(id);
-    const kind = choice(obj.kind, ["body", "point", "release", "maintain", "marker"] as const, `${loc}.kind`);
+    const kind = choice(obj.kind, ["body", "tap", "release", "tick", "marker"] as const, `${loc}.kind`);
     if (kind === "body" ? obj.atMs !== undefined : obj.startMs !== undefined || obj.endMs !== undefined) {
       throw new Error(`${loc}: body에는 startMs·endMs, 나머지에는 atMs만 씁니다`);
     }

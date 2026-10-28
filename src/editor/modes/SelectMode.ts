@@ -1,4 +1,4 @@
-import { bodyCompanionIndices, bodyDeletionBlockReason, reconcileMovedSustains, resizeExplicitBodies } from '../editing/explicitEditing';
+import { bodyCompanionIndices, bodyDeletionBlockReason, reconcileMovedTicks, resizeExplicitBodies } from '../editing/explicitEditing';
 import { editorChartErrors } from "../documentValidation";
 import type { ChartDocument, DocumentNoteEntity, RangeNote, BodyNote, Beat } from "../../shared";
 import { validateChartDocumentStructural, beatToFloat, isVisibleLane, isMainLane } from "../../shared";
@@ -92,7 +92,7 @@ export class SelectMode implements EditorMode {
   private resizeOriginalNotes: DocumentNoteEntity[] | null = null;
   private transactionToken: symbol | null = null;
   private _interruptedDragCount = 0;
-  private originalSustainCountByNoteIndex = new Map<number, 1 | 2>();
+  private originalTickCountByNoteIndex = new Map<number, 1 | 2>();
 
   // Clipboard & paste state
   private clipboardManager: ClipboardManager = new ClipboardManager();
@@ -1160,7 +1160,7 @@ export class SelectMode implements EditorMode {
 
     this.chart = {
       ...this.chart,
-      notes: reconcileMovedSustains(newNotes, selNotes),
+      notes: reconcileMovedTicks(newNotes, selNotes),
       ...(this.originalRestZonePositions.size > 0 ? { restZones: newRestZones } : {}),
     };
 
@@ -1257,7 +1257,7 @@ export class SelectMode implements EditorMode {
   private trillZonesToCopy(): Set<number> {
     if (this.sel.zones.size > 0) return new Set(this.sel.zones);
     const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.sel.notes);
-    if ([...this.sel.notes].some(index => ["point", "body", "release", "sustain"].includes(this.chart.notes[index].type))) return new Set();
+    if ([...this.sel.notes].some(index => ["tap", "body", "release", "tick"].includes(this.chart.notes[index].type))) return new Set();
     if (kind.kind === "trill" && kind.zoneIndex >= 0) return new Set([kind.zoneIndex]);
     return new Set();
   }
@@ -1544,11 +1544,11 @@ export class SelectMode implements EditorMode {
   /** 주어진 노트들의 원본 좌표를 기록한다(이동용). 기본값은 직접 선택한 notes. */
   private captureNoteOrigins(indices: ReadonlySet<number> = this.sel.notes): void {
     this.originalPositions.clear();
-    this.originalSustainCountByNoteIndex.clear();
+    this.originalTickCountByNoteIndex.clear();
     for (const idx of indices) {
       const note = this.chart.notes[idx];
       if (!note) continue;
-      if (note.type === "sustain") this.originalSustainCountByNoteIndex.set(idx, note.count);
+      if (note.type === "tick") this.originalTickCountByNoteIndex.set(idx, note.count);
       if (this.isRangeNote(note)) {
         this.originalPositions.set(idx, { beat: note.beat, endBeat: note.endBeat, lane: note.lane });
       } else {
@@ -1560,7 +1560,7 @@ export class SelectMode implements EditorMode {
   /** 이동 원본 기록(메인·구간·restZone)을 모두 폐기한다. */
   private clearMoveOrigins(): void {
     this.originalPositions.clear();
-    this.originalSustainCountByNoteIndex.clear();
+    this.originalTickCountByNoteIndex.clear();
     this.originalZonePositions.clear();
     this.originalRestZonePositions.clear();
   }
@@ -1583,7 +1583,7 @@ export class SelectMode implements EditorMode {
         newNotes[idx] = { ...newNotes[idx], lane: newLane, beat: newBeat };
       }
     }
-    return reconcileMovedSustains(newNotes, this.originalPositions.keys(), this.originalSustainCountByNoteIndex);
+    return reconcileMovedTicks(newNotes, this.originalPositions.keys(), this.originalTickCountByNoteIndex);
   }
 
   /**
@@ -1740,9 +1740,9 @@ export class SelectMode implements EditorMode {
         };
       }
     }
-    for (const [index, count] of this.originalSustainCountByNoteIndex) {
+    for (const [index, count] of this.originalTickCountByNoteIndex) {
       const note = newNotes[index];
-      if (note.type === 'sustain') newNotes[index] = { ...note, count };
+      if (note.type === 'tick') newNotes[index] = { ...note, count };
     }
     // 구간(트릴존·restZone) 단위 이동이었다면 그 구간들도 원위치로 되돌린다.
     const restoredZones = this.restoredZones();

@@ -33,9 +33,9 @@ function document(notes: DocumentNoteEntity[]): ChartDocument {
 }
 
 const cases: [string, DocumentNoteEntity][] = [
-  ["싱글 Point", { type: "point", kind: "single", lane: 1, beat: beat(1, 3) }],
-  ["더블 Grace Point", { type: "point", kind: "double", lane: 1, beat: beat(1, 3), grace: true }],
-  ["트릴 일반 Point", { type: "point", kind: "trill", lane: 3, beat: beat(1, 3), grace: false }],
+  ["싱글 Point", { type: "tap", kind: "single", lane: 1, beat: beat(1, 3) }],
+  ["더블 Grace Point", { type: "tap", kind: "double", lane: 1, beat: beat(1, 3), grace: true }],
+  ["트릴 일반 Point", { type: "tap", kind: "trill", lane: 3, beat: beat(1, 3), grace: false }],
   ["holdCount=1 양수 바디", { type: "body", lane: 1, beat: beat(1, 3), endBeat: beat(5, 3), holdCount: 1 }],
   ["holdCount=2 양수 바디", { type: "body", lane: 1, beat: beat(1, 3), endBeat: beat(5, 3), holdCount: 2 }],
   ["holdCount=1 길이 0 바디", { type: "body", lane: 1, beat: beat(1, 3), endBeat: beat(1, 3), holdCount: 1 }],
@@ -45,8 +45,8 @@ const cases: [string, DocumentNoteEntity][] = [
   ["count=2 일반 릴리즈", { type: "release", lane: 1, beat: beat(5, 3), count: 2, grace: false }],
   ["count=1 Grace 릴리즈", { type: "release", lane: 1, beat: beat(5, 3), count: 1, grace: true }],
   ["count=2 Grace 릴리즈", { type: "release", lane: 1, beat: beat(5, 3), count: 2, grace: true }],
-  ["count=1 유지", { type: "sustain", lane: 1, beat: beat(1), count: 1 }],
-  ["count=2 유지", { type: "sustain", lane: 1, beat: beat(1), count: 2 }],
+  ["count=1 유지", { type: "tick", lane: 1, beat: beat(1), count: 1 }],
+  ["count=2 유지", { type: "tick", lane: 1, beat: beat(1), count: 2 }],
 ];
 
 describe("C1 명시 문서 왕복", () => {
@@ -85,7 +85,7 @@ describe("C1 명시 문서 왕복", () => {
     expect(merged).toEqual(source);
     expect(serializeChart({ ...merged, notes: mainNotes(merged.notes) })).toBe(main);
     expect(serializeExtraNotes(auxNotesAsExtra(merged.notes), extra.extraLaneCount)).toBe(aux);
-    merged.notes[2] = { type: "point", kind: "double", lane: 1, beat: beat(1, 3) };
+    merged.notes[2] = { type: "tap", kind: "double", lane: 1, beat: beat(1, 3) };
     expect(serializeChart({ ...merged, notes: mainNotes(merged.notes) })).not.toBe(main);
   });
 
@@ -110,11 +110,11 @@ describe("C1 명시 문서 왕복", () => {
 
   it("바디 밖 유지·내부 릴리즈·길이 0+Point 위반도 수리를 위해 그대로 읽고 dirty 직렬화한다", () => {
     const source = document([
-      { type: "sustain", lane: 1, beat: beat(8), count: 2 },
+      { type: "tick", lane: 1, beat: beat(8), count: 2 },
       { type: "body", lane: 2, beat: beat(0), endBeat: beat(4), holdCount: 1 },
       { type: "release", lane: 2, beat: beat(2), count: 1 },
       { type: "body", lane: 3, beat: beat(0), endBeat: beat(0), holdCount: 1 },
-      { type: "point", lane: 3, beat: beat(0), kind: "single" },
+      { type: "tap", lane: 3, beat: beat(0), kind: "single" },
     ]);
     const snapshot = serializeChart(source);
     expect(serializeChart(deserializeChartDocument(snapshot))).toBe(snapshot);
@@ -134,7 +134,7 @@ describe("C1 명시 문서 왕복", () => {
   it("구형·명시 Grace 릴리즈는 true이고 바디·유지는 Grace/holdOnly가 아니다", () => {
     expect(isGraceNote({ type: "release", lane: 1, beat: beat(0), count: 2, grace: true })).toBe(true);
     expect(isGraceNote({ type: "body", lane: 1, beat: beat(0), endBeat: beat(0), holdCount: 1 })).toBe(false);
-    expect(isHoldOnlyNote({ type: "sustain", lane: 1, beat: beat(0), count: 1 })).toBe(false);
+    expect(isHoldOnlyNote({ type: "tick", lane: 1, beat: beat(0), count: 1 })).toBe(false);
   });
 
   it("명시 릴리즈 Grace·수량·구형/신형 의미·메타·보조 레인 수 변경은 각각 dirty 스냅샷을 바꾼다", () => {
@@ -226,7 +226,7 @@ describe("C1 구형 의미와 버전 경계", () => {
 
   it.each(["1.5", "1/2.5", "1oops", "0.5"])("v4 Point의 박 문자열 %j는 정수로 잘라 옮기지 않고 거부한다", (value) => {
     expect(() => deserializeChartDocument(JSON.stringify({ ...chartToJson(document([])), version: 4,
-      notes: [{ type: "point", kind: "single", lane: 1, beat: value }] }))).toThrow("박 문자열이 유효하지 않습니다");
+      notes: [{ type: "tap", kind: "single", lane: 1, beat: value }] }))).toThrow("박 문자열이 유효하지 않습니다");
   });
 
   it("v3 구형 노트의 기존 박 문자열 \"-1/2\"·\"7/2\"·\"0\"은 그대로 읽는다", () => {
@@ -243,12 +243,14 @@ describe("C1 구형 의미와 버전 경계", () => {
     [{ type: "release", count: 2, graceByUnit: [true, false] }, "지원하지 않는 필드"],
     [{ type: "body", endBeat: "0", holdCount: 2, trill: true }, "trill 바디"],
     [{ type: "body", endBeat: "0", holdCount: 1, holdOnly: true }, "지원하지 않는 필드"],
-    [{ type: "sustain", count: 1, grace: true }, "지원하지 않는 필드"],
+    [{ type: "tick", count: 1, grace: true }, "지원하지 않는 필드"],
     [{ type: "release", count: 3 }, "count는 1 또는 2"],
-    [{ type: "sustain", count: 0 }, "count는 1 또는 2"],
+    [{ type: "tick", count: 0 }, "count는 1 또는 2"],
     [{ type: "body", endBeat: "0", holdCount: 0 }, "holdCount는 1 또는 2"],
     [{ type: "unknown" }, "지원하지 않는 노트 type"],
-    [{ type: "point", kind: "unknown" }, "Point kind"],
+    [{ type: "point", kind: "single" }, "지원하지 않는 노트 type"],
+    [{ type: "sustain", count: 1 }, "지원하지 않는 노트 type"],
+    [{ type: "tap", kind: "unknown" }, "tap kind"],
   ])("구조 오류 %j는 %s로 거부하고 항목을 유실하지 않는다", (note, message) => {
     expect(() => deserializeChartDocument(JSON.stringify({ ...chartToJson(document([])), version: 4, notes: [{ lane: 1, beat: "0", ...note }] }))).toThrow(message);
   });
@@ -303,7 +305,7 @@ describe("C1 형식 오류 분류와 미지원 필드 정책", () => {
   });
 
   it("최상위·bpm 이벤트·trillZone·보조 최상위의 미지원 필드는 읽기를 막지 않고 재저장에서 빠지며 meta 필드는 남는다", () => {
-    const source = chartToJson(document([{ type: "point", kind: "single", lane: 1, beat: beat(0) }]));
+    const source = chartToJson(document([{ type: "tap", kind: "single", lane: 1, beat: beat(0) }]));
     const resaved = JSON.parse(serializeChart(deserializeChartDocument(JSON.stringify({
       ...source, future: 1, meta: { ...source.meta, future: 1 },
       trillZones: [{ lane: 3, beat: "0", endBeat: "4", future: 1 }],
@@ -324,7 +326,7 @@ describe("C1 형식 오류 분류와 미지원 필드 정책", () => {
   });
 
   it("구형 reader로 명시 Point를 읽으면 \"구형 차트 reader에서는 명시적 노트 형식을 지원하지 않습니다\" 오류다", () => {
-    const source = document([{ type: "point", kind: "single", lane: 1, beat: beat(0) }]);
+    const source = document([{ type: "tap", kind: "single", lane: 1, beat: beat(0) }]);
     expect(() => deserializeChart(serializeChart(source))).toThrow("구형 차트 reader에서는 명시적 노트 형식을 지원하지 않습니다");
   });
 });

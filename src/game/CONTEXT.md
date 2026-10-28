@@ -9,16 +9,16 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 
 [RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 **채택 계약·일반 기본 경로 구현·검증**이다. 정식 정의는 glossary, 실행 전 기대값은 [명시적 점수 노트 판정 사례](../../docs/spec/explicit-note-judgment-cases.md)를 따른다.
 
-- 바디는 hold 수를 요구하는 무점수 구간이고 Point·릴리즈·유지 노트만 명시 점수 항목을 만든다. [바디](../../docs/context/glossary.md#바디)·[점수 항목](../../docs/context/glossary.md#점수-항목과-무점수-miss)을 따른다.
+- 바디는 hold 수를 요구하는 무점수 구간이고 탭 노트·릴리즈 노트·틱 노트만 명시 점수 항목을 만든다. [바디](../../docs/context/glossary.md#바디)·[점수 항목](../../docs/context/glossary.md#점수-항목과-무점수-miss)을 따른다.
 - 전체 이론 가중치가 0인 유효한 차트도 재생하고 달성률·랭크는 표시하지 않는다. 점수 항목의 전부 Miss는 0%·F다([glossary](../../docs/context/glossary.md#점수-항목과-무점수-miss)).
 
-- Point는 down, 명시 릴리즈는 up을 소비한다. 바디·유지 노트는 입력을 소비하지 않으며 숨은 연결 up 소비는 없다. [consume](../../docs/context/glossary.md#consume-구-표기-흡수소비)을 따른다.
-- preheld는 차트상 시작에서, 시작 창 안의 유효한 새 down은 그때 충족한 몫을 시작한다. 건강한 짧은 바디 승계와 Point 담당 몫의 기존 유지 실패 대기·실제 down 기준을 함께 보존한다. [바디 판정과 실패 종속](../../docs/context/glossary.md#바디-판정과-실패-종속)을 따른다.
-- 실제 시작·정상 완료·릴리즈 대기는 별개이며 릴리즈 경계·1→2·2→1의 승계와 새 시작을 구별한다. 바디 사이에는 실패를 전파하지 않으며 2→1에서 두 몫이 모두 탈락해도 뒤 single은 자기 조건으로 새로 시작할 수 있다. 경계에 Point도 릴리즈도 없는 같은 수 연결은 배치 금지라 실행하지 않는다. 금지에서 빠지는 트릴 바디와 일반 바디의 Point 없는 경계(두 방향)도 메인 레인에서는 `trillExclusive`(트릴 → 일반)와 `trillLongInvalid`(트릴 바디의 시작 트릴 Point)가 막고 보조 레인은 판정하지 않아 판정 대상이 되지 않는다. 일반 진행에서는 확정 실패와 소멸한 점수 기회를 복구하지 않는다. 일시정지의 고정 되감기는 별도 상태 복원이다. [바디 판정과 실패 종속](../../docs/context/glossary.md#바디-판정과-실패-종속)을 따른다.
-- 유지 노트는 자체 창 없이 바디의 정상 유지·시작/회복 대기·이른 종료를 따르고 표식당 Perfect 3점·콤보 +1·일반 Perfect 고도 기여를 갖는다. [유지 노트](../../docs/context/glossary.md#유지-노트)를 따른다.
-- Grace 릴리즈도 실제 up을 요구한다. 싱글 바디의 더블 릴리즈에도 해당 시작 Point를 처리한 같은 키 재누름 예외만 적용한다. [릴리즈 노트](../../docs/context/glossary.md#릴리즈-노트)·[release 판정](../../docs/context/glossary.md#release-판정)을 따른다.
+- 탭 노트는 down, 명시 릴리즈는 up을 소비한다. 바디·틱 노트는 입력을 소비하지 않으며 숨은 연결 up 소비는 없다. [consume](../../docs/context/glossary.md#consume-구-표기-흡수소비)을 따른다.
+- preheld는 차트상 시작에서, 시작 창 안의 유효한 새 down은 그때 충족한 몫을 시작한다. 건강한 짧은 바디 승계와 탭 노트 담당 몫의 기존 유지 실패 대기·실제 down 기준을 함께 보존한다. [바디 판정과 실패 종속](../../docs/context/glossary.md#바디-판정과-실패-종속)을 따른다.
+- 실제 시작·정상 완료·릴리즈 대기는 별개이며 릴리즈 경계·1→2·2→1의 승계와 새 시작을 구별한다. 바디 사이에는 실패를 전파하지 않으며 2→1에서 두 몫이 모두 탈락해도 뒤 single은 자기 조건으로 새로 시작할 수 있다. 경계에 탭 노트도 릴리즈도 없는 같은 수 연결은 배치 금지라 실행하지 않는다. 금지에서 빠지는 트릴 바디와 일반 바디의 탭 노트 없는 경계(두 방향)도 메인 레인에서는 `trillExclusive`(트릴 → 일반)와 `trillLongInvalid`(트릴 바디의 시작 트릴 탭 노트)가 막고 보조 레인은 판정하지 않아 판정 대상이 되지 않는다. 일반 진행에서는 확정 실패와 소멸한 점수 기회를 복구하지 않는다. 일시정지의 고정 되감기는 별도 상태 복원이다. [바디 판정과 실패 종속](../../docs/context/glossary.md#바디-판정과-실패-종속)을 따른다.
+- 틱 노트는 자체 창 없이 바디의 정상 유지·시작/회복 대기·이른 종료를 따르고 한 몫당 Perfect 3점·콤보 +1·일반 Perfect 고도 기여를 갖는다. [틱 노트](../../docs/context/glossary.md#틱-노트-tick)를 따른다.
+- Grace 릴리즈도 실제 up을 요구한다. 싱글 바디의 더블 릴리즈에도 해당 시작 탭 노트를 처리한 같은 키 재누름 예외만 적용한다. [릴리즈 노트](../../docs/context/glossary.md#릴리즈-노트)·[release 판정](../../docs/context/glossary.md#release-판정)을 따른다.
 - 현재 `trillZone` 안에는 바디 끝을 포함해 명시 릴리즈를 도입하지 않으며, 새 트릴 바디 끝에도 자동 점수가 없다([RFD 0038](../../docs/rfd/0038-release-notes-in-trill-zones.md)). 구형 `trillLong`의 보존 의미와 구별한다.
-- 확정 효과·현재 상태·화면 수명을 분리한다. 유지 성공 글자·타격, 동시 최저 대표 등급과 그 등급의 표시 가능한 실제 입력 최대 절대 오차는 [판정 효과](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
+- 확정 효과·현재 상태·화면 수명을 분리한다. 틱 노트 성공 글자·타격, 동시 최저 대표 등급과 그 등급의 표시 가능한 실제 입력 최대 절대 오차는 [판정 효과](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
 - 실제 입력·AutoPlayer·튜토리얼은 같은 세션과 일회성 효과를 소비하고 반복마다 새 판정·표시 인스턴스를 쓴다. 상세 계약은 [게임 코어](../../docs/spec/game-core.md#autoplayer튜토리얼과-입력-수명), 미정·이행은 [PRD §12](../../docs/prd.md#12-미정-사항)를 따른다.
 
 ### 과도기 구형 판정 설명
@@ -82,7 +82,7 @@ _Avoid_: 스코어 화면
 _Avoid_: 키 이벤트 처리
 
 **가장 이른 노트 매칭**:
-창·레인·키 자격을 충족한 가장 이른 명시 Point 또는 릴리즈에 down/up을 배정한다. 바디·유지 노트는 소비하지 않는다. 풀 정의는 [glossary](../../docs/context/glossary.md#가장-이른-노트-매칭)를 따른다.
+창·레인·키 자격을 충족한 가장 이른 명시 탭 노트 또는 릴리즈에 down/up을 배정한다. 바디·틱 노트는 소비하지 않는다. 풀 정의는 [glossary](../../docs/context/glossary.md#가장-이른-노트-매칭)를 따른다.
 _Avoid_: 가장 가까운 노트 매칭
 
 **release 판정과 keyup 소비**:
@@ -99,7 +99,7 @@ _Avoid_: 지나간 노트
 
 **콤보**:
 Miss 없이 이어진 점수 판정 수이다. 무점수 연결 성공은 증가시키지 않고, 무점수 유지 Miss도 콤보를 끊는다.
-유지 성공도 표식당 +1이며 종속 0점은 새 콤보 이벤트가 아니다. 확정 순서·같은 timestamp/phase의 Miss 우선과 최대 콤보 통계 미제공은 [glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
+틱 노트 성공도 몫당 +1이며 종속 0점은 새 콤보 이벤트가 아니다. 확정 순서·같은 timestamp/phase의 Miss 우선과 최대 콤보 통계 미제공은 [glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
 _Avoid_: 연속 입력 수
 
 **풀콤보**:
@@ -135,7 +135,7 @@ _Avoid_: 이름 없는 "오프셋"
 _Avoid_: songTime을 호출자가 직접 계산
 
 **`AutoPlayer`**:
-바디 hold 요구와 명시 Point·릴리즈를 만족하는 합성 down/up을 만드는 입력 어댑터다. 실제 키보드와 같은 세션을 쓰며 Grace 릴리즈에도 up을 만든다. 새 계약은 [게임 코어](../../docs/spec/game-core.md#autoplayer튜토리얼과-입력-수명), 구형 구현 경계는 [glossary](../../docs/context/glossary.md#autoplayer)를 따른다.
+바디 hold 요구와 명시 탭 노트·릴리즈를 만족하는 합성 down/up을 만드는 입력 어댑터다. 실제 키보드와 같은 세션을 쓰며 Grace 릴리즈에도 up을 만든다. 새 계약은 [게임 코어](../../docs/spec/game-core.md#autoplayer튜토리얼과-입력-수명), 구형 구현 경계는 [glossary](../../docs/context/glossary.md#autoplayer)를 따른다.
 _Avoid_: 오토 판정(판정은 여전히 판정 엔진이 한다)
 
 **`ConfirmedJudgmentEffects` (판정 효과)**:
@@ -182,7 +182,7 @@ _Avoid_: 달성률
 - **플레이 화면**은 입력을 **입력-노트 매칭**으로 연결하고 판정을 만든다.
 - **가장 이른 노트 매칭**은 노트 배치 순서와 판정 순서를 일치시킨다.
 - `NoteJudgmentSession`은 판정 코어를 생성 함수 `createCore`로 받는다. 넘기지 않으면 실제 게임이 쓰는 `NoteJudgmentCore`를 만들며, 다른 코어를 같은 세션 경로(drain, `advance`, finalize, 확정 효과)로 시험할 때만 넘긴다. 세부는 [게임 코어 명세](../../docs/spec/game-core.md#판정-실행-구조)를 따른다.
-- **처리된 노트**의 새 표시 계약은 정상 완료 바디·성공 유지 표식의 즉시 숨김과 실패색 잔존을 구별한다. 명시 릴리즈 대기를 바디와 함께 닫지 않는다([glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects), #343에서 구현, 일반·명시 테스트 재생에서 검증).
+- **처리된 노트**의 새 표시 계약은 정상 완료 바디·성공 틱 노트의 즉시 숨김과 실패색 잔존을 구별한다. 명시 릴리즈 대기를 바디와 함께 닫지 않는다([glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects), #343에서 구현, 일반·명시 테스트 재생에서 검증).
 - 구형 싱글·더블의 연결 켜짐·터미널 전파 기록과 새 모델의 마감 없음·몫별 상태·표시 수명은 [glossary](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)에서 구분한다. `heldEffect: false` 스킨도 부분 실패·실패를 표시하는 [RFD 0028](../../docs/rfd/0028-skin-held-effect.md)의 원칙은 보존한다.
 - **결과 화면**은 **달성률**, **랭크**, **콤보**, **풀콤보**, **`flightRule`** 결과를 보여준다.
 - Play는 **`flightRule`**에 따라 실패할 수 있으며, 실패 조건 없는 완주와 관찰은 **Observer 계열**이 담당한다.

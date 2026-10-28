@@ -254,10 +254,10 @@ async function startAutoPlay(page: Page, { escapeAtFirstComboOfRendererIndex, ed
       const fixturePath = '/e2e/normalPlayFixture.ts';
       const { startNormalFixture } = await import(fixturePath) as typeof import('../normalPlayFixture');
       startNormalFixture({ ...chart, notes: [
-        { type: 'point', kind: 'single', lane: 1, beat: b(2) },
-        { type: 'point', kind: 'single', lane: 2, beat: b(6) },
-        { type: 'point', kind: 'single', lane: 3, beat: b(7) },
-        { type: 'point', kind: 'single', lane: 4, beat: b(8) },
+        { type: 'tap', kind: 'single', lane: 1, beat: b(2) },
+        { type: 'tap', kind: 'single', lane: 2, beat: b(6) },
+        { type: 'tap', kind: 'single', lane: 3, beat: b(7) },
+        { type: 'tap', kind: 'single', lane: 4, beat: b(8) },
       ] }, audioBuffer);
       return null;
     }

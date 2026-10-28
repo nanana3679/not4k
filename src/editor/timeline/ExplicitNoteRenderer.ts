@@ -59,14 +59,14 @@ export class ExplicitNoteRenderer {
       if (selected) this.outline(bodyLayer, centerX - width / 2, top, width, height);
       return;
     }
-    if (note.type === 'point') sprite(`point.${note.kind}.pending`);
+    if (note.type === 'tap') sprite(`tap.${note.kind}.pending`);
     else if (note.type === 'release') sprite(`release.${note.count === 2 ? 'double' : 'single'}.pending`);
-    else if (note.count === 1) sprite('sustain.single.pending');
+    else if (note.count === 1) sprite('tick.single.pending');
     else {
-      sprite('sustain.double.pending.left');
-      sprite('sustain.double.pending.right');
+      sprite('tick.double.pending.left');
+      sprite('tick.double.pending.right');
     }
-    if ('grace' in note && note.grace) sprite(`graceOverlay.${note.type === 'release' ? 'release' : note.type === 'point' && note.kind === 'trill' ? 'trill' : 'point'}.overlay`);
+    if ('grace' in note && note.grace) sprite(`graceOverlay.${note.type === 'release' ? 'release' : note.type === 'tap' && note.kind === 'trill' ? 'trill' : 'tap'}.overlay`);
     if (selected) this.outline(noteLayer, centerX - 106 * scale, startY - 20 * scale, 212 * scale, 40 * scale);
   }
 

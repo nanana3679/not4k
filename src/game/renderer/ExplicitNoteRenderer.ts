@@ -9,7 +9,7 @@ import type { ExplicitPresentedNote, ExplicitRenderLayout } from "./ExplicitNote
 /** 기본 GameRenderer를 바꾸지 않는 별도 Pixi 표시 경로. parent와 텍스처의 소유자는 호출자다. */
 export class ExplicitNoteRenderer {
   readonly root = new Container();
-  private readonly layers = { body: new Container(), release: new Container(), sustain: new Container(), point: new Container() };
+  private readonly layers = { body: new Container(), release: new Container(), tick: new Container(), tap: new Container() };
   private readonly spritesByKey = new Map<string, Sprite | TilingSprite>();
   private readonly croppedTexturesById = new Map<string, Texture>();
   private presenter: ExplicitNotePresenter | null = null;

@@ -51,7 +51,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     expect(made.aux).toBe(initial.aux);
     expect(useEditorStore.getState().historyPast).toHaveLength(1);
     expect(useEditorStore.getState().chart.notes.slice(-3)).toEqual([
-      { type: 'point', kind: 'double', lane: 1, beat: beat(0), grace: true },
+      { type: 'tap', kind: 'double', lane: 1, beat: beat(0), grace: true },
       { type: 'body', holdCount: 2, lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: 'release', count: 2, lane: 1, beat: beat(4), grace: true },
     ]);
@@ -60,15 +60,15 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
   });
 
   it('600ms 안의 Point 생성과 빈 aux 유지 생성은 각각 Undo하며 더블 재클릭 no-op은 history를 추가하지 않는다', () => {
-    const point = create(); point.onPointerDown(1, 0); point.onPointerUp(1, 0);
-    const afterPoint = snapshots();
-    const sustain = create(7); sustain.entityType = 'sustain'; sustain.onPointerDown(7, 2);
-    const afterSingle = snapshots(); sustain.onPointerDown(7, 2);
+    const tap = create(); tap.onPointerDown(1, 0); tap.onPointerUp(1, 0);
+    const afterTap = snapshots();
+    const tick = create(7); tick.entityType = 'tick'; tick.onPointerDown(7, 2);
+    const afterSingle = snapshots(); tick.onPointerDown(7, 2);
     const count = useEditorStore.getState().historyPast.length;
-    sustain.onPointerDown(7, 2);
+    tick.onPointerDown(7, 2);
     expect(useEditorStore.getState().historyPast).toHaveLength(count);
     useEditorStore.getState().undo(); expect(snapshots()).toEqual(afterSingle);
-    useEditorStore.getState().undo(); expect(snapshots()).toEqual(afterPoint);
+    useEditorStore.getState().undo(); expect(snapshots()).toEqual(afterTap);
     expect(useEditorStore.getState().extraLaneCount).toBe(4);
   });
 
@@ -101,7 +101,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
   });
 
   it('숨은 lane7의 바디 밖 sustain은 로드·의미 위반 확정·Undo가 가능하고 원본 index의 overlay와 숨은 레인 진단을 만든다', () => {
-    const invalid = { ...seed(), notes: [...seed().notes, { type: 'sustain' as const, count: 1 as const, lane: 7, beat: beat(2) }] };
+    const invalid = { ...seed(), notes: [...seed().notes, { type: 'tick' as const, count: 1 as const, lane: 7, beat: beat(2) }] };
     const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
     useEditorStore.getState().loadChart(invalid); useEditorStore.getState().setExtraLaneCount(2);
     useEditorStore.getState().resetHistory();
@@ -109,14 +109,14 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     useEditorStore.getState().setChart(moved);
     expect(useEditorStore.getState().chart).toBe(moved);
     const errors = editorChartErrors(moved);
-    expect(errors).toContainEqual(expect.objectContaining({ rule: 'sustainPlacement', refs: [{ kind: 'note', index: 3 }] }));
+    expect(errors).toContainEqual(expect.objectContaining({ rule: 'tickPlacement', refs: [{ kind: 'note', index: 3 }] }));
     expect(editorChartViolationIndices(moved).notes).toEqual(new Set([3]));
     expect(hiddenViolationLanes(errors, moved.notes, 2)).toEqual([7]);
     useEditorStore.getState().undo(); expect(useEditorStore.getState().chart).toEqual(invalid);
     warn.mockRestore();
   });
 
-  it('Point 없는 4～8박 싱글 바디 앞에 바디 도구로 0～4박 싱글 바디를 그리면 두 바디가 sameHoldCountConnectionWithoutPointOrRelease 위반으로 표시되어 저장 게이트(editorChartErrors)가 비지 않고 Undo 한 번에 유효 차트로 돌아간다', () => {
+  it('Point 없는 4～8박 싱글 바디 앞에 바디 도구로 0～4박 싱글 바디를 그리면 두 바디가 sameHoldCountConnectionWithoutTapOrRelease 위반으로 표시되어 저장 게이트(editorChartErrors)가 비지 않고 Undo 한 번에 유효 차트로 돌아간다', () => {
     const valid: ChartDocument = { ...seed(), notes: [{ type: 'body', lane: 1, beat: beat(4), endBeat: beat(8), holdCount: 1 }] };
     useEditorStore.getState().loadChart(valid); useEditorStore.getState().resetHistory();
     expect(editorChartErrors(valid)).toEqual([]);
@@ -126,7 +126,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     expect(touched.notes).toEqual([...valid.notes, { type: 'body', lane: 1, beat: beat(0), endBeat: beat(4), holdCount: 1 }]);
     const errors = editorChartErrors(touched);
     expect(errors).toEqual([expect.objectContaining({
-      rule: 'sameHoldCountConnectionWithoutPointOrRelease', refs: [{ kind: 'note', index: 1 }, { kind: 'note', index: 0 }],
+      rule: 'sameHoldCountConnectionWithoutTapOrRelease', refs: [{ kind: 'note', index: 1 }, { kind: 'note', index: 0 }],
     })]);
     expect(editorChartViolationIndices(touched).notes).toEqual(new Set([0, 1]));
     expect(buildViolationList(errors)).toEqual([expect.objectContaining({ label: 'Point·릴리즈 없는 같은 hold 수 바디 연결', severity: 'semantic' })]);

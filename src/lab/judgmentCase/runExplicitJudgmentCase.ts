@@ -84,7 +84,7 @@ export interface ExplicitCaseLabel { readonly atMs: number; readonly text: strin
 
 export function explicitCaseNoteName(example: ExplicitChartCase, index: number, ordinal: number): string {
   const note = example.chart.notes[index];
-  const count = note.type === "body" ? note.holdCount : note.type === "point" ? (note.kind === "double" ? 2 : 1)
+  const count = note.type === "body" ? note.holdCount : note.type === "tap" ? (note.kind === "double" ? 2 : 1)
     : "count" in note ? note.count : 1;
   return `N${index + 1}${count > 1 ? `u${ordinal + 1}` : ""}`;
 }

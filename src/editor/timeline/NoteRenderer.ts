@@ -129,7 +129,7 @@ export class NoteRenderer {
     const chart = this.host.chart;
     if (!chart) return false;
     for (const n of chart.notes) {
-      if (n.type !== "single" && n.type !== "double" && n.type !== "trill" && n.type !== "point") continue;
+      if (n.type !== "single" && n.type !== "double" && n.type !== "trill" && n.type !== "tap") continue;
       if (n.lane === note.lane && beatEq(n.beat, note.beat)) return true;
     }
     return false;

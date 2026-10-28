@@ -10,12 +10,12 @@ import { GameClock } from "../time/GameClock";
 import { canFinishExplicitPlaySession, createExplicitPlayInput, drainExplicitPlaySessionInputs,
   finishExplicitPlaySession, stepExplicitPlaySession } from "./explicitPlaySessionInput";
 
-const point = (ms: number, lane = 1, kind: "single" | "double" = "single"): ExplicitNoteEntity =>
-  ({ type: "point", kind, lane, beat: beat(ms, 500) });
+const tap = (ms: number, lane = 1, kind: "single" | "double" = "single"): ExplicitNoteEntity =>
+  ({ type: "tap", kind, lane, beat: beat(ms, 500) });
 const body = (start: number, end: number): ExplicitNoteEntity =>
   ({ type: "body", holdCount: 1, lane: 1, beat: beat(start, 500), endBeat: beat(end, 500) });
 const release = (ms: number): ExplicitNoteEntity => ({ type: "release", count: 1, lane: 1, beat: beat(ms, 500) });
-const sustain = (ms: number): ExplicitNoteEntity => ({ type: "sustain", count: 1, lane: 1, beat: beat(ms, 500) });
+const tick = (ms: number): ExplicitNoteEntity => ({ type: "tick", count: 1, lane: 1, beat: beat(ms, 500) });
 function play(notes: ExplicitNoteEntity[], offset = 0, sections: readonly ExplicitAutoSection[] = [], latency = 0, rate = 1) {
   const chart: ChartDocument = { meta: { title: "explicit input", artist: "test", difficultyLabel: "NORMAL", difficultyLevel: 1,
     imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 }, notes, trillZones: [],
@@ -49,7 +49,7 @@ const settlements = (session: ExplicitJudgmentSession) => session.facts.filter(f
 
 describe("명시 실제 세션의 프레임 입력 drain", () => {
   it('입력−200ms에서J2000의core1800까지 복원하면J2050에 받은raw1850은 제외하고 이후 같은 입력을 Perfect로 다시 받는다', () => {
-    const p = play([point(1850)], -200);
+    const p = play([tap(1850)], -200);
     p.frame(2000); p.input(2050, 2050); p.frame(2050);
     expect(p.session.score.earnedScore).toBe(3);
     const restored = p.session.reconstructAt(2000).session;
@@ -63,7 +63,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it.each([-100, 100])("입력 offset %ims에서 1000ms Point의 raw 1120ms down은 포함 Good 경계를 보존", offset => {
-    const p = play([point(1000)], offset);
+    const p = play([tap(1000)], offset);
     const physical = 1120 - offset;
     p.frame(physical - 1);
     expect(settlements(p.session)).toEqual([]);
@@ -73,22 +73,22 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("1400ms 큰 프레임에 down1000/up1100을 drain해도 Point·릴리즈가 각각 Perfect 3점", () => {
-    const p = play([point(1000), body(1000, 1100), release(1100)]);
+    const p = play([tap(1000), body(1000, 1100), release(1100)]);
     p.input(1000, 1000); p.input(1100, 1100, "KeyA", "up");
     p.frame(1400);
-    expect(settlements(p.session)).toMatchObject([{ itemKind: "point", grade: "perfect", atMs: 1000 },
+    expect(settlements(p.session)).toMatchObject([{ itemKind: "tap", grade: "perfect", atMs: 1000 },
       { itemKind: "release", grade: "perfect", atMs: 1100 }]);
     expect(p.finish().score.earnedScore).toBe(6);
   });
 
   it("세션 1080ms 뒤 도착한 raw1000은 Perfect 오차 0을 보존하고 1080ms에 확정", () => {
-    const p = play([point(1000)]);
+    const p = play([tap(1000)]);
     p.frame(1080); p.input(1080, 1000); p.frame(1080);
     expect(settlements(p.session)).toMatchObject([{ grade: "perfect", atMs: 1000, confirmedAt: 1080, rawDeltaMs: 0 }]);
   });
 
   it("세션 1080ms에서 과거 raw1000/1050/1060을 한 group으로 재생하여 10ms hold 공백 회복을 보존", () => {
-    const p = play([point(1000), body(1000, 1500), sustain(1040), sustain(1060), release(1500)]);
+    const p = play([tap(1000), body(1000, 1500), tick(1040), tick(1060), release(1500)]);
     p.frame(1080);
     for (const [at, type] of [[1000, "down"], [1050, "up"], [1060, "down"]] as const) p.input(1080, at, "KeyA", type);
     const grouped = vi.spyOn(p.session, "processObservedBatches");
@@ -101,7 +101,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("과거 raw1000과 미래 raw2000이 한 drain에 있어도 미래 관측으로 Point를 먼저 Miss 확정하지 않음", () => {
-    const p = play([point(1000)]);
+    const p = play([tap(1000)]);
     p.frame(1080);
     p.timeline.enqueueMany([{ inputAt: 1000, lane: 1, key: "KeyA", type: "down" },
       { inputAt: 2000, lane: 2, key: "KeyB", type: "down" }]);
@@ -112,7 +112,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("raw1000 두 키와 다른 레인 입력을 한 batch로 전달해 double 두 몫과 single을 9점 정산", () => {
-    const p = play([point(1000, 1, "double"), point(1000, 2)]);
+    const p = play([tap(1000, 1, "double"), tap(1000, 2)]);
     const batch = vi.spyOn(p.session, "processBatch");
     p.timeline.enqueueMany(["A", "B", "C"].map((key, index) =>
       ({ inputAt: 1000, key, lane: index === 2 ? 2 : 1, type: "down" as const })));
@@ -123,7 +123,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("동일 raw1000 같은 키 down/up/down은 입력 인과를 유지하고 Point를 한 번만 정산", () => {
-    const p = play([point(1000)]);
+    const p = play([tap(1000)]);
     p.timeline.enqueueMany((["down", "up", "down"] as const).map(type => ({ inputAt: 1000, key: "A", lane: 1, type })));
     p.frame(1000);
     expect(p.session.facts.filter(fact => fact.kind === "input").map(fact => fact.action)).toEqual(["down", "up", "down"]);
@@ -132,7 +132,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("through999에서는 future 큐를 남기고 through1000 반복 drain도 한 입력·한 정산만 생성", () => {
-    const p = play([point(1000)]);
+    const p = play([tap(1000)]);
     p.timeline.enqueue({ inputAt: 1000, key: "A", lane: 1, type: "down" });
     expect(drainExplicitPlaySessionInputs(p.timeline, p.session, 999)).toBe(0);
     expect(p.timeline.size).toBe(1);
@@ -144,7 +144,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("입력+100ms의 raw80이 core를 앞세운 뒤 입력 없는 J5 프레임도 곡 관측5를 남겨 reconstructAt(0)이 가능", () => {
-    const p = play([point(1000)], 100);
+    const p = play([tap(1000)], 100);
     p.input(-20, -20); p.frame(-20);
     expect(p.session.snapshot.atMs).toBe(80);
     p.frame(5);
@@ -153,21 +153,21 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("1121ms Miss 확정 후 raw1000이 늦게 도착해도 정산과 효과를 되돌리지 않음", () => {
-    const p = play([point(1000)]);
+    const p = play([tap(1000)]);
     p.frame(1121); p.input(1130, 1000); p.frame(1130);
     expect(settlements(p.session)).toMatchObject([{ grade: "miss" }]);
     expect(p.session.effects).toHaveLength(1);
   });
 
   it("+200ms offset 수동 큐가 raw1200으로 앞서면 raw1050 auto를 먼저 enqueue해 두 Point 모두 Perfect", () => {
-    const p = play([point(1200), point(1050, 2)], 200, [{ startMs: 1050, endMs: 1050 }]);
+    const p = play([tap(1200), tap(1050, 2)], 200, [{ startMs: 1050, endMs: 1050 }]);
     p.frame(900); p.input(1000, 1000); p.frame(1000);
     expect(settlements(p.session)).toMatchObject([{ grade: "perfect", atMs: 1050 }, { grade: "perfect", atMs: 1200 }]);
     expect(p.finish().score.earnedScore).toBe(6);
   });
 
   it("−50ms offset에서는 auto1125보다 수동 raw1100 Good을 먼저 받아 합법 입력 기한을 보존", () => {
-    const p = play([point(1000), point(1125, 2)], -50, [{ startMs: 1100, endMs: 5000 }]);
+    const p = play([tap(1000), tap(1125, 2)], -50, [{ startMs: 1100, endMs: 5000 }]);
     p.frame(1149);
     expect(settlements(p.session)).toEqual([]);
     p.input(1150, 1150); p.frame(1150); p.frame(1200);
@@ -175,7 +175,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("부분 AutoEvent는 수동 KeyA hold의 up을 만들지 않고 auto L2와 수동 L1을 같은 세션에서 9점", () => {
-    const p = play([point(1000), body(1000, 1500), release(1500), point(1200, 2)], 0,
+    const p = play([tap(1000), body(1000, 1500), release(1500), tap(1200, 2)], 0,
       [{ startMs: 1200, endMs: 1200 }]);
     p.input(1000, 1000); p.frame(1300);
     expect(p.session.snapshot.bodyUnits[0].state).toBe("active");
@@ -184,7 +184,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("raw1000에 수동 L1과 자동 L1·L2가 함께 enqueue되면 원래 키를 한 batch로 처리해 6점", () => {
-    const p = play([point(1000), point(1000, 2)], 0, [{ startMs: 1000, endMs: 1000 }]);
+    const p = play([tap(1000), tap(1000, 2)], 0, [{ startMs: 1000, endMs: 1000 }]);
     const source = createExplicitPlayInput([{ lane: 1, key: "KeyA" }], p.clock);
     const target = new EventTarget(); source.attach(target);
     const batch = vi.spyOn(p.session, "processBatch");
@@ -201,7 +201,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
 
   it.each([[0, 0, 1, 2110], [-50, 15, 1, 2175], [-50, 20, 2, 2250]])(
     "offset %ims·출력 지연 %ims·배속 %i이면 마지막 Good 경계 물리 %ims 포함 후 다음 ms에 종료", (offset, latency, rate, last) => {
-      const p = play([point(1990)], offset, [], latency, rate);
+      const p = play([tap(1990)], offset, [], latency, rate);
       p.frame(last);
       expect(p.canFinish(2000, last)).toBe(false);
       p.input(last, last); p.frame(last);
@@ -211,7 +211,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     });
 
   it("−50ms offset auto1990은 곡 끝2000에서 기다렸다가 2040ms에 입력하고 반복 finish도 3점 한 번", () => {
-    const p = play([point(1990, 2)], -50, [{ startMs: 0, endMs: 5000 }]);
+    const p = play([tap(1990, 2)], -50, [{ startMs: 0, endMs: 5000 }]);
     p.frame(2000);
     expect(settlements(p.session)).toEqual([]);
     p.frame(2040);
@@ -232,8 +232,8 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
   });
 
   it("1000～1001ms double 바디에 raw1120 한 키만 시작해도 종료1122에서 유지·릴리즈 5항목을 미정산 없이 확정", () => {
-    const p = play([point(1000), { type: "body", holdCount: 2, lane: 1, beat: beat(2), endBeat: beat(1001, 500) },
-      { type: "sustain", count: 2, lane: 1, beat: beat(2001, 1000) },
+    const p = play([tap(1000), { type: "body", holdCount: 2, lane: 1, beat: beat(2), endBeat: beat(1001, 500) },
+      { type: "tick", count: 2, lane: 1, beat: beat(2001, 1000) },
       { type: "release", count: 2, lane: 1, beat: beat(1001, 500) }]);
     p.input(1120, 1120); p.frame(1120);
     expect(p.session.latestJudgmentDeadlineMs).toBe(1121);
@@ -314,7 +314,7 @@ describe("InputSystem→GameClock→명시 입력 큐의 수명", () => {
   });
 
   it("timestamp1000 down/up에 입력 offset100을 한 번만 적용하고 원래 KeyA·L1을 전달", () => {
-    const p = play([point(1100)], 100);
+    const p = play([tap(1100)], 100);
     p.audio.currentTimeMs = 1000;
     const source = createExplicitPlayInput([{ lane: 1, key: "KeyA" }], p.clock);
     const target = new EventTarget(); source.attach(target);
@@ -327,7 +327,7 @@ describe("InputSystem→GameClock→명시 입력 큐의 수명", () => {
   });
 
   it("dispose는 KeyA down의 raw 큐와 hold를 비우고 두 번 불러도 안전하며 이후 down은 받지 않고 다시 attach하면 오류", () => {
-    const p = play([point(1000)]);
+    const p = play([tap(1000)]);
     const source = createExplicitPlayInput([{ lane: 1, key: "KeyA" }], p.clock);
     const target = new EventTarget(); source.attach(target);
     keyboard(target, "keydown", 1000);

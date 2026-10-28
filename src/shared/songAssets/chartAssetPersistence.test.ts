@@ -80,13 +80,13 @@ describe("saveChartAsset", () => {
     const fake = makeAdapter();
     const chart: ChartDocument = { ...makeChart(), notes: [
       { type: "long", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true },
-      { type: "point", kind: "double", lane: 2, beat: beat(0), grace: true },
+      { type: "tap", kind: "double", lane: 2, beat: beat(0), grace: true },
       { type: "body", lane: 2, beat: beat(0), endBeat: beat(2), holdCount: 1 },
       { type: "release", lane: 2, beat: beat(2), count: 2, grace: true },
       { type: "single", lane: 5, beat: beat(0), grace: true },
       { type: "doubleLong", lane: 6, beat: beat(0), endBeat: beat(0), holdOnly: true },
       { type: "body", lane: 7, beat: beat(1), endBeat: beat(1), holdCount: 2 },
-      { type: "sustain", lane: 7, beat: beat(1), count: 2 },
+      { type: "tick", lane: 7, beat: beat(1), count: 2 },
     ] };
     const saved = await saveChartAsset(fake.adapter, { songId: "mixed", difficulty: "Expert", chart, extraLaneCount: 4 });
     const parsed = deserializeChartDocument(saved.chartJson);
@@ -101,7 +101,7 @@ describe("saveChartAsset", () => {
     expect(serializeChart({ ...restored, notes: mainNotes(restored.notes) })).toBe(saved.chartJson);
     expect(serializeExtraNotes(auxNotesAsExtra(restored.notes), 4)).toBe(saved.extraJson);
     expect(fake.uploads.map((upload) => upload.content)).toEqual([saved.chartJson, saved.extraJson]);
-    restored.notes[7] = { type: "sustain", lane: 7, beat: beat(1), count: 1 };
+    restored.notes[7] = { type: "tick", lane: 7, beat: beat(1), count: 1 };
     expect(serializeExtraNotes(auxNotesAsExtra(restored.notes), 4)).not.toBe(saved.extraJson);
   });
 

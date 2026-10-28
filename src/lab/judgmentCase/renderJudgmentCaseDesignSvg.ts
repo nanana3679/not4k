@@ -76,7 +76,7 @@ function renderPanel(design: JudgmentCaseDesign, skin: JudgmentCaseSkin, panelIn
   const y = (offsetPx: number) => headerHeight + 20 + maxOffset - offsetPx;
   const timeY = (ms: number) => y(offset(ms));
   const footerY = y(minOffset) + 36;
-  const hasPlaceholder = design.notes.some(note => note.kind === "maintain" || note.kind === "marker" || note.count > 2);
+  const hasPlaceholder = design.notes.some(note => note.kind === "tick" || note.kind === "marker" || note.count > 2);
   const footerLines = wrapText([
     "시간 ↑ · 간격은 눈금의 ms로 읽기 · ≈ 긴 구간 압축 · W = 직접 지정한 창",
     ...(hasPlaceholder ? ["임시 표식(전용 에셋 없음): ◇ 유지 노트 · ○ 자유 표식 또는 3개 이상 수량"] : []),
@@ -113,8 +113,8 @@ function renderPanel(design: JudgmentCaseDesign, skin: JudgmentCaseSkin, panelIn
 
   // 같은 에셋·크기·타일링·레이어 규칙을 엔진 모드와 공유한다. 판정 결과는 그림에 추론해 넣지 않는다.
   const assetNotes = design.notes.flatMap((note, index): CaseNoteDrawing[] => {
-    if (note.kind === "maintain" || note.kind === "marker" || note.count > 2) return [];
-    return [{ index, kind: note.count === 2 ? "double" : "single", shape: note.kind === "release" ? "terminal" : note.kind,
+    if (note.kind === "tick" || note.kind === "marker" || note.count > 2) return [];
+    return [{ index, kind: note.count === 2 ? "double" : "single", shape: note.kind === "release" ? "terminal" : note.kind === "tap" ? "point" : note.kind,
       lane: note.lane, startMs: note.startMs, endMs: note.endMs,
       attributes: `data-design-note="${escapeXml(note.id)}"` }];
   });
@@ -125,13 +125,13 @@ function renderPanel(design: JudgmentCaseDesign, skin: JudgmentCaseSkin, panelIn
     for (const ms of boundaries) parts.push(line(laneX(lane), timeY(ms), laneX(lane) + LANE_W, timeY(ms), BG, 'stroke-width="2"'));
   }
   parts.push(noteLayers.points);
-  for (const note of design.notes.filter(note => note.kind === "maintain" || note.kind === "marker" || note.count > 2)) {
+  for (const note of design.notes.filter(note => note.kind === "tick" || note.kind === "marker" || note.count > 2)) {
     const cx = laneX(note.lane) + LANE_W / 2;
     const cy = timeY(note.startMs);
     const color = noteColor(note.count);
     parts.push(`<g data-design-note="${escapeXml(note.id)}" data-design-placeholder="true">`);
     if (note.kind === "body") parts.push(rect(cx - 14, timeY(note.endMs), 28, Math.max(2, cy - timeY(note.endMs)), `fill="none" stroke="${color}" stroke-dasharray="4 3"`));
-    if (note.kind === "maintain") parts.push(`<path d="M${cx},${cy - 9} l15,9 l-15,9 l-15,-9 Z" fill="${BG}" stroke="${color}" stroke-width="2"/>`);
+    if (note.kind === "tick") parts.push(`<path d="M${cx},${cy - 9} l15,9 l-15,9 l-15,-9 Z" fill="${BG}" stroke="${color}" stroke-width="2"/>`);
     else parts.push(`<circle cx="${cx}" cy="${cy}" r="8" fill="${BG}" stroke="${color}" stroke-width="2"/>`);
     parts.push("</g>");
   }

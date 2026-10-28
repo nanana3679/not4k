@@ -1,4 +1,4 @@
-import { reconcileMovedSustains } from '../editing/explicitEditing';
+import { reconcileMovedTicks } from '../editing/explicitEditing';
 import type { ChartDocument, ChartEvent, DocumentNoteEntity, RangeNote, BodyNote, Beat, TrillZone, RestZone } from "../../shared";
 import { beatToFloat, isVisibleLane, isMainLane, maxAuxLane, toAuxIndex } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
@@ -65,7 +65,7 @@ export class ClipboardManager {
   private pastedRestZoneIndices: Set<number> = new Set();
   private pastedEventIndices: Set<number> = new Set();
   // 붙여넣은 유지 노트의 클립보드 수량. 대기 중 이동으로 바디 밖에 두면 이 수량으로 돌린다.
-  private pastedSustainCountByNoteIndex = new Map<number, 1 | 2>();
+  private pastedTickCountByNoteIndex = new Map<number, 1 | 2>();
 
   /** Whether clipboard has data */
   get hasClipboard(): boolean {
@@ -278,13 +278,13 @@ export class ClipboardManager {
     this.pastedNoteIndices.clear();
     const newSelectedIndices = new Set<number>();
 
-    this.pastedSustainCountByNoteIndex.clear();
+    this.pastedTickCountByNoteIndex.clear();
     for (const pasted of pastedEntries) {
       const idx = newNotes.length;
       newNotes.push(pasted);
       this.pastedNoteIndices.add(idx);
       newSelectedIndices.add(idx);
-      if (pasted.type === "sustain") this.pastedSustainCountByNoteIndex.set(idx, pasted.count);
+      if (pasted.type === "tick") this.pastedTickCountByNoteIndex.set(idx, pasted.count);
     }
 
     // trillZone도 함께 붙여넣기(같은 beatOffset, 레인 유지)
@@ -322,7 +322,7 @@ export class ClipboardManager {
 
     const newChart = {
       ...chart,
-      notes: reconcileMovedSustains(newNotes, this.pastedNoteIndices, this.pastedSustainCountByNoteIndex),
+      notes: reconcileMovedTicks(newNotes, this.pastedNoteIndices, this.pastedTickCountByNoteIndex),
       trillZones: newZones,
       events: newEvents,
       // restZone을 붙여넣을 때만 축을 갱신 — 무관한 붙여넣기는 undefined 축을 유지한다
@@ -409,7 +409,7 @@ export class ClipboardManager {
     this.pastedZoneIndices.clear();
     this.pastedRestZoneIndices.clear();
     this.pastedEventIndices.clear();
-    this.pastedSustainCountByNoteIndex.clear();
+    this.pastedTickCountByNoteIndex.clear();
     const restoreExtraLaneCount = this.prePasteExtraLaneCount;
     this.prePasteExtraLaneCount = null;
 
@@ -506,7 +506,7 @@ export class ClipboardManager {
 
     const newChart = {
       ...chart,
-      notes: reconcileMovedSustains(newNotes, this.pastedNoteIndices, this.pastedSustainCountByNoteIndex),
+      notes: reconcileMovedTicks(newNotes, this.pastedNoteIndices, this.pastedTickCountByNoteIndex),
       trillZones: newZones,
       events: newEvents,
       ...(this.pastedRestZoneIndices.size > 0 ? { restZones: newRestZones } : {}),
@@ -575,7 +575,7 @@ export class ClipboardManager {
 
     const newChart = {
       ...chart,
-      notes: reconcileMovedSustains(newNotes, this.pastedNoteIndices, this.pastedSustainCountByNoteIndex),
+      notes: reconcileMovedTicks(newNotes, this.pastedNoteIndices, this.pastedTickCountByNoteIndex),
       trillZones: newZones,
       ...(this.pastedRestZoneIndices.size > 0 ? { restZones: newRestZones } : {}),
     };
@@ -625,7 +625,7 @@ export class ClipboardManager {
     this.pastedZoneIndices.clear();
     this.pastedRestZoneIndices.clear();
     this.pastedEventIndices.clear();
-    this.pastedSustainCountByNoteIndex.clear();
+    this.pastedTickCountByNoteIndex.clear();
   }
 
   private _isRangeNote(note: DocumentNoteEntity): note is RangeNote | BodyNote {

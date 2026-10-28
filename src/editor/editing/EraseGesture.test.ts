@@ -39,10 +39,10 @@ afterEach(() => vi.clearAllMocks());
 
 describe('EraseGesture 독립 명령 중단', () => {
   it('1박 삭제 뒤 token 없는 편집이 transaction을 확정하면 같은 누름의 2박 삭제는 시도하지 않는다', () => {
-    const point = (at: number): DocumentNoteEntity => ({ type: 'point', kind: 'single', lane: 1, beat: beat(at) });
-    const { erase } = setup(chart([point(1), point(2), point(3)]));
+    const tap = (at: number): DocumentNoteEntity => ({ type: 'tap', kind: 'single', lane: 1, beat: beat(at) });
+    const { erase } = setup(chart([tap(1), tap(2), tap(3)]));
     erase.begin(); expect(erase.erase(1, 1)).toBe(true);
-    current().setChart({ ...current().chart, notes: [...notes(), point(9)] });
+    current().setChart({ ...current().chart, notes: [...notes(), tap(9)] });
 
     expect(erase.erase(1, 2)).toBe(false);
     erase.finish();
@@ -64,7 +64,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
   });
 
   it('3박 트릴 Point가 든 1～4박 trillZone의 2박을 터치하면 구간을 지우지 않고 경고한다', () => {
-    const initial = chart([{ type: 'point', kind: 'trill', lane: 1, beat: beat(3) }], { trillZones: [zoneAt1to4] });
+    const initial = chart([{ type: 'tap', kind: 'trill', lane: 1, beat: beat(3) }], { trillZones: [zoneAt1to4] });
     const { erase, warn } = setup(initial);
     erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
 
@@ -81,8 +81,8 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
 
   it('유지 표식을 뺀 선택 바디처럼 삭제가 막힌 노트 아래 2박 restZone은 대신 지우지 않는다', () => {
     const body: DocumentNoteEntity = { type: 'body', lane: 1, beat: beat(1), endBeat: beat(3), holdCount: 1 };
-    const sustain: DocumentNoteEntity = { type: 'sustain', lane: 1, beat: beat(2.5), count: 1 };
-    const initial = chart([body, sustain], { restZones: [zoneAt1to4] });
+    const tick: DocumentNoteEntity = { type: 'tick', lane: 1, beat: beat(2.5), count: 1 };
+    const initial = chart([body, tick], { restZones: [zoneAt1to4] });
     const { erase, warn } = setup(initial);
     useEditorStore.setState({ selection: { notes: new Set([0]), zones: new Set(), restZones: new Set() } });
     erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();

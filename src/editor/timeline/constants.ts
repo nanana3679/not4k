@@ -89,9 +89,9 @@ export const COLORS = {
  */
 export const NOTE_Z_ORDER: Record<string, number> = {
   body: 0,
-  point: 3,
+  tap: 3,
   release: 3,
-  sustain: 3,
+  tick: 3,
   doubleLong: 0,
   long: 1,
   trillLong: 1,

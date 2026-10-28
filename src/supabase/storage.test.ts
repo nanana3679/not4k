@@ -33,7 +33,7 @@ describe('일반 곡 문서 Storage 읽기', () => {
     chart.meta = { ...chart.meta, title: '원본 제목', artist: '제작자', offsetMs: 17, difficultyLevel: 7 };
     const aux: ChartDocument['notes'] = [
       { type: 'body', lane: 5, beat: beat(0), endBeat: beat(2), holdCount: 2 },
-      { type: 'sustain', lane: 5, beat: beat(1), count: 2 },
+      { type: 'tick', lane: 5, beat: beat(1), count: 2 },
       { type: 'release', lane: 5, beat: beat(2), count: 2, grace: true },
       { type: 'long', lane: 6, beat: beat(0), endBeat: beat(1), holdOnly: true },
     ];
@@ -47,7 +47,7 @@ describe('일반 곡 문서 Storage 읽기', () => {
 
   it.each(missingAuxResponses)('별도 aux가 %s이면 없는 파일로 보고 메인 notes에 이미 있는 lane5 명시 항목을 보존한다', async (_, response) => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
-    chart.notes.push({ type: 'point', lane: 5, beat: beat(0), kind: 'single' });
+    chart.notes.push({ type: 'tap', lane: 5, beat: beat(0), kind: 'single' });
     serve(chart, response);
     expect((await fetchChartDocument('song-1', 'NORMAL')).notes).toEqual(chart.notes);
   });
@@ -84,11 +84,11 @@ describe('일반 곡 문서 Storage 읽기', () => {
   ] as const)('%s 메인의 lane0 Point를 걸러내지 않아 전체 검증이 거부한다', async (_, auxText) => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     const main = JSON.parse(serializeChart(chart));
-    main.notes.push({ type: 'point', kind: 'single', lane: 0, beat: '1' });
+    main.notes.push({ type: 'tap', kind: 'single', lane: 0, beat: '1' });
     if (auxText === null) Object.assign(main, { extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }] });
     serve(chart, auxText ? auxText() : missingAux, JSON.stringify(main));
     const loaded = await fetchChartDocument('song-1', 'NORMAL');
-    expect(loaded.notes).toContainEqual({ type: 'point', kind: 'single', lane: 0, beat: beat(1) });
+    expect(loaded.notes).toContainEqual({ type: 'tap', kind: 'single', lane: 0, beat: beat(1) });
     expect(validateChartDocument(loaded).structural.map(error => error.rule)).toContain('laneMalformed');
     expect(validateChartDocument(loaded).canPlayExplicit).toBe(false);
   });

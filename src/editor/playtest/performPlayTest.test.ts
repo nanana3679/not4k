@@ -77,7 +77,7 @@ describe('에디터에서 명시 실제 테스트 플레이', () => {
     expect(params.chart).toEqual(original);
   });
   it.each([false, true])('fromCursor=%s라도 커서 앞 aux5의 소속 없는 sustain은 모든 전환 부작용 전에 차단한다', fromCursor => {
-    const { params, game } = setup({ fromCursor }); params.chart.notes.push({ type: 'sustain', count: 1, lane: 5, beat: beat(0) });
+    const { params, game } = setup({ fromCursor }); params.chart.notes.push({ type: 'tick', count: 1, lane: 5, beat: beat(0) });
     const before = useGameStore.getState();
     expect(performPlayTest(params)).toBe(false);
     expect(game.startExplicitPlayTest).not.toHaveBeenCalled(); expect(params.pause).not.toHaveBeenCalled();
@@ -85,7 +85,7 @@ describe('에디터에서 명시 실제 테스트 플레이', () => {
     expect(useGameStore.getState()).toBe(before);
   });
   it.each([false, true])('fromCursor=%s라도 커서 앞 main3의 소속 없는 sustain은 원본 전체 검증에서 차단한다', fromCursor => {
-    const { params, game } = setup({ fromCursor }); params.chart.notes.push({ type: 'sustain', count: 1, lane: 3, beat: beat(0) });
+    const { params, game } = setup({ fromCursor }); params.chart.notes.push({ type: 'tick', count: 1, lane: 3, beat: beat(0) });
     const before = useGameStore.getState();
     expect(performPlayTest(params)).toBe(false);
     expect(game.startExplicitPlayTest).not.toHaveBeenCalled(); expect(params.pause).not.toHaveBeenCalled();

@@ -125,9 +125,9 @@ test.describe('Game Settings', () => {
           return bounds.maxY > clipTop && bounds.minY < clipBottom;
         };
         const layers = self.explicitNoteRenderer?.root.children ?? [];
-        const points = layers.find(layer => layer.label === 'explicit-point')?.children ?? [];
+        const taps = layers.find(layer => layer.label === 'explicit-tap')?.children ?? [];
         const bodies = layers.find(layer => layer.label === 'explicit-body')?.children ?? [];
-        if (points.some(inClip) && bodies.some(inClip)) win.__classicVisibleNotes = true;
+        if (taps.some(inClip) && bodies.some(inClip)) win.__classicVisibleNotes = true;
         if (!win.__classicPlayFrame) {
           const skin = self.skinManager;
           win.__classicPlayFrame = {
@@ -153,17 +153,17 @@ test.describe('Game Settings', () => {
         // 같은 노트 묶음을 1.5초와 7.5초에 둔다. 포인트가 레인 안에 보이는 구간은 1.5초 묶음이 플레이 약 −0.66~1.68초, 7.5초 묶음이 약 5.34~7.68초(각 약 2.35초)다.
         // 1.5초 묶음은 곡이 시작될 때 판정선 위쪽에 있어 보통 첫 플레이 프레임이 담고, 첫 플레이 프레임이 늦으면 7.5초 묶음이 포인트·바디가 보이는 프레임을 만든다.
         notes: [
-          {type: 'point', kind: 'single',lane:1,beat:{n:3,d:1}},
+          {type: 'tap', kind: 'single',lane:1,beat:{n:3,d:1}},
           {type: 'body', holdCount: 1,lane:1,beat:{n:3,d:1},endBeat:{n:9,d:1}},
-          {type: 'point', kind: 'double',lane:2,beat:{n:3,d:1}},
+          {type: 'tap', kind: 'double',lane:2,beat:{n:3,d:1}},
           {type: 'body', holdCount: 2,lane:2,beat:{n:3,d:1},endBeat:{n:9,d:1}},
-          {type: 'point', kind: 'trill',lane:3,beat:{n:3,d:1}},
+          {type: 'tap', kind: 'trill',lane:3,beat:{n:3,d:1}},
           {type: 'body', holdCount: 1, trill: true,lane:3,beat:{n:3,d:1},endBeat:{n:9,d:1}},
-          {type: 'point', kind: 'single',lane:1,beat:{n:15,d:1}},
+          {type: 'tap', kind: 'single',lane:1,beat:{n:15,d:1}},
           {type: 'body', holdCount: 1,lane:1,beat:{n:15,d:1},endBeat:{n:21,d:1}},
-          {type: 'point', kind: 'double',lane:2,beat:{n:15,d:1}},
+          {type: 'tap', kind: 'double',lane:2,beat:{n:15,d:1}},
           {type: 'body', holdCount: 2,lane:2,beat:{n:15,d:1},endBeat:{n:21,d:1}},
-          {type: 'point', kind: 'trill',lane:3,beat:{n:15,d:1}},
+          {type: 'tap', kind: 'trill',lane:3,beat:{n:15,d:1}},
           {type: 'body', holdCount: 1, trill: true,lane:3,beat:{n:15,d:1},endBeat:{n:21,d:1}},
         ],
         trillZones:[{lane:3,beat:{n:0,d:1},endBeat:{n:22,d:1}}],
@@ -253,7 +253,7 @@ test.describe('Game Settings', () => {
               title: 'Key bomb size check', artist: 'test', difficultyLabel: 'NORMAL', difficultyLevel: 1,
               imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0,
             },
-            notes: [{ type: 'point', kind: 'single', lane: 2, beat: { n: 1, d: 1 } }],
+            notes: [{ type: 'tap', kind: 'single', lane: 2, beat: { n: 1, d: 1 } }],
             trillZones: [],
             events: [
               { type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 },
