@@ -172,7 +172,7 @@ function pageLayer(page: PageConfig) {
           <circle cx="800" cy="410" r="78" fill="none" stroke="var(--second)" stroke-width="2" opacity=".34"/>
           <rect x="674" y="364" width="252" height="24" rx="12" fill="#0c0a12" stroke="var(--second)" stroke-width="2"/>
           ${glowLine(740, 364, 860, 388, 'var(--second)', 3, .56)}
-          ${calibrationTicks()}
+          ${calibrationMarkers()}
         </svg>
       `;
     case 'mobile-song-list':
@@ -247,7 +247,7 @@ function settingsControls(x: number, y: number) {
   return out;
 }
 
-function calibrationTicks() {
+function calibrationMarkers() {
   let out = '';
   for (let i = 0; i < 9; i += 1) {
     const x = 604 + i * 49;
