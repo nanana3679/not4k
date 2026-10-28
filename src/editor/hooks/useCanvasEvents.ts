@@ -913,7 +913,7 @@ export function useCanvasEvents(
       selectModeRef.current &&
       shouldFireClickToggle({ moved: clickToggle.moved, longPressFired: holdFired })
     ) {
-      // 클릭은 down+up 한 쌍(마우스 클릭과 동일) — down만 보내면 이동 드래그가 열린 채 남는다(#154).
+      // 짧은 터치는 down+up 한 쌍(마우스 클릭과 동일) — down만 보내면 이동 드래그가 열린 채 남는다(#154).
       selectModeRef.current.clickAt(clickToggle.x, clickToggle.y, touchMultiSelectRef.current);
       // 토글로 마지막 선택까지 해제됐으면 다중선택 래치를 끈다(누적 토글 모드 종료).
       const sel = useEditorStore.getState();

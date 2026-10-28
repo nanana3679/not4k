@@ -791,12 +791,12 @@ describe("SelectMode — 모바일 터치 선택", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 터치 클릭 clickAt — 뗀 시점에 발화하는 클릭은 down+up 한 쌍이다 (#154)
-// 아래 호출 순서는 useCanvasEvents를 그대로 따른다: 클릭 up에서 clickAt, 빈 곳 박스는 move·up마다
+// 짧은 터치 clickAt — 뗀 시점에 발화하는 짧은 터치는 down+up 한 쌍이다 (#154)
+// 아래 호출 순서는 useCanvasEvents를 그대로 따른다: 짧은 터치의 up에서 clickAt, 빈 곳 박스는 move·up마다
 // onPointerDown(시작점 재생) 뒤 onPointerMove/onPointerUp, 노트 위 드래그는 beginBoxSelect 승격.
 // ---------------------------------------------------------------------------
 
-describe("SelectMode — 터치 클릭 clickAt (down+up 한 쌍, #154)", () => {
+describe("SelectMode — 짧은 터치 clickAt (down+up 한 쌍, #154)", () => {
   // 노트 0 = lane 1·beat 0 → 좌표 (1, 0), 노트 1 = lane 2·beat 1 → 좌표 (2, 1)
   function setupTwoNotes() {
     const chart = makeChart({
