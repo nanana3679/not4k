@@ -368,7 +368,7 @@ describe('명시 바디 끝 resize와 삭제 보호', () => {
     mode.selectZoneUnit(0); mode.onPointerDown(2, 6, false, false); mode.onPointerMove(2, 5); mode.onPointerMove(2, 3); mode.onPointerUp(2, 3);
     expect(current().chart.trillZones[0].endBeat).toEqual(beat(5)); expect(current().historyPast).toHaveLength(1);
   });
-  it('표식 없는 Body는 Shift+Down으로 길이0까지 줄이되 시작점 이전으로 역전하지 않는다', () => {
+  it('Point·릴리즈·유지 노트 없이 1～2박 Body만 있으면 Shift+Down으로 길이0(끝 1박)까지 줄이되 시작점 이전으로 역전하지 않는다', () => {
     const { mode } = setup([{ type: 'body', lane: 1, beat: beat(1), endBeat: beat(2), holdCount: 1 }]); mode.selectNote(0);
     mode.resizeEndBySnap('down'); expect(notes()[0]).toMatchObject({ endBeat: beat(1) }); mode.resizeEndBySnap('down'); expect(notes()[0]).toMatchObject({ endBeat: beat(1) });
   });
