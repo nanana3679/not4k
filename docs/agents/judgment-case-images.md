@@ -1,17 +1,20 @@
 # 판정 사례 이미지
 
-레인 하나의 노트(롱노트 바디·head·`holdOnly`)와 키 누름·뗌 시각, 그리고 판정 엔진이 그 입력을 어떻게 정산하는지를 사용자에게 설명할 때는 텍스트 표 대신 이 도구로 PNG를 만들어 보여준다. 사례는 에디터 차트 모델(노트 = `NoteEntity`, 키 입력 = `tutorialInput`)로 표현하고, 실제 판정 엔진(`compileJudgmentChart` + `NoteJudgmentSession`)을 돌린 결과를 그린다.
+노트와 키 누름·뗌, 판정 또는 설계 가설을 사용자에게 설명할 때는 텍스트 표 대신 이 도구로 PNG를 만들어 보여준다. 기본 모드는 구형 에디터 차트 모델(노트 = `NoteEntity`, 키 입력 = `tutorialInput`)을 기존 판정 엔진(`compileJudgmentChart` + `NoteJudgmentSession`)으로 재생한다. **새 명시 노트의 실제 판정은 `--explicit`과 v4 `ChartDocument` JSON을 사용한다.** 아직 구현하지 않은 규칙이나 원하는 판정 창을 논의할 때는 **`--design` 설계 모드**로 직접 지정한 내용을 그린다.
 
 ## 실행
 
 ```bash
 pnpm case:image <case.txt|chart.json|-> [더 많은 사례…] --out <file.png> [--engine <repoPath>]… [--scale <px/ms>] [--skin classic|crystal|simple]
+pnpm case:image --explicit <chart-v4.json|-> --out <file.png> [--engine <repoPath>]… [--scale <px/ms>] [--skin classic-explicit]
 ```
 
 - `--out`: 저장할 PNG 경로. 필수다.
-- `--engine`: 판정 엔진을 불러올 저장소(워크트리) 경로. 생략하면 이 도구가 있는 워크트리의 엔진을 쓴다. 여러 번 쓰면 같은 사례를 엔진마다 한 번씩 나란히 그린다.
+- `--engine`: 판정 엔진을 불러올 저장소(워크트리) 경로. 생략하면 이 도구가 있는 워크트리의 엔진을 쓴다. 여러 번 쓰면 같은 사례를 엔진마다 한 번씩 그린다(legacy는 가로, explicit은 세로).
 - `--scale`: 시간 축 배율(px/ms). 주면 빈 구간을 줄이지 않는 선형 축이 된다. 생략하면 아래 [시간 축](#시간-축) 규칙으로 자동 배율을 고른다.
-- `--skin`: 노트를 그릴 게임 스킨. `classic`(기본, 인게임 기본 스킨)·`crystal`·`simple` 중 하나다. 아래 [노트 스킨](#노트-스킨)을 따른다.
+- `--skin`: 노트를 그릴 게임 스킨. `classic`(기본, 인게임 기본 스킨)·`crystal`·`simple` 중 하나다. 아래 [노트 스킨](#노트-스킨)을 따른다. `--explicit`은 `classic-explicit`만 쓴다.
+- `--design`: [설계 JSON](#설계-모드엔진-미실행)을 읽어 기존 스킨으로 그린다. 판정 엔진은 실행하지 않으며 `--engine`과 함께 쓰면 오류다. `--skin`은 기본 모드와 똑같이 사용할 수 있다.
+- `--explicit`: [v4 실제 명시 판정](#v4-실제-명시-판정)의 `compileExplicitJudgmentChart` + `ExplicitJudgmentSession` + 실제 `ScoreManager` 경로를 사용한다. `--design`과 함께 쓸 수 없고 스킨은 `classic-explicit`만 사용한다.
 - 사례 자리에 `-`를 쓰면 표준 입력에서 읽는다. 대화 중 임시 파일 없이 heredoc으로 넘길 수 있다.
 
 실행이 끝나면 PNG 경로·스킨 이름과 패널별 요약(등급 개수·달성률·Full Combo 또는 `판정 불가(finalize 전)`·미정산 수·검증 오류·엔진 예외)을 표준 출력에 찍는다. 이미지를 보기 전에 숫자부터 확인할 수 있다.
@@ -33,6 +36,101 @@ EOF
 N2 시작 실패 1620
   A↑1430 < 끝−Good 1440 · D↓1490 → N3 head
 ```
+
+## v4 실제 명시 판정
+
+```bash
+pnpm case:image --explicit chart-v4.json --out /tmp/explicit.png
+pnpm case:image --explicit chart-v4.json --engine . --engine ../other-explicit-engine --out /tmp/compare.png
+```
+
+`--explicit`은 `version: 4`인 `ChartDocument` JSON만 받는다. 노트의 `point`·`body`·`release`·`sustain` 의미를 그대로 새 compiler/session에 전달하며 구형 `NoteEntity`로 변환하지 않는다. 구형 텍스트·v3와 `judgment-case-design` JSON은 거부한다. 기본 legacy 모드에 v4를 넘기면 `--explicit`, `judgment-case-design` JSON을 넘기면 `--design` 사용 안내와 함께 거부한다. 깨진 JSON은 기존처럼 차트 파서의 `유효한 JSON이 아닙니다` 오류로 알린다.
+
+아래는 BPM 120에서 `N1` Point 1000ms, `N2` 바디 1000～2000ms, `N3` 유지 1500ms, `N4` 릴리즈 2000ms를 실제 입력으로 실행하는 v4 예시다.
+
+```json
+{
+  "version": 4,
+  "meta": { "title": "실제 명시 릴리즈", "artist": "case", "difficultyLabel": "NORMAL", "difficultyLevel": 1, "imageFile": "", "audioFile": "", "previewAudioFile": "", "offsetMs": 0 },
+  "notes": [
+    { "type": "point", "kind": "single", "lane": 1, "beat": "2/1" },
+    { "type": "body", "holdCount": 1, "lane": 1, "beat": "2/1", "endBeat": "4/1" },
+    { "type": "sustain", "count": 1, "lane": 1, "beat": "3/1" },
+    { "type": "release", "count": 1, "lane": 1, "beat": "4/1" }
+  ],
+  "trillZones": [],
+  "restZones": [],
+  "events": [
+    { "type": "bpm", "beat": "0/1", "bpm": 120 },
+    { "type": "tutorialInput", "beat": "2/1", "endBeat": "4/1", "lane": 1, "keyCode": "KeyA", "keyLabel": "A" }
+  ]
+}
+```
+
+- 시각은 `ChartTiming`으로 파생하고 입력은 `tutorialInput`의 실제 down/up으로 재생한다. 같은 시각 입력은 문서 순서대로 한 batch로 전달한다. 사이는 0ms 기준 16ms 격자로 진행하고 실제 세션의 `latestJudgmentDeadlineMs` 이후 `finalize`한다.
+- `--engine`은 **새 실행 계열**의 `explicitCompiledChart.ts`·`ExplicitJudgmentSession.ts`·`documentValidation.ts`·`shared/constants/judgment.ts`를 선택한 저장소에서 읽는다. 미지원 엔진을 legacy 실행으로 대체하지 않는다. 창과 유지 유예는 해당 엔진의 기본값을 출력하며 수동 창을 주입하지 않는다. 같은 입력을 엔진마다 실행하고 사례 × 엔진 순서대로 세로 패널을 쌓는다.
+- main에 구형 항목이 남은 문서는 compiler가 거부한다. 오류·진단을 담은 PNG/요약은 만들되 종료 코드는 1이다. aux 항목은 원문 문서에 보존하고 새 게임 판정·PNG 노트에서는 제외한다. `N1` 등의 이름은 원래 `chart.notes` 인덱스이므로 aux가 사이에 있으면 번호가 건너뛴다.
+- PNG와 요약에 **explicit · 실제 엔진 실행**을 표시한다. 점수·분모·현재 콤보(세션이 끝난 시점의 값이며 최대 콤보가 아니다)·미정산·종속 0점은 세션의 실제 결과이며 바디 가중치는 0이다. 대표 판정 등급은 PNG 바닥글과 요약 모두 `Perfect`처럼 같은 표기를 쓴다. 전체 이론 가중치가 0인 무점수 차트는 [RFD 0039](../rfd/0039-unscored-chart-results.md)에 따라 달성률을 숨기고 요약에 `달성률 없음(무점수 차트)`을 쓴다. 점수 항목이 있는 차트는 모두 놓쳐도 `달성률 0.00%`를 표시한다. 시작/유지 실패는 확정 fact를 사용한다. provisional 바디 시작·완료 중 `bodyProgressInvalidated`로 무효화된 것은 라벨에서 빼고, finalize 전에 남은 것만 `(잠정)`을 붙인다. finalize 뒤에는 늦은 입력이 없으므로 남은 provisional 진행을 확정으로 표시한다. 현재 바디 상태는 요약의 `현재` 줄(세션 `snapshot`)로 읽는다. 대표 판정은 같은 확정 시각의 `session.effects[].displayUpdate` 최종 개정을 사용한다.
+- 정식 `buildExplicitSkinView`·`getExplicitSkinAsset`의 `public/skins/classic-explicit/` PNG를 사용한다. 노트는 사례 구조를 읽기 위한 대기 도안이며 성공·실패는 실제 사실 라벨로 표시한다. 바디는 실제 경계 안에서 반복하고 cap·숨은 끝점은 그리지 않는다. 길이 0을 포함해 타일 한 장보다 짧은 바디는 사라지지 않게 타일 한 장(노트 한 칸) 높이로 실제 경계의 가운데에 그린다. 게임은 모든 바디를 시작·끝 시각보다 노트 반 칸씩 더 길게 그리지만 이 도구는 그 반 칸을 더하지 않는다. 그래서 게임과 같은 한 칸으로 보이는 것은 길이 0 바디뿐이고, 그보다 긴 바디는 게임보다 짧게(최대 노트 한 칸) 보인다. double 유지 표식도 승인된 좌우 에셋을 사용한다. `--skin classic-explicit`은 생략할 수 있고 다른 스킨은 거부한다.
+- 점선 띠는 Point·릴리즈의 **엔진 기본 Good 창**이다. 유지는 독립 창을 그리지 않는다. 제목·설명 본문은 이미지 밖 텍스트 규칙을 유지하며 제목과 상세 결과는 stdout에 남긴다. 이미지 열람이 어려우면 PNG 경로와 stdout 패널 요약을 그대로 함께 전달한다.
+
+## 설계 모드(엔진 미실행)
+
+`--design`은 현재 엔진의 판정 결과와 무관하게 노트·입력·창·설명을 직접 지정하는 모드다. **노트는 기본 모드와 같은 게임 스킨 PNG로 그린다.** 그림 상단과 패널 요약에 **설계 예시 · 엔진 미실행 · 판정과 설명은 직접 지정**을 항상 붙인다. 가설을 엔진 검증 결과로 설명하지 않는다.
+
+**제목과 설명 본문은 이미지에 넣지 않고 대화나 이미지 밖의 텍스트로 표시한다.** PNG에는 노트·키 입력·판정 창과 짧은 라벨만 남긴다. `title`·`annotations[].text`·`summary`·`memo`는 표준 출력에 보존하며, 공유 페이지를 만들 때도 `<img>` 밖의 본문으로 배치한다.
+
+```bash
+pnpm case:image --design design.json --out /tmp/design.png --skin classic
+```
+
+다음은 문법을 설명하기 위한 수동 예시이며 게임 규칙을 확정하는 사례가 아니다.
+
+```json
+{
+  "format": "judgment-case-design",
+  "title": "비대칭 창을 직접 지정한 설계 예시",
+  "notes": [
+    { "kind": "body", "startMs": 1000, "endMs": 2000 },
+    { "kind": "point", "atMs": 1000 },
+    { "kind": "maintain", "atMs": 1500 },
+    { "kind": "release", "atMs": 2000 }
+  ],
+  "inputs": [{ "key": "A", "downMs": 950, "upMs": 1950 }],
+  "windows": [
+    { "note": "N2", "startMs": 880, "endMs": 1080, "label": "가정한 시작 창" },
+    { "note": "N4", "startMs": 1800, "endMs": 2120, "label": "가정한 종료 창", "tone": "proposal" }
+  ],
+  "annotations": [
+    { "note": "N2", "atMs": 950, "label": "Great", "text": "이 입력을 Great로 가정", "tone": "success" },
+    { "note": "N4", "atMs": 1950, "label": "이른 뗌", "text": "이 뗌을 허용할지 논의", "tone": "proposal" }
+  ],
+  "summary": "창과 판정은 모두 직접 지정한 예시",
+  "memo": "현재 엔진의 창이나 점수를 가져오지 않음"
+}
+```
+
+| 필드 | 내용 |
+| --- | --- |
+| `format` | 반드시 `judgment-case-design`. 에디터 JSON과 구분한다 |
+| `title` | 이미지 밖에 표시할 제목. 생략하면 파일 이름, 표준 입력이면 `설계 예시` |
+| `notes` | 1개 이상. `kind`는 `body`·`point`·`release`·`maintain`·`marker`(자유 표식). `body`는 `startMs`·`endMs`, 나머지는 `atMs`를 쓴다 |
+| 노트 `id`·`name` | `id`를 생략하면 배열 순서대로 `N1`, `N2`, …. `id`는 중복 불가이며 창·설명이 참조하는 이름이다. `name`은 선택 부연 이름이다 |
+| 노트 `lane`·`count` | 각각 기본 1인 양의 정수. `count`는 그림의 수량 표기이며 점수 유닛 생성이나 물리 키 배정을 뜻하지 않는다 |
+| `inputs` | 선택 배열. `key`·`downMs`, 선택 `lane`(기본 1)·`upMs`. 뗌을 생략하거나 `null`이면 계속 누르는 입력이다 |
+| `windows` | 선택 배열. `note`(노트 id)·`startMs`·`endMs`·`label`, 선택 `tone`. 비대칭·겹침·음수 시각도 지정할 수 있다 |
+| `annotations` | 선택 배열. `atMs`·`text`, 선택 `note`·`tone`·`label`. `text`는 이미지 밖의 설명 본문이다. `label`을 지정한 항목만 해당 시각에 짧은 라벨로 그린다 |
+| `tone` | `neutral`(기본, 설명)·`success`(성공 가정)·`failure`(실패 가정)·`proposal`(제안). 색뿐 아니라 글자로도 구분한다 |
+| `summary`·`memo` | 선택 문자열. 이미지 밖의 텍스트와 표준 출력에 표시한다 |
+
+- 시각은 유한한 숫자(ms)이며 음수를 허용한다. 구간 끝이 시작보다 이르거나 참조 노트가 없거나 알 수 없는 필드를 쓰면 출처와 필드 위치를 붙여 실패한다.
+- `count` 1·2인 `point`·`body`는 기본 모드와 같은 single·double 에셋, 크기, 타일링, 캡, 접촉 그림자를 쓴다. 실패 설명을 적어도 노트 자체는 기본 모드처럼 대기 상태로 표시한다. `release` 표시는 기존 대기 terminal 에셋을 재사용하며, 새로운 release 에셋 디자인을 확정하는 것은 아니다.
+- 전용 에셋이 없는 `maintain`은 ◇, 자유 표식 `marker`와 3개 이상 수량은 ○로 표시한다(바디 구간은 점선). 해당 사례의 바닥글에 **임시 표식(전용 에셋 없음)**을 명시하며 정식 노트 디자인으로 설명하지 않는다.
+- **게임의 배치 규칙은 검사하지 않는다.** 같은 위치에 서로 다른 종류를 놓은 금지 예시도 그릴 수 있다. 단, 그림으로 표현하는 구조가 잘못된 입력은 거부한다.
+- 창은 `W1`, `W2`, … 번호와 반투명 띠·점선 경계로 표시한다. 노트·입력·라벨과 같은 시간 축을 쓰며, 지정한 끝점을 축 눈금에 포함한다. 라벨이 밀려도 창의 경계는 실제 지정 시각에 남는다. 현재 엔진의 Good 창으로 치환하지 않는다. `label` 없는 설명 본문은 이미지의 축·배치에 영향을 주지 않는다.
+- `--scale`과 표준 입력 `-`도 사용할 수 있다. 여러 설계 파일은 각자 시간 축을 가진 패널로 **세로로** 쌓는다.
+- 자동 판정·점수·달성률·Full Combo 집계는 없다. 표준 출력에는 노트·입력·창·수동 설명·요약을 모두 찍는다. 이미지 열람이 어려운 환경에서는 PNG 경로와 함께 이 패널 요약을 대화에 그대로 붙인다.
+- 아래의 텍스트 문법·에디터 JSON·엔진 비교는 기본 엔진 모드에 해당한다. [노트 스킨](#노트-스킨)의 에셋 렌더링은 기본 모드와 설계 모드가 공유한다. `--explicit`은 이 렌더링을 쓰지 않고 [v4 실제 명시 판정](#v4-실제-명시-판정)의 `classic-explicit` 정식 에셋으로 그린다.
 
 ## 텍스트 문법
 
@@ -104,7 +202,7 @@ trill 노트가 있는데 그 레인에 `zone`이 없으면 trill 노트 범위�
 
 ## 엔진 선택
 
-파서·러너·렌더러는 항상 이 도구가 있는 워크트리의 `src/lab/judgmentCase/`를 쓰고, 판정 엔진만 `--engine` 저장소에서 불러온다. 저장소마다 Vite 서버를 하나 띄워 다음 안정 API를 `ssrLoadModule`로 읽는다.
+파서·러너·렌더러는 항상 이 도구가 있는 워크트리의 `src/lab/judgmentCase/`를 쓰고, 판정 엔진만 `--engine` 저장소에서 불러온다. 저장소마다 Vite 서버를 하나 띄워 기본 모드는 다음 안정 API를 `ssrLoadModule`로 읽는다. `--explicit`이 읽는 모듈은 [v4 실제 명시 판정](#v4-실제-명시-판정)을 따른다.
 
 - `src/game/judgment/compiledJudgmentChart.ts`의 `compileJudgmentChart`
 - `src/game/judgment/NoteJudgmentSession.ts`의 `NoteJudgmentSession`
@@ -187,7 +285,7 @@ trill 노트가 있는데 그 레인에 `zone`이 없으면 trill 노트 범위�
 
 ## 노트 스킨
 
-노트는 게임 스킨 매니페스트(`src/game/skin/skins.ts`)가 가리키는 `public/skins/<스킨>/` PNG로 그린다. 기본은 인게임 기본 스킨인 Classic이고 `--skin`으로 Crystal·Simple을 고른다. 에셋 선택과 배치는 게임 `GameNoteRenderer`·`SkinManager`의 판정 전(대기) 규칙과 [노트 에셋 Lab의 Classic 매핑](../spec/note-asset-lab.md#classic-스킨-매핑)을 따른다.
+이 절은 기본 모드와 설계 모드에 해당한다. `--explicit`의 에셋은 [v4 실제 명시 판정](#v4-실제-명시-판정)을 따른다. 노트는 게임 스킨 매니페스트(`src/game/skin/skins.ts`)가 가리키는 `public/skins/<스킨>/` PNG로 그린다. 기본은 인게임 기본 스킨인 Classic이고 `--skin`으로 Crystal·Simple을 고른다. 에셋 선택과 배치는 게임 `GameNoteRenderer`·`SkinManager`의 판정 전(대기) 규칙과 [노트 에셋 Lab의 Classic 매핑](../spec/note-asset-lab.md#classic-스킨-매핑)을 따른다.
 
 - **대기 모양만 그린다.** 켜짐(Held)·실패(Failed)·부분 실패·부분 충족 에셋은 고르지도 넣지도 않는다. 판정 결과는 판정 열에서 읽는다.
 - **포인트**: `noteSingle`·`noteDouble`·`noteTrill` 이미지 전체를 레인 폭에 맞춘다(Classic 212×40 원본 → 레인 80px × 16px).
@@ -210,7 +308,15 @@ trill 노트가 있는데 그 레인에 `zone`이 없으면 trill 노트 범위�
 | `src/lab/judgmentCase/chartCase.ts` | 차트(JSON·텍스트) → ms로 정규화하고 노트 이름(N1…)을 붙인 사례 |
 | `src/lab/judgmentCase/runJudgmentCase.ts` | 주입한 엔진으로 사례 재생, 이벤트·점수·미정산 항목·유닛 상태 수집 |
 | `src/lab/judgmentCase/judgmentCaseSkin.ts` | 게임 스킨 매니페스트 → 판정 전(대기) 에셋 경로 선택, PNG 크기·data URI로 렌더러용 스킨 구성 |
+| `src/lab/judgmentCase/judgmentCaseNoteSvg.ts` | 기본 모드와 설계 모드가 공유하는 노트 PNG 렌더링. 크기·타일링·캡·그림자·레이어 순서 |
 | `src/lab/judgmentCase/renderJudgmentCaseSvg.ts` | 사례 + 결과 + 스킨 → SVG 문자열(스킨 에셋 노트·노트 이름표·판정 라벨·실패 이유 포함) |
+| `src/lab/judgmentCase/judgmentCaseLayout.ts` | 세 모드가 공유하는 엔진 독립 시간 축·텍스트 배치 |
+| `src/lab/judgmentCase/judgmentCaseDesign.ts` | 설계 JSON 구조 검증·수동 요약. 게임 규칙은 검사하지 않음 |
+| `src/lab/judgmentCase/renderJudgmentCaseDesignSvg.ts` | 설계 + 스킨 → SVG. 기존 노트 에셋·입력·창·수동 설명 |
+| `src/lab/judgmentCase/explicitChartCase.ts` | v4 `ChartDocument` → 원문을 보존한 채 ms 시각·노트 이름·입력 동작을 붙인 explicit 사례. 구형 입력은 거부 |
+| `src/lab/judgmentCase/runExplicitJudgmentCase.ts` | 주입한 엔진의 명시 compiler·session으로 사례 재생, fact 라벨·대표 판정·요약 |
+| `src/lab/judgmentCase/explicitCaseSkin.ts` | 정식 `classic-explicit` 매니페스트의 에셋 경로와 PNG 크기 검증 |
+| `src/lab/judgmentCase/renderExplicitJudgmentCaseSvg.ts` | explicit 사례 + 실제 세션 결과 + `classic-explicit` → SVG |
 | `src/lab/judgmentCase/judgmentCaseCli.ts` | 명령 인자 해석 |
 | `scripts/judgment-case-image.ts` | Vite로 모듈과 스킨 매니페스트를 읽고 `public/skins` PNG를 data URI로 넣어 Playwright로 SVG를 PNG로 저장 |
 
@@ -218,12 +324,12 @@ trill 노트가 있는데 그 레인에 `zone`이 없으면 trill 노트 범위�
 
 ## 한계
 
-- 판정 창은 Normal(±41/82/120ms) 기본값만 쓴다.
+- 기본 엔진 모드의 판정 창은 Normal(±41/82/120ms) 기본값만 쓴다. 설계 모드의 창은 직접 지정한다. explicit 모드는 선택한 엔진의 기본 창·유지 유예를 그대로 쓰고 수동 창을 주입하지 않는다.
 - 텍스트 문법은 음수 시각을 받지 않는다. 이른 입력이 필요하면 사례를 1000ms쯤에서 시작한다.
 - 글자 폭은 Noto Sans CJK 실측값으로 어림한다. 다른 글꼴로 렌더되면 라벨 폭이 약간 어긋날 수 있다.
 - 노트 레인에는 켜짐·실패 상태를 그리지 않는다. 어느 바디·유닛이 언제 실패했는지는 판정 열의 시작·유지 실패 라벨로 읽는다.
-- 게임과 같이 포인트·터미널 박스 가운데를 시각 선에 맞춘다([#224](https://github.com/nanana3679/not4k/issues/224), [게임 코어 명세의 노트 그리는 기준](../spec/game-core.md#플레이-화면-배치)). 그래서 축 눈금·경계선이 노트 가운데를 지나고, 바디와 `trillZone` 띠는 게임처럼 시작·끝 시각보다 노트 반 칸(8px)씩 더 길게 보인다.
+- 기본 모드와 설계 모드는 게임과 같이 포인트·터미널 박스 가운데를 시각 선에 맞춘다([#224](https://github.com/nanana3679/not4k/issues/224), [게임 코어 명세의 노트 그리는 기준](../spec/game-core.md#플레이-화면-배치)). 그래서 축 눈금·경계선이 노트 가운데를 지나고, 바디와 기본 모드의 `trillZone` 띠는 게임처럼 시작·끝 시각보다 노트 반 칸(8px)씩 더 길게 보인다. `--explicit`의 바디는 이 반 칸을 더하지 않는다([v4 실제 명시 판정](#v4-실제-명시-판정)).
 - 게임의 시간 흐름에 따른 표시(판정선 고정, 짧은 바디에서 시작 전·후에 한쪽 터미널만 보이기, 성공한 노트 숨기기)는 정지 그림에 없으므로 그리지 않는다.
-- 접촉 그림자가 없는 스킨의 예전 `pointShadow`(Classic 보관본 v001·v002 등)와 Lab 보관 버전·`note-asset-lab` 스킨은 고를 수 없다. `--skin`은 `classic`·`crystal`·`simple`만 받는다.
+- 접촉 그림자가 없는 스킨의 예전 `pointShadow`(Classic 보관본 v001·v002 등)와 Lab 보관 버전·`note-asset-lab` 스킨은 고를 수 없다. 기본 모드와 설계 모드의 `--skin`은 `classic`·`crystal`·`simple`만 받고, `--explicit`은 `classic-explicit`만 쓴다.
 - 실패 이유는 사례 입력, 엔진 이벤트, 엔진 유닛 상태(시작 여부와 등록된 유지 키)만으로 만들고 보류한 up 같은 다른 내부 상태는 보지 않는다. 그래서 확실한 조각만 쓰며, 엔진이 실제로 따진 조건 전체를 설명하지는 않는다.
 - 패널 하나의 폭이 800～1200px 안팎이라 패널이 많으면 이미지가 매우 넓어진다(사례 2개 × 엔진 2개면 3300～4900px). 폭이 1200px를 넘으면 확대 없이 원래 크기로 저장하므로 휴대폰에서는 확대해야 읽힌다. 비교는 사례 하나 × 엔진 둘씩 나눠 만드는 편이 낫다.

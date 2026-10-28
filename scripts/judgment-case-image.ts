@@ -1,8 +1,9 @@
-// 판정 사례(텍스트 문법 또는 에디터 차트 JSON)를 실제 판정 엔진으로 돌려 PNG 한 장으로 저장한다.
+// 실제 엔진 판정 사례 또는 --design 수동 설계 JSON을 PNG로 저장한다.
 // 문법·엔진 선택·비교 모드는 docs/agents/judgment-case-images.md를 따른다.
 //
 // 파서·러너·렌더러는 이 워크트리의 src/lab/judgmentCase를, 판정 엔진은 --engine 저장소의
 // compileJudgmentChart·NoteJudgmentSession·validateChart를 Vite ssrLoadModule로 불러온다(저장소마다 서버 하나).
+// --explicit은 같은 저장소 선택으로 compileExplicitJudgmentChart·ExplicitJudgmentSession·문서 검증·엔진 기본값을 읽는다.
 // 노트는 이 워크트리의 게임 스킨 매니페스트(--skin)가 가리키는 public/skins PNG를 data URI로 넣어 그린다.
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -26,6 +27,13 @@ const ENGINE_MODULES = {
   compileJudgmentChart: '/src/game/judgment/compiledJudgmentChart.ts',
   NoteJudgmentSession: '/src/game/judgment/NoteJudgmentSession.ts',
   validateChart: '/src/shared/validation/index.ts',
+};
+const EXPLICIT_ENGINE_MODULES = {
+  compileExplicitJudgmentChart: '/src/game/judgment/explicitCompiledChart.ts',
+  ExplicitJudgmentSession: '/src/game/judgment/ExplicitJudgmentSession.ts',
+  validateChartDocument: '/src/shared/validation/documentValidation.ts',
+  JUDGMENT_WINDOWS: '/src/shared/constants/judgment.ts',
+  MAINTENANCE_GRACE_MS: '/src/shared/constants/judgment.ts',
 };
 
 const servers = new Map<string, ViteDevServer>();
@@ -63,22 +71,39 @@ function git(root: string, args: string[]) {
 function engineLabel(root: string) {
   const branch = git(root, ['rev-parse', '--abbrev-ref', 'HEAD']) || '?';
   const sha = git(root, ['rev-parse', '--short', 'HEAD']) || '?';
-  const dirty = git(root, ['status', '--porcelain', '--', 'src/game/judgment', 'src/shared']) !== '';
+  const dirty = git(root, ['status', '--porcelain', '--', 'src/game/judgment', 'src/game/scoring', 'src/shared']) !== '';
   return `${path.basename(root)} · ${branch} @${sha}${dirty ? ' (+커밋 안 된 수정)' : ''}`;
 }
 
-async function loadEngine(root: string): Promise<LoadedEngine> {
-  for (const modulePath of Object.values(ENGINE_MODULES)) {
-    if (!existsSync(path.join(root, modulePath))) throw new Error(`엔진 모듈이 없습니다: ${path.join(root, modulePath)}`);
+async function loadEngine(root: string, explicit = false): Promise<LoadedEngine> {
+  const modules = explicit ? EXPLICIT_ENGINE_MODULES : ENGINE_MODULES;
+  for (const modulePath of Object.values(modules)) {
+    if (!existsSync(path.join(root, modulePath))) throw new Error(`${explicit ? 'explicit 실행을 지원하지 않는 엔진입니다. ' : ''}엔진 모듈이 없습니다: ${path.join(root, modulePath)}`);
   }
   const server = await moduleServer(root);
   const api: Record<string, unknown> = {};
-  for (const [name, modulePath] of Object.entries(ENGINE_MODULES)) {
+  for (const [name, modulePath] of Object.entries(modules)) {
     const loaded = await server.ssrLoadModule(modulePath);
-    if (!loaded[name]) throw new Error(`${root}${modulePath}에 ${name} export가 없습니다`);
+    if (loaded[name] === undefined) throw new Error(`${root}${modulePath}에 ${name} export가 없습니다`);
     api[name] = loaded[name];
   }
   return { root, api, label: engineLabel(root) };
+}
+
+async function loadExplicitSkin(local: ViteDevServer) {
+  const { explicitCaseSkinAssetPaths, createExplicitCaseSkin } = await local.ssrLoadModule('/src/lab/judgmentCase/explicitCaseSkin.ts');
+  const { readPngSize } = await local.ssrLoadModule('/src/lab/judgmentCase/judgmentCaseSkin.ts');
+  const images: Record<string, unknown> = {};
+  for (const [id, assetPath] of Object.entries(explicitCaseSkinAssetPaths())) {
+    const file = path.join(localRoot, 'public', (assetPath as string).replace(/^\/+/, ''));
+    try {
+      const bytes = await readFile(file);
+      images[id] = { href: `data:image/png;base64,${bytes.toString('base64')}`, ...readPngSize(bytes) };
+    } catch (error) {
+      throw new Error(`classic-explicit 에셋 ${id} (${file}): ${error instanceof Error ? error.message : error}`, { cause: error });
+    }
+  }
+  return createExplicitCaseSkin(images);
 }
 
 /** --skin 매니페스트에서 판정 전(대기) 에셋 경로를 골라 public/ 아래 PNG를 data URI로 읽는다 */
@@ -149,6 +174,54 @@ async function main() {
   }
   if (options.help) {
     console.log(cli.JUDGMENT_CASE_CLI_USAGE);
+    return;
+  }
+
+  if (options.design) {
+    // 게임 엔진·차트 변환 전에 분기한다. 기존 스킨을 쓰되 판정 설명은 전부 수동 지정이다.
+    const { parseJudgmentCaseDesign, summarizeJudgmentCaseDesign } = await local.ssrLoadModule('/src/lab/judgmentCase/judgmentCaseDesign.ts');
+    const { renderJudgmentCaseDesignSvg } = await local.ssrLoadModule('/src/lab/judgmentCase/renderJudgmentCaseDesignSvg.ts');
+    const skin = await loadSkin(local, options.skin);
+    const designs = [];
+    for (const source of options.cases) {
+      const text = source === '-' ? await readStdin() : await readFile(resolveArg(source), 'utf8');
+      try {
+        designs.push(parseJudgmentCaseDesign(text, source === '-' ? '' : path.basename(source)));
+      } catch (error) {
+        throw new Error(`${source === '-' ? '표준 입력' : source}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+    const { svg, width, height } = renderJudgmentCaseDesignSvg(designs, { skin, pxPerMs: options.scale });
+    const out = resolveArg(options.out);
+    const { pngWidth, pngHeight } = await screenshot(svg, width, height, out);
+    console.log(`${out} 저장 (${pngWidth}×${pngHeight}px, 설계 패널 ${designs.length}개, 스킨 ${skin.name}, 엔진 미실행)`);
+    for (const design of designs) console.log(summarizeJudgmentCaseDesign(design));
+    return;
+  }
+
+  if (options.explicit) {
+    const { explicitCaseFromSource } = await local.ssrLoadModule('/src/lab/judgmentCase/explicitChartCase.ts');
+    const { runExplicitJudgmentCase, summarizeExplicitCase } = await local.ssrLoadModule('/src/lab/judgmentCase/runExplicitJudgmentCase.ts');
+    const { renderExplicitJudgmentCaseSvg } = await local.ssrLoadModule('/src/lab/judgmentCase/renderExplicitJudgmentCaseSvg.ts');
+    const skin = await loadExplicitSkin(local);
+    const engines: LoadedEngine[] = [];
+    for (const root of options.engines.length > 0 ? options.engines.map(resolveArg) : [localRoot]) engines.push(await loadEngine(root, true));
+    const cases = [];
+    for (const source of options.cases) {
+      const sourceText = source === '-' ? await readStdin() : await readFile(resolveArg(source), 'utf8');
+      try { cases.push(explicitCaseFromSource(sourceText, source === '-' ? '' : path.basename(source))); }
+      catch (error) { throw new Error(`${source === '-' ? '표준 입력' : source}: ${error instanceof Error ? error.message : error}`); }
+    }
+    const panels = cases.flatMap(judgmentCase => engines.map(engine => ({ judgmentCase,
+      run: runExplicitJudgmentCase(judgmentCase, engine.api), engineLabel: engine.label, enginePath: engine.root })));
+    const { svg, width, height } = renderExplicitJudgmentCaseSvg(panels, { skin, ...(options.scale === undefined ? {} : { pxPerMs: options.scale }) });
+    const out = resolveArg(options.out);
+    const { pngWidth, pngHeight } = await screenshot(svg, width, height, out);
+    console.log(`${out} 저장 (${pngWidth}×${pngHeight}px, 패널 ${panels.length}개, 스킨 ${skin.name}, explicit 실제 세션 ${panels.filter(panel => panel.run.result !== null).length}개)`);
+    for (const panel of panels) {
+      console.log(summarizeExplicitCase(panel.judgmentCase, panel.run, panel.engineLabel));
+      if (panel.run.error || !panel.run.finalized) process.exitCode = 1;
+    }
     return;
   }
 

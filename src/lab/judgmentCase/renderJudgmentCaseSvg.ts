@@ -12,13 +12,18 @@
  * 최소 MIN_GAP_PX를 보장해 20ms 바디나 10ms 차이 입력도 읽히게 한다. 축 눈금은 실제 ms를 표시한다.
  */
 
-import { COLORS, LANE_WIDTH as GAME_LANE_WIDTH, NOTE_HEIGHT as GAME_NOTE_HEIGHT, noteBoxTopY, playfieldPx } from "../../game/renderer/constants";
+import { COLORS, noteBoxTopY } from "../../game/renderer/constants";
 import { JUDGMENT_WINDOWS } from "../../shared/constants";
 import type { NoteEntity, RangeNote } from "../../shared/types";
 import { violationLabel, type ValidationErrorRule } from "../../shared/validation";
 import type { JudgmentCase, JudgmentCaseAction, JudgmentCaseInput, JudgmentCaseNote } from "./chartCase";
-import type { JudgmentCaseNoteKind, JudgmentCaseSkin, JudgmentCaseSkinSprite } from "./judgmentCaseSkin";
+import type { JudgmentCaseNoteKind, JudgmentCaseSkin } from "./judgmentCaseSkin";
+import { CASE_LANE_WIDTH as LANE_W, CASE_NOTE_HEIGHT as NOTE_H, drawCaseNotes, skinDefs, type CaseNoteDrawing } from "./judgmentCaseNoteSvg";
 import type { JudgmentCaseRun, JudgmentCaseRunEvent, JudgmentCaseScoreItem } from "./runJudgmentCase";
+
+import { createAutoCaseTimeAxis, createCaseTimeAxis, estimateTextWidth, escapeXml, formatMs, resolveLabelPositions, wrapText, type CaseTimeAxis } from "./judgmentCaseLayout";
+export { MIN_GAP_PX, createAutoCaseTimeAxis, createCaseTimeAxis, estimateTextWidth, formatMs, resolveLabelPositions, wrapText } from "./judgmentCaseLayout";
+export type { CaseTimeAxis, CaseTimeAxisOptions } from "./judgmentCaseLayout";
 
 export interface JudgmentCasePanel {
   judgmentCase: JudgmentCase;
@@ -57,26 +62,10 @@ const GUIDE = "rgba(255,255,255,0.38)";
 /** 선 위에 놓인 글자를 읽히게 하는 배경색 테두리 */
 const HALO = `paint-order="stroke" stroke="${BACKGROUND}" stroke-width="4" stroke-linejoin="round"`;
 
-export const MIN_GAP_PX = 22;
-const TARGET_PLOT_PX = 720;
-const MIN_AUTO_PX_PER_MS = 0.02;
-const MAX_AUTO_PX_PER_MS = 1.2;
-/** 자동 축에서 빈 구간 하나가 차지하는 최대 높이(px) */
-const MAX_GAP_PX = 220;
 const PLOT_PAD_PX = 30;
 const PANEL_PAD_X = 20;
 const PANEL_GUTTER = 28;
 const AXIS_W = 62;
-const LANE_W = 80;
-/** 게임 레인(62.5 논리 px) → 이미지 레인 배율. 노트 높이처럼 게임 렌더러의 논리 px 치수에 곱한다 */
-const LANE_SCALE = LANE_W / GAME_LANE_WIDTH;
-/** 포인트·터미널 높이(게임 12.5px → 16px) */
-const NOTE_H = GAME_NOTE_HEIGHT * LANE_SCALE;
-/**
- * 스킨 테마 px(그림자 퍼짐·Grace 여백·터미널 외곽 돌출)과 렌더러 설계값은 레인 100 기준이다. 게임은 플레이필드 배율
- * (playfieldPx, RFD 0029)로 바꿔 그리므로 같은 값을 거쳐 이미지 px로 옮긴다(레인 100 → 80, 즉 × 0.8).
- */
-const designPx = (value: number) => playfieldPx(value) * LANE_SCALE;
 const COLUMN_GAP = 14;
 const KEY_BAR_W = 12;
 const KEY_LABEL_FONT = 13;
@@ -122,160 +111,6 @@ const KEY_COLORS = ["#ff9f43", "#36d1dc", "#c56cf0", "#ff6b9a", "#7bed9f", "#f6e
 // ---------------------------------------------------------------------------
 // 시간 축
 // ---------------------------------------------------------------------------
-
-export interface CaseTimeAxis {
-  /** 시각 t의 축 위치(px, 첫 주요 시각 = 0, 시간이 늦을수록 큼) */
-  offsetOf(t: number): number;
-  /** 첫 주요 시각 ~ 마지막 주요 시각의 높이(px) */
-  height: number;
-  keyTimes: number[];
-  /** maxGapPx로 줄인 빈 구간(축에 물결 표시) */
-  compressed: { startMs: number; endMs: number }[];
-}
-
-export interface CaseTimeAxisOptions {
-  /** 인접 주요 시각 사이 최소 높이(px) */
-  minGapPx?: number;
-  /** 인접 주요 시각 사이 최대 높이(px). 넘는 빈 구간은 이 높이로 줄인다 */
-  maxGapPx?: number;
-}
-
-/** 주요 시각 사이를 pxPerMs로 늘리되 인접 간격을 [minGapPx, maxGapPx]로 제한하는 구간별 선형 축 */
-export function createCaseTimeAxis(times: readonly number[], pxPerMs: number, options: CaseTimeAxisOptions = {}): CaseTimeAxis {
-  const minGapPx = options.minGapPx ?? MIN_GAP_PX;
-  const maxGapPx = options.maxGapPx ?? Infinity;
-  const keyTimes = [...new Set(times.filter((time) => Number.isFinite(time)))].sort((a, b) => a - b);
-  const offsets = [0];
-  const compressed: CaseTimeAxis["compressed"] = [];
-  for (let i = 1; i < keyTimes.length; i++) {
-    const linear = (keyTimes[i] - keyTimes[i - 1]) * pxPerMs;
-    if (linear > maxGapPx) compressed.push({ startMs: keyTimes[i - 1], endMs: keyTimes[i] });
-    offsets.push(offsets[i - 1] + Math.min(Math.max(linear, minGapPx), Math.max(maxGapPx, minGapPx)));
-  }
-  const offsetOf = (t: number): number => {
-    if (keyTimes.length === 0) return t * pxPerMs;
-    const last = keyTimes.length - 1;
-    if (t <= keyTimes[0]) return (t - keyTimes[0]) * pxPerMs;
-    if (t >= keyTimes[last]) return offsets[last] + (t - keyTimes[last]) * pxPerMs;
-    let i = 0;
-    while (keyTimes[i + 1] < t) i++;
-    const ratio = (t - keyTimes[i]) / (keyTimes[i + 1] - keyTimes[i]);
-    return offsets[i] + ratio * (offsets[i + 1] - offsets[i]);
-  };
-  return { offsetOf, height: offsets[offsets.length - 1] ?? 0, keyTimes, compressed };
-}
-
-/**
- * 자동 축: 빈 구간을 MAX_GAP_PX로 줄이고, 전체 높이가 TARGET_PLOT_PX를 넘지 않는 가장 큰 px/ms(최대 1.2)를 고른다.
- * 노트가 많아 최소 간격만으로 목표를 넘으면 가장 작은 배율을 쓴다.
- */
-export function createAutoCaseTimeAxis(times: readonly number[]): CaseTimeAxis {
-  const build = (pxPerMs: number) => createCaseTimeAxis(times, pxPerMs, { maxGapPx: MAX_GAP_PX });
-  if (build(MAX_AUTO_PX_PER_MS).height <= TARGET_PLOT_PX) return build(MAX_AUTO_PX_PER_MS);
-  let low = MIN_AUTO_PX_PER_MS;
-  let high = MAX_AUTO_PX_PER_MS;
-  for (let step = 0; step < 30; step++) {
-    const middle = (low + high) / 2;
-    if (build(middle).height <= TARGET_PLOT_PX) low = middle;
-    else high = middle;
-  }
-  return build(low);
-}
-
-// ---------------------------------------------------------------------------
-// 라벨 겹침 회피
-// ---------------------------------------------------------------------------
-
-/**
- * 1차원 라벨 위치를 겹치지 않게 벌린다. 겹치는 라벨 묶음은 원래 위치들의 평균을 중심으로
- * spacing 간격으로 쌓는다. 원래 순서(위치 오름차순, 같으면 입력 순서)는 유지하고 결과는 입력 순서로 돌려준다.
- *
- * sizes[i]는 라벨 i의 줄 수(기본 1)다. 위치는 첫 줄 기준이고 나머지 줄은 아래(작은 값 쪽)로 처지므로,
- * 바로 아래 라벨과는 sizes[i] × spacing만큼 떨어뜨린다.
- */
-export function resolveLabelPositions(desired: readonly number[], spacing: number, sizes: readonly number[] = []): number[] {
-  const size = (index: number) => sizes[index] ?? 1;
-  const order = desired.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value || a.index - b.index);
-  /** rel[k] = 묶음 첫 라벨에서 k번째 라벨까지의 거리 */
-  interface Cluster { members: number[]; rel: number[]; start: number }
-  const clusters: Cluster[] = [];
-  for (const { value, index } of order) {
-    clusters.push({ members: [index], rel: [0], start: value });
-    while (clusters.length >= 2) {
-      const last = clusters[clusters.length - 1];
-      const previous = clusters[clusters.length - 2];
-      const previousTop = previous.start + previous.rel[previous.rel.length - 1];
-      if (last.start >= previousTop + size(last.members[0]) * spacing) break;
-      const members = [...previous.members, ...last.members];
-      const rel = [0];
-      for (let k = 1; k < members.length; k++) rel.push(rel[k - 1] + size(members[k]) * spacing);
-      const start = members.reduce((sum, member, k) => sum + desired[member] - rel[k], 0) / members.length;
-      clusters.splice(clusters.length - 2, 2, { members, rel, start });
-    }
-  }
-  const result: number[] = new Array(desired.length);
-  for (const cluster of clusters) cluster.members.forEach((member, k) => { result[member] = cluster.start + cluster.rel[k]; });
-  return result;
-}
-
-// ---------------------------------------------------------------------------
-// 텍스트
-// ---------------------------------------------------------------------------
-
-/**
- * Noto Sans CJK KR 실측 폭(em)에 맞춘 어림값. 겹침 방지가 목적이라 굵은 글꼴을 감안해 5% 넉넉히 잡는다.
- * 숫자 0.555, 공백 0.224, 한글 0.92, 화살표·±·◇ 1.0 (Chromium canvas measureText 기준).
- */
-export function estimateTextWidth(text: string, fontSize: number): number {
-  let em = 0;
-  for (const char of text) {
-    const code = char.codePointAt(0) ?? 0;
-    if (char >= "0" && char <= "9") em += 0.56;
-    else if (char === " ") em += 0.23;
-    else if ("il.,:;'|!()[]".includes(char)) em += 0.34;
-    else if (char >= "a" && char <= "z") em += char === "m" || char === "w" ? 0.93 : 0.58;
-    else if (char >= "A" && char <= "Z") em += char === "M" || char === "W" ? 0.88 : 0.7;
-    else if (code < 0x80) em += 0.6;
-    else if (code >= 0xac00 && code <= 0xd7a3) em += 0.93;
-    else if ("·−–".includes(char)) em += 0.57;
-    else em += 1;
-  }
-  return em * fontSize * 1.05;
-}
-
-function escapeXml(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-/** maxWidth를 넘지 않게 줄을 나눈다. 공백에서 먼저 끊고, 한 단어가 넘치면 글자 단위로 끊는다. */
-export function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
-  const lines: string[] = [];
-  for (const paragraph of text.split("\n")) {
-    let line = "";
-    for (const word of paragraph.split(/(\s+)/)) {
-      if (word === "") continue;
-      const candidate = line + word;
-      if (estimateTextWidth(candidate, fontSize) <= maxWidth) {
-        line = candidate;
-        continue;
-      }
-      if (line.trim() !== "") lines.push(line.trimEnd());
-      line = word.trimStart();
-      while (estimateTextWidth(line, fontSize) > maxWidth && line.length > 1) {
-        let cut = line.length - 1;
-        while (cut > 1 && estimateTextWidth(line.slice(0, cut), fontSize) > maxWidth) cut--;
-        lines.push(line.slice(0, cut));
-        line = line.slice(cut);
-      }
-    }
-    lines.push(line.trimEnd());
-  }
-  return lines;
-}
-
-export function formatMs(ms: number): string {
-  return Number.isInteger(ms) ? `${ms}` : `${Math.round(ms * 100) / 100}`;
-}
 
 function formatDelta(deltaMs: number): string {
   const value = formatMs(Math.abs(deltaMs));
@@ -775,157 +610,20 @@ function noteKindOf(type: NoteEntity["type"]): JudgmentCaseNoteKind {
   return "single";
 }
 
-/** 스킨 이미지 정의 — 노트는 <use href="#jc-skin-키">로 참조한다 */
-function skinDefs(skin: JudgmentCaseSkin): string {
-  return Object.entries(skin.images)
-    .map(([key, image]) => `<image id="jc-skin-${key}" href="${escapeXml(image!.href)}" width="${image!.width}" height="${image!.height}" preserveAspectRatio="none"/>`)
-    .join("");
-}
-
-interface Box { x: number; y: number; width: number; height: number }
-
-/** 스킨 이미지(또는 그 일부)를 상자에 늘려 그린다. flipY면 상자 안에서 상하반전(게임의 scale.y < 0) */
-function skinImage(sprite: JudgmentCaseSkinSprite, box: Box, attrs: string, flipY = false): string {
-  const image = `<svg ${attrs} data-skin-asset="${sprite.key}" x="${px(box.x)}" y="${px(box.y)}" width="${px(box.width)}" height="${px(box.height)}" viewBox="${sprite.x} ${sprite.y} ${sprite.width} ${sprite.height}" preserveAspectRatio="none"><use href="#jc-skin-${sprite.key}"/></svg>`;
-  return flipY ? `<g transform="matrix(1 0 0 -1 0 ${px(2 * box.y + box.height)})">${image}</g>` : image;
-}
-
-/** NineSliceSprite 위아래 테두리(게임 px) — stretch 바디의 위아래 4px는 늘이지 않는다. src/game/renderer/GameNoteRenderer.ts getOrCreateBodySprite의 topHeight·bottomHeight를 따른다 */
-const BODY_SLICE_PX = 4;
-/** split-cap 짧은 바디에서 두 반쪽 캡 사이에 남기는 설계 px(레인 100 기준). src/game/renderer/GameNoteRenderer.ts의 WIRE_MIN_PX를 따른다 */
-const WIRE_MIN_PX = 5;
-
-/**
- * 롱노트 바디. repeat 스킨(Classic)은 게임 TilingSprite처럼 바디 폭에 맞춘 텍스처 비율 그대로 위(끝 쪽)에서부터 반복하고
- * 바디 길이에서 자른다. stretch 스킨은 위아래 4px 테두리를 두고 가운데를 늘인다.
- */
-function drawBody(skin: JudgmentCaseSkin, sprite: JudgmentCaseSkinSprite, box: Box, attrs: string, tileId: string): string {
-  if (box.height <= 0) return "";
-  const open = `<g ${attrs} data-skin-asset="${sprite.key}">`;
-  if (skin.bodyMode === "repeat") {
-    const period = (sprite.height * box.width) / sprite.width;
-    const tile = `<svg width="${px(box.width)}" height="${px(period)}" viewBox="${sprite.x} ${sprite.y} ${sprite.width} ${sprite.height}" preserveAspectRatio="none"><use href="#jc-skin-${sprite.key}"/></svg>`;
-    return `${open}<pattern id="${tileId}" patternUnits="userSpaceOnUse" x="${px(box.x)}" y="${px(box.y)}" width="${px(box.width)}" height="${px(period)}">${tile}</pattern>`
-      + `<rect x="${px(box.x)}" y="${px(box.y)}" width="${px(box.width)}" height="${px(box.height)}" fill="url(#${tileId})"/></g>`;
-  }
-  const border = BODY_SLICE_PX * LANE_SCALE;
-  if (box.height < border * 2 || sprite.height <= BODY_SLICE_PX * 2) return `${open}${skinImage(sprite, box, "")}</g>`;
-  const slice = (y: number, height: number): JudgmentCaseSkinSprite => ({ ...sprite, y: sprite.y + y, height });
-  return open + [
-    skinImage(slice(0, BODY_SLICE_PX), { ...box, height: border }, ""),
-    skinImage(slice(BODY_SLICE_PX, sprite.height - BODY_SLICE_PX * 2), { ...box, y: box.y + border, height: box.height - border * 2 }, ""),
-    skinImage(slice(sprite.height - BODY_SLICE_PX, BODY_SLICE_PX), { ...box, y: box.y + box.height - border, height: border }, ""),
-  ].join("") + "</g>";
-}
-
-/**
- * Grace·holdOnly 표시. overlay 에셋이 있으면 사방 graceOverlayPaddingPx 여백을 두고 그 이미지를,
- * 없으면 게임 GameNoteRenderer의 대체 글로우(흰 둥근 사각형 4겹 + 바깥 2px 흰 윤곽)를 그린다.
- */
-function graceOverlay(skin: JudgmentCaseSkin, kind: "point" | "terminal", x: number, y: number, width: number, attrs: string): string {
-  const sprite = kind === "point" ? skin.pointGraceOverlay : skin.terminalGraceOverlay;
-  if (sprite) {
-    const pad = designPx(skin.graceOverlayPaddingPx);
-    return skinImage(sprite, { x: x - pad, y: y - pad, width: width + pad * 2, height: NOTE_H + pad * 2 }, attrs);
-  }
-  const steps = 4;
-  const out: string[] = [];
-  for (let i = 0; i < steps; i++) {
-    const stepPad = (COLORS.GRACE_GLOW_PAD * (i + 1)) / steps;
-    const pad = stepPad * LANE_SCALE;
-    out.push(`<rect x="${px(x - pad)}" y="${px(y - pad)}" width="${px(LANE_W + pad * 2)}" height="${px(NOTE_H + pad * 2)}" rx="${px((playfieldPx(4) + stepPad * 0.3) * LANE_SCALE)}" fill="${hexColor(COLORS.GRACE_GLOW)}" fill-opacity="${COLORS.GRACE_GLOW_ALPHA / steps}"/>`);
-  }
-  const outline = COLORS.GRACE_OUTLINE_WIDTH * LANE_SCALE;
-  out.push(`<rect x="${px(x - outline / 2)}" y="${px(y - outline / 2)}" width="${px(LANE_W + outline)}" height="${px(NOTE_H + outline)}" fill="none" stroke="${hexColor(COLORS.GRACE_OUTLINE)}" stroke-width="${px(outline)}"/>`);
-  return `<g ${attrs} data-grace-glow="true">${out.join("")}</g>`;
-}
-
-interface NoteLayers { bodies: string[]; ends: string[]; heads: string[]; points: string[] }
-
-/**
- * 노트 그림. 게임 GameNoteRenderer가 판정 전(대기) 노트를 그리는 에셋·배치를 따르고 판정 결과는 반영하지 않는다
- * (실패는 판정 라벨로만 보인다). 레이어는 게임과 같이 바디 < 끝 터미널 < 시작 터미널 < 포인트 순이고,
- * points(포인트 레이어)는 노트 경계선 위에 그리도록 따로 돌려준다.
- *
- * 게임과 같이 포인트·터미널 박스 가운데를 시각 선에 맞춘다(노트 가운데 기준, #224 — `noteBoxTopY`). 그래서 축 눈금이 노트 가운데를 지난다.
- * 정지 그림이므로 시작·끝 터미널을 모두 그린다(길이 0 롱노트는 full-height 스킨에서 시작 터미널 하나).
- */
+/** 엔진 사례의 차트 노트를 공통 에셋 렌더러의 모양·좌표로 옮긴다. */
 function drawNotes(prepared: PreparedPanel, skin: JudgmentCaseSkin, panelIndex: number, laneX: (lane: number) => number, yOf: (t: number) => number): { below: string; points: string } {
-  const { judgmentCase } = prepared.panel;
-  const layers: NoteLayers = { bodies: [], ends: [], heads: [], points: [] };
-  const h = NOTE_H;
-  const fullHeight = skin.terminalMode === "full-height";
-
-  for (const entry of judgmentCase.notes) {
-    const { note } = entry;
-    if (!prepared.lanes.includes(note.lane)) continue;
-    const kind = noteKindOf(note.type);
-    const lx = laneX(note.lane);
-    const bodyWidth = LANE_W * skin.bodyWidthScale[kind];
-    const bodyX = lx + (LANE_W - bodyWidth) / 2;
-    const part = (name: string) => `data-note-index="${entry.index}" data-note-type="${note.type}" data-note-part="${name}"`;
-
-    if (!isRange(note)) {
-      const top = noteBoxTopY(yOf(entry.startMs), h);
-      if (note.grace === true) layers.points.push(graceOverlay(skin, "point", lx, top, LANE_W, part("overlay")));
-      // src/game/renderer/GameNoteRenderer.ts renderPointNote의 그림자 분기를 따른다: 싱글·더블은 pointContactShadow, trill은 pointContactShadowTrill(예전 pointShadow는 고르지 않음).
-      const reach = skin.pointContactShadow;
-      if (kind !== "trill" && reach && skin.contactShadow) {
-        // 텍스처 윗행이 가장 짙다. 위 그림자는 뒤집어 짙은 행이 포인트 윗변에 닿게 한다.
-        layers.points.push(
-          skinImage(skin.contactShadow, { x: bodyX, y: top - designPx(reach.above), width: bodyWidth, height: designPx(reach.above) }, part("shadow"), true),
-          skinImage(skin.contactShadow, { x: bodyX, y: top + h, width: bodyWidth, height: designPx(reach.below) }, part("shadow")),
-        );
-      } else if (kind === "trill" && reach && skin.contactShadowTrill) {
-        layers.points.push(skinImage(skin.contactShadowTrill, { x: lx, y: top - designPx(reach.above), width: LANE_W, height: designPx(reach.above) + NOTE_H + designPx(reach.below) }, part("shadow")));
-      }
-      layers.points.push(skinImage(skin.point[kind], { x: lx, y: top, width: LANE_W, height: h }, part("point")));
-      continue;
-    }
-
-    const startY = yOf(entry.startMs);
-    const endY = yOf(entry.endMs ?? entry.startMs);
-    const holdOnly = note.holdOnly === true;
-    const overhang = fullHeight ? (designPx(skin.terminalFrameOverhangPx) * bodyWidth) / LANE_W : 0;
-    const terminalX = bodyX - overhang;
-    const terminalWidth = bodyWidth + overhang * 2;
-    const tileId = `jc-tile-${panelIndex}-${entry.index}`;
-
-    if (note.type === "trillLong") {
-      // 바디는 두 마름모 가운데(시작·끝 시각) 사이. 시작 마름모는 같은 시각의 trill 포인트가 그린다.
-      layers.bodies.push(drawBody(skin, skin.body.trill, { x: bodyX, y: endY, width: bodyWidth, height: startY - endY }, part("body"), tileId));
-      const terminal = fullHeight
-        ? { x: terminalX, y: noteBoxTopY(endY, h), width: terminalWidth, height: h }
-        : { x: lx, y: noteBoxTopY(endY, h), width: LANE_W, height: h };
-      if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, noteBoxTopY(endY, h), terminalWidth, part("overlay")));
-      layers.ends.push(skinImage(skin.terminal.trill, terminal, part("end")));
-      continue;
-    }
-
-    // long·doubleLong: 바디는 끝 터미널 윗변부터 시작 터미널 아랫변까지 채운다(터미널 아래까지 채워 접합부가 비지 않음).
-    const top = noteBoxTopY(endY, h);
-    const bottom = noteBoxTopY(startY, h) + h;
-    layers.bodies.push(drawBody(skin, skin.body[kind], { x: bodyX, y: top, width: bodyWidth, height: bottom - top }, part("body"), tileId));
-    const zeroLength = entry.endMs === entry.startMs;
-    const capKind = kind === "double" ? "double" : "single";
-    if (fullHeight) {
-      if (!zeroLength) {
-        if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
-        layers.ends.push(skinImage(skin.terminal[kind], { x: terminalX, y: top, width: terminalWidth, height: h }, part("end")));
-      } else if (holdOnly) {
-        layers.heads.push(graceOverlay(skin, "terminal", terminalX, noteBoxTopY(startY, h), terminalWidth, part("overlay")));
-      }
-      layers.heads.push(skinImage(skin.terminal[kind], { x: terminalX, y: noteBoxTopY(startY, h), width: terminalWidth, height: h }, part("start"), true));
-      continue;
-    }
-    // split-cap: 바디 안쪽 위·아래 끝에 반쪽 캡(최대 노트 높이의 절반, 짧은 바디는 가운데 WIRE_MIN_PX를 남긴다).
-    const cap = skin.cap?.[capKind] ?? skin.terminal[kind];
-    const capHeight = Math.max(0, Math.min(h / 2, (bottom - top - designPx(WIRE_MIN_PX)) / 2));
-    if (holdOnly) layers.ends.push(graceOverlay(skin, "terminal", terminalX, top, terminalWidth, part("overlay")));
-    layers.ends.push(skinImage(cap, { x: terminalX, y: top, width: terminalWidth, height: capHeight }, part("end")));
-    layers.heads.push(skinImage(cap, { x: terminalX, y: bottom - capHeight, width: terminalWidth, height: capHeight }, part("start"), true));
-  }
-  return { below: [...layers.bodies, ...layers.ends, ...layers.heads].join(""), points: layers.points.join("") };
+  const entries = prepared.panel.judgmentCase.notes.filter(entry => prepared.lanes.includes(entry.note.lane)).map((entry): CaseNoteDrawing => ({
+    index: entry.index,
+    kind: noteKindOf(entry.note.type),
+    shape: isRange(entry.note) ? "body" : "point",
+    lane: entry.note.lane,
+    startMs: entry.startMs,
+    endMs: entry.endMs,
+    // Grace 포인트와 holdOnly 바디의 끝 terminal은 서로 다른 개념이지만 같은 overlay로 그린다.
+    overlay: isRange(entry.note) ? entry.note.holdOnly === true : entry.note.grace === true,
+    attributes: `data-note-index="${entry.index}" data-note-type="${entry.note.type}"`,
+  }));
+  return drawCaseNotes(entries, skin, panelIndex, laneX, yOf);
 }
 
 /** 노트 시작·끝마다 레인을 가로지르는 경계선 — 맞닿은 바디도 서로 다른 노트로 보이게 한다 */
