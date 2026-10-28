@@ -186,7 +186,7 @@ export function validateChartDocumentSemantic(
       if (!owner) add("tickPlacement", "틱 노트의 소속 바디가 없거나 유일하지 않습니다", i,
         ...(relations.tickBodyCandidatesByNote.get(i) ?? []));
       else {
-        if (a.count !== owner.note.holdCount) add("tickCount", "틱 노트 수는 소속 바디의 hold 수와 같아야 합니다", i, owner.noteIndex);
+        if (a.count !== owner.note.holdCount) add("tickCount", "틱 노트 수량은 소속 바디의 hold 수와 같아야 합니다", i, owner.noteIndex);
         if (owner.note.trill) add("tickPlacement", "트릴 바디에는 틱 노트를 놓을 수 없습니다", i, owner.noteIndex);
         const equalConnections = relations.connections.filter(c => c.successorIndex === owner.noteIndex
           && c.predecessorHoldCount === c.successorHoldCount && beatEq(c.beat, a.beat));
