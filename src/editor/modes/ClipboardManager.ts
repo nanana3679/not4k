@@ -64,7 +64,7 @@ export class ClipboardManager {
   private pastedZoneIndices: Set<number> = new Set();
   private pastedRestZoneIndices: Set<number> = new Set();
   private pastedEventIndices: Set<number> = new Set();
-  // 붙여넣은 유지 노트의 클립보드 수량. 대기 중 이동으로 바디 밖에 두면 이 수량으로 돌린다.
+  // 붙여넣은 틱 노트의 클립보드 수량. 대기 중 이동으로 바디 밖에 두면 이 수량으로 돌린다.
   private pastedTickCountByNoteIndex = new Map<number, 1 | 2>();
 
   /** Whether clipboard has data */

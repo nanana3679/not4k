@@ -45,7 +45,7 @@ const axisLineY = (svg: string, label: string) =>
   numberAttr(tagOf(svg, new RegExp(`<line x1="70"[^>]*/>(?=<text x="14" y="[^"]+" fill="[^"]+" font-size="11">${label}</text>)`)), "y1");
 
 describe("explicit 사례의 실제 compiler → session → ScoreManager", () => {
-  it("싱글 Point1000·바디1000～2000·유지1500·릴리즈2000을 실제 down/up으로 처리하면 9/9점·콤보3", () => {
+  it("싱글 탭1000·바디1000～2000·틱1500·릴리즈2000을 실제 down/up으로 처리하면 9/9점·콤보3", () => {
     const { example, run } = replay(document([tap(1000), body(1000, 2000), tick(1500), release(2000)], [["A", 1000, 2000]]));
     expect(run.error).toBeNull();
     expect(run.finalized).toBe(true);
@@ -81,7 +81,7 @@ describe("explicit 사례의 실제 compiler → session → ScoreManager", () =
     expect(svg).not.toMatch(/달성률|0\.00%/);
   });
 
-  it("Point1000을 입력 없이 놓친 점수 차트는 분모3·획득0이며 요약에 달성률 0.00%를 그대로 표시", () => {
+  it("탭1000을 입력 없이 놓친 점수 차트는 분모3·획득0이며 요약에 달성률 0.00%를 그대로 표시", () => {
     const { example, run } = replay(document([tap(1000)]));
     expect(run.compiled?.theoreticalWeight).toBe(3);
     expect(summarizeExplicitCase(example, run, "실제")).toContain("점수 0/3 · 달성률 0.00%");
@@ -102,7 +102,7 @@ describe("explicit 사례의 실제 compiler → session → ScoreManager", () =
     expect(explicitCaseLabels(example, run).map(label => label.text).join("\n")).toContain("N1u2 시작 실패");
   });
 
-  it("up1490 뒤 down1505로 유예 안에 회복하면 유지1500은 bodyRecovery 대기 뒤 Perfect이며 Miss0", () => {
+  it("up1490 뒤 down1505로 유예 안에 회복하면 틱1500은 bodyRecovery 대기 뒤 Perfect이며 Miss0", () => {
     const { run } = replay(document([body(1000, 2000), tick(1500), release(2000)], [["A", 1000, 1490], ["B", 1505, 2000]]));
     expect(run.snapshots.some(snapshot => snapshot.items.some(item => item.waitingReason === "bodyRecovery"))).toBe(true);
     expect(run.result?.facts.filter(fact => fact.kind === "settlement" && fact.itemKind === "tick")).toMatchObject([{ grade: "perfect", confirmedAt: 1505, timingDeltaMs: null }]);
@@ -110,7 +110,7 @@ describe("explicit 사례의 실제 compiler → session → ScoreManager", () =
     expect(run.result?.combo).toBe(2);
   });
 
-  it("up1490 뒤 down1525는 1510 유지 실패를 복구하지 못하고 표식·릴리즈 종속0점에 추가 Miss가 없음", () => {
+  it("up1490 뒤 down1525는 1510 유지 실패를 복구하지 못하고 틱·릴리즈 종속0점에 추가 Miss가 없음", () => {
     const { example, run } = replay(document([body(1000, 2000), tick(1500), release(2000)], [["A", 1000, 1490], ["B", 1525, 2000]]));
     expect(run.result?.score.judgmentCounts).toMatchObject({ perfect: 0, miss: 1 });
     expect(run.result?.snapshot.items.map(item => item.state)).toEqual(["dependentZero", "dependentZero"]);
@@ -118,7 +118,7 @@ describe("explicit 사례의 실제 compiler → session → ScoreManager", () =
     expect(run.result?.effects.filter(effect => effect.comboAction === "break")).toHaveLength(1);
   });
 
-  it("같은 confirmedAt1500의 Good Point와 Perfect 유지는 session 대표 Good·실제오차100ms를 그대로 사용", () => {
+  it("같은 confirmedAt1500의 Good 탭과 Perfect 틱은 session 대표 Good·실제오차100ms를 그대로 사용", () => {
     const { run } = replay(document([tap(1400), body(1000, 2000, 1, 2), tick(1500, 1, 2)], [["A", 1500, 1510], ["B", 500, 2200, 2]]));
     expect(run.displays.filter(display => display.confirmedAt === 1500)).toMatchObject([{ grade: "good", timingDeltaMs: 100, source: { noteIndex: 0, ordinal: 0 } }]);
     expect(run.displays.filter(display => display.confirmedAt === 1500)).toHaveLength(1);
@@ -201,7 +201,7 @@ describe("explicit 입력 경계와 legacy/design 보존", () => {
     expect(summarizeExplicitCase(example, run, "실제")).toContain("미정산 계산 불가");
   });
 
-  it("aux의 구형 single·holdOnly와 explicit point를 문서에 보존하고 main N1/N4만 정산", () => {
+  it("aux의 구형 single·holdOnly와 explicit tap을 문서에 보존하고 main N1/N4만 정산", () => {
     const chart = document([tap(1000), { type: "single", lane: 5, beat: beat(2) },
       { type: "long", lane: 6, beat: beat(2), endBeat: beat(4), holdOnly: true }, tap(2000)], [["A", 1000, 1010], ["A", 2000, 2010]]);
     chart.notes.push(tap(2500, "single", 7));
@@ -218,7 +218,7 @@ describe("explicit 입력 경계와 legacy/design 보존", () => {
     expect(runExplicitJudgmentCase(explicitCaseFromDocument(chart), engine).error).not.toBeNull();
   });
 
-  it("trill Point와 바디 끝에는 명시 릴리즈를 추가하지 않아 Point1개만 분모3·콤보1", () => {
+  it("trill 탭과 바디 끝에는 명시 릴리즈를 추가하지 않아 탭1개만 분모3·콤보1", () => {
     const chart = document([tap(1000, "trill"), { type: "body", lane: 1, beat: beat(2), endBeat: beat(4), holdCount: 1, trill: true }], [["A", 1000, 2000]]);
     chart.trillZones = [{ lane: 1, beat: beat(2), endBeat: beat(4) }];
     const { run } = replay(chart);
@@ -239,7 +239,7 @@ describe("explicit 입력 경계와 legacy/design 보존", () => {
 });
 
 describe("실제 explicit 사례의 정식 skin SVG", () => {
-  it("Point/body/release/sustain을 승인 에셋으로 구분하고 body cap·숨은 끝점·제목 본문을 그리지 않음", () => {
+  it("tap/body/release/tick을 승인 에셋으로 구분하고 body cap·숨은 끝점·제목 본문을 그리지 않음", () => {
     const { example, run } = replay(document([tap(1000), body(1000, 2000), tick(1500), release(2000)], [["A", 1000, 2000]]));
     const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
     for (const id of ["tap.single.pending", "body.single.idle", "tick.single.pending", "release.single.pending"]) expect(svg).toContain(`data-explicit-asset="${id}"`);
@@ -262,7 +262,7 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
     expect(summarizeExplicitCase(example, run, "실제")).toContain("현재 콤보 3");
   });
 
-  it("BPM120 길이0 바디1000～1000은 높이0으로 사라지지 않고 Point와 같은 높이로 1000ms 눈금 가운데에 그림", () => {
+  it("BPM120 길이0 바디1000～1000은 높이0으로 사라지지 않고 탭과 같은 높이로 1000ms 눈금 가운데에 그림", () => {
     const { example, run } = replay(document([tap(500), body(1000, 1000)], [["A", 500, 1250]]));
     expect(run.error).toBeNull();
     const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
@@ -272,7 +272,7 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
     expect(numberAttr(rect, "y") + numberAttr(rect, "height") / 2).toBeCloseTo(axisLineY(svg, "1000"), 6);
   });
 
-  it("길이0 바디1000～1000 위의 유지1000은 바디 없이 홀로 그려지지 않고 같은 중심의 바디와 함께 그림", () => {
+  it("길이0 바디1000～1000 위의 틱1000은 바디 없이 홀로 그려지지 않고 같은 중심의 바디와 함께 그림", () => {
     const { example, run } = replay(document([body(1000, 1000), tick(1000)], [["A", 500, 1250]]));
     expect(run.error).toBeNull();
     const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
@@ -291,7 +291,7 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
     expect(numberAttr(rect, "y") + numberAttr(rect, "height")).toBeCloseTo(axisLineY(svg, "1000"), 6);
   });
 
-  it("double 유지 표식은 정식 left/right 에셋 두 개이며 sustain 독립 창은 없음", () => {
+  it("double 틱은 정식 left/right 에셋 두 개이며 tick 독립 창은 없음", () => {
     const { example, run } = replay(document([body(1000, 2000, 2), tick(1500, 2)], [["A", 1000, 2000], ["B", 1000, 2000]]));
     const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
     expect(svg).toContain('data-explicit-asset="tick.double.pending.left"');

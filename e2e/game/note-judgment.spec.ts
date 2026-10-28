@@ -5,7 +5,7 @@ import { probe } from '../explicitPlaybackProbe';
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 test.setTimeout(60000);
 
-test('AutoEvent의 Point·Sustain·Release3개는 무점수 Body와 함께 100% 결과를 만들고 Max Combo를 표시하지 않는다', async ({ page }) => {
+test('AutoEvent의 탭·틱·Release3개는 무점수 Body와 함께 100% 결과를 만들고 Max Combo를 표시하지 않는다', async ({ page }) => {
   const document = normalDocument();
   document.notes = document.notes.filter(note => note.lane === 1);
   const fixture = await openNormalSong(page, document, { duration: 3 });

@@ -47,7 +47,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(Object.isFrozen(oldResult.snapshot.items)).toBe(true);
   });
 
-  it("1500ms 이전 Point Miss는 남고 이후 2000ms Miss는 실제 down2000으로 Perfect가 됨", () => {
+  it("1500ms 이전 탭 Miss는 남고 이후 2000ms Miss는 실제 down2000으로 Perfect가 됨", () => {
     const original = makeSession([p(1000), p(2000)]);
     original.advance(1500);
     original.advance(2200);
@@ -58,7 +58,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(session.score.finalDenominatorWeight).toBe(6);
   });
 
-  it("1570ms 바디 실패·종속0을 1500ms로 되돌리면 새 B hold로 유지와 릴리즈를 성공시킬 수 있음", () => {
+  it("1570ms 바디 실패·종속0을 1500ms로 되돌리면 새 B hold로 틱과 릴리즈를 성공시킬 수 있음", () => {
     const original = makeSession([p(1000), b(1000, 2500), s(1600), r(2500)]);
     original.processBatch(1000, [down()]);
     original.advance(1500);
@@ -76,7 +76,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(settlements(session).some(fact => fact.outcome === "dependentZero")).toBe(false);
   });
 
-  it("1120ms에 이미 실패한 Point 바디는 1500ms 복원·preheld에도 실패와 종속0을 유지", () => {
+  it("1120ms에 이미 실패한 탭 바디는 1500ms 복원·preheld에도 실패와 종속0을 유지", () => {
     const original = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
     original.advance(1500);
     original.advance(2200);
@@ -89,7 +89,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(session.snapshot.items.filter(item => item.state === "dependentZero")).toHaveLength(2);
   });
 
-  it("1050ms 복원에 남은 미처리 Point는 preheld로 자동 성공하지 않고 1120ms 뒤 바디도 실패", () => {
+  it("1050ms 복원에 남은 미처리 탭은 preheld로 자동 성공하지 않고 1120ms 뒤 바디도 실패", () => {
     const original = makeSession([p(1000), b(1000, 2000), r(2000)]);
     original.advance(1050);
     original.processBatch(1100, [down()]);
@@ -102,7 +102,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(session.score.judgmentCounts).toMatchObject({ perfect: 0, miss: 1 });
   });
 
-  it("Point 1000·바디 1000～2000을 T 1050에 복원·재개한 뒤 raw 900·관측 1060 down은 Point Good과 바디 시작 1050을 함께 인정해 9점 중 7점", () => {
+  it("탭 1000·바디 1000～2000을 T 1050에 복원·재개한 뒤 raw 900·관측 1060 down은 탭 Good과 바디 시작 1050을 함께 인정해 9점 중 7점", () => {
     const original = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
     original.advance(1050);
     original.advance(1200);
@@ -116,7 +116,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(result.facts.filter(fact => fact.kind === "bodyFailed")).toEqual([]);
   });
 
-  it("Point 없는 바디 1000～2000을 T 1050에 재개한 뒤 차트 시작 창 안 raw 900·관측 1060 down은 바디를 T 1050에 시작해 유지·릴리즈 6점", () => {
+  it("탭 없는 바디 1000～2000을 T 1050에 재개한 뒤 차트 시작 창 안 raw 900·관측 1060 down은 바디를 T 1050에 시작해 틱·릴리즈 6점", () => {
     const original = makeSession([b(1000, 2000), s(1500), r(2000)]);
     original.advance(1050);
     original.advance(1200);
@@ -128,7 +128,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, judgmentCounts: { perfect: 2, miss: 0 } });
   });
 
-  it("2000ms에 일찍 친 2100ms Point는 2050ms 복원에 남고 항목 시각으로 제거되지 않음", () => {
+  it("2000ms에 일찍 친 2100ms 탭은 2050ms 복원에 남고 항목 시각으로 제거되지 않음", () => {
     const original = makeSession([p(2100)]);
     original.processBatch(2000, [down()]);
     original.advance(2200);
@@ -165,7 +165,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(heldKeys).toEqual([]);
   });
 
-  it("곡2000·core1800 복원은 Point1850을 Miss로 만들지 않고 화면 바디만2000부터 표시", () => {
+  it("곡2000·core1800 복원은 탭1850을 Miss로 만들지 않고 화면 바디만2000부터 표시", () => {
     const original = makeSession([p(1850), b(1850, 2600), r(2600)], { startTimeMs: 0 });
     original.resumeAt(0, []);
     original.advance(1800, 2000);
@@ -199,7 +199,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(session.reconstructAt(2200).session.score.judgmentCounts.miss).toBe(1);
   });
 
-  it("1890ms 이른 up으로 완료한 2000ms 바디·릴리즈·미래 유지는 1900ms 복원에서 모두 보존", () => {
+  it("1890ms 이른 up으로 완료한 2000ms 바디·릴리즈·미래 틱은 1900ms 복원에서 모두 보존", () => {
     const original = makeSession([b(1000, 2000), s(1950), r(2000)]);
     original.processBatch(1000, [down()]);
     original.processBatch(1890, [up()]);
@@ -285,7 +285,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(session.finalize().score.judgmentCounts).toMatchObject({ perfect: 1, miss: 0 });
   });
 
-  it("double Point의 A 한 몫 성공을 T1050에 복원하면 같은 A 재누름은 남은 몫을 치지 못하고 B만 성공", () => {
+  it("double 탭의 A 한 몫 성공을 T1050에 복원하면 같은 A 재누름은 남은 몫을 치지 못하고 B만 성공", () => {
     const original = makeSession([p(1000, "double")]);
     original.processBatch(1000, [down()]);
     original.advance(1050);

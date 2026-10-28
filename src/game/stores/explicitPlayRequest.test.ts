@@ -9,7 +9,7 @@ const options = () => ({ document: structuredClone(explicitPlaytestCharts[0].cha
 afterEach(() => useGameStore.setState(useGameStore.getInitialState(), true));
 
 describe('명시 테스트 진입 게이트', () => {
-  it('Point·Body·Sustain·Release 문서는 원본 복사와 전체 분모12를 소유하고 explicitPlay만 연다', () => {
+  it('탭·Body·틱·Release 문서는 원본 복사와 전체 분모12를 소유하고 explicitPlay만 연다', () => {
     const input = options();
     const legacy = useGameStore.getState().chartData;
     useGameStore.getState().startExplicitPlayTest(input);
@@ -59,7 +59,7 @@ describe('명시 테스트 진입 게이트', () => {
     expect(useGameStore.getState()).toBe(before);
   });
 
-  it.each([0, 1500])('startTimeMs=%s에서 시각0ms의 aux lane5에 소속 없는 Sustain이 있으면 부작용 전에 거부한다', startTimeMs => {
+  it.each([0, 1500])('startTimeMs=%s에서 시각0ms의 aux lane5에 소속 없는 틱이 있으면 부작용 전에 거부한다', startTimeMs => {
     const input = options();
     input.document.notes.push({ type: 'tick', lane: 5, beat: beat(0), count: 1 });
     const before = useGameStore.getState();
@@ -90,7 +90,7 @@ describe('명시 테스트 진입 게이트', () => {
     expect(request.compiled.bodies[0].source.noteIndex).toBe(2);
   });
 
-  it('1500ms 커서의 Sustain부터 3항목·분모9를 만들고 바디는 원본 인덱스2의 1500～2000ms만 남긴다', () => {
+  it('1500ms 커서의 틱부터 3항목·분모9를 만들고 바디는 원본 인덱스2의 1500～2000ms만 남긴다', () => {
     const input = options();
     input.document.notes.unshift({ type: 'single', lane: 5, beat: beat(0) });
     const original = structuredClone(input.document);
@@ -108,7 +108,7 @@ describe('명시 테스트 진입 게이트', () => {
     expect(input.document).toEqual(original);
   });
 
-  it('1500.001ms 커서는 1500ms Sustain도 제외하고 원본 시각2000·3000ms의 2항목·분모6만 남긴다', () => {
+  it('1500.001ms 커서는 1500ms 틱도 제외하고 원본 시각2000·3000ms의 2항목·분모6만 남긴다', () => {
     const request = prepareExplicitPlayTest({ ...options(), startTimeMs: 1500.001 });
     expect(request.compiled.scoreItems.map(item => item.timeMs)).toEqual([2000, 3000]);
     expect(request.compiled.totalJudgments).toBe(2);
@@ -127,7 +127,7 @@ describe('명시 테스트 진입 게이트', () => {
     expect(request.compiled.theoreticalWeight).toBe(0);
   });
 
-  it('startTimeMs를 생략한 처음부터 테스트는 offsetMs=-1500의 −500ms Point도 일반 요청처럼 포함해 4항목·분모12·시작0이다', () => {
+  it('startTimeMs를 생략한 처음부터 테스트는 offsetMs=-1500의 −500ms 탭도 일반 요청처럼 포함해 4항목·분모12·시작0이다', () => {
     const input = options();
     input.document.meta.offsetMs = -1500;
     const request = prepareExplicitPlayTest(input);
@@ -141,7 +141,7 @@ describe('명시 테스트 진입 게이트', () => {
     expect(explicitSessionRangeStartMs(request)).toBe(-500);
   });
 
-  it('offsetMs=-1500에서 커서0ms 테스트는 −500ms Point를 Miss 없이 빼 3항목·분모9이고 세션 범위도0ms에서 시작한다', () => {
+  it('offsetMs=-1500에서 커서0ms 테스트는 −500ms 탭을 Miss 없이 빼 3항목·분모9이고 세션 범위도0ms에서 시작한다', () => {
     const input = options();
     input.document.meta.offsetMs = -1500;
     const request = prepareExplicitPlayTest({ ...input, startTimeMs: 0 });
@@ -175,7 +175,7 @@ describe('일반 곡 재생 요청', () => {
     expect(prepareExplicitPlayTest(options()).purpose).toBeUndefined();
   });
 
-  it('offsetMs=-1500의 첫 Point가 -500ms여도 일반 요청은 전체4항목·분모12를 보존한다', () => {
+  it('offsetMs=-1500의 첫 탭이 -500ms여도 일반 요청은 전체4항목·분모12를 보존한다', () => {
     const input = options();
     input.document.meta.offsetMs = -1500;
     const request = prepareNormalPlay(input);
@@ -192,7 +192,7 @@ describe('일반 곡 재생 요청', () => {
     expect(input.document).toEqual(original);
   });
 
-  it('aux lane5의 legacy single은 허용하고 소속 없는 Sustain은 전체 문서 검증에서 거부한다', () => {
+  it('aux lane5의 legacy single은 허용하고 소속 없는 틱은 전체 문서 검증에서 거부한다', () => {
     const input = options();
     input.document.notes.push({ type: 'single', lane: 5, beat: beat(0) });
     expect(prepareNormalPlay(input).document.notes.at(-1)).toEqual(input.document.notes.at(-1));

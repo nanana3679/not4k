@@ -96,7 +96,7 @@ export class ScoreManager {
 
   private recordTiming(deltaMs: number | undefined, grade: JudgmentGrade, kind: ScoreItemKind): void {
     const threshold = this.fastSlowThreshold;
-    // `holdOnly`/H and explicit sustain have no timing grade. Callers suppress timing (Grace)
+    // `holdOnly`/H and explicit tick have no timing grade. Callers suppress timing (Grace)
     // by omitting deltaMs; release raw timing remains accepted.
     if (kind !== "holdOnly" && kind !== "tick" && deltaMs != null && grade !== JudgmentGrade.MISS && Math.abs(deltaMs) > threshold) {
       if (deltaMs < 0) this.fastCount++; else if (deltaMs > 0) this.slowCount++;

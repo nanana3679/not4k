@@ -59,7 +59,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     useEditorStore.getState().redo(); expect(snapshots()).toEqual(made);
   });
 
-  it('600ms 안의 Point 생성과 빈 aux 유지 생성은 각각 Undo하며 더블 재클릭 no-op은 history를 추가하지 않는다', () => {
+  it('600ms 안의 탭 생성과 빈 aux 틱 생성은 각각 Undo하며 더블 재클릭 no-op은 history를 추가하지 않는다', () => {
     const tap = create(); tap.onPointerDown(1, 0); tap.onPointerUp(1, 0);
     const afterTap = snapshots();
     const tick = create(7); tick.entityType = 'tick'; tick.onPointerDown(7, 2);
@@ -87,7 +87,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     ]);
   });
 
-  it('유효한 혼합 문서의 신형 Point·바디·릴리즈를 복사해 16박에 붙이고 취소하면 Grace·수량·바디 길이와 원본을 복구한다', () => {
+  it('유효한 혼합 문서의 신형 탭·바디·릴리즈를 복사해 16박에 붙이고 취소하면 Grace·수량·바디 길이와 원본을 복구한다', () => {
     const mode = create(); mode.entityType = 'double'; mode.graceMode = true; mode.onPointerDown(1, 0); mode.onPointerUp(1, 4);
     const source = useEditorStore.getState().chart;
     const clipboard = new ClipboardManager();
@@ -100,7 +100,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     expect(result?.chart.notes.slice(-3)).toEqual(source.notes.slice(-3).map(note => ({ ...note, beat: beat(note.beat.n + 16), ...('endBeat' in note ? { endBeat: beat(note.endBeat.n + 16) } : {}) })));
   });
 
-  it('숨은 lane7의 바디 밖 sustain은 로드·의미 위반 확정·Undo가 가능하고 원본 index의 overlay와 숨은 레인 진단을 만든다', () => {
+  it('숨은 lane7의 바디 밖 tick은 로드·의미 위반 확정·Undo가 가능하고 원본 index의 overlay와 숨은 레인 진단을 만든다', () => {
     const invalid = { ...seed(), notes: [...seed().notes, { type: 'tick' as const, count: 1 as const, lane: 7, beat: beat(2) }] };
     const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
     useEditorStore.getState().loadChart(invalid); useEditorStore.getState().setExtraLaneCount(2);
@@ -116,13 +116,13 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     warn.mockRestore();
   });
 
-  it('Point 없는 4～8박 싱글 바디 앞에 바디 도구로 0～4박 싱글 바디를 그리면 두 바디가 sameHoldCountConnectionWithoutTapOrRelease 위반으로 표시되어 저장 게이트(editorChartErrors)가 비지 않고 Undo 한 번에 유효 차트로 돌아간다', () => {
+  it('탭 없는 4～8박 싱글 바디 앞에 바디 도구로 0～4박 싱글 바디를 그리면 두 바디가 sameHoldCountConnectionWithoutTapOrRelease 위반으로 표시되어 저장 게이트(editorChartErrors)가 비지 않고 Undo 한 번에 유효 차트로 돌아간다', () => {
     const valid: ChartDocument = { ...seed(), notes: [{ type: 'body', lane: 1, beat: beat(4), endBeat: beat(8), holdCount: 1 }] };
     useEditorStore.getState().loadChart(valid); useEditorStore.getState().resetHistory();
     expect(editorChartErrors(valid)).toEqual([]);
     const mode = create(); mode.entityType = 'long'; mode.onPointerDown(1, 0); mode.onPointerUp(1, 4);
     const touched = useEditorStore.getState().chart;
-    // 바디 도구는 Point·릴리즈 없이 바디만 만들므로 4박 경계에 표식이 없다.
+    // 바디 도구는 탭·릴리즈 없이 바디만 만들므로 4박 경계에 표식이 없다.
     expect(touched.notes).toEqual([...valid.notes, { type: 'body', lane: 1, beat: beat(0), endBeat: beat(4), holdCount: 1 }]);
     const errors = editorChartErrors(touched);
     expect(errors).toEqual([expect.objectContaining({

@@ -41,7 +41,7 @@ describe('에디터 명시 도안 배치', () => {
     renderer.dispose();
   });
 
-  it('더블 유지는 좌·우 표식 도안 둘을 같은 캔버스 중심에 놓으며 다음 렌더에서 Sprite를 재사용한다', async () => {
+  it('더블 틱은 좌·우 도안 둘을 같은 캔버스 중심에 놓으며 다음 렌더에서 Sprite를 재사용한다', async () => {
     const renderer = new ExplicitNoteRenderer(); await renderer.load();
     const layer = new Container(); const body = new Container();
     const note = { type: 'tick' as const, count: 2 as const, lane: 1, beat: beat(2) };
@@ -54,7 +54,7 @@ describe('에디터 명시 도안 배치', () => {
     renderer.dispose();
   });
 
-  it('길이 0 바디는 Point보다 큰 18px 영역을 그리고 명시 Point 도안을 덧붙이지 않는다', async () => {
+  it('길이 0 바디는 탭보다 큰 18px 영역을 그리고 명시 탭 도안을 덧붙이지 않는다', async () => {
     const renderer = new ExplicitNoteRenderer(); await renderer.load();
     const body = new Container(); const notes = new Container();
     renderer.render({ type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(2) }, 0, 60, 300, 300, body, notes, false);

@@ -15,7 +15,7 @@ export interface ExplicitConfirmedEffectSink {
   applyConfirmedEffects(effects: readonly ExplicitJudgmentEffect[]): void;
 }
 
-/** 상태 복구와 일회성 확정 효과를 분리한다. Point/바디 성공 수·점수·판정 규칙을 갖지 않는다. */
+/** 상태 복구와 일회성 확정 효과를 분리한다. 탭/바디 성공 수·점수·판정 규칙을 갖지 않는다. */
 export class ExplicitSessionRendererAdapter {
   private port: ExplicitSnapshotRendererPort | null = null;
 

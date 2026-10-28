@@ -12,7 +12,7 @@ import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelea
 const chart = (notes: DocumentNoteEntity[]): ChartDocument => ({ ...explicitEnjFixtures[0].chart, notes });
 
 describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
-  it("double Point2+body2+sustain2+release1은 점수5개·가중치15와 바디2몫을 만든다", () => {
+  it("double tap2+body2+tick2+release1은 점수5개·가중치15와 바디2몫을 만든다", () => {
     const compiled = compileExplicitJudgmentChart(chart([p(1000, "double"), b(1000, 2000, 2), s(1500, 2), r(2000)]));
     expect(compiled.format).toBe("explicit");
     expect(compiled.scoreItems.map(item => item.kind)).toEqual(["tap", "tap", "tick", "tick", "release"]);
@@ -44,7 +44,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(compiled.scoreItems).toMatchObject([{ kind: "release", bodyIndex: 0, boundaryKind: "end", timeMs: 2000 }]);
   });
 
-  it.each([1, 2] as const)("hold 수 %i인 body 1000～2000·2000～3000을 경계 Point·릴리즈 없이 이으면 sameHoldCountConnectionWithoutPointOrRelease로 compile을 거부한다", holdCount => {
+  it.each([1, 2] as const)("hold 수 %i인 body 1000～2000·2000～3000을 경계 탭·릴리즈 없이 이으면 sameHoldCountConnectionWithoutTapOrRelease로 compile을 거부한다", holdCount => {
     const document = chart([b(1000, 2000, holdCount), b(2000, 3000, holdCount)]);
     expect(() => compileExplicitJudgmentChart(document)).toThrow(ExplicitChartCompileError);
     try { compileExplicitJudgmentChart(document); } catch (error) {
@@ -54,7 +54,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     }
   });
 
-  it("트릴 바디 1000～2000 끝에 Point 없이 붙은 일반 single 바디 2000～3000은 같은 hold 수 연결이 아니라 zone 끝 2000을 포함하는 trillExclusive로만 compile을 거부한다", () => {
+  it("트릴 바디 1000～2000 끝에 탭 없이 붙은 일반 single 바디 2000～3000은 같은 hold 수 연결이 아니라 zone 끝 2000을 포함하는 trillExclusive로만 compile을 거부한다", () => {
     const document = chart([p(1000, "trill"), { type: "body", lane: 1, beat: beat(2), endBeat: beat(4), holdCount: 1, trill: true }, b(2000, 3000)]);
     document.trillZones = [{ lane: 1, beat: beat(2), endBeat: beat(4) }];
     expect(() => compileExplicitJudgmentChart(document)).toThrow(ExplicitChartCompileError);
@@ -71,7 +71,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(compiled.theoreticalWeight).toBe(6);
   });
 
-  it("2→1 경계 release는 앞 body 감소 끝, 같은 경계 sustain은 뒤 body 몫을 가리킨다", () => {
+  it("2→1 경계 release는 앞 body 감소 끝, 같은 경계 tick은 뒤 body 몫을 가리킨다", () => {
     const release = compileExplicitJudgmentChart(chart([b(1000, 2000, 2), b(2000, 3000), r(2000)]));
     expect(release.scoreItems[0]).toMatchObject({ source: { noteIndex: 2 }, bodyIndex: 0, boundaryKind: "decrease" });
     const tick = compileExplicitJudgmentChart(chart([b(1000, 2000, 2), b(2000, 3000), s(2000)]));
@@ -80,7 +80,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(tick.bodies[1].tickIndices).toEqual([2]);
   });
 
-  it("바디 밖 release는 standalone이며 몸통·시작 Point나 자동 owner를 만들지 않는다", () => {
+  it("바디 밖 release는 standalone이며 몸통·시작 탭이나 자동 owner를 만들지 않는다", () => {
     const compiled = compileExplicitJudgmentChart(chart([r(1000, 2)]));
     expect(compiled.bodies).toEqual([]);
     expect(compiled.scoreItems.map(item => item.kind === "release" && [item.bodyIndex, item.boundaryKind])).toEqual([[undefined, "standalone"], [undefined, "standalone"]]);
@@ -116,7 +116,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     }
   });
 
-  it("바디 밖 sustain 의미 위반·lane0 구조 오류는 각 버킷으로 컴파일을 거부한다", () => {
+  it("바디 밖 tick 의미 위반·lane0 구조 오류는 각 버킷으로 컴파일을 거부한다", () => {
     for (const [notes, bucket] of [[[s(1000)], "semantic"], [[p(1000, "single", 0)], "structural"]] as const) {
       expect(() => compileExplicitJudgmentChart(chart([...notes]))).toThrow(ExplicitChartCompileError);
       try { compileExplicitJudgmentChart(chart([...notes])); } catch (error) {
@@ -139,7 +139,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(two.scoreItems[0].source.noteIndex).toBe(4);
   });
 
-  it("유지 표식 추가·제거는 바디와 Point·release 항목 및 경계를 바꾸지 않는다", () => {
+  it("틱 노트 추가·제거는 바디와 탭·release 항목 및 경계를 바꾸지 않는다", () => {
     const base = compileExplicitJudgmentChart(chart([p(1000), b(1000, 2000), r(2000)]));
     const marked = compileExplicitJudgmentChart(chart([p(1000), b(1000, 2000), r(2000), s(1500)]));
     expect(marked.bodyUnits).toEqual(base.bodyUnits);
@@ -147,7 +147,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(marked.scoreItems.filter(item => item.kind !== "tick")).toEqual(base.scoreItems);
   });
 
-  it("trill Point·무점수 body는 zone index1을 보존하며 끝 release·holdOnly 점수를 자동 생성하지 않는다", () => {
+  it("trill 탭·무점수 body는 zone index1을 보존하며 끝 release·holdOnly 점수를 자동 생성하지 않는다", () => {
     const document = chart([p(1000, "trill"), { type: "body", lane: 1, beat: beat(2), endBeat: beat(4), holdCount: 1, trill: true }]);
     document.trillZones = [{ lane: 2, beat: beat(0), endBeat: beat(4) }, { lane: 1, beat: beat(0), endBeat: beat(4) }];
     const compiled = compileExplicitJudgmentChart(document);

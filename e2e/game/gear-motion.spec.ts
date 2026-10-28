@@ -30,7 +30,7 @@ interface MotionProbe {
  */
 const GAUGE_FOLLOW_TOLERANCE = 0.02;
 /**
- * 10초 Point Miss 뒤 게이지가 허용치 안으로 붙기를 기다리는 이징 시간 상한(ms). 0.24 차이가 0.02 아래로 줄려면 이징 시간 약 186ms(τ 75ms × ln 12)가
+ * 10초 탭 Miss 뒤 게이지가 허용치 안으로 붙기를 기다리는 이징 시간 상한(ms). 0.24 차이가 0.02 아래로 줄려면 이징 시간 약 186ms(τ 75ms × ln 12)가
  * 필요하고, 500ms는 그 2.7배다. 60Hz에서 renderFrame 약 30번, 프레임이 50ms보다 느리면 10번이다.
  */
 const GAUGE_FOLLOW_EASE_BUDGET_MS = 500;
@@ -124,7 +124,7 @@ async function readProbe(page: Page): Promise<MotionProbe> {
   });
 }
 
-/** 실제 세션에서 놓친 Point의 Miss 효과와 같은 프레임을 관찰한다. 점수·고도·시계는 주입하지 않는다. */
+/** 실제 세션에서 놓친 탭의 Miss 효과와 같은 프레임을 관찰한다. 점수·고도·시계는 주입하지 않는다. */
 async function waitForMissFrame(page: Page): Promise<{ beforeAltitude: number; gaugeLevel: number; backgroundAltitude: number }> {
   await page.waitForFunction(() => Boolean((window as unknown as Record<string, unknown>).__firstMissFrame), undefined, { timeout: 30000 });
   return page.evaluate(() => (window as unknown as { __firstMissFrame: { beforeAltitude: number; gaugeLevel: number; backgroundAltitude: number } }).__firstMissFrame);
@@ -235,7 +235,7 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
   });
 
   for (const motionOn of [true, false]) {
-    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도(${GAUGE_FOLLOW_TOLERANCE} 안)를 보여 주며, 10초 Point를 놓치면 바로 떨어지지 않고 이징으로 0.24 내려가 이징 시간 ${GAUGE_FOLLOW_EASE_BUDGET_MS}ms 안에 배경 고도와 ${GAUGE_FOLLOW_TOLERANCE} 안으로 붙는다`, async ({ page }) => {
+    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도(${GAUGE_FOLLOW_TOLERANCE} 안)를 보여 주며, 10초 탭을 놓치면 바로 떨어지지 않고 이징으로 0.24 내려가 이징 시간 ${GAUGE_FOLLOW_EASE_BUDGET_MS}ms 안에 배경 고도와 ${GAUGE_FOLLOW_TOLERANCE} 안으로 붙는다`, async ({ page }) => {
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
       await startLocalPlay(page, motionOn, { missAtBeat: 20 });
@@ -275,7 +275,7 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
     expect(errors).toEqual([]);
   });
 
-  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 Gear Motion 켬이면 실제 플레이에서 gearMotion 에셋을 요청해 gearMotion을 만들고(ready·running·객체 2개) timeMs가 흐르며, 10초 Point Miss 뒤 게이지는 바로 떨어지지 않고 이징한다(RFD 0030)', async ({ page }) => {
+  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 Gear Motion 켬이면 실제 플레이에서 gearMotion 에셋을 요청해 gearMotion을 만들고(ready·running·객체 2개) timeMs가 흐르며, 10초 탭 Miss 뒤 게이지는 바로 떨어지지 않고 이징한다(RFD 0030)', async ({ page }) => {
     const errors: string[] = [];
     const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));

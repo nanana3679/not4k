@@ -10,7 +10,7 @@ describe('G 속성 토글의 명시·구형 경계', () => {
     expect(on).toEqual({ ...note, grace: true });
     expect(toggleNoteGrace(on)).toEqual(note);
   });
-  it('새 Body·Sustain의 G 토글은 no-op이고 grace·holdOnly를 만들지 않는다', () => {
+  it('새 Body·틱의 G 토글은 no-op이고 grace·holdOnly를 만들지 않는다', () => {
     expect(toggleNoteGrace({ type: 'body', holdCount: 2, lane: 1, beat: beat(0), endBeat: beat(4) })).toBeNull();
     expect(toggleNoteGrace({ type: 'tick', count: 2, lane: 1, beat: beat(2) })).toBeNull();
   });

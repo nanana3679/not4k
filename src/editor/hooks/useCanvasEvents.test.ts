@@ -105,7 +105,7 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
 }
 
 describe('우클릭 삭제', () => {
-  it('붙여넣기 대기 중 4박에 붙여넣은 Point를 우클릭하면 붙여넣기를 확정한 뒤 그 Point를 지우고 Undo 1번에 붙여넣은 Point가 돌아온다', () => {
+  it('붙여넣기 대기 중 4박에 붙여넣은 탭을 우클릭하면 붙여넣기를 확정한 뒤 그 탭을 지우고 Undo 1번에 붙여넣은 탭이 돌아온다', () => {
     const { handlers, selectMode } = setup(chart([{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }]), 'select');
     selectMode.selectNote(0); selectMode.copy(); selectMode.paste(beat(4));
     expect(notes()).toHaveLength(2);
@@ -120,7 +120,7 @@ describe('우클릭 삭제', () => {
     expect(notes().map(note => note.beat)).toEqual([beat(1), beat(4)]);
   });
 
-  it('1박 Point를 우클릭으로 지운 누름의 contextmenu는 2박 Point를 지우지 않고 그 뒤 키보드 메뉴 키 contextmenu는 2박 Point를 지운다', () => {
+  it('1박 탭을 우클릭으로 지운 누름의 contextmenu는 2박 탭을 지우지 않고 그 뒤 키보드 메뉴 키 contextmenu는 2박 탭을 지운다', () => {
     const { handlers } = setup(chart([
       { type: 'tap', kind: 'single', lane: 1, beat: beat(1) },
       { type: 'tap', kind: 'single', lane: 1, beat: beat(2) },

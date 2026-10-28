@@ -40,7 +40,7 @@ export interface ExplicitSkinAssetMetadata extends ExplicitSkinImage {
   variant: ExplicitSkinVariant;
   state: ExplicitSkinArtworkState;
   side?: "left" | "right";
-  /** partialHeld는 미충족 쪽, partialFailed는 실패 쪽, sustain은 표식 쪽이다. */
+  /** partialHeld는 미충족 쪽, partialFailed는 실패 쪽, tick은 표식 쪽이다. */
   sideMeaning?: "unmet" | "failed" | "marker";
   /** 투명 여백을 포함한 전체 캔버스의 논리 크기. */
   logicalSize: ExplicitSkinSize;

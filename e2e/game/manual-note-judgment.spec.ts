@@ -5,7 +5,7 @@ import { probe, waitAt } from '../explicitPlaybackProbe';
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 test.setTimeout(60000);
 
-test('일반 곡의 실제 Q/E down·up은 Point·Body·Sustain·Release를 4항목12점으로 정산한다', async ({ page }) => {
+test('일반 곡의 실제 Q/E down·up은 탭·Body·틱·Release를 4항목12점으로 정산한다', async ({ page }) => {
   const fixture = await openNormalSong(page, normalDocument(false), { playSpeed: .25 });
   await startNormalSong(page);
   await waitAt(page, 1000); await page.keyboard.down('q');

@@ -154,7 +154,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it.each([0.5, 1, 2])('일반 배속%s·L₀20ms·입력+40ms·시각+70ms는 준비 없이 P0에서 시작하고1000ms Point를 Perfect로 처리한다', async rate => {
+  it.each([0.5, 1, 2])('일반 배속%s·L₀20ms·입력+40ms·시각+70ms는 준비 없이 P0에서 시작하고1000ms 탭을 Perfect로 처리한다', async rate => {
     fixture.latency = 20;
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(2) }];
@@ -168,7 +168,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(fixture.renderers[0].showBombEffect).toHaveBeenCalledOnce();
   });
 
-  it('일반 차트 offset−40ms·L₀20ms·2배속에서 시작 직후 down은 음수 시각 Point를 제외하지 않고 Perfect로 친다', async () => {
+  it('일반 차트 offset−40ms·L₀20ms·2배속에서 시작 직후 down은 음수 시각 탭을 제외하지 않고 Perfect로 친다', async () => {
     fixture.latency = 20;
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.meta.offsetMs = -40; chart.notes = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(0) }];
@@ -295,7 +295,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(canceled.target.listeners.size).toBe(0); expect(frames.size).toBe(0);
   });
 
-  it('일반4초 끝의 Point4000과입력−100ms는 진행 시각이4120ms 기한을 넘는4221ms까지 결과를 기다린다', async () => {
+  it('일반4초 끝의 탭4000과입력−100ms는 진행 시각이4120ms 기한을 넘는4221ms까지 결과를 기다린다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(8) }];
     const run = create(false, chart, { inputOffsetMs: -100 }, undefined, 4, {}); await run.player.start();
@@ -318,7 +318,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(snapshot.bodyUnits[0]).toMatchObject({ state: 'active', actualStartMs: 2010 });
   });
 
-  it.each([[false, ['perfect']], [true, []]] as const)('키 callback이 J10에 활성화해 유지 노트0을 정산하고 다음 프레임이1500이면 checkpoint50=%s일 때3100→100 복원은 빠진 고도 기여%j만 한 번 더한다', async (withCheckpoint, grades) => {
+  it.each([[false, ['perfect']], [true, []]] as const)('키 callback이 J10에 활성화해 틱 노트0을 정산하고 다음 프레임이1500이면 checkpoint50=%s일 때3100→100 복원은 빠진 고도 기여%j만 한 번 더한다', async (withCheckpoint, grades) => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: 'tick', count: 1, lane: 1, beat: beat(0) }];
@@ -336,7 +336,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])('프레임1500～5000 공백에서 auto=%s의1750 Point는2000 복원에 반영되고 과거 타격은 다시 재생하지 않는다', async auto => {
+  it.each([false, true])('프레임1500～5000 공백에서 auto=%s의1750 탭은2000 복원에 반영되고 과거 타격은 다시 재생하지 않는다', async auto => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(2) },
       { type: 'tap', kind: 'single', lane: 2, beat: beat(7, 2) }];
@@ -353,7 +353,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it('프레임1500 뒤5000→2000 복원은 입력−200ms의core1800까지만 진행하고2050 down의Point1850 Perfect를 보존한다', async () => {
+  it('프레임1500 뒤5000→2000 복원은 입력−200ms의core1800까지만 진행하고2050 down의탭1850 Perfect를 보존한다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(37, 10) },
       { type: 'body', holdCount: 1, lane: 1, beat: beat(37, 10), endBeat: beat(12) },
@@ -399,7 +399,7 @@ describe('명시 실제 재생 runtime', () => {
     frame(100121); expect(run.onResult).toHaveBeenCalledOnce();
   });
 
-  it.each(['preheld', 'late-down', 'auto'] as const)('커서1500ms의 %s는 이전 Point1000을 제외하고 남은 바디와 sustain1500부터3항목9점을 처리한다', async mode => {
+  it.each(['preheld', 'late-down', 'auto'] as const)('커서1500ms의 %s는 이전 탭1000을 제외하고 남은 바디와 틱1500부터3항목9점을 처리한다', async mode => {
     fixture.latency = 20;
     const run = create(mode === 'auto', undefined, { playSpeed: 2 }, 1500); await run.player.start();
     const renderer = fixture.renderers[0];
@@ -423,7 +423,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(renderer.showBombEffect).toHaveBeenCalledTimes(3);
   });
 
-  it('처음부터 테스트는 차트 offset−1500ms의 −500ms Point를 일반 재생처럼 Miss로 정산해 4항목·분모12이며1000 pause는0으로 되감는다', async () => {
+  it('처음부터 테스트는 차트 offset−1500ms의 −500ms 탭을 일반 재생처럼 Miss로 정산해 4항목·분모12이며1000 pause는0으로 되감는다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.meta.offsetMs = -1500;
     const run = create(false, chart); await run.player.start();
@@ -446,7 +446,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(fixture.renderers[0].showJudgmentGroup).not.toHaveBeenCalled();
   });
 
-  it('처음 준비 중2999ms에 누른 키는 hold만 seed하며 0ms Point를 새 down으로 판정하지 않는다', async () => {
+  it('처음 준비 중2999ms에 누른 키는 hold만 seed하며 0ms 탭을 새 down으로 판정하지 않는다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'tap', kind: 'single', lane: 2, beat: beat(0) },
       { type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) }];
@@ -464,7 +464,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(result.facts.filter(fact => fact.kind === 'input')).toHaveLength(0);
   });
 
-  it('준비 중 누른 KeyQ의 timestamp2990 up이 실제3000 활성화 뒤3010에 도착하면 바디0～2000을 hold 없음으로 다시 재개해 유지 노트1000에 점수를 주지 않는다', async () => {
+  it('준비 중 누른 KeyQ의 timestamp2990 up이 실제3000 활성화 뒤3010에 도착하면 바디0～2000을 hold 없음으로 다시 재개해 틱 노트1000에 점수를 주지 않는다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: 'tick', count: 1, lane: 1, beat: beat(2) }];
@@ -481,7 +481,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(result.facts.filter(fact => fact.kind === 'input')).toHaveLength(0);
   });
 
-  it('준비 중 timestamp2990 KeyQ down이 실제3000 활성화 뒤3010에 도착하면 새 down 없이 hold로 반영해 바디0～2000과 유지 노트1000을 Perfect로 잇는다', async () => {
+  it('준비 중 timestamp2990 KeyQ down이 실제3000 활성화 뒤3010에 도착하면 새 down 없이 hold로 반영해 바디0～2000과 틱 노트1000을 Perfect로 잇는다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: 'tick', count: 1, lane: 1, beat: beat(2) }];
@@ -499,7 +499,7 @@ describe('명시 실제 재생 runtime', () => {
   it.each([
     ['실제3000 판정 재개 전에', false],
     ['실제3185에 늦게', true],
-  ] as const)('준비 중 KeyQ로 잡은 바디0～2000을 170에 떼고 레인2 KeyE 준비 down(timestamp2990)이 %s 도착하면 바디는 190에 유지 실패하고 220 재입력은 유지 노트500 점수를 얻지 않는다', async (_, delayed) => {
+  ] as const)('준비 중 KeyQ로 잡은 바디0～2000을 170에 떼고 레인2 KeyE 준비 down(timestamp2990)이 %s 도착하면 바디는 190에 유지 실패하고 220 재입력은 틱 노트500 점수를 얻지 않는다', async (_, delayed) => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: 'tick', count: 1, lane: 1, beat: beat(1) }];
@@ -516,7 +516,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(result.score).toMatchObject({ earnedScore: 0, processedNotes: 1, judgmentCounts: { perfect: 0 } });
   });
 
-  it('준비 중 KeyQ를 잡은 채 실제3040 KeyW down이 큐에 있고 timestamp2990 KeyQ up이 3045에 늦게 도착하면 KeyW down을 먼저 처리해 Point50을 Perfect로 친다', async () => {
+  it('준비 중 KeyQ를 잡은 채 실제3040 KeyW down이 큐에 있고 timestamp2990 KeyQ up이 3045에 늦게 도착하면 KeyW down을 먼저 처리해 탭50을 Perfect로 친다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(1, 10) }];
     const run = create(false, chart); await run.player.start();
@@ -530,7 +530,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(result.facts.filter(fact => fact.kind === 'input' && fact.accepted)).toMatchObject([{ key: 'KeyW', atMs: 40 }]);
   });
 
-  it('준비 종료 프레임이80ms 늦어도 실제3020ms down은 새 Point 입력이고 준비 중 down으로 버리지 않는다', async () => {
+  it('준비 종료 프레임이80ms 늦어도 실제3020ms down은 새 탭 입력이고 준비 중 down으로 버리지 않는다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(0) }];
     const run = create(false, chart); await run.player.start(); wallFrame(2990);
@@ -630,7 +630,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onResult.mock.calls[0][0].score).toMatchObject({ earnedScore: 9, processedNotes: 6 });
   });
 
-  it('1000ms Auto pause가0으로 되감기면 Point1000·1060을 다시 치되 최종6점이고 폐기 전 타격까지 합쳐3회다', async () => {
+  it('1000ms Auto pause가0으로 되감기면 탭1000·1060을 다시 치되 최종6점이고 폐기 전 타격까지 합쳐3회다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [1000, 1060].map(ms => ({ type: 'tap' as const, kind: 'single' as const, lane: 1, beat: beat(ms, 500) }));
     const run = create(true, chart); await run.player.start(); frame(1000);
@@ -694,7 +694,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it('Point1000·3000을 친 뒤5000→2000 재개에서3000을 다시 치고4000에서 또 멈추면1000으로 되감아 Point1000만 남기고 최종6점이다', async () => {
+  it('탭1000·3000을 친 뒤5000→2000 재개에서3000을 다시 치고4000에서 또 멈추면1000으로 되감아 탭1000만 남기고 최종6점이다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [1000, 3000].map(ms => ({ type: 'tap' as const, kind: 'single' as const, lane: 1, beat: beat(ms, 500) }));
     const reconstruct = vi.spyOn(ExplicitJudgmentSession.prototype, 'reconstructAt');
@@ -720,7 +720,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(fixture.renderers[0].showBombEffect).toHaveBeenCalledTimes(4);
   });
 
-  it('바디1000～6000을 계속 누른 채5000→2000 재개 뒤5500에서 다시 멈춰 더 늦은2500으로 되감아도 바디는 complete이고 Point·릴리즈6점이다', async () => {
+  it('바디1000～6000을 계속 누른 채5000→2000 재개 뒤5500에서 다시 멈춰 더 늦은2500으로 되감아도 바디는 complete이고 탭·릴리즈6점이다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(2) },
       { type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(12) },
@@ -790,7 +790,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onResult.mock.calls[0][0].facts.filter(fact => fact.kind === 'input' && fact.action === 'down')).toHaveLength(1);
   });
 
-  it('입력+200ms로T2000 전에 친 미래 Point2100은 복원에 남고3000 재연주와 합쳐6점이다', async () => {
+  it('입력+200ms로T2000 전에 친 미래 탭2100은 복원에 남고3000 재연주와 합쳐6점이다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes = [2100, 3000].map(ms => ({ type: 'tap' as const, kind: 'single' as const, lane: 1, beat: beat(ms, 500) }));
     const run = create(false, chart, { inputOffsetMs: 200 }, undefined, 8); await run.player.start();
@@ -827,7 +827,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(manual.onError).not.toHaveBeenCalled();
   });
 
-  it('auto 구간1000～2000ms와 3000ms 수동 Point는 하나의 session으로 4항목을 정산한다', async () => {
+  it('auto 구간1000～2000ms와 3000ms 수동 탭은 하나의 session으로 4항목을 정산한다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.events.push({ type: 'auto', beat: { n: 2, d: 1 }, endBeat: { n: 4, d: 1 } });
     const run = create(false, chart); await run.player.start();
@@ -835,7 +835,7 @@ describe('명시 실제 재생 runtime', () => {
     expect(run.onResult.mock.calls[0][0].score).toMatchObject({ processedNotes: 4, earnedScore: 12 });
   });
 
-  it('1500ms Esc는0으로 되감고 준비 hold만으로1000ms Point를 자동 성공시키지 않으며 listener4개를 보존한다', async () => {
+  it('1500ms Esc는0으로 되감고 준비 hold만으로1000ms 탭을 자동 성공시키지 않으며 listener4개를 보존한다', async () => {
     const run = create(false); await run.player.start();
     at(1000); key(run.target, 'keydown', 'KeyQ'); frame(1500);
     key(run.target, 'keydown', 'Escape');

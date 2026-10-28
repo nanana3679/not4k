@@ -24,7 +24,7 @@ function axisY(svg: string, ms: number) {
 
 describe("설계 도식", () => {
   it("제목·본문·요약·메모는 텍스트 출력에만 남고 이미지에는 짧은 Miss 라벨만 표시", () => {
-    const example = design({ title: "Point를 놓쳐도 뒤 바디를 유지할까?", summary: "논의 요약 문장", memo: "아직 확정 전인 결정",
+    const example = design({ title: "탭을 놓쳐도 뒤 바디를 유지할까?", summary: "논의 요약 문장", memo: "아직 확정 전인 결정",
       annotations: [{ note: "N1", atMs: 2000, label: "Miss", text: "창 안에 새 누름이 없다는 설명 본문", tone: "failure" }] });
     const { svg } = renderJudgmentCaseDesignSvg([example]);
     const caption = summarizeJudgmentCaseDesign(example);
@@ -43,7 +43,7 @@ describe("설계 도식", () => {
     expect(summarizeJudgmentCaseDesign(withProse)).toContain("@90000ms: 추가 설명");
   });
 
-  it.each(["classic", "crystal", "simple"])("%s 설계의 double 바디·single Point·double release는 기존 PNG 에셋을 쓰고 Point 높이는 16px", id => {
+  it.each(["classic", "crystal", "simple"])("%s 설계의 double 바디·single 탭·double release는 기존 PNG 에셋을 쓰고 탭 높이는 16px", id => {
     const skin = makeTestSkin(id);
     const { svg } = renderJudgmentCaseDesignSvg([design({ notes: [
       { kind: "body", count: 2, startMs: 1000, endMs: 2000 },
@@ -77,7 +77,7 @@ describe("설계 도식", () => {
     expect(svg).toContain('fill="url(#jc-tile-1-0)"');
   });
 
-  it("전용 에셋 없는 유지 노트와 3개 수량은 임시 표식으로 표시하고 기존 double 에셋으로 오인시키지 않음", () => {
+  it("전용 에셋 없는 틱 노트와 3개 수량은 임시 표식으로 표시하고 기존 double 에셋으로 오인시키지 않음", () => {
     const { svg } = renderJudgmentCaseDesignSvg([design({ notes: [
       { kind: "tick", atMs: 1000 }, { kind: "body", count: 3, startMs: 1000, endMs: 2000 },
     ] })]);
@@ -134,7 +134,7 @@ describe("설계 도식", () => {
     expect(svg).not.toMatch(/NaN|Infinity/);
   });
 
-  it("입력 없는 0ms 바디·release·유지 노트와 열린 키 입력도 점수 집계 없이 그림", () => {
+  it("입력 없는 0ms 바디·release·틱 노트와 열린 키 입력도 점수 집계 없이 그림", () => {
     const first = design({ notes: [{ kind: "body", startMs: 0, endMs: 0 }, { kind: "release", atMs: 0 }, { kind: "tick", atMs: 0 }] });
     const second = design({ inputs: [{ key: "A", lane: 2, downMs: 0 }] });
     const { svg, height } = renderJudgmentCaseDesignSvg([first, second]);

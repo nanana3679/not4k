@@ -116,7 +116,7 @@ for (const hold of [false, true]) {
   });
 }
 
-test('점수 Point2개를 모두 놓치면 공식 결과는 0.00%·F·Miss2다', async ({ page }) => {
+test('점수 탭2개를 모두 놓치면 공식 결과는 0.00%·F·Miss2다', async ({ page }) => {
   const document = normalDocument(false);
   document.notes = document.notes.filter(note => note.type === 'tap');
   await openNormalSong(page, document); await startNormalSong(page);
@@ -153,7 +153,7 @@ test('저장된 legacy main은 명확한 오류로 거부하고 오디오·공�
   await expect(page.getByRole('heading', { name: 'Song Select', exact: true })).toBeVisible();
 });
 
-test('명시 sustain이 Body 밖에 있으면 전체 문서 검증에서 오디오 시작 전에 거부한다', async ({ page }) => {
+test('명시 tick이 Body 밖에 있으면 전체 문서 검증에서 오디오 시작 전에 거부한다', async ({ page }) => {
   const document = normalDocument();
   document.notes.push({ type: 'tick', lane: 3, count: 1, beat: { n: 3, d: 1 } });
   await openNormalSong(page, document);

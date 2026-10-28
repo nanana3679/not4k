@@ -22,7 +22,7 @@ interface ExplicitScoreItemBase {
   readonly weight: 3;
 }
 
-/** 유지에는 독립 입력·Grace가 없으며 릴리즈 수량은 바디 몫 수와 별개다. */
+/** 틱에는 독립 입력·Grace가 없으며 릴리즈 수량은 바디 몫 수와 별개다. */
 export type ExplicitScoreItem = ExplicitScoreItemBase & (
   | { readonly kind: "tap"; readonly tapKind: "single" | "double" | "trill";
     readonly grace: boolean; readonly startsBodyIndices: readonly number[]; readonly trillZoneIndex?: number }

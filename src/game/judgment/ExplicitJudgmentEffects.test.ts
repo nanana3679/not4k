@@ -58,7 +58,7 @@ describe("실제 compiler → core → session의 대표 글자와 개별 정산
     expect(session.result().score).toMatchObject({ earnedScore: 6, fastCount: delta < -20.5 ? 1 : 0, slowCount: delta > 20.5 ? 1 : 0 });
   });
 
-  it("Grace·유지 Perfect만 1500ms에 확정되면 대표 타이밍은 null이고 FAST/SLOW는 0회다", () => {
+  it("Grace·틱 Perfect만 1500ms에 확정되면 대표 타이밍은 null이고 FAST/SLOW는 0회다", () => {
     const session = sessionFor([b(1000, 2000), s(1500), p(1400, "single", 2, true)]);
     session.processBatch(1000, [down("A", 1)]);
     session.processBatch(1500, [down("B", 2)]);
@@ -86,7 +86,7 @@ describe("실제 compiler → core → session의 대표 글자와 개별 정산
     expect(session.result().score).toMatchObject({ earnedScore: 6, fastCount: 0, slowCount: 1 });
   });
 
-  it("1500ms 유지 Perfect와 deadline Miss를 따로 drain해도 대표는 Miss·타이밍 null이고 콤보는 0이다", () => {
+  it("1500ms 틱 Perfect와 deadline Miss를 따로 drain해도 대표는 Miss·타이밍 null이고 콤보는 0이다", () => {
     const session = sessionFor([b(1000, 2000), s(1500), p(1380, "single", 2)]);
     const port = effectPort();
     const adapter = new ExplicitSessionRendererAdapter(session, new ExplicitJudgmentEffectSink(port));
@@ -103,7 +103,7 @@ describe("실제 compiler → core → session의 대표 글자와 개별 정산
     expect(session.combo).toBe(0);
   });
 
-  it("1500ms 유지 Perfect와 종속 0점은 원인 Miss만 표시하고 0점 항목은 후보·타격에서 제외한다", () => {
+  it("1500ms 틱 Perfect와 종속 0점은 원인 Miss만 표시하고 0점 항목은 후보·타격에서 제외한다", () => {
     const session = sessionFor([b(1000, 2000, 1, 1), s(1500, 1, 1), b(1380, 2000, 1, 2), s(1700, 1, 2)]);
     const port = effectPort();
     session.processBatch(1000, [down("A", 1)]);
@@ -212,7 +212,7 @@ describe("공개 append 사실 읽기와 확정 효과의 불변성", () => {
     expect(() => core.readConfirmedSince(cursor)).toThrow(RangeError);
   });
 
-  it("1500ms 유지 성공 뒤 1600ms 실제 up으로 실패해도 기존 Perfect 점수·콤보 성공·표시 기록은 소급 취소하지 않는다", () => {
+  it("1500ms 틱 성공 뒤 1600ms 실제 up으로 실패해도 기존 Perfect 점수·콤보 성공·표시 기록은 소급 취소하지 않는다", () => {
     const session = sessionFor([b(1000, 2000), s(1500), s(1800)]);
     session.processBatch(1000, [down("A", 1)]);
     session.advance(1500);

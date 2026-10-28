@@ -75,7 +75,7 @@ test('새 에디터 Double 제작·Undo·저장·reload 후 처음부터 실제 
   expect(initial.unexpectedSupabaseRequests).toEqual([]); expect(reloaded.unexpectedSupabaseRequests).toEqual([]);
 });
 
-test('1500ms 커서에서 미리 누른 키로 남은 바디를 시작하고 커서의 Sustain·뒤 Release만 2항목6점으로 정산한다', async ({ page }) => {
+test('1500ms 커서에서 미리 누른 키로 남은 바디를 시작하고 커서의 틱·뒤 Release만 2항목6점으로 정산한다', async ({ page }) => {
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [
     { type: 'tap', kind: 'single', lane: 1, beat: '2' },
     { type: 'body', holdCount: 1, lane: 1, beat: '2', endBeat: '4' },
@@ -150,7 +150,7 @@ for (const auto of [false, true]) test(`${auto ? 'Auto' : '수동'} 4500ms 재�
   const originalRequest = await playRequest(page);
   if (!auto) {
     await waitAt(page, 1000); await page.keyboard.down('q');
-    // Leave 60 song ms for a real frame to process this future 1540ms Grace Point before T around1500ms.
+    // Leave 60 song ms for a real frame to process this future 1540ms Grace tap before T around1500ms.
     await waitAt(page, 1440); await page.keyboard.down('e'); await page.keyboard.up('e');
     await waitAt(page, 1900); await page.keyboard.up('q');
   }
@@ -333,7 +333,7 @@ test('legacy aux는 저장한 그대로 보존하며 explicit main만 auto 물�
   expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
 
-test('aux의 소속 없는 Sustain은 새 테스트 버튼과 저장을 함께 차단하여 원본문서 위반을 숨기지 않는다', async ({ page }) => {
+test('aux의 소속 없는 틱은 새 테스트 버튼과 저장을 함께 차단하여 원본문서 위반을 숨기지 않는다', async ({ page }) => {
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [{ type: 'tap', kind: 'single', lane: 1, beat: '2' }] };
   const editor = await openEditor(page, { chart, audio: true, extra: { version: 4, extraLaneCount: 1,
     extraNotes: [{ type: 'tick', count: 1, extraLane: 1, beat: '2' }] } });

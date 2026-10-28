@@ -4,7 +4,7 @@ import { compileJudgmentChart } from "./compiledJudgmentChart";
 import { ScoreManager } from "../scoring/ScoreManager";
 
 describe("compileJudgmentChart", () => {
-  it("명시 Point·바디·릴리즈·유지는 구형 compiler에서 head/자동 끝 점수로 해석하지 않고 거부한다", () => {
+  it("명시 탭·바디·릴리즈·틱은 구형 compiler에서 head/자동 끝 점수로 해석하지 않고 거부한다", () => {
     const explicit: DocumentNoteEntity[] = [
       { type: "tap", kind: "single", lane: 1, beat: beat(0) },
       { type: "body", lane: 1, beat: beat(0), endBeat: beat(1), holdCount: 1 },

@@ -47,7 +47,7 @@ export class ExplicitAutoPlayer {
     const output: ExplicitAutoInput[] = [];
     const lanes = new Set([...chart.bodies.map(body => body.lane), ...chart.scoreItems.map(item => item.lane)]);
     for (const lane of lanes) {
-      // sustain은 입력 계획에 전혀 참여하지 않는다.
+      // tick은 입력 계획에 전혀 참여하지 않는다.
       const taps = chart.scoreItems.filter(item => item.lane === lane && item.kind === "tap" && isAutoAt(item.timeMs));
       const bodies = chart.bodies.filter(body => body.lane === lane && isAutoAt(body.startMs));
       const ownedBodies = new Set(bodies.map(body => body.source.noteIndex));

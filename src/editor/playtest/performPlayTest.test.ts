@@ -63,7 +63,7 @@ describe('에디터에서 명시 실제 테스트 플레이', () => {
     expect(useGameStore.getState().explicitPlay?.document.notes).toHaveLength(6);
     expect(useGameStore.getState().explicitPlay?.compiled.totalJudgments).toBe(4);
   });
-  it('1500ms 커서 시작은 aux를 포함한 원본6개를 보존하고 정확히 커서의 Sustain부터 3항목·분모9를 계산한다', () => {
+  it('1500ms 커서 시작은 aux를 포함한 원본6개를 보존하고 정확히 커서의 틱부터 3항목·분모9를 계산한다', () => {
     const { params } = setup({ fromCursor: true, currentTimeMs: 1500 });
     params.chart.notes.unshift({ type: 'single', lane: 5, beat: beat(0) });
     const original = structuredClone(params.chart);
@@ -76,7 +76,7 @@ describe('에디터에서 명시 실제 테스트 플레이', () => {
     expect(request.compiled.bodies[0]).toMatchObject({ source: { noteIndex: 2 }, startMs: 1500, endMs: 2000 });
     expect(params.chart).toEqual(original);
   });
-  it.each([false, true])('fromCursor=%s라도 커서 앞 aux5의 소속 없는 sustain은 모든 전환 부작용 전에 차단한다', fromCursor => {
+  it.each([false, true])('fromCursor=%s라도 커서 앞 aux5의 소속 없는 tick은 모든 전환 부작용 전에 차단한다', fromCursor => {
     const { params, game } = setup({ fromCursor }); params.chart.notes.push({ type: 'tick', count: 1, lane: 5, beat: beat(0) });
     const before = useGameStore.getState();
     expect(performPlayTest(params)).toBe(false);
@@ -84,7 +84,7 @@ describe('에디터에서 명시 실제 테스트 플레이', () => {
     expect(params.closeMenu).not.toHaveBeenCalled(); expect(params.navigate).not.toHaveBeenCalled();
     expect(useGameStore.getState()).toBe(before);
   });
-  it.each([false, true])('fromCursor=%s라도 커서 앞 main3의 소속 없는 sustain은 원본 전체 검증에서 차단한다', fromCursor => {
+  it.each([false, true])('fromCursor=%s라도 커서 앞 main3의 소속 없는 tick은 원본 전체 검증에서 차단한다', fromCursor => {
     const { params, game } = setup({ fromCursor }); params.chart.notes.push({ type: 'tick', count: 1, lane: 3, beat: beat(0) });
     const before = useGameStore.getState();
     expect(performPlayTest(params)).toBe(false);

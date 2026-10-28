@@ -40,7 +40,7 @@ function geometryNotes(notes: readonly DocumentNoteEntity[]): NoteEntity[] {
 
 /**
  * 구형 범위가 소유한 제약(holdOnly 끝·길이 0 head·같은 unit 연결 head·트릴 head)을 위한 보기.
- * 구형 항목은 그대로 두고 명시 Point만 같은 kind의 구형 Point로 인식한다. 명시 바디·릴리즈·유지는
+ * 구형 항목은 그대로 두고 탭 노트만 같은 kind의 구형 Point로 인식한다. 명시 바디·릴리즈·틱은
  * 구형 의미로 다시 해석하지 않으므로 넣지 않는다. indices는 문서 원본 index다.
  */
 function legacyRangeConstraintView(notes: readonly DocumentNoteEntity[]): { notes: NoteEntity[]; indices: number[] } {
@@ -76,7 +76,7 @@ export function validateChartDocumentStructural(input: ChartDocumentValidationIn
       return;
     }
     // C1 codec의 종류별 허용 필드·속성을 그대로 검사한다. 반환값으로 원본을 교체하지 않는다.
-    // body.holdOnly/grace·sustain.grace 등도 저장 시 조용히 유실되기 전에 거부한다.
+    // body.holdOnly/grace·tick.grace 등도 저장 시 조용히 유실되기 전에 거부한다.
     try {
       parseDocumentNote({ ...note, beat: `${note.beat.n}/${note.beat.d}`,
         ...("endBeat" in note ? { endBeat: `${note.endBeat.n}/${note.endBeat.d}` } : {}) }, 4);
@@ -114,7 +114,7 @@ export function validateChartDocumentSemantic(
     ...validateNoDuplicates(legacy), ...validateNoLongOverlap(legacy),
     ...validateTrillExclusive(legacy, trillZones),
   ], legacyIndices);
-  // 구형 범위의 Point 관련 제약은 명시 Point로 바꾼 항목도 Point로 보고 검사한다.
+  // 구형 범위의 Point 관련 제약은 탭 노트로 바꾼 항목도 Point로 보고 검사한다.
   const legacyRangeView = legacyRangeConstraintView(notes);
   errors.push(...remapErrors([
     ...validateTrillLong(legacyRangeView.notes), ...validateNoteJudgmentConstraints(legacyRangeView.notes),
@@ -197,12 +197,12 @@ export function validateChartDocumentSemantic(
   }
 
   // 같은 hold 수·같은 트릴 여부(일반 → 일반, 트릴 → 트릴)로 맞닿은 바디는 한 바디와 구별되지 않으므로
-  // 경계에 Point나 릴리즈가 있어야 한다. 트릴 바디와 일반 바디는 모양이 달라 구별되므로 어느 방향이든 대상이 아니다.
-  // 길이 0 뒤 바디도 포함하며, 그 위의 Point·릴리즈는 zeroLengthBodyOverlap이 따로 막는다.
+  // 경계에 탭 노트나 릴리즈가 있어야 한다. 트릴 바디와 일반 바디는 모양이 달라 구별되므로 어느 방향이든 대상이 아니다.
+  // 길이 0 뒤 바디도 포함하며, 그 위의 탭·릴리즈는 zeroLengthBodyOverlap이 따로 막는다.
   // 구형 롱노트는 relations.connections에 들어오지 않아 대상이 아니다.
-  // 경계와 같은 레인·같은 박에 놓인 구형 Point(type single·double·trill)도 경계의 Point로 인정해
+  // 경계와 같은 레인·같은 박에 놓인 구형 Point(type single·double·trill)도 경계의 탭 노트로 인정해
   // 일부만 옮긴 혼합 문서를 저장할 수 있게 한다.
-  // 구형 롱노트(holdOnly·길이 0 포함)는 경계의 Point로 인정하지 않는다. 메인 레인 구형 Point의 새 재생 차단은 legacyGameContent가 맡는다.
+  // 구형 롱노트(holdOnly·길이 0 포함)는 경계의 탭 노트로 인정하지 않는다. 메인 레인 구형 Point의 새 재생 차단은 legacyGameContent가 맡는다.
   const isJointNote = (note: DocumentNoteEntity) => note.type === "tap" || note.type === "release"
     || note.type === "single" || note.type === "double" || note.type === "trill";
   const hasJointNoteAt = (lane: number, at: Beat) =>
@@ -212,7 +212,7 @@ export function validateChartDocumentSemantic(
     const predecessor = relations.bodyByNote.get(connection.predecessorIndex)?.note;
     const successor = relations.bodyByNote.get(connection.successorIndex)?.note;
     if (!predecessor || !successor || Boolean(predecessor.trill) !== Boolean(successor.trill)) continue;
-    // 메인 레인 트릴 → 트릴 경계의 시작 트릴 Point 누락은 trillLongInvalid가 이미 보고하므로 겹쳐 내지 않는다.
+    // 메인 레인 트릴 → 트릴 경계의 시작 트릴 탭 노트 누락은 trillLongInvalid가 이미 보고하므로 겹쳐 내지 않는다.
     if (successor.trill && isMainLane(connection.lane)) continue;
     if (hasJointNoteAt(connection.lane, connection.beat)) continue;
     add("sameHoldCountConnectionWithoutTapOrRelease", "같은 hold 수로 맞닿은 바디 경계에는 탭 노트나 릴리즈가 필요합니다",

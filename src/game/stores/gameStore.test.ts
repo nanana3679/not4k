@@ -304,7 +304,7 @@ describe('명시 테스트 요청의 화면 수명', () => {
     expect(state.lastResult).toBeNull();
   });
 
-  it('바디 밖 Sustain의 요청이 실패하면 앞선 테스트 요청과 화면 상태를 보존한다', () => {
+  it('바디 밖 틱의 요청이 실패하면 앞선 테스트 요청과 화면 상태를 보존한다', () => {
     const document = structuredClone(explicitPlaytestCharts[0].chart);
     useGameStore.getState().startExplicitPlayTest({ document, audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/lab' });
     const previous = useGameStore.getState();

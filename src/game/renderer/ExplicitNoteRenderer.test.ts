@@ -17,7 +17,7 @@ const setup = () => {
 const children = (renderer: ExplicitNoteRenderer, layer: string) => renderer.root.children.find(child => child.label === `explicit-${layer}`) as Container;
 
 describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
-  it("첫 표시 후 같은 snapshot을 다시 그리면 Sprite 6개와 TilingSprite 1개를 재사용하고 Point를 가장 위에 놓는다", () => {
+  it("첫 표시 후 같은 snapshot을 다시 그리면 Sprite 6개와 TilingSprite 1개를 재사용하고 탭을 가장 위에 놓는다", () => {
     const { renderer } = setup();
     const snapshot = explicitRenderSnapshot(chart);
     renderer.render(snapshot, 1000);
@@ -83,7 +83,7 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     parent.destroy();
   });
 
-  it("Point 더블 왼쪽 Miss는 tap.double.failed 원본 왼쪽 절반(frame x 0·폭 106)과 pending 원본 오른쪽 절반(x 106)을 합성하고 좌우가 바뀌면 각 원본의 crop을 따로 쓰며 dispose는 crop view만 해제한다", () => {
+  it("탭 더블 왼쪽 Miss는 tap.double.failed 원본 왼쪽 절반(frame x 0·폭 106)과 pending 원본 오른쪽 절반(x 106)을 합성하고 좌우가 바뀌면 각 원본의 crop을 따로 쓰며 dispose는 crop view만 해제한다", () => {
     const texturesById = new Map<string, Texture>();
     const getTexture = (id: string) => {
       if (!texturesById.has(id)) texturesById.set(id, new Texture({ source: new TextureSource({ width: 212, height: 40 }) }));

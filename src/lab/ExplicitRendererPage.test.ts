@@ -20,7 +20,7 @@ describe("명시 노트 표시 Lab", () => {
     for (const content of ['data-lab-page="explicit-renderer"', 'href="/lab"', "공개 상태 fixture", "실제 M1 세션", "실행 결과가 아닙니다", "렌더러 재부착", "이미지 해상도", "처음으로"]) expect(html).toContain(content);
   });
 
-  it("혼합 fixture는 double·single·trill 배치를 컴파일하고 sustain 오른쪽만 종속 0점이며 trill release는 만들지 않는다", () => {
+  it("혼합 fixture는 double·single·trill 배치를 컴파일하고 tick 오른쪽만 종속 0점이며 trill release는 만들지 않는다", () => {
     const snapshot = explicitPreviewSnapshot("mixed", 1500);
     expect(snapshot.bodyUnits.map(unit => unit.state)).toEqual(["complete", "failed", "complete", "complete"]);
     expect(snapshot.items.filter(item => item.kind === "tick" && item.sourceNoteIndex === 1).map(item => item.state)).toEqual(["success", "dependentZero"]);
@@ -28,7 +28,7 @@ describe("명시 노트 표시 Lab", () => {
     expect(explicitPreviewChart.scoreItems.some(item => item.lane === 3 && item.kind === "release")).toBe(false);
   });
 
-  it("실제 ENJ-05를 1500→1505ms로 진행하면 대기 유지가 Perfect로 확정되고 두 번 drain해도 효과는 1개다", () => {
+  it("실제 ENJ-05를 1500→1505ms로 진행하면 대기 틱이 Perfect로 확정되고 두 번 drain해도 효과는 1개다", () => {
     const session = createExplicitPreviewSession();
     let batch = advanceExplicitPreviewSession(session, 1500, 0);
     expect(session.snapshot.items[0].state).toBe("waiting");
