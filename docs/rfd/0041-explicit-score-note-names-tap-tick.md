@@ -1,6 +1,6 @@
 # RFD 0041: 명시 점수 노트 이름 tap·tick
 
-**Status:** Accepted (2026-10-26) · 한국어 이름 탭 노트·틱 노트 결정 (2026-10-28) · 기존 용어와의 겹침 정리 (2026-10-28, PR #363) · 저장 JSON `type`·코드 식별자·스킨 에셋 id·용어 권위 문서 변경 (2026-10-28) · 화면 문구·주석·테스트 이름·나머지 스펙 문서와 판정 사례 PNG는 후속 PR
+**Status:** Accepted (2026-10-26) · 한국어 이름 탭 노트·틱 노트 결정 (2026-10-28) · 기존 용어와의 겹침 정리 (2026-10-28, PR #363) · 저장 JSON `type`·코드 식별자·스킨 에셋 id·용어 권위 문서 변경 (2026-10-28, PR #365) · 화면 문구·주석·테스트 이름·나머지 스펙 문서와 판정 사례 PNG는 후속 PR
 
 ## 1. 기존 결정과 문제
 
@@ -43,7 +43,7 @@ tap과 tick은 저장소의 기존 용어와 겹쳤다. 문서의 "틱"은 에�
 - 구형 v3 타입과 식별자: `PointNote`·`POINT_NOTE_TYPES`·구형 Classic 스킨 키(`pointShadow`·`pointContactShadow`·`pointGraceOverlay`)·구형 판정 코어. 구형 문서의 "포인트 노트"·"Point"도 구형 뜻으로 남기며 [과도기 종료](../prd.md#12-미정-사항) 때 함께 정리한다.
 - JSON `kind`·`count`·`holdCount`·`grace` 필드와 `release`·`body`.
 - 바디 유지를 뜻하는 "유지"·`maintenance` 계열(유지 판정·유지 유예·유지 실패·`maintenanceMiss` 등).
-- 게임 쪽 tap(캘리브레이션 탭, `AutoPlayer`의 `tapDurationMs`, 홀드 중 탭·릴리즈탭). 탭 노트와 같은 "짧게 누름"을 뜻한다.
+- 게임 쪽 tap(캘리브레이션 탭, `ExplicitAutoPlayer`의 `tapDurationMs`, 홀드 중 탭·릴리즈탭). 탭 노트와 같은 "짧게 누름"을 뜻한다.
 - 기록 문서: [RFD 0037](0037-explicit-score-notes-and-body.md)～[RFD 0040](0040-countdown-and-note-reentry.md)의 본문은 고치지 않고 상단에 이 RFD를 가리키는 줄만 둔다. [제품 논의 기록](../research/explicit-score-notes-discussion.md)은 그대로 둔다.
 - 명시 스킨 PNG 파일 이름(`sustain-*.png`·`point-grace-overlay.png`). 해시로 고정한 #339 보관본의 파일 이름이라 id·역할만 바꾸고 파일 이름은 스킨 교체(#360) 때 정리한다. 해시로 고정한 에셋 보관본과 공개 이미지 갤러리도 그대로 둔다.
 - 차트 형식 version. 4로 유지한다.

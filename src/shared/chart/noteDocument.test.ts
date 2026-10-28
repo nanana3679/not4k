@@ -248,6 +248,8 @@ describe("C1 구형 의미와 버전 경계", () => {
     [{ type: "tick", count: 0 }, "count는 1 또는 2"],
     [{ type: "body", endBeat: "0", holdCount: 0 }, "holdCount는 1 또는 2"],
     [{ type: "unknown" }, "지원하지 않는 노트 type"],
+    [{ type: "point", kind: "single" }, "지원하지 않는 노트 type"],
+    [{ type: "sustain", count: 1 }, "지원하지 않는 노트 type"],
     [{ type: "tap", kind: "unknown" }, "tap kind"],
   ])("구조 오류 %j는 %s로 거부하고 항목을 유실하지 않는다", (note, message) => {
     expect(() => deserializeChartDocument(JSON.stringify({ ...chartToJson(document([])), version: 4, notes: [{ lane: 1, beat: "0", ...note }] }))).toThrow(message);

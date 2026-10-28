@@ -30,6 +30,8 @@
 
 지원하지 않는 버전이나 구형 포맷에 명시 타입을 숨긴 입력을 현재 구형 의미로 추정해 읽지 않는다. v4 안의 구형 항목도 그대로 구형이다. 구형 항목만 남은 문서는 기존 정규 출력으로 돌아갈 수 있으며 이 정규화는 항목의 의미를 바꾸지 않는다.
 
+명시 점수 노트의 저장 이름은 `tap`·`release`·`tick`·`body`다([RFD 0041](../rfd/0041-explicit-score-note-names-tap-tick.md)). 이름 변경 전의 `"point"`·`"sustain"`은 별칭으로 읽지 않고 "지원하지 않는 노트 type"으로 거부한다. 원격 저장소에 그 이름으로 저장된 v4 차트는 없다.
+
 옵션 플래그 `grace`·`holdOnly`는 부재·`true`·명시한 `false`를 보존한다. 바디의 `trill`은 `true`만 쓰고 트릴 바디가 아니면 생략하며, 바디 `trill: false`는 형식 오류다. 기존 메인 codec이 생략하던 명시 `false`도 새 codec에서는 출력될 수 있다. 비교 기준점과 현재 문서는 같은 codec을 사용하고, 한 번 읽어 저장한 뒤의 왕복 표현은 안정적이어야 한다.
 
 `serializeChart`·`chartToJson`은 문서의 지원 항목을 저장한다. `deserializeChartDocument`·`chartDocumentFromJson`은 신형·혼합을 포함하는 문서를 읽는다. 기존 `deserializeChart`·`chartFromJson`은 구형 전용 `Chart` 소비자를 위한 경계이며 명시 항목이 있으면 지원 불가로 거부한다. 새 reader 결과를 구형 타입으로 캐스트해 이 검사를 우회하지 않는다.

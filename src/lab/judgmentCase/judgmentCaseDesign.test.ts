@@ -50,6 +50,8 @@ describe("수동 설계 입력", () => {
     ["문자열 시각", [{ kind: "tap", atMs: "1000" }]],
     ["바디 역전 1000→900", [{ kind: "body", startMs: 1000, endMs: 900 }]],
     ["Point에 구간 시각 혼합", [{ kind: "tap", atMs: 0, startMs: 0, endMs: 10 }]],
+    ["이름 변경 전 kind point", [{ kind: "point", atMs: 0 }]],
+    ["이름 변경 전 kind maintain", [{ kind: "maintain", atMs: 0 }]],
   ])("%s이면 잘못된 도식을 만들지 않고 notes 오류", (_name, notes) => {
     expect(() => parse({ ...base, notes })).toThrow(/notes/);
   });
