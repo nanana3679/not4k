@@ -7,7 +7,7 @@ const timing: ChartDocument['events'] = [{ type: 'bpm', beat: beat(0), bpm: 120 
 
 /** 보관 차트를 변환하지 않은 저작 리터럴. 표시 fixture가 아니라 실제 engine에 전달한다. */
 export const explicitPlaytestCharts: readonly { id: string; title: string; instruction: string; chart: ChartDocument }[] = [
-  { id: 'single', title: '탭과 틱·Release', instruction: '1레인을 1초에 누르고 2초에 뗍니다. 3초에는 2레인 탭 노트를 누릅니다.',
+  { id: 'single', title: '탭 노트와 틱 노트·Release', instruction: '1레인을 1초에 누르고 2초에 뗍니다. 3초에는 2레인 탭 노트를 누릅니다.',
     chart: { meta, trillZones: [], events: timing, notes: [
       { type: 'tap', kind: 'single', lane: 1, beat: beat(2) },
       { type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(4) },
