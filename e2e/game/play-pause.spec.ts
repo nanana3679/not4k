@@ -133,14 +133,16 @@ async function startLocalPlay(page: Page) {
     const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
     const state = useGameStore.getState();
     state.updateSettings({ isFirstLaunch: false, renderHeight: 720, masterVolume: 0, gearMotion: true });
-    state.setChartData({
+    const document: import('../../src/shared/types/chart').ChartDocument = {
       meta: { title: 'Pause check', artist: 'Local', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
-      notes: [{ type: 'single', lane: 1, beat: { n: 100, d: 1 } }],
+      notes: [{ type: 'point', kind: 'single', lane: 1, beat: { n: 100, d: 1 } }],
       trillZones: [],
       events: [{ type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 }, { type: 'timeSignature', beat: { n: 0, d: 1 }, beatPerMeasure: { n: 4, d: 1 } }],
-    });
-    state.setAudioBuffer(new AudioBuffer({ length: 44100 * 90, sampleRate: 44100, numberOfChannels: 1 }));
-    useGameStore.setState({ screen: 'play', startTimeMs: 0, editorReturnUrl: null });
+    };
+    const audioBuffer = new AudioBuffer({ length: 44100 * 90, sampleRate: 44100, numberOfChannels: 1 });
+    const fixturePath = '/e2e/normalPlayFixture.ts';
+    const { startNormalFixture } = await import(fixturePath) as typeof import('../normalPlayFixture');
+    startNormalFixture(document, audioBuffer);
   });
   await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
 }

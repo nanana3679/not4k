@@ -3,6 +3,7 @@ export { PresetSetupScreen } from './PresetSetupScreen';
 export { SongSelectScreen } from './SongSelectScreen';
 export { LoadingScreen } from './LoadingScreen';
 export { PlayScreen } from './PlayScreen';
+export { NormalPlayScreen } from './NormalPlayScreen';
 export { ExplicitPlayScreen } from './ExplicitPlayScreen';
 export { ResultScreen } from './ResultScreen';
 export { SettingsModal } from './settings/SettingsModal';

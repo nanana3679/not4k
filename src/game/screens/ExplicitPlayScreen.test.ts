@@ -136,7 +136,7 @@ describe('명시 화면의 일반·테스트 표현과 시도 수명', () => {
     harness.storedRequest = prepareExplicitPlayTest({ document: explicitPlaytestCharts[0].chart,
       audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/editor' });
     const page = render({ presentation: 'play' });
-    expect(page.html).toContain('재생할 차트가 없습니다.'); expect(page.html).not.toContain('표시 준비 중');
+    expect(page.html).toContain('No chart to play.'); expect(page.html).not.toContain('Preparing');
     page.click('Back to Song Select'); expect(harness.setScreen).toHaveBeenCalledExactlyOnceWith('songSelect');
     expect(harness.clear).not.toHaveBeenCalled(); expect(harness.players).toHaveLength(0);
   });
@@ -159,6 +159,22 @@ describe('명시 화면의 일반·테스트 표현과 시도 수명', () => {
     expect(page.html).not.toContain('data-testid="gameplay-canvas"');
     page.click('Back to Song Select');
     expect(harness.players[0].dispose).toHaveBeenCalledOnce(); expect(props.onExit).toHaveBeenCalledOnce();
+  });
+
+  it('일반 loading·music-preparation 안내는 영어 Preparing audio and graphics·Get ready이고 한국어 안내를 표시하지 않는다', () => {
+    const props = { request: normalRequest(), presentation: 'play' as const };
+    render(props); expect(render(props).html).toContain('Preparing audio and graphics');
+    harness.players[0].options.onPhase('music-preparation'); const { html } = render(props);
+    expect(html).toContain('Get ready · You can switch keys freely');
+    for (const text of ['준비 중', '키를 자유롭게']) expect(html).not.toContain(text);
+  });
+
+  it('테스트 loading·music-preparation 안내는 에디터 언어인 한국어를 유지한다', () => {
+    const request = prepareExplicitPlayTest({ document: explicitPlaytestCharts[0].chart,
+      audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/editor' });
+    render({ request }); expect(render({ request }).html).toContain('음원과 표시 준비 중');
+    harness.players[0].options.onPhase('music-preparation');
+    expect(render({ request }).html).toContain('음악 준비 중 · 키를 자유롭게 바꿀 수 있습니다');
   });
 
   it('presentation 생략은 기존 테스트 도구·canvas·정산 testid를 유지하고 onComplete를 호출하지 않는다', () => {

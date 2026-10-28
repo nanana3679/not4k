@@ -1,6 +1,8 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { mergePersistedSettings, useGameStore } from './gameStore';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
+import { prepareNormalPlay } from './explicitPlayRequest';
+import { ExplicitJudgmentSession } from '../judgment/ExplicitJudgmentSession';
 
 afterEach(() => useGameStore.setState(useGameStore.getInitialState(), true));
 
@@ -181,6 +183,113 @@ describe('gameStore — gearMotion(설정 Gear Motion)', () => {
   });
 });
 
+describe('일반 곡 로딩·결과 수명', () => {
+  const request = (index = 0) => prepareNormalPlay({ document: explicitPlaytestCharts[index].chart,
+    audioBuffer: { duration: 4 } as AudioBuffer });
+  const start = (index = 0) => {
+    const state = useGameStore.getState();
+    state.selectSong('song-1', 'Liftoff', 'songs/song-1/selected.mp3');
+    const id = state.beginNormalPlayLoad();
+    const play = request(index);
+    state.completeNormalPlayLoad(id, play);
+    return play;
+  };
+
+  it('선택한 곡의 음원 구간으로 만든 요청을 로딩 완료로 열면 선택 곡·음원을 유지한 purpose=play 요청과 play 화면이 열린다', () => {
+    const state = useGameStore.getState();
+    const playbackRange = { startTime: 1, endTime: 3, fadeInTime: .1, fadeOutTime: .2 };
+    state.selectSong('song-1', 'NORMAL', 'selected.mp3', playbackRange);
+    const id = state.beginNormalPlayLoad();
+    state.completeNormalPlayLoad(id, prepareNormalPlay({ document: explicitPlaytestCharts[0].chart,
+      audioBuffer: { duration: 4 } as AudioBuffer, playbackRange: useGameStore.getState().selectedPlaybackRange }));
+    expect(useGameStore.getState()).toMatchObject({ screen: 'play', selectedSongId: 'song-1', selectedAudioUrl: 'selected.mp3',
+      normalPlay: { purpose: 'play', startTimeMs: 0, auto: false, playbackRange }, lastResult: null, explicitPlay: null });
+  });
+
+  it('새 로딩은 이전 결과·요청·구형 음원을 지우고 완성된 요청과 play 화면을 한 번에 공개한다', () => {
+    const old = start();
+    useGameStore.getState().completeNormalPlay(old, new ExplicitJudgmentSession(old.compiled).finalize());
+    const id = useGameStore.getState().beginNormalPlayLoad();
+    expect(useGameStore.getState()).toMatchObject({ screen: 'loading', normalPlay: null, explicitPlay: null,
+      lastResult: null, chartData: null, audioBuffer: null, startTimeMs: 0, editorReturnUrl: null });
+    const next = request();
+    const observed: unknown[] = [];
+    const unsubscribe = useGameStore.subscribe(state => observed.push({ screen: state.screen, request: state.normalPlay }));
+    expect(useGameStore.getState().completeNormalPlayLoad(id, next)).toBe(true);
+    unsubscribe();
+    expect(observed).toEqual([{ screen: 'play', request: next }]);
+    expect(useGameStore.getState().selectedAudioUrl).toBe('songs/song-1/selected.mp3');
+  });
+
+  it.each(['cancel', 'next', 'back', 'newLoad'] as const)('%s 뒤 이전 로딩이 도착해도 요청·play·결과를 되살리지 않는다', action => {
+    const state = useGameStore.getState();
+    const id = state.beginNormalPlayLoad();
+    if (action === 'cancel') state.cancelNormalPlayLoad(id);
+    if (action === 'next') state.selectSong('song-2', 'HARD', 'other.mp3');
+    if (action === 'back') state.setScreen('songSelect');
+    if (action === 'newLoad') state.beginNormalPlayLoad();
+    const before = useGameStore.getState();
+    expect(state.completeNormalPlayLoad(id, request())).toBe(false);
+    expect(useGameStore.getState()).toBe(before);
+    expect(before.normalPlay).toBeNull();
+    expect(before.lastResult).toBeNull();
+  });
+
+  it('Body만 있는 세션의 Miss1·분모0 결과를 그대로 전달하고 오디오 요청을 해제한다', () => {
+    const play = start(2);
+    const result = new ExplicitJudgmentSession(play.compiled).finalize();
+    useGameStore.getState().completeNormalPlay(play, result);
+    expect(useGameStore.getState()).toMatchObject({ screen: 'result', normalPlay: null,
+      lastResult: { songId: 'song-1', difficulty: 'Liftoff', finalDenominatorWeight: 0,
+        judgmentCounts: { miss: 1 }, isFullCombo: false } });
+    expect(useGameStore.getState().lastResult?.judgmentCounts).toEqual(result.score.judgmentCounts);
+    expect(useGameStore.getState().lastResult?.judgmentCounts).not.toBe(result.score.judgmentCounts);
+  });
+
+  it('점수 항목4개를 놓친 실제 세션은 분모12·달성률0·F를 공식 결과로 전달한다', () => {
+    const play = start();
+    const result = new ExplicitJudgmentSession(play.compiled).finalize();
+    useGameStore.getState().completeNormalPlay(play, result);
+    expect(useGameStore.getState().lastResult).toMatchObject({ finalDenominatorWeight: 12, achievementRate: 0, rank: 'F' });
+  });
+
+  it('완료 뒤 Back·다음 곡 로딩은 결과를 지우고 이전 완료 콜백을 무시한다', () => {
+    const play = start();
+    const result = new ExplicitJudgmentSession(play.compiled).finalize();
+    const state = useGameStore.getState();
+    state.completeNormalPlay(play, result);
+    state.setScreen('songSelect');
+    expect(useGameStore.getState().lastResult).toBeNull();
+    const next = start(2);
+    state.completeNormalPlay(play, result);
+    expect(useGameStore.getState()).toMatchObject({ screen: 'play', normalPlay: next, lastResult: null });
+  });
+
+  it('unmount는 현재 요청만 정리하며 이전 화면 cleanup이 다음 요청이나 완료 결과를 지우지 않는다', () => {
+    const previous = start();
+    const next = start(2);
+    const state = useGameStore.getState();
+    state.clearNormalPlay(previous);
+    expect(useGameStore.getState().normalPlay).toBe(next);
+    state.completeNormalPlay(next, new ExplicitJudgmentSession(next.compiled).finalize());
+    const completed = useGameStore.getState();
+    state.clearNormalPlay(next);
+    expect(useGameStore.getState()).toBe(completed);
+    const current = start();
+    state.clearNormalPlay(current);
+    expect(useGameStore.getState()).toMatchObject({ normalPlay: null, lastResult: null, screen: 'songSelect' });
+  });
+
+  it('정상 로딩 완료 뒤 LoadingScreen cleanup은 새 play 요청을 취소하지 않는다', () => {
+    const state = useGameStore.getState();
+    const id = state.beginNormalPlayLoad();
+    const play = request();
+    state.completeNormalPlayLoad(id, play);
+    state.cancelNormalPlayLoad(id);
+    expect(useGameStore.getState()).toMatchObject({ screen: 'play', normalPlay: play });
+  });
+});
+
 describe('명시 테스트 요청의 화면 수명', () => {
   afterEach(() => useGameStore.setState(useGameStore.getInitialState(), true));
 
@@ -209,5 +318,17 @@ describe('명시 테스트 요청의 화면 수명', () => {
     useGameStore.getState().setScreen('songSelect');
     expect(useGameStore.getState().explicitPlay).toBeNull();
     expect(useGameStore.getState().screen).toBe('songSelect');
+  });
+
+  it.each(['play', 'result'] as const)('명시 테스트 요청이 남은 채 %s 화면으로 이동하면 문서·음원을 담은 테스트 요청만 해제하고 normalPlay·lastResult는 유지한다', screen => {
+    useGameStore.getState().startExplicitPlayTest({ document: explicitPlaytestCharts[0].chart, audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/editor' });
+    const normalPlay = prepareNormalPlay({ document: explicitPlaytestCharts[0].chart, audioBuffer: { duration: 4 } as AudioBuffer });
+    const lastResult = { songId: 'song-1', difficulty: 'Liftoff', achievementRate: 100, rank: 'SSS', isFullCombo: true,
+      judgmentCounts: { perfect: 4 }, goodTrillCount: 0, fastCount: 0, slowCount: 0, finalDenominatorWeight: 12 };
+    useGameStore.setState({ normalPlay, lastResult });
+    useGameStore.getState().setScreen(screen);
+    expect(useGameStore.getState()).toMatchObject({ screen, explicitPlay: null });
+    expect(useGameStore.getState().normalPlay).toBe(normalPlay);
+    expect(useGameStore.getState().lastResult).toBe(lastResult);
   });
 });

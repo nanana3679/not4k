@@ -30,7 +30,7 @@ interface MotionProbe {
  */
 const GAUGE_FOLLOW_TOLERANCE = 0.02;
 /**
- * MISS 뒤 게이지가 허용치 안으로 붙기를 기다리는 이징 시간 상한(ms). 0.24 차이가 0.02 아래로 줄려면 이징 시간 약 186ms(τ 75ms × ln 12)가
+ * 10초 Point Miss 뒤 게이지가 허용치 안으로 붙기를 기다리는 이징 시간 상한(ms). 0.24 차이가 0.02 아래로 줄려면 이징 시간 약 186ms(τ 75ms × ln 12)가
  * 필요하고, 500ms는 그 2.7배다. 60Hz에서 renderFrame 약 30번, 프레임이 50ms보다 느리면 10번이다.
  */
 const GAUGE_FOLLOW_EASE_BUDGET_MS = 500;
@@ -62,6 +62,13 @@ async function installProbe(page: Page) {
     const motionControllerPath = performance.getEntriesByType('resource').map(entry => entry.name)
       .find(url => new URL(url).pathname === '/src/game/renderer/GearMotionController.ts') ?? '/src/game/renderer/GearMotionController.ts';
     const { GEAR_MOTION_MAX_STEP_MS }: typeof import('../../src/game/renderer/GearMotionController') = await import(motionControllerPath);
+    const flightJudgment = GameRenderer.prototype.recordFlightJudgment;
+    GameRenderer.prototype.recordFlightJudgment = function (grade) {
+      if (grade === 'miss' && !win.__firstMissFrame) {
+        win.__pendingMissAltitude = Number(document.querySelector<HTMLElement>('[data-flight-background]')?.dataset.altitude);
+      }
+      return flightJudgment.call(this, grade);
+    };
     const renderFrame = GameRenderer.prototype.renderFrame;
     GameRenderer.prototype.renderFrame = function (...args) {
       win.__gearMotionRenderer = this;
@@ -70,7 +77,13 @@ async function installProbe(page: Page) {
       const deltaMs = args[1] ?? 16;
       if (deltaMs > 0) win.__gearGaugeEaseMs = (win.__gearGaugeEaseMs as number) + Math.min(GEAR_MOTION_MAX_STEP_MS, deltaMs);
       (win.__gearMotionStatusLog as (string | null)[]).push(this.gearMotion?.status ?? null);
-      return renderFrame.apply(this, args);
+      const result = renderFrame.apply(this, args);
+      if (win.__pendingMissAltitude !== undefined) {
+        win.__firstMissFrame = { beforeAltitude: win.__pendingMissAltitude, gaugeLevel: this.gearGaugeLevel,
+          backgroundAltitude: Number(document.querySelector<HTMLElement>('[data-flight-background]')?.dataset.altitude) };
+        delete win.__pendingMissAltitude;
+      }
+      return result;
     };
   });
 }
@@ -111,24 +124,10 @@ async function readProbe(page: Page): Promise<MotionProbe> {
   });
 }
 
-/**
- * 실제 플레이 렌더러에 MISS 고도 효과를 넣고, 그 뒤 첫 renderFrame이 끝난 화면 프레임에서 게이지 채움과 비행 배경 고도를 읽는다.
- * (판정 엔진 없이 렌더러 공개 메서드 recordFlightJudgment로 판정 결과만 흉내 낸다.)
- */
-async function injectMissAndReadNextFrame(page: Page): Promise<{ gaugeLevel: number; backgroundAltitude: number; frames: number }> {
-  return page.evaluate(() => new Promise((resolve) => {
-    const win = window as unknown as Record<string, unknown>;
-    const renderer = win.__gearMotionRenderer as import('../../src/game/renderer/GameRenderer').GameRenderer;
-    const start = win.__gearMotionFrames as number;
-    renderer.recordFlightJudgment('miss');
-    const check = () => {
-      const frames = (win.__gearMotionFrames as number) - start;
-      if (frames < 1) { requestAnimationFrame(check); return; }
-      const background = document.querySelector<HTMLElement>('[data-flight-background]')!;
-      resolve({ gaugeLevel: renderer.gearGaugeLevel!, backgroundAltitude: Number(background.dataset.altitude), frames });
-    };
-    requestAnimationFrame(check);
-  }));
+/** 실제 세션에서 놓친 Point의 Miss 효과와 같은 프레임을 관찰한다. 점수·고도·시계는 주입하지 않는다. */
+async function waitForMissFrame(page: Page): Promise<{ beforeAltitude: number; gaugeLevel: number; backgroundAltitude: number }> {
+  await page.waitForFunction(() => Boolean((window as unknown as Record<string, unknown>).__firstMissFrame), undefined, { timeout: 30000 });
+  return page.evaluate(() => (window as unknown as { __firstMissFrame: { beforeAltitude: number; gaugeLevel: number; backgroundAltitude: number } }).__firstMissFrame);
 }
 
 /**
@@ -169,34 +168,36 @@ async function waitAnimationFrames(page: Page, count: number) {
   }), count);
 }
 
-async function startLocalPlay(page: Page, gearMotion: boolean, { waitForCanvas = true }: { waitForCanvas?: boolean } = {}) {
+async function startLocalPlay(page: Page, gearMotion: boolean, { waitForCanvas = true, missAtBeat = 100 }: { waitForCanvas?: boolean; missAtBeat?: number } = {}) {
   await page.goto('/game');
   await page.getByRole('button', { name: 'Start', exact: true }).waitFor();
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await installProbe(page);
   await resetStatusLog(page);
-  await page.evaluate(async (motionOn) => {
+  await page.evaluate(async ({ motionOn, missAtBeat }) => {
     const storePath = performance.getEntriesByType('resource').map(entry => entry.name)
       .find(url => new URL(url).pathname === '/src/game/stores/gameStore.ts') ?? '/src/game/stores/gameStore.ts';
     const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
     const state = useGameStore.getState();
     state.updateSettings({ isFirstLaunch: false, renderHeight: 720, masterVolume: 0, gearMotion: motionOn });
-    state.setChartData({
+    const document: import('../../src/shared/types/chart').ChartDocument = {
       meta: { title: 'Gear motion check', artist: 'Local', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
-      notes: [{ type: 'single', lane: 1, beat: { n: 100, d: 1 } }],
+      notes: [{ type: 'point', kind: 'single', lane: 1, beat: { n: missAtBeat, d: 1 } }],
       trillZones: [],
       events: [{ type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 }, { type: 'timeSignature', beat: { n: 0, d: 1 }, beatPerMeasure: { n: 4, d: 1 } }],
-    });
-    state.setAudioBuffer(new AudioBuffer({ length: 44100 * 90, sampleRate: 44100, numberOfChannels: 1 }));
-    useGameStore.setState({ screen: 'play', startTimeMs: 0, editorReturnUrl: null });
-  }, gearMotion);
+    };
+    const audioBuffer = new AudioBuffer({ length: 44100 * 90, sampleRate: 44100, numberOfChannels: 1 });
+    const fixturePath = '/e2e/normalPlayFixture.ts';
+    const { startNormalFixture } = await import(fixturePath) as typeof import('../normalPlayFixture');
+    startNormalFixture(document, audioBuffer);
+  }, { motionOn: gearMotion, missAtBeat });
   if (waitForCanvas) await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
 }
 
 test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)', () => {
   test.describe.configure({ timeout: 90_000 });
 
-  test('gearMotion 켬: 애니메이션 경과 시간(timeMs)이 렌더 프레임과 함께 흐르고 일시정지(Esc) 중에는 renderFrame과 함께 멈췄다가 재개하면 멈춘 시점에서 이어 간다', async ({ page }) => {
+  test('gearMotion 켬: 애니메이션 경과 시간(timeMs)이 렌더 프레임과 함께 흐르고 일시정지(Esc) 중에는 renderFrame과 함께 멈췄다가 재개 준비3초 뒤 기어 애니메이션이 다시 흐른다', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await startLocalPlay(page, true);
@@ -224,6 +225,8 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
     expect(stillPaused.timeMs).toBe(paused.timeMs);
 
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    await expect(page.getByTestId('explicit-play')).toHaveAttribute('data-phase', 'music-preparation');
+    await expect(page.getByTestId('explicit-play')).toHaveAttribute('data-phase', 'playing', { timeout: 15000 });
     await expect.poll(async () => (await readProbe(page)).timeMs ?? 0, { timeout: 15_000 }).toBeGreaterThan(paused.timeMs!);
     const resumed = await readProbe(page);
     // 일시정지한 시간만큼 건너뛰지 않고 재개 뒤 렌더 프레임만큼만 나아간다.
@@ -232,10 +235,10 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
   });
 
   for (const motionOn of [true, false]) {
-    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도(${GAUGE_FOLLOW_TOLERANCE} 안)를 보여 주며, MISS를 넣으면 바로 떨어지지 않고 이징으로 0.24 내려가 이징 시간 ${GAUGE_FOLLOW_EASE_BUDGET_MS}ms 안에 배경 고도와 ${GAUGE_FOLLOW_TOLERANCE} 안으로 붙는다`, async ({ page }) => {
+    test(`gearMotion ${motionOn ? '켬' : '끔'}: 실제 플레이에서 고도 게이지가 기어 레이어 맨 위에 하나 있고 비행 배경과 같은 고도(${GAUGE_FOLLOW_TOLERANCE} 안)를 보여 주며, 10초 Point를 놓치면 바로 떨어지지 않고 이징으로 0.24 내려가 이징 시간 ${GAUGE_FOLLOW_EASE_BUDGET_MS}ms 안에 배경 고도와 ${GAUGE_FOLLOW_TOLERANCE} 안으로 붙는다`, async ({ page }) => {
       const errors: string[] = [];
       page.on('pageerror', error => errors.push(error.message));
-      await startLocalPlay(page, motionOn);
+      await startLocalPlay(page, motionOn, { missAtBeat: 20 });
 
       await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
       const playing = await readProbe(page);
@@ -244,9 +247,9 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
       expect(playing.backgroundAltitude!).toBeGreaterThan(0.9);
       expect(Math.abs(playing.gaugeLevel! - playing.backgroundAltitude!)).toBeLessThan(GAUGE_FOLLOW_TOLERANCE);
 
-      const afterMiss = await injectMissAndReadNextFrame(page);
+      const afterMiss = await waitForMissFrame(page);
       // 배경은 같은 프레임에 0.24 낮은 고도를 받지만, 게이지는 300ms ease-out 느낌으로 따라가 아직 위에 있다.
-      expect(afterMiss.backgroundAltitude).toBeLessThan(playing.backgroundAltitude! - 0.2);
+      expect(afterMiss.backgroundAltitude).toBeLessThan(afterMiss.beforeAltitude - 0.2);
       expect(afterMiss.gaugeLevel - afterMiss.backgroundAltitude).toBeGreaterThan(GAUGE_FOLLOW_TOLERANCE);
       // 붙는 즉시 끝나므로 보통은 이징 시간 상한을 다 기다리지 않는다.
       const settled = await waitGaugeFollows(page, GAUGE_FOLLOW_TOLERANCE, GAUGE_FOLLOW_EASE_BUDGET_MS);
@@ -272,20 +275,20 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
     expect(errors).toEqual([]);
   });
 
-  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 Gear Motion 켬이면 실제 플레이에서 gearMotion 에셋을 요청해 gearMotion을 만들고(ready·running·객체 2개) timeMs가 흐르며, MISS 뒤 게이지는 바로 떨어지지 않고 이징한다(RFD 0030)', async ({ page }) => {
+  test('모션 감소 설정(prefers-reduced-motion: reduce)이 켜져 있어도 Gear Motion 켬이면 실제 플레이에서 gearMotion 에셋을 요청해 gearMotion을 만들고(ready·running·객체 2개) timeMs가 흐르며, 10초 Point Miss 뒤 게이지는 바로 떨어지지 않고 이징한다(RFD 0030)', async ({ page }) => {
     const errors: string[] = [];
     const requested: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => requested.push(new URL(request.url()).pathname));
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await startLocalPlay(page, true);
+    await startLocalPlay(page, true, { missAtBeat: 20 });
 
     await expect.poll(async () => (await readProbe(page)).timeMs ?? 0, { timeout: 30_000 }).toBeGreaterThan(200);
     const probe = await readProbe(page);
     expect(probe).toMatchObject({ hasGear: true, status: 'ready', running: true, motionObjects: 2, motionVisible: true });
     expect(requested).toContain('/gear/gear-motion/gear-motion.json');
 
-    const afterMiss = await injectMissAndReadNextFrame(page);
+    const afterMiss = await waitForMissFrame(page);
     expect(afterMiss.gaugeLevel - afterMiss.backgroundAltitude).toBeGreaterThan(GAUGE_FOLLOW_TOLERANCE);
     expect(errors).toEqual([]);
   });

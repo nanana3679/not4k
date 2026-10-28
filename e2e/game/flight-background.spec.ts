@@ -16,14 +16,16 @@ async function startLocalPlay(page: Page, difficultyLabel: string, navigate = tr
     const audioBuffer = new AudioBuffer({ length: 44100 * 90, sampleRate: 44100, numberOfChannels: 1 });
     const state = useGameStore.getState();
     state.updateSettings({ isFirstLaunch: false, renderHeight: 720 });
-    state.setChartData({
+    const document: import('../../src/shared/types/chart').ChartDocument = {
       meta: { title: 'Flight background check', artist: 'Local', difficultyLabel: label, difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
-      notes: [{ type: 'single', lane: 1, beat: beat(100, 1) }],
+      notes: [{ type: 'point', kind: 'single', lane: 1, beat: beat(100, 1) }],
       trillZones: [],
       events: [{ type: 'bpm', beat: beat(0, 1), bpm: 120 }, { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1) }],
-    });
-    state.setAudioBuffer(audioBuffer);
-    state.setScreen('play');
+    };
+
+    const fixturePath = '/e2e/normalPlayFixture.ts';
+    const { startNormalFixture } = await import(fixturePath) as typeof import('../normalPlayFixture');
+    startNormalFixture(document, audioBuffer);
   }, difficultyLabel);
 }
 
@@ -106,6 +108,8 @@ for (const [label, scenario] of [['EASY', 'liftoff'], ['NORMAL', 'infiltration']
     await page.waitForTimeout(150);
     expect(await background.getAttribute('data-time')).toBe(stopped);
     await page.getByRole('button', { name: 'Resume', exact: true }).click();
+    await expect(page.getByTestId('explicit-play')).toHaveAttribute('data-phase', 'music-preparation');
+    await expect(page.getByTestId('explicit-play')).toHaveAttribute('data-phase', 'playing', { timeout: 15000 });
     await expect.poll(async () => Number(await background.getAttribute('data-time'))).toBeGreaterThan(Number(stopped));
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Retry', exact: true }).click();

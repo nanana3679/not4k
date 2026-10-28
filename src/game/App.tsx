@@ -8,6 +8,7 @@ import {
   SongSelectScreen,
   LoadingScreen,
   PlayScreen,
+  NormalPlayScreen,
   ExplicitPlayScreen,
   ResultScreen,
 } from './screens';
@@ -39,7 +40,7 @@ export default function GameApp() {
     case 'loading':
       return <LoadingScreen />;
     case 'play':
-      return <PlayScreen />;
+      return editorReturnUrl ? <PlayScreen /> : <NormalPlayScreen />;
     case 'explicitPlay':
       return <ExplicitPlayScreen />;
     case 'result':

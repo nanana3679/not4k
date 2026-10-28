@@ -2,12 +2,10 @@
 
 `ChartDocument`는 구형·명시 항목을 보존하는 저장·편집 문서다. 풀 정의는 [glossary](../../docs/context/glossary.md#chartdocument), 필드와 저장 버전은 [차트 문서 포맷](../../docs/spec/chart-format.md)을 따른다.
 
-현재 구현 단계: 에디터/Lab 명시 테스트 재생·실입력·자동 입력·고정 3초 되감기를 연결했다. 일반 곡 선택·공식 결과의 기본 전환은 #347이다.
-
 Shared chart model 컨텍스트는 게임 클라이언트와 차트 편집기가 공유하는 차트 언어를 다룬다.
 개별 노트 타입과 피스의 의미는 루트 `CONTEXT.md`의 Core domain을 따른다.
 
-**계약 상태:** [RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 채택 계약이며 단계별 구현 진척은 RFD 0037 상단을 따른다. 구형 읽기·수리·혼합 저장 의미는 과도기 동안 보존한다.
+**계약 상태:** [RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 채택 계약이며 공용 문서·에디터·일반/명시 테스트 재생을 구현·검증했다. 구형 읽기·수리·혼합 저장 의미는 과도기 동안 보존한다.
 
 ## Language
 

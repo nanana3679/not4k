@@ -50,12 +50,12 @@ export function ResultScreen() {
       </div>
 
       <div style={styles.content}>
-        <div style={styles.mainStats}>
+        {lastResult.finalDenominatorWeight !== 0 && <div style={styles.mainStats}>
           <div style={styles.achievement}>
             {(lastResult.achievementRate ?? 0).toFixed(2)}%
           </div>
           <div style={styles.rank}>{lastResult.rank}</div>
-        </div>
+        </div>}
 
         <div style={styles.statsGrid}>
           <div style={styles.statRow}>

@@ -11,9 +11,10 @@ import {
   songAudioPath,
   songJacketPath,
   songChartPath,
+  songChartExtraPath,
 } from "../shared";
-import { deserializeChart } from "../shared";
-import type { Chart } from "../shared";
+import { ChartFormatError, deserializeChart, deserializeChartDocument, extraToNote, isAuxLane, parseExtraNotesDocument } from "../shared";
+import type { Chart, ChartDocument } from "../shared";
 
 /**
  * Storage에서 파일의 퍼블릭 URL을 반환한다.
@@ -32,13 +33,67 @@ export async function fetchChart(
   songId: string,
   difficulty: string,
 ): Promise<Chart> {
+  return deserializeChart(await fetchChartText(songId, difficulty));
+}
+
+/** main/aux의 구형·명시 항목과 메타데이터를 보존하는 문서 읽기 경계. */
+export async function fetchChartDocument(songId: string, difficulty: string): Promise<ChartDocument> {
+  const [chartText, extraText] = await Promise.all([
+    fetchChartText(songId, difficulty),
+    fetchExtraChartText(songId, difficulty),
+  ]);
+  const chart = deserializeChartDocument(chartText);
+  const extra = parseExtraNotesDocument(extraText === null ? JSON.parse(chartText) : parseAuxJson(extraText));
+  if (extraText !== null || extra.extraNotes.length > 0 || extra.extraLaneCount > 0) {
+    // 메인의 보조 레인(5+) 항목만 보조 자료로 교체한다. withAuxNotes처럼 메인 레인(1～4)만 남기면
+    // lane 0·비정수처럼 성립하지 않는 레인의 항목이 검증 전에 사라져, 거부해야 할 문서가 통과한다.
+    return { ...chart, notes: [...chart.notes.filter(note => !isAuxLane(note.lane)), ...extra.extraNotes.map(note => extraToNote(note))] };
+  }
+  return chart;
+}
+
+/** 손상된 aux JSON은 메인 JSON과 같이 차트 형식 오류로 알린다(네트워크 오류로 읽히지 않게). */
+function parseAuxJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ChartFormatError("보조 파일이 유효한 JSON이 아닙니다");
+  }
+}
+
+async function fetchExtraChartText(songId: string, difficulty: string): Promise<string | null> {
+  const response = await fetch(getPublicUrl(songChartExtraPath(songId, difficulty)), { cache: 'no-cache' });
+  if (response.ok) return response.text();
+  if (await isMissingObjectResponse(response)) return null;
+  throw new Error(`Failed to fetch chart extras: ${response.status}`);
+}
+
+/**
+ * aux가 없는 곡인지 판별한다. Supabase Storage는 없는 객체를 HTTP 404가 아니라
+ * HTTP 400과 본문 `{"statusCode":"404","error":"not_found","code":"NoSuchKey"}`로 알린다.
+ * 권한·버킷·서버 오류처럼 다른 본문의 400은 없는 파일로 보지 않는다.
+ */
+async function isMissingObjectResponse(response: Response): Promise<boolean> {
+  if (response.status === 404) return true;
+  if (response.status !== 400) return false;
+  let body: unknown;
+  try {
+    body = JSON.parse(await response.text());
+  } catch {
+    return false;
+  }
+  if (!body || typeof body !== 'object') return false;
+  const { statusCode, error, code } = body as Record<string, unknown>;
+  return code === 'NoSuchKey' || (String(statusCode) === '404' && error === 'not_found');
+}
+
+async function fetchChartText(songId: string, difficulty: string): Promise<string> {
   const url = getPublicUrl(songChartPath(songId, difficulty));
   const response = await fetch(url, { cache: 'no-cache' });
   if (!response.ok) {
     throw new Error(`Failed to fetch chart: ${response.status}`);
   }
-  const text = await response.text();
-  return deserializeChart(text);
+  return response.text();
 }
 
 /**
@@ -107,6 +162,20 @@ export async function loadSongData(
 ): Promise<{ chart: Chart; audioBuffer: AudioBuffer }> {
   const [chart, audioBuffer] = await Promise.all([
     fetchChart(songId, difficulty),
+    fetchAudio(songId, audioCtx, audioUrl),
+  ]);
+  return { chart, audioBuffer };
+}
+
+/** 일반 게임은 문서를 읽은 뒤 재생 요청 경계에서 전체 유효성을 검사한다. */
+export async function loadSongDocumentData(
+  songId: string,
+  difficulty: string,
+  audioCtx: AudioContext,
+  audioUrl?: string,
+): Promise<{ chart: ChartDocument; audioBuffer: AudioBuffer }> {
+  const [chart, audioBuffer] = await Promise.all([
+    fetchChartDocument(songId, difficulty),
     fetchAudio(songId, audioCtx, audioUrl),
   ]);
   return { chart, audioBuffer };

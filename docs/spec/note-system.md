@@ -1,6 +1,6 @@
 # not4k — 노트 시스템
 
-> **과도기 구형 런타임 설명·기록.** 아래의 자동 끝점·`holdOnly`·연결 up 소비와 타입 구분은 구형 모델을 설명한다. 새 채택 규칙은 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)과 [glossary](../context/glossary.md)를 따른다. 공용 저장 표현과 실제 판정·에디터·인게임 구현은 별도 변경에서 검증한다.
+> **과도기 구형 런타임 설명·기록.** 아래의 자동 끝점·`holdOnly`·연결 up 소비와 타입 구분은 구형 모델을 설명한다. 새 채택 규칙은 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)과 [glossary](../context/glossary.md)를 따른다. 공용 저장 표현과 실제 판정·에디터·인게임 구현은 별도 변경(#341～#347)에서 검증했다.
 
 > 아래 상세 규칙은 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md) 기반의 기존 엔진 기준이다. 후속 설계는 [RFD 0032](../rfd/0032-body-held-count.md)와 [glossary](../context/glossary.md#release-판정)의 패턴별 확인을 따른다. 합의 범위를 넘는 일반화와 엔진 이행은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 

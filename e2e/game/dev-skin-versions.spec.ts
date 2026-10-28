@@ -6,15 +6,15 @@ const PLAY_TEST_TIMEOUT_MS = 120_000;
 // 곡 길이(초). 재생 구간(2초 ~ 끝 2초 전)이 위 제한 시간과 같아, Esc로 멈추기 전에 곡이 끝나 결과 화면으로 넘어가지 않는다.
 const SONG_SECONDS = PLAY_TEST_TIMEOUT_MS / 1000 + 4;
 const chart = {
-  version: 3,
+  version: 4,
   meta: { title: 'Supabase 스킨 비교', artist: 'test', difficultyLabel: 'NORMAL', difficultyLevel: 1, imageFile: '', audioFile: 'audio.wav', previewAudioFile: '', offsetMs: 0 },
   // 같은 노트 묶음을 2초와 8초에 둔다. 2초 묶음은 곡이 시작될 때 이미 화면 안에 있어 보통 첫 플레이 프레임이 담고,
   // 첫 플레이 프레임이 늦어도 8초 묶음이 플레이 약 5.8~8.1초에 포인트 2개·바디 2개가 보이는 프레임을 만든다.
   notes: [
-    { type: 'single', lane: 1, beat: '4' }, { type: 'long', lane: 1, beat: '4', endBeat: '8' },
-    { type: 'double', lane: 2, beat: '4' }, { type: 'doubleLong', lane: 2, beat: '4', endBeat: '8' },
-    { type: 'single', lane: 1, beat: '16' }, { type: 'long', lane: 1, beat: '16', endBeat: '20' },
-    { type: 'double', lane: 2, beat: '16' }, { type: 'doubleLong', lane: 2, beat: '16', endBeat: '20' },
+    { type: 'point', kind: 'single', lane: 1, beat: '4' }, { type: 'body', holdCount: 1, lane: 1, beat: '4', endBeat: '8' },
+    { type: 'point', kind: 'double', lane: 2, beat: '4' }, { type: 'body', holdCount: 2, lane: 2, beat: '4', endBeat: '8' },
+    { type: 'point', kind: 'single', lane: 1, beat: '16' }, { type: 'body', holdCount: 1, lane: 1, beat: '16', endBeat: '20' },
+    { type: 'point', kind: 'double', lane: 2, beat: '16' }, { type: 'body', holdCount: 2, lane: 2, beat: '16', endBeat: '20' },
   ],
   trillZones: [], events: [{ type: 'bpm', beat: '0', bpm: 120 }],
 };
@@ -44,6 +44,9 @@ async function openSongs(page: Page) {
     charts: [{ id: 'dev-chart', song_id: SONG_ID, difficulty_label: 'NORMAL', difficulty_level: 1 }],
   }] }));
   await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/normal.json`, route => route.fulfill({ json: chart }));
+  // 실제 Supabase Storage는 없는 aux를 HTTP 400과 본문 statusCode "404"·code "NoSuchKey"로 알린다.
+  await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/normal.extra.json`, route => route.fulfill({
+    status: 400, json: { statusCode: '404', error: 'not_found', code: 'NoSuchKey' } }));
   await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/audio.wav*`, route => route.fulfill({ contentType: 'audio/wav', body: audio }));
   await page.route(`**/storage/v1/object/public/assets/songs/${SONG_ID}/jacket.svg*`, route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#163851"/></svg>' }));
   await page.goto('/game');
@@ -70,7 +73,7 @@ async function closeSettings(page: Page) {
   await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
 }
 
-test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하며 포인트 위아래 접촉 그림자를 그리고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
+test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하며 명시 Point·Body를 그리고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
   test.setTimeout(PLAY_TEST_TIMEOUT_MS);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -88,33 +91,22 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
     const render = GameRenderer.prototype.renderFrame;
     GameRenderer.prototype.renderFrame = function (...args) {
       const result = render.apply(this, args);
-      type Drawn = { texture: { height: number }; x: number; y: number; width: number; scale: { y: number } };
+      type Drawn = { x: number; width: number };
       const self = this as unknown as {
-        skinManager: { skinId: string; getTexture: (key: string) => unknown; hasTexture: (key: string) => boolean };
+        skinManager: { skinId: string };
         laneAreaX: number;
-        noteLayer: { children: Drawn[] };
-        longNoteBodyLayer: { children: Array<{ x: number; width: number }> };
+        noteLayer: { children: unknown[] };
+        explicitNoteRenderer: { root: { children: { label: string; children: Drawn[] }[] } } | null;
       };
       const state = window as unknown as Record<string, unknown>;
       state.__devPlaySkin = self.skinManager.skinId;
-      const points = self.noteLayer.children.filter(sprite =>
-        ['noteSingle', 'noteDouble'].some(key => sprite.texture === self.skinManager.getTexture(key)));
-      // deltaMs 0은 재생 전에 그리는 준비 프레임(prepareForPlayback)이라, 게임 루프가 그린 프레임의 노트 경계만 기록한다.
-      if (args[1] !== 0 && points.length === 2 && self.longNoteBodyLayer.children.length === 2) {
-        const bounds = ({ x, width }: { x: number; width: number }) => ({ x: x - self.laneAreaX, width });
-        const contact = self.skinManager.hasTexture('pointContactShadow')
-          ? self.noteLayer.children.filter(sprite => sprite.texture === self.skinManager.getTexture('pointContactShadow'))
-          : [];
-        state.__devNoteBounds = {
-          points: points.map(bounds),
-          bodies: self.longNoteBodyLayer.children.map(bounds),
-          // 부호 있는 높이: 음수면 포인트 윗변에서 위로 뒤집어 그린 그림자다.
-          contact: contact.map(sprite => ({
-            ...bounds(sprite),
-            fromPointTop: sprite.y - points.find(point => Math.abs(point.x - sprite.x) < 5)!.y,
-            height: sprite.scale.y * sprite.texture.height,
-          })),
-        };
+      const layers = self.explicitNoteRenderer?.root.children ?? [];
+      const points = layers.find(layer => layer.label === 'explicit-point')?.children ?? [];
+      const bodies = layers.find(layer => layer.label === 'explicit-body')?.children ?? [];
+      if (args[1] !== 0 && points.length === 2 && bodies.length === 2) {
+        const bounds = ({ x, width }: Drawn) => ({ x: x - self.laneAreaX, width });
+        state.__devNoteBounds = { points: points.map(bounds), bodies: bodies.map(bounds),
+          layers: layers.map(layer => layer.label), legacyPoints: self.noteLayer.children.length };
       }
       return result;
     };
@@ -133,7 +125,7 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
   const bounds = await page.evaluate(() => (window as unknown as {
     __devNoteBounds: {
       points: Array<{ x: number; width: number }>; bodies: Array<{ x: number; width: number }>;
-      contact: Array<{ x: number; width: number; fromPointTop: number; height: number }>;
+      layers: string[]; legacyPoints: number;
     };
   }).__devNoteBounds);
   // 레인 62.5·노트 62.5×12.5(설계값 100·20 × 플레이필드 배율 0.625, RFD 0029). 바디는 포인트 폭의 100/106.
@@ -144,23 +136,15 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
     expect(body.x).toBeGreaterThan(bounds.points[lane].x);
     expect(body.x + body.width).toBeLessThan(bounds.points[lane].x + bounds.points[lane].width);
   });
-  // 레인마다 포인트 윗변에서 위로 3.125px, 아랫변에서 아래로 3.125px(테마 5px × 0.625)의 바디 폭 그림자가 있다.
-  expect(bounds.contact).toHaveLength(4);
-  for (const lane of [0, 1]) {
-    const shadows = bounds.contact.filter(shadow => Math.abs(shadow.x - (lane * 62.5 + 1.77)) < 0.01);
-    expect(shadows).toHaveLength(2);
-    const [above, below] = shadows;
-    expect([above.fromPointTop, above.height, below.fromPointTop, below.height].map(value => Math.round(value * 1000) / 1000))
-      .toEqual([0, -3.125, 12.5, 3.125]);
-    shadows.forEach(shadow => expect(shadow.width).toBeCloseTo(58.96, 2));
-  }
+  expect(bounds.layers).toEqual(['explicit-body', 'explicit-release', 'explicit-sustain', 'explicit-point']);
+  expect(bounds.legacyPoints).toBe(0);
 
   expect(await page.evaluate(async () => {
     const url = performance.getEntriesByType('resource').map(entry => entry.name)
       .find(name => new URL(name).pathname === '/src/game/stores/gameStore.ts') ?? '/src/game/stores/gameStore.ts';
     const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(url);
     const state = useGameStore.getState();
-    return { title: state.chartData?.meta.title, song: state.selectedSongId, audioDuration: state.audioBuffer?.duration, range: state.selectedPlaybackRange };
+    return { title: state.normalPlay?.document.meta.title, song: state.selectedSongId, audioDuration: state.normalPlay?.audioBuffer.duration, range: state.selectedPlaybackRange };
   })).toEqual({ title: chart.meta.title, song: SONG_ID, audioDuration: SONG_SECONDS, range: { startTime: 2, endTime: SONG_SECONDS - 2, fadeInTime: 0, fadeOutTime: 0 } });
 
   await page.keyboard.press('Escape');

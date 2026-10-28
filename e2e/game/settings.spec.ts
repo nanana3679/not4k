@@ -76,7 +76,7 @@ function laneRow(dialog: Locator, laneNumber: number): Locator {
 }
 
 test.describe('Game Settings', () => {
-  test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 공통 노트·터미널·봄 PNG를 로드한다', async ({ page }, testInfo) => {
+  test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 명시 Point·Body와 Classic 기어·봄 PNG를 로드한다', async ({ page }, testInfo) => {
     test.setTimeout(PLAY_TEST_TIMEOUT_MS);
     const errors: string[] = [];
     const requested: string[] = [];
@@ -95,8 +95,7 @@ test.describe('Game Settings', () => {
 
     // Supply an isolated chart/audio fixture, then let the actual PlayScreen
     // initialize its renderer and skin. The hook records only frames drawn after
-    // the song started, and for the screenshot it stops drawing after the first
-    // of them that shows a point note and a body inside the lane clip.
+    // the song started and observes explicit point/body layers inside the lane clip.
     // 오디오를 테스트 제한 시간만큼 길게 두어, 스크린샷 전에 곡이 끝나 결과 화면이 캔버스를 대신하지 않게 한다.
     await page.evaluate(async (audioSeconds) => {
       const win = window as unknown as Record<string, unknown>;
@@ -105,8 +104,6 @@ test.describe('Game Settings', () => {
       const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
       const renderFrame = GameRenderer.prototype.renderFrame;
       GameRenderer.prototype.renderFrame = function (...args) {
-        // 노트·바디를 담은 플레이 프레임을 그린 뒤에는 그리지 않아 캔버스가 그 프레임을 담고 있게 한다. 판정·재생은 그대로 이어진다.
-        if (win.__classicVisibleNotes) return;
         const result = renderFrame.apply(this, args);
         // deltaMs 0은 재생 전에 그리는 준비 프레임(prepareForPlayback)이라 기록하지 않는다. 게임 루프가 그린 프레임만 센다.
         if (args[1] === 0) return result;
@@ -114,8 +111,7 @@ test.describe('Game Settings', () => {
         const self = this as unknown as {
           skinManager: import('../../src/game/skin/SkinManager').SkinManager;
           laneEndClip: { bounds: { minX: number; minY: number; maxY: number }; toGlobal: (point: { x: number; y: number }) => { y: number } };
-          noteLayer: { children: Drawn[] };
-          longNoteBodyLayer: { children: Drawn[] };
+          explicitNoteRenderer: { root: { children: { label: string; children: Drawn[] }[] } } | null;
         };
         // 레이어에 있어도 레인 끝 클립(laneEndClip, 키 윗면까지) 밖이면 화면에 없다. 포인트는 판정 시각 + 500ms까지 레이어에 남지만 키 윗면은
         // 판정 시각 + 약 184ms에 지나므로, 클립과 세로로 겹치는 것만 센다. mask로 쓰는 Graphics는 Pixi가 측정에서 빼 getBounds가 빈 상자라
@@ -128,10 +124,10 @@ test.describe('Game Settings', () => {
           const bounds = child.getBounds();
           return bounds.maxY > clipTop && bounds.minY < clipBottom;
         };
-        // noteLayer에는 포인트 위아래 약 3px의 접촉 그림자도 있어, 포인트 텍스처를 쓴 것만 포인트로 센다.
-        const pointTextures = new Set<unknown>(['noteSingle','noteDouble','noteTrill','noteDoubleFailed','noteTrillFailed']
-          .filter(key => self.skinManager.hasTexture(key)).map(key => self.skinManager.getTexture(key)));
-        if (self.noteLayer.children.some(child => pointTextures.has(child.texture) && inClip(child)) && self.longNoteBodyLayer.children.some(inClip)) win.__classicVisibleNotes = true;
+        const layers = self.explicitNoteRenderer?.root.children ?? [];
+        const points = layers.find(layer => layer.label === 'explicit-point')?.children ?? [];
+        const bodies = layers.find(layer => layer.label === 'explicit-body')?.children ?? [];
+        if (points.some(inClip) && bodies.some(inClip)) win.__classicVisibleNotes = true;
         if (!win.__classicPlayFrame) {
           const skin = self.skinManager;
           win.__classicPlayFrame = {
@@ -152,32 +148,34 @@ test.describe('Game Settings', () => {
         .find(url => new URL(url).pathname === '/src/game/stores/gameStore.ts') ?? '/src/game/stores/gameStore.ts';
       const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
       const state = useGameStore.getState();
-      state.setChartData({
+      const document: import('../../src/shared/types/chart').ChartDocument = {
         meta: {title:'Classic skin check',artist:'test',difficultyLabel:'NORMAL',difficultyLevel:1,imageFile:'',audioFile:'',previewAudioFile:'',offsetMs:0},
         // 같은 노트 묶음을 1.5초와 7.5초에 둔다. 포인트가 레인 안에 보이는 구간은 1.5초 묶음이 플레이 약 −0.66~1.68초, 7.5초 묶음이 약 5.34~7.68초(각 약 2.35초)다.
         // 1.5초 묶음은 곡이 시작될 때 판정선 위쪽에 있어 보통 첫 플레이 프레임이 담고, 첫 플레이 프레임이 늦으면 7.5초 묶음이 포인트·바디가 보이는 프레임을 만든다.
         notes: [
-          {type:'single',lane:1,beat:{n:3,d:1}},
-          {type:'long',lane:1,beat:{n:3,d:1},endBeat:{n:9,d:1}},
-          {type:'double',lane:2,beat:{n:3,d:1}},
-          {type:'doubleLong',lane:2,beat:{n:3,d:1},endBeat:{n:9,d:1}},
-          {type:'trill',lane:3,beat:{n:3,d:1}},
-          {type:'trillLong',lane:3,beat:{n:3,d:1},endBeat:{n:9,d:1}},
-          {type:'single',lane:1,beat:{n:15,d:1}},
-          {type:'long',lane:1,beat:{n:15,d:1},endBeat:{n:21,d:1}},
-          {type:'double',lane:2,beat:{n:15,d:1}},
-          {type:'doubleLong',lane:2,beat:{n:15,d:1},endBeat:{n:21,d:1}},
-          {type:'trill',lane:3,beat:{n:15,d:1}},
-          {type:'trillLong',lane:3,beat:{n:15,d:1},endBeat:{n:21,d:1}},
+          {type: 'point', kind: 'single',lane:1,beat:{n:3,d:1}},
+          {type: 'body', holdCount: 1,lane:1,beat:{n:3,d:1},endBeat:{n:9,d:1}},
+          {type: 'point', kind: 'double',lane:2,beat:{n:3,d:1}},
+          {type: 'body', holdCount: 2,lane:2,beat:{n:3,d:1},endBeat:{n:9,d:1}},
+          {type: 'point', kind: 'trill',lane:3,beat:{n:3,d:1}},
+          {type: 'body', holdCount: 1, trill: true,lane:3,beat:{n:3,d:1},endBeat:{n:9,d:1}},
+          {type: 'point', kind: 'single',lane:1,beat:{n:15,d:1}},
+          {type: 'body', holdCount: 1,lane:1,beat:{n:15,d:1},endBeat:{n:21,d:1}},
+          {type: 'point', kind: 'double',lane:2,beat:{n:15,d:1}},
+          {type: 'body', holdCount: 2,lane:2,beat:{n:15,d:1},endBeat:{n:21,d:1}},
+          {type: 'point', kind: 'trill',lane:3,beat:{n:15,d:1}},
+          {type: 'body', holdCount: 1, trill: true,lane:3,beat:{n:15,d:1},endBeat:{n:21,d:1}},
         ],
         trillZones:[{lane:3,beat:{n:0,d:1},endBeat:{n:22,d:1}}],
         events:[{type:'bpm',beat:{n:0,d:1},bpm:120}],
-      });
-      state.setAudioBuffer(new AudioBuffer({numberOfChannels:1,length:44100*audioSeconds,sampleRate:44100}));
+      };
+      const audioBuffer = new AudioBuffer({numberOfChannels:1,length:44100*audioSeconds,sampleRate:44100});
       // 포인트는 화면 위끝에 든 뒤 키 윗면(레인 끝 클립)을 지날 때까지 보인다. 200(설정 최솟값)이면 그 시간이 약 2.35초(400이면 약 1.2초)라
       // 부하로 프레임 간격이 벌어져도 그 사이에 플레이 프레임이 든다.
       state.updateSettings({masterVolume:0,scrollSpeed:200});
-      useGameStore.setState({screen:'play',startTimeMs:0,editorReturnUrl:null});
+      const fixturePath = '/e2e/normalPlayFixture.ts';
+      const { startNormalFixture } = await import(fixturePath) as typeof import('../normalPlayFixture');
+      startNormalFixture(document, audioBuffer);
     }, PLAY_TEST_TIMEOUT_MS / 1000);
     await expect.poll(()=>page.evaluate(() => (window as unknown as Record<string, {skinId:string}>).__classicPlayFrame?.skinId), { timeout: PLAY_TIMEOUT_MS }).toBe('classic');
     const frame = await page.evaluate(() => (window as unknown as Record<string, unknown>).__classicPlayFrame);
@@ -191,12 +189,14 @@ test.describe('Game Settings', () => {
     for(const file of ['note-single','note-double','note-trill','terminal-double','terminal-double-idle','terminal-double-failed','terminal-trill','point-shadow','point-grace-overlay','terminal-grace-overlay','bomb-15']) {
       expect(requested).toContain(`/skins/classic/${file}.png`);
     }
+    expect(requested.some(path => path.startsWith('/skins/classic-explicit/') && path.endsWith('/note-single.png'))).toBe(true);
+    expect(requested.some(path => path.startsWith('/skins/classic-explicit/') && /body-single/.test(path))).toBe(true);
     expect(requested.some(path=>path.startsWith('/lab/'))).toBe(false);
     expect(errors).toEqual([]);
     await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
     // 곡이 시작된 뒤 게임 루프가 그린 프레임의 레인 안에 포인트와 바디가 함께 보였는지. 1.5초 묶음을 놓치면 7.5초 묶음까지 기다린다.
     await expect.poll(()=>page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__classicVisibleNotes)), { timeout: PLAY_TIMEOUT_MS }).toBe(true);
-    // 육안 확인용 산출물이다(픽셀 비교 없음). 훅이 그 프레임에서 그리기를 멈췄으므로 캡처가 늦어도 그 프레임을 담는다.
+    // 육안 확인용 산출물이다(픽셀 비교 없음). 훅은 실제 프레임만 관찰한다.
     await page.getByTestId('gameplay-canvas').screenshot({path:testInfo.outputPath('classic-in-game.png')});
   });
 
@@ -248,21 +248,23 @@ test.describe('Game Settings', () => {
             .find(url => new URL(url).pathname === '/src/game/stores/gameStore.ts') ?? '/src/game/stores/gameStore.ts';
           const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
           const state = useGameStore.getState();
-          state.setChartData({
+          const document: import('../../src/shared/types/chart').ChartDocument = {
             meta: {
               title: 'Key bomb size check', artist: 'test', difficultyLabel: 'NORMAL', difficultyLevel: 1,
               imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0,
             },
-            notes: [{ type: 'single', lane: 2, beat: { n: 1, d: 1 } }],
+            notes: [{ type: 'point', kind: 'single', lane: 2, beat: { n: 1, d: 1 } }],
             trillZones: [],
             events: [
               { type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 },
               { type: 'auto', beat: { n: 0, d: 1 }, endBeat: { n: 3, d: 1 } },
             ],
-          });
-          state.setAudioBuffer(new AudioBuffer({ numberOfChannels: 1, length: 44100 * 1.5, sampleRate: 44100 }));
+          };
+          const audioBuffer = new AudioBuffer({ numberOfChannels: 1, length: 44100 * 1.5, sampleRate: 44100 });
           state.updateSettings({ masterVolume: 0 });
-          useGameStore.setState({ screen: 'play', lastResult: null, startTimeMs: 0, editorReturnUrl: null });
+          const fixturePath = '/e2e/normalPlayFixture.ts';
+          const { startNormalFixture } = await import(fixturePath) as typeof import('../normalPlayFixture');
+          startNormalFixture(document, audioBuffer);
         });
 
         await expect.poll(() => page.evaluate(() => (window as unknown as Record<string, unknown>).__keybombSize), { timeout: PLAY_TIMEOUT_MS })

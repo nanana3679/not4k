@@ -1,41 +1,59 @@
 import { formatDifficultyLabel } from '../../shared/chartDifficulty';
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../stores';
-import { loadSongData } from '../../supabase';
+import { loadSongDocumentData } from '../../supabase';
+import { prepareNormalPlay } from '../stores/explicitPlayRequest';
+import { ExplicitChartCompileError } from '../judgment/explicitCompiledChart';
+import { ChartFormatError } from '../../shared';
 import { PageLoading } from '../../shared/components/LoadingSpinner';
 import { font, color, primitives } from '../../shared/theme';
 
 export function LoadingScreen() {
-  const { selectedSongId, selectedDifficulty, selectedAudioUrl, setScreen, setChartData, setAudioBuffer } = useGameStore();
+  const { selectedSongId, selectedDifficulty, selectedAudioUrl, selectedPlaybackRange, setScreen,
+    beginNormalPlayLoad, completeNormalPlayLoad, cancelNormalPlayLoad } = useGameStore();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
     let audioCtx: AudioContext | null = null;
+    const closeAudioContext = () => {
+      const context = audioCtx;
+      audioCtx = null;
+      return context?.close().catch(() => undefined);
+    };
+    const loadId = beginNormalPlayLoad();
 
     const load = async () => {
+      await Promise.resolve();
+      if (!isMounted) return;
+      setError(null);
       if (!selectedSongId || !selectedDifficulty) {
-        setError('No song selected');
+        cancelNormalPlayLoad(loadId);
+        setError('No song selected. Go back and select a song.');
         return;
       }
 
       try {
         audioCtx = new AudioContext();
-        const { chart, audioBuffer } = await loadSongData(selectedSongId, selectedDifficulty, audioCtx, selectedAudioUrl ?? undefined);
+        const { chart, audioBuffer } = await loadSongDocumentData(selectedSongId, selectedDifficulty, audioCtx, selectedAudioUrl ?? undefined);
 
         if (isMounted) {
-          setChartData(chart);
-          setAudioBuffer(audioBuffer);
-          setScreen('play');
+          const request = prepareNormalPlay({ document: chart, audioBuffer, playbackRange: selectedPlaybackRange });
+          completeNormalPlayLoad(loadId, request);
         }
       } catch (err) {
         if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to load song');
+          cancelNormalPlayLoad(loadId);
+          if (err instanceof ExplicitChartCompileError || err instanceof ChartFormatError) {
+            const reason = err instanceof ExplicitChartCompileError && err.validation.runtimeIncompatible.length > 0
+              ? 'This chart uses an older note format.' : 'This chart contains invalid notes or chart data.';
+            setError(`${reason} Go back and choose another chart, or correct it in the editor before playing.`);
+          } else {
+            setError('Unable to load this song. Go back and try again or choose another song.');
+          }
         }
       } finally {
-        if (audioCtx) {
-          await audioCtx.close();
-        }
+        await closeAudioContext();
       }
     };
 
@@ -43,13 +61,16 @@ export function LoadingScreen() {
 
     return () => {
       isMounted = false;
+      cancelNormalPlayLoad(loadId);
+      void closeAudioContext();
     };
-  }, [selectedSongId, selectedDifficulty, selectedAudioUrl, setScreen, setChartData, setAudioBuffer]);
+  }, [selectedSongId, selectedDifficulty, selectedAudioUrl, selectedPlaybackRange,
+    beginNormalPlayLoad, completeNormalPlayLoad, cancelNormalPlayLoad]);
 
   if (error) {
     return (
       <div style={styles.container}>
-        <div style={styles.error}>{error}</div>
+        <div style={styles.error} role="alert">{error}</div>
         <button style={styles.button} onClick={() => setScreen('songSelect')}>
           Back to Song Select
         </button>

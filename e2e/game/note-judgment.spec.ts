@@ -1,90 +1,35 @@
 import { test, expect } from '@playwright/test';
+import { normalDocument, openNormalSong, readNormalState, startNormalSong } from '../normalPlayTestHelpers';
+import { probe } from '../explicitPlaybackProbe';
 
-/** DEV Vite module injection only; production code has no test backdoor. */
-async function injectAutoChart(page: import('@playwright/test').Page) {
-  await page.evaluate(async () => {
-    const storePath = '/src/game/stores/gameStore.ts';
-    const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
-    const sampleRate = 44100;
-    const audioBuffer = new AudioBuffer({ numberOfChannels: 1, length: sampleRate, sampleRate });
-    const chart: import('../../src/shared/types/chart').Chart = {
-      meta: {
-        title: 'E2E auto chart', artist: 'test', difficultyLabel: 'NORMAL', difficultyLevel: 1,
-        imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0,
-      },
-      notes: [
-        { type: 'single', lane: 1, beat: { n: 0, d: 1 } },
-        { type: 'long', lane: 1, beat: { n: 0, d: 1 }, endBeat: { n: 1, d: 2 } },
-        { type: 'single', lane: 1, beat: { n: 1, d: 2 } },
-        { type: 'long', lane: 1, beat: { n: 1, d: 2 }, endBeat: { n: 1, d: 1 }, holdOnly: true },
-      ],
-      trillZones: [],
-      events: [
-        { type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 },
-        { type: 'auto', beat: { n: 0, d: 1 }, endBeat: { n: 2, d: 1 } },
-      ],
-    };
-    const current = useGameStore.getState();
-    current.setChartData(chart);
-    current.setAudioBuffer(audioBuffer);
-    current.updateSettings({ isFirstLaunch: false, debugMode: false, masterVolume: 0 });
-    useGameStore.setState({ screen: 'play', lastResult: null, startTimeMs: 0, editorReturnUrl: null });
-  });
-}
+test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
+test.setTimeout(60000);
 
-async function readGameState(page: import('@playwright/test').Page) {
-  return page.evaluate(async () => {
-    const storePath = '/src/game/stores/gameStore.ts';
-    const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
-    const { screen, lastResult } = useGameStore.getState();
-    return { screen, lastResult };
-  });
-}
+test('AutoEvent의 Point·Sustain·Release3개는 무점수 Body와 함께 100% 결과를 만들고 Max Combo를 표시하지 않는다', async ({ page }) => {
+  const document = normalDocument();
+  document.notes = document.notes.filter(note => note.lane === 1);
+  const fixture = await openNormalSong(page, document, { duration: 3 });
+  await startNormalSong(page);
+  await expect(page.getByRole('heading', { name: 'Result', exact: true })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText('100.00%', { exact: true })).toBeVisible();
+  await expect(page.getByText('Full Combo:', { exact: true }).locator('..')).toHaveText(/YES/);
+  await expect(page.getByText(/Max Combo/i)).toHaveCount(0);
+  expect((await readNormalState(page)).result?.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  expect((await probe(page)).session?.score).toMatchObject({ earnedScore: 9, finalDenominatorWeight: 9 });
+  expect(fixture.errors).toEqual([]);
+});
 
-test.describe('실제 PlayScreen 판정 통합', () => {
-  test('AutoEvent holdOnly chart가 실제 canvas 재생 후 100% 결과를 만들고 Max Combo를 표시하지 않는다', async ({ page }) => {
-    const pageErrors: string[] = [];
-    page.on('pageerror', error => pageErrors.push(error.message));
-    await page.goto('/game');
-    await page.mouse.click(20, 20);
-    await injectAutoChart(page);
-
-    await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
-    // 실제 플레이 화면에도 사용자 gesture를 전달한다.
-    await page.mouse.click(20, 20);
-    await expect.poll(async () => readGameState(page).then(state => state.screen), { timeout: 6000 }).toBe('result');
-
-    await expect(page.getByText('100.00%')).toBeVisible();
-    await expect(page.getByText('Full Combo:')).toBeVisible();
-    await expect(page.getByText('YES')).toBeVisible();
-    await expect(page.getByText(/Max Combo/i)).toHaveCount(0);
-    const result = (await readGameState(page)).lastResult;
-    expect(result?.judgmentCounts.perfect).toBe(3);
-    expect(result?.judgmentCounts.miss).toBe(0);
-    expect(pageErrors).toEqual([]);
-  });
-
-  test('결과 후 동일 chart를 재시작해도 이전 결과가 누적되거나 중복되지 않는다', async ({ page }) => {
-    const pageErrors: string[] = [];
-    page.on('pageerror', error => pageErrors.push(error.message));
-    await page.goto('/game');
-    await page.mouse.click(20, 20);
-    await injectAutoChart(page);
-    await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
-    await page.mouse.click(20, 20);
-    await expect.poll(async () => readGameState(page).then(state => state.screen), { timeout: 6000 }).toBe('result');
-    await expect(page.getByText('100.00%')).toHaveCount(1);
-    const first = (await readGameState(page)).lastResult;
-    expect(first?.judgmentCounts.perfect).toBe(3);
-    expect(first?.judgmentCounts.miss).toBe(0);
-
-    await injectAutoChart(page);
-    await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 5000 });
-    await page.mouse.click(20, 20);
-    await expect.poll(async () => readGameState(page).then(state => state.screen), { timeout: 6000 }).toBe('result');
-    await expect(page.getByText('100.00%')).toHaveCount(1);
-    await expect(page.getByText(/Max Combo/i)).toHaveCount(0);
-    expect((await readGameState(page)).lastResult).toEqual(first);
-    expect(pageErrors).toEqual([]);
-  });
+test('공식 결과에서 Back 후 같은 명시 차트를 다시 재생해도 4항목12점 결과는 누적되지 않는다', async ({ page }) => {
+  const fixture = await openNormalSong(page);
+  await startNormalSong(page);
+  await expect(page.getByRole('heading', { name: 'Result', exact: true })).toBeVisible({ timeout: 15000 });
+  const first = (await readNormalState(page)).result;
+  expect(first?.judgmentCounts).toMatchObject({ perfect: 4, miss: 0 });
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await startNormalSong(page);
+  await expect(page.getByRole('heading', { name: 'Result', exact: true })).toBeVisible({ timeout: 15000 });
+  expect((await readNormalState(page)).result).toEqual(first);
+  await expect(page.getByText('100.00%', { exact: true })).toHaveCount(1);
+  expect((await probe(page)).preparations).toEqual([]);
+  expect(fixture.errors).toEqual([]); expect(fixture.unexpected).toEqual([]);
 });
