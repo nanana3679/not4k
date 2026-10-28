@@ -226,20 +226,13 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
       expect(validateChartDocument(chart).semantic.map(e => e.rule)).toEqual(["trillExclusive"]);
     });
 
-    it("보조 lane5의 일반 바디 [0,2] 뒤 같은 hold 수 트릴 바디 [2,4]도 경계 2에 Point·릴리즈가 없으면 앞·뒤 바디를 가리키는 위반이다", () => {
-      expect(validateChartDocument(document([body(0, 2, 1, 5), trillBody(2, 4, 5)])).semantic.map(e => [e.rule, e.refs])).toEqual([
-        [SAME_HOLD_COUNT_CONNECTION_RULE, [{ kind: "note", index: 0 }, { kind: "note", index: 1 }]]]);
+    it("보조 lane5의 일반 바디 [0,2] 뒤 같은 hold 수 트릴 바디 [2,4]는 모양이 달라 구별되므로 경계 2에 Point·릴리즈가 없어도 유효하다(2026-10-28 정정)", () => {
+      const result = validateChartDocument(document([body(0, 2, 1, 5), trillBody(2, 4, 5)]));
+      expect(result.semantic).toEqual([]);
+      expect(result.canSave).toBe(true);
     });
 
-    it.each([
-      { name: "트릴 Point", note: trillPoint(2, 5) },
-      { name: "릴리즈", note: mark("release", 2, 1, 5) },
-      { name: "구형 trill", note: legacyPoint("trill", 2, 5) },
-    ])("보조 lane5의 일반 바디 [0,2] 뒤 트릴 바디 [2,4] 경계 2의 $name도 경계를 표시하므로 유효하다", ({ note }) => {
-      expect(rules([body(0, 2, 1, 5), trillBody(2, 4, 5), note])).toEqual([]);
-    });
-
-    it("메인 레인1의 일반 바디 [0,2] 뒤 트릴 바디 [2,4] 경계에 표시가 없으면 trillLongInvalid만 보고하고 같은 수 경계 위반은 겹쳐 내지 않는다", () => {
+    it("메인 레인1의 일반 바디 [0,2] 뒤 트릴 바디 [2,4] 경계에 표시가 없으면 시작 트릴 Point 누락인 trillLongInvalid만 보고하고 트릴 여부가 달라 같은 수 경계 위반은 내지 않는다", () => {
       const chart = document([body(0, 2), trillBody(2, 4)]);
       chart.trillZones = [{ lane: 1, beat: beat(2), endBeat: beat(4) }];
       expect(validateChartDocument(chart).semantic.map(e => [e.rule, e.refs])).toEqual([
@@ -248,6 +241,20 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
 
     it("보조 lane5의 트릴 바디 [0,2]·[2,4] 경계에 Point·릴리즈가 없으면 위반이다", () => {
       expect(rules([trillBody(0, 2, 5), trillBody(2, 4, 5)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
+    });
+
+    it.each([
+      { name: "트릴 Point", note: trillPoint(2, 5) },
+      { name: "릴리즈", note: mark("release", 2, 1, 5) },
+      { name: "구형 trill", note: legacyPoint("trill", 2, 5) },
+    ])("보조 lane5의 트릴 바디 [0,2]·[2,4] 경계 2의 $name은 경계를 표시하므로 유효하다", ({ note }) => {
+      expect(rules([trillBody(0, 2, 5), trillBody(2, 4, 5), note])).toEqual([]);
+    });
+
+    it("보조 lane5의 일반 [0,2]·트릴 [2,4]·트릴 [4,6] 연쇄에 표시가 없으면 트릴 여부가 같은 경계 4의 두 트릴 바디를 가리키는 위반 1건만 남는다", () => {
+      expect(validateChartDocument(document([body(0, 2, 1, 5), trillBody(2, 4, 5), trillBody(4, 6, 5)])).semantic
+        .map(e => [e.rule, e.refs])).toEqual([
+        [SAME_HOLD_COUNT_CONNECTION_RULE, [{ kind: "note", index: 1 }, { kind: "note", index: 2 }]]]);
     });
 
     it("메인 레인1의 트릴 바디 [0,2]·[2,4] 경계에 트릴 Point가 없으면 trillLongInvalid만 보고하고 트릴 Point를 놓으면 유효하다", () => {
