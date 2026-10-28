@@ -1,5 +1,7 @@
 # Gameplay
 
+현재 구현 단계: 공용 문서·main/aux 왕복·정적 관계·문서 검증을 구현했다. 판정·에디터·실제 재생 전환은 다음 단계다.
+
 Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력이 판정과 결과로 이어지는 경험을 다룬다.
 노트 타입, 피스, 난이도 용어는 먼저 루트 `CONTEXT.md`의 Core domain을 따른다.
 
@@ -7,7 +9,7 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 
 ## 판정 모델의 전제
 
-[RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 **채택 계약·구현은 후속 PR**이다. 정식 정의는 glossary, 실행 전 기대값은 [명시적 점수 노트 판정 사례](../../docs/spec/explicit-note-judgment-cases.md)를 따른다.
+[RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 **채택 계약; 구현 진척은 RFD 0037 상단을 따른다**이다. 정식 정의는 glossary, 실행 전 기대값은 [명시적 점수 노트 판정 사례](../../docs/spec/explicit-note-judgment-cases.md)를 따른다.
 
 - 바디는 hold 수를 요구하는 무점수 구간이고 Point·릴리즈·유지 노트만 명시 점수 항목을 만든다. [바디](../../docs/context/glossary.md#바디)·[점수 항목](../../docs/context/glossary.md#점수-항목과-무점수-miss)을 따른다.
 - 전체 이론 가중치가 0인 유효한 차트도 재생하고 달성률·랭크는 표시하지 않는다. 점수 항목의 전부 Miss는 0%·F다([glossary](../../docs/context/glossary.md#점수-항목과-무점수-miss)).

@@ -21,6 +21,7 @@ import {
   beatIsPositive,
   beatAbs,
   BEAT_ZERO,
+  isWellFormedBeat,
 } from "./beat";
 
 describe("beat()", () => {
@@ -68,6 +69,48 @@ describe("beatFromString()", () => {
   it("잘못된 문자열이면 에러를 던진다", () => {
     expect(() => beatFromString("abc")).toThrow("invalid string");
     expect(() => beatFromString("1/2/3")).toThrow("invalid string");
+  });
+
+  it.each(["1.5", "1/2.5", "1oops", "0.5", "1e3", " 3", "+3", "", "1/", "/2"])(
+    "정수가 아닌 박 문자열 %j는 앞부분 정수로 잘라 읽지 않고 invalid string 에러다",
+    (value) => {
+      expect(() => beatFromString(value)).toThrow("invalid string");
+    },
+  );
+
+  it.each([
+    ["숫자 1", 1], ["배열 [1]", [1]], ["배열 [\"1/2\"]", ["1/2"]], ["null", null],
+  ])("문자열이 아닌 값이 %s이면 문자열로 바꿔 박으로 읽지 않고 invalid string 에러다", (_label, value) => {
+    expect(() => beatFromString(value as unknown as string)).toThrow("invalid string");
+  });
+
+  it("안전 정수를 넘는 분자 \"9007199254740993\"은 invalid string 에러다", () => {
+    expect(() => beatFromString("9007199254740993")).toThrow("invalid string");
+  });
+
+  it("기존 저장 문자열 \"-1/2\"·\"04/8\"·\"-7\"은 지금처럼 -1/2·1/2·-7로 읽는다", () => {
+    expect(beatFromString("-1/2")).toEqual({ n: -1, d: 2 });
+    expect(beatFromString("04/8")).toEqual({ n: 1, d: 2 });
+    expect(beatFromString("-7")).toEqual({ n: -7, d: 1 });
+  });
+});
+
+describe("isWellFormedBeat()", () => {
+  it("안전 정수 분자와 양의 정수 분모 {n:-3,d:4}·약분 전 {n:4,d:2}는 유효하다", () => {
+    expect(isWellFormedBeat({ n: -3, d: 4 })).toBe(true);
+    expect(isWellFormedBeat({ n: 4, d: 2 })).toBe(true);
+  });
+
+  it.each([
+    ["n=0.5", { n: 0.5, d: 1 }], ["d=2.5", { n: 1, d: 2.5 }], ["d=0", { n: 1, d: 0 }], ["d=-2", { n: 1, d: -2 }],
+    ["n=NaN", { n: NaN, d: 1 }], ["n=Infinity", { n: Infinity, d: 1 }], ["n=2^53", { n: 2 ** 53, d: 1 }],
+    ["문자열 n=\"1\"", { n: "1", d: 1 }],
+  ])("정수 계약을 어긴 %s Beat는 유효하지 않다", (_label, value) => {
+    expect(isWellFormedBeat(value)).toBe(false);
+  });
+
+  it.each([null, undefined, 3, {}, { n: 1 }])("객체가 아니거나 n·d가 없는 %j는 유효하지 않다", (value) => {
+    expect(isWellFormedBeat(value)).toBe(false);
   });
 });
 

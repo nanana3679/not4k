@@ -8,7 +8,8 @@
  */
 
 import type { Beat } from "../types/beat";
-import type { NoteEntity, TrillZone, ChartEvent } from "../types/chart";
+import type { DocumentNoteEntity, NoteEntity, TrillZone, ChartEvent } from "../types/chart";
+import { assertLegacyNotes } from "../chart/noteDocument";
 import type { Lane } from "../constants/note";
 import {
   beatToMs,
@@ -19,7 +20,7 @@ import {
 
 /** ChartTiming이 시간 뷰를 파생하는 데 필요한 최소 차트 표면. */
 export interface ChartTimingSource {
-  readonly notes: readonly NoteEntity[];
+  readonly notes: readonly DocumentNoteEntity[];
   readonly trillZones: readonly TrillZone[];
   readonly events: readonly ChartEvent[];
   readonly meta: { readonly offsetMs: number };
@@ -37,7 +38,7 @@ export interface ChartTiming {
   beatToMs(target: Beat): number;
   /** enumerateMeasureStartsMs 위임 — limitMs 이내 마디 시작 ms 순증 배열. */
   measureStartsMs(limitMs: number): number[];
-  /** 노트 타입별 판정 수 총합과, startTimeMs 미만 노트의 skip 판정 수. */
+  /** 구형 타입별 판정 수. 명시/혼합 문서는 거부하며 새 분모는 C2 compiler가 소유한다. */
   judgmentCounts(startTimeMs?: number): {
     totalJudgments: number;
     skippedJudgments: number;
@@ -92,6 +93,7 @@ export function createChartTiming(chart: ChartTimingSource): ChartTiming {
     measureStartsMs: (limitMs: number): number[] =>
       enumerateMeasureStartsMs(limitMs, bpmMarkers, timeSignatures, offsetMs),
     judgmentCounts: (startTimeMs: number = 0) => {
+      assertLegacyNotes(chart.notes, "구형 judgmentCounts");
       let totalJudgments = 0;
       let skippedJudgments = 0;
       for (let i = 0; i < chart.notes.length; i++) {

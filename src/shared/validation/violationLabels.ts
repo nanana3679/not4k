@@ -17,6 +17,7 @@ export type ViolationSeverity = "structural" | "semantic";
 export const RULE_SEVERITY: Record<ValidationErrorRule, ViolationSeverity> = {
   // 구조 — validateChartStructural (malformed 데이터·크래시 유발, 하드 거부)
   beatMalformed: "structural",
+  noteMalformed: "structural",
   laneMalformed: "structural",
   rangeInverted: "structural",
   timeSigNotNatural: "structural",
@@ -32,6 +33,12 @@ export const RULE_SEVERITY: Record<ValidationErrorRule, ViolationSeverity> = {
   eventDuplicate: "semantic",
   tutorialInputOverlap: "semantic",
   noteConstraint: "semantic",
+  scoreOverlap: "semantic",
+  sustainPlacement: "semantic",
+  sustainCount: "semantic",
+  releasePlacement: "semantic",
+  zeroLengthBodyOverlap: "semantic",
+  sameHoldCountConnectionWithoutPointOrRelease: "semantic",
   stopZone: "semantic",
   timeSigNotAtMeasureStart: "semantic",
 };
@@ -40,6 +47,13 @@ export const RULE_SEVERITY: Record<ValidationErrorRule, ViolationSeverity> = {
 const catalogs: Record<string, Record<ValidationErrorRule, string>> = {
   ko: {
     beatMalformed: "박자 값 오류",
+    noteMalformed: "노트 속성 오류",
+    scoreOverlap: "점수 의미 중복",
+    sustainPlacement: "유지 표식 위치 오류",
+    sustainCount: "유지 표식 수량 오류",
+    releasePlacement: "릴리즈 위치 오류",
+    zeroLengthBodyOverlap: "길이 0 바디 조합 오류",
+    sameHoldCountConnectionWithoutPointOrRelease: "Point·릴리즈 없는 같은 hold 수 바디 연결",
     laneMalformed: "레인 값 오류",
     rangeInverted: "구간 역전",
     timeSigNotNatural: "박자표 값 오류",

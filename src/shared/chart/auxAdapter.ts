@@ -10,27 +10,33 @@
  * 이 매핑을 쓴다 — editor→shared 단방향 의존을 지키려면 매핑이 shared에 살아야 한다.
  */
 
-import type { NoteEntity, ExtraNoteEntity } from "../types";
+import type { NoteEntity, ExtraNoteEntity, DocumentNoteEntity, DocumentExtraNoteEntity } from "../types";
 import { fromAuxIndex, toAuxIndex, mainNotes, auxNotes } from "./laneAxis";
 
 /** ExtraNoteEntity → NoteEntity: extraLane(1-기반) → lane(5+) 변환 */
-export function extraToNote(e: ExtraNoteEntity): NoteEntity {
+export function extraToNote(e: ExtraNoteEntity): NoteEntity;
+export function extraToNote(e: DocumentExtraNoteEntity): DocumentNoteEntity;
+export function extraToNote(e: DocumentExtraNoteEntity): DocumentNoteEntity {
   const { extraLane, ...rest } = e;
   return { ...rest, lane: fromAuxIndex(extraLane) };
 }
 
 /** 보조 NoteEntity(lane 5+) → ExtraNoteEntity: lane → extraLane(1-기반). extraToNote의 역 */
-export function noteToExtra(n: NoteEntity): ExtraNoteEntity {
+export function noteToExtra(n: NoteEntity): ExtraNoteEntity;
+export function noteToExtra(n: DocumentNoteEntity): DocumentExtraNoteEntity;
+export function noteToExtra(n: DocumentNoteEntity): DocumentExtraNoteEntity {
   const { lane, ...rest } = n;
-  return { ...rest, extraLane: toAuxIndex(lane) } as ExtraNoteEntity;
+  return { ...rest, extraLane: toAuxIndex(lane) };
 }
 
 /**
  * chart.notes에서 보조 노트만 뽑아 ExtraNoteEntity 배열로 파생한다 (상대 순서 보존).
  * 편집 모드 콜백(getExtraNotes)·히트테스트·저장 분리·dirty 스냅샷의 단일 소스.
  */
-export function auxNotesAsExtra(notes: readonly NoteEntity[]): ExtraNoteEntity[] {
-  return auxNotes(notes).map(noteToExtra);
+export function auxNotesAsExtra(notes: readonly NoteEntity[]): ExtraNoteEntity[];
+export function auxNotesAsExtra(notes: readonly DocumentNoteEntity[]): DocumentExtraNoteEntity[];
+export function auxNotesAsExtra(notes: readonly DocumentNoteEntity[]): DocumentExtraNoteEntity[] {
+  return auxNotes(notes).map((note) => noteToExtra(note));
 }
 
 /**
@@ -43,6 +49,14 @@ export function auxNotesAsExtra(notes: readonly NoteEntity[]): ExtraNoteEntity[]
 export function withAuxNotes(
   notes: readonly NoteEntity[],
   extra: readonly ExtraNoteEntity[],
-): NoteEntity[] {
-  return [...mainNotes(notes), ...extra.map(extraToNote)];
+): NoteEntity[];
+export function withAuxNotes(
+  notes: readonly DocumentNoteEntity[],
+  extra: readonly DocumentExtraNoteEntity[],
+): DocumentNoteEntity[];
+export function withAuxNotes(
+  notes: readonly DocumentNoteEntity[],
+  extra: readonly DocumentExtraNoteEntity[],
+): DocumentNoteEntity[] {
+  return [...mainNotes(notes), ...extra.map((note) => extraToNote(note))];
 }

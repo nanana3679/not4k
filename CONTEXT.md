@@ -1,10 +1,12 @@
 # not4k
 
+현재 구현 단계: 공용 문서·main/aux 왕복·정적 관계·문서 검증을 구현했다. 판정·에디터·실제 재생 전환은 다음 단계다.
+
 not4k는 4개의 고정 레인과 레인당 다중키 바인딩을 사용해 가변 손배치를 핵심 난이도로 삼는 PC 리듬게임이다.
 이 문서는 not4k의 유비쿼터스 언어를 정의한다. 세부 규칙과 설계 배경은 `docs/context/glossary.md`를 기준으로 확인한다.
 이 저장소는 multi-context 구조를 사용하므로, 작업 전 `CONTEXT-MAP.md`에서 관련 컨텍스트를 확인한다.
 
-**계약 상태:** [RFD 0037](docs/rfd/0037-explicit-score-notes-and-body.md)의 바디·명시적 점수 노트는 **채택 계약, 구현은 후속 PR**이다. 구형 `holdOnly`·자동 끝점·연결 up 소비는 과도기 읽기·표시·편집 범위로만 보존한다. 풀 정의는 [glossary](docs/context/glossary.md), 공식 미정 사항은 [PRD §12](docs/prd.md#12-미정-사항)를 따른다.
+**계약 상태:** [RFD 0037](docs/rfd/0037-explicit-score-notes-and-body.md)의 바디·명시적 점수 노트는 **채택 계약; 구현 진척은 RFD 0037 상단을 따른다**이다. 구형 `holdOnly`·자동 끝점·연결 up 소비는 과도기 읽기·표시·편집 범위로만 보존한다. 풀 정의는 [glossary](docs/context/glossary.md), 공식 미정 사항은 [PRD §12](docs/prd.md#12-미정-사항)를 따른다.
 
 ## Language
 

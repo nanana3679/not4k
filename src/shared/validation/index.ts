@@ -26,7 +26,7 @@ import type {
   TimeSignatureEvent,
   StopEvent,
 } from "../types/chart";
-import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat } from "../types/beat";
+import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat, isWellFormedBeat } from "../types/beat";
 import { isMainLane } from "../chart/laneAxis";
 
 export interface ValidationError {
@@ -47,6 +47,13 @@ export interface ValidationError {
     | "rangeInverted"
     | "beatMalformed"
     | "noteConstraint"
+    | "noteMalformed"
+    | "scoreOverlap"
+    | "sustainPlacement"
+    | "sustainCount"
+    | "releasePlacement"
+    | "zeroLengthBodyOverlap"
+    | "sameHoldCountConnectionWithoutPointOrRelease"
     | "laneMalformed";
   message: string;
   refs?: ValidationRef[];
@@ -921,8 +928,8 @@ export function validateBeatWellFormed(
   restZones: readonly RestZone[] = [],
 ): ValidationError[] {
   const errors: ValidationError[] = [];
-  const isMalformed = (b: Beat): boolean =>
-    !Number.isFinite(b.n) || !Number.isFinite(b.d) || b.d === 0;
+  // 소수 분자·음수 분모도 저장 왕복에서 위치가 바뀌거나 비교가 뒤집히므로 malformed다.
+  const isMalformed = (b: Beat): boolean => !isWellFormedBeat(b);
 
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];
@@ -1180,3 +1187,4 @@ export function violationsInvolving(
 // rule → 사람이 읽는 라벨 카탈로그 (RFD 0017 §7 위반 시각화 언어).
 // violationLabels는 이 파일에서 타입만 가져오므로 순환 없음(타입 import는 컴파일 시 소거).
 export * from "./violationLabels";
+export * from "./documentValidation";

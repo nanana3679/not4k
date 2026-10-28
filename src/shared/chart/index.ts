@@ -8,67 +8,45 @@
 import type {
   Chart,
   ChartMeta,
-  NoteEntity,
-  PointNote,
-  RangeNote,
+  ChartDocument,
+  DocumentExtraNoteEntity,
   TrillZone,
   RestZone,
   ChartEvent,
   ExtraNoteEntity,
   TutorialDiagramId,
 } from "../types/chart";
+import { isExplicitNote } from "../types/chart";
 import { beatFromString, beatToString } from "../types/beat";
 import { formatDifficultyLabel } from '../chartDifficulty';
 
 // 메인/보조 레인 경계 레이어 (RFD 0018)
 export * from "./laneAxis";
 export * from "./auxAdapter";
+export { ChartFormatError, UnsupportedChartContentError, assertLegacyNotes, requireLegacyChart } from "./noteDocument";
+import {
+  ChartFormatError, assertLegacyNotes, assertSupportedChartVersion, parseDocumentNote,
+  requireLegacyChart, serializeDocumentNote,
+  type DocumentNoteJson, type LegacyNoteJson,
+} from "./noteDocument";
+import { extraToNote, noteToExtra } from "./auxAdapter";
+import { fromAuxIndex, toAuxIndex } from "./laneAxis";
 
 // ---------------------------------------------------------------------------
 // JSON 스키마 타입 (Beat → string)
 // ---------------------------------------------------------------------------
 
-// lane은 number — 차트 파일에 lane ≤ 4만 담기는 불변식은 저장 경계의
-// mainNotes() 필터가 강제한다(RFD 0018 §3-3). 타입으로는 표현하지 않는다.
-interface PointNoteJson {
-  type: "single" | "double" | "trill";
-  lane: number;
-  beat: string;
-  grace?: boolean;
-}
-
-interface RangeNoteJson {
-  type: "long" | "doubleLong" | "trillLong";
+/** v1 singleLong은 읽을 때만 구형 long으로 이름을 정규화한다. */
+interface LegacyRangeNoteJson {
+  type: "singleLong";
   lane: number;
   beat: string;
   endBeat: string;
   holdOnly?: boolean;
 }
 
-/** 레거시 v1 포맷 (singleLong 결합 엔티티) */
-interface LegacyRangeNoteJson {
-  type: "singleLong" | "doubleLong" | "trillLong";
-  lane: 1 | 2 | 3 | 4;
-  beat: string;
-  endBeat: string;
-}
-
-type NoteEntityJson = PointNoteJson | RangeNoteJson;
-
-interface ExtraPointNoteJson {
-  type: "single" | "double" | "trill";
-  extraLane: number;
-  beat: string;
-}
-
-interface ExtraRangeNoteJson {
-  type: "long" | "doubleLong" | "trillLong";
-  extraLane: number;
-  beat: string;
-  endBeat: string;
-}
-
-type ExtraNoteEntityJson = ExtraPointNoteJson | ExtraRangeNoteJson;
+type ExtraNoteJson<T> = T extends { lane: number } ? Omit<T, "lane"> & { extraLane: number } : never;
+type DocumentExtraNoteJson = ExtraNoteJson<DocumentNoteJson | LegacyRangeNoteJson>;
 
 interface TrillZoneJson {
   lane: 1 | 2 | 3 | 4;
@@ -162,7 +140,7 @@ interface LegacyEventMarkerJson {
 export interface ChartJson {
   version?: number;
   meta: ChartMeta;
-  notes: NoteEntityJson[];
+  notes: (DocumentNoteJson | LegacyRangeNoteJson)[];
   trillZones: TrillZoneJson[];
   /** restZone 도입(RFD 0019) 이전 차트에는 없음 — 부재 시 []로 파싱한다 */
   restZones?: RestZoneJson[];
@@ -173,31 +151,21 @@ export interface ChartJson {
 export interface ChartJsonV3 {
   version: 3;
   meta: ChartMeta;
-  notes: NoteEntityJson[];
+  notes: LegacyNoteJson[];
   trillZones: TrillZoneJson[];
   restZones: RestZoneJson[];
   events: ChartEventJson[];
 }
 
+/** 출력용: 항목별 구형/명시 의미를 보존하는 v4. */
+export interface ChartJsonV4 extends Omit<ChartJsonV3, "version" | "notes"> {
+  version: 4;
+  notes: DocumentNoteJson[];
+}
+
 // ---------------------------------------------------------------------------
 // 직렬화: Chart → ChartJson → string
 // ---------------------------------------------------------------------------
-
-function serializeNote(n: NoteEntity): NoteEntityJson {
-  if ("endBeat" in n) {
-    const json: RangeNoteJson = {
-      type: n.type,
-      lane: n.lane,
-      beat: beatToString(n.beat),
-      endBeat: beatToString(n.endBeat),
-    };
-    if (n.holdOnly) json.holdOnly = true;
-    return json;
-  }
-  const json: PointNoteJson = { type: n.type, lane: n.lane, beat: beatToString(n.beat) };
-  if (n.grace) json.grace = true;
-  return json;
-}
 
 function serializeTrillZone(z: TrillZone): TrillZoneJson {
   return {
@@ -248,20 +216,22 @@ function serializeEvent(e: ChartEvent): ChartEventJson {
   }
 }
 
-/** Chart → JSON 객체 (v3) */
-export function chartToJson(chart: Chart): ChartJsonV3 {
-  return {
-    version: 3,
-    meta: chart.meta,
-    notes: chart.notes.map(serializeNote),
+/** 구형 전용은 기존 v3, 명시/혼합 문서는 v4. 버전이 항목 의미를 바꾸지 않는다. */
+export function chartToJson(chart: Chart): ChartJsonV3;
+export function chartToJson(chart: ChartDocument): ChartJsonV3 | ChartJsonV4;
+export function chartToJson(chart: ChartDocument): ChartJsonV3 | ChartJsonV4 {
+  const common = {
     trillZones: chart.trillZones.map(serializeTrillZone),
     restZones: (chart.restZones ?? []).map(serializeRestZone),
     events: chart.events.map(serializeEvent),
   };
+  if (chart.notes.some(isExplicitNote)) return { version: 4, meta: chart.meta, notes: chart.notes.map(serializeDocumentNote), ...common };
+  const legacy = requireLegacyChart(chart);
+  return { version: 3, meta: chart.meta, notes: legacy.notes.map((note) => serializeDocumentNote(note)), ...common };
 }
 
 /** Chart → JSON 문자열 */
-export function serializeChart(chart: Chart): string {
+export function serializeChart(chart: ChartDocument): string {
   return JSON.stringify(chartToJson(chart), null, 2);
 }
 
@@ -287,22 +257,6 @@ export function buildSaveAsMeta(
 // ---------------------------------------------------------------------------
 // 역직렬화: string → ChartJson → Chart
 // ---------------------------------------------------------------------------
-
-function parseNote(n: NoteEntityJson): NoteEntity {
-  if ("endBeat" in n) {
-    const note: RangeNote = {
-      type: n.type,
-      lane: n.lane,
-      beat: beatFromString(n.beat),
-      endBeat: beatFromString(n.endBeat),
-    };
-    if (n.holdOnly) note.holdOnly = true;
-    return note;
-  }
-  const note: PointNote = { type: n.type, lane: n.lane, beat: beatFromString(n.beat) };
-  if (n.grace) note.grace = true;
-  return note;
-}
 
 function parseTrillZone(z: TrillZoneJson): TrillZone {
   return {
@@ -380,154 +334,122 @@ function isChartEventJson(e: ChartEventJson | LegacyEventMarkerJson): e is Chart
   return "type" in e;
 }
 
-/** JSON 객체 → Chart */
-export function chartFromJson(json: ChartJson): Chart {
-  // v3: 디스크리미네이티드 유니온 이벤트
-  if (json.version && json.version >= 3) {
-    return {
-      meta: json.meta,
-      notes: json.notes.map(parseNote),
-      trillZones: json.trillZones.map(parseTrillZone),
-      restZones: (json.restZones ?? []).map(parseRestZone),
-      events: (json.events ?? []).map((e) => parseEvent(e as ChartEventJson)),
-    };
+/** 구간·이벤트 항목의 박 문자열·모양 오류도 호출자가 형식 오류로 구별하도록 ChartFormatError로 감싼다. */
+function parseEntry<T>(label: string, parse: () => T): T {
+  try {
+    return parse();
+  } catch (error) {
+    if (error instanceof ChartFormatError) throw error;
+    throw new ChartFormatError(`${label}: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
 
-  // v2: composable EventMarker → ChartEvent[] 마이그레이션
-  if (json.version && json.version >= 2) {
-    const events: ChartEvent[] = [];
-    for (const e of json.events ?? []) {
-      if (isChartEventJson(e)) {
-        events.push(parseEvent(e));
-      } else {
-        events.push(...migrateLegacyEvent(e));
-      }
-    }
-    return {
-      meta: json.meta,
-      notes: json.notes.map(parseNote),
-      trillZones: json.trillZones.map(parseTrillZone),
-      restZones: (json.restZones ?? []).map(parseRestZone),
-      events,
-    };
-  }
+function isObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
 
-  // v1 레거시: "singleLong" → "long" 타입명 변경
-  const legacyNotes = json.notes as (PointNoteJson | LegacyRangeNoteJson)[];
-  const migratedNotes: NoteEntity[] = [];
-
-  for (const n of legacyNotes) {
-    if ("endBeat" in n) {
-      const ln = n as LegacyRangeNoteJson;
-      if (ln.type === "singleLong") {
-        migratedNotes.push({
-          type: "long",
-          lane: ln.lane,
-          beat: beatFromString(ln.beat),
-          endBeat: beatFromString(ln.endBeat),
-        });
-      } else {
-        migratedNotes.push(parseNote(n as RangeNoteJson));
-      }
-    } else {
-      migratedNotes.push(parseNote(n));
-    }
-  }
-
+/**
+ * JSON 객체 → 보존 가능한 저장 문서. 의미 위반/구형 존재는 읽기 차단 사유가 아니다.
+ * 노트 항목은 미지원 필드를 거부하고, 최상위·구간·이벤트의 미지원 필드는 읽되 저장에서 보존하지 않는다.
+ */
+export function chartDocumentFromJson(json: ChartJson): ChartDocument {
+  if (!isObject(json)) throw new ChartFormatError("최상위 값이 객체가 아닙니다");
+  if (!isObject(json.meta)) throw new ChartFormatError("meta 필드가 없거나 유효하지 않습니다");
+  if (!Array.isArray(json.notes)) throw new ChartFormatError("notes 필드가 배열이 아닙니다");
+  if (!Array.isArray(json.trillZones)) throw new ChartFormatError("trillZones 필드가 배열이 아닙니다");
+  if (json.restZones !== undefined && !Array.isArray(json.restZones)) throw new ChartFormatError("restZones 필드가 배열이 아닙니다");
+  if (json.events !== undefined && !Array.isArray(json.events)) throw new ChartFormatError("events 필드가 배열이 아닙니다");
+  assertSupportedChartVersion(json.version);
   const events: ChartEvent[] = [];
-  for (const e of json.events ?? []) {
+  (json.events ?? []).forEach((e, index) => parseEntry(`events[${index}]`, () => {
     if (isChartEventJson(e)) {
-      events.push(parseEvent(e));
+      const event = parseEvent(e);
+      if (!event) throw new ChartFormatError(`지원하지 않는 이벤트 type: ${String(e.type)}`);
+      events.push(event);
     } else {
+      if ((json.version ?? 1) >= 3) throw new ChartFormatError("version 3/4 이벤트에는 type이 필요합니다");
       events.push(...migrateLegacyEvent(e));
     }
-  }
-
+  }));
   return {
     meta: json.meta,
-    notes: migratedNotes,
-    trillZones: json.trillZones.map(parseTrillZone),
-    restZones: (json.restZones ?? []).map(parseRestZone),
+    notes: json.notes.map((note) => parseDocumentNote(note, json.version)),
+    trillZones: json.trillZones.map((zone, index) => parseEntry(`trillZones[${index}]`, () => parseTrillZone(zone))),
+    restZones: (json.restZones ?? []).map((zone, index) => parseEntry(`restZones[${index}]`, () => parseRestZone(zone))),
     events,
   };
 }
 
-/** JSON 문자열 → Chart */
-export function deserializeChart(str: string): Chart {
+/** 기존 소비자는 명시 항목을 구형 점수로 실행하거나 편집하지 못한다. */
+export function chartFromJson(json: ChartJson): Chart {
+  return requireLegacyChart(chartDocumentFromJson(json));
+}
+
+/** JSON 문자열 → 저장 문서. 기존 UI 진입과 분리된 공용 읽기 경계다. */
+export function deserializeChartDocument(str: string): ChartDocument {
   let json: ChartJson;
   try {
     json = JSON.parse(str);
   } catch {
-    throw new Error("차트 파싱 실패: 유효한 JSON이 아닙니다");
+    throw new ChartFormatError("유효한 JSON이 아닙니다");
   }
-  if (!json || typeof json !== "object") {
-    throw new Error("차트 파싱 실패: 최상위 값이 객체가 아닙니다");
-  }
-  if (!json.meta || typeof json.meta !== "object") {
-    throw new Error("차트 파싱 실패: meta 필드가 없거나 유효하지 않습니다");
-  }
-  if (!Array.isArray(json.notes)) {
-    throw new Error("차트 파싱 실패: notes 필드가 배열이 아닙니다");
-  }
-  if (!Array.isArray(json.trillZones)) {
-    throw new Error("차트 파싱 실패: trillZones 필드가 배열이 아닙니다");
-  }
-  // restZones는 도입(RFD 0019) 이전 차트에 없으므로 부재를 허용한다 — 존재할 때만 배열을 요구
-  if (json.restZones !== undefined && !Array.isArray(json.restZones)) {
-    throw new Error("차트 파싱 실패: restZones 필드가 배열이 아닙니다");
-  }
-  return chartFromJson(json);
+  return chartDocumentFromJson(json);
+}
+
+export function deserializeChart(str: string): Chart {
+  return requireLegacyChart(deserializeChartDocument(str));
 }
 
 // ---------------------------------------------------------------------------
 // Extra 노트 직렬화 (에디터 전용)
 // ---------------------------------------------------------------------------
 
-function serializeExtraNote(n: ExtraNoteEntity): ExtraNoteEntityJson {
-  if ("endBeat" in n) {
-    return {
-      type: n.type,
-      extraLane: n.extraLane,
-      beat: beatToString(n.beat),
-      endBeat: beatToString(n.endBeat),
-    };
-  }
-  return { type: n.type, extraLane: n.extraLane, beat: beatToString(n.beat) };
+export interface ExtraNotesJson {
+  version?: number;
+  extraNotes?: DocumentExtraNoteJson[];
+  extraLaneCount?: number;
 }
 
-function parseExtraNote(n: ExtraNoteEntityJson): ExtraNoteEntity {
-  if ("endBeat" in n) {
-    return {
-      type: n.type,
-      extraLane: n.extraLane,
-      beat: beatFromString(n.beat),
-      endBeat: beatFromString(n.endBeat),
-    };
-  }
-  return { type: n.type, extraLane: n.extraLane, beat: beatFromString(n.beat) };
-}
-
-/** Extra 노트 데이터 → JSON 문자열 (별도 .extra.json 파일용) */
-export function serializeExtraNotes(
-  extraNotes: ExtraNoteEntity[],
-  extraLaneCount: number,
-): string {
+/** 구형 보조 파일은 기존 모양 유지, 명시 항목이 있으면 version 4를 명시한다. */
+export function serializeExtraNotes(extraNotes: readonly DocumentExtraNoteEntity[], extraLaneCount: number): string {
+  const notes = extraNotes.map(extraToNote);
   return JSON.stringify({
-    extraNotes: extraNotes.map(serializeExtraNote),
+    ...(notes.some(isExplicitNote) ? { version: 4 } : {}),
+    extraNotes: notes.map((note) => {
+      const { type, lane, beat, ...rest } = serializeDocumentNote(note);
+      return { type, extraLane: toAuxIndex(lane), beat, ...rest };
+    }),
     extraLaneCount,
   }, null, 2);
 }
 
-/** extra JSON에서 데이터 추출 */
-export function parseExtraNotes(json: {
-  extraNotes?: ExtraNoteEntityJson[];
-  extraLaneCount?: number;
-}): {
-  extraNotes: ExtraNoteEntity[];
-  extraLaneCount: number;
-} {
-  return {
-    extraNotes: (json.extraNotes ?? []).map(parseExtraNote),
-    extraLaneCount: json.extraLaneCount ?? 0,
-  };
+/** 공용 보조 reader. 메인 JSON에 내장된 과거 보조 자료도 받는다. */
+export function parseExtraNotesDocument(json: ExtraNotesJson): { extraNotes: DocumentExtraNoteEntity[]; extraLaneCount: number } {
+  if (!json || typeof json !== "object" || Array.isArray(json)) throw new ChartFormatError("보조 자료가 객체가 아닙니다");
+  assertSupportedChartVersion(json.version);
+  if (json.extraNotes !== undefined && !Array.isArray(json.extraNotes)) throw new ChartFormatError("extraNotes 필드가 배열이 아닙니다");
+  const extraLaneCount = json.extraLaneCount ?? 0;
+  if (!Number.isInteger(extraLaneCount) || extraLaneCount < 0) throw new ChartFormatError("extraLaneCount는 0 이상의 정수여야 합니다");
+  const extraNotes = (json.extraNotes ?? []).map((value) => {
+    if (!value || typeof value !== "object") throw new ChartFormatError("보조 노트가 객체가 아닙니다");
+    // 메인 전용 lane을 extraLane으로 덮어써 조용히 버리지 않는다.
+    if ("lane" in value) throw new ChartFormatError("보조 노트에는 lane 대신 extraLane을 씁니다");
+    const { extraLane, ...rest } = value;
+    // 0·음수·비정수 extraLane은 메인 레인(1～4)이나 성립하지 않는 레인으로 옮겨지므로 읽지 않는다.
+    if (!Number.isInteger(extraLane) || extraLane < 1) throw new ChartFormatError("extraLane은 1 이상의 정수여야 합니다");
+    const note = parseDocumentNote({ ...rest, lane: extraLane }, json.version);
+    // 파일의 extraLane 숫자를 읽은 뒤 실제 보조 lane으로 매핑한다.
+    return noteToExtra({ ...note, lane: fromAuxIndex(note.lane) });
+  });
+  return { extraNotes, extraLaneCount };
 }
+
+/** 구형 에디터 경계. 새 보조 항목을 조용히 버리지 않으며 호출자가 오류를 전달해야 한다. */
+export function parseExtraNotes(json: ExtraNotesJson): { extraNotes: ExtraNoteEntity[]; extraLaneCount: number } {
+  const result = parseExtraNotesDocument(json);
+  const notes = result.extraNotes.map(extraToNote);
+  assertLegacyNotes(notes, "구형 보조 reader");
+  return { extraNotes: notes.map((note) => noteToExtra(note)), extraLaneCount: result.extraLaneCount };
+}
+
+export * from "./explicitNoteRelations";

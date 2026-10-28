@@ -37,26 +37,33 @@ export function beatFromInt(value: number): Beat {
 }
 
 /**
+ * Beat 타입 계약(안전 정수 분자·양의 안전 정수 분모)을 지키는지 검사한다.
+ * 약분 여부는 묻지 않는다. 이 계약을 어긴 값은 `beatToString`→`beatFromString` 왕복에서
+ * 위치가 바뀌거나(소수 분자) 비교 연산이 뒤집히므로(음수 분모) 저장 전에 거부해야 한다.
+ */
+export function isWellFormedBeat(value: unknown): value is Beat {
+  if (!value || typeof value !== "object" || !("n" in value) || !("d" in value)) return false;
+  return Number.isSafeInteger(value.n) && Number.isSafeInteger(value.d) && (value.d as number) > 0;
+}
+
+const BEAT_STRING = /^(-?\d+)(?:\/(-?\d+))?$/;
+
+/**
  * 문자열을 Beat로 파싱한다.
  * - "3/4" → beat(3, 4)
  * - "0" → beat(0, 1)
  * - "7" → beat(7, 1)
  * - "7/2" → beat(7, 2)
+ *
+ * 분자·분모 전체가 안전 정수인 문자열만 받는다. "1.5"·"1oops"를 앞부분 정수로 잘라
+ * 다른 위치로 읽지 않는다. JSON에서 온 숫자 1·배열 [1]도 RegExp가 "1"로 바꿔 읽지 않게 거부한다.
  */
 export function beatFromString(s: string): Beat {
-  const parts = s.split("/");
-  if (parts.length === 1) {
-    const n = parseInt(parts[0], 10);
-    if (isNaN(n)) throw new Error(`Beat: invalid string "${s}"`);
-    return beat(n, 1);
-  }
-  if (parts.length === 2) {
-    const n = parseInt(parts[0], 10);
-    const d = parseInt(parts[1], 10);
-    if (isNaN(n) || isNaN(d)) throw new Error(`Beat: invalid string "${s}"`);
-    return beat(n, d);
-  }
-  throw new Error(`Beat: invalid string "${s}"`);
+  const match = typeof s === "string" ? BEAT_STRING.exec(s) : null;
+  const n = match ? Number(match[1]) : NaN;
+  const d = match?.[2] === undefined ? 1 : Number(match[2]);
+  if (!Number.isSafeInteger(n) || !Number.isSafeInteger(d)) throw new Error(`Beat: invalid string ${JSON.stringify(s)}`);
+  return beat(n, d);
 }
 
 /** Beat를 문자열로 직렬화한다. "3/4", "0", "7" */

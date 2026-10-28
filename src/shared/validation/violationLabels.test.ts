@@ -9,7 +9,7 @@ import type { ValidationError, ValidationErrorRule } from "./index";
 import { beat } from "../types/beat";
 import type { NoteEntity, TrillZone, RestZone, ChartEvent } from "../types/chart";
 
-// ValidationError["rule"] 유니온 17종 전수 — 새 rule이 추가되면 이 배열과
+// ValidationError["rule"] 유니온 전수 — 새 rule이 추가되면 이 배열과
 // RULE_SEVERITY·카탈로그가 함께 갱신돼야 한다 (Record 타입이 컴파일 타임에도 강제).
 const ALL_RULES: ValidationErrorRule[] = [
   "duplicate",
@@ -29,6 +29,13 @@ const ALL_RULES: ValidationErrorRule[] = [
   "rangeInverted",
   "beatMalformed",
   "laneMalformed",
+  "noteMalformed",
+  "scoreOverlap",
+  "sustainPlacement",
+  "sustainCount",
+  "releasePlacement",
+  "zeroLengthBodyOverlap",
+  "sameHoldCountConnectionWithoutPointOrRelease",
 ];
 
 const err = (rule: ValidationErrorRule, message: string): ValidationError => ({
@@ -41,7 +48,7 @@ const err = (rule: ValidationErrorRule, message: string): ValidationError => ({
 // =========================================================================
 
 describe("RULE_SEVERITY", () => {
-  it("17개 rule 전부 structural 또는 semantic으로 분류되어 있다 (누락 0)", () => {
+  it("24개 rule 전부 structural 또는 semantic으로 분류되어 있다 (누락 0)", () => {
     for (const rule of ALL_RULES) {
       expect(["structural", "semantic"]).toContain(RULE_SEVERITY[rule]);
     }
@@ -97,13 +104,13 @@ describe("RULE_SEVERITY", () => {
     }
   });
 
-  it("structural은 정확히 4종, semantic은 정확히 13종", () => {
+  it("문서 노트 속성 포함 structural은 5종, semantic은 19종이다", () => {
     const structural = ALL_RULES.filter((r) => RULE_SEVERITY[r] === "structural");
     const semantic = ALL_RULES.filter((r) => RULE_SEVERITY[r] === "semantic");
     expect(structural.sort()).toEqual(
-      ["beatMalformed", "laneMalformed", "rangeInverted", "timeSigNotNatural"].sort(),
+      ["beatMalformed", "laneMalformed", "rangeInverted", "timeSigNotNatural", "noteMalformed"].sort(),
     );
-    expect(semantic).toHaveLength(13);
+    expect(semantic).toHaveLength(19);
   });
 });
 
@@ -112,7 +119,7 @@ describe("RULE_SEVERITY", () => {
 // =========================================================================
 
 describe("violationLabel", () => {
-  it("17개 rule 전부 ko 라벨이 존재한다 (빈 문자열 없음)", () => {
+  it("24개 rule 전부 ko 라벨이 존재한다 (빈 문자열 없음)", () => {
     for (const rule of ALL_RULES) {
       const label = violationLabel(rule, "ko");
       expect(label, `rule=${rule}`).toBeTruthy();
@@ -123,6 +130,11 @@ describe("violationLabel", () => {
   it("duplicate → '중복 노트', beatMalformed → '박자 값 오류' (ko 라벨 구체값)", () => {
     expect(violationLabel("duplicate")).toBe("중복 노트");
     expect(violationLabel("beatMalformed")).toBe("박자 값 오류");
+  });
+
+  it("sameHoldCountConnectionWithoutPointOrRelease → 'Point·릴리즈 없는 같은 hold 수 바디 연결'이며 semantic이다", () => {
+    expect(violationLabel("sameHoldCountConnectionWithoutPointOrRelease")).toBe("Point·릴리즈 없는 같은 hold 수 바디 연결");
+    expect(RULE_SEVERITY.sameHoldCountConnectionWithoutPointOrRelease).toBe("semantic");
   });
 
   it("restZoneOverlap → '휴지 구간 겹침', restZoneExclusive → '휴지 구간 배타 위반' (RFD 0019)", () => {

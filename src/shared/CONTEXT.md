@@ -1,9 +1,13 @@
 # Shared Chart Model
 
+`ChartDocument`는 구형·명시 항목을 보존하는 저장·편집 문서다. 풀 정의는 [glossary](../../docs/context/glossary.md#chartdocument), 필드와 저장 버전은 [차트 문서 포맷](../../docs/spec/chart-format.md)을 따른다.
+
+현재 구현 단계: 공용 문서·main/aux 왕복·정적 관계·문서 검증을 구현했다. 판정·에디터·실제 재생 전환은 다음 단계다.
+
 Shared chart model 컨텍스트는 게임 클라이언트와 차트 편집기가 공유하는 차트 언어를 다룬다.
 개별 노트 타입과 피스의 의미는 루트 `CONTEXT.md`의 Core domain을 따른다.
 
-**계약 상태:** [RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 채택 계약이며 런타임 이행은 후속 구현에서 검증한다. 구형 읽기·수리·혼합 저장 의미는 과도기 동안 보존한다.
+**계약 상태:** [RFD 0037](../../docs/rfd/0037-explicit-score-notes-and-body.md)의 채택 계약이며 단계별 구현 진척은 RFD 0037 상단을 따른다. 구형 읽기·수리·혼합 저장 의미는 과도기 동안 보존한다.
 
 ## Language
 

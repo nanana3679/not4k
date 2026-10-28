@@ -1,4 +1,4 @@
-import type { Chart } from "../types";
+import type { ChartDocument } from "../types";
 import { serializeChart, serializeExtraNotes, mainNotes, auxNotes, auxNotesAsExtra } from "../chart";
 import { songChartExtraPath, songChartPath } from "../storage";
 
@@ -36,12 +36,12 @@ export interface SongAssetPersistenceAdapter {
 
 export interface SaveChartAssetInput extends ChartAssetTarget {
   /** 보조 노트(lane 5+)를 포함한 통합 차트. 저장 시 메인/보조 파일로 분리한다 (RFD 0018 ③). */
-  chart: Chart;
+  chart: ChartDocument;
   extraLaneCount: number;
 }
 
 export interface CreateChartAssetInput extends ChartAssetTarget {
-  chart: Chart;
+  chart: ChartDocument;
 }
 
 export interface ChartAssetWriteResult {
@@ -173,7 +173,7 @@ function buildChartAsset(input: SaveChartAssetInput): ChartAssetWriteResult {
   };
 }
 
-function toChartUpsert(songId: string, difficulty: string, chart: Chart): ChartAssetUpsert {
+function toChartUpsert(songId: string, difficulty: string, chart: ChartDocument): ChartAssetUpsert {
   return {
     songId,
     difficulty,
