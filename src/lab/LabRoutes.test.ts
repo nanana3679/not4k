@@ -19,6 +19,12 @@ async function renderLabPath(path: string) {
 }
 
 describe('LabRoutes', () => {
+  it('/lab/explicit-playtest 직접 진입은 수동·자동 실제 연습과 Lab 복귀 링크를 표시한다', async () => {
+    const markup = await renderLabPath('/lab/explicit-playtest');
+    expect(markup).toContain('data-lab-page="explicit-playtest"');
+    expect(markup).toContain('자동 입력');
+    expect(markup).toContain('href="/lab"');
+  });
   it('/lab/explicit-renderer를 직접 열면 명시 노트 fixture와 실제 M1 세션 시연이 표시된다', async () => {
     const markup = await renderLabPath('/lab/explicit-renderer');
     expect(markup).toContain('data-lab-page="explicit-renderer"');

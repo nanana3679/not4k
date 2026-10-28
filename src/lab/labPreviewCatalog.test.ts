@@ -2,20 +2,21 @@ import { describe, expect, it } from "vitest";
 import { labPreviewCatalog } from "./labPreviewCatalog";
 
 describe("Lab 미리보기 카탈로그", () => {
-  it("옛 기어 Gear Light·Gear Measure Pulse를 뺀 8개 미리보기(명시 노트 표시·restZone Lane·시설 통과·노트 에셋 시연실·Gear 포함)는 중복 없는 id와 /lab 경로를 가진다", () => {
-    expect(labPreviewCatalog).toHaveLength(8);
+  it("옛 기어 Gear Light·Gear Measure Pulse를 뺀 9개 미리보기(명시 노트 표시·restZone Lane·시설 통과·노트 에셋 시연실·Gear 포함)는 중복 없는 id와 /lab 경로를 가진다", () => {
+    expect(labPreviewCatalog).toHaveLength(9);
     expect(labPreviewCatalog.map((preview) => preview.id)).toEqual([
       "flight-background-preview",
       "facility-passage",
       "note-assets",
       "explicit-renderer",
+      "explicit-playtest",
       "rest-zone-lane",
       "gear",
       "tutorial-pattern-diagram",
       "judgment-playtest",
     ]);
-    expect(new Set(labPreviewCatalog.map((preview) => preview.id)).size).toBe(8);
-    expect(new Set(labPreviewCatalog.map((preview) => preview.path)).size).toBe(8);
+    expect(new Set(labPreviewCatalog.map((preview) => preview.id)).size).toBe(9);
+    expect(new Set(labPreviewCatalog.map((preview) => preview.path)).size).toBe(9);
     expect(labPreviewCatalog.every((preview) => preview.path.startsWith("/lab/"))).toBe(true);
   });
 

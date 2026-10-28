@@ -8,6 +8,7 @@ import {
   SongSelectScreen,
   LoadingScreen,
   PlayScreen,
+  ExplicitPlayScreen,
   ResultScreen,
 } from './screens';
 import { keepGearMotionAssets } from './screens/gearMotionKeepAlive';
@@ -24,7 +25,7 @@ export default function GameApp() {
   }, [gearMotion]);
 
   // 모바일 경험에서는 곡 목록만 노출하되, 에디터 테스트 플레이는 예외로 둔다.
-  if (shouldForceMobileSongList(experience, editorReturnUrl)) {
+  if (screen !== 'explicitPlay' && shouldForceMobileSongList(experience, editorReturnUrl)) {
     return <SongSelectScreen mobileListOnly />;
   }
 
@@ -39,6 +40,8 @@ export default function GameApp() {
       return <LoadingScreen />;
     case 'play':
       return <PlayScreen />;
+    case 'explicitPlay':
+      return <ExplicitPlayScreen />;
     case 'result':
       return <ResultScreen />;
     default:

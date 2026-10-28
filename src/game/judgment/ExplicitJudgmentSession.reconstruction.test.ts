@@ -361,6 +361,22 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(afterResume.session.playbackChart.bodies[0].startMs).toBe(2000);
   });
 
+  it("관측10에 syncHeldKeys로 비운 A hold는 T300 복원에서도 같은 시각에 다시 비워 바디0～1000이 120에 유지 실패하고 입력으로 재생되지 않음", () => {
+    const original = makeSession([b(0, 1000), s(500)], { startTimeMs: 0 });
+    original.resumeAt(0, [{ key: "A", lane: 1 }]);
+    original.advance(10);
+    original.syncHeldKeys(10, []);
+    original.advance(300);
+    const expected = original.result();
+    original.advance(600);
+    const { session, heldKeys } = original.reconstructAt(300);
+    expect(session.snapshot).toEqual(expected.snapshot);
+    expect(session.facts).toEqual(expected.facts);
+    expect(heldKeys).toEqual([]);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 120 });
+    expect(session.facts.filter(fact => fact.kind === "input")).toEqual([]);
+  });
+
   it.each([0, 1500])("시작 S=%sms를 하한으로 복원해도 원본·source·시작 범위 분모는 다시 자르지 않음", startTimeMs => {
     const data = fixture([p(1000), b(1000, 3000), s(1500), r(3000)]);
     const chart = compileExplicitJudgmentChart(data.chart);

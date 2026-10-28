@@ -633,3 +633,66 @@ describe("AudioEngine 곡 끝 판정 대기", () => {
     expect(engine.currentTimeMs).toBe(0);
   });
 });
+
+describe('AudioEngine 음악 준비 예약', () => {
+  it.each([0.5, 1, 2])('배속 %s·L₀=20ms·목표0이면 곡0을 실제2980ms 뒤 예약하고 3000ms 뒤 J=0이다', rate => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(10));
+    engine.playbackRate = rate;
+    mockCtx._advanceTime(7);
+    engine.playWithPreroll(-2980 * rate);
+    const source = mockCtx.createBufferSource.mock.results[0].value;
+    expect(source.start).toHaveBeenCalledWith(9.98, 0, 10);
+    expect(engine.currentTimeMs).toBeCloseTo(-2980 * rate);
+    mockCtx._advanceTime(3);
+    expect(engine.currentTimeMs - 20 * rate).toBeCloseTo(0);
+  });
+
+  it('L₀=20ms·2배속·목표1500이면 앞2230ms를 무음으로 예약하고 3초 뒤 J=1500이다', () => {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(10)); engine.playbackRate = 2;
+    engine.playWithPreroll(1500 - 2980 * 2);
+    expect(mockCtx.createBufferSource.mock.results[0].value.start).toHaveBeenCalledWith(2.23, 0, 10);
+    mockCtx._advanceTime(3);
+    expect(engine.currentTimeMs - 40).toBeCloseTo(1500);
+  });
+
+  it.each(['pause', 'stop', 'dispose'] as const)('무음 예약 후 %s하면 예약 source를 취소·연결 해제하고 시계도 멈춘다', async action => {
+    const engine = new AudioEngine(); engine.loadBuffer(createMockBuffer(10));
+    engine.playWithPreroll(-3000);
+    const source = mockCtx.createBufferSource.mock.results[0].value;
+    mockCtx._advanceTime(1);
+    await engine[action]();
+    const stoppedAt = engine.currentTimeMs;
+    mockCtx._advanceTime(5);
+    expect(source.stop).toHaveBeenCalledOnce();
+    expect(source.disconnect).toHaveBeenCalledOnce();
+    expect(engine.currentTimeMs).toBe(stoppedAt);
+  });
+
+  it('3초 예약을 1500ms 목표의 새 준비로 교체하면 이전 source를 취소하고 새 source 하나만 남긴다', () => {
+    const engine = new AudioEngine(); engine.loadBuffer(createMockBuffer(10));
+    engine.playWithPreroll(-3000);
+    const first = mockCtx.createBufferSource.mock.results[0].value;
+    mockCtx._advanceTime(1);
+    engine.playWithPreroll(-1500);
+    expect(first.stop).toHaveBeenCalledOnce(); expect(first.disconnect).toHaveBeenCalledOnce();
+    expect(mockCtx.createBufferSource.mock.results[1].value.start).toHaveBeenCalledWith(2.5, 0, 10);
+  });
+
+  it('1초 음원 끝 뒤 P=1200부터 준비하면 source 없이 시계만 진행하며 100ms 뒤1300이다', () => {
+    const engine = new AudioEngine(); engine.loadBuffer(createMockBuffer(1));
+    engine.playWithPreroll(1200); mockCtx._advanceTime(0.1);
+    expect(engine.currentTimeMs).toBeCloseTo(1300);
+    expect(mockCtx.createBufferSource).not.toHaveBeenCalled();
+  });
+
+  it('4초 음원·2배속·L₀20ms에서 목표100000은 source 없이 P=94040부터3초 진행해 J=100000이다', () => {
+    const engine = new AudioEngine(); engine.loadBuffer(createMockBuffer(4)); engine.playbackRate = 2;
+    engine.playWithPreroll(94040); mockCtx._advanceTime(2.999);
+    expect(engine.currentTimeMs - 40).toBeCloseTo(99998);
+    mockCtx._advanceTime(0.001);
+    expect(engine.currentTimeMs - 40).toBeCloseTo(100000);
+    expect(mockCtx.createBufferSource).not.toHaveBeenCalled();
+  });
+});

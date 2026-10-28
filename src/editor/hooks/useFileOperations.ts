@@ -305,7 +305,7 @@ export function useFileOperations(
       audioBuffer: playbackRef.current?.audioBufferData ?? null,
       isPlaying: playbackRef.current?.isPlaying ?? false,
       pause: () => playbackRef.current?.pause(),
-      // 원본문서 전체를 검증한다. 새 게임 연결 전까지 명시 main은 거부하고 구형 main만 실행한다.
+      // 원본문서 전체를 검증한다. 명시 main은 새 별도 경로가 소유하고 구형 main은 기존 재생을 보존한다.
       chart,
       currentTimeMs,
       returnUrl: window.location.pathname + window.location.search,
@@ -315,6 +315,7 @@ export function useFileOperations(
         setStartTimeMs: game.setStartTimeMs,
         setEditorReturnUrl: game.setEditorReturnUrl,
         setScreen: game.setScreen,
+        startExplicitPlayTest: game.startExplicitPlayTest,
       },
       addToast,
       closeMenu: () => setShowPlayTestMenu(false),

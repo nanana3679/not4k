@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { mergePersistedSettings, useGameStore } from './gameStore';
+import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
+
+afterEach(() => useGameStore.setState(useGameStore.getInitialState(), true));
 
 describe('mergePersistedSettings', () => {
   it.each([
@@ -175,5 +178,36 @@ describe('gameStore — gearMotion(설정 Gear Motion)', () => {
     const restored = mergePersistedSettings({ settings: { frameMotion: false } }, useGameStore.getInitialState());
     expect(restored.settings).not.toHaveProperty('frameMotion');
     expect(restored.settings.gearMotion).toBe(true);
+  });
+});
+
+describe('명시 테스트 요청의 화면 수명', () => {
+  afterEach(() => useGameStore.setState(useGameStore.getInitialState(), true));
+
+  it('유효한 명시 문서를 요청하면 복제한 테스트 요청과 explicitPlay 화면을 함께 공개한다', () => {
+    const document = structuredClone(explicitPlaytestCharts[0].chart);
+    useGameStore.getState().startExplicitPlayTest({ document, audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/editor?draft=1' });
+    const state = useGameStore.getState();
+    expect(state.screen).toBe('explicitPlay');
+    expect(state.explicitPlay?.document).toEqual(document);
+    expect(state.explicitPlay?.document).not.toBe(document);
+    expect(state.explicitPlay?.returnUrl).toBe('/editor?draft=1');
+    expect(state.lastResult).toBeNull();
+  });
+
+  it('바디 밖 Sustain의 요청이 실패하면 앞선 테스트 요청과 화면 상태를 보존한다', () => {
+    const document = structuredClone(explicitPlaytestCharts[0].chart);
+    useGameStore.getState().startExplicitPlayTest({ document, audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/lab' });
+    const previous = useGameStore.getState();
+    document.notes = document.notes.filter(note => note.type !== 'body');
+    expect(() => previous.startExplicitPlayTest({ document, audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/editor' })).toThrow();
+    expect(useGameStore.getState()).toBe(previous);
+  });
+
+  it('explicitPlay 뒤 곡 선택 화면으로 이동하면 이전 테스트 요청을 해제한다', () => {
+    useGameStore.getState().startExplicitPlayTest({ document: explicitPlaytestCharts[0].chart, audioBuffer: { duration: 4 } as AudioBuffer, returnUrl: '/lab' });
+    useGameStore.getState().setScreen('songSelect');
+    expect(useGameStore.getState().explicitPlay).toBeNull();
+    expect(useGameStore.getState().screen).toBe('songSelect');
   });
 });

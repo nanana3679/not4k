@@ -10,6 +10,7 @@ const FlightBackgroundPreviewLabPage = lazy(() => import('./FlightBackgroundPrev
 const FacilityPassagePreviewLabPage = lazy(() => import('./FacilityPassagePreviewLabPage'));
 const GearPage = lazy(() => import('./GearPage'));
 const ExplicitRendererPage = lazy(() => import('./ExplicitRendererPage'));
+const ExplicitPlaytestPage = lazy(() => import('./ExplicitPlaytestPage'));
 
 /** 옛 Lab 주소를 새 경로로 넘긴다(기록을 바꾸는 이동). 쿼리와 해시는 그대로 둔다. */
 export function LegacyLabRedirect({ to }: { to: string }) {
@@ -37,6 +38,7 @@ export default function LabRoutes() {
       <Route path="note-assets" element={<NoteAssetShowcasePage />} />
       <Route path="rest-zone-lane" element={<RestZoneLanePage />} />
       <Route path="explicit-renderer" element={<ExplicitRendererPage />} />
+      <Route path="explicit-playtest" element={<ExplicitPlaytestPage />} />
     </Routes>
   );
 }

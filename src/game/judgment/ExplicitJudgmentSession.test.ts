@@ -827,3 +827,54 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(makeSession([b(1000, 2000), r(2000, 2)]).snapshot.items).toHaveLength(2);
   });
 });
+
+describe("재개 뒤 늦게 안 준비 hold의 syncHeldKeys 반영", () => {
+  const makeResumable = (notes: Parameters<typeof fixture>[0], startTimeMs: number) =>
+    new ExplicitJudgmentSession(compileExplicitJudgmentChart(fixture(notes).chart), { ...options, startTimeMs });
+
+  it("1000 재개 preheld A로 시작한 바디1000～3000을 1170에 떼고 1180에 레인2 hold B만 맞추면 레인1 유지 기한1190은 그대로라 1220 재입력은 유지1500을 살리지 못함", () => {
+    const session = makeResumable([b(1000, 3000), s(1500)], 1000);
+    session.resumeAt(1000, [{ key: "A", lane: 1 }]);
+    session.processBatch(1170, [up()]);
+    session.advance(1180);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "recovering", maintenanceDeadlineMs: 1190 });
+    session.syncHeldKeys(1180, [{ key: "B", lane: 2 }]);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "recovering", actualStartMs: 1000, maintenanceDeadlineMs: 1190 });
+    session.processBatch(1220, [down()]);
+    expect(session.finalize().score).toMatchObject({ earnedScore: 0, processedNotes: 1 });
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1190 });
+  });
+
+  it("0 재개 preheld A로 시작한 바디0～1000에서 10에 hold를 비우면 10부터 부족이라 재충전 기한120까지 down이 없으면 입력 사실 없이 유지 실패", () => {
+    const session = makeResumable([b(0, 1000), s(500)], 0);
+    session.resumeAt(0, [{ key: "A", lane: 1 }]);
+    session.advance(10);
+    session.syncHeldKeys(10, []);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "recovering", maintenanceSinceMs: 10, maintenanceDeadlineMs: 120 });
+    session.advance(121);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 120 });
+    expect(session.finalize().score).toMatchObject({ earnedScore: 0, processedNotes: 1 });
+    expect(session.facts.filter(fact => fact.kind === "input")).toEqual([]);
+  });
+
+  it("0 재개 hold 없이 대기한 바디0～1000은 10에 hold A를 맞추면 입력 사실 없이 10에 시작하고 유지500을 Perfect로 정산", () => {
+    const session = makeResumable([b(0, 1000), s(500)], 0);
+    session.resumeAt(0, []);
+    session.advance(10);
+    expect(session.snapshot.bodyUnits[0].state).toBe("waiting");
+    session.syncHeldKeys(10, [{ key: "A", lane: 1 }]);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 10 });
+    expect(session.finalize().score).toMatchObject({ earnedScore: 3, judgmentCounts: { perfect: 1 } });
+    expect(session.facts.filter(fact => fact.kind === "input")).toEqual([]);
+  });
+
+  it("core 시각과 같은 hold로 syncHeldKeys하면 사실·바디 상태가 그대로이고 core 시각이 아닌 20에서는 RangeError", () => {
+    const session = makeResumable([b(0, 1000), s(500)], 0);
+    session.resumeAt(0, [{ key: "A", lane: 1 }]);
+    session.advance(10);
+    const before = session.result();
+    session.syncHeldKeys(10, [{ key: "A", lane: 1 }]);
+    expect(session.result()).toEqual(before);
+    expect(() => session.syncHeldKeys(20, [])).toThrow(RangeError);
+  });
+});

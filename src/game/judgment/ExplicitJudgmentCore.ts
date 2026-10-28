@@ -155,6 +155,30 @@ export class ExplicitJudgmentCore {
     this.sweep(atMs, true);
   }
 
+  /**
+   * 재개 hold를 정한 뒤에야 안 hold 변화를 현재 판정 시각에 반영한다. Point·릴리즈 입력으로 처리하지 않는다.
+   * resumeAt과 달리 바디 시작·시작 창·유지 기한을 다시 열지 않고, hold가 바뀐 레인의 hold 기록만 고친다.
+   * 새로 잡힌 키는 시작 창이 이미 열린 대기 몫을 그 시각에 preheld처럼 시작하고, 놓인 키는 그 시각부터 hold 부족이다.
+   */
+  syncHeldKeys(atMs: number, heldKeys: readonly ExplicitHeldKey[]): void {
+    if (!Number.isFinite(atMs) || atMs !== this.clock) throw new RangeError("hold 반영 시각은 현재 판정 시각과 같아야 합니다");
+    this.validateHeldKeys(heldKeys);
+    const laneByKey = new Map(heldKeys.map(({ key, lane }) => [key, lane]));
+    const changedLanes = new Set<number>();
+    for (const [key, lane] of [...this.laneByHeldKey]) if (laneByKey.get(key) !== lane) {
+      this.laneByHeldKey.delete(key); this.holds.up(key, atMs); changedLanes.add(lane);
+    }
+    for (const [key, lane] of laneByKey) if (!this.laneByHeldKey.has(key)) {
+      this.laneByHeldKey.set(key, lane); this.holds.down(key, lane, atMs); changedLanes.add(lane);
+    }
+    for (const lane of changedLanes) this.lastHeldAtByLane.set(lane, Math.max(this.lastHeldAtByLane.get(lane) ?? atMs, atMs));
+    for (const runtime of this.bodies) {
+      if (!changedLanes.has(runtime.body.lane) || runtime.activationStartMs > atMs) continue;
+      for (const unit of runtime.units) this.tryStart(unit, atMs, "preheld", null, this.pointSatisfied(unit));
+    }
+    this.reconcile(atMs, "timeline");
+  }
+
   private validateHeldKeys(keys: readonly ExplicitHeldKey[]): void {
     if (keys.some(key => !key.key || !Number.isInteger(key.lane) || key.lane < 1 || key.lane > 4)
       || new Set(keys.map(key => key.key)).size !== keys.length) throw new RangeError("preheld에는 서로 다른 key와 main lane(1～4)이 필요합니다");

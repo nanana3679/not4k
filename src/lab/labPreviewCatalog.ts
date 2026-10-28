@@ -40,6 +40,13 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
     path: "/lab/explicit-renderer",
   },
   {
+    id: "explicit-playtest",
+    title: "명시 차트 실플레이",
+    description: "새 차트를 처음부터 수동·자동 입력으로 연습하고 실제 판정·정산 수치를 검토합니다.",
+    category: "Gameplay",
+    path: "/lab/explicit-playtest",
+  },
+  {
     id: "rest-zone-lane",
     title: "restZone Lane",
     description: "restZone 동안 레인 판넬이 뒤로 넘어갔다 차트의 추정 녹숫에 맞춰 올라오는 연출과 넘어가 있는 동안의 빗금 판넬을 재생하고, 스크롤 속도·리프트·서든에 따라 다음 노트가 보이는 시점을 비교합니다.",

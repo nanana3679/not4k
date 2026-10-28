@@ -1,6 +1,8 @@
 import { editorChartErrors } from '../documentValidation';
-import { mainNotes, requireLegacyChart } from "../../shared";
+import { isExplicitNote, mainNotes, requireLegacyChart } from "../../shared";
 import type { Chart, ChartDocument } from "../../shared";
+import { compileExplicitJudgmentChart } from '../../game/judgment/explicitCompiledChart';
+import type { ExplicitPlayTestOptions } from '../../game/stores/explicitPlayRequest';
 
 export interface PlayTestGameActions {
   setChartData: (chart: Chart | null) => void;
@@ -8,6 +10,8 @@ export interface PlayTestGameActions {
   setStartTimeMs: (ms: number) => void;
   setEditorReturnUrl: (url: string | null) => void;
   setScreen: (screen: "play") => void;
+  /** 구형 전용 시연 콜러는 이 포트 없이 기존 재생만 사용할 수 있다. */
+  startExplicitPlayTest?: (options: ExplicitPlayTestOptions) => void;
 }
 
 export interface PerformPlayTestParams {
@@ -51,7 +55,27 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
     return false;
   }
 
-  // 새 게임 연결 전까지 구형 main만 실행한다. 위에서 검증한 보조 노트는 실행하지 않는다.
+  const hasExplicitMain = mainNotes(chart.notes).some(isExplicitNote);
+  if (hasExplicitMain) {
+    if (!game.startExplicitPlayTest) {
+      addToast('명시적 노트의 테스트 플레이는 새 게임 연결 후 사용할 수 있습니다', 'error');
+      return false;
+    }
+    try {
+      // 원본문서 전체를 검사한다. legacy main을 걸러내거나 aux의 의미 위반을 숨기지 않는다.
+      compileExplicitJudgmentChart(chart);
+      // 처음부터 시작은 시작 시각을 넘기지 않아 0 앞 항목도 일반 재생처럼 포함한다.
+      game.startExplicitPlayTest({ document: chart, audioBuffer, returnUrl, ...(fromCursor ? { startTimeMs: currentTimeMs } : {}) });
+    } catch (reason) {
+      addToast(reason instanceof Error ? reason.message : '명시 차트를 재생할 수 없습니다', 'error');
+      return false;
+    }
+    if (isPlaying) pause();
+    closeMenu(); navigate();
+    return true;
+  }
+
+  // 구형 main은 기존 경로를 보존한다. 보조 노트는 실행하지 않는다.
   let playableChart: Chart;
   try {
     playableChart = requireLegacyChart({ ...chart, notes: mainNotes(chart.notes) }, "현재 테스트 플레이");
