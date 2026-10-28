@@ -241,7 +241,7 @@ hold 수가 부족한 짧은 공백의 유지 실패를 보호하는 시간이�
 _Avoid_: Grace 노트
 
 **종속 0점**:
-바디 실패로 기회를 잃은 미처리 릴리즈·유지 항목의 원래 가중치를 0점으로 한 번 정산하는 처리다. 추가 Miss 효과는 없지만 실패 표시는 남는다([glossary](docs/context/glossary.md#점수-항목과-무점수-miss)).
+바디 실패로 기회를 잃은 미처리 릴리즈·틱 노트 항목의 원래 가중치를 0점으로 한 번 정산하는 처리다. 추가 Miss 효과는 없지만 실패 표시는 남는다([glossary](docs/context/glossary.md#점수-항목과-무점수-miss)).
 _Avoid_: 새 Miss, 기회 복구
 
 **Good◇**:

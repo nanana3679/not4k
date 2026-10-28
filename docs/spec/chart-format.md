@@ -17,7 +17,7 @@
 | 구형 `PointNote` | `type: "single" \| "double" \| "trill"`, `lane`, `beat` | 기존 `grace` 보존 |
 | 구형 `RangeNote` | `type: "long" \| "doubleLong" \| "trillLong"`, `lane`, `beat`, `endBeat` | 기존 `holdOnly` 의미 보존 |
 
-`BodyNote.holdCount`와 `ReleaseNote.count`는 독립적이며 저장 과정에서 서로 맞추지 않는다. 유지의 소속 ID는 저장하지 않는다. 명시 타입은 구형 타입으로 이름만 바꿔 내보내지 않는다.
+`BodyNote.holdCount`와 `ReleaseNote.count`는 독립적이며 저장 과정에서 서로 맞추지 않는다. 틱 노트의 소속 ID는 저장하지 않는다. 명시 타입은 구형 타입으로 이름만 바꿔 내보내지 않는다.
 
 ## 버전 읽기와 쓰기
 
@@ -36,7 +36,7 @@
 
 `serializeChart`·`chartToJson`은 문서의 지원 항목을 저장한다. `deserializeChartDocument`·`chartDocumentFromJson`은 신형·혼합을 포함하는 문서를 읽는다. 기존 `deserializeChart`·`chartFromJson`은 구형 전용 `Chart` 소비자를 위한 경계이며 명시 항목이 있으면 지원 불가로 거부한다. 새 reader 결과를 구형 타입으로 캐스트해 이 검사를 우회하지 않는다.
 
-미지원 필드는 위치에 따라 다르게 다룬다. 노트 항목은 엄격하게 읽어 미지원 필드(유지의 `grace`, 구형 롱노트의 `holdCount` 등)를 버리지 않고 형식 오류로 거부한다. 최상위·`trillZones`·`restZones`·`events` 항목과 보조 파일 최상위의 미지원 필드는 읽기를 막지 않지만 저장에서 보존하지 않는다. `meta` 객체는 읽은 그대로 저장한다. 박 문자열 오류와 항목 모양 오류를 포함한 읽기 오류는 모두 `ChartFormatError`로 전달하며, 지원하지 않는 명시 내용은 그 하위 클래스 `UnsupportedChartContentError`다.
+미지원 필드는 위치에 따라 다르게 다룬다. 노트 항목은 엄격하게 읽어 미지원 필드(틱 노트의 `grace`, 구형 롱노트의 `holdCount` 등)를 버리지 않고 형식 오류로 거부한다. 최상위·`trillZones`·`restZones`·`events` 항목과 보조 파일 최상위의 미지원 필드는 읽기를 막지 않지만 저장에서 보존하지 않는다. `meta` 객체는 읽은 그대로 저장한다. 박 문자열 오류와 항목 모양 오류를 포함한 읽기 오류는 모두 `ChartFormatError`로 전달하며, 지원하지 않는 명시 내용은 그 하위 클래스 `UnsupportedChartContentError`다.
 
 ## 메인과 보조 파일
 
@@ -50,7 +50,7 @@
 
 ## 수리와 변경 비교
 
-파서는 지원하는 구조를 복원하고 의미 위반 위치도 보존한다. 바디 밖 유지·바디 내부 릴리즈·동일 위치 의미 중첩처럼 수리할 수 있는 배치를 파싱 중 삭제하거나 자동 수정하지 않는다. `trillZone` 안의 명시 릴리즈도 파서는 보존하되 [RFD 0038](../rfd/0038-release-notes-in-trill-zones.md)의 배치 금지는 의미 검증에서 적용한다. C2의 `validateChartDocument`는 구조·의미 오류와 구형 내용의 실행 비호환을 분리한다. `canSave`는 실제 구조·의미 위반만, `canPlayExplicit`는 실행 비호환도 검사한다. 에디터 저장과 새 재생 진입은 이 결과를 소비한다([에디터 계약](chart-editor.md#미리보기확정선택-해제와-검증)).
+파서는 지원하는 구조를 복원하고 의미 위반 위치도 보존한다. 바디 밖 틱 노트·바디 내부 릴리즈·동일 위치 의미 중첩처럼 수리할 수 있는 배치를 파싱 중 삭제하거나 자동 수정하지 않는다. `trillZone` 안의 명시 릴리즈도 파서는 보존하되 [RFD 0038](../rfd/0038-release-notes-in-trill-zones.md)의 배치 금지는 의미 검증에서 적용한다. C2의 `validateChartDocument`는 구조·의미 오류와 구형 내용의 실행 비호환을 분리한다. `canSave`는 실제 구조·의미 위반만, `canPlayExplicit`는 실행 비호환도 검사한다. 에디터 저장과 새 재생 진입은 이 결과를 소비한다([에디터 계약](chart-editor.md#미리보기확정선택-해제와-검증)).
 
 dirty 비교는 저장과 같은 항목·속성·수량·메타데이터·보조 레인 수를 포함한다. 의미 위반이 있어도 비교 가능한 표현을 만들며, 저장 검증 실패를 이유로 해당 항목을 직렬화나 비교에서 빼지 않는다. 구형만 있는 기존 문서는 정규 출력과 배열 상대 순서를 유지해 의미 없는 dirty 변화를 피한다. 원본 JSON의 공백까지 같은 것은 요구하지 않는다.
 
