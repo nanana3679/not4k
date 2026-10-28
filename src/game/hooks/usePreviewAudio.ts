@@ -30,7 +30,7 @@ export function usePreviewAudio(
     masterVolumeRef.current = masterVolume;
     const el = audioRef.current;
     if (!el) return;
-    // timeupdate 콜백이 다음 틱에서 최신 masterVolumeRef를 참조하므로
+    // 다음 timeupdate 콜백에서 최신 masterVolumeRef를 참조하므로
     // 즉시 반영을 위해 현재 볼륨을 BASE_VOL 비율로 스케일링
     const BASE_VOL = 0.4 * masterVolume;
     // 페이드 중일 수 있으므로 최대 BASE_VOL로 클램핑
