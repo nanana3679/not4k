@@ -79,6 +79,12 @@ export interface OpenEditorOptions {
    * `convert`는 모달이 떠야 하며 "변환"을 누른 뒤 결과 화면을 닫는다. `manual`은 모달을 그대로 두어 spec이 직접 다룬다.
    */
   legacyConversion?: 'decline' | 'convert' | 'manual';
+  /**
+   * 타임라인 렌더러 초기화를 이 시간(ms)만큼 늦춘다. 렌더러가 처음 부르는 pixi.js/unsafe-eval 청크 응답을 늦추는 방식이다.
+   * 주면 렌더러 준비를 기다리지 않고 canvas가 보이면 바로 돌아온다. 준비 전의 조작을 확인하는 spec이 쓰고,
+   * 끝나기 전에 `waitForTimelineReady`로 준비를 기다려야 한다. `legacyConversion`은 `manual`이어야 한다.
+   */
+  rendererInitDelayMs?: number;
 }
 
 /** 구형 노트가 있는 차트를 새로 열 때 뜨는 변환 모달(변환 전). */
@@ -149,6 +155,15 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     });
   });
 
+  if (options.rendererInitDelayMs !== undefined) {
+    if (options.legacyConversion !== 'manual') throw new Error('rendererInitDelayMs는 legacyConversion: manual과 함께 쓴다');
+    const delayMs = options.rendererInitDelayMs;
+    await page.route((url) => url.origin === appOrigin && url.pathname.includes('unsafe-eval'), async (route) => {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await route.continue();
+    });
+  }
+
   await page.goto(`/editor?songId=${EDITOR_TEST_SONG_ID}&difficulty=${EDITOR_TEST_DIFFICULTY}`);
   const timeline = page.locator('canvas').first();
   const accessDenied = page.getByRole('heading', { name: 'Access Denied', exact: true });
@@ -166,15 +181,8 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     const errorText = (await loadError.locator('xpath=..').innerText()).replace(/\s*\n\s*/g, ' / ');
     throw new Error(`에디터가 Error 화면을 보였다(${errorText}). mock 응답을 정하지 않은 Supabase 요청: ${unexpectedSupabaseRequests.join(', ') || '없음'}`);
   }
-  await expect.poll(
-    () => page.evaluate(() => (globalThis as { __e2ePixiTickerStopped?: boolean }).__e2ePixiTickerStopped === true),
-    { message: '타임라인 PIXI ticker를 멈추지 못했다. pixi.js의 __PIXI_APP_INIT__ hook이 바뀌었는지 확인할 것', timeout: 15_000 },
-  ).toBe(true);
-  await expect.poll(() => page.evaluate(async () => {
-    const storePath = '/src/editor/stores/editorStore.ts';
-    const { useEditorStore } = await import(storePath);
-    return useEditorStore.getState().timelineRangeMs !== null;
-  }), { timeout: 15_000, message: '도안을 포함한 타임라인 초기화가 끝나지 않았다' }).toBe(true);
+  if (options.rendererInitDelayMs !== undefined) return { supabaseWrites, unexpectedSupabaseRequests };
+  await waitForTimelineReady(page);
   if (audio) {
     // 첫 음원을 불러오는 동안에는 화면 전체를 덮는 로딩 표시가 입력을 막는다.
     await expect(page.getByRole('status').filter({ hasText: 'Loading audio...' })).toBeHidden({ timeout: 15_000 });
@@ -193,6 +201,19 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     await expect(result).toBeHidden();
   }
   return { supabaseWrites, unexpectedSupabaseRequests };
+}
+
+/** 타임라인 PIXI ticker를 멈추고 렌더러 초기화(타임라인 범위 설정)까지 끝나기를 기다린다. */
+export async function waitForTimelineReady(page: Page, timeout = 15_000): Promise<void> {
+  await expect.poll(
+    () => page.evaluate(() => (globalThis as { __e2ePixiTickerStopped?: boolean }).__e2ePixiTickerStopped === true),
+    { message: '타임라인 PIXI ticker를 멈추지 못했다. pixi.js의 __PIXI_APP_INIT__ hook이 바뀌었는지 확인할 것', timeout },
+  ).toBe(true);
+  await expect.poll(() => page.evaluate(async () => {
+    const storePath = '/src/editor/stores/editorStore.ts';
+    const { useEditorStore } = await import(storePath);
+    return useEditorStore.getState().timelineRangeMs !== null;
+  }), { timeout, message: '도안을 포함한 타임라인 초기화가 끝나지 않았다' }).toBe(true);
 }
 
 /** Storage 업로드(multipart/form-data) 본문에서 파일 부분을 JSON으로 읽는다. */

@@ -7,11 +7,28 @@
 
 import type { Beat } from "../shared/types/beat";
 import { BEAT_ZERO, beatEq, beatGt, beatLt, beatSub, beatToString } from "../shared/types/beat";
-import type { ChartEvent, DocumentNoteEntity } from "../shared/types/chart";
+import type { ChartDocument, ChartEvent, DocumentNoteEntity } from "../shared/types/chart";
 import type { LegacyConversionItem, LegacyConversionReport } from "../shared/chart";
-import { isAuxLane, toAuxIndex } from "../shared/chart/laneAxis";
+import { convertLegacyChart, hasLegacyNotes } from "../shared/chart/legacyConversion";
+import { isAuxLane, isVisibleLane, toAuxIndex } from "../shared/chart/laneAxis";
 import { extractTimeSignatures, measureStartBeat } from "../shared/timing";
-import { violationLabel } from "../shared/validation";
+import { validateChartDocumentStructural, violationLabel } from "../shared/validation";
+
+/** 변환 모달이 보이는 화면. 변환 전(`offer`)과 변환 뒤 결과(`result`)가 같은 모달을 쓴다. */
+export type LegacyConversionDialog =
+  /** 변환 전. `structuralErrorCount`가 있으면 변환 결과를 setChart가 거부하므로 변환을 막는다. */
+  | { phase: "offer"; report: LegacyConversionReport; structuralErrorCount: number }
+  | { phase: "result"; report: LegacyConversionReport };
+
+/**
+ * 차트를 새로 열 때 보일 변환 전 화면. 개수는 같은 순수 함수의 dry-run이다.
+ * 지금 차트에 구형 노트가 없으면(이미 변환했거나 처음부터 신형) 개수가 모두 0인 화면 대신 null이다.
+ */
+export function legacyConversionOfferFor(chart: ChartDocument): LegacyConversionDialog | null {
+  if (!hasLegacyNotes(chart.notes)) return null;
+  const dryRun = convertLegacyChart(chart);
+  return { phase: "offer", report: dryRun.report, structuralErrorCount: validateChartDocumentStructural(dryRun.chart).length };
+}
 
 /** 변환 전 모달과 결과 화면의 개수 줄. 합친 연결·사슬 끝 holdOnly 손실은 넣지 않는다. */
 export function formatLegacyConversionCounts(report: LegacyConversionReport): string {
@@ -68,7 +85,9 @@ export function describeLegacyConversionItem(item: LegacyConversionItem): string
   let text: string;
   if (item.kind === "holdCountChangeConnection") {
     const direction = item.predecessorHoldCount < item.successorHoldCount ? "증가" : "감소";
-    text = `${direction} 연결 ${item.predecessorHoldCount}→${item.successorHoldCount} · 경계 비움`;
+    // 경계에 head(탭 노트)가 있으면 변환 뒤에도 그 탭 노트가 남는다. 없으면 경계에 아무 노트도 더하지 않는다.
+    const boundary = item.hasHead ? "경계에 탭 노트 유지" : "경계 비움";
+    text = `${direction} 연결 ${item.predecessorHoldCount}→${item.successorHoldCount} · ${boundary}`;
     if (item.predecessorHoldOnly) text += " · 앞 끝 holdOnly";
   } else if (item.kind === "violationBeforeConversion") {
     text = `변환 전 위반: ${violationLabel(item.rule)} (${item.rule})`;
@@ -114,4 +133,14 @@ export function formatLegacyConversionReviewText(rows: readonly LegacyConversion
 export function noteIndicesAtPosition(notes: readonly DocumentNoteEntity[], lane: number, at: Beat): number[] {
   return notes.flatMap((note, index) => note.lane === lane
     && (beatEq(note.beat, at) || ("endBeat" in note && beatEq(note.endBeat, at))) ? [index] : []);
+}
+
+/**
+ * 검토 행의 레인이 지금 보조 레인 수 밖이라 화면에 없으면 그 안내 문구, 보이면 null.
+ * 숨은 노트는 선택하지 않는다(보이지 않는 노트를 삭제·이동하지 않게). 보조 레인 수는 차트 자료라 자동으로 늘리지 않는다.
+ */
+export function hiddenReviewLaneMessage(lane: number, extraLaneCount: number): string | null {
+  if (isVisibleLane(lane, extraLaneCount)) return null;
+  const auxLane = toAuxIndex(lane);
+  return `숨은 보조 레인 ${auxLane}의 항목이라 노트를 선택하지 않았습니다. Extra lanes를 ${auxLane} 이상으로 늘리면 보입니다`;
 }

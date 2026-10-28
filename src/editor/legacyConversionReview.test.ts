@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { beat } from "../shared/types/beat";
-import type { ChartEvent, DocumentNoteEntity } from "../shared/types/chart";
+import type { ChartDocument, ChartEvent, DocumentNoteEntity } from "../shared/types/chart";
 import type { LegacyConversionItem, LegacyConversionReport } from "../shared/chart";
 import {
   buildLegacyConversionReviewRows,
@@ -9,6 +9,8 @@ import {
   formatLegacyConversionReviewText,
   formatMeasureBeat,
   formatReviewLane,
+  hiddenReviewLaneMessage,
+  legacyConversionOfferFor,
   noteIndicesAtPosition,
 } from "./legacyConversionReview";
 
@@ -93,9 +95,19 @@ describe("describeLegacyConversionItem", () => {
     expect(describeLegacyConversionItem(decrease)).toBe("감소 연결 2→1 · 경계 비움 · 옮기지 못한 구형 점수 항목 1개");
   });
 
-  it("앞 끝이 holdOnly인 1→2 증가 연결은 'holdOnly 끝'을 덧붙이고 손실 0개면 손실 문구를 붙이지 않는다", () => {
+  it("앞 끝이 holdOnly인 1→2 증가 연결은 ' · 앞 끝 holdOnly'를 덧붙이고 손실 0개면 손실 문구를 붙이지 않는다", () => {
     expect(describeLegacyConversionItem({ ...decrease, predecessorHoldCount: 1, successorHoldCount: 2, predecessorHoldOnly: true,
       legacyItemCount: 0 })).toBe("증가 연결 1→2 · 경계 비움 · 앞 끝 holdOnly");
+  });
+
+  it("경계에 head가 있는(hasHead) 2→1 감소 연결은 '경계 비움' 대신 '경계에 탭 노트 유지'로 적는다", () => {
+    expect(describeLegacyConversionItem({ ...decrease, hasHead: true }))
+      .toBe("감소 연결 2→1 · 경계에 탭 노트 유지 · 옮기지 못한 구형 점수 항목 1개");
+  });
+
+  it("경계에 head가 있고 앞 끝이 holdOnly인 1→2 증가 연결은 '경계에 탭 노트 유지 · 앞 끝 holdOnly'로 적는다", () => {
+    expect(describeLegacyConversionItem({ ...decrease, predecessorHoldCount: 1, successorHoldCount: 2, hasHead: true,
+      predecessorHoldOnly: true, legacyItemCount: 0 })).toBe("증가 연결 1→2 · 경계에 탭 노트 유지 · 앞 끝 holdOnly");
   });
 
   it("변환 전 위반은 라벨과 rule id를 함께 적는다", () => {
@@ -164,5 +176,48 @@ describe("noteIndicesAtPosition", () => {
 
   it("편집으로 그 위치의 노트가 사라졌으면 빈 배열", () => {
     expect(noteIndicesAtPosition(notes, 1, beat(6))).toEqual([]);
+  });
+});
+
+describe("hiddenReviewLaneMessage", () => {
+  it("보조 레인 수 2에서 통합 레인 7(보조 레인 3) 행은 숨은 레인이라 노트를 선택하지 않고 Extra lanes를 3 이상으로 늘리라고 안내한다", () => {
+    expect(hiddenReviewLaneMessage(7, 2))
+      .toBe("숨은 보조 레인 3의 항목이라 노트를 선택하지 않았습니다. Extra lanes를 3 이상으로 늘리면 보입니다");
+  });
+
+  it("보조 레인 수 3이면 통합 레인 7(보조 레인 3)은 보이므로 안내가 없다(null)", () => {
+    expect(hiddenReviewLaneMessage(7, 3)).toBeNull();
+  });
+
+  it("메인 레인 4는 보조 레인 수 0이어도 보이므로 안내가 없다(null)", () => {
+    expect(hiddenReviewLaneMessage(4, 0)).toBeNull();
+  });
+});
+
+describe("legacyConversionOfferFor", () => {
+  const chartWith = (notes: DocumentNoteEntity[]): ChartDocument => ({
+    meta: { title: "곡", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1, imageFile: "", audioFile: "",
+      previewAudioFile: "", offsetMs: 0 },
+    notes,
+    trillZones: [],
+    restZones: [],
+    events: fourFour,
+  });
+
+  it("구형 single·long이 있으면 dry-run 개수(탭 1·바디 1·릴리즈 1)와 구조 위반 0건을 담은 변환 전 화면을 만든다", () => {
+    const offer = legacyConversionOfferFor(chartWith([
+      { type: "single", lane: 1, beat: beat(0) },
+      { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
+    ]));
+    expect(offer).toMatchObject({ phase: "offer", structuralErrorCount: 0,
+      report: { counts: { taps: 1, bodies: 1, releases: 1, ticks: 0 } } });
+  });
+
+  it("구형 노트가 없는(이미 변환한) 차트는 개수가 모두 0인 화면 대신 null을 돌려 모달을 띄우지 않는다", () => {
+    expect(legacyConversionOfferFor(chartWith([
+      { type: "tap", kind: "single", lane: 1, beat: beat(0) },
+      { type: "body", lane: 1, beat: beat(0), endBeat: beat(2), holdCount: 1 },
+      { type: "release", lane: 1, beat: beat(2), count: 1 },
+    ]))).toBeNull();
   });
 });
