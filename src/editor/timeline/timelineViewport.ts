@@ -105,6 +105,25 @@ export function clampHorizontalPan(input: {
   return Math.max(0, Math.min(maxPanX, input.requestedPanX));
 }
 
+/**
+ * 타임라인 x 구간 [left, right)이 가로로 보이게 하는 팬 요청값. 이미 보이면 지금 팬을 그대로 돌려주고,
+ * 왼쪽으로 벗어나면 왼쪽 끝을, 오른쪽으로 벗어나면 오른쪽 끝을 보이는 영역 가장자리에 맞춘다.
+ * 구간이 보이는 폭보다 넓으면 왼쪽 끝을 맞춘다. 범위 보정은 clampHorizontalPan이 한다.
+ */
+export function panToRevealRange(input: {
+  left: number;
+  right: number;
+  panX: number;
+  viewportWidth: number;
+  leftRailWidth: number;
+  rightRailWidth?: number;
+}): number {
+  const visibleWidth = Math.max(0, input.viewportWidth - input.leftRailWidth - (input.rightRailWidth ?? 0));
+  if (input.left < input.panX || input.right - input.left > visibleWidth) return input.left;
+  if (input.right > input.panX + visibleWidth) return input.right - visibleWidth;
+  return input.panX;
+}
+
 export function isPlaybackCursorSeekArea(input: {
   screenX: number;
   timelineX: number;

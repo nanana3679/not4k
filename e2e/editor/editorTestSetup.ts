@@ -12,6 +12,9 @@
  * 관리자 권한은 개발 서버의 관리자 우회(`.env.local`의 `VITE_DEV_ADMIN=true`,
  * src/shared/hooks/useAuth.ts)에 기댄다. 우회가 꺼져 Access Denied가 보이면 원인을 적은 오류로 바로 실패한다.
  *
+ * 구형 노트가 있는 차트를 열면 에디터가 1차 기계 변환을 묻는 모달을 띄운다(RFD 0037 §8-1). 기존 spec이 구형 동작을
+ * 그대로 확인하도록 이 도우미는 기본으로 "구형 그대로 열기"를 누른다. `legacyConversion`으로 변환하거나 모달을 그대로 둘 수 있다.
+ *
  * 타임라인 PIXI Application은 ticker(autoStart)로 유휴 중에도 렌더 프레임마다 다시 그린다. E2E의 SwiftShader에서는
  * 이 프레임이 GPU 프로세스에 밀려 쌓여, 페이지를 닫을 때 브라우저가 수십 초 멈추고 다음 테스트의 context 생성이
  * 시간 초과된다. 그래서 이 도우미는 ticker를 멈춘다. 차트·선택·뷰포트가 바뀌면 에디터가 `app.render()`를 직접 불러
@@ -71,7 +74,17 @@ export interface OpenEditorOptions {
   expectedLoadState?: 'timeline' | 'error';
   /** true면 곡에 음원(`EDITOR_TEST_AUDIO_FILE`)이 있어 진입할 때 함께 불러온다. */
   audio?: boolean;
+  /**
+   * 구형 차트 변환 모달 처리. 기본 `decline`은 모달이 뜨면 "구형 그대로 열기"를 눌러 구형 그대로 연다(뜨지 않으면 아무것도 안 함).
+   * `convert`는 모달이 떠야 하며 "변환"을 누른 뒤 결과 화면을 닫는다. `manual`은 모달을 그대로 두어 spec이 직접 다룬다.
+   */
+  legacyConversion?: 'decline' | 'convert' | 'manual';
 }
+
+/** 구형 노트가 있는 차트를 새로 열 때 뜨는 변환 모달(변환 전). */
+export const legacyConversionOffer = (page: Page) => page.getByRole('dialog', { name: '구형 차트 변환', exact: true });
+/** 변환 뒤 같은 모달의 결과 화면. */
+export const legacyConversionResult = (page: Page) => page.getByRole('dialog', { name: '변환 완료', exact: true });
 
 export async function openEditor(page: Page, options: OpenEditorOptions = {}): Promise<OpenedEditor> {
   const chart = options.chart ?? editorTestChart();
@@ -165,6 +178,19 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
   if (audio) {
     // 첫 음원을 불러오는 동안에는 화면 전체를 덮는 로딩 표시가 입력을 막는다.
     await expect(page.getByRole('status').filter({ hasText: 'Loading audio...' })).toBeHidden({ timeout: 15_000 });
+  }
+  // 변환 모달은 타임라인 canvas와 같은 렌더에 나타나므로 여기서 보이는지 바로 판단할 수 있다.
+  const legacyConversion = options.legacyConversion ?? 'decline';
+  const offer = legacyConversionOffer(page);
+  if (legacyConversion === 'decline' && await offer.isVisible()) {
+    await offer.getByRole('button', { name: '구형 그대로 열기', exact: true }).click();
+    await expect(offer).toBeHidden();
+  } else if (legacyConversion === 'convert') {
+    await expect(offer, '구형 노트가 있는 차트인데 변환 모달이 뜨지 않았다').toBeVisible();
+    await offer.getByRole('button', { name: '변환', exact: true }).click();
+    const result = legacyConversionResult(page);
+    await result.getByRole('button', { name: '닫기', exact: true }).click();
+    await expect(result).toBeHidden();
   }
   return { supabaseWrites, unexpectedSupabaseRequests };
 }

@@ -14,16 +14,20 @@ import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
 import { normalizePlaybackRange, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
+import { beatToMs, convertLegacyChart, hasLegacyNotes, validateChartDocumentStructural } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex } from '../shared';
 import { supabase } from '../supabase';
 import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
-import type { PlaybackRange, ValidationError } from '../shared';
+import type { LegacyConversionItem, PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
 import { MarkerEditModal } from './components/MarkerEditModal';
 import { MetaEditModal } from './components/MetaEditModal';
 import { CustomSnapModal } from './components/CustomSnapModal';
 import { SaveAsModal } from './components/SaveAsModal';
+import { LegacyConversionModal, type LegacyConversionDialog } from './components/LegacyConversionModal';
+import { LegacyConversionReviewPanel } from './components/LegacyConversionReviewPanel';
+import { buildLegacyConversionReviewRows, formatLegacyConversionReviewText, noteIndicesAtPosition } from './legacyConversionReview';
 import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
 import { useTimelineSpace } from './hooks/useTimelineSpace';
@@ -97,6 +101,9 @@ export default function EditorApp() {
 
   const [chartLoading, setChartLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 새로 불러온 차트에 구형 노트가 있으면 에디터가 열릴 때 변환을 묻는다(RFD 0037 §8-1).
+  // 테스트 플레이에서 돌아오는 경로(이미 불러온 곡)는 묻지 않는다.
+  const [offerLegacyConversion, setOfferLegacyConversion] = useState(false);
   const initRef = useRef(false);
 
   // Parse URL parameters
@@ -153,6 +160,7 @@ export default function EditorApp() {
         loaded.setSavedChartJson(toSavedChartJson(loaded.chart, loaded.extraLaneCount));
         setActiveSongId(songId);
         resetHistory();
+        setOfferLegacyConversion(hasLegacyNotes(merged.notes));
 
         // Fetch audio URL from songs table
         return supabase.from('songs').select('audio_url').eq('id', songId).single();
@@ -209,14 +217,14 @@ export default function EditorApp() {
     );
   }
 
-  return <ChartEditorPage />;
+  return <ChartEditorPage offerLegacyConversion={offerLegacyConversion} />;
 }
 
 // ---------------------------------------------------------------------------
 // Chart Editor Page — 추출된 훅/컴포넌트로 조합
 // ---------------------------------------------------------------------------
 
-function ChartEditorPage() {
+function ChartEditorPage({ offerLegacyConversion }: { offerLegacyConversion: boolean }) {
   const chart = useEditorStore((s) => s.chart);
   const playTestNavigate = useNavigate();
   // Imperative refs
@@ -256,6 +264,13 @@ function ChartEditorPage() {
   const [pendingJacketFile, setPendingJacketFile] = useState<File | null>(null);
   const [pendingAudioFile, setPendingAudioFile] = useState<File | null>(null);
   const [jacketCacheBust, setJacketCacheBust] = useState(0);
+  // 구형 차트 변환 모달(RFD 0037 §8-1). 불러올 때 store의 savedChartJson을 구형 차트로 정했으므로 변환하면 dirty가 된다.
+  // 변환 전 개수는 같은 순수 함수의 dry-run이다.
+  const [legacyConversionDialog, setLegacyConversionDialog] = useState<LegacyConversionDialog | null>(() => {
+    if (!offerLegacyConversion) return null;
+    const dryRun = convertLegacyChart(chart);
+    return { phase: 'offer', report: dryRun.report, structuralErrorCount: validateChartDocumentStructural(dryRun.chart).length };
+  });
 
   // Store 상태
   const scrollY = useEditorStore((s) => s.scrollY);
@@ -279,6 +294,9 @@ function ChartEditorPage() {
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const mode = useEditorStore((s) => s.mode);
+  const legacyConversionReview = useEditorStore((s) => s.legacyConversionReview);
+  const legacyConversionReviewOpen = useEditorStore((s) => s.legacyConversionReviewOpen);
+  const setLegacyConversionReviewOpen = useEditorStore((s) => s.setLegacyConversionReviewOpen);
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // TimelineSpace deep module — 좌표 변환 / 히트테스트
@@ -382,7 +400,45 @@ function ChartEditorPage() {
     editingMarker, showMetaModal, showCustomSnapModal,
     showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar,
     validationErrors.length,
+    legacyConversionDialog !== null,
   );
+
+  // 변환 검토 목록 — 행의 마디·박 표시는 지금 차트의 박자표를 따른다.
+  const conversionReviewRows = useMemo(
+    () => legacyConversionReview ? buildLegacyConversionReviewRows(legacyConversionReview, chart.events) : [],
+    [legacyConversionReview, chart.events],
+  );
+  const conversionReviewText = useMemo(
+    () => formatLegacyConversionReviewText(conversionReviewRows, `${chart.meta.title} ${chart.meta.difficultyLabel}`),
+    [conversionReviewRows, chart.meta.title, chart.meta.difficultyLabel],
+  );
+  const showConversionReview = legacyConversionReviewOpen && conversionReviewRows.length > 0;
+
+  const handleLegacyConvert = useCallback(() => {
+    const report = useEditorStore.getState().applyLegacyConversion();
+    // 구조 위반으로 거부되면 setChart의 토스트가 이유를 알린다. 구형 그대로 연 것과 같다.
+    setLegacyConversionDialog(report ? { phase: 'result', report } : null);
+  }, []);
+
+  // 검토 행의 위치(레인·박)로 이동한다. index는 편집하면 바뀌므로 지금 차트에서 위치로 노트를 다시 찾는다.
+  const goToConversionReviewItem = useCallback((item: LegacyConversionItem) => {
+    const store = useEditorStore.getState();
+    const timeMs = beatToMs(item.beat, space.getBpmMarkers(), store.chart.meta.offsetMs);
+    playbackRef.current?.seekTo(timeMs);
+    const renderer = rendererRef.current;
+    if (renderer) {
+      const viewportHeight = canvasContainerRef.current?.clientHeight ?? canvasSize.height;
+      store.setScrollY(renderer.timeToY(timeMs) - viewportHeight / 2);
+      renderer.revealLane(item.lane);
+    }
+    // 선택은 Select 모드의 이동·삭제·속성 조작 대상이다.
+    store.setMode('select');
+    store.setSelection({
+      notes: new Set(noteIndicesAtPosition(store.chart.notes, item.lane, item.beat)),
+      zones: new Set(),
+      restZones: new Set(),
+    });
+  }, [space, canvasSize.height]);
 
   // C 키 홀드 추적
   useEffect(() => {
@@ -767,21 +823,47 @@ function ChartEditorPage() {
         onOpenCustomSnap={() => setShowCustomSnapModal(true)}
       />
 
-      {/* 캔버스 */}
-      <div ref={canvasContainerRef} style={styles.canvasContainer}>
-        {audioLoadingSurface === 'overlay' && <OverlayLoading message="Loading audio..." />}
-        <canvas
-          ref={canvasRef}
-          style={styles.canvas}
-          onPointerDown={canvasEvents.handlePointerDown}
-          onPointerMove={canvasEvents.handlePointerMove}
-          onPointerUp={canvasEvents.handlePointerUp}
-          onPointerCancel={canvasEvents.handlePointerCancel}
-          onPointerLeave={canvasEvents.handlePointerLeave}
-          onDoubleClick={canvasEvents.handleDoubleClick}
-          onContextMenu={canvasEvents.handleContextMenu}
-        />
+      {/* 캔버스 + 변환 검토 목록(데스크톱은 오른쪽 열, 좁은 화면·터치는 아래 칸) */}
+      <div style={{ ...styles.workArea, flexDirection: compactEditor ? 'column' : 'row' }}>
+        <div ref={canvasContainerRef} style={styles.canvasContainer}>
+          {audioLoadingSurface === 'overlay' && <OverlayLoading message="Loading audio..." />}
+          <canvas
+            ref={canvasRef}
+            style={styles.canvas}
+            onPointerDown={canvasEvents.handlePointerDown}
+            onPointerMove={canvasEvents.handlePointerMove}
+            onPointerUp={canvasEvents.handlePointerUp}
+            onPointerCancel={canvasEvents.handlePointerCancel}
+            onPointerLeave={canvasEvents.handlePointerLeave}
+            onDoubleClick={canvasEvents.handleDoubleClick}
+            onContextMenu={canvasEvents.handleContextMenu}
+          />
+        </div>
+        {showConversionReview && (
+          <LegacyConversionReviewPanel
+            compact={compactEditor}
+            rows={conversionReviewRows}
+            copyText={conversionReviewText}
+            onSelect={goToConversionReviewItem}
+            onCopyResult={(copied) => addToast(copied ? '변환 검토 목록을 복사했습니다' : '클립보드에 복사하지 못했습니다', copied ? 'info' : 'error')}
+            onClose={() => setLegacyConversionReviewOpen(false)}
+          />
+        )}
       </div>
+
+      {/* 구형 차트 변환 모달 */}
+      {legacyConversionDialog && (
+        <LegacyConversionModal
+          dialog={legacyConversionDialog}
+          onConvert={handleLegacyConvert}
+          onDecline={() => setLegacyConversionDialog(null)}
+          onOpenReview={() => {
+            setLegacyConversionDialog(null);
+            setLegacyConversionReviewOpen(true);
+          }}
+          onClose={() => setLegacyConversionDialog(null)}
+        />
+      )}
 
       {/* 마커 편집 모달 */}
       {editingMarker && (
@@ -1041,9 +1123,15 @@ const styles = {
     cursor: 'pointer',
     accentColor: '#4488ff',
   },
+  workArea: {
+    flex: 1,
+    minHeight: 0,
+    display: 'flex',
+  },
   canvasContainer: {
     flex: 1,
     minHeight: 0,
+    minWidth: 0,
     position: 'relative' as const,
     overflow: 'hidden',
     backgroundColor: '#000',

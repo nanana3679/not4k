@@ -11,6 +11,7 @@ import {
   isFixedRailX,
   isPlaybackCursorSeekArea,
   isRightRailX,
+  panToRevealRange,
   screenXToTimelineX,
   shouldRenderPlaybackCursorHandle,
 } from "./timelineViewport";
@@ -209,5 +210,26 @@ describe("center-shift를 적용한 오프셋/레일 계산", () => {
     expect(isPlaybackCursorSeekArea({
       screenX: 500, timelineX: 100, timelineWidth: 240, leftRailWidth: 32, railStartX: 348,
     })).toBe(false);
+  });
+});
+
+describe("panToRevealRange", () => {
+  // 화면 폭 264px에서 좌우 레일 32px씩을 빼면 보이는 타임라인 폭은 200px이다.
+  const view = { viewportWidth: 264, leftRailWidth: 32, rightRailWidth: 32 };
+
+  it("팬 0에서 x 240～300의 보조 레인은 오른쪽 끝을 보이는 영역 끝에 맞춰 팬 100을 요청한다", () => {
+    expect(panToRevealRange({ ...view, left: 240, right: 300, panX: 0 })).toBe(100);
+  });
+
+  it("이미 보이는 x 60～120 레인은 지금 팬 40을 그대로 둔다", () => {
+    expect(panToRevealRange({ ...view, left: 60, right: 120, panX: 40 })).toBe(40);
+  });
+
+  it("팬 150에서 왼쪽으로 벗어난 x 0～60 레인은 왼쪽 끝을 맞춰 팬 0을 요청한다", () => {
+    expect(panToRevealRange({ ...view, left: 0, right: 60, panX: 150 })).toBe(0);
+  });
+
+  it("보이는 폭 40px보다 넓은 x 60～120 레인은 왼쪽 끝을 맞춰 팬 60을 요청한다", () => {
+    expect(panToRevealRange({ viewportWidth: 104, leftRailWidth: 32, rightRailWidth: 32, left: 60, right: 120, panX: 0 })).toBe(60);
   });
 });
