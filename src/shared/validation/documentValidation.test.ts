@@ -161,6 +161,25 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
         .map(e => [e.rule, e.refs])).toEqual([[SAME_HOLD_COUNT_CONNECTION_RULE, refs]]);
     });
 
+    const legacyPoint = (type: "single" | "double" | "trill", at: number, lane = 1): DocumentNoteEntity => ({ type, lane, beat: beat(at) });
+
+    it.each(["single", "double"] as const)("메인 레인1 같은 수 바디 [0,2]·[2,4] 경계 2에 구형 %s Point가 있으면 경계 표시로 인정해 저장할 수 있고 구형 노트라 새 재생만 막는다", type => {
+      const result = validateChartDocument(document([body(0, 2), body(2, 4), legacyPoint(type, 2)]));
+      expect(result.semantic).toEqual([]);
+      expect(result).toMatchObject({ canSave: true, canPlayExplicit: false });
+      expect(result.runtimeIncompatible.map(e => [e.rule, e.refs])).toEqual([["legacyGameContent", [{ kind: "note", index: 2 }]]]);
+    });
+
+    it.each(["single", "double"] as const)("보조 lane5 같은 수 바디 [0,2]·[2,4] 경계 2에 구형 %s Point가 있으면 경계 표시로 인정해 저장·새 재생이 가능하다", type => {
+      const result = validateChartDocument(document([body(0, 2, 1, 5), body(2, 4, 1, 5), legacyPoint(type, 2, 5)]));
+      expect(result.semantic).toEqual([]);
+      expect(result).toMatchObject({ canSave: true, canPlayExplicit: true });
+    });
+
+    it("다른 레인2의 구형 single2는 레인1 경계 2를 표시하지 않아 위반이 남는다", () => {
+      expect(rules([body(0, 2), body(2, 4), legacyPoint("single", 2, 2)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
+    });
+
     const jointMarks = ([1, 2] as const).flatMap(holdCount => [
       { holdCount, name: "일반 single Point", note: point(2) },
       { holdCount, name: "double Point", note: { type: "point", kind: "double", lane: 1, beat: beat(2) } as DocumentNoteEntity },
@@ -215,6 +234,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     it.each([
       { name: "트릴 Point", note: trillPoint(2, 5) },
       { name: "릴리즈", note: mark("release", 2, 1, 5) },
+      { name: "구형 trill", note: legacyPoint("trill", 2, 5) },
     ])("보조 lane5의 일반 바디 [0,2] 뒤 트릴 바디 [2,4] 경계 2의 $name도 경계를 표시하므로 유효하다", ({ note }) => {
       expect(rules([body(0, 2, 1, 5), trillBody(2, 4, 5), note])).toEqual([]);
     });

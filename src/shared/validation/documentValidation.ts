@@ -200,8 +200,12 @@ export function validateChartDocumentSemantic(
   // 일반 → 트릴·트릴 → 트릴 경계도 대상이고, 트릴 바디 뒤 일반 바디만 이어 보이지 않아 판정도 잇지 않으므로 허용한다.
   // 길이 0 뒤 바디도 포함하며, 그 위의 Point·릴리즈는 zeroLengthBodyOverlap이 따로 막는다.
   // 구형 롱노트는 relations.connections에 들어오지 않아 대상이 아니다.
-  const hasPointOrReleaseAt = (lane: number, at: Beat) =>
-    notes.some(note => (note.type === "point" || note.type === "release") && note.lane === lane && beatEq(note.beat, at));
+  // 같은 레인·위치의 구형 Point(type single·double·trill)도 표시로 인정해 일부만 옮긴 혼합 문서를 저장할 수 있게 한다.
+  // 구형 롱노트(holdOnly·길이 0 포함)는 표시가 아니다. 메인 레인 구형 Point의 새 재생 차단은 legacyGameContent가 맡는다.
+  const marksJoint = (note: DocumentNoteEntity) => note.type === "point" || note.type === "release"
+    || note.type === "single" || note.type === "double" || note.type === "trill";
+  const hasJointMarkAt = (lane: number, at: Beat) =>
+    notes.some(note => marksJoint(note) && note.lane === lane && beatEq(note.beat, at));
   for (const connection of relations.connections) {
     if (connection.predecessorHoldCount !== connection.successorHoldCount) continue;
     const predecessor = relations.bodyByNote.get(connection.predecessorIndex)?.note;
@@ -209,7 +213,7 @@ export function validateChartDocumentSemantic(
     if (!predecessor || !successor || (predecessor.trill && !successor.trill)) continue;
     // 메인 레인 트릴 바디의 시작 트릴 Point 누락은 trillLongInvalid가 이미 보고하므로 겹쳐 내지 않는다.
     if (successor.trill && isMainLane(connection.lane)) continue;
-    if (hasPointOrReleaseAt(connection.lane, connection.beat)) continue;
+    if (hasJointMarkAt(connection.lane, connection.beat)) continue;
     add("sameHoldCountConnectionWithoutPointOrRelease", "같은 hold 수로 맞닿은 바디 경계에는 Point나 릴리즈가 필요합니다",
       connection.predecessorIndex, connection.successorIndex);
   }
