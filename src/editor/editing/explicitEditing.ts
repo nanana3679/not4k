@@ -42,7 +42,7 @@ export function resizeExplicitBodies(
  * 바디 밖에 놓인 표식은 조작 시작 때의 수량(fallbackCountByNoteIndex)으로 돌려 지나온 경로와
  * 무관하게 한다. 그 기록이 없으면 현재 수량을 유지한다.
  */
-export function reconcileMovedSustains(
+export function reconcileMovedTicks(
   notes: readonly DocumentNoteEntity[], moved: Iterable<number>, fallbackCountByNoteIndex?: ReadonlyMap<number, 1 | 2>,
 ): DocumentNoteEntity[] {
   const relations = deriveExplicitNoteRelations(notes);

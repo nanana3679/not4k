@@ -77,9 +77,9 @@ test('Shift resize는 선택된 끝 Release만 따라가며 Sustain 밖 축소�
 });
 
 test('우클릭 900ms 연속 삭제는 노트 뒤 Body를 관통하지 않고 Undo 1개이며 별개 gesture는 따로 Undo한다', async ({ page }) => {
-  await openEditor(page, { chart: family() }); const sustain = await canvasPosition(page, 1, 2); const middle = await canvasPosition(page, 1, 2.5);
-  await page.mouse.move(sustain.x, sustain.y); await page.mouse.down({ button: 'right' });
-  await page.waitForTimeout(900); await page.mouse.move(sustain.x + 1, sustain.y); await page.mouse.move(middle.x, middle.y, { steps: 1 });
+  await openEditor(page, { chart: family() }); const tick = await canvasPosition(page, 1, 2); const middle = await canvasPosition(page, 1, 2.5);
+  await page.mouse.move(tick.x, tick.y); await page.mouse.down({ button: 'right' });
+  await page.waitForTimeout(900); await page.mouse.move(tick.x + 1, tick.y); await page.mouse.move(middle.x, middle.y, { steps: 1 });
   await page.mouse.move(middle.x + 1, middle.y); await page.mouse.up({ button: 'right' });
   expect((await notes(page)).map(note => note.type)).toEqual(['body', 'tap', 'release']); expect((await state(page)).past).toBe(1);
   const body = await canvasPosition(page, 1, 1.5); await page.mouse.click(body.x, body.y, { button: 'right' });
@@ -90,15 +90,15 @@ test('우클릭 900ms 연속 삭제는 노트 뒤 Body를 관통하지 않고 Un
 test('우클릭 중 Esc는 삭제만 복구하고 up 전 move로 다시 지우지 않으며 기존 Undo를 유지한다', async ({ page }) => {
   await openEditor(page, { chart: family() }); await selectMode(page); await click(page, 2.5); await page.keyboard.press('ArrowRight');
   const before = await notes(page); const history = (await state(page)).past;
-  const sustain = await canvasPosition(page, 1, 2); const start = await canvasPosition(page, 1, 1);
-  await page.mouse.move(sustain.x, sustain.y); await page.mouse.down({ button: 'right' }); expect(await notes(page)).toHaveLength(4);
+  const tick = await canvasPosition(page, 1, 2); const start = await canvasPosition(page, 1, 1);
+  await page.mouse.move(tick.x, tick.y); await page.mouse.down({ button: 'right' }); expect(await notes(page)).toHaveLength(4);
   await page.keyboard.press('Escape'); await page.mouse.move(start.x, start.y); expect(await notes(page)).toEqual(before);
   await page.mouse.up({ button: 'right' }); expect((await state(page)).past).toBe(history); expect((await state(page)).transaction).toBe(false);
 });
 
 test('우클릭 중 Ctrl+Z는 삭제를 먼저 Undo하고 뒤늦은 Esc·move가 복구 상태를 바꾸지 않는다', async ({ page }) => {
-  await openEditor(page, { chart: family() }); const original = await notes(page); const sustain = await canvasPosition(page, 1, 2); const start = await canvasPosition(page, 1, 1);
-  await page.mouse.move(sustain.x, sustain.y); await page.mouse.down({ button: 'right' });
+  await openEditor(page, { chart: family() }); const original = await notes(page); const tick = await canvasPosition(page, 1, 2); const start = await canvasPosition(page, 1, 1);
+  await page.mouse.move(tick.x, tick.y); await page.mouse.down({ button: 'right' });
   await page.keyboard.press('Control+z'); expect(await notes(page)).toEqual(original);
   const history = await state(page); await page.keyboard.press('Escape'); await page.mouse.move(start.x, start.y); await page.mouse.up({ button: 'right' });
   expect(await notes(page)).toEqual(original); expect(await state(page)).toEqual(history);

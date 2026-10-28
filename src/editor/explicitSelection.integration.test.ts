@@ -190,7 +190,7 @@ describe('명시 노트 실제 선택 집합과 관계 재도출', () => {
 });
 
 describe('이미 선택된 명시 노트 누름은 선택 전체 이동', () => {
-  const twoPoints = (): DocumentNoteEntity[] => [
+  const twoTaps = (): DocumentNoteEntity[] => [
     { type: 'tap', kind: 'single', lane: 1, beat: beat(1) },
     { type: 'tap', kind: 'single', lane: 1, beat: beat(2) },
   ];
@@ -200,14 +200,14 @@ describe('이미 선택된 명시 노트 누름은 선택 전체 이동', () => 
   };
 
   it('마우스로 선택된 1박·2박 Point 중 1박 Point를 3박으로 끌면 두 Point가 3박·4박으로 함께 가고 선택을 유지한다', () => {
-    const { mode } = setup(twoPoints()); mode.selectAll();
+    const { mode } = setup(twoTaps()); mode.selectAll();
     mode.onPointerDown(1, 1, false, false); mode.onPointerMove(1, 3); mode.onPointerUp(1, 3);
 
     expect(notes().map(note => note.beat)).toEqual([beat(3), beat(4)]);
     expect(selection()).toEqual(new Set([0, 1]));
   });
   it('터치 롱프레스로 선택된 1박·2박 Point 중 1박 Point를 3박으로 끌면 두 Point가 3박·4박으로 함께 간다', () => {
-    const { mode, space } = setup(twoPoints()); mode.selectAll();
+    const { mode, space } = setup(twoTaps()); mode.selectAll();
     touchDrag(mode, space, 1, 3);
 
     expect(notes().map(note => note.beat)).toEqual([beat(3), beat(4)]);
@@ -229,7 +229,7 @@ describe('이미 선택된 명시 노트 누름은 선택 전체 이동', () => 
     expect(selection()).toEqual(new Set([0, 1, 2, 3]));
   });
   it('마우스로 미선택 2박 Point를 누르면 기존 1박 선택을 그 Point로 바꾸고 그 Point만 3박으로 옮긴다', () => {
-    const { mode } = setup(twoPoints()); mode.selectNote(0);
+    const { mode } = setup(twoTaps()); mode.selectNote(0);
     mode.onPointerDown(1, 2, false, false); mode.onPointerMove(1, 3); mode.onPointerUp(1, 3);
 
     expect(notes().map(note => note.beat)).toEqual([beat(1), beat(3)]);

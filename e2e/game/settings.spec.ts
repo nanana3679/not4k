@@ -125,9 +125,9 @@ test.describe('Game Settings', () => {
           return bounds.maxY > clipTop && bounds.minY < clipBottom;
         };
         const layers = self.explicitNoteRenderer?.root.children ?? [];
-        const points = layers.find(layer => layer.label === 'explicit-tap')?.children ?? [];
+        const taps = layers.find(layer => layer.label === 'explicit-tap')?.children ?? [];
         const bodies = layers.find(layer => layer.label === 'explicit-body')?.children ?? [];
-        if (points.some(inClip) && bodies.some(inClip)) win.__classicVisibleNotes = true;
+        if (taps.some(inClip) && bodies.some(inClip)) win.__classicVisibleNotes = true;
         if (!win.__classicPlayFrame) {
           const skin = self.skinManager;
           win.__classicPlayFrame = {

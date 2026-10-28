@@ -362,24 +362,24 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
 });
 
 describe('editorStore 편집 transaction 중단 알림', () => {
-  const point = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
   beforeEach(() => {
     useEditorStore.setState({
-      chart: makeChart([point(1)]), extraLaneCount: 2, mode: 'select', selection: emptySelection(),
+      chart: makeChart([tap(1)]), extraLaneCount: 2, mode: 'select', selection: emptySelection(),
       historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
     });
   });
 
   it.each([
-    ['token 없는 setChart', () => useEditorStore.getState().setChart(makeChart([point(1), point(5)]))],
+    ['token 없는 setChart', () => useEditorStore.getState().setChart(makeChart([tap(1), tap(5)]))],
     ['setMode', () => useEditorStore.getState().setMode('create')],
     ['undo', () => useEditorStore.getState().undo()],
-    ['loadChart', () => useEditorStore.getState().loadChart(makeChart([point(7)]))],
+    ['loadChart', () => useEditorStore.getState().loadChart(makeChart([tap(7)]))],
     ['resetHistory', () => useEditorStore.getState().resetHistory()],
   ])('3박 이동 transaction이 열린 채 %s가 끝내면 소유자 onInterrupt를 1번 부른다', (_name, command) => {
     const onInterrupt = vi.fn();
     const token = useEditorStore.getState().beginEditTransaction('selectModeEdit', onInterrupt)!;
-    useEditorStore.getState().setChart(makeChart([point(3)]), { transaction: token });
+    useEditorStore.getState().setChart(makeChart([tap(3)]), { transaction: token });
 
     command();
 
@@ -390,7 +390,7 @@ describe('editorStore 편집 transaction 중단 알림', () => {
   it.each(['commit', 'cancel'] as const)('소유자가 자기 token으로 %s하면 onInterrupt를 부르지 않는다', ending => {
     const onInterrupt = vi.fn();
     const token = useEditorStore.getState().beginEditTransaction('selectModeEdit', onInterrupt)!;
-    useEditorStore.getState().setChart(makeChart([point(3)]), { transaction: token });
+    useEditorStore.getState().setChart(makeChart([tap(3)]), { transaction: token });
 
     if (ending === 'commit') useEditorStore.getState().commitEditTransaction(token);
     else useEditorStore.getState().cancelEditTransaction(token);

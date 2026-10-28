@@ -37,10 +37,10 @@ export const explicitPreviewChart = explicitRenderChart([
 export function explicitPreviewSnapshot(preset: ExplicitPreviewPreset, atMs: number) {
   const state = explicitPreviewPresets[preset];
   const single = state.items[0];
-  const sustain = state.items.map(item => item === "miss" ? "dependentZero" : item);
+  const tick = state.items.map(item => item === "miss" ? "dependentZero" : item);
   return explicitRenderSnapshot(explicitPreviewChart, { atMs,
     body: [...state.body, state.body[0], state.body[0]],
-    items: { 0: state.items, 1: sustain, 3: state.items, 4: [single], 6: [sustain[0]], 7: [single], 8: [single], 10: state.items } });
+    items: { 0: state.items, 1: tick, 3: state.items, 4: [single], 6: [tick[0]], 7: [single], 8: [single], 10: state.items } });
 }
 
 export const explicitPreviewReplayFixture = explicitEnjFixtures.find(fixture => fixture.id === "ENJ-05")!;

@@ -60,15 +60,15 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
   });
 
   it('600ms 안의 Point 생성과 빈 aux 유지 생성은 각각 Undo하며 더블 재클릭 no-op은 history를 추가하지 않는다', () => {
-    const point = create(); point.onPointerDown(1, 0); point.onPointerUp(1, 0);
-    const afterPoint = snapshots();
-    const sustain = create(7); sustain.entityType = 'tick'; sustain.onPointerDown(7, 2);
-    const afterSingle = snapshots(); sustain.onPointerDown(7, 2);
+    const tap = create(); tap.onPointerDown(1, 0); tap.onPointerUp(1, 0);
+    const afterTap = snapshots();
+    const tick = create(7); tick.entityType = 'tick'; tick.onPointerDown(7, 2);
+    const afterSingle = snapshots(); tick.onPointerDown(7, 2);
     const count = useEditorStore.getState().historyPast.length;
-    sustain.onPointerDown(7, 2);
+    tick.onPointerDown(7, 2);
     expect(useEditorStore.getState().historyPast).toHaveLength(count);
     useEditorStore.getState().undo(); expect(snapshots()).toEqual(afterSingle);
-    useEditorStore.getState().undo(); expect(snapshots()).toEqual(afterPoint);
+    useEditorStore.getState().undo(); expect(snapshots()).toEqual(afterTap);
     expect(useEditorStore.getState().extraLaneCount).toBe(4);
   });
 

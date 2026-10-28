@@ -80,9 +80,9 @@ describe("명시적 노트 정적 스킨 view", () => {
 
   it("Grace overlay를 조회하면 24px 패딩 안에 Point 212×40 또는 release·trill 200×40 본체를 정렬한다", () => {
     const view = buildExplicitSkinView("/");
-    const point = getExplicitSkinAsset(view, "graceOverlay.tap.overlay");
-    expect(point.logicalSize).toEqual({ width: 260, height: 88 });
-    expect(point.contentRect).toEqual({ x: 24, y: 24, width: 212, height: 40 });
+    const tap = getExplicitSkinAsset(view, "graceOverlay.tap.overlay");
+    expect(tap.logicalSize).toEqual({ width: 260, height: 88 });
+    expect(tap.contentRect).toEqual({ x: 24, y: 24, width: 212, height: 40 });
     for (const variant of ["trill", "release"]) {
       const overlay = getExplicitSkinAsset(view, `graceOverlay.${variant}.overlay`);
       expect(overlay.logicalSize).toEqual({ width: 248, height: 88 });

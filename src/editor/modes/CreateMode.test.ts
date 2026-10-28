@@ -719,7 +719,7 @@ describe("CreateMode — 명시 릴리즈·유지 배치", () => {
   it('터치 double 롱프레스의 1→3박 드래그도 Grace Point·바디·릴리즈 수량2를 한 번에 만든다', () => {
     const chart = makeChart(); const callbacks = makeCallbacks(chart); const mode = new CreateMode(chart, callbacks);
     mode.entityType = 'double'; mode.graceMode = true;
-    expect(mode.beginPointDragAt(1, 1, 'double')).toBe(true); mode.onPointerUp(1, 3);
+    expect(mode.beginTapToolDragAt(1, 1, 'double')).toBe(true); mode.onPointerUp(1, 3);
     expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
     expect(callbacks.onChartUpdate.mock.calls[0][0].notes).toEqual([
       { type: 'tap', kind: 'double', lane: 1, beat: beat(1), grace: true },

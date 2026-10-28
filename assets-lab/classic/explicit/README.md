@@ -34,7 +34,7 @@ pnpm build:explicit-skin --check
 | `release.double` | `partialFailed.left/right` |
 | `tick.single` | `pending`, `failed` |
 | `tick.double` | `pending.left/right`, `failed.left/right` |
-| `graceOverlay.point`, `graceOverlay.trill`, `graceOverlay.release` | `overlay` |
+| `graceOverlay.tap`, `graceOverlay.trill`, `graceOverlay.release` | `overlay` |
 
 실제 ID에서는 `/`로 요약한 방향 중 하나만 쓴다(예: `tick.double.failed.left`). 총 33개 역할이다. `tap.single.failed`, Point의 좌우 부분 실패, 트릴 릴리즈·별도 트릴 유지·바디 Grace·terminal cap 등 공급하지 않은 역할은 거부한다. 다른 역할·스킨으로 fallback하지 않으며 필수 역할 누락·중복·잘못된 좌표·방향도 view 생성 때 거부한다.
 

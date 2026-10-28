@@ -178,10 +178,10 @@ for (const auto of [false, true]) test(`${auto ? 'Auto' : '수동'} 4500ms 재�
   expect(preparing.session?.snapshot.items.filter(item => item.state !== 'success').every(item => item.state === 'pending')).toBe(true);
   expect(preparing.session?.facts.filter(fact => fact.confirmedAt < 1500)).toEqual(prefixFacts);
   if (!auto) {
-    const earlyPoint = preparing.session!.snapshot.items.find(item => item.sourceNoteIndex === 8)!;
-    expect(earlyPoint).toMatchObject({ state: 'success', grade: 'perfect' });
-    expect(originalRequest.scoreItems.find(item => item.id === earlyPoint.id)!.timeMs).toBeGreaterThan(target);
-    expect(preparing.session!.facts.find(fact => fact.id === earlyPoint.settlementFactId)!.confirmedAt).toBeLessThan(target);
+    const earlyTap = preparing.session!.snapshot.items.find(item => item.sourceNoteIndex === 8)!;
+    expect(earlyTap).toMatchObject({ state: 'success', grade: 'perfect' });
+    expect(originalRequest.scoreItems.find(item => item.id === earlyTap.id)!.timeMs).toBeGreaterThan(target);
+    expect(preparing.session!.facts.find(fact => fact.id === earlyTap.settlementFactId)!.confirmedAt).toBeLessThan(target);
   }
   expect(preparing.session?.snapshot.bodyUnits[0].state).not.toBe('failed');
   expect(preparing.session?.snapshot.bodyUnits[1].state).toBe(auto ? 'complete' : 'failed');

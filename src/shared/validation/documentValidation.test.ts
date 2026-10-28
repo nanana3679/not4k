@@ -114,7 +114,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     expect(validateChartDocument(chart).semantic.map(e => e.rule)).toContain("tickPlacement");
     expect(chartDocumentFromJson(chartToJson(chart)).notes).toEqual(chart.notes);
   });
-  it("double body에 single sustain은 sustainCount지만 single release는 허용한다", () => {
+  it("double body에 single sustain은 tickCount지만 single release는 허용한다", () => {
     expect(rules([body(0, 4, 2), mark("tick", 2)])).toEqual(["tickCount"]);
     expect(rules([body(0, 4, 2), mark("release", 4)])).toEqual([]);
   });
@@ -124,7 +124,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
   it.each([[1, 2], [2, 1]] as const)("%s→%s 경계 유지 표식은 뒤 바디 hold 수를 사용한다", (before, after) => {
     expect(rules([body(0, 2, before), body(2, 4, after), mark("tick", 2, after)])).toEqual([]);
   });
-  it.each([1, 2] as const)("hold %s→같은 수 연결점 2의 sustain은 sustainPlacement이고 Point·릴리즈가 없는 경계 위반도 함께 보고한다", count => {
+  it.each([1, 2] as const)("hold %s→같은 수 연결점 2의 sustain은 tickPlacement이고 Point·릴리즈가 없는 경계 위반도 함께 보고한다", count => {
     expect(rules([body(0, 2, count), body(2, 4, count), mark("tick", 2, count)]))
       .toEqual(["tickPlacement", SAME_HOLD_COUNT_CONNECTION_RULE]);
   });
@@ -369,7 +369,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     expect(validateChartDocument(chart).semantic.find(e => e.rule === "trillExclusive")?.refs).toEqual([{ kind: "note", index: 1 }]);
   });
 
-  it("트릴 바디 내부 sustain은 sustainPlacement이며 일반 Point의 zone배타도 보존한다", () => {
+  it("트릴 바디 내부 sustain은 tickPlacement이며 일반 Point의 zone배타도 보존한다", () => {
     const chart = document([{ type: "tap", kind: "trill", lane: 1, beat: beat(1) },
       { type: "body", lane: 1, beat: beat(1), endBeat: beat(3), holdCount: 1, trill: true }, mark("tick", 2), tap(2, 2)]);
     chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(4) }, { lane: 2, beat: beat(0), endBeat: beat(4) }];

@@ -58,8 +58,8 @@ describe("설계 도식", () => {
     expect(svg).toContain(`스킨 ${skin.name}`);
     expect(svg).not.toContain('data-design-placeholder="true"');
     expect(svg).not.toMatch(/data-skin-asset="[^"]*Failed/);
-    const pointY = Number(svg.match(/data-note-part="point"[^>]* y="([^"]+)"/)![1]);
-    expect(pointY + 8).toBeCloseTo(axisY(svg, 1000), 1);
+    const tapY = Number(svg.match(/data-note-part="point"[^>]* y="([^"]+)"/)![1]);
+    expect(tapY + 8).toBeCloseTo(axisY(svg, 1000), 1);
     if (id === "classic") {
       expect(svg).toContain('<pattern id="jc-tile-0-0"');
       expect(svg).toContain('data-note-part="shadow" data-skin-asset="pointContactShadow"');

@@ -60,11 +60,11 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     const { renderer } = setup();
     const snapshot = explicitRenderSnapshot(chart);
     renderer.render(snapshot, 1000);
-    const point = children(renderer, "tap").children[0];
+    const tap = children(renderer, "tap").children[0];
     renderer.resize({ ...layout, judgmentLineY: 300, laneAreaX: 100, laneWidth: 106, noteHeight: 20 });
     renderer.render(snapshot, 1000);
-    expect(children(renderer, "tap").children[0]).toBe(point);
-    expect(point).toMatchObject({ x: 100, y: 290, width: 106, height: 20 });
+    expect(children(renderer, "tap").children[0]).toBe(tap);
+    expect(tap).toMatchObject({ x: 100, y: 290, width: 106, height: 20 });
     renderer.dispose();
   });
 
@@ -83,7 +83,7 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     parent.destroy();
   });
 
-  it("Point 더블 왼쪽 Miss는 point.double.failed 원본 왼쪽 절반(frame x 0·폭 106)과 pending 원본 오른쪽 절반(x 106)을 합성하고 좌우가 바뀌면 각 원본의 crop을 따로 쓰며 dispose는 crop view만 해제한다", () => {
+  it("Point 더블 왼쪽 Miss는 tap.double.failed 원본 왼쪽 절반(frame x 0·폭 106)과 pending 원본 오른쪽 절반(x 106)을 합성하고 좌우가 바뀌면 각 원본의 crop을 따로 쓰며 dispose는 crop view만 해제한다", () => {
     const texturesById = new Map<string, Texture>();
     const getTexture = (id: string) => {
       if (!texturesById.has(id)) texturesById.set(id, new Texture({ source: new TextureSource({ width: 212, height: 40 }) }));
@@ -92,22 +92,22 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     const renderer = new ExplicitNoteRenderer(new Container(), { view: buildExplicitSkinView("/"), getTexture }, layout);
     renderer.setChart(chart);
     renderer.render(explicitRenderSnapshot(chart, { items: { 3: ["miss", "pending"] } }), 1000);
-    const points = children(renderer, "tap").children as Sprite[];
+    const taps = children(renderer, "tap").children as Sprite[];
     const failedSource = getTexture("tap.double.failed").source;
     const pendingSource = getTexture("tap.double.pending").source;
-    expect(points).toHaveLength(2);
-    expect(points.map(point => point.texture.source)).toEqual([failedSource, pendingSource]);
-    expect(points.map(point => [point.texture.frame.x, point.texture.frame.width])).toEqual([[0, 106], [106, 106]]);
-    expect(points.map(point => point.alpha)).toEqual([1, 1]);
-    expect(points[0].x + points[0].width).toBeCloseTo(points[1].x);
-    const crops = points.map(point => point.texture);
+    expect(taps).toHaveLength(2);
+    expect(taps.map(tap => tap.texture.source)).toEqual([failedSource, pendingSource]);
+    expect(taps.map(tap => [tap.texture.frame.x, tap.texture.frame.width])).toEqual([[0, 106], [106, 106]]);
+    expect(taps.map(tap => tap.alpha)).toEqual([1, 1]);
+    expect(taps[0].x + taps[0].width).toBeCloseTo(taps[1].x);
+    const crops = taps.map(tap => tap.texture);
     renderer.render(explicitRenderSnapshot(chart, { items: { 3: ["pending", "miss"] } }), 1000);
-    expect(points.map(point => point.texture.source)).toEqual([pendingSource, failedSource]);
-    expect(points.map(point => point.texture.frame.x)).toEqual([0, 106]);
-    crops.push(...points.map(point => point.texture));
+    expect(taps.map(tap => tap.texture.source)).toEqual([pendingSource, failedSource]);
+    expect(taps.map(tap => tap.texture.frame.x)).toEqual([0, 106]);
+    crops.push(...taps.map(tap => tap.texture));
     renderer.render(explicitRenderSnapshot(chart, { items: { 3: ["miss", "success"] } }), 1000);
-    expect(points.map(point => point.alpha)).toEqual([0.7, 0.7]);
-    expect(points.map(point => point.texture)).toEqual(crops.slice(0, 2));
+    expect(taps.map(tap => tap.alpha)).toEqual([0.7, 0.7]);
+    expect(taps.map(tap => tap.texture)).toEqual(crops.slice(0, 2));
     renderer.dispose();
     expect(crops.every(texture => texture.destroyed)).toBe(true);
     expect([failedSource, pendingSource].every(source => !source.destroyed)).toBe(true);
