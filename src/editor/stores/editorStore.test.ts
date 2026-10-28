@@ -419,7 +419,8 @@ describe('editorStore 저장 기준 savedChartJson', () => {
   });
 
   it('처음 상태(불러온 차트 없음)의 savedChartJson은 null', () => {
-    expect(useEditorStore.getState().savedChartJson).toBeNull();
+    // beforeEach가 넣은 값이 아니라 store를 만들 때의 초기 상태를 본다.
+    expect(useEditorStore.getInitialState().savedChartJson).toBeNull();
   });
 
   it('loadChart 뒤 불러온 차트로 setSavedChartJson하면 편집 전에는 dirty 아님', () => {
