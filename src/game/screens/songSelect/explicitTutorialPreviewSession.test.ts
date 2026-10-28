@@ -41,7 +41,7 @@ function judgments(result: ExplicitSessionResult) {
 }
 
 describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", () => {
-  it("aux note가 원본 index0에 있어도 main double Point의 index1·ordinal0/1을 그대로 표시 상태에 보존", () => {
+  it("aux note가 원본 index0에 있어도 main double 탭의 index1·ordinal0/1을 그대로 표시 상태에 보존", () => {
     const chart = document([{ type: "tap", kind: "single", lane: 5, beat: beat(2) }, tap(1000, "double")]);
     const controller = createExplicitTutorialPreviewSessionController(chart);
     controller.advanceTo(1000);
@@ -51,8 +51,8 @@ describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", ()
   });
 
   const cases: readonly [string, ChartDocument][] = [
-    ["싱글 Point·hold1·유지·릴리즈", document([tap(1000), body(1000, 2000), tick(1500), release(2000)])],
-    ["더블 Point·hold2·유지2·Grace 릴리즈2", document([tap(1000, "double"), body(1000, 2000, 2), tick(1500, 2), release(2000, 2, true)])],
+    ["싱글 탭·hold1·틱·릴리즈", document([tap(1000), body(1000, 2000), tick(1500), release(2000)])],
+    ["더블 탭·hold2·틱2·Grace 릴리즈2", document([tap(1000, "double"), body(1000, 2000, 2), tick(1500, 2), release(2000, 2, true)])],
     ["1→2→1 연결", document([body(1000, 1300), body(1300, 1600, 2), tick(1450, 2), release(1600), body(1600, 2000), release(2000)])],
     ["길이 0과 10ms 바디", document([body(1000, 1000), tick(1000), body(1500, 1510), release(1510)])],
     ["단독 Grace 릴리즈2", document([release(1000, 2, true)])],
@@ -98,7 +98,7 @@ describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", ()
     controller.dispose();
   });
 
-  it("1490ms up→1505ms down 회복은 유지1500을 보류 후 Perfect로 정산하고 총 6점", () => {
+  it("1490ms up→1505ms down 회복은 틱1500을 보류 후 Perfect로 정산하고 총 6점", () => {
     const chart = document([body(1000, 2000), tick(1500), release(2000)]);
     const controller = createExplicitTutorialPreviewSessionController(chart, { kind: "timings", timings: [
       { lane: 1, key: "A", startMs: 1000, endMs: 1490 }, { lane: 1, key: "B", startMs: 1505, endMs: 2000 },
@@ -111,7 +111,7 @@ describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", ()
     controller.dispose();
   });
 
-  it("author down1120은 1000ms Point의 포함 Good이고 다음 반복도 같은 1점·효과 한 번", () => {
+  it("author down1120은 1000ms 탭의 포함 Good이고 다음 반복도 같은 1점·효과 한 번", () => {
     const received: ExplicitJudgmentEffect[][] = [];
     const controller = createExplicitTutorialPreviewSessionController(document([tap(1000)]), { kind: "timings", timings: [
       { lane: 1, key: "A", startMs: 1120, endMs: 1150 },
@@ -174,7 +174,7 @@ describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () =
     controller.dispose();
   });
 
-  it("1600→500ms 역방향 seek는 old held·미래 raw·pending 표식·effect cursor를 버리고 새 세션으로 재생", () => {
+  it("1600→500ms 역방향 seek는 old held·미래 raw·pending 틱·effect cursor를 버리고 새 세션으로 재생", () => {
     const chart = document([tap(1000), body(1000, 2000), tick(1800), release(2000)]);
     const effectsByIteration: ExplicitJudgmentEffect[][] = [];
     const controller = createExplicitTutorialPreviewSessionController(chart, { kind: "auto" }, {
@@ -201,7 +201,7 @@ describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () =
     controller.dispose();
   });
 
-  it("1510ms 회복 대기 중 reset하면 이전 1500ms 미정산 유지와 hold 부족이 다음 반복에 유출되지 않음", () => {
+  it("1510ms 회복 대기 중 reset하면 이전 1500ms 미정산 틱과 hold 부족이 다음 반복에 유출되지 않음", () => {
     const chart = document([body(1000, 2000), tick(1500)]);
     const controller = createExplicitTutorialPreviewSessionController(chart, { kind: "timings", timings: [
       { lane: 1, key: "A", startMs: 1000, endMs: 1495 }, { lane: 1, key: "B", startMs: 1515, endMs: 2000 },

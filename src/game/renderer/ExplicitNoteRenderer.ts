@@ -63,7 +63,7 @@ export class ExplicitNoteRenderer {
         sprite.label = model.key;
         this.spritesByKey.set(model.key, sprite);
       }
-      // 상태 전환으로 Point 절반이 새로 생겨도 Grace와 각 원본의 순서를 매 프레임 보존한다.
+      // 상태 전환으로 탭 절반이 새로 생겨도 Grace와 각 원본의 순서를 매 프레임 보존한다.
       this.layers[model.layer].addChild(sprite);
       sprite.texture = texture;
       sprite.position.set(model.x, model.y);

@@ -4,7 +4,7 @@ import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelea
 // 승인 자료를 독립적인 typed 실행 차트로 옮긴 고정 fixture다.
 // 설계 JSON·구형 차트를 실행 중 변환하지 않으며 실제 세션 기대값은 M1/M2에서 검증한다.
 export const explicitHcFixtures = [
-  // HC001: holdOnly 끝 점수를 경계 1500 Grace 릴리즈로 옮김; 뒤 Point 입력 공유
+  // HC001: holdOnly 끝 점수를 경계 1500 Grace 릴리즈로 옮김; 뒤 탭 입력 공유
   fixture('HC001', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:74',
     [b(1000, 1500, 1), r(1500, 1, 1, true), b(1500, 1560, 1), p(1560, 'single'), b(1560, 1760, 1), r(1760, 1)],
     [["A",1000,1430],["D",1490,1760]],
@@ -29,7 +29,7 @@ export const explicitHcFixtures = [
     [b(1000, 1500, 2), b(1500, 2000, 1), r(2000, 1)],
     [["A",1000,2000],["B",1000,2500]],
     { scoreItemCount: 1, theoreticalWeight: 3, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC006: 1000 down이 Point와 바디 시작을 공유; 미시작 up 가정 제거
+  // HC006: 1000 down이 탭과 바디 시작을 공유; 미시작 up 가정 제거
   fixture('HC006', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:110',
     [p(1000, 'single'), b(1100, 1200, 1), r(1200, 1)],
     [["A",1000,1090],["A",1140,1200]],
@@ -84,12 +84,12 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 2), r(2000, 2)],
     [["A",1000,2500],["B",1000,2500],["C",1970,1980],["D",1990,2000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC017: 2010 up Good, 2040 up Great, 2050 Point Great; 숨은 up 소비 제거
+  // HC017: 2010 up Good, 2040 up Great, 2050 탭 Great; 숨은 up 소비 제거
   fixture('HC017', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:181',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2100, 2), r(2100, 2)],
     [["A",1000,2010],["B",1000,2040],["B",2050,2100]],
     { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 5, scope: 'whole', events: { perfect: 0, great: 2, good: 1, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC018: 2040의 두 up Great, 2050 Point Great; 수신 순서 독립
+  // HC018: 2040의 두 up Great, 2050 탭 Great; 수신 순서 독립
   fixture('HC018', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:186',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2100, 2), r(2100, 2)],
     [["A",1000,2040],["B",1000,2040],["B",2050,2100]],
@@ -109,27 +109,27 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 2060, 1), r(2060, 1)],
     [["A",1000,2010],["B",2000,2500]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 5, scope: 'whole', events: { perfect: 1, great: 1, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC022: 2150 up의 Great와 Point Perfect 유지
+  // HC022: 2150 up의 Great와 탭 Perfect 유지
   fixture('HC022', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:210',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 2200, 1), r(2200, 1)],
     [["A",1000,2200],["B",2000,2150]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 5, scope: 'whole', events: { perfect: 1, great: 1, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC023: 앞 무점수 정상 종료와 뒤 Point/릴리즈
+  // HC023: 앞 무점수 정상 종료와 뒤 탭/릴리즈
   fixture('HC023', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:217',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,1960],["B",2000,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC024: 기존 실제 Point down 유지 판단 기준 보존
+  // HC024: 기존 실제 탭 down 유지 판단 기준 보존
   fixture('HC024', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:224',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,2010],["B",2030,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC025: Point 담당 몫의 기존 대기 보존; 30ms만으로 새 선행 Miss를 만들지 않음
+  // HC025: 탭 담당 몫의 기존 대기 보존; 30ms만으로 새 선행 Miss를 만들지 않음
   fixture('HC025', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:229',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,2010],["B",2040,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC026: 2100 Point Good과 끝 Perfect; 실제 down 기준
+  // HC026: 2100 탭 Good과 끝 Perfect; 실제 down 기준
   fixture('HC026', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:234',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,2010],["B",2100,3000]],
@@ -139,12 +139,12 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,1980],["B",1960,1990],["C",2015,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 3, scope: 'partial', assertionNoteIndices: [1, 2, 3], events: { perfect: 1, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 1, dependentZero: 1 } }),
-  // HC028: 2010 up Good, 2050 Point Great, 2100의 남은 릴리즈 Perfect
+  // HC028: 2010 up Good, 2050 탭 Great, 2100의 남은 릴리즈 Perfect
   fixture('HC028', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:247',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2100, 2), r(2100, 2)],
     [["A",1000,2010],["C",1000,2100],["B",2050,2100]],
     { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 6, scope: 'whole', events: { perfect: 1, great: 1, good: 1, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC029: 감소 경계 Point를 남긴 수동 합법본; 겹치는 감소 릴리즈 없음
+  // HC029: 감소 경계 탭을 남긴 수동 합법본; 겹치는 감소 릴리즈 없음
   fixture('HC029', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:253',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,2010],["B",1000,2015],["C",2040,3000]],
@@ -159,42 +159,42 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2100, 2), r(2100, 2)],
     [["C",1000,2100],["A",1000,2010],["B",2000,2100]],
     { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 7, scope: 'whole', events: { perfect: 2, great: 0, good: 1, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC032: double Point Perfect 둘과 2010 up Good 둘
+  // HC032: double 탭 Perfect 둘과 2010 up Good 둘
   fixture('HC032', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:276',
     [b(1000, 2000, 2), p(2000, 'double'), b(2000, 2100, 2), r(2100, 2)],
     [["A",1000,2010],["B",1000,2010],["C",2000,2100],["D",2000,2100]],
     { scoreItemCount: 4, theoreticalWeight: 12, earnedScore: 8, scope: 'whole', events: { perfect: 2, great: 0, good: 2, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC033: double Point Perfect 둘과 2020 up Great 둘
+  // HC033: double 탭 Perfect 둘과 2020 up Great 둘
   fixture('HC033', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:282',
     [b(1000, 2000, 2), p(2000, 'double'), b(2000, 2100, 2), r(2100, 2)],
     [["A",1000,2100],["B",1000,2100],["C",2000,2020],["D",2000,2020]],
     { scoreItemCount: 4, theoreticalWeight: 12, earnedScore: 10, scope: 'whole', events: { perfect: 2, great: 2, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC034: 1990 up 때 뒤 바디 미시작; 2000 Point 뒤 실제 끝 처리
+  // HC034: 1990 up 때 뒤 바디 미시작; 2000 탭 뒤 실제 끝 처리
   fixture('HC034', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:287',
     [b(1000, 2000, 2), p(2000, 'double'), b(2000, 2100, 2), r(2100, 2)],
     [["A",1000,1990],["B",1000,1990],["A",2000,2100],["B",2000,2100]],
     { scoreItemCount: 4, theoreticalWeight: 12, earnedScore: 12, scope: 'whole', events: { perfect: 4, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC035: 계속 정상 유지한 뒤 바디와 Point Miss 분리
+  // HC035: 계속 정상 유지한 뒤 바디와 탭 Miss 분리
   fixture('HC035', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:294',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, tapMiss: 1, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC036: Point 대기 안에서 끊김: Point Miss 하나와 끝 종속 0점
+  // HC036: 탭 대기 안에서 끊김: 탭 Miss 하나와 끝 종속 0점
   fixture('HC036', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:301',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,2010]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 0, scope: 'whole', events: { perfect: 0, great: 0, good: 0, tapMiss: 1, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 1 } }),
-  // HC037: 2120 Point Miss 뒤 새 부족은 2220 유지 Miss
+  // HC037: 2120 탭 Miss 뒤 새 부족은 2220 유지 Miss
   fixture('HC037', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:309',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,2200]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 0, scope: 'whole', events: { perfect: 0, great: 0, good: 0, tapMiss: 1, releaseMiss: 0, maintenanceMiss: 1, dependentZero: 1 } }),
-  // HC038: Point Miss에도 두 정상 몫의 끝 기회 보존
+  // HC038: 탭 Miss에도 두 정상 몫의 끝 기회 보존
   fixture('HC038', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:316',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 2), r(3000, 2)],
     [["C",1000,3000],["A",1000,3000]],
     { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 1, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC039: Point 담당 몫 종속 0점, 정상 한 몫 릴리즈
+  // HC039: 탭 담당 몫 종속 0점, 정상 한 몫 릴리즈
   fixture('HC039', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:321',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 2), r(3000, 2)],
     [["C",1000,3000],["A",1000,2010]],
@@ -204,7 +204,7 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 2), r(3000, 2)],
     [["C",1000,3000],["A",1000,2200]],
     { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, tapMiss: 1, releaseMiss: 0, maintenanceMiss: 1, dependentZero: 1 } }),
-  // HC041: 건강한 승계 2000 실제 시작; up2060 릴리즈 Perfect 후 Point Miss
+  // HC041: 건강한 승계 2000 실제 시작; up2060 릴리즈 Perfect 후 탭 Miss
   fixture('HC041', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:334',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 2060, 1), r(2060, 1)],
     [["A",1000,2060]],
@@ -234,7 +234,7 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 1), b(2000, 3000, 2), r(3000, 2)],
     [["A",1000,3000],["B",2200,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 1, dependentZero: 1 } }),
-  // HC047: 같은 down으로 Point와 증가 hold 충족
+  // HC047: 같은 down으로 탭과 증가 hold 충족
   fixture('HC047', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:367',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 2), r(3000, 2)],
     [["A",1000,3000],["B",2040,3000]],
@@ -254,52 +254,52 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 2), b(2000, 3000, 1), r(2000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, tapMiss: 0, releaseMiss: 1, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC051: 경계 Point 유지본: 감소/Point 중첩 제거, 숨은 연결 소비 없음
+  // HC051: 경계 탭 노트 유지본: 감소/탭 중첩 제거, 숨은 연결 소비 없음
   fixture('HC051', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:391',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,2015],["B",1000,2030],["C",2020,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC052: 경계 Point 유지본: 앞 바디 감소 점수 자동 생성 없음
+  // HC052: 경계 탭 노트 유지본: 앞 바디 감소 점수 자동 생성 없음
   fixture('HC052', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:397',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,2015],["C",2020,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC053: 경계 Point 유지본: 탭 up은 이 끝 창 밖
+  // HC053: 경계 탭 노트 유지본: C의 짧은 누름 up(2020)은 이 끝 창 밖
   fixture('HC053', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:403',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,3000],["C",2000,2020]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC054: 경계 Point 유지본: 중간 up 자동 소비 없음
+  // HC054: 경계 탭 노트 유지본: 중간 up 자동 소비 없음
   fixture('HC054', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:409',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,2010],["C",2000,2020]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC055: 경계 Point 유지본: A hold로 뒤 바디 유지
+  // HC055: 경계 탭 노트 유지본: A hold로 뒤 바디 유지
   fixture('HC055', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:415',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,2015],["C",2020,2040]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC056: 경계 Point 유지본: B up2015가 마지막 릴리즈 Great
+  // HC056: 경계 탭 노트 유지본: B up2015가 마지막 릴리즈 Great
   fixture('HC056', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:421',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2060, 1), r(2060, 1)],
     [["A",1000,2500],["B",1000,2015],["C",2020,2060]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 5, scope: 'whole', events: { perfect: 1, great: 1, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC057: 경계 Point 유지본: A up2010이 마지막 릴리즈 Great
+  // HC057: 경계 탭 노트 유지본: A up2010이 마지막 릴리즈 Great
   fixture('HC057', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:427',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2060, 1), r(2060, 1)],
     [["A",1000,2010],["B",1000,2015],["C",2020,2060]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 5, scope: 'whole', events: { perfect: 1, great: 1, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC058: 경계 Point 유지본: B up2015가 마지막 릴리즈 Great
+  // HC058: 경계 탭 노트 유지본: B up2015가 마지막 릴리즈 Great
   fixture('HC058', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:433',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2060, 1), r(2060, 1)],
     [["A",1000,2060],["B",1000,2015],["C",2020,2040]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 5, scope: 'whole', events: { perfect: 1, great: 1, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC059: 경계 Point 유지본: C up2100이 마지막 릴리즈 Good
+  // HC059: 경계 탭 노트 유지본: C up2100이 마지막 릴리즈 Good
   fixture('HC059', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:439',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2200, 1), r(2200, 1)],
     [["A",1000,2500],["B",1000,2015],["C",2020,2100]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 4, scope: 'whole', events: { perfect: 1, great: 0, good: 1, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC060: Point와 다른 시각의 감소 릴리즈·마지막 릴리즈
+  // HC060: 탭과 다른 시각의 감소 릴리즈·마지막 릴리즈
   fixture('HC060', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:446',
     [b(1000, 2000, 2), b(2000, 2050, 1), p(2050, 'single'), b(2050, 3000, 1), r(2000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,2010],["C",2050,3000]],
@@ -324,12 +324,12 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 1), r(2000, 1, 1, true), b(2000, 2160, 1), r(2160, 1)],
     [["A",1000,2041],["B",2040,2160]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC065: Point 유지본: holdOnly 바디 무점수, 겹치는 감소 릴리즈 없음
+  // HC065: 탭 노트 유지본: holdOnly 바디 무점수, 겹치는 감소 릴리즈 없음
   fixture('HC065', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:476',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 2060, 1)],
     [["A",1000,2500],["B",1000,2015],["C",2020,2060]],
     { scoreItemCount: 1, theoreticalWeight: 3, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC066: holdOnly 자동 점수/면제 제거; Point와 마지막 릴리즈만 정산
+  // HC066: holdOnly 자동 점수/면제 제거; 탭과 마지막 릴리즈만 정산
   fixture('HC066', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:481',
     [b(1000, 1950, 2), p(1950, 'single'), b(1950, 2000, 2), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,2010],["C",1950,3000]],
@@ -374,12 +374,12 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 1), b(2000, 3000, 2), r(3000, 2)],
     [["A",1000,2010],["A",2080,3000],["B",1990,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC075: holdOnly 자동 점수 제거; 회복하는 무점수 바디와 Point
+  // HC075: holdOnly 자동 점수 제거; 회복하는 무점수 바디와 탭
   fixture('HC075', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:537',
     [p(1000, 'single'), b(1010, 1500, 1)],
     [["A",1000,1030],["B",1060,1500]],
     { scoreItemCount: 1, theoreticalWeight: 3, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC076: 1130 무점수 유지 Miss; 명시 점수는 Point 하나라 100%/FC 아님
+  // HC076: 1130 무점수 유지 Miss; 명시 점수는 탭 하나라 100%/FC 아님
   fixture('HC076', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:541',
     [p(1000, 'single'), b(1010, 1500, 1)],
     [["A",1000,1030]],
@@ -394,7 +394,7 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 1), b(2000, 3000, 2), r(3000, 2)],
     [["A",1000,2010],["B",2040,3000],["A",2060,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC079: 같은 키의 앞 정상 종료·뒤 Point/릴리즈
+  // HC079: 같은 키의 앞 정상 종료·뒤 탭/릴리즈
   fixture('HC079', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:560',
     [b(1000, 2000, 1), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,1960],["A",2040,3000]],

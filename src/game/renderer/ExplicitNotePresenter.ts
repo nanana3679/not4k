@@ -20,7 +20,7 @@ export interface ExplicitPresentedLayer {
   readonly ordinal: number | null;
   readonly layer: "body" | "release" | "tick" | "tap";
   readonly overlay: boolean;
-  /** 승인된 더블 Point의 전체 pending/failed 도안에서 필요한 절반만 합성한다. */
+  /** 승인된 더블 탭의 전체 pending/failed 도안에서 필요한 절반만 합성한다. */
   readonly crop?: "left" | "right";
   readonly visible: boolean;
   readonly inViewport: boolean;
@@ -166,7 +166,7 @@ export class ExplicitNotePresenter {
           }
         } else layers.push(sprite(index, first.lane, first.timeMs, id, first.kind, alpha, visible));
         if (first.grace) {
-          // Point Grace는 기존처럼 Miss 뒤 외곽을 숨긴다. release Grace는 실패 중에도 흰 외곽을 유지한다.
+          // 탭 Grace는 기존처럼 Miss 뒤 외곽을 숨긴다. release Grace는 실패 중에도 흰 외곽을 유지한다.
           const overlayVisible = visible && (first.kind === "release" || failed.length === 0);
           overlayAlpha = overlayVisible ? 1 : 0;
           const variant = first.kind === "release" ? "release" : first.tapKind === "trill" ? "trill" : "tap";

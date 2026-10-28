@@ -56,7 +56,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(show({ items: { 0: ["success", "pending"] } }).find(note => note.kind === "body")!.bodyAlpha).toBe(1);
   });
 
-  it("유지 왼쪽만 성공하면 해당 표식만 숨기고 오른쪽 200×40 캔버스·x116 표식의 크기·밝기를 유지한다", () => {
+  it("틱 왼쪽만 성공하면 해당 쪽 도안만 숨기고 오른쪽 200×40 캔버스·x116 틱의 크기·밝기를 유지한다", () => {
     const before = show()[1].layers;
     const after = show({ items: { 1: ["success", "pending"] } })[1].layers;
     expect(after[0].visible).toBe(false);
@@ -70,7 +70,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(failed[1]).toEqual(before[1]);
   });
 
-  it("실패 바디·릴리즈·미래 종속 0점 유지는 판정선에 붙지 않고 100ms마다 20px씩 원위치에서 스크롤한다", () => {
+  it("실패 바디·릴리즈·미래 종속 0점 틱은 판정선에 붙지 않고 100ms마다 20px씩 원위치에서 스크롤한다", () => {
     const state = { body: ["failed", "failed"] as const, items: { 0: ["miss", "miss"] as const, 1: ["dependentZero", "dependentZero"] as const } };
     const first = show(state, 3200), second = show(state, 3300);
     for (const index of [0, 1, 2]) expect(second[index].layers[0].y - first[index].layers[0].y).toBeCloseTo(20);
@@ -99,7 +99,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(layer.y + layer.height).toBeCloseTo(bottom);
   });
 
-  it("Grace 24px 패딩은 본체와 같은 x·y 배율로 정렬되고 Point 212×40과 release 200×40을 구별한다", () => {
+  it("Grace 24px 패딩은 본체와 같은 x·y 배율로 정렬되고 탭 212×40과 release 200×40을 구별한다", () => {
     const notes = show();
     for (const note of [notes[0], notes[3]]) {
       const [base, overlay] = note.layers;
@@ -110,7 +110,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(notes[0].layers[0].width).toBeCloseTo(200 * 62.5 / 212);
   });
 
-  it("Point 싱글 성공은 즉시 숨기고 Miss는 원래 도안·Grace 없음으로 화면 밖까지 남는다", () => {
+  it("탭 싱글 성공은 즉시 숨기고 Miss는 원래 도안·Grace 없음으로 화면 밖까지 남는다", () => {
     const single = explicitRenderChart([{ type: "tap", lane: 2, beat: beat(2), kind: "single", grace: true }]);
     const present = new ExplicitNotePresenter(single, skin);
     expect(present.present(explicitRenderSnapshot(single, { items: { 0: ["success"] } }), layout)[0].layers.every(layer => !layer.visible)).toBe(true);
@@ -119,7 +119,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     ]);
   });
 
-  it("Point 더블 왼쪽 Miss·오른쪽 대기는 실패 절반만 alpha 1이고 오른쪽 성공 뒤에는 두 절반 모두 alpha 0.7이다", () => {
+  it("탭 더블 왼쪽 Miss·오른쪽 대기는 실패 절반만 alpha 1이고 오른쪽 성공 뒤에는 두 절반 모두 alpha 0.7이다", () => {
     const pending = show({ items: { 3: ["miss", "pending"] } })[3].layers;
     expect(pending).toMatchObject([
       { assetId: "tap.double.failed", crop: "left", alpha: 1 },
@@ -138,7 +138,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(() => presenter.present({ ...snapshot, bodyUnits: snapshot.bodyUnits.slice(0, 1) }, layout)).toThrow("b2:hold:1");
   });
 
-  it("싱글 바디의 유지 표식은 x100 중앙·200×40 캔버스를 보존하고 성공 시 그 표식만 숨긴다", () => {
+  it("싱글 바디의 틱은 x100 중앙·200×40 캔버스를 보존하고 성공 시 그 틱만 숨긴다", () => {
     const single = explicitRenderChart([
       { type: "body", lane: 2, beat: beat(2), endBeat: beat(6), holdCount: 1 },
       { type: "tick", lane: 2, beat: beat(4), count: 1 },
@@ -152,7 +152,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(done[0].layers[0].visible).toBe(true);
   });
 
-  it("trill 바디·Point는 200×40과 자기 snapshot만 사용하고 끝에 release·cap·자동 점수 표시를 만들지 않는다", () => {
+  it("trill 바디·탭은 200×40과 자기 snapshot만 사용하고 끝에 release·cap·자동 점수 표시를 만들지 않는다", () => {
     const trill = explicitRenderChart([
       { type: "tap", kind: "trill", lane: 3, beat: beat(2), grace: true },
       { type: "body", lane: 3, beat: beat(2), endBeat: beat(6), holdCount: 1, trill: true },
@@ -169,7 +169,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(trill.totalJudgments).toBe(1);
   });
 
-  it("M1 ENJ-03 실제 이른 종료 snapshot은 바디와 성공 유지를 즉시 숨기며 별도 마감을 만들지 않는다", () => {
+  it("M1 ENJ-03 실제 이른 종료 snapshot은 바디와 성공 틱을 즉시 숨기며 별도 마감을 만들지 않는다", () => {
     const actual = compileExplicitJudgmentChart(explicitEnjFixtures.find(fixture => fixture.id === "ENJ-03")!.chart);
     const session = new ExplicitJudgmentSession(actual, { maintenanceGraceMs: 20 });
     session.processBatch(900, [{ key: "A", lane: 1, type: "down" }]);
@@ -179,7 +179,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(notes.flatMap(note => note.layers).every(layer => !layer.visible)).toBe(true);
   });
 
-  it("실제 세션의 double 1070ms 늦은 시작·1080ms up 뒤 다른 몫 실패는 부분 실패 바디 alpha 0.7과 남은 실패 표식을 보존한다", () => {
+  it("실제 세션의 double 1070ms 늦은 시작·1080ms up 뒤 다른 몫 실패는 부분 실패 바디 alpha 0.7과 남은 실패 틱을 보존한다", () => {
     const actual = explicitRenderChart([
       { type: "body", lane: 1, beat: beat(2), endBeat: beat(53, 25), holdCount: 2 },
       { type: "tick", lane: 1, beat: beat(103, 50), count: 2 },

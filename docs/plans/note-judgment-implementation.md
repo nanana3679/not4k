@@ -1,6 +1,6 @@
 # 노트 판정 모델 구현·테스트·검증 계획
 
-> **과도기 구형 구현 계획·기록.** 아래 RFD 0020의 구현 순서와 당시 기준선은 보존한다. RFD 0037의 새 바디·명시 Point/릴리즈/유지는 [명시적 점수 노트 구현 계획](explicit-score-notes-implementation.md)을 따른다. 아래의 시작 down·연결 up 소비, 자동 끝점·`holdOnly` 구현 단계를 새 모델에 이식하지 않는다.
+> **과도기 구형 구현 계획·기록.** 아래 RFD 0020의 구현 순서와 당시 기준선은 보존한다. RFD 0037의 새 바디·명시 Point/릴리즈/유지는 [명시적 점수 노트 구현 계획](explicit-score-notes-implementation.md)을 따른다. 노트 이름은 [RFD 0041](../rfd/0041-explicit-score-note-names-tap-tick.md)에서 탭 노트(`tap`)·틱 노트(`tick`)로 바꿨다(이전 이름 Point·유지 노트). 아래의 시작 down·연결 up 소비, 자동 끝점·`holdOnly` 구현 단계를 새 모델에 이식하지 않는다.
 
 2026-09-07. 기준은 [RFD 0020](../rfd/0020-note-judgment-units-and-inheritance.md), [glossary](../context/glossary.md#롱노트-판정-모델), [38개 판정 사례](../spec/note-judgment-cases.md)이다. 이 문서는 실행 순서와 통과 기준을 정의한다. 작업 상태와 새로 발견한 제품 미결정 사항은 [PRD §12](../prd.md#12-미정-사항)에서만 관리한다.
 

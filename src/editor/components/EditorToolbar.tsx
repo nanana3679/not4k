@@ -579,7 +579,7 @@ const entityLabels: Record<EntityType, string> = {
   double: 'Double',
   release: 'Release 1',
   doubleRelease: 'Release 2',
-  tick: 'Sustain',
+  tick: 'Tick',
   long: 'Body 1',
   doubleLong: 'Body 2',
   trillZone: 'Trill',
@@ -1235,7 +1235,7 @@ export function EditorToolbar({
         <button
           style={{ ...styles.button, ...(graceMode ? styles.buttonActive : {}) }}
           onClick={() => setGraceMode(!graceMode)}
-          title="Grace mode: Point·릴리즈에 Grace 적용 (바디·유지 표식 제외)"
+          title="Grace mode: 탭·릴리즈에 Grace 적용 (바디·틱 노트 제외)"
         >
           Grace
         </button>

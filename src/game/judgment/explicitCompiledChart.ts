@@ -22,7 +22,7 @@ interface ExplicitScoreItemBase {
   readonly weight: 3;
 }
 
-/** 유지에는 독립 입력·Grace가 없으며 릴리즈 수량은 바디 몫 수와 별개다. */
+/** 틱에는 독립 입력·Grace가 없으며 릴리즈 수량은 바디 몫 수와 별개다. */
 export type ExplicitScoreItem = ExplicitScoreItemBase & (
   | { readonly kind: "tap"; readonly tapKind: "single" | "double" | "trill";
     readonly grace: boolean; readonly startsBodyIndices: readonly number[]; readonly trillZoneIndex?: number }
@@ -134,7 +134,7 @@ export function compileExplicitJudgmentChart(
           boundaryKind: bodyIndex === undefined ? "standalone" : decreased ? "decrease" : "end" });
       } else {
         const bodyIndex = relations.tickBodyByNote.get(noteIndex);
-        if (bodyIndex === undefined) throw new Error(`검증된 유지 표식의 소속이 없습니다: note ${noteIndex}`);
+        if (bodyIndex === undefined) throw new Error(`검증된 틱 노트의 소속이 없습니다: note ${noteIndex}`);
         scoreItems.push({ ...base, kind: "tick", bodyIndex, bodyUnit: { bodyIndex, ordinal } });
       }
     }

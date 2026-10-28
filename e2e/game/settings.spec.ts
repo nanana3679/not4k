@@ -76,7 +76,7 @@ function laneRow(dialog: Locator, laneNumber: number): Locator {
 }
 
 test.describe('Game Settings', () => {
-  test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 명시 Point·Body와 Classic 기어·봄 PNG를 로드한다', async ({ page }, testInfo) => {
+  test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 명시 탭 노트·Body와 Classic 기어·봄 PNG를 로드한다', async ({ page }, testInfo) => {
     test.setTimeout(PLAY_TEST_TIMEOUT_MS);
     const errors: string[] = [];
     const requested: string[] = [];
@@ -95,7 +95,7 @@ test.describe('Game Settings', () => {
 
     // Supply an isolated chart/audio fixture, then let the actual PlayScreen
     // initialize its renderer and skin. The hook records only frames drawn after
-    // the song started and observes explicit point/body layers inside the lane clip.
+    // the song started and observes explicit tap/body layers inside the lane clip.
     // 오디오를 테스트 제한 시간만큼 길게 두어, 스크린샷 전에 곡이 끝나 결과 화면이 캔버스를 대신하지 않게 한다.
     await page.evaluate(async (audioSeconds) => {
       const win = window as unknown as Record<string, unknown>;
@@ -113,7 +113,7 @@ test.describe('Game Settings', () => {
           laneEndClip: { bounds: { minX: number; minY: number; maxY: number }; toGlobal: (point: { x: number; y: number }) => { y: number } };
           explicitNoteRenderer: { root: { children: { label: string; children: Drawn[] }[] } } | null;
         };
-        // 레이어에 있어도 레인 끝 클립(laneEndClip, 키 윗면까지) 밖이면 화면에 없다. 포인트는 판정 시각 + 500ms까지 레이어에 남지만 키 윗면은
+        // 레이어에 있어도 레인 끝 클립(laneEndClip, 키 윗면까지) 밖이면 화면에 없다. 탭 노트는 판정 시각 + 500ms까지 레이어에 남지만 키 윗면은
         // 판정 시각 + 약 184ms에 지나므로, 클립과 세로로 겹치는 것만 센다. mask로 쓰는 Graphics는 Pixi가 측정에서 빼 getBounds가 빈 상자라
         // 자기 사각형(bounds)을 전역 좌표로 바꾼다.
         const clip = self.laneEndClip;
@@ -150,8 +150,8 @@ test.describe('Game Settings', () => {
       const state = useGameStore.getState();
       const document: import('../../src/shared/types/chart').ChartDocument = {
         meta: {title:'Classic skin check',artist:'test',difficultyLabel:'NORMAL',difficultyLevel:1,imageFile:'',audioFile:'',previewAudioFile:'',offsetMs:0},
-        // 같은 노트 묶음을 1.5초와 7.5초에 둔다. 포인트가 레인 안에 보이는 구간은 1.5초 묶음이 플레이 약 −0.66~1.68초, 7.5초 묶음이 약 5.34~7.68초(각 약 2.35초)다.
-        // 1.5초 묶음은 곡이 시작될 때 판정선 위쪽에 있어 보통 첫 플레이 프레임이 담고, 첫 플레이 프레임이 늦으면 7.5초 묶음이 포인트·바디가 보이는 프레임을 만든다.
+        // 같은 노트 묶음을 1.5초와 7.5초에 둔다. 탭 노트가 레인 안에 보이는 구간은 1.5초 묶음이 플레이 약 −0.66~1.68초, 7.5초 묶음이 약 5.34~7.68초(각 약 2.35초)다.
+        // 1.5초 묶음은 곡이 시작될 때 판정선 위쪽에 있어 보통 첫 플레이 프레임이 담고, 첫 플레이 프레임이 늦으면 7.5초 묶음이 탭 노트·바디가 보이는 프레임을 만든다.
         notes: [
           {type: 'tap', kind: 'single',lane:1,beat:{n:3,d:1}},
           {type: 'body', holdCount: 1,lane:1,beat:{n:3,d:1},endBeat:{n:9,d:1}},
@@ -170,7 +170,7 @@ test.describe('Game Settings', () => {
         events:[{type:'bpm',beat:{n:0,d:1},bpm:120}],
       };
       const audioBuffer = new AudioBuffer({numberOfChannels:1,length:44100*audioSeconds,sampleRate:44100});
-      // 포인트는 화면 위끝에 든 뒤 키 윗면(레인 끝 클립)을 지날 때까지 보인다. 200(설정 최솟값)이면 그 시간이 약 2.35초(400이면 약 1.2초)라
+      // 탭 노트는 화면 위끝에 든 뒤 키 윗면(레인 끝 클립)을 지날 때까지 보인다. 200(설정 최솟값)이면 그 시간이 약 2.35초(400이면 약 1.2초)라
       // 부하로 프레임 간격이 벌어져도 그 사이에 플레이 프레임이 든다.
       state.updateSettings({masterVolume:0,scrollSpeed:200});
       const fixturePath = '/e2e/normalPlayFixture.ts';
@@ -194,7 +194,7 @@ test.describe('Game Settings', () => {
     expect(requested.some(path=>path.startsWith('/lab/'))).toBe(false);
     expect(errors).toEqual([]);
     await expect(page.getByTestId('gameplay-canvas')).toBeVisible();
-    // 곡이 시작된 뒤 게임 루프가 그린 프레임의 레인 안에 포인트와 바디가 함께 보였는지. 1.5초 묶음을 놓치면 7.5초 묶음까지 기다린다.
+    // 곡이 시작된 뒤 게임 루프가 그린 프레임의 레인 안에 탭 노트와 바디가 함께 보였는지. 1.5초 묶음을 놓치면 7.5초 묶음까지 기다린다.
     await expect.poll(()=>page.evaluate(() => Boolean((window as unknown as Record<string, unknown>).__classicVisibleNotes)), { timeout: PLAY_TIMEOUT_MS }).toBe(true);
     // 육안 확인용 산출물이다(픽셀 비교 없음). 훅은 실제 프레임만 관찰한다.
     await page.getByTestId('gameplay-canvas').screenshot({path:testInfo.outputPath('classic-in-game.png')});

@@ -62,7 +62,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     expect(restored.score).toMatchObject({ earnedScore: 3, judgmentCounts: { perfect: 1, miss: 0 } });
   });
 
-  it.each([-100, 100])("입력 offset %ims에서 1000ms Point의 raw 1120ms down은 포함 Good 경계를 보존", offset => {
+  it.each([-100, 100])("입력 offset %ims에서 1000ms 탭의 raw 1120ms down은 포함 Good 경계를 보존", offset => {
     const p = play([tap(1000)], offset);
     const physical = 1120 - offset;
     p.frame(physical - 1);
@@ -72,7 +72,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     expect(p.finish().score.earnedScore).toBe(1);
   });
 
-  it("1400ms 큰 프레임에 down1000/up1100을 drain해도 Point·릴리즈가 각각 Perfect 3점", () => {
+  it("1400ms 큰 프레임에 down1000/up1100을 drain해도 탭·릴리즈가 각각 Perfect 3점", () => {
     const p = play([tap(1000), body(1000, 1100), release(1100)]);
     p.input(1000, 1000); p.input(1100, 1100, "KeyA", "up");
     p.frame(1400);
@@ -100,7 +100,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     expect(p.session.snapshot.bodyUnits[0].state).toBe("active");
   });
 
-  it("과거 raw1000과 미래 raw2000이 한 drain에 있어도 미래 관측으로 Point를 먼저 Miss 확정하지 않음", () => {
+  it("과거 raw1000과 미래 raw2000이 한 drain에 있어도 미래 관측으로 탭을 먼저 Miss 확정하지 않음", () => {
     const p = play([tap(1000)]);
     p.frame(1080);
     p.timeline.enqueueMany([{ inputAt: 1000, lane: 1, key: "KeyA", type: "down" },
@@ -122,7 +122,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     expect(p.finish().score.earnedScore).toBe(9);
   });
 
-  it("동일 raw1000 같은 키 down/up/down은 입력 인과를 유지하고 Point를 한 번만 정산", () => {
+  it("동일 raw1000 같은 키 down/up/down은 입력 인과를 유지하고 탭을 한 번만 정산", () => {
     const p = play([tap(1000)]);
     p.timeline.enqueueMany((["down", "up", "down"] as const).map(type => ({ inputAt: 1000, key: "A", lane: 1, type })));
     p.frame(1000);
@@ -159,7 +159,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     expect(p.session.effects).toHaveLength(1);
   });
 
-  it("+200ms offset 수동 큐가 raw1200으로 앞서면 raw1050 auto를 먼저 enqueue해 두 Point 모두 Perfect", () => {
+  it("+200ms offset 수동 큐가 raw1200으로 앞서면 raw1050 auto를 먼저 enqueue해 두 탭 모두 Perfect", () => {
     const p = play([tap(1200), tap(1050, 2)], 200, [{ startMs: 1050, endMs: 1050 }]);
     p.frame(900); p.input(1000, 1000); p.frame(1000);
     expect(settlements(p.session)).toMatchObject([{ grade: "perfect", atMs: 1050 }, { grade: "perfect", atMs: 1200 }]);
@@ -190,7 +190,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     const batch = vi.spyOn(p.session, "processBatch");
     p.audio.currentTimeMs = 1000;
     keyboard(target, "keydown", 1000);
-    // 자동 L1도 허용된 구간이지만 추가 입력은 물리적으로 합법이며 이미 처리한 Point를 재정산하지 않는다.
+    // 자동 L1도 허용된 구간이지만 추가 입력은 물리적으로 합법이며 이미 처리한 탭을 재정산하지 않는다.
     stepExplicitPlaySession(source.timeline, p.session, p.auto, p.clock, 1000);
     expect(batch).toHaveBeenCalledTimes(1);
     expect(batch.mock.calls[0][0]).toBe(1000);
@@ -231,7 +231,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     expect(empty.canFinish(0, 2000)).toBe(false);
   });
 
-  it("1000～1001ms double 바디에 raw1120 한 키만 시작해도 종료1122에서 유지·릴리즈 5항목을 미정산 없이 확정", () => {
+  it("1000～1001ms double 바디에 raw1120 한 키만 시작해도 종료1122에서 틱·릴리즈 5항목을 미정산 없이 확정", () => {
     const p = play([tap(1000), { type: "body", holdCount: 2, lane: 1, beat: beat(2), endBeat: beat(1001, 500) },
       { type: "tick", count: 2, lane: 1, beat: beat(2001, 1000) },
       { type: "release", count: 2, lane: 1, beat: beat(1001, 500) }]);

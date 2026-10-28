@@ -248,7 +248,7 @@ describe('performPlayTest', () => {
 });
 
 describe('새 문서와 구형 테스트 플레이 경계', () => {
-  it('명시 main Point가 있어도 새 게임 port가 주입되지 않으면 안내 후 오디오·게임 상태·화면을 보존한다', () => {
+  it('명시 main 탭이 있어도 새 게임 port가 주입되지 않으면 안내 후 오디오·게임 상태·화면을 보존한다', () => {
     const { params, game, navigate, pause, closeMenu, addToast } = buildParams({ isPlaying: true,
       chart: { ...baseChart, notes: [{ type: 'tap', kind: 'double', lane: 1, beat: beat(2), grace: true }] },
     });
@@ -258,7 +258,7 @@ describe('새 문서와 구형 테스트 플레이 경계', () => {
     expect(navigate).not.toHaveBeenCalled(); expect(pause).not.toHaveBeenCalled(); expect(closeMenu).not.toHaveBeenCalled();
   });
 
-  it('명시 main Point와 새 게임 port가 주입되면 처음부터 시작은 startTimeMs 없이 원본문서·음원·복귀URL을 새 port에 전달한다', () => {
+  it('명시 main 탭과 새 게임 port가 주입되면 처음부터 시작은 startTimeMs 없이 원본문서·음원·복귀URL을 새 port에 전달한다', () => {
     const { params, game, navigate } = buildParams({
       chart: { ...baseChart, notes: [{ type: 'tap', kind: 'double', lane: 1, beat: beat(2), grace: true }] },
     });

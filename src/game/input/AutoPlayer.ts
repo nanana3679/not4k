@@ -277,7 +277,7 @@ export class AutoPlayer {
     return false;
   }
 
-  /** 이번 틱에 만들 press 이벤트. AutoEvent 밖이면 빈 배열. */
+  /** 이번 프레임에 만들 press 이벤트. AutoEvent 밖이면 빈 배열. */
   pressesAt(songTimeMs: number): AutoInput[] {
     const out: AutoInput[] = [];
     if (!this.isAutoAt(songTimeMs)) return out;
@@ -327,7 +327,7 @@ export class AutoPlayer {
     return out;
   }
 
-  /** 이번 틱에 만들 release 이벤트. AutoEvent과 무관하게 방출한다. */
+  /** 이번 프레임에 만들 release 이벤트. AutoEvent과 무관하게 방출한다. */
   releasesAt(songTimeMs: number): AutoInput[] {
     const out: AutoInput[] = [];
 

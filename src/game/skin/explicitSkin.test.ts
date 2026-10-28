@@ -64,7 +64,7 @@ describe("명시적 노트 정적 스킨 view", () => {
     }
   });
 
-  it("Point 212×40과 body·release·sustain 200×40을 중앙에 놓으면 폭을 섞지 않는다", () => {
+  it("탭 212×40과 body·release·tick 200×40을 중앙에 놓으면 폭을 섞지 않는다", () => {
     const view = buildExplicitSkinView("/");
     expect(getExplicitSkinAsset(view, "tap.double.pending").logicalSize).toEqual({ width: 212, height: 40 });
     for (const asset of Object.values(view.assetsById)) {
@@ -78,7 +78,7 @@ describe("명시적 노트 정적 스킨 view", () => {
     expect(view.body).toEqual({ mode: "repeat", axis: "y", tileSize: { width: 200, height: 40 }, laneReferenceWidth: 212, startCap: false, endCap: false });
   });
 
-  it("Grace overlay를 조회하면 24px 패딩 안에 Point 212×40 또는 release·trill 200×40 본체를 정렬한다", () => {
+  it("Grace overlay를 조회하면 24px 패딩 안에 탭 212×40 또는 release·trill 200×40 본체를 정렬한다", () => {
     const view = buildExplicitSkinView("/");
     const tap = getExplicitSkinAsset(view, "graceOverlay.tap.overlay");
     expect(tap.logicalSize).toEqual({ width: 260, height: 88 });
@@ -91,7 +91,7 @@ describe("명시적 노트 정적 스킨 view", () => {
     expect(Object.values(view.assetsById).some(asset => /(?:single|double).*grace\.png/.test(asset.file))).toBe(false);
   });
 
-  it("더블 유지 표식 한쪽을 조회해도 200×40 캔버스와 x=84·116 좌표·밝기 계약을 유지한다", () => {
+  it("더블 틱 한쪽을 조회해도 200×40 캔버스와 x=84·116 좌표·밝기 계약을 유지한다", () => {
     const view = buildExplicitSkinView("/");
     for (const [side, x] of [["left", 84], ["right", 116]] as const) {
       for (const state of ["pending", "failed"]) {
@@ -131,7 +131,7 @@ describe("명시적 노트 정적 스킨 view", () => {
     expect(() => buildExplicitSkinView("/", manifest)).toThrow("Explicit skin role/side mismatch");
   });
 
-  it("double sustain 왼쪽 표식을 100×40으로 자르면 캔버스 계약 위반으로 거부한다", () => {
+  it("double tick 왼쪽 도안을 100×40으로 자르면 캔버스 계약 위반으로 거부한다", () => {
     const manifest = freshManifest();
     manifest.assets.find(asset => asset.id === "tick.double.pending.left")!.logicalSize.width = 100;
     expect(() => buildExplicitSkinView("/", manifest)).toThrow("Invalid explicit skin geometry");

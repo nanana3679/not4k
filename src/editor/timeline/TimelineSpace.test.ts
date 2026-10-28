@@ -305,7 +305,7 @@ describe("TimelineSpace — 히트테스트", () => {
         expect(space.hitTestNoteEnd(30, 2550)).toBe(0);
       });
 
-      it("5.125박 유지 노트가 덮는 5.1박(y=2550)은 점수 노트가 이겨 hitTestNoteEnd가 null이다", () => {
+      it("5.125박 틱 노트가 덮는 5.1박(y=2550)은 점수 노트가 이겨 hitTestNoteEnd가 null이다", () => {
         const notes: DocumentNoteEntity[] = [...connectedBodies(), { type: "tick", lane: 1, beat: beat(41, 8), count: 1 }];
         const { source } = makeFakeSource({ chart: makeChart({ notes }) });
         const space = createTimelineSpace(source);

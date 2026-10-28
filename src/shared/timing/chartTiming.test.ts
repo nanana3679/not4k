@@ -14,7 +14,7 @@ function makeSource(overrides: Partial<ChartTimingSource>): ChartTimingSource {
 }
 
 describe("createChartTiming", () => {
-  it("120 BPM에서 명시 길이 0 바디·Point·릴리즈·유지의 시간은 보존하고 구형 판정 수 집계는 거부한다", () => {
+  it("120 BPM에서 명시 길이 0 바디·탭·릴리즈·틱의 시간은 보존하고 구형 판정 수 집계는 거부한다", () => {
     const timing = createChartTiming(makeSource({ notes: [
       { type: "body", lane: 1, beat: beat(1), endBeat: beat(1), holdCount: 2 },
       { type: "tap", kind: "double", lane: 2, beat: beat(2) },

@@ -111,7 +111,7 @@ test('반복은 새 instance로 0ms부터 시작하고 reset·돌아가기 뒤 c
   expect(state.keyboardListeners).toBe(0);
 });
 
-test('1500ms 바디 중간에서 재개하면 0ms로 되감고 준비 hold와 별개로 Point를 다시 눌러 4항목12점을 정산한다', async ({ page }) => {
+test('1500ms 바디 중간에서 재개하면 0ms로 되감고 준비 hold와 별개로 탭을 다시 눌러 4항목12점을 정산한다', async ({ page }) => {
   await openLab(page); await installProbe(page);
   await page.evaluate(async () => {
     const path = '/src/game/stores/gameStore.ts';
@@ -137,7 +137,7 @@ test('1500ms 바디 중간에서 재개하면 0ms로 되감고 준비 hold와 �
   await expectPreparation(page, 0);
   await expect(page.getByTestId('explicit-play')).toHaveAttribute('data-phase', 'playing', { timeout: 20000 });
   expect((await probe(page)).session?.score.processedNotes).toBe(0);
-  // Preparation hold must not synthesize the 1000ms Point down.
+  // Preparation hold must not synthesize the 1000ms tap down.
   await page.keyboard.up('w');
   await waitAt(page, 1000); await page.keyboard.down('w');
   await waitAt(page, 2000); await page.keyboard.up('w');
@@ -209,7 +209,7 @@ test('실제 한 키 Double 연주는 부분 실패·성공을 WebGL에 표시�
   await page.getByTestId('explicit-play-result').screenshot({ path: info.outputPath('manual-double-partial-result.png') });
 });
 
-test('일반 Point·Release도 실제 Q/E 입력으로 auto와 같은 4항목12점을 정산한다', async ({ page }, info) => {
+test('일반 탭·Release도 실제 Q/E 입력으로 auto와 같은 4항목12점을 정산한다', async ({ page }, info) => {
   await openLab(page); await installProbe(page);
   await page.evaluate(async () => {
     const path = '/src/game/stores/gameStore.ts';

@@ -58,7 +58,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // Editor mode
   mode: EditorModeName;
   entityType: EntityType;
-  graceMode: boolean; // Create 배치 시 Point·Release에만 Grace 적용
+  graceMode: boolean; // Create 배치 시 탭·Release에만 Grace 적용
 
   // Playback
   isPlaying: boolean;

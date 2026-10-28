@@ -9,7 +9,7 @@ const main = {
 };
 
 describe('loadEditorChartAsset 문서 로드', () => {
-  it('v4 혼합 main과 의미 위반 aux sustain도 원본 배열 순서·false·수량과 함께 수리용으로 읽는다', () => {
+  it('v4 혼합 main과 의미 위반 aux tick도 원본 배열 순서·false·수량과 함께 수리용으로 읽는다', () => {
     const loaded = loadEditorChartAsset(JSON.stringify({ ...main, version: 4, notes: [
       { type: 'single', lane: 1, beat: '8', grace: false },
       { type: 'release', count: 2, lane: 2, beat: '4', grace: false },
@@ -64,7 +64,7 @@ describe('loadEditorChartAsset 문서 로드', () => {
   it.each([
     ['별도 aux 파일이 있으면', JSON.stringify({ version: 4, extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }] })],
     ['aux 파일 없이 메인에 예전 extraNotes가 있으면', null],
-  ])('%s 메인의 lane 0·lane 1.5 Point를 병합에서 버리지 않아 laneMalformed 위반으로 보인다', (_label, extraText) => {
+  ])('%s 메인의 lane 0·lane 1.5 탭을 병합에서 버리지 않아 laneMalformed 위반으로 보인다', (_label, extraText) => {
     const chart = JSON.stringify({ ...main, version: 4, extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }], notes: [
       { type: 'tap', kind: 'single', lane: 0, beat: '1' },
       { type: 'tap', kind: 'single', lane: 1.5, beat: '2' },

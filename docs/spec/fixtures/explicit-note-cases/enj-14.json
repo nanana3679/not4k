@@ -1,6 +1,6 @@
 {
   "format": "judgment-case-design",
-  "title": "ENJ-14 — 건강한 승계는 짧은 바디 Point 미처리여도 1000ms 시작",
+  "title": "ENJ-14 — 건강한 승계는 짧은 바디 탭 노트 미처리여도 1000ms 시작",
   "notes": [
     {
       "kind": "tap",
@@ -48,7 +48,7 @@
       "note": "N3",
       "startMs": 880,
       "endMs": 1120,
-      "label": "Point Good"
+      "label": "탭 Good"
     },
     {
       "note": "N5",
@@ -62,7 +62,7 @@
       "note": "N1",
       "atMs": 600,
       "label": "Perfect",
-      "text": "N1 Point를 실제 down으로 처리한다.",
+      "text": "N1 탭 노트를 실제 down으로 처리한다.",
       "tone": "success"
     },
     {
@@ -82,11 +82,11 @@
     {
       "note": "N3",
       "atMs": 1120,
-      "label": "Point 기한",
+      "label": "탭 기한",
       "text": "N3에 새 down이 없으므로 기한을 넘기면 N3 Miss. 건강한 승계·성공 N5를 되돌리지 않는다.",
       "tone": "failure"
     }
   ],
-  "summary": "N1·N5 Perfect, N3 Miss라는 규칙 도출 기대값으로 6/9점. N4를 Point 대기 때문에 미시작으로 처리하거나 추가 유지·릴리즈 Miss를 만들지 않는다.",
-  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-1·§3-3·§4 / 논의 §99 및 RFD 0032 §5-1의 충돌하지 않는 건강한 승계."
+  "summary": "N1·N5 Perfect, N3 Miss라는 규칙 도출 기대값으로 6/9점. N4를 탭 노트 대기 때문에 미시작으로 처리하거나 추가 유지·릴리즈 Miss를 만들지 않는다.",
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 틱 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-1·§3-3·§4 / 논의 §99 및 RFD 0032 §5-1의 충돌하지 않는 건강한 승계."
 }

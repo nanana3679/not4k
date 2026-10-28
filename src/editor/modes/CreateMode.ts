@@ -112,7 +112,7 @@ export class CreateMode implements EditorMode {
     this.selectedEntityType = type;
   }
 
-  /** Grace mode — Point·Release에만 타이밍 면제 적용 */
+  /** Grace mode — 탭·Release에만 타이밍 면제 적용 */
   get graceMode(): boolean {
     return this._graceMode;
   }
@@ -195,7 +195,7 @@ export class CreateMode implements EditorMode {
     return true;
   }
 
-  /** 터치 롱프레스도 Point 도구의 드래그와 같은 생성 조합을 사용한다. */
+  /** 터치 롱프레스도 탭 도구의 드래그와 같은 생성 조합을 사용한다. */
   beginTapToolDragAt(x: number, y: number, kind: "single" | "double"): boolean {
     const started = this.beginRangeNoteAt(x, y, kind === "double" ? "doubleLong" : "long");
     if (started) this._dragTapFallback = kind;
@@ -218,7 +218,7 @@ export class CreateMode implements EditorMode {
    */
   isPlacementBlocked(x: number, y: number): boolean {
     if (!this.callbacks.isTimeInBounds(y)) return true;
-    // 명시 표식은 바디 안에도 놓는다. 중복·소속은 공용 의미 검증으로 표시한다.
+    // 틱·릴리즈는 바디 안에도 놓는다. 중복·소속은 공용 의미 검증으로 표시한다.
     if (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
     const unifiedHit = this.callbacks.space.hitTestUnifiedNote(x, y);
     if (unifiedHit !== null && this.chart.notes[unifiedHit]?.type === "body") return false;
@@ -469,7 +469,7 @@ export class CreateMode implements EditorMode {
       ? { type: "body", lane, beat: start, endBeat: end, holdCount: 2 }
       : { type: "body", lane, beat: start, endBeat: end, holdCount: 1, ...(inTrill ? { trill: true } : {}) };
     const notes: DocumentNoteEntity[] = [body];
-    // Point 도구로 시작한 양수 드래그만 점수 노트를 함께 만든다. 바디 도구는 바디만 만든다.
+    // 탭 도구로 시작한 양수 드래그만 점수 노트를 함께 만든다. 바디 도구는 바디만 만든다.
     if (this._dragTapFallback && !beatEq(start, end)) {
       notes.unshift({ type: "tap", kind: inTrill ? "trill" : holdCount === 2 ? "double" : "single",
         lane, beat: start, ...(this._graceMode ? { grace: true } : {}) });

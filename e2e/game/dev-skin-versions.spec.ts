@@ -9,7 +9,7 @@ const chart = {
   version: 4,
   meta: { title: 'Supabase 스킨 비교', artist: 'test', difficultyLabel: 'NORMAL', difficultyLevel: 1, imageFile: '', audioFile: 'audio.wav', previewAudioFile: '', offsetMs: 0 },
   // 같은 노트 묶음을 2초와 8초에 둔다. 2초 묶음은 곡이 시작될 때 이미 화면 안에 있어 보통 첫 플레이 프레임이 담고,
-  // 첫 플레이 프레임이 늦어도 8초 묶음이 플레이 약 5.8~8.1초에 포인트 2개·바디 2개가 보이는 프레임을 만든다.
+  // 첫 플레이 프레임이 늦어도 8초 묶음이 플레이 약 5.8~8.1초에 탭 노트 2개·바디 2개가 보이는 프레임을 만든다.
   notes: [
     { type: 'tap', kind: 'single', lane: 1, beat: '4' }, { type: 'body', holdCount: 1, lane: 1, beat: '4', endBeat: '8' },
     { type: 'tap', kind: 'double', lane: 2, beat: '4' }, { type: 'body', holdCount: 2, lane: 2, beat: '4', endBeat: '8' },
@@ -31,7 +31,7 @@ function silentWav() {
 }
 
 async function openSongs(page: Page) {
-  // 포인트 2개·바디 2개가 함께 보이는 구간은 노트 묶음마다 기본 scrollSpeed 800이면 약 0.7초, 200(설정 최솟값)이면 약 2.3초다.
+  // 탭 노트 2개·바디 2개가 함께 보이는 구간은 노트 묶음마다 기본 scrollSpeed 800이면 약 0.7초, 200(설정 최솟값)이면 약 2.3초다.
   // 200이면 부하로 프레임 간격이 벌어져도 그 사이에 플레이 프레임이 든다. 튜토리얼 재생기는 이 값을 쓰지 않는다.
   await page.addInitScript(() => localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: { isFirstLaunch: false, skinId: 'crystal', masterVolume: 0, scrollSpeed: 200 } }, version: 0 })));
   const audio = silentWav();
@@ -73,7 +73,7 @@ async function closeSettings(page: Page) {
   await page.getByRole('dialog', { name: 'Settings', exact: true }).getByRole('button', { name: 'Close', exact: true }).click();
 }
 
-test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하며 명시 Point·Body를 그리고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
+test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하며 명시 탭 노트·Body를 그리고 재시도·v001 비교·기본 스킨 복귀를 지원한다', async ({ page }, testInfo) => {
   test.setTimeout(PLAY_TEST_TIMEOUT_MS);
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -128,7 +128,7 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
       layers: string[]; legacyPoints: number;
     };
   }).__devNoteBounds);
-  // 레인 62.5·노트 62.5×12.5(설계값 100·20 × 플레이필드 배율 0.625, RFD 0029). 바디는 포인트 폭의 100/106.
+  // 레인 62.5·노트 62.5×12.5(설계값 100·20 × 플레이필드 배율 0.625, RFD 0029). 바디는 탭 노트 폭의 100/106.
   expect(bounds.taps.map(({ x, width }) => [x, Math.round(width * 1000) / 1000])).toEqual([[0, 62.5], [62.5, 62.5]]);
   bounds.bodies.forEach((body, lane) => {
     expect(body.x).toBeCloseTo(lane * 62.5 + 1.77, 2);

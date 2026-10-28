@@ -157,7 +157,7 @@ describe('GameRenderer 명시 seam', () => {
     expect([...loaded.values()].every(texture => texture.source.autoGarbageCollect && !texture.destroyed)).toBe(true);
   });
 
-  it('실제 double 한 키 성공·다른 몫 실패는 alpha0.7 body와 실패 sustain 하나로 보이며 lift와 스크롤·culling을 따른다', async () => {
+  it('실제 double 한 키 성공·다른 몫 실패는 alpha0.7 body와 실패 tick 하나로 보이며 lift와 스크롤·culling을 따른다', async () => {
     const { renderer, scene, explicitSkin, document, compiled, session } = await setup();
     renderer.setExplicitChart(compiled, explicitSkin, () => session.snapshot, document, 4000); renderer.scrollSpeed = 200;
     session.processBatch(1000, [{ lane: 1, key: 'Q', type: 'down' }]); session.advance(1500);

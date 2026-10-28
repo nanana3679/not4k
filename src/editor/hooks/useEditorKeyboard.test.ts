@@ -56,7 +56,7 @@ function setup(source: DocumentNoteEntity[] = [{ type: 'tap', kind: 'single', la
 }
 
 describe('붙여넣기·드래그 중 독립 명령', () => {
-  it('8박 붙여넣기 대기 중 G를 누르면 붙여넣기를 먼저 확정해 뒤의 Esc가 8박 Grace Point를 지우지 않고 Undo 2번에 처음 1개로 돌아간다', () => {
+  it('8박 붙여넣기 대기 중 G를 누르면 붙여넣기를 먼저 확정해 뒤의 Esc가 8박 Grace 탭을 지우지 않고 Undo 2번에 처음 1개로 돌아간다', () => {
     const { mode, press, pasteCopyOfFirstNoteAt8 } = setup(); const initial = current().chart;
     pasteCopyOfFirstNoteAt8();
     press('g');
@@ -71,7 +71,7 @@ describe('붙여넣기·드래그 중 독립 명령', () => {
     expect(current().chart).toEqual(initial);
   });
 
-  it('8박 붙여넣기 대기 중 G 뒤 ArrowUp은 붙여넣은 Point를 9박으로 옮기고 Esc 뒤에도 9박에 남는다', () => {
+  it('8박 붙여넣기 대기 중 G 뒤 ArrowUp은 붙여넣은 탭을 9박으로 옮기고 Esc 뒤에도 9박에 남는다', () => {
     const { press, pasteCopyOfFirstNoteAt8 } = setup();
     pasteCopyOfFirstNoteAt8();
     press('g'); press('ArrowUp');
@@ -94,7 +94,7 @@ describe('붙여넣기·드래그 중 독립 명령', () => {
     expect(notes()).toHaveLength(1);
   });
 
-  it('G 편집 뒤 1박 Point를 3박까지 끄는 중 Ctrl+Z는 드래그만 되돌리고 이후 5박 move·up을 무시하며 Redo로 3박이 된다', () => {
+  it('G 편집 뒤 1박 탭을 3박까지 끄는 중 Ctrl+Z는 드래그만 되돌리고 이후 5박 move·up을 무시하며 Redo로 3박이 된다', () => {
     const { mode, press } = setup();
     mode.selectNote(0); press('g');
     mode.onPointerDown(1, 1, false, false); mode.onPointerMove(1, 3);

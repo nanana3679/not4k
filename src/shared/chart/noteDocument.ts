@@ -102,7 +102,7 @@ function checkFields(n: Record<string, unknown>, fields: string[]): void {
   }
 }
 
-/** 배치 관계는 검사하지 않는다. 바디 밖 sustain 등도 수리용으로 그대로 읽는다. */
+/** 배치 관계는 검사하지 않는다. 바디 밖 tick 등도 수리용으로 그대로 읽는다. */
 export function parseDocumentNote(value: unknown, version?: number): DocumentNoteEntity {
   const n = record(value);
   if (typeof n.lane !== "number" || !Number.isFinite(n.lane)) throw new ChartFormatError("lane은 유한한 숫자여야 합니다");

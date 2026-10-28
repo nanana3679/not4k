@@ -79,7 +79,7 @@ function renderPanel(design: JudgmentCaseDesign, skin: JudgmentCaseSkin, panelIn
   const hasPlaceholder = design.notes.some(note => note.kind === "tick" || note.kind === "marker" || note.count > 2);
   const footerLines = wrapText([
     "시간 ↑ · 간격은 눈금의 ms로 읽기 · ≈ 긴 구간 압축 · W = 직접 지정한 창",
-    ...(hasPlaceholder ? ["임시 표식(전용 에셋 없음): ◇ 유지 노트 · ○ 자유 표식 또는 3개 이상 수량"] : []),
+    ...(hasPlaceholder ? ["임시 표식(전용 에셋 없음): ◇ 틱 노트 · ○ 자유 표식 또는 3개 이상 수량"] : []),
   ].join("\n"), width - 56, 13);
   const height = Math.ceil(footerY + footerLines.length * LINE + 26);
   const parts = [rect(0, 0, width, height, `fill="${BG}"`), `<g font-family="${FONT}">`];

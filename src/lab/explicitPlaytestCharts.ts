@@ -7,7 +7,7 @@ const timing: ChartDocument['events'] = [{ type: 'bpm', beat: beat(0), bpm: 120 
 
 /** 보관 차트를 변환하지 않은 저작 리터럴. 표시 fixture가 아니라 실제 engine에 전달한다. */
 export const explicitPlaytestCharts: readonly { id: string; title: string; instruction: string; chart: ChartDocument }[] = [
-  { id: 'single', title: 'Point와 유지·Release', instruction: '1레인을 1초에 누르고 2초에 뗍니다. 3초에는 2레인 Point를 누릅니다.',
+  { id: 'single', title: '탭 노트와 틱 노트·Release', instruction: '1레인을 1초에 누르고 2초에 뗍니다. 3초에는 2레인 탭 노트를 누릅니다.',
     chart: { meta, trillZones: [], events: timing, notes: [
       { type: 'tap', kind: 'single', lane: 1, beat: beat(2) },
       { type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(4) },
@@ -24,7 +24,7 @@ export const explicitPlaytestCharts: readonly { id: string; title: string; instr
     ] } },
   { id: 'body-only', title: '점수 항목 없는 바디', instruction: '1레인 키를 1초부터 2초까지 유지합니다. 무점수 바디의 실제 상태와 Miss 수를 검토합니다.',
     chart: { meta, trillZones: [], events: timing, notes: [{ type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(4) }] } },
-  { id: 'trill', title: 'Trill Point와 바디', instruction: '1레인에서 1초와 1.5초의 Point를 다른 키로 교대하고 2초까지 유지합니다.',
+  { id: 'trill', title: 'Trill 탭 노트와 바디', instruction: '1레인에서 1초와 1.5초의 탭 노트를 다른 키로 교대하고 2초까지 유지합니다.',
     chart: { meta, trillZones: [{ lane: 1, beat: beat(2), endBeat: beat(4) }], events: timing, notes: [
       { type: 'body', holdCount: 1, trill: true, lane: 1, beat: beat(2), endBeat: beat(4) },
       { type: 'tap', kind: 'trill', lane: 1, beat: beat(2) },

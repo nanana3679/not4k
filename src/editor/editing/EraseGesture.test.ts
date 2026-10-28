@@ -63,7 +63,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
     current().undo(); expect(current().chart).toEqual(initial);
   });
 
-  it('3박 트릴 Point가 든 1～4박 trillZone의 2박을 터치하면 구간을 지우지 않고 경고한다', () => {
+  it('3박 트릴 탭이 든 1～4박 trillZone의 2박을 터치하면 구간을 지우지 않고 경고한다', () => {
     const initial = chart([{ type: 'tap', kind: 'trill', lane: 1, beat: beat(3) }], { trillZones: [zoneAt1to4] });
     const { erase, warn } = setup(initial);
     erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
@@ -79,7 +79,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
     expect(current().chart.restZones).toEqual([]);
   });
 
-  it('유지 표식을 뺀 선택 바디처럼 삭제가 막힌 노트 아래 2박 restZone은 대신 지우지 않는다', () => {
+  it('틱 노트를 뺀 선택 바디처럼 삭제가 막힌 노트 아래 2박 restZone은 대신 지우지 않는다', () => {
     const body: DocumentNoteEntity = { type: 'body', lane: 1, beat: beat(1), endBeat: beat(3), holdCount: 1 };
     const tick: DocumentNoteEntity = { type: 'tick', lane: 1, beat: beat(2.5), count: 1 };
     const initial = chart([body, tick], { restZones: [zoneAt1to4] });

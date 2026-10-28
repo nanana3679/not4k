@@ -9,7 +9,7 @@ const compile = (notes: Parameters<typeof makeExplicitReplayFixture>[2]) => comp
     { scoreItemCount: 0, theoreticalWeight: 0, earnedScore: 0, scope: "whole" }).chart);
 
 describe("원본 출처를 보존하는 명시 재생 범위", () => {
-  it("커서 1500ms 앞 Point·유지를 제외하고 정확히 1500ms 유지와 2000ms 릴리즈만 2항목·6점으로 포함", () => {
+  it("커서 1500ms 앞 탭·틱을 제외하고 정확히 1500ms 틱과 2000ms 릴리즈만 2항목·6점으로 포함", () => {
     const source = compile([p(1000), b(1000, 2000), s(1490), s(1500), r(2000)]);
     const view = selectExplicitPlaybackChart(source, 1500);
     expect(view.scoreItems.map(item => [item.id, item.timeMs])).toEqual([["n3:tick:0", 1500], ["n4:release:0", 2000]]);
@@ -55,7 +55,7 @@ describe("원본 출처를 보존하는 명시 재생 범위", () => {
     expect(source.bodyUnits.map(unit => unit.startMs)).toEqual([1000, 1000]);
   });
 
-  it("재개 범위에 기존 점수 항목을 넘기면 1500ms 앞 Point·유지와 전체 분모를 제외하거나 새 항목을 만들지 않음", () => {
+  it("재개 범위에 기존 점수 항목을 넘기면 1500ms 앞 탭·틱과 전체 분모를 제외하거나 새 항목을 만들지 않음", () => {
     const source = compile([p(1000), b(1000, 2000), s(1400), s(1500), r(2000)]);
     const view = createExplicitPlaybackChartView(source, 1500, source.scoreItems);
     expect(view.scoreItems).toEqual(source.scoreItems);

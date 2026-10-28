@@ -86,7 +86,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
     expect(p.result.facts.filter(fact => fact.kind === "settlement")).toHaveLength(p.compiled.totalJudgments);
     expect(p.result.score.judgmentCounts.miss).toBe(0);
   });
-  it.each([1, 2] as const)("hold %i개 바디와 같은 수의 Point·릴리즈는 모두 Perfect 3점씩 정산", count => {
+  it.each([1, 2] as const)("hold %i개 바디와 같은 수의 탭·릴리즈는 모두 Perfect 3점씩 정산", count => {
     const p = replay(document([tap(1000, count === 1 ? "single" : "double"), body(1000, 2000, count),
       tick(1500, count), release(2000, count)]));
     expect(p.result.score.earnedScore).toBe(p.compiled.theoreticalWeight);
@@ -95,7 +95,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
     expectPhysical(p.events);
   });
 
-  it.each([1, 2] as const)("Point 없는 hold %i개 바디도 실제 down으로 시작하고 유지 표식만 3점씩 정산", count => {
+  it.each([1, 2] as const)("탭 없는 hold %i개 바디도 실제 down으로 시작하고 틱 노트만 3점씩 정산", count => {
     const p = replay(document([body(1000, 2000, count), tick(1500, count)]));
     expect(p.result.score.earnedScore).toBe(3 * count);
     expect(p.compiled.totalJudgments).toBe(count);
@@ -149,7 +149,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
     expectPhysical(p.events);
   });
 
-  it("트릴 Point 1000·1010·1020ms와 트릴 바디는 동일 zone에서 키를 교대하고 릴리즈를 만들지 않음", () => {
+  it("트릴 탭 1000·1010·1020ms와 트릴 바디는 동일 zone에서 키를 교대하고 릴리즈를 만들지 않음", () => {
     const chart = document([tap(1000, "trill"), tap(1010, "trill"), tap(1020, "trill"),
       { type: "body", lane: 1, beat: beat(2), endBeat: beat(4), holdCount: 1, trill: true }], true);
     const p = replay(chart);
@@ -162,7 +162,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
     expectPhysical(p.events);
   });
 
-  it("더블 hold 중 1950ms Point의 재누름 up은 2000ms 릴리즈를 Great로 일찍 소비하고 9점 중 8점", () => {
+  it("더블 hold 중 1950ms 탭의 재누름 up은 2000ms 릴리즈를 Great로 일찍 소비하고 9점 중 8점", () => {
     const p = replay(document([body(1000, 2000, 2), tap(1950), release(2000, 2)]));
     const releaseFacts = p.result.facts.filter(fact => fact.kind === "settlement" && fact.itemKind === "release");
     expect(releaseFacts).toMatchObject([{ grade: "great", rawDeltaMs: -50 }, { grade: "perfect", rawDeltaMs: 0 }]);
@@ -171,7 +171,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
     expectPhysical(p.events);
   });
 
-  it("유지 표식 0→3개를 추가해도 바디·Point·릴리즈의 합성 입력 배열이 같음", () => {
+  it("틱 노트 0→3개를 추가해도 바디·탭·릴리즈의 합성 입력 배열이 같음", () => {
     const notes = [tap(1000), body(1000, 2000), release(2000)];
     const a = replay(document(notes));
     const b = replay(document([...notes, tick(1250), tick(1500), tick(1750)]));
@@ -179,7 +179,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
     expect(b.result.score.earnedScore - a.result.score.earnedScore).toBe(9);
   });
 
-  it("AutoEvent [1000,1000]은 시작 down만 만들고 2000ms 범위 밖 up도 전달하며 2500ms 수동 Point는 건드리지 않음", () => {
+  it("AutoEvent [1000,1000]은 시작 down만 만들고 2000ms 범위 밖 up도 전달하며 2500ms 수동 탭은 건드리지 않음", () => {
     const p = replay(document([tap(1000), body(1000, 2000), release(2000), tap(2500)]),
       { sections: [{ startMs: 1000, endMs: 1000 }] });
     expect(p.events.map(event => [event.timeMs, event.type])).toEqual([[1000, "down"], [2000, "up"]]);

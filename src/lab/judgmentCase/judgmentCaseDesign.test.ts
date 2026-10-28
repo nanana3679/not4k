@@ -8,7 +8,7 @@ const base = { format: "judgment-case-design", notes: [{ kind: "tap", atMs: 1000
 const parse = (value: unknown) => parseJudgmentCaseDesign(JSON.stringify(value));
 
 describe("수동 설계 입력", () => {
-  it("같은 1000ms의 Point·release·유지 노트를 받아 현행 차트의 배치 금지를 적용하지 않음", () => {
+  it("같은 1000ms의 탭·release·틱 노트를 받아 현행 차트의 배치 금지를 적용하지 않음", () => {
     const design = parse({ ...base, notes: ["tap", "release", "tick", "marker"].map(kind => ({ kind, atMs: 1000 })) });
     expect(design.notes.map(note => note.id)).toEqual(["N1", "N2", "N3", "N4"]);
     expect(design.notes.map(note => note.kind)).toEqual(["tap", "release", "tick", "marker"]);
@@ -49,7 +49,7 @@ describe("수동 설계 입력", () => {
     ["레인 1.5", [{ kind: "tap", atMs: 0, lane: 1.5 }]],
     ["문자열 시각", [{ kind: "tap", atMs: "1000" }]],
     ["바디 역전 1000→900", [{ kind: "body", startMs: 1000, endMs: 900 }]],
-    ["Point에 구간 시각 혼합", [{ kind: "tap", atMs: 0, startMs: 0, endMs: 10 }]],
+    ["탭에 구간 시각 혼합", [{ kind: "tap", atMs: 0, startMs: 0, endMs: 10 }]],
     ["이름 변경 전 kind point", [{ kind: "point", atMs: 0 }]],
     ["이름 변경 전 kind maintain", [{ kind: "maintain", atMs: 0 }]],
   ])("%s이면 잘못된 도식을 만들지 않고 notes 오류", (_name, notes) => {

@@ -379,7 +379,7 @@ describe('명시 점수 노트 hit 우선순위', () => {
     expect(hitTestNoteAt([score, body], 1, 2, undefined, new Set([1]))).toBe(0);
   });
 
-  it('길이 0 바디의 2박에서 0.08박 떨어진 위치는 잡히고 같은 위치의 Point는 잡히지 않는다', () => {
+  it('길이 0 바디의 2박에서 0.08박 떨어진 위치는 잡히고 같은 위치의 탭은 잡히지 않는다', () => {
     expect(hitTestNoteAt([{ type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(2) }], 1, 2.08)).toBe(0);
     expect(hitTestNoteAt([{ type: 'tap', kind: 'single', lane: 1, beat: beat(2) }], 1, 2.08)).toBeNull();
   });

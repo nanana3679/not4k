@@ -13,7 +13,7 @@ const observation = { songTimeMs: 1500, inputTimeMs: 1420, visualTimeMs: 1640, f
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('명시 플레이 debug log', () => {
-  it('Point1000·유지1500을 기록하면 source·kind·실제 관측 시각과 유지 timing=n/a를 남기고 재조회로 효과를 중복하지 않는다', () => {
+  it('탭1000·틱1500을 기록하면 source·kind·실제 관측 시각과 틱 timing=n/a를 남기고 재조회로 효과를 중복하지 않는다', () => {
     const { session, log } = create();
     session.processBatch(1000, [{ type: 'down', lane: 1, key: 'KeyQ' }]); session.advance(1500);
     log.record(session, observation); log.record(session, observation);

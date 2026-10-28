@@ -28,7 +28,7 @@ const missingAuxResponses = [
 ] as const;
 
 describe('일반 곡 문서 Storage 읽기', () => {
-  it('main Point·Body·Sustain·Release와 별도 aux의 명시·legacy 항목 및 메타데이터를 모두 보존한다', async () => {
+  it('main 탭·Body·틱·Release와 별도 aux의 명시·legacy 항목 및 메타데이터를 모두 보존한다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.meta = { ...chart.meta, title: '원본 제목', artist: '제작자', offsetMs: 17, difficultyLevel: 7 };
     const aux: ChartDocument['notes'] = [
@@ -81,7 +81,7 @@ describe('일반 곡 문서 Storage 읽기', () => {
     ['빈 aux 파일이 있으면', () => serializeExtraNotes([], 0)],
     ['aux가 없고 메인에 예전 extraNotes가 있으면', null],
     ['aux가 없고 메인에 보조 자료도 없으면', undefined],
-  ] as const)('%s 메인의 lane0 Point를 걸러내지 않아 전체 검증이 거부한다', async (_, auxText) => {
+  ] as const)('%s 메인의 lane0 탭을 걸러내지 않아 전체 검증이 거부한다', async (_, auxText) => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     const main = JSON.parse(serializeChart(chart));
     main.notes.push({ type: 'tap', kind: 'single', lane: 0, beat: '1' });

@@ -35,7 +35,7 @@ export interface JudgmentCaseDesign {
 
 export const DESIGN_BANNER = "설계 예시 · 엔진 미실행 · 판정과 설명은 직접 지정";
 export const DESIGN_KIND_LABELS: Record<DesignNoteKind, string> = {
-  body: "바디", tap: "Point", release: "release", tick: "유지 노트", marker: "표식",
+  body: "바디", tap: "탭 노트", release: "release", tick: "틱 노트", marker: "표식",
 };
 export const DESIGN_TONE_LABELS: Record<DesignTone, string> = {
   neutral: "설명", success: "성공 가정", failure: "실패 가정", proposal: "제안",

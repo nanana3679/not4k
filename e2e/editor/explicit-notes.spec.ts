@@ -13,7 +13,7 @@ import { canvasPosition, drag, notes } from './explicitEditorTestHelpers';
 
 const entitySelect = (page: Page) => page.locator('select').filter({ has: page.locator('option[value="single"]') });
 
-test('Grace 더블 드래그는 Esc 취소·생성·Undo·Redo·v4 저장과 재로드에서 Point·바디·릴리즈 수량을 보존한다', async ({ page }, info) => {
+test('Grace 더블 드래그는 Esc 취소·생성·Undo·Redo·v4 저장과 재로드에서 탭·바디·릴리즈 수량을 보존한다', async ({ page }, info) => {
   const editor = await openEditor(page);
   await entitySelect(page).selectOption('double');
   await page.getByRole('button', { name: 'Grace', exact: true }).click();
@@ -66,7 +66,7 @@ test('v4 혼합 main과 aux를 저장·재로드하면 구형 false·holdOnly와
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
 
-test('빈 aux 유지 클릭→재클릭은 0길이 body1+sustain1→body2+sustain2이며 세 번째 클릭은 Undo를 늘리지 않는다', async ({ page }) => {
+test('빈 aux 틱 클릭→재클릭은 0길이 body1+tick1→body2+tick2이며 세 번째 클릭은 Undo를 늘리지 않는다', async ({ page }) => {
   const editor = await openEditor(page); await entitySelect(page).selectOption('tick');
   const at = await canvasPosition(page, 5, 2);
   await page.mouse.click(at.x, at.y);
@@ -81,7 +81,7 @@ test('빈 aux 유지 클릭→재클릭은 0길이 body1+sustain1→body2+sustai
   expect(editor.supabaseWrites).toEqual([]);
 });
 
-test('숨은 aux3의 바디 밖 sustain은 열람·확정이 가능하고 툴바 위반·숨은 레인 안내가 저장을 차단한다', async ({ page }) => {
+test('숨은 aux3의 바디 밖 tick은 열람·확정이 가능하고 툴바 위반·숨은 레인 안내가 저장을 차단한다', async ({ page }) => {
   const editor = await openEditor(page, { extra: { version: 4, extraLaneCount: 3,
     extraNotes: [{ type: 'tick', count: 1, extraLane: 3, beat: '2' }] } });
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
@@ -118,7 +118,7 @@ test('혼합 main과 명시 aux의 Save As는 새 난이도·레벨만 바꾸고
   await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
 });
 
-test('터치 double 롱프레스의 1→3박 드래그는 마우스와 같은 Grace Point·Body·Release 수량2를 만든다', async ({ page }) => {
+test('터치 double 롱프레스의 1→3박 드래그는 마우스와 같은 Grace 탭·Body·Release 수량2를 만든다', async ({ page }) => {
   await openEditor(page); await entitySelect(page).selectOption('double');
   await page.getByRole('button', { name: 'Grace', exact: true }).click();
   const start = await canvasPosition(page, 2, 1); const end = await canvasPosition(page, 2, 3);

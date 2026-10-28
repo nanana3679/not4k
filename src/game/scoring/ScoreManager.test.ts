@@ -7,7 +7,7 @@ describe("ScoreManager", () => {
     id, noteIndex: 0, unitIndex: 0, kind, timeMs: 1000, weight3,
   });
 
-  it("명시 point의 raw -30ms는 FAST 1회이고 sustain의 -100ms는 타이밍 없이 Perfect 3점을 더함", () => {
+  it("명시 tap의 raw -30ms는 FAST 1회이고 tick의 -100ms는 타이밍 없이 Perfect 3점을 더함", () => {
     const sm = new ScoreManager([item("tap", "tap"), item("tick", "tick")]);
     sm.settleScoreItem("tap", JudgmentGrade.PERFECT, -30);
     sm.settleScoreItem("tick", JudgmentGrade.PERFECT, -100);

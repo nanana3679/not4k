@@ -3,7 +3,7 @@ import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelea
 
 // 승인 자료를 독립적인 typed 실행 차트로 옮긴 고정 fixture다.
 // 설계 JSON·구형 차트를 실행 중 변환하지 않으며 실제 세션 기대값은 M1/M2에서 검증한다.
-// ENJ-10(같은 수 바디 경계에 Point도 릴리즈도 없는 연결의 탈락 공유)은 그 배치를 금지한 사용자 결정(2026-10-27)으로 지웠고 번호는 비워 둔다.
+// ENJ-10(같은 수 바디 경계에 탭도 릴리즈도 없는 연결의 탈락 공유)은 그 배치를 금지한 사용자 결정(2026-10-27)으로 지웠고 번호는 비워 둔다.
 export const explicitEnjFixtures = [
   // ENJ-01 — preheld는 880ms가 아니라 1000ms에 시작
   fixture('ENJ-01', 'docs/spec/fixtures/explicit-note-cases/enj-01.json',
@@ -25,7 +25,7 @@ export const explicitEnjFixtures = [
     [b(1000, 1060, 1, 1), s(1030, 1, 1)],
     [["A",500,950,1]],
     { scoreItemCount: 1, theoreticalWeight: 3, earnedScore: 0, scope: 'whole', events: { perfect: 0, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 1, dependentZero: 1 } }),
-  // ENJ-05 — 15ms 안 회복하면 대기한 유지 노트 Perfect
+  // ENJ-05 — 15ms 안 회복하면 대기한 틱 노트 Perfect
   fixture('ENJ-05', 'docs/spec/fixtures/explicit-note-cases/enj-05.json',
     [b(1000, 2000, 1, 1), s(1500, 1, 1), s(1700, 1, 1), r(2000, 1, 1)],
     [["A",1000,1490,1],["B",1505,2000,1]],
@@ -35,12 +35,12 @@ export const explicitEnjFixtures = [
     [b(1000, 2000, 1, 1), s(1400, 1, 1), s(1500, 1, 1), s(1700, 1, 1), r(2000, 1, 1)],
     [["A",1000,1490,1],["B",1525,2000,1]],
     { scoreItemCount: 4, theoreticalWeight: 12, earnedScore: 3, scope: 'whole', events: { perfect: 1, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 1, dependentZero: 3 } }),
-  // ENJ-07 — Good 릴리즈와 남은 유지 두 개의 Perfect 일괄 정산
+  // ENJ-07 — Good 릴리즈와 남은 틱 노트 두 개의 Perfect 일괄 정산
   fixture('ENJ-07', 'docs/spec/fixtures/explicit-note-cases/enj-07.json',
     [b(1000, 2000, 1, 1), s(1950, 1, 1), s(1980, 1, 1), r(2000, 1, 1)],
     [["A",1000,1890,1]],
     { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 7, scope: 'whole', events: { perfect: 2, great: 0, good: 1, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // ENJ-08 — Grace 릴리즈도 실제 up을 요구하고 유지 성공은 Perfect
+  // ENJ-08 — Grace 릴리즈도 실제 up을 요구하고 틱 노트 성공은 Perfect
   fixture('ENJ-08', 'docs/spec/fixtures/explicit-note-cases/enj-08.json',
     [b(1000, 2000, 1, 1), s(1950, 1, 1), r(2000, 1, 1, true)],
     [["A",1000,1890,1]],
@@ -67,17 +67,17 @@ export const explicitEnjFixtures = [
     [b(1000, 2000, 2, 1), b(2000, 3000, 1, 1), s(2000, 1, 1), r(3000, 1, 1)],
     [["A",1000,1500,1],["B",1000,1500,1],["A",1990,3000,1]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 2, dependentZero: 0 } }),
-  // ENJ-14 — 건강한 승계는 짧은 바디 Point 미처리여도 1000ms 시작
+  // ENJ-14 — 건강한 승계는 짧은 바디 탭 노트 미처리여도 1000ms 시작
   fixture('ENJ-14', 'docs/spec/fixtures/explicit-note-cases/enj-14.json',
     [p(600, 'single', 1), b(600, 1000, 1, 1), p(1000, 'single', 1), b(1000, 1060, 1, 1), r(1060, 1, 1)],
     [["A",600,1060,1]],
     { scoreItemCount: 3, theoreticalWeight: 9, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 1, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // ENJ-15 — 싱글 바디 더블 릴리즈도 시작 Point 재누름 예외 적용
+  // ENJ-15 — 싱글 바디 더블 릴리즈도 시작 탭 노트 재누름 예외 적용
   fixture('ENJ-15', 'docs/spec/fixtures/explicit-note-cases/enj-15.json',
     [p(600, 'single', 1), b(600, 1000, 1, 1), p(1000, 'single', 1), b(1000, 1060, 1, 1), r(1060, 2, 1)],
     [["A",600,1010,1],["A",1020,1060,1]],
     { scoreItemCount: 4, theoreticalWeight: 12, earnedScore: 11, scope: 'whole', events: { perfect: 3, great: 1, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // ENJ-16 — 유지 Perfect와 Point Good 동시 확정은 Good 대표
+  // ENJ-16 — 틱 Perfect와 탭 Good 동시 확정은 Good 대표
   fixture('ENJ-16', 'docs/spec/fixtures/explicit-note-cases/enj-16.json',
     [b(1000, 2000, 1, 1), s(1500, 1, 1), p(1600, 'single', 2)],
     [["A",1000,2000,1],["B",1500,1540,2]],

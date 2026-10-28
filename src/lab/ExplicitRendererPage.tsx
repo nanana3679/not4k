@@ -100,7 +100,7 @@ export default function ExplicitRendererPage() {
   return <main className="explicit-renderer-page" data-lab-page="explicit-renderer">
     <Link to="/lab">← Lab</Link>
     <h1>명시 노트 표시</h1>
-    <p>바디·릴리즈·유지 표식의 독립 수명과 부분 성공·실패를 비교합니다.</p>
+    <p>바디·릴리즈·틱 노트의 독립 수명과 부분 성공·실패를 비교합니다.</p>
     <div className="explicit-renderer-workbench">
       <div><div ref={host} className="explicit-renderer-stage" aria-label="명시 노트 Pixi 미리보기" />
         <p role="status">{status}</p>

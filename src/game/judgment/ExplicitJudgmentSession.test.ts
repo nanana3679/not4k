@@ -21,7 +21,7 @@ const fromFixture = (test: ExplicitReplayFixture) => new ExplicitJudgmentSession
 const m1 = explicitEnjFixtures.filter(test => /ENJ-0[1-9]$|ENJ-18$/.test(test.id));
 
 describe("남은 바디의 재개와 기존 세션 보존", () => {
-  it("0ms에서 준비용 세션을 만들면 바디·유지는 대기하고 resumeAt의 preheld가 들어온 순간 한 번 시작·정산", () => {
+  it("0ms에서 준비용 세션을 만들면 바디·틱은 대기하고 resumeAt의 preheld가 들어온 순간 한 번 시작·정산", () => {
     const chart = compileExplicitJudgmentChart(fixture([b(0, 1000), s(0)]).chart);
     const session = new ExplicitJudgmentSession(chart, { ...options, startTimeMs: 0 });
     expect(session.snapshot.atMs).toBe(0);
@@ -36,7 +36,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.drainEffects()).toEqual([]);
   });
 
-  it("0ms preheld를 준비한 뒤 활성화하면 바디의 유지 1개만 정산하고 같은 시각 다른 레인의 Point에는 down을 만들지 않음", () => {
+  it("0ms preheld를 준비한 뒤 활성화하면 바디의 틱 1개만 정산하고 같은 시각 다른 레인의 탭에는 down을 만들지 않음", () => {
     const chart = compileExplicitJudgmentChart(fixture([b(0, 1000), s(0), p(0, "single", 2)]).chart);
     const session = new ExplicitJudgmentSession(chart, { ...options, startTimeMs: 0,
       preheldKeys: [{ key: "A", lane: 1 }, { key: "B", lane: 2 }] });
@@ -50,7 +50,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.drainEffects()).toHaveLength(1);
   });
 
-  it("1500ms 커서의 preheld는 시작 전 점수·Miss 없이 대기하고 활성화 때 남은 바디·정확히 같은 시각 유지만 처리", () => {
+  it("1500ms 커서의 preheld는 시작 전 점수·Miss 없이 대기하고 활성화 때 남은 바디·정확히 같은 시각 틱만 처리", () => {
     const chart = compileExplicitJudgmentChart(fixture([p(1000), b(1000, 2000), s(1490), s(1500), r(2000)]).chart);
     const session = new ExplicitJudgmentSession(chart, { ...options, startTimeMs: 1500, preheldKeys: [{ key: "A", lane: 1 }] });
     expect(session.facts).toEqual([]);
@@ -77,7 +77,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.score.totalNotes).toBe(2);
   });
 
-  it("커서가 정확히 1000ms Point 시작이면 preheld가 Point를 치거나 바디 의무를 없애지 않고 실제 down1010이 처리", () => {
+  it("커서가 정확히 1000ms 탭 시작이면 preheld가 탭을 치거나 바디 의무를 없애지 않고 실제 down1010이 처리", () => {
     const chart = compileExplicitJudgmentChart(fixture([p(1000), b(1000, 2000)]).chart);
     const session = new ExplicitJudgmentSession(chart, { ...options, startTimeMs: 1000 });
     session.resumeAt(1000, [{ key: "A", lane: 1 }]);
@@ -99,7 +99,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 3, processedNotes: 1, totalNotes: 1 });
   });
 
-  it("offset−200ms 차트를 0ms부터 준비하면 앞 Point의 Miss·종속0·효과를 만들지 않고 남은 바디만 활성화", () => {
+  it("offset−200ms 차트를 0ms부터 준비하면 앞 탭의 Miss·종속0·효과를 만들지 않고 남은 바디만 활성화", () => {
     const document = fixture([p(0), b(0, 1000), r(1000)]).chart;
     document.meta.offsetMs = -200;
     const chart = compileExplicitJudgmentChart(document);
@@ -124,7 +124,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.facts).toEqual([]);
   });
 
-  it("원본 전체 차트를 커서1500 생성자에 직접 넘겨도 제외된 앞 연결 바디를 참조하지 않고 뒤 Point·릴리즈를 정상 처리", () => {
+  it("원본 전체 차트를 커서1500 생성자에 직접 넘겨도 제외된 앞 연결 바디를 참조하지 않고 뒤 탭·릴리즈를 정상 처리", () => {
     const chart = compileExplicitJudgmentChart(fixture([
       b(500, 1000), p(1000), b(1000, 2000), p(2000), b(2000, 3000), r(3000),
     ]).chart);
@@ -192,7 +192,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.finalize().score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
   });
 
-  it.each([950, 1000])("900ms에 일찍 시작한 1000ms Point 바디를 %sms에 재개하면 원래 시작 전 조기 preheld 없이 새 창을 적용", pauseAt => {
+  it.each([950, 1000])("900ms에 일찍 시작한 1000ms 탭 바디를 %sms에 재개하면 원래 시작 전 조기 preheld 없이 새 창을 적용", pauseAt => {
     const session = makeSession([p(1000), b(1000, 2000), r(2000)]);
     session.processBatch(900, [down()]);
     session.advance(pauseAt);
@@ -221,7 +221,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.effects).toHaveLength(3);
   });
 
-  it("1500ms Point가 있는 레인의 준비 hold는 Point를 치지 않으며 실제 up·down만 Point를 정산", () => {
+  it("1500ms 탭이 있는 레인의 준비 hold는 탭을 치지 않으며 실제 up·down만 탭을 정산", () => {
     const session = makeSession([b(1000, 2000), p(1500, "single", 2)]);
     session.processBatch(1000, [down()]);
     session.advance(1500);
@@ -233,7 +233,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(settlements(session)).toMatchObject([{ itemKind: "tap", grade: "perfect" }]);
   });
 
-  it("1495ms 회복 대기 유지와 1490ms 미처리 Point는 1500ms 재개 후에도 원래 항목·분모·입력 기회를 보존", () => {
+  it("1495ms 회복 대기 틱과 1490ms 미처리 탭은 1500ms 재개 후에도 원래 항목·분모·입력 기회를 보존", () => {
     const session = makeSession([b(1000, 2000), s(1495), p(1490, "single", 2), r(2000)]);
     session.processBatch(1000, [down()]);
     session.processBatch(1490, [up()]);
@@ -288,7 +288,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, processedNotes: 2, judgmentCounts: { perfect: 2, miss: 0 } });
   });
 
-  it("ENJ-15 실제 Point down1020의 같은 키 릴리즈 권한은 resume1030의 hold 교체 뒤에도 보존되어 11/12점", () => {
+  it("ENJ-15 실제 탭 down1020의 같은 키 릴리즈 권한은 resume1030의 hold 교체 뒤에도 보존되어 11/12점", () => {
     const test = explicitEnjFixtures.find(test => test.id === "ENJ-15")!;
     const session = fromFixture(test);
     for (const batch of test.batches.filter(batch => batch.rawAtMs <= 1020)) session.processBatch(batch.rawAtMs, batch.inputs);
@@ -384,7 +384,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(result.snapshot.bodyUnits.every(unit => unit.state === "complete" || unit.state === "failed")).toBe(true);
   });
 
-  it("ENJ-01 preheld 500ms는 880ms에 미시작이고 1000ms 시작·1500ms 표식 성공·2000ms 무점수 완료", () => {
+  it("ENJ-01 preheld 500ms는 880ms에 미시작이고 1000ms 시작·1500ms 틱 성공·2000ms 무점수 완료", () => {
     const session = fromFixture(m1[0]);
     session.processBatch(500, [down()]);
     session.advance(880);
@@ -400,7 +400,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(session.facts.filter(f => f.kind === "input")).toMatchObject([{ consumedItemId: null }]);
   });
 
-  it("ENJ-02 fresh down 900ms는 즉시 시작하지만 미래 유지 1500ms는 미리 정산하지 않음", () => {
+  it("ENJ-02 fresh down 900ms는 즉시 시작하지만 미래 틱 1500ms는 미리 정산하지 않음", () => {
     const session = fromFixture(m1[1]);
     session.processBatch(900, [down()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 900 });
@@ -410,7 +410,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(settlements(session)).toMatchObject([{ atMs: 1500, grade: "perfect" }]);
   });
 
-  it("ENJ-03 down 900ms 뒤 up 950ms는 바디를 이르게 완료하고 1030ms 유지도 950ms에 Perfect", () => {
+  it("ENJ-03 down 900ms 뒤 up 950ms는 바디를 이르게 완료하고 1030ms 틱도 950ms에 Perfect", () => {
     const session = fromFixture(m1[2]);
     session.processBatch(900, [down()]);
     session.processBatch(950, [up()]);
@@ -419,7 +419,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(session.facts.filter(f => f.kind === "input").every(f => f.consumedItemId === null)).toBe(true);
   });
 
-  it("ENJ-04 preheld up 950ms 뒤 1030ms 유지는 시작을 기다리고 1120ms 포함 기한 뒤 무점수 Miss 1회와 종속 0점", () => {
+  it("ENJ-04 preheld up 950ms 뒤 1030ms 틱은 시작을 기다리고 1120ms 포함 기한 뒤 무점수 Miss 1회와 종속 0점", () => {
     const session = fromFixture(m1[3]);
     session.processBatch(500, [down()]);
     session.processBatch(950, [up()]);
@@ -433,7 +433,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(session.effects.map(effect => effect.scoreAction)).toEqual(["unscoredMiss", "dependentZero"]);
   });
 
-  it("ENJ-05 up 1490ms 뒤 1500ms 표식은 회복 대기하고 down 1505ms에 타이밍 없이 Perfect 확정", () => {
+  it("ENJ-05 up 1490ms 뒤 1500ms 틱은 회복 대기하고 down 1505ms에 타이밍 없이 Perfect 확정", () => {
     const session = fromFixture(m1[4]);
     session.processBatch(1000, [down()]);
     session.processBatch(1490, [up()]);
@@ -448,7 +448,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(session.combo).toBe(1);
   });
 
-  it("ENJ-06 1510ms 유지 실패 뒤 1525ms 재누름은 성공 1400ms 표식·실패·종속 세 항목을 바꾸지 않음", () => {
+  it("ENJ-06 1510ms 유지 실패 뒤 1525ms 재누름은 성공 1400ms 틱·실패·종속 세 항목을 바꾸지 않음", () => {
     const session = fromFixture(m1[5]);
     session.processBatch(1000, [down()]);
     session.processBatch(1490, [up()]);
@@ -466,7 +466,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
       effect.displayGrade === null && effect.hitGrade === null && effect.altitudeAction === "none" && effect.comboAction === "none")).toBe(true);
   });
 
-  it("ENJ-07 up 1890ms는 release Good -110ms 한 항목만 소비하고 유지 두 개는 Perfect·콤보 3·FAST 1회", () => {
+  it("ENJ-07 up 1890ms는 release Good -110ms 한 항목만 소비하고 틱 두 개는 Perfect·콤보 3·FAST 1회", () => {
     const session = fromFixture(m1[6]);
     session.processBatch(1000, [down()]);
     session.processBatch(1890, [up()]);
@@ -479,7 +479,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(session.combo).toBe(3);
   });
 
-  it("ENJ-08 Grace up 1890ms는 raw -110ms를 보존하지만 릴리즈·유지 모두 타이밍 효과 없이 Perfect", () => {
+  it("ENJ-08 Grace up 1890ms는 raw -110ms를 보존하지만 릴리즈·틱 모두 타이밍 효과 없이 Perfect", () => {
     const session = fromFixture(m1[7]);
     session.processBatch(1000, [down()]);
     session.processBatch(1890, [up()]);
@@ -502,7 +502,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(session.result().score.judgmentCounts.miss).toBe(1);
   });
 
-  it("ENJ-18 1060ms 끝에서도 시작을 기다리고 down 1070ms에 실제 시작·즉시 완료·유지 성공 후 up 1080ms만 release 소비", () => {
+  it("ENJ-18 1060ms 끝에서도 시작을 기다리고 down 1070ms에 실제 시작·즉시 완료·틱 성공 후 up 1080ms만 release 소비", () => {
     const session = fromFixture(m1[9]);
     session.advance(1060);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "waiting", actualStartMs: null });
@@ -519,7 +519,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
 });
 
 describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
-  it("Point+바디+유지+release는 down 1000ms를 Point 하나만 소비하고 유지·완료·up 정산 뒤 9/9점", () => {
+  it("탭+바디+틱+release는 down 1000ms를 탭 하나만 소비하고 틱·완료·up 정산 뒤 9/9점", () => {
     const session = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
     session.processBatch(1000, [down()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1000, tapStatus: "satisfied" });
@@ -539,7 +539,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(result.facts.filter(f => f.kind === "bodyStarted" || f.kind === "bodyCompleted")).toHaveLength(2);
   });
 
-  it("첫 Point 1000ms에 preheld 500ms만 있으면 1120ms 기한 뒤 Point Miss 하나와 바디·유지·release 종속 실패", () => {
+  it("첫 탭 1000ms에 preheld 500ms만 있으면 1120ms 기한 뒤 탭 Miss 하나와 바디·틱·release 종속 실패", () => {
     const session = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
     session.processBatch(500, [down()]);
     session.advance(1000);
@@ -555,7 +555,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.effects.filter(effect => effect.altitudeAction === "failure")).toHaveLength(1);
   });
 
-  it("Point 실제 down 1100ms 전에는 유지 실패를 세지 않고 1100ms 시작 뒤 up 1150ms부터 1170ms 유지 실패", () => {
+  it("탭 실제 down 1100ms 전에는 유지 실패를 세지 않고 1100ms 시작 뒤 up 1150ms부터 1170ms 유지 실패", () => {
     const session = makeSession([p(1000), b(1000, 2000), s(1050), r(2000)]);
     session.advance(1099);
     expect(session.snapshot.items[1]).toMatchObject({ state: "waiting", waitingReason: "bodyStart" });
@@ -569,7 +569,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.result().score.judgmentCounts).toMatchObject({ good: 1, perfect: 1, miss: 1 });
   });
 
-  it("Point를 일찍 친 down 900ms 뒤 up 910ms는 headless 재충전 없이 930ms 유지 실패", () => {
+  it("탭을 일찍 친 down 900ms 뒤 up 910ms는 headless 재충전 없이 930ms 유지 실패", () => {
     const session = makeSession([p(1000), b(1000, 2000), r(2000)]);
     session.processBatch(900, [down()]);
     session.processBatch(910, [up()]);
@@ -589,7 +589,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, isFullCombo: true });
   });
 
-  it.each([41, 82, 120])("일반 Point/release의 ±%ims 경계는 포함하고 동일 raw 오차 등급으로 각각 한 항목 소비", delta => {
+  it.each([41, 82, 120])("일반 탭/release의 ±%ims 경계는 포함하고 동일 raw 오차 등급으로 각각 한 항목 소비", delta => {
     const expected = delta === 41 ? "perfect" : delta === 82 ? "great" : "good";
     for (const sign of [-1, 1]) {
       const session = makeSession([p(1000), r(2000)]);
@@ -599,7 +599,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     }
   });
 
-  it("Point와 standalone release의 121ms 바깥 입력은 소비하지 않고 각각 Miss", () => {
+  it("탭과 standalone release의 121ms 바깥 입력은 소비하지 않고 각각 Miss", () => {
     const session = makeSession([p(1000), r(2000)]);
     session.processBatch(879, [down()]);
     session.processBatch(879.5, [up()]);
@@ -620,7 +620,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(held.finalize().score.judgmentCounts.miss).toBe(1);
   });
 
-  it("한 down/up은 겹친 창에서 가장 이른 Point/release 하나만 소비하며 hold는 바디를 함께 시작", () => {
+  it("한 down/up은 겹친 창에서 가장 이른 탭/release 하나만 소비하며 hold는 바디를 함께 시작", () => {
     const session = makeSession([p(1000), p(1100), b(1050, 2000), r(2000), r(2100)]);
     session.processBatch(1050, [down()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ actualStartMs: 1050, state: "active" });
@@ -650,7 +650,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.snapshot.items[0].state).toBe(recoveredAt === 1510 ? "success" : "dependentZero");
   });
 
-  it("raw Point 970ms/observed 990ms와 raw release 1970ms/observed 1990ms는 raw -30ms 등급·FAST와 관측 확정 시각을 분리", () => {
+  it("raw 탭 970ms/observed 990ms와 raw release 1970ms/observed 1990ms는 raw -30ms 등급·FAST와 관측 확정 시각을 분리", () => {
     const session = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
     session.processObservedBatch(970, [down()], 990);
     session.processObservedBatch(1970, [up()], 1990);
@@ -675,7 +675,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     ]);
   });
 
-  it("입력 없는 advance 1120ms 뒤 같은 시각 Point down은 Good이고 1121ms 관측 뒤 raw 1120ms down은 이미 확정한 Miss", () => {
+  it("입력 없는 advance 1120ms 뒤 같은 시각 탭 down은 Good이고 1121ms 관측 뒤 raw 1120ms down은 이미 확정한 Miss", () => {
     const exact = makeSession([p(1000)]);
     exact.advance(1120);
     exact.processBatch(1120, [down()]);
@@ -685,7 +685,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(settlements(late)).toMatchObject([{ grade: "miss", atMs: 1120, inputId: null }]);
   });
 
-  it("시작 Point 기한과 짧은 바디 끝이 모두 1120ms여도 advance 1120ms 뒤 down 1120ms로 Good·즉시 완료", () => {
+  it("시작 탭 기한과 짧은 바디 끝이 모두 1120ms여도 advance 1120ms 뒤 down 1120ms로 Good·즉시 완료", () => {
     const session = makeSession([p(1000), b(1000, 1120), s(1100), r(1120)]);
     session.advance(1120);
     expect(session.snapshot.items[0].state).toBe("pending");
@@ -719,7 +719,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     }
   });
 
-  it("lane 없는 입력이 섞인 batch는 시각·hold·Point 정산 모두 변경 없이 거부", () => {
+  it("lane 없는 입력이 섞인 batch는 시각·hold·탭 정산 모두 변경 없이 거부", () => {
     const session = makeSession([p(1000), b(1000, 2000)]);
     expect(() => session.processBatch(1000, [down(), { key: "B", type: "down" }])).toThrow(RangeError);
     expect(session.snapshot.atMs).toBe(-Infinity);
@@ -738,7 +738,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.finalize().score.judgmentCounts.miss).toBe(1);
   });
 
-  it("유지 표식만 추가·제거하면 바디·Point·release·입력 사실과 원인 실패는 그대로이며 정산만 늘어남", () => {
+  it("틱 노트만 추가·제거하면 바디·탭·release·입력 사실과 원인 실패는 그대로이며 정산만 늘어남", () => {
     const base = makeSession([p(1000), b(1000, 2000), r(2000)]);
     const added = makeSession([p(1000), b(1000, 2000), r(2000), s(1400), s(1500), s(1700)]);
     for (const session of [base, added]) {
@@ -751,7 +751,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(added.result().score.judgmentCounts.miss).toBe(base.result().score.judgmentCounts.miss);
   });
 
-  it("Point1000·릴리즈2000 세션의 snapshot·result·finalize를 다시 읽고 drainEffects를 다시 불러도 확정 사실·점수를 다시 만들지 않고 효과는 한 번씩만 전달", () => {
+  it("탭1000·릴리즈2000 세션의 snapshot·result·finalize를 다시 읽고 drainEffects를 다시 불러도 확정 사실·점수를 다시 만들지 않고 효과는 한 번씩만 전달", () => {
     const session = makeSession([p(1000), b(1000, 2000), s(1500), r(2000)]);
     session.processBatch(1000, [down()]);
     const saved = session.snapshot;
@@ -783,7 +783,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(result.facts.filter(f => f.kind === "settlement")).toHaveLength(0);
   });
 
-  it("Point1000·2000ms 중 첫 Perfect 뒤 score 조회는 3점 snapshot을 보존하고 다음 Perfect 뒤에는 6점", () => {
+  it("탭1000·2000ms 중 첫 Perfect 뒤 score 조회는 3점 snapshot을 보존하고 다음 Perfect 뒤에는 6점", () => {
     const session = makeSession([p(1000), p(2000)]);
     session.processBatch(1000, [down()]);
     const first = session.score;
@@ -800,7 +800,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.score).toEqual(session.result().score);
   });
 
-  it("Point1000ms Perfect 뒤 score·combo를 반복 조회해도 효과 1개는 첫 drain에서만 전달", () => {
+  it("탭1000ms Perfect 뒤 score·combo를 반복 조회해도 효과 1개는 첫 drain에서만 전달", () => {
     const session = makeSession([p(1000)]);
     session.processBatch(1000, [down()]);
     for (let frame = 0; frame < 10; frame++) {
@@ -812,7 +812,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.drainEffects()).toHaveLength(0);
   });
 
-  it("길이 0 바디+유지는 preheld 500ms로 1000ms에 시작·완료·Perfect 3점만 확정", () => {
+  it("길이 0 바디+틱은 preheld 500ms로 1000ms에 시작·완료·Perfect 3점만 확정", () => {
     const session = makeSession([b(1000, 1000), s(1000)]);
     session.processBatch(500, [down()]);
     session.advance(1000);
@@ -832,7 +832,7 @@ describe("재개 뒤 늦게 안 준비 hold의 syncHeldKeys 반영", () => {
   const makeResumable = (notes: Parameters<typeof fixture>[0], startTimeMs: number) =>
     new ExplicitJudgmentSession(compileExplicitJudgmentChart(fixture(notes).chart), { ...options, startTimeMs });
 
-  it("1000 재개 preheld A로 시작한 바디1000～3000을 1170에 떼고 1180에 레인2 hold B만 맞추면 레인1 유지 기한1190은 그대로라 1220 재입력은 유지1500을 살리지 못함", () => {
+  it("1000 재개 preheld A로 시작한 바디1000～3000을 1170에 떼고 1180에 레인2 hold B만 맞추면 레인1 유지 기한1190은 그대로라 1220 재입력은 틱1500을 살리지 못함", () => {
     const session = makeResumable([b(1000, 3000), s(1500)], 1000);
     session.resumeAt(1000, [{ key: "A", lane: 1 }]);
     session.processBatch(1170, [up()]);
@@ -857,7 +857,7 @@ describe("재개 뒤 늦게 안 준비 hold의 syncHeldKeys 반영", () => {
     expect(session.facts.filter(fact => fact.kind === "input")).toEqual([]);
   });
 
-  it("0 재개 hold 없이 대기한 바디0～1000은 10에 hold A를 맞추면 입력 사실 없이 10에 시작하고 유지500을 Perfect로 정산", () => {
+  it("0 재개 hold 없이 대기한 바디0～1000은 10에 hold A를 맞추면 입력 사실 없이 10에 시작하고 틱500을 Perfect로 정산", () => {
     const session = makeResumable([b(0, 1000), s(500)], 0);
     session.resumeAt(0, []);
     session.advance(10);

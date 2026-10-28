@@ -8,7 +8,7 @@ import type { Lane } from "../../shared/constants";
 
 const ALWAYS_AUTO: AutoSectionMs[] = [{ startMs: 0, endMs: Number.POSITIVE_INFINITY }];
 
-/** 호출 계약 그대로: 매 틱 presses 먹임 → engine.update → releases 먹임 (16ms 스텝) */
+/** 호출 계약 그대로: 매 프레임 presses 먹임 → engine.update → releases 먹임 (16ms 스텝) */
 function runAutoPlay(
   notes: NoteEntity[],
   noteTimes: Map<number, number>,
@@ -52,7 +52,7 @@ describe("AutoPlayer 합성 입력 시뮬레이션", () => {
     expect(judgments[0].grade).toBe("perfect");
   });
 
-  it("길이 0 long 단독(headless)이면 같은 틱 press+release로 Perfect", () => {
+  it("길이 0 long 단독(headless)이면 같은 프레임 press+release로 Perfect", () => {
     const notes: NoteEntity[] = [{ beat: 4, endBeat: 4, lane: 1, type: "long" } as unknown as NoteEntity];
     const { judgments } = runAutoPlay(notes, new Map([[0, 1000]]), new Map([[0, 1000]]), 3000);
     expect(judgments).toHaveLength(1);

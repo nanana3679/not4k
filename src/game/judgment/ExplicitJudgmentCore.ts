@@ -16,7 +16,7 @@ interface UnitRuntime {
   readonly body: BodyRuntime;
   readonly ordinal: number;
   readonly id: string;
-  /** 이 몫의 시작을 맡는 시작 Point 항목. double Point + single 바디는 한 몫이 두 항목을 모두 맡는다. */
+  /** 이 몫의 시작을 맡는 시작 탭 항목. double 탭 + single 바디는 한 몫이 두 항목을 모두 맡는다. */
   readonly startTaps: readonly ItemRuntime[];
   startedAt: number | null;
   completedAt: number | null;
@@ -28,7 +28,7 @@ interface UnitRuntime {
   inherited: boolean;
   judgedFrom: number | null;
   tapDecisionAt: number | null;
-  /** 재개한 남은 부분에는 원래 시작 Point의 바디 시작 의무를 다시 부과하지 않는다. */
+  /** 재개한 남은 부분에는 원래 시작 탭의 바디 시작 의무를 다시 부과하지 않는다. */
   reentered: boolean;
   /** 마지막으로 다시 연 재개 차수. 같은 차수에서 시작한 몫끼리만 시작 키가 겹치지 않게 비교한다. */
   resumeEpoch: number;
@@ -99,8 +99,8 @@ export class ExplicitJudgmentCore {
       const startTaps = this.items.filter(({ item }) => item.kind === "tap" && item.startsBodyIndices.includes(body.source.noteIndex));
       const runtime: BodyRuntime = { body, activationStartMs: body.startMs, startTaps, units: [], tapDownByKey: new Map() };
       for (const unit of body.units) {
-        // single Point는 double의 높은 hold 기준을 맡고 비담당 몫은 낮은 기준을 먼저 채운다.
-        // 몫보다 많은 Point(double Point + single 바디)는 가장 높은 몫이 모두 맡아 먼저 성공한 down으로 시작한다.
+        // single 탭은 double의 높은 hold 기준을 맡고 비담당 몫은 낮은 기준을 먼저 채운다.
+        // 몫보다 많은 탭(double 탭 + single 바디)은 가장 높은 몫이 모두 맡아 먼저 성공한 down으로 시작한다.
         const offset = body.holdCount - startTaps.length;
         const unitStartTaps = offset >= 0 ? startTaps.filter((_, index) => index === unit.ref.ordinal - offset)
           : startTaps.filter((_, index) => index === unit.ref.ordinal || (unit.ref.ordinal === body.holdCount - 1 && index >= body.holdCount));
@@ -144,7 +144,7 @@ export class ExplicitJudgmentCore {
       runtime.activationStartMs = Math.max(runtime.body.startMs, atMs);
       for (const unit of runtime.units) {
         if (!this.open(unit)) continue;
-        // 되감기 뒤에도 미처리 시작 Point의 일반 실패 종속은 면제하지 않는다.
+        // 되감기 뒤에도 미처리 시작 탭의 일반 실패 종속은 면제하지 않는다.
         unit.reentered = !unit.startTaps.length || this.tapSatisfied(unit) || unit.startTaps.every(tap => tap.settlement !== null);
         unit.resumeEpoch = this.resumeEpoch;
         unit.startedAt = null; unit.startFact = null; unit.startKey = null;
@@ -156,7 +156,7 @@ export class ExplicitJudgmentCore {
   }
 
   /**
-   * 재개 hold를 정한 뒤에야 안 hold 변화를 현재 판정 시각에 반영한다. Point·릴리즈 입력으로 처리하지 않는다.
+   * 재개 hold를 정한 뒤에야 안 hold 변화를 현재 판정 시각에 반영한다. 탭·릴리즈 입력으로 처리하지 않는다.
    * resumeAt과 달리 바디 시작·시작 창·유지 기한을 다시 열지 않고, hold가 바뀐 레인의 hold 기록만 고친다.
    * 새로 잡힌 키는 시작 창이 이미 열린 대기 몫을 그 시각에 preheld처럼 시작하고, 놓인 키는 그 시각부터 hold 부족이다.
    */
@@ -382,7 +382,7 @@ export class ExplicitJudgmentCore {
         if (runtime.body.lane !== lane || (Math.abs(rawAt - runtime.activationStartMs) > this.windows.GOOD
           && Math.abs(rawAt - runtime.body.startMs) > this.windows.GOOD)) continue;
         const own = candidate && runtime.units.find(unit => !unit.reentered && unit.startTaps.includes(candidate));
-        // 여러 Point를 맡은 몫은 먼저 성공한 Point down으로만 판단한다. 다음 Point 성공이 시작·유지 기준을 옮기지 않는다.
+        // 여러 탭을 맡은 몫은 먼저 성공한 탭 down으로만 판단한다. 다음 탭 성공이 시작·유지 기준을 옮기지 않는다.
         if (own && this.open(own) && own.tapDecisionAt === null) {
           own.judgedFrom = heldAt; own.tapDecisionAt = heldAt;
           if (own.startedAt === null) this.tryStart(own, heldAt, "down", token, true);
@@ -440,11 +440,11 @@ export class ExplicitJudgmentCore {
     return Math.abs(delta) <= this.windows.PERFECT ? "perfect" : Math.abs(delta) <= this.windows.GREAT ? "great" : "good";
   }
   private open(unit: UnitRuntime): boolean { return unit.failedAt === null && unit.completedAt === null; }
-  /** 맡은 시작 Point 중 하나라도 성공했다. */
+  /** 맡은 시작 탭 중 하나라도 성공했다. */
   private tapSatisfied(unit: UnitRuntime): boolean {
     return unit.startTaps.some(tap => tap.settlement !== null && tap.settlement.grade !== "miss");
   }
-  /** 맡은 시작 Point가 모두 Miss다. 하나라도 성공하거나 대기 중이면 Point Miss 실패가 아니다. */
+  /** 맡은 시작 탭이 모두 Miss다. 하나라도 성공하거나 대기 중이면 탭 Miss 실패가 아니다. */
   private tapMissed(unit: UnitRuntime): boolean {
     return unit.startTaps.length > 0 && unit.startTaps.every(tap => tap.settlement?.grade === "miss");
   }
@@ -490,8 +490,8 @@ export class ExplicitJudgmentCore {
   }
 
   /**
-   * 한 몫의 실패를 확정하고 그 몫의 남은 유지 노트와 잃은 릴리즈를 종속 0점으로 정산한다. 실패는 연결된 다른 바디로 번지지 않는다.
-   * Point 없는 2→1 감소에서 앞 두 몫이 모두 실패해도 뒤 single은 자기 시작 조건(시작 창 안 새 down 또는 차트 시작 시각 hold)으로
+   * 한 몫의 실패를 확정하고 그 몫의 남은 틱 노트와 잃은 릴리즈를 종속 0점으로 정산한다. 실패는 연결된 다른 바디로 번지지 않는다.
+   * 탭 없는 2→1 감소에서 앞 두 몫이 모두 실패해도 뒤 single은 자기 시작 조건(시작 창 안 새 down 또는 차트 시작 시각 hold)으로
    * 새로 시작하고, 시작하지 못하면 자기 시작 시간 초과로 실패한다(사용자 결정 2026-10-27).
    */
   private fail(unit: UnitRuntime, at: number, reason: "startTimeout" | "maintenance" | "tapMiss", causeFactId: string | null): void {
@@ -524,7 +524,7 @@ export class ExplicitJudgmentCore {
   private maintenanceDeadline(unit: UnitRuntime): number | undefined {
     if (!this.open(unit) || (unit.startTaps.length && !unit.reentered && unit.tapDecisionAt === null)
       || (unit.startedAt === null && unit.judgedFrom === null)) return undefined;
-    // Point는 처리했어도 두 번째 물리 키가 없어 실제 시작하지 못한 몫은 실제 down부터 부족 상태다.
+    // 탭은 처리했어도 두 번째 물리 키가 없어 실제 시작하지 못한 몫은 실제 down부터 부족 상태다.
     if (unit.startedAt === null) return unit.judgedFrom! + this.maintenanceGraceMs;
     return this.holds.failureDeadline(unit.body.body.lane, this.need(unit), { judgedFrom: unit.judgedFrom ?? unit.startedAt!,
       ...(unit.body.startTaps.length && !unit.reentered ? {} : { refillUntil: unit.body.activationStartMs + this.windows.GOOD }) });
@@ -557,7 +557,7 @@ export class ExplicitJudgmentCore {
     }
   }
 
-  /** 점수·실패는 확정 사실이다. 입력 없는 S/E와 Point 기한의 충족 판단만 다시 계산한다. */
+  /** 점수·실패는 확정 사실이다. 입력 없는 S/E와 탭 기한의 충족 판단만 다시 계산한다. */
   private invalidateProgress(lane: number, at: number): void {
     for (const runtime of this.bodies.filter(runtime => runtime.body.lane === lane)) for (const unit of runtime.units) {
       if (unit.failedAt !== null) continue;

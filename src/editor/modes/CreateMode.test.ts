@@ -97,8 +97,8 @@ describe("CreateMode — handlePointerUp", () => {
   });
 });
 
-describe("CreateMode — 명시 Point·바디·릴리즈 생성", () => {
-  it.each(["single", "double"] as const)("%s 입력에서 2박 클릭은 명시 Point 하나를 만든다", kind => {
+describe("CreateMode — 명시 탭·바디·릴리즈 생성", () => {
+  it.each(["single", "double"] as const)("%s 입력에서 2박 클릭은 명시 탭 하나를 만든다", kind => {
     const callbacks = makeCallbacks(makeChart());
     const mode = new CreateMode(makeChart(), callbacks);
     mode.entityType = kind;
@@ -111,7 +111,7 @@ describe("CreateMode — 명시 Point·바디·릴리즈 생성", () => {
     ["single", 1, false, false], ["double", 2, false, false],
     ["single", 1, true, false], ["double", 2, true, false],
     ["single", 1, true, true], ["double", 2, false, true],
-  ] as const)("%s 입력·수량 %i·Grace=%s·보조=%s에서 2→5박 드래그는 Point+바디+릴리즈를 한 번에 만든다", (kind, count, grace, aux) => {
+  ] as const)("%s 입력·수량 %i·Grace=%s·보조=%s에서 2→5박 드래그는 탭+바디+릴리즈를 한 번에 만든다", (kind, count, grace, aux) => {
     const chart = makeChart();
     const callbacks = makeCallbacks(chart, aux ? { xToLane: () => null, xToExtraLane: () => 1 } : {});
     const mode = new CreateMode(chart, callbacks);
@@ -140,7 +140,7 @@ describe("CreateMode — 명시 Point·바디·릴리즈 생성", () => {
     }
   });
 
-  it.each(["long", "doubleLong"] as const)("single 입력에서 명시 %s 시작은 2→4박에도 Point나 릴리즈를 만들지 않는다", type => {
+  it.each(["long", "doubleLong"] as const)("single 입력에서 명시 %s 시작은 2→4박에도 탭이나 릴리즈를 만들지 않는다", type => {
     const chart = makeChart(); const callbacks = makeCallbacks(chart);
     const mode = new CreateMode(chart, callbacks);
     expect(mode.beginRangeNoteAt(1, 2, type)).toBe(true);
@@ -150,7 +150,7 @@ describe("CreateMode — 명시 Point·바디·릴리즈 생성", () => {
     ]);
   });
 
-  it.each([false, true])("0～4박 trillZone의 1→3박 드래그·Grace=%s는 트릴 Point와 바디만 만든다", grace => {
+  it.each([false, true])("0～4박 trillZone의 1→3박 드래그·Grace=%s는 트릴 탭과 바디만 만든다", grace => {
     const chart = makeChart({ trillZones: [{ lane: 1, beat: beat(0), endBeat: beat(4) }] });
     const callbacks = makeCallbacks(chart); const mode = new CreateMode(chart, callbacks);
     mode.graceMode = grace;
@@ -162,7 +162,7 @@ describe("CreateMode — 명시 Point·바디·릴리즈 생성", () => {
     expect(editorChartErrors(callbacks.onChartUpdate.mock.calls[0][0])).toEqual([]);
   });
 
-  it("single 2→5박 드래그를 취소하면 노트와 콜백을 만들지 않고 다음 클릭은 Point만 만든다", () => {
+  it("single 2→5박 드래그를 취소하면 노트와 콜백을 만들지 않고 다음 클릭은 탭만 만든다", () => {
     const chart = makeChart(); const callbacks = makeCallbacks(chart); const mode = new CreateMode(chart, callbacks);
     mode.onPointerDown(1, 2); mode.cancelDrag(); mode.onPointerUp(1, 5);
     expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
@@ -458,7 +458,7 @@ describe("CreateMode — 생성 낙관 커밋 (RFD 0017 낙관적 편집)", () =
 
     expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
     const updated = callbacks.onChartUpdate.mock.calls[0][0] as ChartDocument;
-    expect(updated.notes).toHaveLength(5); // 기존 2 + Point + 바디 + 릴리즈
+    expect(updated.notes).toHaveLength(5); // 기존 2 + 탭 + 바디 + 릴리즈
   });
 
   it("구형 롱노트 0～4박과 겹치는 2～6박에 바디 도구로 생성하면 의미 위반 바디 하나를 커밋한다", () => {
@@ -649,7 +649,7 @@ describe("CreateMode — restZone 배치 (RFD 0019)", () => {
   });
 });
 
-describe("CreateMode — 명시 릴리즈·유지 배치", () => {
+describe("CreateMode — 명시 릴리즈·틱 배치", () => {
   it.each(["release", "doubleRelease"] as const)("%s의 일반·Grace 단독 클릭은 수량 1/2를 하나의 항목에 보존한다", type => {
     for (const grace of [false, true]) for (const lane of [1, 7]) {
       const chart = makeChart(); const callbacks = makeCallbacks(chart, { xToUnifiedLane: () => lane });
@@ -661,7 +661,7 @@ describe("CreateMode — 명시 릴리즈·유지 배치", () => {
     }
   });
 
-  it.each([1, 2] as const)("holdCount=%i 바디 내부 2박에 유지를 두 번 클릭하면 그 수량의 표식 항목 하나만 만든다", holdCount => {
+  it.each([1, 2] as const)("holdCount=%i 바디 내부 2박에 틱을 두 번 클릭하면 그 수량의 틱 항목 하나만 만든다", holdCount => {
     const chart = makeChart({ notes: [{ type: "body", holdCount, lane: 1, beat: beat(0), endBeat: beat(4) }] });
     const callbacks = makeCallbacks(chart, { hitTestUnifiedNote: () => 0 });
     const mode = new CreateMode(chart, callbacks); mode.entityType = "tick"; mode.graceMode = true;
@@ -673,7 +673,7 @@ describe("CreateMode — 명시 릴리즈·유지 배치", () => {
     ]);
   });
 
-  it("빈 보조 lane7의 2박 유지는 길이 0 싱글+표식1을 만들고 재클릭은 더블+표식2, 세 번째는 no-op이다", () => {
+  it("빈 보조 lane7의 2박 틱은 길이 0 싱글+틱1을 만들고 재클릭은 더블+틱2, 세 번째는 no-op이다", () => {
     const chart = makeChart(); const callbacks = makeCallbacks(chart, { xToUnifiedLane: () => 7 });
     const mode = new CreateMode(chart, callbacks); mode.entityType = "tick";
     mode.onPointerDown(7, 2);
@@ -689,7 +689,7 @@ describe("CreateMode — 명시 릴리즈·유지 배치", () => {
     ]);
   });
 
-  it("1→2 바디 공유 경계 2박의 유지는 뒤 바디 holdCount=2를 사용한다", () => {
+  it("1→2 바디 공유 경계 2박의 틱은 뒤 바디 holdCount=2를 사용한다", () => {
     const chart = makeChart({ notes: [
       { type: "body", holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(2) },
       { type: "body", holdCount: 2, lane: 1, beat: beat(2), endBeat: beat(4) },
@@ -699,7 +699,7 @@ describe("CreateMode — 명시 릴리즈·유지 배치", () => {
     expect(callbacks.onChartUpdate.mock.calls[0][0].notes.at(-1)).toEqual({ type: "tick", count: 2, lane: 1, beat: beat(2) });
   });
 
-  it("trill 바디 0～4박의 2박에 유지를 클릭하면 표식이나 길이 0 바디를 만들지 않는다", () => {
+  it("trill 바디 0～4박의 2박에 틱을 클릭하면 틱이나 길이 0 바디를 만들지 않는다", () => {
     const chart = makeChart({ notes: [{ type: "body", trill: true, holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) }] });
     const callbacks = makeCallbacks(chart); const mode = new CreateMode(chart, callbacks); mode.entityType = "tick";
     mode.onPointerDown(1, 2);
@@ -716,7 +716,7 @@ describe("CreateMode — 명시 릴리즈·유지 배치", () => {
   });
 });
 
-  it('터치 double 롱프레스의 1→3박 드래그도 Grace Point·바디·릴리즈 수량2를 한 번에 만든다', () => {
+  it('터치 double 롱프레스의 1→3박 드래그도 Grace 탭·바디·릴리즈 수량2를 한 번에 만든다', () => {
     const chart = makeChart(); const callbacks = makeCallbacks(chart); const mode = new CreateMode(chart, callbacks);
     mode.entityType = 'double'; mode.graceMode = true;
     expect(mode.beginTapToolDragAt(1, 1, 'double')).toBe(true); mode.onPointerUp(1, 3);
@@ -728,7 +728,7 @@ describe("CreateMode — 명시 릴리즈·유지 배치", () => {
     ]);
   });
 
-  it('새 바디 0～4박 내부 2박은 Single Point 배치를 허용하고 구형 바디 생성으로 되돌리지 않는다', () => {
+  it('새 바디 0～4박 내부 2박은 Single 탭 배치를 허용하고 구형 바디 생성으로 되돌리지 않는다', () => {
     const chart = makeChart({ notes: [{ type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) }] });
     const callbacks = makeCallbacks(chart, { hitTestUnifiedNote: () => 0, hitTestNote: () => 0 });
     const mode = new CreateMode(chart, callbacks);
