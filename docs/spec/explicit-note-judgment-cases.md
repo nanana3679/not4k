@@ -268,7 +268,7 @@ ENJ-10은 금지 배치(같은 hold 수 바디의 표식 없는 연결)를 다�
 
 기대 정산: N3 0점 + N4·N5 6점 = 6/9점. 원인 한 몫 실패 효과만 남고 N3의 추가 Miss는 없다. 전체 double 끝의 단일 릴리즈 기회 보존과 구분한다.
 
-근거: [RFD 0037 §4·§5](../rfd/0037-explicit-score-notes-and-body.md) / 논의 [§11](../research/explicit-score-notes-discussion.md#11-double-바디에-릴리즈-한-몫이-있을-때의-일부-유지-실패)·[§19](../research/explicit-score-notes-discussion.md#19-21-감소의-일부-실패와-릴리즈-귀속)·[§48](../research/explicit-score-notes-discussion.md#48-point-없는-21-감소에서-두-몫-탈락-시-뒤-single도-탈락-유지)·[§98](../research/explicit-score-notes-discussion.md#98-21-감소의-예시는-싱글-릴리즈이며-잘못-확대한-질문을-철회).
+근거: [RFD 0037 §4·§5](../rfd/0037-explicit-score-notes-and-body.md) / 논의 [§11](../research/explicit-score-notes-discussion.md#11-double-바디에-릴리즈-한-몫이-있을-때의-일부-유지-실패)·[§19](../research/explicit-score-notes-discussion.md#19-21-감소의-일부-실패와-릴리즈-귀속)·[§48](../research/explicit-score-notes-discussion.md#48-point-없는-21-감소에서-두-몫-탈락-시-뒤-single도-탈락-유지)·[§98](../research/explicit-score-notes-discussion.md#98-21-감소의-예시는-싱글-릴리즈이며-잘못-확대한-질문을-철회). §48 중 두 몫이 모두 탈락하면 뒤 single도 탈락을 유지한다는 부분은 [§106](../research/explicit-score-notes-discussion.md#106-point-없는-21에서-두-몫-탈락-뒤-single-새-시작)에서 번복했다. 이 사례가 쓰는 한 몫 실패 시 건강한 몫 승계는 바뀌지 않았다.
 
 <a id="enj-13"></a>
 ## ENJ-13 — 2→1 전체 탈락 뒤 재누름으로 single이 새로 시작
