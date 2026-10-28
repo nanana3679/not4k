@@ -6,6 +6,7 @@ import { validateChartDocument } from "../../shared/validation/documentValidatio
 import { explicitHcFixtures } from "./explicitHcFixtures";
 import { legacyHcCharts } from "./legacyHcCharts";
 import legacyHcSource from "./noteJudgmentBodyHeldCountCases.test.ts?raw";
+import migrationJson from "../../../docs/spec/fixtures/legacy-judgment-case-migration.json?raw";
 
 // 사례 시각은 ms(120 BPM, 1박 = 500ms)로 읽는다.
 const ms = (at: Beat) => (at.n * 500) / at.d;
@@ -48,6 +49,12 @@ describe("HC001～HC081 구형 차트의 1차 기계 변환과 손 이관 fixtur
       .toEqual(explicitHcFixtures.map(fixture => [fixture.id, fixture.source]));
     const itLines = legacyHcSource.split("\n").flatMap((line, index) => /^\s*it(\.fails)?\(/.test(line) ? [index + 1] : []);
     expect(legacyHcCharts.map(legacy => Number(legacy.source.split(":")[1]))).toEqual(itLines);
+  });
+
+  it("원본 파일의 SHA-256은 대응 자료 legacy-judgment-case-migration.json에 고정한 sourceSha256과 같다 - 원본이 바뀌면 고정 사본 81건을 다시 대조해야 한다", async () => {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(legacyHcSource));
+    const sha256 = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, "0")).join("");
+    expect(sha256).toBe((JSON.parse(migrationJson) as { sourceSha256: string }).sourceSha256);
   });
 
   it.each(cases)("$id 변환 결과는 구조·의미 위반이 없고 구형 노트가 남지 않아 명시 재생할 수 있다", ({ result }) => {
