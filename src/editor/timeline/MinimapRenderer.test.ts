@@ -4,10 +4,10 @@ import { beat } from "../../shared";
 import type { BpmMarker, ChartDocument, Lane, TimeSignatureMarker } from "../../shared";
 import { MinimapRenderer, type MinimapHost } from "./MinimapRenderer";
 
-/** 테스트에서 private 필드(_viewport·_violationMarkers)에 접근하기 위한 캐스트. */
+/** 테스트에서 private 필드(_viewport·_violationIndicators)에 접근하기 위한 캐스트. */
 type MinimapRendererInternals = {
   _viewport: Graphics | null;
-  _violationMarkers: Graphics | null;
+  _violationIndicators: Graphics | null;
 };
 function internals(renderer: MinimapRenderer): MinimapRendererInternals {
   return renderer as unknown as MinimapRendererInternals;
@@ -151,7 +151,7 @@ describe("MinimapRenderer", () => {
     expect(render(noField)).toBe(render(emptyField));
   });
 
-  it("위반 restZone Set만 주입해도 위반 마커 Graphics가 자식으로 1개 추가된다", () => {
+  it("위반 restZone Set만 주입해도 위반 지시자 Graphics가 자식으로 1개 추가된다", () => {
     const chart: ChartDocument = {
       ...makeChart(4),
       restZones: [{ lane: 2 as Lane, beat: beat(4), endBeat: beat(6) }],
@@ -191,7 +191,7 @@ describe("MinimapRenderer", () => {
     expect(withViolations).toBe(withoutViolations + 1);
   });
 
-  it("위반 Set이 전부 비어 있으면 위반 마커 Graphics를 추가하지 않는다", () => {
+  it("위반 Set이 전부 비어 있으면 위반 지시자 Graphics를 추가하지 않는다", () => {
     const chart = makeChart(4);
     const render = (overrides: Partial<MinimapHost>): number => {
       const minimapLayer = new Container();
@@ -199,7 +199,7 @@ describe("MinimapRenderer", () => {
       return minimapLayer.children.length;
     };
 
-    // 빈 Set(기본값) 렌더 두 번의 자식 수가 같음 — 위반 마커 단계가 no-op.
+    // 빈 Set(기본값) 렌더 두 번의 자식 수가 같음 — 위반 지시자 단계가 no-op.
     expect(render({})).toBe(render({
       violatingNoteIndices: new Set<number>(),
       violatingTrillZoneIndices: new Set<number>(),
@@ -207,9 +207,9 @@ describe("MinimapRenderer", () => {
     }));
   });
 
-  it("화면(뷰포트) 밖 beat의 위반 노트도 미니맵 위반 마커로 그려진다 (클리핑 없음)", () => {
+  it("화면(뷰포트) 밖 beat의 위반 노트도 미니맵 위반 지시자로 그려진다 (클리핑 없음)", () => {
     // scrollY 0에서 timeToY(600_000ms) = 20_000 → 캔버스(600px) 밖이지만
-    // 미니맵은 전체 타임라인을 축소하므로 마커가 그려져야 한다.
+    // 미니맵은 전체 타임라인을 축소하므로 지시자가 그려져야 한다.
     const chart: ChartDocument = {
       ...makeChart(0),
       notes: [
@@ -225,7 +225,7 @@ describe("MinimapRenderer", () => {
     expect(render({ violatingNoteIndices: new Set([0]) })).toBe(render({}) + 1);
   });
 
-  it("setViolations 경로(renderViolationMarkers 단독 호출)는 노트 등 다른 자식을 재생성하지 않고 위반 마커만 추가한다", () => {
+  it("setViolations 경로(renderViolationIndicators 단독 호출)는 노트 등 다른 자식을 재생성하지 않고 위반 지시자만 추가한다", () => {
     const chart = makeChart(4);
     const minimapLayer = new Container();
     // 위반 Set을 mutable Set 참조로 주입 — setViolations가 내용을 바꾸는 상황을 시뮬레이션.
@@ -234,27 +234,27 @@ describe("MinimapRenderer", () => {
       violatingNoteIndices: violSet,
     }));
 
-    renderer.render(); // 위반 없음 → 위반 마커 자식 없음
+    renderer.render(); // 위반 없음 → 위반 지시자 자식 없음
     const childrenAfterRender = [...minimapLayer.children];
 
-    // 위반 발생 → 마커만 경량 갱신(전체 render 아님)
+    // 위반 발생 → 지시자만 경량 갱신(전체 render 아님)
     violSet.add(0);
     violSet.add(2);
-    renderer.renderViolationMarkers();
+    renderer.renderViolationIndicators();
 
     // 기존 자식(배경·레인·노트 batch 등)이 모두 같은 인스턴스로 유지됨(재생성 안 됨)
     for (const c of childrenAfterRender) {
       expect(minimapLayer.children).toContain(c);
     }
-    // 정확히 위반 마커 Graphics 1개만 추가됨
+    // 정확히 위반 지시자 Graphics 1개만 추가됨
     expect(minimapLayer.children.length).toBe(childrenAfterRender.length + 1);
 
     // 재호출해도 같은 Graphics를 재사용 — 자식 수 불변
-    renderer.renderViolationMarkers();
+    renderer.renderViolationIndicators();
     expect(minimapLayer.children.length).toBe(childrenAfterRender.length + 1);
   });
 
-  it("위반 마커는 뷰포트 인디케이터보다 아래 z-order에 있다 (render 경로·setViolations 경로 모두)", () => {
+  it("위반 지시자는 뷰포트 인디케이터보다 아래 z-order에 있다 (render 경로·setViolations 경로 모두)", () => {
     const chart = makeChart(4);
     const minimapLayer = new Container();
     // totalTimelineHeight(80_000) > canvasH(600)이라 뷰포트 인디케이터가 그려진다.
@@ -262,18 +262,18 @@ describe("MinimapRenderer", () => {
       violatingNoteIndices: new Set([0, 2]),
     }));
 
-    // render 경로: 위반 마커는 (4.5)에서, 뷰포트는 (5)에서 addChild → 마커가 아래
+    // render 경로: 위반 지시자는 (4.5)에서, 뷰포트는 (5)에서 addChild → 지시자가 아래
     renderer.render();
-    const { _viewport, _violationMarkers } = internals(renderer);
+    const { _viewport, _violationIndicators } = internals(renderer);
     expect(_viewport).not.toBeNull();
-    expect(_violationMarkers).not.toBeNull();
-    expect(minimapLayer.getChildIndex(_violationMarkers!)).toBeLessThan(
+    expect(_violationIndicators).not.toBeNull();
+    expect(minimapLayer.getChildIndex(_violationIndicators!)).toBeLessThan(
       minimapLayer.getChildIndex(_viewport!),
     );
 
-    // setViolations 경로: 마커만 갱신해도 뷰포트가 여전히 마커 위에 유지됨
-    renderer.renderViolationMarkers();
-    expect(minimapLayer.getChildIndex(internals(renderer)._violationMarkers!)).toBeLessThan(
+    // setViolations 경로: 지시자만 갱신해도 뷰포트가 여전히 지시자 위에 유지됨
+    renderer.renderViolationIndicators();
+    expect(minimapLayer.getChildIndex(internals(renderer)._violationIndicators!)).toBeLessThan(
       minimapLayer.getChildIndex(internals(renderer)._viewport!),
     );
   });
