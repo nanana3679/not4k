@@ -135,7 +135,7 @@ async function startLocalPlay(page: Page) {
     state.updateSettings({ isFirstLaunch: false, renderHeight: 720, masterVolume: 0, gearMotion: true });
     const document: import('../../src/shared/types/chart').ChartDocument = {
       meta: { title: 'Pause check', artist: 'Local', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
-      notes: [{ type: 'point', kind: 'single', lane: 1, beat: { n: 100, d: 1 } }],
+      notes: [{ type: 'tap', kind: 'single', lane: 1, beat: { n: 100, d: 1 } }],
       trillZones: [],
       events: [{ type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 }, { type: 'timeSignature', beat: { n: 0, d: 1 }, beatPerMeasure: { n: 4, d: 1 } }],
     };

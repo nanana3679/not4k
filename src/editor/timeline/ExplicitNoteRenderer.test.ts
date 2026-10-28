@@ -44,10 +44,10 @@ describe('에디터 명시 도안 배치', () => {
   it('더블 유지는 좌·우 표식 도안 둘을 같은 캔버스 중심에 놓으며 다음 렌더에서 Sprite를 재사용한다', async () => {
     const renderer = new ExplicitNoteRenderer(); await renderer.load();
     const layer = new Container(); const body = new Container();
-    const note = { type: 'sustain' as const, count: 2 as const, lane: 1, beat: beat(2) };
+    const note = { type: 'tick' as const, count: 2 as const, lane: 1, beat: beat(2) };
     renderer.render(note, 0, 60, 300, 300, body, layer, false);
     const original = [...layer.children];
-    expect(calls.ids).toEqual(['sustain.double.pending.left', 'sustain.double.pending.right']);
+    expect(calls.ids).toEqual(['tick.double.pending.left', 'tick.double.pending.right']);
     layer.removeChildren(); renderer.beginRender();
     renderer.render(note, 0, 60, 200, 200, body, layer, false);
     expect(layer.children).toEqual(original); expect(layer.children.map(child => child.y)).toEqual([200, 200]);

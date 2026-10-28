@@ -34,13 +34,13 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     expect(session.score).toEqual(prefix.score);
     expect(session.combo).toBe(1);
     expect(heldKeys).toEqual([{ key: "A", lane: 1 }]);
-    expect(prefixEffects.map(effect => effect.itemId)).toEqual(["n0:point:0"]);
+    expect(prefixEffects.map(effect => effect.itemId)).toEqual(["n0:tap:0"]);
     expect(session.drainEffects()).toEqual([]);
     expect(session.display).toBeNull();
     session.advance(2121);
     expect(session.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 1 });
     expect(session.combo).toBe(0);
-    expect(session.drainEffects()).toMatchObject([{ itemId: "n1:point:0", grade: "miss" }]);
+    expect(session.drainEffects()).toMatchObject([{ itemId: "n1:tap:0", grade: "miss" }]);
     expect(session.drainEffects()).toEqual([]);
     expect(original.result()).toEqual(oldResult);
     expect(oldResult.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });

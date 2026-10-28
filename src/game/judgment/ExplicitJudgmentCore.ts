@@ -96,7 +96,7 @@ export class ExplicitJudgmentCore {
     this.items = playbackChart.scoreItems.map(item => ({ item, settlement: null })).sort((a, b) =>
       a.item.timeMs - b.item.timeMs || a.item.source.noteIndex - b.item.source.noteIndex || a.item.ordinal - b.item.ordinal);
     this.bodies = playbackChart.bodies.map(body => {
-      const startPoints = this.items.filter(({ item }) => item.kind === "point" && item.startsBodyIndices.includes(body.source.noteIndex));
+      const startPoints = this.items.filter(({ item }) => item.kind === "tap" && item.startsBodyIndices.includes(body.source.noteIndex));
       const runtime: BodyRuntime = { body, activationStartMs: body.startMs, startPoints, units: [], pointDownByKey: new Map() };
       for (const unit of body.units) {
         // single Point는 double의 높은 hold 기준을 맡고 비담당 몫은 낮은 기준을 먼저 채운다.
@@ -114,7 +114,7 @@ export class ExplicitJudgmentCore {
     this.bodyByIndex = new Map(this.bodies.map(body => [body.body.source.noteIndex, body]));
     for (let lane = 1; lane <= 4; lane++) {
       this.timelineByLane.set(lane, [...new Set([...playbackChart.bodies.filter(body => body.lane === lane).flatMap(body => [body.startMs, body.endMs]),
-        ...playbackChart.scoreItems.filter(item => item.lane === lane && item.kind === "sustain").map(item => item.timeMs)])].sort((a, b) => a - b));
+        ...playbackChart.scoreItems.filter(item => item.lane === lane && item.kind === "tick").map(item => item.timeMs)])].sort((a, b) => a - b));
       this.timelineIndexByLane.set(lane, 0);
     }
     if (options.startTimeMs !== undefined) {
@@ -199,7 +199,7 @@ export class ExplicitJudgmentCore {
     for (let lane = 1; lane <= 4; lane++) {
       this.timelineByLane.set(lane, [...new Set([
         ...this.bodies.filter(runtime => runtime.body.lane === lane).flatMap(runtime => [runtime.activationStartMs, runtime.body.endMs]),
-        ...this.items.filter(runtime => runtime.item.lane === lane && runtime.item.kind === "sustain").map(runtime => runtime.item.timeMs),
+        ...this.items.filter(runtime => runtime.item.lane === lane && runtime.item.kind === "tick").map(runtime => runtime.item.timeMs),
       ])].filter(time => time >= fromMs).sort((a, b) => a - b));
       this.timelineIndexByLane.set(lane, 0);
     }
@@ -224,7 +224,7 @@ export class ExplicitJudgmentCore {
           : this.pointMissed(unit) ? "missed" : "waiting" });
     }));
     const items: ExplicitItemSnapshot[] = this.items.map(({ item, settlement }) => {
-      const unit = item.kind === "sustain" ? this.bodyByIndex.get(item.bodyIndex)?.units[item.bodyUnit.ordinal] : undefined;
+      const unit = item.kind === "tick" ? this.bodyByIndex.get(item.bodyIndex)?.units[item.bodyUnit.ordinal] : undefined;
       const waiting = !settlement && unit && item.timeMs <= this.clock;
       return Object.freeze({ id: item.id, kind: item.kind, sourceNoteIndex: item.source.noteIndex, ordinal: item.ordinal,
         state: settlement ? settlement.outcome === "dependentZero" ? "dependentZero" : settlement.grade === "miss" ? "miss" : "success"
@@ -353,7 +353,7 @@ export class ExplicitJudgmentCore {
       const { item, settlement } = runtime;
       if (settlement || item.lane !== lane || Math.abs(rawAt - item.timeMs) > this.windows.GOOD) return false;
       if (action === "up") return this.eligibleRelease(runtime, token);
-      return item.kind === "point" && !pointHits.some(hit => hit.runtime === runtime)
+      return item.kind === "tap" && !pointHits.some(hit => hit.runtime === runtime)
         && !this.pointKeysByNote.get(item.source.noteIndex)?.has(input.key);
     }) : undefined;
     this.confirm({ kind: "input", inputId, key: input.key, action, lane, atMs: rawAt, confirmedAt: this.clock,
@@ -365,7 +365,7 @@ export class ExplicitJudgmentCore {
     if (candidate) {
       const { item } = candidate;
       const grade = "grace" in item && item.grace ? "perfect" : this.grade(rawAt - item.timeMs);
-      if (item.kind === "point") {
+      if (item.kind === "tap") {
         const keys = this.pointKeysByNote.get(item.source.noteIndex) ?? new Set(); keys.add(input.key);
         this.pointKeysByNote.set(item.source.noteIndex, keys);
         pointHits.push({ runtime: candidate, token, grade });
@@ -421,7 +421,7 @@ export class ExplicitJudgmentCore {
     const groupsByZone = new Map<number, typeof hits>();
     for (const hit of hits) {
       const item = hit.runtime.item;
-      if (item.kind === "point" && item.trillZoneIndex !== undefined) {
+      if (item.kind === "tap" && item.trillZoneIndex !== undefined) {
         const group = groupsByZone.get(item.trillZoneIndex) ?? []; group.push(hit); groupsByZone.set(item.trillZoneIndex, group);
       }
     }
@@ -500,7 +500,7 @@ export class ExplicitJudgmentCore {
     const fact = this.confirm({ kind: "bodyFailed", bodyUnitId: unit.id, lane: unit.body.body.lane,
       atMs: at, confirmedAt: Math.max(at, this.clock), phase: "deadline", reason, causeFactId, unscoredMiss: reason !== "pointMiss" });
     unit.failureFactId = fact.id;
-    for (const item of this.items) if (!item.settlement && item.item.kind === "sustain"
+    for (const item of this.items) if (!item.settlement && item.item.kind === "tick"
       && item.item.bodyIndex === unit.body.body.source.noteIndex && item.item.bodyUnit.ordinal === unit.ordinal) {
       this.settle(item, null, at, "deadline", null, null, fact.id);
     }
@@ -534,17 +534,17 @@ export class ExplicitJudgmentCore {
     inputId: string | null = null, rawDeltaMs: number | null = null, causeFactId: string | null = null): void {
     if (runtime.settlement) return;
     const { item } = runtime;
-    const timingDeltaMs = grade !== "miss" && item.kind !== "sustain" && !item.grace ? rawDeltaMs : null;
+    const timingDeltaMs = grade !== "miss" && item.kind !== "tick" && !item.grace ? rawDeltaMs : null;
     const fact = this.confirm({ kind: "settlement", itemId: item.id, itemKind: item.kind, lane: item.lane,
       atMs: at, confirmedAt: Math.max(at, this.clock), phase, outcome: grade === null ? "dependentZero" : "graded",
       grade, inputId, rawDeltaMs, timingDeltaMs, causeFactId });
     if (fact.kind !== "settlement") throw new Error("정산 사실 종류 오류");
     runtime.settlement = fact;
-    if (grade === "miss" && item.kind === "point" && item.trillZoneIndex !== undefined) this.trillKeysByZone.delete(item.trillZoneIndex);
+    if (grade === "miss" && item.kind === "tap" && item.trillZoneIndex !== undefined) this.trillKeysByZone.delete(item.trillZoneIndex);
   }
 
   private settleSustains(unit: UnitRuntime, at: number, phase: ExplicitConfirmationPhase, all = false): void {
-    for (const item of this.items) if (!item.settlement && item.item.kind === "sustain"
+    for (const item of this.items) if (!item.settlement && item.item.kind === "tick"
       && item.item.bodyIndex === unit.body.body.source.noteIndex && item.item.bodyUnit.ordinal === unit.ordinal
       && (all || item.item.timeMs <= at)) this.settle(item, "perfect", at, phase);
   }
@@ -588,7 +588,7 @@ export class ExplicitJudgmentCore {
         const at = this.timelineByLane.get(lane)![this.timelineIndexByLane.get(lane)!] ?? Infinity;
         if (at < limit || (includeTimelineAtLimit && at === limit)) next = Math.min(next, at);
       }
-      for (const runtime of this.items) if (!runtime.settlement && runtime.item.kind !== "sustain") {
+      for (const runtime of this.items) if (!runtime.settlement && runtime.item.kind !== "tick") {
         const deadline = runtime.item.timeMs + this.windows.GOOD;
         if (deadline < limit) next = Math.min(next, deadline);
       }
@@ -610,7 +610,7 @@ export class ExplicitJudgmentCore {
       }
       this.reconcile(next, "timeline");
       if (next === limit) continue;
-      for (const runtime of this.items) if (!runtime.settlement && runtime.item.kind !== "sustain" && runtime.item.timeMs + this.windows.GOOD === next) {
+      for (const runtime of this.items) if (!runtime.settlement && runtime.item.kind !== "tick" && runtime.item.timeMs + this.windows.GOOD === next) {
         this.settle(runtime, "miss", next, "deadline");
       }
       for (const runtime of this.bodies) for (const unit of [...runtime.units].reverse()) {

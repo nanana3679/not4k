@@ -23,10 +23,10 @@ afterEach(() => {
 
 describe('구형 PlayScreen 롤백 거부 경계', () => {
   const notes: DocumentNoteEntity[] = [
-    { type: 'point', kind: 'single', lane: 1, beat: beat(0) },
+    { type: 'tap', kind: 'single', lane: 1, beat: beat(0) },
     { type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(2) },
     { type: 'release', count: 1, lane: 1, beat: beat(2) },
-    { type: 'sustain', count: 1, lane: 5, beat: beat(1) },
+    { type: 'tick', count: 1, lane: 5, beat: beat(1) },
   ];
   it.each(notes)('$type lane$lane 문서를 구형 화면에 직접 넣어도 장치·렌더러 준비 전에 거부하며 원본을 보존한다', note => {
     const document = { ...structuredClone(explicitPlaytestCharts[0].chart), notes: [note] };

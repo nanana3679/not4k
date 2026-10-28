@@ -52,7 +52,7 @@ describe("explicit 사례의 실제 compiler → session → ScoreManager", () =
     expect(run.result?.score).toMatchObject({ earnedScore: 9, totalNotes: 3, processedNotes: 3, finalDenominatorWeight: 9, isFullCombo: true });
     expect(run.result?.combo).toBe(3);
     expect(run.compiled?.bodyUnits.map(unit => unit.weight)).toEqual([0]);
-    expect(run.result?.facts.filter(fact => fact.kind === "settlement").map(fact => fact.itemKind)).toEqual(["point", "sustain", "release"]);
+    expect(run.result?.facts.filter(fact => fact.kind === "settlement").map(fact => fact.itemKind)).toEqual(["tap", "tick", "release"]);
     const summary = summarizeExplicitCase(example, run, "현재 엔진");
     expect(summary).toContain("explicit 실제 엔진 실행");
     expect(summary).toContain("N4 L1 release 2000ms");
@@ -105,7 +105,7 @@ describe("explicit 사례의 실제 compiler → session → ScoreManager", () =
   it("up1490 뒤 down1505로 유예 안에 회복하면 유지1500은 bodyRecovery 대기 뒤 Perfect이며 Miss0", () => {
     const { run } = replay(document([body(1000, 2000), sustain(1500), release(2000)], [["A", 1000, 1490], ["B", 1505, 2000]]));
     expect(run.snapshots.some(snapshot => snapshot.items.some(item => item.waitingReason === "bodyRecovery"))).toBe(true);
-    expect(run.result?.facts.filter(fact => fact.kind === "settlement" && fact.itemKind === "sustain")).toMatchObject([{ grade: "perfect", confirmedAt: 1505, timingDeltaMs: null }]);
+    expect(run.result?.facts.filter(fact => fact.kind === "settlement" && fact.itemKind === "tick")).toMatchObject([{ grade: "perfect", confirmedAt: 1505, timingDeltaMs: null }]);
     expect(run.result?.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
     expect(run.result?.combo).toBe(2);
   });
@@ -223,7 +223,7 @@ describe("explicit 입력 경계와 legacy/design 보존", () => {
     chart.trillZones = [{ lane: 1, beat: beat(2), endBeat: beat(4) }];
     const { run } = replay(chart);
     expect(run.error).toBeNull();
-    expect(run.compiled?.scoreItems.map(item => item.kind)).toEqual(["point"]);
+    expect(run.compiled?.scoreItems.map(item => item.kind)).toEqual(["tap"]);
     expect(run.result?.score).toMatchObject({ totalNotes: 1, earnedScore: 3, finalDenominatorWeight: 3 });
     expect(run.result?.combo).toBe(1);
   });
@@ -242,13 +242,13 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
   it("Point/body/release/sustain을 승인 에셋으로 구분하고 body cap·숨은 끝점·제목 본문을 그리지 않음", () => {
     const { example, run } = replay(document([point(1000), body(1000, 2000), sustain(1500), release(2000)], [["A", 1000, 2000]]));
     const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
-    for (const id of ["point.single.pending", "body.single.idle", "sustain.single.pending", "release.single.pending"]) expect(svg).toContain(`data-explicit-asset="${id}"`);
+    for (const id of ["tap.single.pending", "body.single.idle", "tick.single.pending", "release.single.pending"]) expect(svg).toContain(`data-explicit-asset="${id}"`);
     expect(svg).toContain('data-body-cap="none"');
     expect(svg).not.toMatch(/terminal|endCap|설계 예시|이미지 밖 제목/);
     expect(svg).toContain("실제 엔진 실행");
     expect(svg).toContain("N4 release");
     expect(explicitCaseWindows(example, run)).toEqual([
-      { noteIndex: 0, startMs: 880, endMs: 1120, label: "N1 point Good" },
+      { noteIndex: 0, startMs: 880, endMs: 1120, label: "N1 tap Good" },
       { noteIndex: 3, startMs: 1880, endMs: 2120, label: "N4 release Good" },
     ]);
   });
@@ -267,7 +267,7 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
     expect(run.error).toBeNull();
     const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
     const rect = bodyRect(svg);
-    const pointHeight = numberAttr(tagOf(svg, /<use data-explicit-asset="point\.single\.pending"[^>]*>/), "height");
+    const pointHeight = numberAttr(tagOf(svg, /<use data-explicit-asset="tap\.single\.pending"[^>]*>/), "height");
     expect(numberAttr(rect, "height")).toBeCloseTo(pointHeight, 6);
     expect(numberAttr(rect, "y") + numberAttr(rect, "height") / 2).toBeCloseTo(axisLineY(svg, "1000"), 6);
   });
@@ -277,7 +277,7 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
     expect(run.error).toBeNull();
     const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
     const rect = bodyRect(svg);
-    const marker = tagOf(svg, /<use data-explicit-asset="sustain\.single\.pending"[^>]*>/);
+    const marker = tagOf(svg, /<use data-explicit-asset="tick\.single\.pending"[^>]*>/);
     expect(numberAttr(rect, "height")).toBeGreaterThan(0);
     expect(numberAttr(rect, "y") + numberAttr(rect, "height") / 2)
       .toBeCloseTo(numberAttr(marker, "y") + numberAttr(marker, "height") / 2, 6);
@@ -294,15 +294,15 @@ describe("실제 explicit 사례의 정식 skin SVG", () => {
   it("double 유지 표식은 정식 left/right 에셋 두 개이며 sustain 독립 창은 없음", () => {
     const { example, run } = replay(document([body(1000, 2000, 2), sustain(1500, 2)], [["A", 1000, 2000], ["B", 1000, 2000]]));
     const { svg } = renderExplicitJudgmentCaseSvg([{ judgmentCase: example, run, engineLabel: "엔진" }], { skin });
-    expect(svg).toContain('data-explicit-asset="sustain.double.pending.left"');
-    expect(svg).toContain('data-explicit-asset="sustain.double.pending.right"');
+    expect(svg).toContain('data-explicit-asset="tick.double.pending.left"');
+    expect(svg).toContain('data-explicit-asset="tick.double.pending.right"');
     expect(explicitCaseWindows(example, run)).toEqual([]);
   });
 
   it("classic-explicit PNG가 없거나 크기가 틀리면 legacy 에셋으로 대체하지 않고 오류", () => {
-    expect(() => createExplicitCaseSkin({})).toThrow(/classic-explicit.*point.single.pending/);
+    expect(() => createExplicitCaseSkin({})).toThrow(/classic-explicit.*tap.single.pending/);
     const images = fakeSkinImages(explicitCaseSkinAssetPaths());
-    images["point.single.pending"].width = 1;
+    images["tap.single.pending"].width = 1;
     expect(() => createExplicitCaseSkin(images)).toThrow(/PNG 크기/);
   });
 });

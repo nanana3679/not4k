@@ -45,7 +45,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.score.processedNotes).toBe(0);
     session.resumeAt(0);
     expect(session.score).toMatchObject({ earnedScore: 3, processedNotes: 1, totalNotes: 2 });
-    expect(session.snapshot.items.find(item => item.kind === "point")?.state).toBe("pending");
+    expect(session.snapshot.items.find(item => item.kind === "tap")?.state).toBe("pending");
     expect(session.facts.filter(fact => fact.kind === "input")).toEqual([]);
     expect(session.drainEffects()).toHaveLength(1);
   });
@@ -58,7 +58,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "waiting", actualStartMs: null, pointStatus: "none" });
     session.resumeAt(1500);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1500 });
-    expect(settlements(session)).toMatchObject([{ itemId: "n3:sustain:0", grade: "perfect", atMs: 1500 }]);
+    expect(settlements(session)).toMatchObject([{ itemId: "n3:tick:0", grade: "perfect", atMs: 1500 }]);
     session.processBatch(2000, [up()]);
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, totalNotes: 2, processedNotes: 2,
       judgmentCounts: { perfect: 2, miss: 0 } });
@@ -85,7 +85,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.score.processedNotes).toBe(0);
     session.processBatch(1010, [up(), down()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1010 });
-    expect(settlements(session)).toMatchObject([{ itemKind: "point", grade: "perfect", rawDeltaMs: 10 }]);
+    expect(settlements(session)).toMatchObject([{ itemKind: "tap", grade: "perfect", rawDeltaMs: 10 }]);
   });
 
   it("커서가 바디 끝 2000ms와 같아도 릴리즈 원본 항목은 남고 preheld로 길이0 잔여를 시작한 뒤 실제 up만 점수화", () => {
@@ -187,7 +187,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "waiting", actualStartMs: null, maintenanceDeadlineMs: null });
     session.processBatch(1620, [down("B")]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1620 });
-    expect(settlements(session)).toMatchObject([{ itemKind: "sustain", atMs: 1620, grade: "perfect" }]);
+    expect(settlements(session)).toMatchObject([{ itemKind: "tick", atMs: 1620, grade: "perfect" }]);
     session.processBatch(2000, [up("B")]);
     expect(session.finalize().score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
   });
@@ -230,7 +230,7 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     session.processBatch(1500, [down("C", 2)]);
     expect(settlements(session)).toEqual([]);
     session.processBatch(1500, [up("C", 2), down("C", 2)]);
-    expect(settlements(session)).toMatchObject([{ itemKind: "point", grade: "perfect" }]);
+    expect(settlements(session)).toMatchObject([{ itemKind: "tap", grade: "perfect" }]);
   });
 
   it("1495ms 회복 대기 유지와 1490ms 미처리 Point는 1500ms 재개 후에도 원래 항목·분모·입력 기회를 보존", () => {
@@ -243,8 +243,8 @@ describe("남은 바디의 재개와 기존 세션 보존", () => {
     expect(session.snapshot.items.map(item => item.id)).toEqual(items);
     session.processBatch(1550, [down("B"), down("C", 2)]);
     expect(settlements(session)).toEqual(expect.arrayContaining([
-      expect.objectContaining({ itemKind: "sustain", grade: "perfect", atMs: 1550 }),
-      expect.objectContaining({ itemKind: "point", grade: "great", rawDeltaMs: 60 }),
+      expect.objectContaining({ itemKind: "tick", grade: "perfect", atMs: 1550 }),
+      expect.objectContaining({ itemKind: "tap", grade: "great", rawDeltaMs: 60 }),
     ]));
     expect(session.score.totalNotes).toBe(3);
   });
@@ -393,7 +393,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1000 });
     expect(settlements(session)).toHaveLength(0);
     session.advance(1500);
-    expect(settlements(session)).toMatchObject([{ itemKind: "sustain", grade: "perfect", atMs: 1500, inputId: null, timingDeltaMs: null }]);
+    expect(settlements(session)).toMatchObject([{ itemKind: "tick", grade: "perfect", atMs: 1500, inputId: null, timingDeltaMs: null }]);
     session.advance(2000);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "complete", completedAtMs: 2000 });
     expect(session.result().score.earnedScore).toBe(3);
@@ -415,7 +415,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     session.processBatch(900, [down()]);
     session.processBatch(950, [up()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "complete", actualStartMs: 900, completedAtMs: 950 });
-    expect(settlements(session)).toMatchObject([{ itemKind: "sustain", atMs: 950, grade: "perfect", inputId: null }]);
+    expect(settlements(session)).toMatchObject([{ itemKind: "tick", atMs: 950, grade: "perfect", inputId: null }]);
     expect(session.facts.filter(f => f.kind === "input").every(f => f.consumedItemId === null)).toBe(true);
   });
 
@@ -472,7 +472,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     session.processBatch(1890, [up()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "complete", completedAtMs: 1890 });
     expect(settlements(session).map(fact => [fact.itemKind, fact.grade, fact.timingDeltaMs])).toEqual([
-      ["release", "good", -110], ["sustain", "perfect", null], ["sustain", "perfect", null],
+      ["release", "good", -110], ["tick", "perfect", null], ["tick", "perfect", null],
     ]);
     expect(session.facts.filter(fact => fact.kind === "input" && fact.consumedItemId !== null)).toHaveLength(1);
     expect(session.result().score).toMatchObject({ earnedScore: 7, fastCount: 1, slowCount: 0 });
@@ -484,7 +484,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     session.processBatch(1000, [down()]);
     session.processBatch(1890, [up()]);
     expect(settlements(session)).toMatchObject([{ itemKind: "release", grade: "perfect", rawDeltaMs: -110, timingDeltaMs: null },
-      { itemKind: "sustain", grade: "perfect", timingDeltaMs: null }]);
+      { itemKind: "tick", grade: "perfect", timingDeltaMs: null }]);
     expect(session.result().score).toMatchObject({ earnedScore: 6, fastCount: 0, slowCount: 0 });
   });
 
@@ -511,7 +511,7 @@ describe("실제 explicit compiler → core → session → ScoreManager", () =>
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "complete", actualStartMs: 1070, completedAtMs: 1070 });
     expect(session.snapshot.items[1].state).toBe("pending");
     session.processBatch(1080, [up()]);
-    expect(settlements(session)).toMatchObject([{ itemKind: "sustain", atMs: 1070, timingDeltaMs: null },
+    expect(settlements(session)).toMatchObject([{ itemKind: "tick", atMs: 1070, timingDeltaMs: null },
       { itemKind: "release", atMs: 1080, rawDeltaMs: 20, timingDeltaMs: 20 }]);
     expect(session.facts.filter(fact => fact.kind === "bodyStarted" || fact.kind === "bodyCompleted").map(fact => fact.kind))
       .toEqual(["bodyStarted", "bodyCompleted"]);
@@ -534,7 +534,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(result.score).toMatchObject({ earnedScore: 9, maxPossibleScore: 9, achievementRate: 100, processedNotes: 3, isFullCombo: true });
     expect(session.combo).toBe(3);
     expect(result.facts.filter(f => f.kind === "input")).toMatchObject([
-      { action: "down", consumedItemId: "n0:point:0" }, { action: "up", consumedItemId: "n3:release:0" },
+      { action: "down", consumedItemId: "n0:tap:0" }, { action: "up", consumedItemId: "n3:release:0" },
     ]);
     expect(result.facts.filter(f => f.kind === "bodyStarted" || f.kind === "bodyCompleted")).toHaveLength(2);
   });
@@ -548,7 +548,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", pointStatus: "missed", actualStartMs: null });
     expect(session.facts.filter(f => f.kind === "bodyFailed")).toMatchObject([{ reason: "pointMiss", unscoredMiss: false }]);
     expect(settlements(session).map(f => [f.itemKind, f.outcome, f.grade])).toEqual([
-      ["point", "graded", "miss"], ["sustain", "dependentZero", null], ["release", "dependentZero", null],
+      ["tap", "graded", "miss"], ["tick", "dependentZero", null], ["release", "dependentZero", null],
     ]);
     session.processBatch(2000, [up()]);
     expect(session.finalize().score.judgmentCounts.miss).toBe(1);
@@ -562,7 +562,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     expect(session.effects).toHaveLength(0);
     session.processBatch(1100, [down()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ actualStartMs: 1100, state: "active" });
-    expect(settlements(session).map(f => [f.itemKind, f.grade, f.atMs])).toEqual([["point", "good", 1100], ["sustain", "perfect", 1100]]);
+    expect(settlements(session).map(f => [f.itemKind, f.grade, f.atMs])).toEqual([["tap", "good", 1100], ["tick", "perfect", 1100]]);
     session.processBatch(1150, [up()]);
     session.advance(1171);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1170 });
@@ -624,7 +624,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     const session = makeSession([p(1000), p(1100), b(1050, 2000), r(2000), r(2100)]);
     session.processBatch(1050, [down()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ actualStartMs: 1050, state: "active" });
-    expect(settlements(session)).toMatchObject([{ itemId: "n0:point:0" }]);
+    expect(settlements(session)).toMatchObject([{ itemId: "n0:tap:0" }]);
     session.processBatch(2050, [up()]);
     expect(settlements(session).filter(f => f.itemKind === "release")).toMatchObject([{ itemId: "n3:release:0" }]);
     const result = session.finalize();
@@ -744,7 +744,7 @@ describe("합성 차트의 lifecycle·실패·입력·효과 소유권", () => {
     for (const session of [base, added]) {
       session.processBatch(1000, [down()]); session.processBatch(1490, [up()]); session.advance(1511);
     }
-    const nonSustain = (session: ExplicitJudgmentSession) => session.facts.filter(f => f.kind !== "settlement" || f.itemKind !== "sustain")
+    const nonSustain = (session: ExplicitJudgmentSession) => session.facts.filter(f => f.kind !== "settlement" || f.itemKind !== "tick")
       .map(({ id: _id, ...fact }) => "causeFactId" in fact ? { ...fact, causeFactId: fact.causeFactId === null ? null : "cause" } : fact);
     expect(nonSustain(added)).toEqual(nonSustain(base));
     expect(added.result().score.earnedScore - base.result().score.earnedScore).toBe(3);

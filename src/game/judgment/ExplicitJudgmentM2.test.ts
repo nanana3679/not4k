@@ -40,7 +40,7 @@ function assertFixture(fixture: ExplicitReplayFixture): void {
   for (const fact of facts) if (fact.kind === "settlement") {
     if (fact.outcome === "dependentZero") events.dependentZero++;
     else if (fact.grade === "perfect" || fact.grade === "great" || fact.grade === "good") events[fact.grade]++;
-    else if (fact.grade === "miss") { if (fact.itemKind === "point") events.pointMiss++; else events.releaseMiss++; }
+    else if (fact.grade === "miss") { if (fact.itemKind === "tap") events.pointMiss++; else events.releaseMiss++; }
   }
   for (const fact of result.facts) if (fact.kind === "bodyFailed" && fact.unscoredMiss
     && (!indices || compiled.bodyUnits.some(unit => unit.id === fact.bodyUnitId && indices.includes(unit.source.noteIndex)))) events.maintenanceMiss++;
@@ -127,7 +127,7 @@ describe("raw·hold·observed·기한의 독립 계약", () => {
     const session = makeSession([b(1000, 2000), p(2000), b(2000, 3000), r(3000)]);
     session.processBatch(1000, [down()]); session.advance(2121);
     const pointMiss = settlements(session)[0];
-    expect(pointMiss).toMatchObject({ itemKind: "point", grade: "miss", atMs: 2120 });
+    expect(pointMiss).toMatchObject({ itemKind: "tap", grade: "miss", atMs: 2120 });
     session.processObservedBatch(2115, [up()], 2121);
     expect(settlements(session)[0]).toEqual(pointMiss);
     expect(session.snapshot.bodyUnits[1]).toMatchObject({ state: "failed", failedAtMs: 2120 });
@@ -204,7 +204,7 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
     session.processBatch(1100, [down("B")]);
     const aDown = session.facts.find(fact => fact.kind === "input" && fact.key === "A");
     expect(session.facts.filter(fact => fact.kind === "bodyStarted")).toMatchObject([{ actualStartMs: 1000, inputId: aDown?.kind === "input" ? aDown.inputId : "" }]);
-    expect(settlements(session).find(fact => fact.itemKind === "sustain")).toMatchObject({ atMs: 1050, grade: "perfect" });
+    expect(settlements(session).find(fact => fact.itemKind === "tick")).toMatchObject({ atMs: 1050, grade: "perfect" });
     session.processBatch(2000, [up(), up("B")]);
     expect(session.finalize().score).toMatchObject({ earnedScore: 10, judgmentCounts: { perfect: 3, good: 1, miss: 0 } });
   });
@@ -291,9 +291,9 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
   it("double 바디 한 몫의 이른 up 1890은 자기 몫의 유지 1950만 일괄 Perfect로 만들고 남은 몫은 표식 시각까지 대기", () => {
     const session = makeSession([b(1000, 2000, 2), s(1950, 2), r(2000, 2)]);
     session.processBatch(1000, [down(), down("B")]); session.processBatch(1890, [up()]);
-    expect(session.snapshot.items.filter(item => item.kind === "sustain").map(item => item.state).sort()).toEqual(["pending", "success"]);
+    expect(session.snapshot.items.filter(item => item.kind === "tick").map(item => item.state).sort()).toEqual(["pending", "success"]);
     session.advance(1950);
-    expect(session.snapshot.items.filter(item => item.kind === "sustain").every(item => item.state === "success")).toBe(true);
+    expect(session.snapshot.items.filter(item => item.kind === "tick").every(item => item.state === "success")).toBe(true);
     session.processBatch(2000, [up("B")]);
     expect(session.finalize().score).toMatchObject({ earnedScore: 10, judgmentCounts: { perfect: 3, good: 1, miss: 0 } });
   });
@@ -318,7 +318,7 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
   });
 });
 
-const semanticFacts = (facts: readonly ExplicitConfirmedFact[]) => facts.filter(fact => fact.kind !== "settlement" || fact.itemKind !== "sustain")
+const semanticFacts = (facts: readonly ExplicitConfirmedFact[]) => facts.filter(fact => fact.kind !== "settlement" || fact.itemKind !== "tick")
   .map(({ id: _id, ...fact }) => "causeFactId" in fact ? { ...fact, causeFactId: fact.causeFactId === null ? null : "cause" } : fact);
 
 describe("제때 입력의 프레임 분할과 유지 표식 불변", () => {
@@ -603,9 +603,9 @@ describe("Point 없는 2→1 감소는 바디 사이 실패를 전파하지 않�
     return session;
   };
   const singleStarts = (session: ExplicitJudgmentSession) => session.facts.filter(fact => fact.kind === "bodyStarted" && fact.bodyUnitId === "b2:hold:0");
-  const laterItems = (session: ExplicitJudgmentSession) => settlements(session).filter(fact => fact.itemKind !== "point")
+  const laterItems = (session: ExplicitJudgmentSession) => settlements(session).filter(fact => fact.itemKind !== "tap")
     .map(fact => [fact.itemId, fact.outcome, fact.grade, fact.atMs]);
-  const laterItemStates = (session: ExplicitJudgmentSession) => session.snapshot.items.filter(item => item.kind !== "point")
+  const laterItemStates = (session: ExplicitJudgmentSession) => session.snapshot.items.filter(item => item.kind !== "tap")
     .map(item => [item.id, item.state, item.waitingReason]);
 
   it("감소 위치 유지 2000을 둔 같은 차트에서 A·B를 1500에 뗀 뒤 A를 1700에 다시 눌러 3000까지 쥐면 single이 차트 시작 시각 hold로 2000에 preheld 시작해 유지 2000·릴리즈 3000 Perfect·Miss는 두 몫 유지 실패 2·12/12점", () => {
@@ -623,7 +623,7 @@ describe("Point 없는 2→1 감소는 바디 사이 실패를 전파하지 않�
     ]);
     expect(result.snapshot.bodyUnits[2]).toMatchObject({ state: "complete", actualStartMs: 2000, completedAtMs: 3000 });
     expect(laterItems(session)).toEqual([
-      ["n3:sustain:0", "graded", "perfect", 2000],
+      ["n3:tick:0", "graded", "perfect", 2000],
       ["n4:release:0", "graded", "perfect", 3000],
     ]);
     expect(result.score).toMatchObject({ earnedScore: 12, finalDenominatorWeight: 12, judgmentCounts: { perfect: 4, miss: 2 } });
@@ -632,19 +632,19 @@ describe("Point 없는 2→1 감소는 바디 사이 실패를 전파하지 않�
   it("감소 위치 유지 2000을 둔 같은 차트에서 A·B를 1500에 떼고 다시 누르지 않으면 유지는 1520에 정산되지 않고 single 시작을 기다리다 2120 single 시작 시간 초과를 원인으로 유지·릴리즈 모두 종속 0점·Miss 3·6/12점", () => {
     const session = releaseBothAt1500();
     session.advance(1521);
-    expect(laterItemStates(session)).toEqual([["n3:sustain:0", "pending", null], ["n4:release:0", "pending", null]]);
+    expect(laterItemStates(session)).toEqual([["n3:tick:0", "pending", null], ["n4:release:0", "pending", null]]);
     session.advance(2119);
-    expect(laterItemStates(session)).toEqual([["n3:sustain:0", "waiting", "bodyStart"], ["n4:release:0", "pending", null]]);
+    expect(laterItemStates(session)).toEqual([["n3:tick:0", "waiting", "bodyStart"], ["n4:release:0", "pending", null]]);
     session.advance(2121);
     expect(session.facts.map(factLine).slice(8)).toEqual([
       "fact:8 bodyFailed b1:hold:1 maintenance cause=null miss=true",
       "fact:9 bodyFailed b1:hold:0 maintenance cause=null miss=true",
       "fact:10 bodyFailed b2:hold:0 startTimeout cause=null miss=true",
-      "fact:11 dependentZero n3:sustain:0 cause=fact:10",
+      "fact:11 dependentZero n3:tick:0 cause=fact:10",
       "fact:12 dependentZero n4:release:0 cause=fact:10",
     ]);
     expect(laterItems(session)).toEqual([
-      ["n3:sustain:0", "dependentZero", null, 2120],
+      ["n3:tick:0", "dependentZero", null, 2120],
       ["n4:release:0", "dependentZero", null, 2120],
     ]);
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, finalDenominatorWeight: 12, judgmentCounts: { perfect: 2, miss: 3 } });
@@ -661,7 +661,7 @@ describe("Point 없는 2→1 감소는 바디 사이 실패를 전파하지 않�
     expect(failures(session).map(([id, atMs]) => [id, atMs])).toEqual([["b1:hold:1", 1520], ["b1:hold:0", 1520]]);
     expect(result.snapshot.bodyUnits[2]).toMatchObject({ state: "complete", actualStartMs: 2100, completedAtMs: 3000 });
     expect(laterItems(session)).toEqual([
-      ["n3:sustain:0", "graded", "perfect", 2100],
+      ["n3:tick:0", "graded", "perfect", 2100],
       ["n4:release:0", "graded", "perfect", 3000],
     ]);
     expect(result.score).toMatchObject({ earnedScore: 12, finalDenominatorWeight: 12, judgmentCounts: { perfect: 4, miss: 2 } });

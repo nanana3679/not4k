@@ -13,13 +13,13 @@ import { drainExplicitPlaySessionInputs, stepExplicitPlaySession } from "../expl
 import { createExplicitTutorialPreviewSessionController } from "./explicitTutorialPreviewSession";
 
 const point = (at: number, kind: "single" | "double" | "trill" = "single"): ExplicitNoteEntity =>
-  ({ type: "point", kind, lane: 1, beat: beat(at, 500) });
+  ({ type: "tap", kind, lane: 1, beat: beat(at, 500) });
 const body = (at: number, end: number, holdCount: 1 | 2 = 1): ExplicitNoteEntity =>
   ({ type: "body", holdCount, lane: 1, beat: beat(at, 500), endBeat: beat(end, 500) });
 const release = (at: number, count: 1 | 2 = 1, grace = false): ExplicitNoteEntity =>
   ({ type: "release", count, grace, lane: 1, beat: beat(at, 500) });
 const sustain = (at: number, count: 1 | 2 = 1): ExplicitNoteEntity =>
-  ({ type: "sustain", count, lane: 1, beat: beat(at, 500) });
+  ({ type: "tick", count, lane: 1, beat: beat(at, 500) });
 function document(notes: ExplicitNoteEntity[], trill = false): ChartDocument {
   return { meta: { title: "명시 튜토리얼", artist: "test", difficultyLabel: "NORMAL", difficultyLevel: 1,
     imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 }, notes,
@@ -42,7 +42,7 @@ function judgments(result: ExplicitSessionResult) {
 
 describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", () => {
   it("aux note가 원본 index0에 있어도 main double Point의 index1·ordinal0/1을 그대로 표시 상태에 보존", () => {
-    const chart = document([{ type: "point", kind: "single", lane: 5, beat: beat(2) }, point(1000, "double")]);
+    const chart = document([{ type: "tap", kind: "single", lane: 5, beat: beat(2) }, point(1000, "double")]);
     const controller = createExplicitTutorialPreviewSessionController(chart);
     controller.advanceTo(1000);
     expect(controller.session.snapshot.items.map(item => [item.sourceNoteIndex, item.ordinal])).toEqual([[1, 0], [1, 1]]);

@@ -22,14 +22,14 @@ export type ExplicitPreviewPreset = keyof typeof explicitPreviewPresets;
 /** double/trill은 G1 공개 상태 fixture이며 실제 session 성공의 증거와 구분한다. */
 export const explicitPreviewChart = explicitRenderChart([
   { type: "release", beat: beat(6), lane: 1, count: 2, grace: true },
-  { type: "sustain", beat: beat(4), lane: 1, count: 2 },
+  { type: "tick", beat: beat(4), lane: 1, count: 2 },
   { type: "body", beat: beat(2), endBeat: beat(6), lane: 1, holdCount: 2 },
-  { type: "point", beat: beat(2), lane: 1, kind: "double", grace: true },
-  { type: "point", beat: beat(2), lane: 2, kind: "single", grace: true },
+  { type: "tap", beat: beat(2), lane: 1, kind: "double", grace: true },
+  { type: "tap", beat: beat(2), lane: 2, kind: "single", grace: true },
   { type: "body", beat: beat(2), endBeat: beat(6), lane: 2, holdCount: 1 },
-  { type: "sustain", beat: beat(4), lane: 2, count: 1 },
+  { type: "tick", beat: beat(4), lane: 2, count: 1 },
   { type: "release", beat: beat(6), lane: 2, count: 1, grace: true },
-  { type: "point", beat: beat(2), lane: 3, kind: "trill", grace: true },
+  { type: "tap", beat: beat(2), lane: 3, kind: "trill", grace: true },
   { type: "body", beat: beat(2), endBeat: beat(6), lane: 3, holdCount: 1, trill: true },
   { type: "release", beat: beat(4), lane: 4, count: 2, grace: true },
 ], [{ lane: 3, beat: beat(2), endBeat: beat(6) }]);

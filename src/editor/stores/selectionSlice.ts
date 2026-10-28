@@ -59,7 +59,7 @@ export function zoneContainedNoteIndices(
   for (let i = 0; i < notes.length; i++) {
     const n = notes[i];
     if (n.type !== 'trill' && n.type !== 'trillLong'
-      && !(n.type === 'point' && n.kind === 'trill') && !(n.type === 'body' && n.trill)) continue;
+      && !(n.type === 'tap' && n.kind === 'trill') && !(n.type === 'body' && n.trill)) continue;
     const endBeat = 'endBeat' in n ? n.endBeat : n.beat;
     if (
       n.lane === zone.lane &&

@@ -362,7 +362,7 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
 });
 
 describe('editorStore 편집 transaction 중단 알림', () => {
-  const point = (at: number): ChartDocument['notes'][number] => ({ type: 'point', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  const point = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
   beforeEach(() => {
     useEditorStore.setState({
       chart: makeChart([point(1)]), extraLaneCount: 2, mode: 'select', selection: emptySelection(),

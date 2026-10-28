@@ -11,7 +11,7 @@ function renderJudgmentCaseDesignSvg(designs: JudgmentCaseDesign[], options: { s
 }
 
 function design(fields: Record<string, unknown> = {}) {
-  return parseJudgmentCaseDesign(JSON.stringify({ format: "judgment-case-design", title: "설계", notes: [{ kind: "point", atMs: 2000 }], ...fields }));
+  return parseJudgmentCaseDesign(JSON.stringify({ format: "judgment-case-design", title: "설계", notes: [{ kind: "tap", atMs: 2000 }], ...fields }));
 }
 function windowBounds(svg: string, index: number) {
   const group = svg.match(new RegExp(`<g data-design-window="${index}"[^>]*>(.*?)</g>`, "s"))![1];
@@ -47,7 +47,7 @@ describe("설계 도식", () => {
     const skin = makeTestSkin(id);
     const { svg } = renderJudgmentCaseDesignSvg([design({ notes: [
       { kind: "body", count: 2, startMs: 1000, endMs: 2000 },
-      { kind: "point", atMs: 1000 },
+      { kind: "tap", atMs: 1000 },
       { kind: "release", count: 2, atMs: 2000 },
     ], annotations: [{ note: "N2", atMs: 1000, text: "Miss를 가정", tone: "failure" }] })], { skin });
     expect(svg).toContain('data-design-note="N1" data-note-part="body" data-skin-asset="bodyDouble"');
@@ -79,7 +79,7 @@ describe("설계 도식", () => {
 
   it("전용 에셋 없는 유지 노트와 3개 수량은 임시 표식으로 표시하고 기존 double 에셋으로 오인시키지 않음", () => {
     const { svg } = renderJudgmentCaseDesignSvg([design({ notes: [
-      { kind: "maintain", atMs: 1000 }, { kind: "body", count: 3, startMs: 1000, endMs: 2000 },
+      { kind: "tick", atMs: 1000 }, { kind: "body", count: 3, startMs: 1000, endMs: 2000 },
     ] })]);
     expect(svg.match(/data-design-placeholder="true"/g)).toHaveLength(2);
     expect(svg).toContain("임시 표식(전용 에셋 없음)");
@@ -135,7 +135,7 @@ describe("설계 도식", () => {
   });
 
   it("입력 없는 0ms 바디·release·유지 노트와 열린 키 입력도 점수 집계 없이 그림", () => {
-    const first = design({ notes: [{ kind: "body", startMs: 0, endMs: 0 }, { kind: "release", atMs: 0 }, { kind: "maintain", atMs: 0 }] });
+    const first = design({ notes: [{ kind: "body", startMs: 0, endMs: 0 }, { kind: "release", atMs: 0 }, { kind: "tick", atMs: 0 }] });
     const second = design({ inputs: [{ key: "A", lane: 2, downMs: 0 }] });
     const { svg, height } = renderJudgmentCaseDesignSvg([first, second]);
     expect(svg.match(/엔진 미실행/g)).toHaveLength(2);

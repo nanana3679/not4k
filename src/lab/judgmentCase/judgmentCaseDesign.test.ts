@@ -4,14 +4,14 @@ import { beat } from "../../shared/types/beat";
 import type { ChartDocument } from "../../shared/types/chart";
 import { parseJudgmentCaseDesign, summarizeJudgmentCaseDesign } from "./judgmentCaseDesign";
 
-const base = { format: "judgment-case-design", notes: [{ kind: "point", atMs: 1000 }] };
+const base = { format: "judgment-case-design", notes: [{ kind: "tap", atMs: 1000 }] };
 const parse = (value: unknown) => parseJudgmentCaseDesign(JSON.stringify(value));
 
 describe("수동 설계 입력", () => {
   it("같은 1000ms의 Point·release·유지 노트를 받아 현행 차트의 배치 금지를 적용하지 않음", () => {
-    const design = parse({ ...base, notes: ["point", "release", "maintain", "marker"].map(kind => ({ kind, atMs: 1000 })) });
+    const design = parse({ ...base, notes: ["tap", "release", "tick", "marker"].map(kind => ({ kind, atMs: 1000 })) });
     expect(design.notes.map(note => note.id)).toEqual(["N1", "N2", "N3", "N4"]);
-    expect(design.notes.map(note => note.kind)).toEqual(["point", "release", "maintain", "marker"]);
+    expect(design.notes.map(note => note.kind)).toEqual(["tap", "release", "tick", "marker"]);
   });
 
   it("입력 없이 Perfect라고 적으면 검증하거나 집계하지 않고 수동 설명과 엔진 미실행 표시를 유지", () => {
@@ -44,18 +44,18 @@ describe("수동 설계 입력", () => {
 
   it.each([
     ["노트 수 0", []],
-    ["동일한 N1 이름 2개", [{ id: "N1", kind: "point", atMs: 0 }, { id: "N1", kind: "point", atMs: 1 }]],
-    ["수량 0", [{ kind: "point", atMs: 0, count: 0 }]],
-    ["레인 1.5", [{ kind: "point", atMs: 0, lane: 1.5 }]],
-    ["문자열 시각", [{ kind: "point", atMs: "1000" }]],
+    ["동일한 N1 이름 2개", [{ id: "N1", kind: "tap", atMs: 0 }, { id: "N1", kind: "tap", atMs: 1 }]],
+    ["수량 0", [{ kind: "tap", atMs: 0, count: 0 }]],
+    ["레인 1.5", [{ kind: "tap", atMs: 0, lane: 1.5 }]],
+    ["문자열 시각", [{ kind: "tap", atMs: "1000" }]],
     ["바디 역전 1000→900", [{ kind: "body", startMs: 1000, endMs: 900 }]],
-    ["Point에 구간 시각 혼합", [{ kind: "point", atMs: 0, startMs: 0, endMs: 10 }]],
+    ["Point에 구간 시각 혼합", [{ kind: "tap", atMs: 0, startMs: 0, endMs: 10 }]],
   ])("%s이면 잘못된 도식을 만들지 않고 notes 오류", (_name, notes) => {
     expect(() => parse({ ...base, notes })).toThrow(/notes/);
   });
 
   it("유한 범위를 벗어난 JSON 숫자 1e400은 거부", () => {
-    expect(() => parseJudgmentCaseDesign('{"format":"judgment-case-design","notes":[{"kind":"point","atMs":1e400}]}')).toThrow(/유한/);
+    expect(() => parseJudgmentCaseDesign('{"format":"judgment-case-design","notes":[{"kind":"tap","atMs":1e400}]}')).toThrow(/유한/);
   });
 
   it("format 없는 { notes: [] }를 --design에 주면 설계 형식을 명시하라는 오류", () => {
@@ -65,7 +65,7 @@ describe("수동 설계 입력", () => {
   it("version·meta가 있는 v4 ChartDocument JSON을 --design에 주면 '알 수 없는 필드' 대신 format 안내 오류", () => {
     const chart: ChartDocument = {
       meta: { title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1, imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 },
-      notes: [{ type: "point", kind: "single", lane: 1, beat: beat(2) }], trillZones: [], restZones: [],
+      notes: [{ type: "tap", kind: "single", lane: 1, beat: beat(2) }], trillZones: [], restZones: [],
       events: [{ type: "bpm", beat: beat(0), bpm: 120 }],
     };
     const source = serializeChart(chart);

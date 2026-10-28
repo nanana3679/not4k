@@ -24,11 +24,11 @@ interface ExplicitScoreItemBase {
 
 /** 유지에는 독립 입력·Grace가 없으며 릴리즈 수량은 바디 몫 수와 별개다. */
 export type ExplicitScoreItem = ExplicitScoreItemBase & (
-  | { readonly kind: "point"; readonly pointKind: "single" | "double" | "trill";
+  | { readonly kind: "tap"; readonly pointKind: "single" | "double" | "trill";
     readonly grace: boolean; readonly startsBodyIndices: readonly number[]; readonly trillZoneIndex?: number }
   | { readonly kind: "release"; readonly grace: boolean; readonly bodyIndex?: number;
     readonly boundaryKind: "standalone" | "end" | "decrease" }
-  | { readonly kind: "sustain"; readonly bodyIndex: number; readonly bodyUnit: ExplicitBodyUnitRef }
+  | { readonly kind: "tick"; readonly bodyIndex: number; readonly bodyUnit: ExplicitBodyUnitRef }
 );
 
 export interface ExplicitCompiledBodyUnit {
@@ -97,7 +97,7 @@ export function compileExplicitJudgmentChart(
     return time;
   };
   const zoneFor = (note: ExplicitNoteEntity): number | undefined => {
-    if (!((note.type === "point" && note.kind === "trill") || (note.type === "body" && note.trill))) return undefined;
+    if (!((note.type === "tap" && note.kind === "trill") || (note.type === "body" && note.trill))) return undefined;
     const index = document.trillZones.findIndex(zone => zone.lane === note.lane
       && beatCompare(zone.beat, note.beat) <= 0
       && beatCompare("endBeat" in note ? note.endBeat : note.beat, zone.endBeat) <= 0);
@@ -119,12 +119,12 @@ export function compileExplicitJudgmentChart(
   const scoreItems: ExplicitScoreItem[] = [];
   for (const { note, noteIndex } of main) {
     if (note.type === "body") continue;
-    const count = note.type === "point" ? (note.kind === "double" ? 2 : 1) : note.count;
+    const count = note.type === "tap" ? (note.kind === "double" ? 2 : 1) : note.count;
     for (let ordinal = 0; ordinal < count; ordinal++) {
       const base: ExplicitScoreItemBase = { id: `n${noteIndex}:${note.type}:${ordinal}`, source: { noteIndex },
         ordinal, lane: note.lane, beat: note.beat, timeMs: timeAt(noteIndex), weight: 3 };
-      if (note.type === "point") {
-        scoreItems.push({ ...base, kind: "point", pointKind: note.kind, grace: note.grace === true,
+      if (note.type === "tap") {
+        scoreItems.push({ ...base, kind: "tap", pointKind: note.kind, grace: note.grace === true,
           startsBodyIndices: relations.bodies.filter(body => body.startPointIndices.includes(noteIndex)).map(body => body.noteIndex),
           trillZoneIndex: zoneFor(note) });
       } else if (note.type === "release") {
@@ -135,7 +135,7 @@ export function compileExplicitJudgmentChart(
       } else {
         const bodyIndex = relations.sustainBodyByNote.get(noteIndex);
         if (bodyIndex === undefined) throw new Error(`검증된 유지 표식의 소속이 없습니다: note ${noteIndex}`);
-        scoreItems.push({ ...base, kind: "sustain", bodyIndex, bodyUnit: { bodyIndex, ordinal } });
+        scoreItems.push({ ...base, kind: "tick", bodyIndex, bodyUnit: { bodyIndex, ordinal } });
       }
     }
   }

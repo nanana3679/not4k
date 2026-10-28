@@ -22,7 +22,7 @@ test('Grace 더블 드래그는 Esc 취소·생성·Undo·Redo·v4 저장과 재
   await drag(page, 1, 1, 3);
   const created = await notes(page);
   expect(created).toMatchObject([
-    { type: 'point', kind: 'double', grace: true }, { type: 'body', holdCount: 2 }, { type: 'release', count: 2, grace: true },
+    { type: 'tap', kind: 'double', grace: true }, { type: 'body', holdCount: 2 }, { type: 'release', count: 2, grace: true },
   ]);
   expect(created[1]).not.toHaveProperty('holdOnly'); expect(created[1]).not.toHaveProperty('grace');
   await expect(page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true })).toBeVisible();
@@ -43,15 +43,15 @@ test('v4 혼합 main과 aux를 저장·재로드하면 구형 false·holdOnly와
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [
     { type: 'single', lane: 4, beat: '0', grace: false },
     { type: 'long', lane: 4, beat: '0', endBeat: '2', holdOnly: true },
-    { type: 'point', kind: 'double', lane: 1, beat: '0', grace: true },
+    { type: 'tap', kind: 'double', lane: 1, beat: '0', grace: true },
     { type: 'body', holdCount: 2, lane: 1, beat: '0', endBeat: '4' },
-    { type: 'sustain', count: 2, lane: 1, beat: '2' },
+    { type: 'tick', count: 2, lane: 1, beat: '2' },
     { type: 'release', count: 1, lane: 1, beat: '4', grace: false },
   ] };
   const extra: ExtraNotesJson = { version: 4, extraLaneCount: 3, extraNotes: [
     { type: 'double', extraLane: 3, beat: '0', grace: false },
     { type: 'body', holdCount: 1, extraLane: 2, beat: '1', endBeat: '1' },
-    { type: 'sustain', count: 1, extraLane: 2, beat: '1' },
+    { type: 'tick', count: 1, extraLane: 2, beat: '1' },
     { type: 'release', count: 2, extraLane: 1, beat: '3', grace: true },
   ] };
   const editor = await openEditor(page, { chart, extra }); const before = await notes(page);
@@ -67,23 +67,23 @@ test('v4 혼합 main과 aux를 저장·재로드하면 구형 false·holdOnly와
 });
 
 test('빈 aux 유지 클릭→재클릭은 0길이 body1+sustain1→body2+sustain2이며 세 번째 클릭은 Undo를 늘리지 않는다', async ({ page }) => {
-  const editor = await openEditor(page); await entitySelect(page).selectOption('sustain');
+  const editor = await openEditor(page); await entitySelect(page).selectOption('tick');
   const at = await canvasPosition(page, 5, 2);
   await page.mouse.click(at.x, at.y);
-  expect(await notes(page)).toMatchObject([{ type: 'body', holdCount: 1, lane: 5 }, { type: 'sustain', count: 1, lane: 5 }]);
+  expect(await notes(page)).toMatchObject([{ type: 'body', holdCount: 1, lane: 5 }, { type: 'tick', count: 1, lane: 5 }]);
   await page.mouse.click(at.x, at.y);
   const doubled = await notes(page);
-  expect(doubled).toMatchObject([{ type: 'body', holdCount: 2, lane: 5 }, { type: 'sustain', count: 2, lane: 5 }]);
+  expect(doubled).toMatchObject([{ type: 'body', holdCount: 2, lane: 5 }, { type: 'tick', count: 2, lane: 5 }]);
   await page.mouse.click(at.x, at.y); expect(await notes(page)).toEqual(doubled);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  expect(await notes(page)).toMatchObject([{ type: 'body', holdCount: 1 }, { type: 'sustain', count: 1 }]);
+  expect(await notes(page)).toMatchObject([{ type: 'body', holdCount: 1 }, { type: 'tick', count: 1 }]);
   await page.getByRole('button', { name: 'Undo', exact: true }).click(); expect(await notes(page)).toEqual([]);
   expect(editor.supabaseWrites).toEqual([]);
 });
 
 test('숨은 aux3의 바디 밖 sustain은 열람·확정이 가능하고 툴바 위반·숨은 레인 안내가 저장을 차단한다', async ({ page }) => {
   const editor = await openEditor(page, { extra: { version: 4, extraLaneCount: 3,
-    extraNotes: [{ type: 'sustain', count: 1, extraLane: 3, beat: '2' }] } });
+    extraNotes: [{ type: 'tick', count: 1, extraLane: 3, beat: '2' }] } });
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
   await page.locator('select').filter({ has: page.locator('option[value="10"]') }).selectOption('2');
   await page.mouse.click(10, 100);
@@ -101,7 +101,7 @@ test('혼합 main과 명시 aux의 Save As는 새 난이도·레벨만 바꾸고
   ] };
   const extra: ExtraNotesJson = { version: 4, extraLaneCount: 3, extraNotes: [
     { type: 'body', holdCount: 2, extraLane: 3, beat: '2', endBeat: '2' },
-    { type: 'sustain', count: 2, extraLane: 3, beat: '2' },
+    { type: 'tick', count: 2, extraLane: 3, beat: '2' },
   ] };
   const editor = await openEditor(page, { chart, extra });
   await page.route('**/rest/v1/charts?*', route => route.fulfill({ json: [] }));
@@ -128,7 +128,7 @@ test('터치 double 롱프레스의 1→3박 드래그는 마우스와 같은 Gr
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...end, id: 1 }] });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   expect(await notes(page)).toMatchObject([
-    { type: 'point', kind: 'double', lane: 2, grace: true }, { type: 'body', holdCount: 2, lane: 2 }, { type: 'release', count: 2, lane: 2, grace: true },
+    { type: 'tap', kind: 'double', lane: 2, grace: true }, { type: 'body', holdCount: 2, lane: 2 }, { type: 'release', count: 2, lane: 2, grace: true },
   ]);
   await cdp.detach();
 });

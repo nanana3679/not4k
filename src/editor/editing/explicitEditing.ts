@@ -49,7 +49,7 @@ export function reconcileMovedSustains(
   const result = [...notes];
   for (const index of moved) {
     const note = result[index];
-    if (note?.type !== 'sustain') continue;
+    if (note?.type !== 'tick') continue;
     const owner = relations.sustainBodyByNote.get(index);
     const count = owner === undefined
       ? fallbackCountByNoteIndex?.get(index)

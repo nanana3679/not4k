@@ -26,17 +26,17 @@ pnpm build:explicit-skin --check
 
 | ID 구성 | 가용 상태 |
 | --- | --- |
-| `point.single` | `pending` |
-| `point.double`, `point.trill` | `pending`, `failed` |
+| `tap.single` | `pending` |
+| `tap.double`, `tap.trill` | `pending`, `failed` |
 | `body.single`, `body.double`, `body.trill` | `idle`, `held`, `failed` |
 | `body.double` | `partialHeld.left/right`, `partialFailed.left/right` |
 | `release.single`, `release.double` | `pending`, `failed` |
 | `release.double` | `partialFailed.left/right` |
-| `sustain.single` | `pending`, `failed` |
-| `sustain.double` | `pending.left/right`, `failed.left/right` |
+| `tick.single` | `pending`, `failed` |
+| `tick.double` | `pending.left/right`, `failed.left/right` |
 | `graceOverlay.point`, `graceOverlay.trill`, `graceOverlay.release` | `overlay` |
 
-실제 ID에서는 `/`로 요약한 방향 중 하나만 쓴다(예: `sustain.double.failed.left`). 총 33개 역할이다. `point.single.failed`, Point의 좌우 부분 실패, 트릴 릴리즈·별도 트릴 유지·바디 Grace·terminal cap 등 공급하지 않은 역할은 거부한다. 다른 역할·스킨으로 fallback하지 않으며 필수 역할 누락·중복·잘못된 좌표·방향도 view 생성 때 거부한다.
+실제 ID에서는 `/`로 요약한 방향 중 하나만 쓴다(예: `tick.double.failed.left`). 총 33개 역할이다. `tap.single.failed`, Point의 좌우 부분 실패, 트릴 릴리즈·별도 트릴 유지·바디 Grace·terminal cap 등 공급하지 않은 역할은 거부한다. 다른 역할·스킨으로 fallback하지 않으며 필수 역할 누락·중복·잘못된 좌표·방향도 view 생성 때 거부한다.
 
 - 싱글·더블 Point는 212×40, 트릴 Point와 모든 바디·릴리즈·유지는 200×40이다. 레인 중앙·자기 beat에 전체 캔버스 anchor `(0.5, 0.5)`를 맞춘다. 바디는 200×40 타일을 세로 반복하며 Point 기준 폭 212와의 비율을 보존한다. 시작·끝 마감은 없다.
 - Grace는 본체와 별도 이미지다. Point overlay 260×88의 본체는 `(24,24,212,40)`, 릴리즈·트릴 overlay 248×88의 본체는 `(24,24,200,40)`이다. `@2x`도 동일한 논리 크기·패딩을 쓴다. `*-grace.png` 합성 참고본과 과거 terminal overlay는 export하지 않는다.

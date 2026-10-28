@@ -15,8 +15,8 @@ export function createExplicitPlaybackChartView(
   if (!Number.isFinite(startTimeMs)) throw new RangeError("재생 시작 시각은 유한해야 합니다");
   const scoreItems = Object.freeze(retainedItems.map(item => Object.freeze({ ...item,
     source: Object.freeze({ ...item.source }), beat: Object.freeze({ ...item.beat }),
-    ...(item.kind === "point" ? { startsBodyIndices: Object.freeze([...item.startsBodyIndices]) } : {}),
-    ...(item.kind === "sustain" ? { bodyUnit: Object.freeze({ ...item.bodyUnit }) } : {}),
+    ...(item.kind === "tap" ? { startsBodyIndices: Object.freeze([...item.startsBodyIndices]) } : {}),
+    ...(item.kind === "tick" ? { bodyUnit: Object.freeze({ ...item.bodyUnit }) } : {}),
   })));
   const retainedNoteIndices = new Set(scoreItems.map(item => item.source.noteIndex));
   const bodies = Object.freeze(compiled.bodies.filter(body => body.endMs >= startTimeMs).map(body => {

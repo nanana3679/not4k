@@ -141,8 +141,8 @@ describe('GameRenderer 명시 seam', () => {
     expect(scene.explicitNoteRenderer).toBeInstanceOf(ExplicitNoteRenderer);
     expect(query).toHaveBeenCalledOnce();
     expect(sprites(scene.explicitNoteRenderer!.root, 'body')).toHaveLength(1);
-    expect(sprites(scene.explicitNoteRenderer!.root, 'sustain')).toHaveLength(2);
-    expect(sprites(scene.explicitNoteRenderer!.root, 'point')).toHaveLength(2);
+    expect(sprites(scene.explicitNoteRenderer!.root, 'tick')).toHaveLength(2);
+    expect(sprites(scene.explicitNoteRenderer!.root, 'tap')).toHaveLength(2);
   });
 
   it('prepareForPlayback은 아직 보이지 않는 failed·Grace 포함 explicit 33개 소스를 업로드하고 dispose는 GC와 공유 원본을 보존한다', async () => {
@@ -165,7 +165,7 @@ describe('GameRenderer 명시 seam', () => {
     const explicit = scene.explicitNoteRenderer!;
     expect(session.snapshot.bodyUnits.map(unit => unit.state).sort()).toEqual(['active', 'failed']);
     expect(sprites(explicit.root, 'body')[0].alpha).toBe(1);
-    expect(sprites(explicit.root, 'sustain')).toHaveLength(1);
+    expect(sprites(explicit.root, 'tick')).toHaveLength(1);
     const before = sprites(explicit.root, 'body')[0].y;
     renderer.setLift(50); renderer.renderFrame(1500, 0);
     expect(sprites(explicit.root, 'body')[0].y).toBeCloseTo(before - 50);

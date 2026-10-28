@@ -14,12 +14,12 @@ describe('loadEditorChartAsset 문서 로드', () => {
       { type: 'single', lane: 1, beat: '8', grace: false },
       { type: 'release', count: 2, lane: 2, beat: '4', grace: false },
     ] }), JSON.stringify({ version: 4, extraLaneCount: 4, extraNotes: [
-      { type: 'sustain', count: 2, extraLane: 3, beat: '2' },
+      { type: 'tick', count: 2, extraLane: 3, beat: '2' },
     ] }));
     expect(loaded.chart.notes).toEqual([
       { type: 'single', lane: 1, beat: beat(8), grace: false },
       { type: 'release', count: 2, lane: 2, beat: beat(4), grace: false },
-      { type: 'sustain', count: 2, lane: 7, beat: beat(2) },
+      { type: 'tick', count: 2, lane: 7, beat: beat(2) },
     ]);
     expect(loaded.extraLaneCount).toBe(4);
   });
@@ -35,7 +35,7 @@ describe('loadEditorChartAsset 문서 로드', () => {
 
   it.each([
     { version: 5, extraNotes: [] },
-    { version: 3, extraNotes: [{ type: "sustain", extraLane: 1, beat: "0", count: 1 }] },
+    { version: 3, extraNotes: [{ type: "tick", extraLane: 1, beat: "0", count: 1 }] },
     { version: 4, extraNotes: [{ type: "release", extraLane: 1, beat: "0", count: 0 }] },
     { extraNotes: "bad" },
   ])("보조 형식 오류 %j는 무시하지 않고 ChartFormatError를 전달한다", (extra) => {
@@ -66,13 +66,13 @@ describe('loadEditorChartAsset 문서 로드', () => {
     ['aux 파일 없이 메인에 예전 extraNotes가 있으면', null],
   ])('%s 메인의 lane 0·lane 1.5 Point를 병합에서 버리지 않아 laneMalformed 위반으로 보인다', (_label, extraText) => {
     const chart = JSON.stringify({ ...main, version: 4, extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }], notes: [
-      { type: 'point', kind: 'single', lane: 0, beat: '1' },
-      { type: 'point', kind: 'single', lane: 1.5, beat: '2' },
+      { type: 'tap', kind: 'single', lane: 0, beat: '1' },
+      { type: 'tap', kind: 'single', lane: 1.5, beat: '2' },
     ] });
     const loaded = loadEditorChartAsset(chart, extraText);
     expect(loaded.chart.notes).toEqual([
-      { type: 'point', kind: 'single', lane: 0, beat: beat(1) },
-      { type: 'point', kind: 'single', lane: 1.5, beat: beat(2) },
+      { type: 'tap', kind: 'single', lane: 0, beat: beat(1) },
+      { type: 'tap', kind: 'single', lane: 1.5, beat: beat(2) },
       { type: 'single', lane: 5, beat: beat(0) },
     ]);
     expect(editorChartErrors(loaded.chart).filter(error => error.rule === 'laneMalformed')).toHaveLength(2);

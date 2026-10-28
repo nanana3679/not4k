@@ -7,10 +7,10 @@ test.setTimeout(60_000);
 
 const family = (): ChartJsonV4 => ({ ...editorTestChart(), version: 4, notes: [
   { type: 'body', lane: 1, beat: '1', endBeat: '3', holdCount: 1 },
-  { type: 'point', lane: 1, beat: '1', kind: 'single' },
-  { type: 'sustain', lane: 1, beat: '2', count: 1 },
+  { type: 'tap', lane: 1, beat: '1', kind: 'single' },
+  { type: 'tick', lane: 1, beat: '2', count: 1 },
   { type: 'release', lane: 1, beat: '3', count: 1 },
-  { type: 'point', lane: 1, beat: '5/2', kind: 'double' },
+  { type: 'tap', lane: 1, beat: '5/2', kind: 'double' },
 ] });
 async function state(page: Page) {
   return page.evaluate(async () => {
@@ -56,10 +56,10 @@ test('Sustain 제외 Cut은 clipboard·chart·selection·history를 보존하고
   await page.keyboard.press('Control+x'); expect(await state(page)).toEqual(before); expect(await notes(page)).toEqual(original);
   // 거부한 Cut이 clipboard의 double Point를 덮지 않았다.
   await page.keyboard.press('Control+v'); await page.keyboard.press('Enter');
-  expect((await notes(page)).at(-1)).toMatchObject({ type: 'point', kind: 'double' });
+  expect((await notes(page)).at(-1)).toMatchObject({ type: 'tap', kind: 'double' });
   await page.keyboard.press('Control+z');
   await click(page, 2); await page.keyboard.press('Control+c'); await page.keyboard.press('Control+v'); await page.keyboard.press('Enter');
-  expect((await notes(page)).at(-1)).toMatchObject({ type: 'sustain', beat: { n: 0, d: 1 } });
+  expect((await notes(page)).at(-1)).toMatchObject({ type: 'tick', beat: { n: 0, d: 1 } });
   await click(page, 1.5, 3); expect((await state(page)).selection).toEqual([]);
   await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
   await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
@@ -81,7 +81,7 @@ test('우클릭 900ms 연속 삭제는 노트 뒤 Body를 관통하지 않고 Un
   await page.mouse.move(sustain.x, sustain.y); await page.mouse.down({ button: 'right' });
   await page.waitForTimeout(900); await page.mouse.move(sustain.x + 1, sustain.y); await page.mouse.move(middle.x, middle.y, { steps: 1 });
   await page.mouse.move(middle.x + 1, middle.y); await page.mouse.up({ button: 'right' });
-  expect((await notes(page)).map(note => note.type)).toEqual(['body', 'point', 'release']); expect((await state(page)).past).toBe(1);
+  expect((await notes(page)).map(note => note.type)).toEqual(['body', 'tap', 'release']); expect((await state(page)).past).toBe(1);
   const body = await canvasPosition(page, 1, 1.5); await page.mouse.click(body.x, body.y, { button: 'right' });
   expect(await notes(page)).toEqual([]); expect((await state(page)).past).toBe(2);
   await page.keyboard.press('Control+z'); expect(await notes(page)).toHaveLength(3); await page.keyboard.press('Control+z'); expect(await notes(page)).toHaveLength(5);

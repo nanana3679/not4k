@@ -30,7 +30,7 @@ export type EntityType =
   | "doubleLong"
   | "release"
   | "doubleRelease"
-  | "sustain"
+  | "tick"
   | "trillZone"
   | "restZone"
   | "bpm"
@@ -49,7 +49,7 @@ const ENTITY_TYPES: readonly EntityType[] = [
   "doubleLong",
   "release",
   "doubleRelease",
-  "sustain",
+  "tick",
   "trillZone",
   "restZone",
 ] as const;
@@ -219,7 +219,7 @@ export class CreateMode implements EditorMode {
   isPlacementBlocked(x: number, y: number): boolean {
     if (!this.callbacks.isTimeInBounds(y)) return true;
     // 명시 표식은 바디 안에도 놓는다. 중복·소속은 공용 의미 검증으로 표시한다.
-    if (this.selectedEntityType === "sustain" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
+    if (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
     const unifiedHit = this.callbacks.space.hitTestUnifiedNote(x, y);
     if (unifiedHit !== null && this.chart.notes[unifiedHit]?.type === "body") return false;
     const hitIdx = this.callbacks.space.hitTestNote(x, y);
@@ -248,8 +248,8 @@ export class CreateMode implements EditorMode {
     const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
     const unifiedLane = this.callbacks.space.xToUnifiedLane(x);
-    if (unifiedLane !== null && (this.selectedEntityType === "sustain" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease")) {
-      if (this.selectedEntityType === "sustain") this.createSustain(unifiedLane, beat);
+    if (unifiedLane !== null && (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease")) {
+      if (this.selectedEntityType === "tick") this.createSustain(unifiedLane, beat);
       else this.commitNotes([...this.chart.notes, { type: "release", lane: unifiedLane, beat, count: this.selectedEntityType === "doubleRelease" ? 2 : 1, ...(this._graceMode ? { grace: true } : {}) }]);
       return;
     }
@@ -454,7 +454,7 @@ export class CreateMode implements EditorMode {
 
   private createPointNote(lane: number, beat: Beat): void {
     const newNote: ExplicitPointNote = {
-      type: "point", kind: this.isInsideTrillZone(lane, beat) ? "trill" : this.selectedEntityType === "double" ? "double" : "single",
+      type: "tap", kind: this.isInsideTrillZone(lane, beat) ? "trill" : this.selectedEntityType === "double" ? "double" : "single",
       lane, beat, ...(this._graceMode ? { grace: true } : {}),
     };
     this.commitNotes([...this.chart.notes, newNote]);
@@ -471,7 +471,7 @@ export class CreateMode implements EditorMode {
     const notes: DocumentNoteEntity[] = [body];
     // Point 도구로 시작한 양수 드래그만 점수 노트를 함께 만든다. 바디 도구는 바디만 만든다.
     if (this._dragPointFallback && !beatEq(start, end)) {
-      notes.unshift({ type: "point", kind: inTrill ? "trill" : holdCount === 2 ? "double" : "single",
+      notes.unshift({ type: "tap", kind: inTrill ? "trill" : holdCount === 2 ? "double" : "single",
         lane, beat: start, ...(this._graceMode ? { grace: true } : {}) });
       if (!inTrill) notes.push({ type: "release", count: holdCount, lane, beat: end,
         ...(this._graceMode ? { grace: true } : {}) });
@@ -480,21 +480,21 @@ export class CreateMode implements EditorMode {
   }
 
   private createSustain(lane: number, at: Beat): void {
-    const probe: DocumentNoteEntity = { type: "sustain", lane, beat: at, count: 1 };
+    const probe: DocumentNoteEntity = { type: "tick", lane, beat: at, count: 1 };
     const relations = deriveExplicitNoteRelations([...this.chart.notes, probe]);
     const bodyIndex = relations.sustainBodyByNote.get(this.chart.notes.length);
     if (bodyIndex !== undefined) {
       const body = this.chart.notes[bodyIndex];
       if (body.type !== "body" || body.trill) return;
-      const existingIndex = this.chart.notes.findIndex(n => n.type === "sustain" && n.lane === lane && beatEq(n.beat, at));
+      const existingIndex = this.chart.notes.findIndex(n => n.type === "tick" && n.lane === lane && beatEq(n.beat, at));
       if (existingIndex >= 0) {
         if (body.holdCount === 2 || !beatEq(body.beat, body.endBeat)) return;
         const notes = [...this.chart.notes];
         notes[bodyIndex] = { type: "body", lane: body.lane, beat: body.beat, endBeat: body.endBeat, holdCount: 2 };
-        notes[existingIndex] = { type: "sustain", lane, beat: at, count: 2 };
+        notes[existingIndex] = { type: "tick", lane, beat: at, count: 2 };
         this.commitNotes(notes);
       } else {
-        this.commitNotes([...this.chart.notes, { type: "sustain", lane, beat: at, count: body.holdCount }]);
+        this.commitNotes([...this.chart.notes, { type: "tick", lane, beat: at, count: body.holdCount }]);
       }
       return;
     }

@@ -53,22 +53,22 @@ export function deriveExplicitNoteRelations(notes: readonly DocumentNoteEntity[]
   const releaseBodyCandidatesByNote = new Map<number, readonly number[]>();
   const releaseBodyByNote = new Map<number, number>();
   notes.forEach((note, noteIndex) => {
-    if (note.type !== "sustain" && note.type !== "release") return;
+    if (note.type !== "tick" && note.type !== "release") return;
     const candidates = bodies.filter(body => body.note.lane === note.lane && (note.type === "release"
       ? beatEq(body.note.endBeat, note.beat)
       : beatGte(note.beat, body.note.beat) && beatLte(note.beat, body.note.endBeat)));
     // 앞 바디 끝과 뒤 바디 시작이 맞닿은 경계에 놓인 유지 표식은 앞 바디가 아니라 뒤 바디에만 속한다.
     const starts = candidates.filter(body => beatEq(body.note.beat, note.beat));
-    const owners = (note.type === "sustain" && starts.length ? starts : candidates).map(body => body.noteIndex);
-    const candidatesByNote = note.type === "sustain" ? sustainBodyCandidatesByNote : releaseBodyCandidatesByNote;
-    const bodyByNote = note.type === "sustain" ? sustainBodyByNote : releaseBodyByNote;
+    const owners = (note.type === "tick" && starts.length ? starts : candidates).map(body => body.noteIndex);
+    const candidatesByNote = note.type === "tick" ? sustainBodyCandidatesByNote : releaseBodyCandidatesByNote;
+    const bodyByNote = note.type === "tick" ? sustainBodyByNote : releaseBodyByNote;
     candidatesByNote.set(noteIndex, owners);
     if (owners.length === 1) bodyByNote.set(noteIndex, owners[0]);
   });
 
   const relations = bodies.map(({ note, noteIndex }): ExplicitBodyRelation => ({
     note, noteIndex,
-    startPointIndices: notes.flatMap((point, index) => point.type === "point"
+    startPointIndices: notes.flatMap((point, index) => point.type === "tap"
       && point.lane === note.lane && beatEq(point.beat, note.beat) ? [index] : []),
     endReleaseIndices: [...releaseBodyByNote].flatMap(([index, owner]) => owner === noteIndex ? [index] : []),
     sustainIndices: [...sustainBodyByNote].flatMap(([index, owner]) => owner === noteIndex ? [index] : []),

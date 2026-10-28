@@ -51,7 +51,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     expect(made.aux).toBe(initial.aux);
     expect(useEditorStore.getState().historyPast).toHaveLength(1);
     expect(useEditorStore.getState().chart.notes.slice(-3)).toEqual([
-      { type: 'point', kind: 'double', lane: 1, beat: beat(0), grace: true },
+      { type: 'tap', kind: 'double', lane: 1, beat: beat(0), grace: true },
       { type: 'body', holdCount: 2, lane: 1, beat: beat(0), endBeat: beat(4) },
       { type: 'release', count: 2, lane: 1, beat: beat(4), grace: true },
     ]);
@@ -62,7 +62,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
   it('600ms 안의 Point 생성과 빈 aux 유지 생성은 각각 Undo하며 더블 재클릭 no-op은 history를 추가하지 않는다', () => {
     const point = create(); point.onPointerDown(1, 0); point.onPointerUp(1, 0);
     const afterPoint = snapshots();
-    const sustain = create(7); sustain.entityType = 'sustain'; sustain.onPointerDown(7, 2);
+    const sustain = create(7); sustain.entityType = 'tick'; sustain.onPointerDown(7, 2);
     const afterSingle = snapshots(); sustain.onPointerDown(7, 2);
     const count = useEditorStore.getState().historyPast.length;
     sustain.onPointerDown(7, 2);
@@ -101,7 +101,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
   });
 
   it('숨은 lane7의 바디 밖 sustain은 로드·의미 위반 확정·Undo가 가능하고 원본 index의 overlay와 숨은 레인 진단을 만든다', () => {
-    const invalid = { ...seed(), notes: [...seed().notes, { type: 'sustain' as const, count: 1 as const, lane: 7, beat: beat(2) }] };
+    const invalid = { ...seed(), notes: [...seed().notes, { type: 'tick' as const, count: 1 as const, lane: 7, beat: beat(2) }] };
     const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
     useEditorStore.getState().loadChart(invalid); useEditorStore.getState().setExtraLaneCount(2);
     useEditorStore.getState().resetHistory();

@@ -284,7 +284,7 @@ export class ClipboardManager {
       newNotes.push(pasted);
       this.pastedNoteIndices.add(idx);
       newSelectedIndices.add(idx);
-      if (pasted.type === "sustain") this.pastedSustainCountByNoteIndex.set(idx, pasted.count);
+      if (pasted.type === "tick") this.pastedSustainCountByNoteIndex.set(idx, pasted.count);
     }
 
     // trillZone도 함께 붙여넣기(같은 beatOffset, 레인 유지)

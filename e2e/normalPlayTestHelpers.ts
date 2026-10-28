@@ -14,11 +14,11 @@ export function normalDocument(auto = true): ChartDocument {
     meta: { title: 'Normal explicit route', artist: 'Offline E2E', difficultyLabel: 'NORMAL', difficultyLevel: 3,
       imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
     notes: [
-      { type: 'point', kind: 'single', lane: 1, beat: b(2) },
+      { type: 'tap', kind: 'single', lane: 1, beat: b(2) },
       { type: 'body', holdCount: 1, lane: 1, beat: b(2), endBeat: b(4) },
-      { type: 'sustain', count: 1, lane: 1, beat: b(3) },
+      { type: 'tick', count: 1, lane: 1, beat: b(3) },
       { type: 'release', count: 1, lane: 1, beat: b(4) },
-      { type: 'point', kind: 'single', lane: 2, beat: b(6) },
+      { type: 'tap', kind: 'single', lane: 2, beat: b(6) },
       // aux의 구형 원문은 읽고 보존하지만 일반 플레이의 점수에는 들어가지 않는다.
       { type: 'long', lane: 5, beat: b(2), endBeat: b(4), holdOnly: true },
     ],

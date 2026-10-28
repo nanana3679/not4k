@@ -32,8 +32,8 @@ function geometryNotes(notes: readonly DocumentNoteEntity[]): NoteEntity[] {
   return notes.map(note => {
     if (note.type === "body") return { type: note.trill ? "trillLong" : "long", lane: note.lane,
       beat: note.beat, endBeat: note.endBeat };
-    if (note.type === "point") return { type: note.kind, lane: note.lane, beat: note.beat };
-    if (note.type === "release" || note.type === "sustain") return { type: "single", lane: note.lane, beat: note.beat };
+    if (note.type === "tap") return { type: note.kind, lane: note.lane, beat: note.beat };
+    if (note.type === "release" || note.type === "tick") return { type: "single", lane: note.lane, beat: note.beat };
     return note;
   });
 }
@@ -48,7 +48,7 @@ function legacyRangeConstraintView(notes: readonly DocumentNoteEntity[]): { note
   const indices: number[] = [];
   notes.forEach((note, index) => {
     if (!isExplicitNote(note)) view.push(note);
-    else if (note.type === "point") view.push({ type: note.kind, lane: note.lane, beat: note.beat });
+    else if (note.type === "tap") view.push({ type: note.kind, lane: note.lane, beat: note.beat });
     else return;
     indices.push(index);
   });
@@ -136,7 +136,7 @@ export function validateChartDocumentSemantic(
       const b = notes[j];
       if (a.lane !== b.lane || (!isExplicitNote(a) && !isExplicitNote(b))) continue;
       if (!("endBeat" in a) && !("endBeat" in b) && beatEq(a.beat, b.beat)) {
-        const meaning = (note: DocumentNoteEntity) => note.type === "release" || note.type === "sustain" ? note.type : "point";
+        const meaning = (note: DocumentNoteEntity) => note.type === "release" || note.type === "tick" ? note.type : "tap";
         add(meaning(a) === meaning(b) ? "duplicate" : "scoreOverlap", "같은 위치에 점수 노트를 겹칠 수 없습니다", i, j);
       }
       if ("endBeat" in a && "endBeat" in b) {
@@ -160,7 +160,7 @@ export function validateChartDocumentSemantic(
     if (a.type === "body" && a.trill && isMainLane(a.lane)) {
       const hasTrillPoint = relations.bodyByNote.get(i)?.startPointIndices.some(index => {
         const point = notes[index];
-        return point.type === "point" && point.kind === "trill";
+        return point.type === "tap" && point.kind === "trill";
       });
       if (beatEq(a.beat, a.endBeat) || !hasTrillPoint) {
         add("trillLongInvalid", "트릴 바디는 양수 길이와 시작 트릴 Point가 필요합니다", i);
@@ -169,7 +169,7 @@ export function validateChartDocumentSemantic(
 
     if (a.type === "body" && beatEq(a.beat, a.endBeat)) {
       notes.forEach((other, j) => {
-        if ((other.type === "point" || other.type === "release" || (!isExplicitNote(other) && !("endBeat" in other)))
+        if ((other.type === "tap" || other.type === "release" || (!isExplicitNote(other) && !("endBeat" in other)))
           && other.lane === a.lane && beatEq(other.beat, a.beat)) add("zeroLengthBodyOverlap", "길이 0 바디에는 Point·릴리즈를 겹칠 수 없습니다", i, j);
       });
     }
@@ -180,7 +180,7 @@ export function validateChartDocumentSemantic(
       const atEnd = notes.some(body => "endBeat" in body && body.lane === a.lane && beatEq(body.endBeat, a.beat));
       if (containing.length && !atEnd) add("releasePlacement", "릴리즈는 바디 끝 또는 바디 밖에 놓아야 합니다", i, ...containing);
     }
-    if (a.type === "sustain") {
+    if (a.type === "tick") {
       const ownerIndex = relations.sustainBodyByNote.get(i);
       const owner = ownerIndex === undefined ? undefined : relations.bodyByNote.get(ownerIndex);
       if (!owner) add("sustainPlacement", "유지 표식의 소속 바디가 없거나 유일하지 않습니다", i,
@@ -203,7 +203,7 @@ export function validateChartDocumentSemantic(
   // 경계와 같은 레인·같은 박에 놓인 구형 Point(type single·double·trill)도 경계의 Point로 인정해
   // 일부만 옮긴 혼합 문서를 저장할 수 있게 한다.
   // 구형 롱노트(holdOnly·길이 0 포함)는 경계의 Point로 인정하지 않는다. 메인 레인 구형 Point의 새 재생 차단은 legacyGameContent가 맡는다.
-  const isJointNote = (note: DocumentNoteEntity) => note.type === "point" || note.type === "release"
+  const isJointNote = (note: DocumentNoteEntity) => note.type === "tap" || note.type === "release"
     || note.type === "single" || note.type === "double" || note.type === "trill";
   const hasJointNoteAt = (lane: number, at: Beat) =>
     notes.some(note => isJointNote(note) && note.lane === lane && beatEq(note.beat, at));

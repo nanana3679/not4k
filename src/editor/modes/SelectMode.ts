@@ -1257,7 +1257,7 @@ export class SelectMode implements EditorMode {
   private trillZonesToCopy(): Set<number> {
     if (this.sel.zones.size > 0) return new Set(this.sel.zones);
     const kind = classifySelection(this.chart.trillZones, this.chart.notes, this.sel.notes);
-    if ([...this.sel.notes].some(index => ["point", "body", "release", "sustain"].includes(this.chart.notes[index].type))) return new Set();
+    if ([...this.sel.notes].some(index => ["tap", "body", "release", "tick"].includes(this.chart.notes[index].type))) return new Set();
     if (kind.kind === "trill" && kind.zoneIndex >= 0) return new Set([kind.zoneIndex]);
     return new Set();
   }
@@ -1548,7 +1548,7 @@ export class SelectMode implements EditorMode {
     for (const idx of indices) {
       const note = this.chart.notes[idx];
       if (!note) continue;
-      if (note.type === "sustain") this.originalSustainCountByNoteIndex.set(idx, note.count);
+      if (note.type === "tick") this.originalSustainCountByNoteIndex.set(idx, note.count);
       if (this.isRangeNote(note)) {
         this.originalPositions.set(idx, { beat: note.beat, endBeat: note.endBeat, lane: note.lane });
       } else {
@@ -1742,7 +1742,7 @@ export class SelectMode implements EditorMode {
     }
     for (const [index, count] of this.originalSustainCountByNoteIndex) {
       const note = newNotes[index];
-      if (note.type === 'sustain') newNotes[index] = { ...note, count };
+      if (note.type === 'tick') newNotes[index] = { ...note, count };
     }
     // 구간(트릴존·restZone) 단위 이동이었다면 그 구간들도 원위치로 되돌린다.
     const restoredZones = this.restoredZones();

@@ -23,7 +23,7 @@ describe("명시 노트 표시 Lab", () => {
   it("혼합 fixture는 double·single·trill 배치를 컴파일하고 sustain 오른쪽만 종속 0점이며 trill release는 만들지 않는다", () => {
     const snapshot = explicitPreviewSnapshot("mixed", 1500);
     expect(snapshot.bodyUnits.map(unit => unit.state)).toEqual(["complete", "failed", "complete", "complete"]);
-    expect(snapshot.items.filter(item => item.kind === "sustain" && item.sourceNoteIndex === 1).map(item => item.state)).toEqual(["success", "dependentZero"]);
+    expect(snapshot.items.filter(item => item.kind === "tick" && item.sourceNoteIndex === 1).map(item => item.state)).toEqual(["success", "dependentZero"]);
     expect(explicitPreviewChart.bodies.some(body => body.trill)).toBe(true);
     expect(explicitPreviewChart.scoreItems.some(item => item.lane === 3 && item.kind === "release")).toBe(false);
   });

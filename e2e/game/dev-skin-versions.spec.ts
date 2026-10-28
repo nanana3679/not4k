@@ -11,10 +11,10 @@ const chart = {
   // 같은 노트 묶음을 2초와 8초에 둔다. 2초 묶음은 곡이 시작될 때 이미 화면 안에 있어 보통 첫 플레이 프레임이 담고,
   // 첫 플레이 프레임이 늦어도 8초 묶음이 플레이 약 5.8~8.1초에 포인트 2개·바디 2개가 보이는 프레임을 만든다.
   notes: [
-    { type: 'point', kind: 'single', lane: 1, beat: '4' }, { type: 'body', holdCount: 1, lane: 1, beat: '4', endBeat: '8' },
-    { type: 'point', kind: 'double', lane: 2, beat: '4' }, { type: 'body', holdCount: 2, lane: 2, beat: '4', endBeat: '8' },
-    { type: 'point', kind: 'single', lane: 1, beat: '16' }, { type: 'body', holdCount: 1, lane: 1, beat: '16', endBeat: '20' },
-    { type: 'point', kind: 'double', lane: 2, beat: '16' }, { type: 'body', holdCount: 2, lane: 2, beat: '16', endBeat: '20' },
+    { type: 'tap', kind: 'single', lane: 1, beat: '4' }, { type: 'body', holdCount: 1, lane: 1, beat: '4', endBeat: '8' },
+    { type: 'tap', kind: 'double', lane: 2, beat: '4' }, { type: 'body', holdCount: 2, lane: 2, beat: '4', endBeat: '8' },
+    { type: 'tap', kind: 'single', lane: 1, beat: '16' }, { type: 'body', holdCount: 1, lane: 1, beat: '16', endBeat: '20' },
+    { type: 'tap', kind: 'double', lane: 2, beat: '16' }, { type: 'body', holdCount: 2, lane: 2, beat: '16', endBeat: '20' },
   ],
   trillZones: [], events: [{ type: 'bpm', beat: '0', bpm: 120 }],
 };
@@ -101,7 +101,7 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
       const state = window as unknown as Record<string, unknown>;
       state.__devPlaySkin = self.skinManager.skinId;
       const layers = self.explicitNoteRenderer?.root.children ?? [];
-      const points = layers.find(layer => layer.label === 'explicit-point')?.children ?? [];
+      const points = layers.find(layer => layer.label === 'explicit-tap')?.children ?? [];
       const bodies = layers.find(layer => layer.label === 'explicit-body')?.children ?? [];
       if (args[1] !== 0 && points.length === 2 && bodies.length === 2) {
         const bounds = ({ x, width }: Drawn) => ({ x: x - self.laneAreaX, width });
@@ -136,7 +136,7 @@ test('dev Settings → Skin에서 v012를 고르면 Supabase 곡으로 연주하
     expect(body.x).toBeGreaterThan(bounds.points[lane].x);
     expect(body.x + body.width).toBeLessThan(bounds.points[lane].x + bounds.points[lane].width);
   });
-  expect(bounds.layers).toEqual(['explicit-body', 'explicit-release', 'explicit-sustain', 'explicit-point']);
+  expect(bounds.layers).toEqual(['explicit-body', 'explicit-release', 'explicit-tick', 'explicit-tap']);
   expect(bounds.legacyPoints).toBe(0);
 
   expect(await page.evaluate(async () => {

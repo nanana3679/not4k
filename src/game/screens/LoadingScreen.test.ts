@@ -52,7 +52,7 @@ describe('일반 곡 LoadingScreen', () => {
   it.each(['legacy', 'aux'] as const)('%s 위반이 있으면 play를 열지 않고 수리 안내·Back을 표시한다', async kind => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.notes.push(kind === 'legacy' ? { type: 'single', lane: 3, beat: beat(0) }
-      : { type: 'sustain', lane: 5, beat: beat(0), count: 1 });
+      : { type: 'tick', lane: 5, beat: beat(0), count: 1 });
     const original = structuredClone(chart);
     fixture.load.mockResolvedValue({ chart, audioBuffer });
     mount();

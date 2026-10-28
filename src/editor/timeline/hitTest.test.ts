@@ -371,9 +371,9 @@ describe("hitTestRangeNoteRegion", () => {
 });
 
 describe('명시 점수 노트 hit 우선순위', () => {
-  it.each(['point', 'release', 'sustain'] as const)('선택한 바디 위의 %s는 배열 순서와 무관하게 바디보다 먼저 잡힌다', type => {
+  it.each(['tap', 'release', 'tick'] as const)('선택한 바디 위의 %s는 배열 순서와 무관하게 바디보다 먼저 잡힌다', type => {
     const body: DocumentNoteEntity = { type: 'body', holdCount: 2, lane: 1, beat: beat(0), endBeat: beat(4) };
-    const score: DocumentNoteEntity = type === 'point' ? { type, kind: 'double', lane: 1, beat: beat(2) }
+    const score: DocumentNoteEntity = type === 'tap' ? { type, kind: 'double', lane: 1, beat: beat(2) }
       : { type, count: 2, lane: 1, beat: beat(2) };
     expect(hitTestNoteAt([body, score], 1, 2, undefined, new Set([0]))).toBe(1);
     expect(hitTestNoteAt([score, body], 1, 2, undefined, new Set([1]))).toBe(0);
@@ -381,7 +381,7 @@ describe('명시 점수 노트 hit 우선순위', () => {
 
   it('길이 0 바디의 2박에서 0.08박 떨어진 위치는 잡히고 같은 위치의 Point는 잡히지 않는다', () => {
     expect(hitTestNoteAt([{ type: 'body', holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(2) }], 1, 2.08)).toBe(0);
-    expect(hitTestNoteAt([{ type: 'point', kind: 'single', lane: 1, beat: beat(2) }], 1, 2.08)).toBeNull();
+    expect(hitTestNoteAt([{ type: 'tap', kind: 'single', lane: 1, beat: beat(2) }], 1, 2.08)).toBeNull();
   });
 
   it('aux1 바디 뒤에 있는 더블 릴리즈도 보조 hit에서 릴리즈 전체 항목 하나를 반환한다', () => {

@@ -21,7 +21,7 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     const { renderer } = setup();
     const snapshot = explicitRenderSnapshot(chart);
     renderer.render(snapshot, 1000);
-    expect(renderer.root.children.map(layer => layer.label)).toEqual(["explicit-body", "explicit-release", "explicit-sustain", "explicit-point"]);
+    expect(renderer.root.children.map(layer => layer.label)).toEqual(["explicit-body", "explicit-release", "explicit-tick", "explicit-tap"]);
     const body = children(renderer, "body").children[0];
     expect(body).toBeInstanceOf(TilingSprite);
     const originals = renderer.root.children.flatMap(layer => (layer as Container).children);
@@ -29,7 +29,7 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     renderer.render(snapshot, 1100);
     expect(renderer.root.children.flatMap(layer => (layer as Container).children)).toEqual(originals);
     expect(renderer.spriteCount).toBe(7);
-    expect(children(renderer, "point").children.every(sprite => sprite instanceof Sprite)).toBe(true);
+    expect(children(renderer, "tap").children.every(sprite => sprite instanceof Sprite)).toBe(true);
     renderer.dispose();
   });
 
@@ -60,10 +60,10 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     const { renderer } = setup();
     const snapshot = explicitRenderSnapshot(chart);
     renderer.render(snapshot, 1000);
-    const point = children(renderer, "point").children[0];
+    const point = children(renderer, "tap").children[0];
     renderer.resize({ ...layout, judgmentLineY: 300, laneAreaX: 100, laneWidth: 106, noteHeight: 20 });
     renderer.render(snapshot, 1000);
-    expect(children(renderer, "point").children[0]).toBe(point);
+    expect(children(renderer, "tap").children[0]).toBe(point);
     expect(point).toMatchObject({ x: 100, y: 290, width: 106, height: 20 });
     renderer.dispose();
   });
@@ -92,9 +92,9 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     const renderer = new ExplicitNoteRenderer(new Container(), { view: buildExplicitSkinView("/"), getTexture }, layout);
     renderer.setChart(chart);
     renderer.render(explicitRenderSnapshot(chart, { items: { 3: ["miss", "pending"] } }), 1000);
-    const points = children(renderer, "point").children as Sprite[];
-    const failedSource = getTexture("point.double.failed").source;
-    const pendingSource = getTexture("point.double.pending").source;
+    const points = children(renderer, "tap").children as Sprite[];
+    const failedSource = getTexture("tap.double.failed").source;
+    const pendingSource = getTexture("tap.double.pending").source;
     expect(points).toHaveLength(2);
     expect(points.map(point => point.texture.source)).toEqual([failedSource, pendingSource]);
     expect(points.map(point => [point.texture.frame.x, point.texture.frame.width])).toEqual([[0, 106], [106, 106]]);

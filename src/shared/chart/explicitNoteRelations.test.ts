@@ -6,12 +6,12 @@ import { deriveExplicitNoteRelations } from "./explicitNoteRelations";
 const body = (start: number, end: number, holdCount: 1 | 2 = 1, lane = 1): DocumentNoteEntity =>
   ({ type: "body", lane, beat: beat(start), endBeat: beat(end), holdCount });
 const sustain = (at: number, count: 1 | 2 = 1, lane = 1): DocumentNoteEntity =>
-  ({ type: "sustain", lane, beat: beat(at), count });
+  ({ type: "tick", lane, beat: beat(at), count });
 
 describe("명시 노트의 정적 위치 관계", () => {
   it("1→2의 공유 경계 2/1=8/4 유지 표식은 뒤 바디에만, 릴리즈는 앞 바디에 귀속된다", () => {
     const notes: DocumentNoteEntity[] = [body(0, 2), body(2, 4, 2),
-      { type: "sustain", lane: 1, beat: { n: 8, d: 4 }, count: 2 },
+      { type: "tick", lane: 1, beat: { n: 8, d: 4 }, count: 2 },
       { type: "release", lane: 1, beat: beat(2), count: 1 }];
     const r = deriveExplicitNoteRelations(notes);
     expect(r.sustainBodyByNote.get(2)).toBe(1);
@@ -42,8 +42,8 @@ describe("명시 노트의 정적 위치 관계", () => {
 
   it("배열을 역순으로 바꿔도 앞뒤 바디와 시작 Point·내부 Point의 구분을 유지한다", () => {
     const notes: DocumentNoteEntity[] = [body(0, 2), body(2, 4),
-      { type: "point", kind: "single", lane: 1, beat: beat(2) },
-      { type: "point", kind: "single", lane: 1, beat: beat(3) }, sustain(3)];
+      { type: "tap", kind: "single", lane: 1, beat: beat(2) },
+      { type: "tap", kind: "single", lane: 1, beat: beat(3) }, sustain(3)];
     const r = deriveExplicitNoteRelations([...notes].reverse());
     expect(r.connections.map(c => [c.predecessorIndex, c.successorIndex])).toEqual([[4, 3]]);
     expect(r.bodyByNote.get(3)?.startPointIndices).toEqual([2]);

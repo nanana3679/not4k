@@ -10,13 +10,13 @@ import { ExplicitAutoPlayer } from "./ExplicitAutoPlayer";
 import type { ExplicitAutoInput, ExplicitAutoPlayerOptions } from "./ExplicitAutoPlayer";
 
 const point = (ms: number, kind: "single" | "double" | "trill" = "single", lane = 1): ExplicitNoteEntity =>
-  ({ type: "point", kind, lane, beat: beat(ms, 500) });
+  ({ type: "tap", kind, lane, beat: beat(ms, 500) });
 const body = (start: number, end: number, holdCount: 1 | 2 = 1): ExplicitNoteEntity =>
   ({ type: "body", lane: 1, beat: beat(start, 500), endBeat: beat(end, 500), holdCount });
 const release = (ms: number, count: 1 | 2 = 1, grace = false): ExplicitNoteEntity =>
   ({ type: "release", lane: 1, beat: beat(ms, 500), count, grace });
 const sustain = (ms: number, count: 1 | 2 = 1): ExplicitNoteEntity =>
-  ({ type: "sustain", lane: 1, beat: beat(ms, 500), count });
+  ({ type: "tick", lane: 1, beat: beat(ms, 500), count });
 function document(notes: ExplicitNoteEntity[], trill = false): ChartDocument {
   return { meta: { title: "explicit auto", artist: "test", difficultyLabel: "NORMAL", difficultyLevel: 1,
     imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 }, notes,

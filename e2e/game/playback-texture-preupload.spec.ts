@@ -113,13 +113,13 @@ async function startPlay(page: Page) {
     const document: import('../../src/shared/types/chart').ChartDocument = {
       meta: { title: 'Texture preupload check', artist: 'Local', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
       notes: [
-        { type: 'point', kind: 'single', lane: 1, beat: b(2) },
-        { type: 'point', kind: 'double', lane: 2, beat: b(5, 2) },
+        { type: 'tap', kind: 'single', lane: 1, beat: b(2) },
+        { type: 'tap', kind: 'double', lane: 2, beat: b(5, 2) },
         { type: 'body', holdCount: 1, lane: 3, beat: b(3), endBeat: b(4) },
         { type: 'body', holdCount: 2, lane: 4, beat: b(7, 2), endBeat: b(9, 2) },
-        { type: 'point', kind: 'single', lane: 1, beat: b(4), grace: true },
-        { type: 'point', kind: 'single', lane: 2, beat: b(6) },
-        { type: 'point', kind: 'double', lane: 3, beat: b(13, 2) },
+        { type: 'tap', kind: 'single', lane: 1, beat: b(4), grace: true },
+        { type: 'tap', kind: 'single', lane: 2, beat: b(6) },
+        { type: 'tap', kind: 'double', lane: 3, beat: b(13, 2) },
         { type: 'body', holdCount: 1, lane: 4, beat: b(7), endBeat: b(15, 2) },
       ],
       trillZones: [],

@@ -60,9 +60,9 @@ export function serializeDocumentNote(note: DocumentNoteEntity): DocumentNoteJso
     }
     return { ...common, type: note.type, endBeat, ...(note.holdOnly === undefined ? {} : { holdOnly: note.holdOnly }) };
   }
-  if (note.type === "sustain") return { ...common, type: note.type, count: note.count };
+  if (note.type === "tick") return { ...common, type: note.type, count: note.count };
   const grace = note.grace === undefined ? {} : { grace: note.grace };
-  if (note.type === "point") return { ...common, type: note.type, kind: note.kind, ...grace };
+  if (note.type === "tap") return { ...common, type: note.type, kind: note.kind, ...grace };
   if (note.type === "release") return { ...common, type: note.type, count: note.count, ...grace };
   return { ...common, type: note.type, ...grace };
 }
@@ -109,17 +109,17 @@ export function parseDocumentNote(value: unknown, version?: number): DocumentNot
   const lane = n.lane;
   const beat = parseBeat(n.beat, "beat");
   const type = n.type === "singleLong" && (version === undefined || version === 1) ? "long" : n.type;
-  if (["point", "body", "release", "sustain"].includes(String(type)) && version !== 4) {
+  if (["tap", "body", "release", "tick"].includes(String(type)) && version !== 4) {
     throw new ChartFormatError("명시적 노트에는 version 4가 필요합니다");
   }
   switch (type) {
-    case "single": case "double": case "trill": case "point": case "release": {
-      checkFields(n, type === "point" ? ["kind", "grace"] : type === "release" ? ["count", "grace"] : ["grace"]);
+    case "single": case "double": case "trill": case "tap": case "release": {
+      checkFields(n, type === "tap" ? ["kind", "grace"] : type === "release" ? ["count", "grace"] : ["grace"]);
       const grace = optionalBoolean(n, "grace");
       const flag = grace === undefined ? {} : { grace };
       if (type === "release") return { type, lane, beat, count: count(n, "count"), ...flag };
-      if (type === "point") {
-        if (n.kind !== "single" && n.kind !== "double" && n.kind !== "trill") throw new ChartFormatError("Point kind가 유효하지 않습니다");
+      if (type === "tap") {
+        if (n.kind !== "single" && n.kind !== "double" && n.kind !== "trill") throw new ChartFormatError("tap kind가 유효하지 않습니다");
         return { type, lane, beat, kind: n.kind, ...flag };
       }
       return { type, lane, beat, ...flag };
@@ -137,7 +137,7 @@ export function parseDocumentNote(value: unknown, version?: number): DocumentNot
       const holdOnly = optionalBoolean(n, "holdOnly");
       return { type, lane, beat, endBeat, ...(holdOnly === undefined ? {} : { holdOnly }) };
     }
-    case "sustain":
+    case "tick":
       checkFields(n, ["count"]);
       return { type, lane, beat, count: count(n, "count") };
     default:

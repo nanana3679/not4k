@@ -14,7 +14,7 @@ export interface ExplicitCasePanel {
 }
 
 export function explicitCaseWindows(example: ExplicitChartCase, run: ExplicitCaseRun) {
-  return example.notes.flatMap(entry => entry.note.type === "point" || entry.note.type === "release"
+  return example.notes.flatMap(entry => entry.note.type === "tap" || entry.note.type === "release"
     ? [{ noteIndex: entry.index, startMs: entry.startMs - run.defaults.windows.GOOD,
       endMs: entry.startMs + run.defaults.windows.GOOD, label: `${entry.id} ${entry.note.type} Good` }] : []);
 }
@@ -48,12 +48,12 @@ function drawNote(entry: ExplicitCaseNote, x: number, y: (at: number) => number,
     const patternId = `${prefix}-body-${entry.index}`;
     drawing = `<pattern id="${patternId}" patternUnits="userSpaceOnUse" x="${x - width / 2}" y="${top}" width="${width}" height="${tileHeight}"><use href="#explicit-${id}" width="${width}" height="${tileHeight}"/></pattern>`
       + `<rect data-explicit-asset="${id}" data-body-cap="none" x="${x - width / 2}" y="${top}" width="${width}" height="${height}" fill="url(#${patternId})"/>`;
-  } else if (note.type === "sustain") {
-    drawing = note.count === 2 ? image("sustain.double.pending.left") + image("sustain.double.pending.right") : image("sustain.single.pending");
+  } else if (note.type === "tick") {
+    drawing = note.count === 2 ? image("tick.double.pending.left") + image("tick.double.pending.right") : image("tick.single.pending");
   } else {
-    const variant = note.type === "point" ? note.kind : note.count === 2 ? "double" : "single";
+    const variant = note.type === "tap" ? note.kind : note.count === 2 ? "double" : "single";
     drawing = image(`${note.type}.${variant}.pending` as ExplicitSkinAssetId);
-    if (note.grace) drawing += image(`graceOverlay.${note.type === "release" ? "release" : note.kind === "trill" ? "trill" : "point"}.overlay`);
+    if (note.grace) drawing += image(`graceOverlay.${note.type === "release" ? "release" : note.kind === "trill" ? "trill" : "tap"}.overlay`);
   }
   return `<g data-note="${entry.id}" data-note-kind="${note.type}">${drawing}</g>`;
 }
@@ -98,7 +98,7 @@ export function renderExplicitJudgmentCaseSvg(panels: readonly ExplicitCasePanel
     for (const entry of [...example.notes].sort((a, b) => Number(b.note.type === "body") - Number(a.note.type === "body"))) chunks.push(drawNote(entry, laneX(entry.note.lane), y, skin, `p${panelIndex}`));
     const notePositions = resolveLabelPositions(example.notes.map(note => y(note.startMs)), 21);
     example.notes.forEach((entry, index) => {
-      const count = entry.note.type === "body" ? entry.note.holdCount : entry.note.type === "point" ? (entry.note.kind === "double" ? 2 : 1) : entry.note.count;
+      const count = entry.note.type === "body" ? entry.note.holdCount : entry.note.type === "tap" ? (entry.note.kind === "double" ? 2 : 1) : entry.note.count;
       chunks.push(`<path d="M${laneX(entry.note.lane) + 50} ${y(entry.startMs)} L${noteX - 8} ${notePositions[index]}" stroke="#888fa8" fill="none"/>`,
         text(noteX, notePositions[index] + 4, `${entry.id} ${entry.note.type} ×${count} ${formatMs(entry.startMs)}${entry.endMs === undefined ? "" : `～${formatMs(entry.endMs)}`}`));
     });

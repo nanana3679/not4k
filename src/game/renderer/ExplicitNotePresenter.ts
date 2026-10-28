@@ -18,7 +18,7 @@ export interface ExplicitPresentedLayer {
   readonly key: string;
   readonly assetId: ExplicitSkinAssetId;
   readonly ordinal: number | null;
-  readonly layer: "body" | "release" | "sustain" | "point";
+  readonly layer: "body" | "release" | "tick" | "tap";
   readonly overlay: boolean;
   /** 승인된 더블 Point의 전체 pending/failed 도안에서 필요한 절반만 합성한다. */
   readonly crop?: "left" | "right";
@@ -143,11 +143,11 @@ export class ExplicitNotePresenter {
       const visible = success !== items.length;
       const layers: ExplicitPresentedLayer[] = [];
       let overlayAlpha = 0;
-      if (first.kind === "sustain") {
+      if (first.kind === "tick") {
         alpha = 1;
         for (const item of items) layers.push(sprite(index, first.lane, first.timeMs,
-          `sustain.${items.length === 2 ? "double" : "single"}.${isFailedItem(item) ? "failed" : "pending"}${items.length === 2 ? `.${side(item.ordinal)}` : ""}`,
-          "sustain", 1, item.state !== "success", item.ordinal));
+          `tick.${items.length === 2 ? "double" : "single"}.${isFailedItem(item) ? "failed" : "pending"}${items.length === 2 ? `.${side(item.ordinal)}` : ""}`,
+          "tick", 1, item.state !== "success", item.ordinal));
       } else {
         let id: string;
         if (first.kind === "release") {
@@ -155,13 +155,13 @@ export class ExplicitNotePresenter {
           id = `release.${items.length === 2 ? "double" : "single"}.${state}`;
         } else {
           // 싱글 Miss의 기존 수명은 유지하고 더블은 몫별 실패색과 성공 alpha를 독립 합성한다.
-          id = `point.${first.pointKind}.${first.pointKind !== "single" && failed.length === items.length ? "failed" : "pending"}`;
+          id = `tap.${first.pointKind}.${first.pointKind !== "single" && failed.length === items.length ? "failed" : "pending"}`;
         }
-        if (first.kind === "point" && first.pointKind === "double" && failed.length === 1) {
+        if (first.kind === "tap" && first.pointKind === "double" && failed.length === 1) {
           for (const item of items) {
             const half = side(item.ordinal);
             const full = sprite(index, first.lane, first.timeMs,
-              `point.double.${isFailedItem(item) ? "failed" : "pending"}`, "point", alpha, visible, item.ordinal);
+              `tap.double.${isFailedItem(item) ? "failed" : "pending"}`, "tap", alpha, visible, item.ordinal);
             layers.push({ ...full, crop: half, width: full.width / 2, x: full.x + (half === "right" ? full.width / 2 : 0) });
           }
         } else layers.push(sprite(index, first.lane, first.timeMs, id, first.kind, alpha, visible));
@@ -169,7 +169,7 @@ export class ExplicitNotePresenter {
           // Point Grace는 기존처럼 Miss 뒤 외곽을 숨긴다. release Grace는 실패 중에도 흰 외곽을 유지한다.
           const overlayVisible = visible && (first.kind === "release" || failed.length === 0);
           overlayAlpha = overlayVisible ? 1 : 0;
-          const variant = first.kind === "release" ? "release" : first.pointKind === "trill" ? "trill" : "point";
+          const variant = first.kind === "release" ? "release" : first.pointKind === "trill" ? "trill" : "tap";
           layers.push(sprite(index, first.lane, first.timeMs, `graceOverlay.${variant}.overlay`, first.kind, 1, overlayVisible, null, true));
         }
       }

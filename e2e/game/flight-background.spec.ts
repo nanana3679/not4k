@@ -18,7 +18,7 @@ async function startLocalPlay(page: Page, difficultyLabel: string, navigate = tr
     state.updateSettings({ isFirstLaunch: false, renderHeight: 720 });
     const document: import('../../src/shared/types/chart').ChartDocument = {
       meta: { title: 'Flight background check', artist: 'Local', difficultyLabel: label, difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
-      notes: [{ type: 'point', kind: 'single', lane: 1, beat: beat(100, 1) }],
+      notes: [{ type: 'tap', kind: 'single', lane: 1, beat: beat(100, 1) }],
       trillZones: [],
       events: [{ type: 'bpm', beat: beat(0, 1), bpm: 120 }, { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1) }],
     };

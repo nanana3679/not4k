@@ -85,7 +85,7 @@ export class OverlayRenderer {
         }
 
         const gfx = new Graphics();
-        if (note.type === "trill" || (note.type === "point" && note.kind === "trill")) {
+        if (note.type === "trill" || (note.type === "tap" && note.kind === "trill")) {
           const cx = x + LANE_WIDTH / 2;
           gfx.moveTo(cx, y - h / 2);
           gfx.lineTo(cx + w / 2, y);
@@ -318,7 +318,7 @@ export class OverlayRenderer {
         this.host.noteRenderer.drawRangeNoteOutline(topY, bottomY, x, laneW, w, h, COLORS.HOVERED_OUTLINE, 1.5, this.host.hoverLayer);
       } else {
         const gfx = new Graphics();
-        if (note.type === "trill" || (note.type === "point" && note.kind === "trill")) {
+        if (note.type === "trill" || (note.type === "tap" && note.kind === "trill")) {
           const cx = x + laneW / 2;
           gfx.moveTo(cx, startY - h / 2);
           gfx.lineTo(cx + w / 2, startY);

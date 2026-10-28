@@ -118,7 +118,7 @@ for (const hold of [false, true]) {
 
 test('점수 Point2개를 모두 놓치면 공식 결과는 0.00%·F·Miss2다', async ({ page }) => {
   const document = normalDocument(false);
-  document.notes = document.notes.filter(note => note.type === 'point');
+  document.notes = document.notes.filter(note => note.type === 'tap');
   await openNormalSong(page, document); await startNormalSong(page);
   await expect(page.getByRole('heading', { name: 'Result', exact: true })).toBeVisible({ timeout: 15000 });
   await expect(page.getByText('0.00%', { exact: true })).toBeVisible();
@@ -155,7 +155,7 @@ test('저장된 legacy main은 명확한 오류로 거부하고 오디오·공�
 
 test('명시 sustain이 Body 밖에 있으면 전체 문서 검증에서 오디오 시작 전에 거부한다', async ({ page }) => {
   const document = normalDocument();
-  document.notes.push({ type: 'sustain', lane: 3, count: 1, beat: { n: 3, d: 1 } });
+  document.notes.push({ type: 'tick', lane: 3, count: 1, beat: { n: 3, d: 1 } });
   await openNormalSong(page, document);
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Back to Song Select', exact: true })).toBeVisible({ timeout: 15000 });

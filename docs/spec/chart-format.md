@@ -10,10 +10,10 @@
 
 | 타입 | 필수 필드 | 선택 필드와 의미 |
 | --- | --- | --- |
-| `ExplicitPointNote` | `type: "point"`, `kind: "single" \| "double" \| "trill"`, `lane`, `beat` | `grace`는 Point 전체에 적용 |
+| `ExplicitPointNote` | `type: "tap"`, `kind: "single" \| "double" \| "trill"`, `lane`, `beat` | `grace`는 Point 전체에 적용 |
 | `BodyNote` | `type: "body"`, `lane`, `beat`, `endBeat`, `holdCount: 1 \| 2` | `trill: true`는 hold 수 1인 트릴 바디에만 사용. `holdOnly`나 내장 점수 항목 없음 |
 | `ReleaseNote` | `type: "release"`, `lane`, `beat`, `count: 1 \| 2` | `grace`는 릴리즈 전체에 적용. 더블 안에 일반/Grace를 섞지 않음 |
-| `SustainNote` | `type: "sustain"`, `lane`, `beat`, `count: 1 \| 2` | 명시 표식 수. 바디 소속과 수량 일치 여부는 위치 관계의 의미 검증 소유 |
+| `SustainNote` | `type: "tick"`, `lane`, `beat`, `count: 1 \| 2` | 명시 표식 수. 바디 소속과 수량 일치 여부는 위치 관계의 의미 검증 소유 |
 | 구형 `PointNote` | `type: "single" \| "double" \| "trill"`, `lane`, `beat` | 기존 `grace` 보존 |
 | 구형 `RangeNote` | `type: "long" \| "doubleLong" \| "trillLong"`, `lane`, `beat`, `endBeat` | 기존 `holdOnly` 의미 보존 |
 

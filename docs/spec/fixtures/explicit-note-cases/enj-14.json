@@ -3,7 +3,7 @@
   "title": "ENJ-14 — 건강한 승계는 짧은 바디 Point 미처리여도 1000ms 시작",
   "notes": [
     {
-      "kind": "point",
+      "kind": "tap",
       "atMs": 600,
       "count": 1,
       "lane": 1
@@ -16,7 +16,7 @@
       "lane": 1
     },
     {
-      "kind": "point",
+      "kind": "tap",
       "atMs": 1000,
       "count": 1,
       "lane": 1

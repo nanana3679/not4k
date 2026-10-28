@@ -11,11 +11,11 @@ import { canFinishExplicitPlaySession, createExplicitPlayInput, drainExplicitPla
   finishExplicitPlaySession, stepExplicitPlaySession } from "./explicitPlaySessionInput";
 
 const point = (ms: number, lane = 1, kind: "single" | "double" = "single"): ExplicitNoteEntity =>
-  ({ type: "point", kind, lane, beat: beat(ms, 500) });
+  ({ type: "tap", kind, lane, beat: beat(ms, 500) });
 const body = (start: number, end: number): ExplicitNoteEntity =>
   ({ type: "body", holdCount: 1, lane: 1, beat: beat(start, 500), endBeat: beat(end, 500) });
 const release = (ms: number): ExplicitNoteEntity => ({ type: "release", count: 1, lane: 1, beat: beat(ms, 500) });
-const sustain = (ms: number): ExplicitNoteEntity => ({ type: "sustain", count: 1, lane: 1, beat: beat(ms, 500) });
+const sustain = (ms: number): ExplicitNoteEntity => ({ type: "tick", count: 1, lane: 1, beat: beat(ms, 500) });
 function play(notes: ExplicitNoteEntity[], offset = 0, sections: readonly ExplicitAutoSection[] = [], latency = 0, rate = 1) {
   const chart: ChartDocument = { meta: { title: "explicit input", artist: "test", difficultyLabel: "NORMAL", difficultyLevel: 1,
     imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 }, notes, trillZones: [],
@@ -76,7 +76,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
     const p = play([point(1000), body(1000, 1100), release(1100)]);
     p.input(1000, 1000); p.input(1100, 1100, "KeyA", "up");
     p.frame(1400);
-    expect(settlements(p.session)).toMatchObject([{ itemKind: "point", grade: "perfect", atMs: 1000 },
+    expect(settlements(p.session)).toMatchObject([{ itemKind: "tap", grade: "perfect", atMs: 1000 },
       { itemKind: "release", grade: "perfect", atMs: 1100 }]);
     expect(p.finish().score.earnedScore).toBe(6);
   });
@@ -233,7 +233,7 @@ describe("명시 실제 세션의 프레임 입력 drain", () => {
 
   it("1000～1001ms double 바디에 raw1120 한 키만 시작해도 종료1122에서 유지·릴리즈 5항목을 미정산 없이 확정", () => {
     const p = play([point(1000), { type: "body", holdCount: 2, lane: 1, beat: beat(2), endBeat: beat(1001, 500) },
-      { type: "sustain", count: 2, lane: 1, beat: beat(2001, 1000) },
+      { type: "tick", count: 2, lane: 1, beat: beat(2001, 1000) },
       { type: "release", count: 2, lane: 1, beat: beat(1001, 500) }]);
     p.input(1120, 1120); p.frame(1120);
     expect(p.session.latestJudgmentDeadlineMs).toBe(1121);

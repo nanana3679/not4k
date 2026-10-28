@@ -299,9 +299,9 @@ export class MinimapRenderer {
         // Point note: 1px height horizontal line
         let noteColor: number;
         switch (note.type) {
-          case "point": noteColor = note.kind === "double" ? COLORS.DOUBLE_NOTE : note.kind === "trill" ? COLORS.TRILL_NOTE : COLORS.SINGLE_NOTE; break;
+          case "tap": noteColor = note.kind === "double" ? COLORS.DOUBLE_NOTE : note.kind === "trill" ? COLORS.TRILL_NOTE : COLORS.SINGLE_NOTE; break;
           case "release": noteColor = note.count === 2 ? COLORS.DOUBLE_NOTE : COLORS.SINGLE_NOTE; break;
-          case "sustain": noteColor = note.count === 2 ? COLORS.DOUBLE_LONG : COLORS.SINGLE_LONG; break;
+          case "tick": noteColor = note.count === 2 ? COLORS.DOUBLE_LONG : COLORS.SINGLE_LONG; break;
           case "single": noteColor = COLORS.SINGLE_NOTE; break;
           case "double": noteColor = COLORS.DOUBLE_NOTE; break;
           case "trill": noteColor = COLORS.TRILL_NOTE; break;

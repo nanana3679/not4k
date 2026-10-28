@@ -6,10 +6,10 @@ import { ScoreManager } from "../scoring/ScoreManager";
 describe("compileJudgmentChart", () => {
   it("명시 Point·바디·릴리즈·유지는 구형 compiler에서 head/자동 끝 점수로 해석하지 않고 거부한다", () => {
     const explicit: DocumentNoteEntity[] = [
-      { type: "point", kind: "single", lane: 1, beat: beat(0) },
+      { type: "tap", kind: "single", lane: 1, beat: beat(0) },
       { type: "body", lane: 1, beat: beat(0), endBeat: beat(1), holdCount: 1 },
       { type: "release", lane: 1, beat: beat(1), count: 2, grace: true },
-      { type: "sustain", lane: 1, beat: beat(1, 2), count: 1 },
+      { type: "tick", lane: 1, beat: beat(1, 2), count: 1 },
     ];
     for (const note of explicit) {
       // JS/JSON에서 타입 경계를 우회한 입력도 런타임에서 차단해야 한다.

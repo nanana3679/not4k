@@ -48,7 +48,7 @@ export class ExplicitAutoPlayer {
     const lanes = new Set([...chart.bodies.map(body => body.lane), ...chart.scoreItems.map(item => item.lane)]);
     for (const lane of lanes) {
       // sustain은 입력 계획에 전혀 참여하지 않는다.
-      const points = chart.scoreItems.filter(item => item.lane === lane && item.kind === "point" && isAutoAt(item.timeMs));
+      const points = chart.scoreItems.filter(item => item.lane === lane && item.kind === "tap" && isAutoAt(item.timeMs));
       const bodies = chart.bodies.filter(body => body.lane === lane && isAutoAt(body.startMs));
       const ownedBodies = new Set(bodies.map(body => body.source.noteIndex));
       const releases = chart.scoreItems.filter(item => item.lane === lane && item.kind === "release"
@@ -87,7 +87,7 @@ export class ExplicitAutoPlayer {
         const pointItems = points.filter(item => item.timeMs === at);
         const selected = new Set<string>();
         for (const point of pointItems) {
-          const previous = point.kind === "point" && point.trillZoneIndex !== undefined
+          const previous = point.kind === "tap" && point.trillZoneIndex !== undefined
             ? lastTrillKeyByZone.get(point.trillZoneIndex) : undefined;
           const available = keys.filter(key => !selected.has(key));
           const key = available.find(key => !held.has(key) && key !== previous)
@@ -95,7 +95,7 @@ export class ExplicitAutoPlayer {
           if (held.has(key)) emit(at, key, "up");
           emit(at, key, "down");
           selected.add(key);
-          if (point.kind === "point" && point.trillZoneIndex !== undefined) lastTrillKeyByZone.set(point.trillZoneIndex, key);
+          if (point.kind === "tap" && point.trillZoneIndex !== undefined) lastTrillKeyByZone.set(point.trillZoneIndex, key);
         }
         // 릴리즈 수는 hold 수와 별개다. 끝에서 추가 down이 금지되는 부분 구간도 미리 확보한다.
         const active = bodies.filter(body => body.startMs <= at && at < body.endMs);

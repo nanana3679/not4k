@@ -35,7 +35,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     const notes = presenter.present({ ...snapshot, bodyUnits: [...snapshot.bodyUnits].reverse(), items: [...snapshot.items].reverse() }, layout);
     expect(notes.map(note => note.sourceNoteIndex)).toEqual([0, 1, 2, 3]);
     expect(notes.find(note => note.kind === "body")!.layers[0].assetId).toBe("body.double.partialFailed.left");
-    expect(notes.find(note => note.kind === "sustain")!.layers.map(layer => layer.ordinal)).toEqual([0, 1]);
+    expect(notes.find(note => note.kind === "tick")!.layers.map(layer => layer.ordinal)).toEqual([0, 1]);
   });
 
   it("두 바디 몫이 이르게 완료돼도 대기 중인 Grace double release는 alpha 1로 남는다", () => {
@@ -61,12 +61,12 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     const after = show({ items: { 1: ["success", "pending"] } })[1].layers;
     expect(after[0].visible).toBe(false);
     expect(after[1]).toEqual(before[1]);
-    expect(after[1]).toMatchObject({ assetId: "sustain.double.pending.right", ordinal: 1, alpha: 1 });
+    expect(after[1]).toMatchObject({ assetId: "tick.double.pending.right", ordinal: 1, alpha: 1 });
     expect(after[1].width).toBeCloseTo(200 * 62.5 / 212);
     expect(after[1].height).toBe(12.5);
     expect(skin.assetsById[after[1].assetId].markerCenter).toEqual({ x: 116, y: 20 });
     const failed = show({ items: { 1: ["dependentZero", "waiting"] } })[1].layers;
-    expect(failed[0]).toMatchObject({ assetId: "sustain.double.failed.left", visible: true, alpha: 1 });
+    expect(failed[0]).toMatchObject({ assetId: "tick.double.failed.left", visible: true, alpha: 1 });
     expect(failed[1]).toEqual(before[1]);
   });
 
@@ -111,24 +111,24 @@ describe("G1 공개 snapshot 표시 presenter", () => {
   });
 
   it("Point 싱글 성공은 즉시 숨기고 Miss는 원래 도안·Grace 없음으로 화면 밖까지 남는다", () => {
-    const single = explicitRenderChart([{ type: "point", lane: 2, beat: beat(2), kind: "single", grace: true }]);
+    const single = explicitRenderChart([{ type: "tap", lane: 2, beat: beat(2), kind: "single", grace: true }]);
     const present = new ExplicitNotePresenter(single, skin);
     expect(present.present(explicitRenderSnapshot(single, { items: { 0: ["success"] } }), layout)[0].layers.every(layer => !layer.visible)).toBe(true);
     expect(present.present(explicitRenderSnapshot(single, { items: { 0: ["miss"] } }), layout)[0].layers).toMatchObject([
-      { assetId: "point.single.pending", alpha: 1, visible: true }, { visible: false },
+      { assetId: "tap.single.pending", alpha: 1, visible: true }, { visible: false },
     ]);
   });
 
   it("Point 더블 왼쪽 Miss·오른쪽 대기는 실패 절반만 alpha 1이고 오른쪽 성공 뒤에는 두 절반 모두 alpha 0.7이다", () => {
     const pending = show({ items: { 3: ["miss", "pending"] } })[3].layers;
     expect(pending).toMatchObject([
-      { assetId: "point.double.failed", crop: "left", alpha: 1 },
-      { assetId: "point.double.pending", crop: "right", alpha: 1 }, { visible: false },
+      { assetId: "tap.double.failed", crop: "left", alpha: 1 },
+      { assetId: "tap.double.pending", crop: "right", alpha: 1 }, { visible: false },
     ]);
     expect(pending[0].x + pending[0].width).toBeCloseTo(pending[1].x);
     expect(show({ items: { 3: ["miss", "success"] } })[3].layers).toMatchObject([
-      { assetId: "point.double.failed", crop: "left", alpha: 0.7, visible: true },
-      { assetId: "point.double.pending", crop: "right", alpha: 0.7, visible: true }, { visible: false },
+      { assetId: "tap.double.failed", crop: "left", alpha: 0.7, visible: true },
+      { assetId: "tap.double.pending", crop: "right", alpha: 0.7, visible: true }, { visible: false },
     ]);
     expect(show({ items: { 3: ["success", "success"] } })[3].layers[0].visible).toBe(false);
   });
@@ -141,11 +141,11 @@ describe("G1 공개 snapshot 표시 presenter", () => {
   it("싱글 바디의 유지 표식은 x100 중앙·200×40 캔버스를 보존하고 성공 시 그 표식만 숨긴다", () => {
     const single = explicitRenderChart([
       { type: "body", lane: 2, beat: beat(2), endBeat: beat(6), holdCount: 1 },
-      { type: "sustain", lane: 2, beat: beat(4), count: 1 },
+      { type: "tick", lane: 2, beat: beat(4), count: 1 },
     ]);
     const p = new ExplicitNotePresenter(single, skin);
     const shown = p.present(explicitRenderSnapshot(single, { body: ["active"] }), layout);
-    expect(shown[1].layers[0]).toMatchObject({ assetId: "sustain.single.pending", alpha: 1, visible: true });
+    expect(shown[1].layers[0]).toMatchObject({ assetId: "tick.single.pending", alpha: 1, visible: true });
     expect(skin.assetsById[shown[1].layers[0].assetId].markerCenter).toEqual({ x: 100, y: 20 });
     const done = p.present(explicitRenderSnapshot(single, { body: ["active"], items: { 1: ["success"] } }), layout);
     expect(done[1].layers[0].visible).toBe(false);
@@ -154,17 +154,17 @@ describe("G1 공개 snapshot 표시 presenter", () => {
 
   it("trill 바디·Point는 200×40과 자기 snapshot만 사용하고 끝에 release·cap·자동 점수 표시를 만들지 않는다", () => {
     const trill = explicitRenderChart([
-      { type: "point", kind: "trill", lane: 3, beat: beat(2), grace: true },
+      { type: "tap", kind: "trill", lane: 3, beat: beat(2), grace: true },
       { type: "body", lane: 3, beat: beat(2), endBeat: beat(6), holdCount: 1, trill: true },
     ], [{ lane: 3, beat: beat(2), endBeat: beat(6) }]);
     const p = new ExplicitNotePresenter(trill, skin);
     const notes = p.present(explicitRenderSnapshot(trill, { body: ["active"] }), layout);
-    expect(notes.map(note => note.kind)).toEqual(["point", "body"]);
-    expect(notes[0].layers.map(layer => layer.assetId)).toEqual(["point.trill.pending", "graceOverlay.trill.overlay"]);
+    expect(notes.map(note => note.kind)).toEqual(["tap", "body"]);
+    expect(notes[0].layers.map(layer => layer.assetId)).toEqual(["tap.trill.pending", "graceOverlay.trill.overlay"]);
     expect(notes[0].layers[0].width).toBeCloseTo(200 * 62.5 / 212);
     expect(notes[1].layers[0].assetId).toBe("body.trill.held");
     const failed = p.present(explicitRenderSnapshot(trill, { body: ["failed"], items: { 0: ["miss"] } }), layout);
-    expect(failed[0].layers[0].assetId).toBe("point.trill.failed");
+    expect(failed[0].layers[0].assetId).toBe("tap.trill.failed");
     expect(failed[1].layers[0].assetId).toBe("body.trill.failed");
     expect(trill.totalJudgments).toBe(1);
   });
@@ -175,14 +175,14 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     session.processBatch(900, [{ key: "A", lane: 1, type: "down" }]);
     session.processBatch(950, [{ key: "A", lane: 1, type: "up" }]);
     const notes = new ExplicitNotePresenter(actual, skin).present(session.snapshot, layout);
-    expect(notes.map(note => note.kind)).toEqual(["body", "sustain"]);
+    expect(notes.map(note => note.kind)).toEqual(["body", "tick"]);
     expect(notes.flatMap(note => note.layers).every(layer => !layer.visible)).toBe(true);
   });
 
   it("실제 세션의 double 1070ms 늦은 시작·1080ms up 뒤 다른 몫 실패는 부분 실패 바디 alpha 0.7과 남은 실패 표식을 보존한다", () => {
     const actual = explicitRenderChart([
       { type: "body", lane: 1, beat: beat(2), endBeat: beat(53, 25), holdCount: 2 },
-      { type: "sustain", lane: 1, beat: beat(103, 50), count: 2 },
+      { type: "tick", lane: 1, beat: beat(103, 50), count: 2 },
       { type: "release", lane: 1, beat: beat(53, 25), count: 2 },
     ]);
     const session = new ExplicitJudgmentSession(actual, { maintenanceGraceMs: 20 });
@@ -195,7 +195,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     const notes = new ExplicitNotePresenter(actual, skin).present(session.snapshot, layout);
     expect(notes[0].layers[0]).toMatchObject({ assetId: "body.double.partialFailed.right", alpha: 0.7, visible: true });
     expect(notes[1].layers).toMatchObject([
-      { visible: false, alpha: 1 }, { assetId: "sustain.double.failed.right", visible: true, alpha: 1 },
+      { visible: false, alpha: 1 }, { assetId: "tick.double.failed.right", visible: true, alpha: 1 },
     ]);
     expect(notes[2].layers[0]).toMatchObject({ assetId: "release.double.partialFailed.right", alpha: 0.7, visible: true });
   });
