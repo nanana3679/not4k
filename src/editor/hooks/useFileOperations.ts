@@ -84,8 +84,6 @@ export function useFileOperations(
   setSaveAsOverwriteTarget: (v: { difficulty: string; level: number } | null) => void,
   setShowDeleteConfirm: (v: boolean) => void,
   setShowPlayTestMenu: (v: boolean) => void,
-  setSavedChartSnapshot: (v: string) => void,
-  setSavedExtraSnapshot: (v: string) => void,
   setPendingPreviewRange: (v: PlaybackRange | null) => void,
   setPendingGameplayRange: (v: PlaybackRange | null) => void,
   setPendingJacketFile: (v: File | null) => void,
@@ -104,6 +102,7 @@ export function useFileOperations(
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const addToast = useEditorStore((s) => s.addToast);
+  const setSavedChartJson = useEditorStore((s) => s.setSavedChartJson);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
 
@@ -231,8 +230,8 @@ export function useFileOperations(
         setPendingGameplayRange(null);
       }
 
-      setSavedChartSnapshot(savedAsset.chartJson);
-      setSavedExtraSnapshot(savedAsset.extraJson);
+      // 업로드한 메인·보조 JSON이 새 저장 기준이다. 저장 중에 더한 편집은 이 기준과 달라 dirty로 남는다.
+      setSavedChartJson({ chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson });
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
       console.error('useFileOperations:', err);
@@ -240,7 +239,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartJson]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
     if (!activeSongId) {
@@ -284,8 +283,7 @@ export function useFileOperations(
       });
 
       setChart(chartToSave);
-      setSavedChartSnapshot(savedAsset.chartJson);
-      setSavedExtraSnapshot(savedAsset.extraJson);
+      setSavedChartJson({ chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson });
 
       window.history.replaceState(null, '', `?songId=${activeSongId}&difficulty=${difficulty}`);
 
@@ -296,7 +294,7 @@ export function useFileOperations(
     } finally {
       setSaving(false);
     }
-  }, [chart, activeSongId, addToast, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartJson]);
 
   const handlePlayTest = useCallback((fromCursor: boolean) => {
     const game = useGameStore.getState();

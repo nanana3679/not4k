@@ -3,6 +3,7 @@ import { beat } from '../../shared';
 import type { ChartDocument, Lane } from '../../shared';
 import { useEditorStore } from './editorStore';
 import { emptySelection } from './selectionSlice';
+import { isChartDirty, toSavedChartJson } from '../savedChart';
 
 function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument['restZones']): ChartDocument {
   return {
@@ -397,5 +398,77 @@ describe('editorStore 편집 transaction 중단 알림', () => {
 
     expect(onInterrupt).not.toHaveBeenCalled();
     expect(useEditorStore.getState().editTransaction).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 저장 기준(savedChartJson) — dirty 비교 기준. 페이지가 다시 마운트돼도(테스트 플레이 복귀) store가 유지한다.
+// ---------------------------------------------------------------------------
+
+describe('editorStore 저장 기준 savedChartJson', () => {
+  const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  const dirty = () => {
+    const state = useEditorStore.getState();
+    return isChartDirty(state.chart, state.extraLaneCount, state.savedChartJson);
+  };
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeChart(), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
+      historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
+    });
+  });
+
+  it('처음 상태(불러온 차트 없음)의 savedChartJson은 null', () => {
+    expect(useEditorStore.getState().savedChartJson).toBeNull();
+  });
+
+  it('loadChart 뒤 불러온 차트로 setSavedChartJson하면 편집 전에는 dirty 아님', () => {
+    const loaded = makeChart([tap(1)]);
+    useEditorStore.getState().loadChart(loaded);
+
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(loaded, 2));
+
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(loaded, 2));
+    expect(dirty()).toBe(false);
+  });
+
+  it('노트 추가 setChart·Undo·보조 레인 수 2 → 3 변경은 저장 기준을 바꾸지 않아 노트 추가 뒤 dirty, Undo 뒤 dirty 아님, 레인 수 변경 뒤 dirty', () => {
+    const loaded = makeChart([tap(1)]);
+    useEditorStore.getState().loadChart(loaded);
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(loaded, 2));
+
+    useEditorStore.getState().setChart(makeChart([tap(1), tap(3)]));
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(loaded, 2));
+    expect(dirty()).toBe(true);
+
+    useEditorStore.getState().undo();
+    expect(dirty()).toBe(false);
+    useEditorStore.getState().setExtraLaneCount(3);
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(loaded, 2));
+    expect(dirty()).toBe(true);
+  });
+
+  it('노트 추가 뒤 저장 결과(메인·보조 JSON)로 setSavedChartJson하면 dirty가 풀리고, Undo로 저장 전 차트에 돌아가면 다시 dirty', () => {
+    const loaded = makeChart([tap(1)]);
+    useEditorStore.getState().loadChart(loaded);
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(loaded, 2));
+    const edited = makeChart([tap(1), tap(3)]);
+    useEditorStore.getState().setChart(edited);
+
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(edited, 2));
+    expect(dirty()).toBe(false);
+
+    useEditorStore.getState().undo();
+    expect(dirty()).toBe(true);
+  });
+
+  it('loadChart로 다른 차트를 열면 이전 차트의 저장 기준을 지워 savedChartJson이 null', () => {
+    const first = makeChart([tap(1)]);
+    useEditorStore.getState().loadChart(first);
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(first, 2));
+
+    useEditorStore.getState().loadChart(makeChart([tap(5)]));
+
+    expect(useEditorStore.getState().savedChartJson).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import { beat, validateChartDocumentStructural } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
+import type { SavedChartJson } from '../savedChart';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
 import {
   createSelectionSlice,
@@ -79,6 +80,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // 로드가 invalid 차트도 수용하므로 "로드=valid"를 가정하지 않는다 — 씨앗도 검증 통과가 조건.
   lastValidSnapshot: HistorySnapshot | null;
 
+  // 저장 기준 — 서버에 있는 차트의 메인·보조 직렬화. dirty 표시·나가기 확인이 이것과 현재 차트를 비교한다.
+  // 서버에서 새로 불러올 때와 저장(Save·Save As) 성공 때만 정한다. 편집·Undo·테스트 플레이는 바꾸지 않는다.
+  // 페이지 컴포넌트가 아니라 store가 소유해, 테스트 플레이에서 돌아와 페이지가 다시 마운트돼도 유지된다.
+  savedChartJson: SavedChartJson | null;
+
   // Marker editing
   editingMarker: EditingMarker;
 
@@ -91,8 +97,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    * 로드 전용 통로 — 위반 차트도 수용해 열람·수리를 허용한다(경고만 표시).
    * 재저장은 저장 게이트(useFileOperations의 editorChartErrors)가 차단하므로
    * 위반 상태가 저장·전파되지는 않는다. 로드 외의 경로에서 쓰지 말 것.
+   * 다른 차트를 여는 것이므로 이전 차트의 저장 기준(savedChartJson)을 지운다. 불러온 쪽이 setSavedChartJson으로 새 기준을 정한다.
    */
   loadChart: (chart: ChartDocument) => void;
+  /** 저장 기준을 정한다. 서버에서 차트를 새로 불러온 직후와 저장 성공 직후에만 부른다. */
+  setSavedChartJson: (saved: SavedChartJson) => void;
   setMode: (mode: EditorModeName) => void;
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
@@ -203,6 +212,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   historyLastCaptureAt: 0,
   editTransaction: null,
   lastValidSnapshot: null,
+  savedChartJson: null,
   editingMarker: null,
 
   // Actions
@@ -278,11 +288,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       chart,
       selection: emptySelection(),
+      savedChartJson: null,
       ...(errors.length === 0
         ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } }
         : {}),
     }));
   },
+  setSavedChartJson: (savedChartJson) => set({ savedChartJson }),
   setMode: (mode) => { get().commitEditTransaction(); set({ mode }); },
   setEntityType: (entityType) => { get().commitEditTransaction(); set({ entityType }); },
   setGraceMode: (graceMode) => set({ graceMode }),

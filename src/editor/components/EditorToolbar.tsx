@@ -6,11 +6,12 @@ import { useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import { serializeChart, serializeExtraNotes, buildViolationList, mainNotes, auxNotesAsExtra, isExplicitNote } from '../../shared';
+import { buildViolationList, mainNotes, isExplicitNote } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
+import { isChartDirty } from '../savedChart';
 
 const styles = {
   toolbar: {
@@ -555,8 +556,6 @@ interface EditorToolbarProps {
   setShowPlayTestMenu: (v: boolean | ((prev: boolean) => boolean)) => void;
   saving: boolean;
   deleting: boolean;
-  savedChartSnapshot: string;
-  savedExtraSnapshot: string;
   pendingPreviewRange: PlaybackRange | null;
   pendingGameplayRange: PlaybackRange | null;
   onPlayTest: (fromCursor: boolean) => void;
@@ -604,8 +603,6 @@ export function EditorToolbar({
   setShowPlayTestMenu,
   saving,
   deleting,
-  savedChartSnapshot,
-  savedExtraSnapshot,
   pendingPreviewRange,
   pendingGameplayRange,
   onPlayTest,
@@ -650,6 +647,7 @@ export function EditorToolbar({
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
+  const savedChartJson = useEditorStore((s) => s.savedChartJson);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const selectedNotes = useEditorStore((s) => s.selection.notes);
@@ -666,11 +664,9 @@ export function EditorToolbar({
   const selectedCount = selectedNotes.size;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
-  // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 메인/보조 분리 후 비교한다 (RFD 0018 ③).
-  const isDirty = !!(savedChartSnapshot && (
-    serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== savedChartSnapshot ||
-    serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== savedExtraSnapshot
-  )) || pendingPreviewRange != null || pendingGameplayRange != null;
+  // 저장 기준(store의 savedChartJson)과 저장 분리(saveChartAsset)처럼 메인/보조를 나눠 비교한다 (RFD 0018 ③).
+  const isDirty = isChartDirty(chart, extraLaneCount, savedChartJson)
+    || pendingPreviewRange != null || pendingGameplayRange != null;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
   // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.

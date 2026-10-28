@@ -13,10 +13,9 @@ import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { normalizePlaybackRange, serializeChart, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
-import { serializeExtraNotes } from '../shared';
+import { normalizePlaybackRange, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
-import { toAuxIndex, mainNotes, auxNotesAsExtra } from '../shared';
+import { toAuxIndex } from '../shared';
 import { supabase } from '../supabase';
 import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
 import type { PlaybackRange, ValidationError } from '../shared';
@@ -35,6 +34,7 @@ import { getEditorAudioLoadingSurface } from './editorLoading';
 import { LEAVE_CONFIRM_COPY } from './editorCopy';
 import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
 import { editorChartViolationIndices } from './documentValidation';
+import { isChartDirty, toSavedChartJson } from './savedChart';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 
@@ -115,7 +115,8 @@ export default function EditorApp() {
       return;
     }
 
-    // Skip chart fetch if already loaded for this song (e.g., returning from test play)
+    // Skip chart fetch if already loaded for this song (e.g., returning from test play).
+    // 저장 기준(savedChartJson)도 store에 그대로 남아, 저장하지 않은 편집은 돌아와도 dirty다.
     const existingStore = useEditorStore.getState();
     if (existingStore.activeSongId === songId) {
       // Re-fetch audio URL so PlaybackController reloads audio
@@ -146,6 +147,9 @@ export default function EditorApp() {
         // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
         useEditorStore.getState().loadChart(merged);
         if (mergedExtraLaneCount > 0 || hasExtraLaneCount) useEditorStore.getState().setExtraLaneCount(mergedExtraLaneCount);
+        // 막 불러온 차트가 서버에 있는 상태다 — 보조 레인 수까지 정한 뒤 저장 기준으로 삼는다.
+        const loaded = useEditorStore.getState();
+        loaded.setSavedChartJson(toSavedChartJson(loaded.chart, loaded.extraLaneCount));
         setActiveSongId(songId);
         resetHistory();
 
@@ -246,8 +250,6 @@ function ChartEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
   const [showOffsetToolbar, setShowOffsetToolbar] = useState(false);
-  const [savedChartSnapshot, setSavedChartSnapshot] = useState<string>(() => serializeChart({ ...chart, notes: mainNotes(chart.notes) }));
-  const [savedExtraSnapshot, setSavedExtraSnapshot] = useState<string>(() => serializeExtraNotes(auxNotesAsExtra(chart.notes), useEditorStore.getState().extraLaneCount));
   const [pendingPreviewRange, setPendingPreviewRange] = useState<PlaybackRange | null>(null);
   const [pendingGameplayRange, setPendingGameplayRange] = useState<PlaybackRange | null>(null);
   const [songGameplayRange, setSongGameplayRange] = useState<PlaybackRange | null>(null);
@@ -269,6 +271,7 @@ function ChartEditorPage() {
   const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
+  const savedChartJson = useEditorStore((s) => s.savedChartJson);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
@@ -345,7 +348,6 @@ function ChartEditorPage() {
     rendererRef as React.RefObject<{ setChart: (c: unknown) => void } | null>,
     setSaving, setDeleting, setValidationErrors,
     setShowSaveAsModal, setSaveAsOverwriteTarget, setShowDeleteConfirm, setShowPlayTestMenu,
-    setSavedChartSnapshot, setSavedExtraSnapshot,
     setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setJacketCacheBust,
     pendingPreviewRange, pendingGameplayRange, pendingJacketFile,
     setPendingAudioFile, pendingAudioFile,
@@ -752,8 +754,6 @@ function ChartEditorPage() {
         setShowPlayTestMenu={setShowPlayTestMenu}
         saving={saving}
         deleting={deleting}
-        savedChartSnapshot={savedChartSnapshot}
-        savedExtraSnapshot={savedExtraSnapshot}
         pendingPreviewRange={pendingPreviewRange}
         pendingGameplayRange={pendingGameplayRange}
         onPlayTest={fileOps.handlePlayTest}
@@ -883,7 +883,7 @@ function ChartEditorPage() {
           currentDifficulty={chart.meta.difficultyLabel}
           title={chart.meta.title}
           level={chart.meta.difficultyLevel}
-          isDirty={!!(savedChartSnapshot && (serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== savedChartSnapshot || serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== savedExtraSnapshot))}
+          isDirty={isChartDirty(chart, extraLaneCount, savedChartJson)}
           onSave={async (targetDifficulty, targetLevel) => {
             const { data: existing, error } = await supabase
               .from('charts')
