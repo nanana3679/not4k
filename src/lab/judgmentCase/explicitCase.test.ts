@@ -6,8 +6,8 @@ import { JUDGMENT_WINDOWS, MAINTENANCE_GRACE_MS } from "../../shared/constants/j
 import { validateChartDocument } from "../../shared/validation/documentValidation";
 import { compileExplicitJudgmentChart } from "../../game/judgment/explicitCompiledChart";
 import { ExplicitJudgmentSession } from "../../game/judgment/ExplicitJudgmentSession";
-import { explicitFixtureBody as body, explicitFixturePoint as point, explicitFixtureRelease as release,
-  explicitFixtureSustain as sustain } from "../../game/judgment/explicitJudgmentTestHarness";
+import { explicitFixtureBody as body, explicitFixtureTap as point, explicitFixtureRelease as release,
+  explicitFixtureTick as sustain } from "../../game/judgment/explicitJudgmentTestHarness";
 import { explicitCaseFromDocument, explicitCaseFromSource } from "./explicitChartCase";
 import { explicitCaseLabels, runExplicitJudgmentCase, summarizeExplicitCase } from "./runExplicitJudgmentCase";
 import { createExplicitCaseSkin, explicitCaseSkinAssetPaths } from "./explicitCaseSkin";

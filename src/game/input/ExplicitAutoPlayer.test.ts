@@ -9,13 +9,13 @@ import { InputTimeline } from "./InputTimeline";
 import { ExplicitAutoPlayer } from "./ExplicitAutoPlayer";
 import type { ExplicitAutoInput, ExplicitAutoPlayerOptions } from "./ExplicitAutoPlayer";
 
-const point = (ms: number, kind: "single" | "double" | "trill" = "single", lane = 1): ExplicitNoteEntity =>
+const tap = (ms: number, kind: "single" | "double" | "trill" = "single", lane = 1): ExplicitNoteEntity =>
   ({ type: "tap", kind, lane, beat: beat(ms, 500) });
 const body = (start: number, end: number, holdCount: 1 | 2 = 1): ExplicitNoteEntity =>
   ({ type: "body", lane: 1, beat: beat(start, 500), endBeat: beat(end, 500), holdCount });
 const release = (ms: number, count: 1 | 2 = 1, grace = false): ExplicitNoteEntity =>
   ({ type: "release", lane: 1, beat: beat(ms, 500), count, grace });
-const sustain = (ms: number, count: 1 | 2 = 1): ExplicitNoteEntity =>
+const tick = (ms: number, count: 1 | 2 = 1): ExplicitNoteEntity =>
   ({ type: "tick", lane: 1, beat: beat(ms, 500), count });
 function document(notes: ExplicitNoteEntity[], trill = false): ChartDocument {
   return { meta: { title: "explicit auto", artist: "test", difficultyLabel: "NORMAL", difficultyLevel: 1,
@@ -46,7 +46,7 @@ function expectPhysical(events: readonly ExplicitAutoInput[], maxKeys = 2) {
 
 describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
   it("2000ms 복원 전 입력은 1000 down·1050 up만 가져오고 정확히2000 down은 재개 입력에 남긴다", () => {
-    const compiled = compileExplicitJudgmentChart(document([point(1000), point(2000)]));
+    const compiled = compileExplicitJudgmentChart(document([tap(1000), tap(2000)]));
     const auto = new ExplicitAutoPlayer(compiled);
     expect(auto.eventsBefore(2000).map(event => [event.timeMs, event.type])).toEqual([[1000, 'down'], [1050, 'up']]);
     expect(auto.eventsThrough(2000).map(event => [event.timeMs, event.type])).toEqual([[2000, 'down']]);
@@ -68,7 +68,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
 
   it('트릴1000·1010·1020에서 첫 down 뒤로 되감으면 같은 미래 키 교대 계획을 재생한다', () => {
     const auto = new ExplicitAutoPlayer(compileExplicitJudgmentChart(document(
-      [point(1000, 'trill'), point(1010, 'trill'), point(1020, 'trill')], true)));
+      [tap(1000, 'trill'), tap(1010, 'trill'), tap(1020, 'trill')], true)));
     const first = auto.eventsThrough(1000);
     const cursor = auto.processedEventCount;
     const later = auto.eventsThrough(Infinity);
@@ -87,8 +87,8 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
     expect(p.result.score.judgmentCounts.miss).toBe(0);
   });
   it.each([1, 2] as const)("hold %i개 바디와 같은 수의 Point·릴리즈는 모두 Perfect 3점씩 정산", count => {
-    const p = replay(document([point(1000, count === 1 ? "single" : "double"), body(1000, 2000, count),
-      sustain(1500, count), release(2000, count)]));
+    const p = replay(document([tap(1000, count === 1 ? "single" : "double"), body(1000, 2000, count),
+      tick(1500, count), release(2000, count)]));
     expect(p.result.score.earnedScore).toBe(p.compiled.theoreticalWeight);
     expect(p.result.score.judgmentCounts.perfect).toBe(3 * count);
     expect(p.session.snapshot.bodyUnits.every(unit => unit.state === "complete")).toBe(true);
@@ -96,7 +96,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
   });
 
   it.each([1, 2] as const)("Point 없는 hold %i개 바디도 실제 down으로 시작하고 유지 표식만 3점씩 정산", count => {
-    const p = replay(document([body(1000, 2000, count), sustain(1500, count)]));
+    const p = replay(document([body(1000, 2000, count), tick(1500, count)]));
     expect(p.result.score.earnedScore).toBe(3 * count);
     expect(p.compiled.totalJudgments).toBe(count);
     expectPhysical(p.events);
@@ -112,7 +112,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
   });
 
   it.each([0, 10, 60])("길이 %ims 바디는 실제 시작·완료하고 자동 끝 점수를 만들지 않음", length => {
-    const p = replay(document([body(1000, 1000 + length), sustain(1000 + length / 2)]));
+    const p = replay(document([body(1000, 1000 + length), tick(1000 + length / 2)]));
     expect(p.result.score.earnedScore).toBe(3);
     expect(p.result.snapshot.bodyUnits[0].state).toBe("complete");
     expect(p.result.score.judgmentCounts.miss).toBe(0);
@@ -134,15 +134,15 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
   });
 
   it("Grace 릴리즈가 2000ms에 있으면 실제 up을 보내고 raw 0ms·timing null을 보존", () => {
-    const p = replay(document([point(1000), body(1000, 2000), release(2000, 1, true)]));
+    const p = replay(document([tap(1000), body(1000, 2000), release(2000, 1, true)]));
     expect(p.result.facts.filter(fact => fact.kind === "settlement" && fact.itemKind === "release"))
       .toMatchObject([{ grade: "perfect", rawDeltaMs: 0, timingDeltaMs: null }]);
     expect(p.events.some(event => event.type === "up" && event.timeMs === 2000)).toBe(true);
   });
 
   it("1→2→1 연결은 유한 두 키로 실제 hold 수를 늘리고 줄여 명시 항목만 정산", () => {
-    const p = replay(document([body(1000, 1500), body(1500, 2000, 2), sustain(1750, 2),
-      release(2000), body(2000, 2500), sustain(2250), release(2500)]));
+    const p = replay(document([body(1000, 1500), body(1500, 2000, 2), tick(1750, 2),
+      release(2000), body(2000, 2500), tick(2250), release(2500)]));
     expect(p.result.score.earnedScore).toBe(p.compiled.theoreticalWeight);
     expect(p.result.score.judgmentCounts.miss).toBe(0);
     expect(p.result.snapshot.bodyUnits.every(unit => unit.state === "complete")).toBe(true);
@@ -150,7 +150,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
   });
 
   it("트릴 Point 1000·1010·1020ms와 트릴 바디는 동일 zone에서 키를 교대하고 릴리즈를 만들지 않음", () => {
-    const chart = document([point(1000, "trill"), point(1010, "trill"), point(1020, "trill"),
+    const chart = document([tap(1000, "trill"), tap(1010, "trill"), tap(1020, "trill"),
       { type: "body", lane: 1, beat: beat(2), endBeat: beat(4), holdCount: 1, trill: true }], true);
     const p = replay(chart);
     expect(p.result.score.judgmentCounts.perfect).toBe(3);
@@ -163,7 +163,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
   });
 
   it("더블 hold 중 1950ms Point의 재누름 up은 2000ms 릴리즈를 Great로 일찍 소비하고 9점 중 8점", () => {
-    const p = replay(document([body(1000, 2000, 2), point(1950), release(2000, 2)]));
+    const p = replay(document([body(1000, 2000, 2), tap(1950), release(2000, 2)]));
     const releaseFacts = p.result.facts.filter(fact => fact.kind === "settlement" && fact.itemKind === "release");
     expect(releaseFacts).toMatchObject([{ grade: "great", rawDeltaMs: -50 }, { grade: "perfect", rawDeltaMs: 0 }]);
     expect(p.result.score.earnedScore).toBe(8);
@@ -172,15 +172,15 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
   });
 
   it("유지 표식 0→3개를 추가해도 바디·Point·릴리즈의 합성 입력 배열이 같음", () => {
-    const notes = [point(1000), body(1000, 2000), release(2000)];
+    const notes = [tap(1000), body(1000, 2000), release(2000)];
     const a = replay(document(notes));
-    const b = replay(document([...notes, sustain(1250), sustain(1500), sustain(1750)]));
+    const b = replay(document([...notes, tick(1250), tick(1500), tick(1750)]));
     expect(a.events).toEqual(b.events);
     expect(b.result.score.earnedScore - a.result.score.earnedScore).toBe(9);
   });
 
   it("AutoEvent [1000,1000]은 시작 down만 만들고 2000ms 범위 밖 up도 전달하며 2500ms 수동 Point는 건드리지 않음", () => {
-    const p = replay(document([point(1000), body(1000, 2000), release(2000), point(2500)]),
+    const p = replay(document([tap(1000), body(1000, 2000), release(2000), tap(2500)]),
       { sections: [{ startMs: 1000, endMs: 1000 }] });
     expect(p.events.map(event => [event.timeMs, event.type])).toEqual([[1000, "down"], [2000, "up"]]);
     expect(p.result.score.judgmentCounts.perfect).toBe(2);
@@ -193,7 +193,7 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
   });
 
   it("eventsThrough 999→1000→1000→Infinity 호출은 각 입력을 한 번만 반환", () => {
-    const player = new ExplicitAutoPlayer(compileExplicitJudgmentChart(document([point(1000)])));
+    const player = new ExplicitAutoPlayer(compileExplicitJudgmentChart(document([tap(1000)])));
     expect(player.eventsThrough(999)).toEqual([]);
     expect(player.eventsThrough(1000)).toHaveLength(1);
     expect(player.eventsThrough(1000)).toEqual([]);
@@ -202,12 +202,12 @@ describe("ExplicitAutoPlayer의 실제 물리 입력과 정산", () => {
   });
 
   it("더블에 바인딩 키가 1개면 한 키를 두 몫으로 위장하지 않고 생성 시 거부", () => {
-    const compiled = compileExplicitJudgmentChart(document([point(1000, "double")]));
+    const compiled = compileExplicitJudgmentChart(document([tap(1000, "double")]));
     expect(() => new ExplicitAutoPlayer(compiled, { bindings: [{ lane: 1, key: "KeyA" }] })).toThrow("2개");
   });
 
   it("동일 키를 L1·L2에 중복 바인딩하면 물리 키 수명 충돌을 생성 시 거부", () => {
-    const compiled = compileExplicitJudgmentChart(document([point(1000)]));
+    const compiled = compileExplicitJudgmentChart(document([tap(1000)]));
     expect(() => new ExplicitAutoPlayer(compiled, { bindings: [{ lane: 1, key: "KeyA" }, { lane: 2, key: "KeyA" }] }))
       .toThrow("중복");
   });

@@ -43,7 +43,7 @@ export type ExplicitConfirmedFact = FactBase & (
   | { readonly kind: "bodyProgressInvalidated"; readonly bodyUnitId: string;
       readonly invalidatedFactIds: readonly string[] }
   | { readonly kind: "bodyFailed"; readonly bodyUnitId: string;
-      readonly reason: "startTimeout" | "maintenance" | "pointMiss";
+      readonly reason: "startTimeout" | "maintenance" | "tapMiss";
       readonly causeFactId: string | null; readonly unscoredMiss: boolean }
   | { readonly kind: "settlement"; readonly itemId: string; readonly itemKind: ExplicitScoreItem["kind"];
       readonly outcome: "graded" | "dependentZero"; readonly grade: ExplicitGrade | null;
@@ -68,7 +68,7 @@ export interface ExplicitBodyUnitSnapshot {
   readonly failureFactId: string | null;
   readonly maintenanceSinceMs: number | null;
   readonly maintenanceDeadlineMs: number | null;
-  readonly pointStatus: "none" | "waiting" | "satisfied" | "missed";
+  readonly tapStatus: "none" | "waiting" | "satisfied" | "missed";
 }
 
 export interface ExplicitItemSnapshot {

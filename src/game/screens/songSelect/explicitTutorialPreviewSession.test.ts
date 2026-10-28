@@ -12,13 +12,13 @@ import { GameClock } from "../../time/GameClock";
 import { drainExplicitPlaySessionInputs, stepExplicitPlaySession } from "../explicitPlaySessionInput";
 import { createExplicitTutorialPreviewSessionController } from "./explicitTutorialPreviewSession";
 
-const point = (at: number, kind: "single" | "double" | "trill" = "single"): ExplicitNoteEntity =>
+const tap = (at: number, kind: "single" | "double" | "trill" = "single"): ExplicitNoteEntity =>
   ({ type: "tap", kind, lane: 1, beat: beat(at, 500) });
 const body = (at: number, end: number, holdCount: 1 | 2 = 1): ExplicitNoteEntity =>
   ({ type: "body", holdCount, lane: 1, beat: beat(at, 500), endBeat: beat(end, 500) });
 const release = (at: number, count: 1 | 2 = 1, grace = false): ExplicitNoteEntity =>
   ({ type: "release", count, grace, lane: 1, beat: beat(at, 500) });
-const sustain = (at: number, count: 1 | 2 = 1): ExplicitNoteEntity =>
+const tick = (at: number, count: 1 | 2 = 1): ExplicitNoteEntity =>
   ({ type: "tick", count, lane: 1, beat: beat(at, 500) });
 function document(notes: ExplicitNoteEntity[], trill = false): ChartDocument {
   return { meta: { title: "명시 튜토리얼", artist: "test", difficultyLabel: "NORMAL", difficultyLevel: 1,
@@ -42,7 +42,7 @@ function judgments(result: ExplicitSessionResult) {
 
 describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", () => {
   it("aux note가 원본 index0에 있어도 main double Point의 index1·ordinal0/1을 그대로 표시 상태에 보존", () => {
-    const chart = document([{ type: "tap", kind: "single", lane: 5, beat: beat(2) }, point(1000, "double")]);
+    const chart = document([{ type: "tap", kind: "single", lane: 5, beat: beat(2) }, tap(1000, "double")]);
     const controller = createExplicitTutorialPreviewSessionController(chart);
     controller.advanceTo(1000);
     expect(controller.session.snapshot.items.map(item => [item.sourceNoteIndex, item.ordinal])).toEqual([[1, 0], [1, 1]]);
@@ -51,14 +51,14 @@ describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", ()
   });
 
   const cases: readonly [string, ChartDocument][] = [
-    ["싱글 Point·hold1·유지·릴리즈", document([point(1000), body(1000, 2000), sustain(1500), release(2000)])],
-    ["더블 Point·hold2·유지2·Grace 릴리즈2", document([point(1000, "double"), body(1000, 2000, 2), sustain(1500, 2), release(2000, 2, true)])],
-    ["1→2→1 연결", document([body(1000, 1300), body(1300, 1600, 2), sustain(1450, 2), release(1600), body(1600, 2000), release(2000)])],
-    ["길이 0과 10ms 바디", document([body(1000, 1000), sustain(1000), body(1500, 1510), release(1510)])],
+    ["싱글 Point·hold1·유지·릴리즈", document([tap(1000), body(1000, 2000), tick(1500), release(2000)])],
+    ["더블 Point·hold2·유지2·Grace 릴리즈2", document([tap(1000, "double"), body(1000, 2000, 2), tick(1500, 2), release(2000, 2, true)])],
+    ["1→2→1 연결", document([body(1000, 1300), body(1300, 1600, 2), tick(1450, 2), release(1600), body(1600, 2000), release(2000)])],
+    ["길이 0과 10ms 바디", document([body(1000, 1000), tick(1000), body(1500, 1510), release(1510)])],
     ["단독 Grace 릴리즈2", document([release(1000, 2, true)])],
-    ["트릴 교대·바디", document([point(1000, "trill"), point(1100, "trill"), point(1200, "trill"),
+    ["트릴 교대·바디", document([tap(1000, "trill"), tap(1100, "trill"), tap(1200, "trill"),
       { type: "body", holdCount: 1, trill: true, lane: 1, beat: beat(2), endBeat: beat(4) }], true)],
-    ["더블 hold의 재누름이 릴리즈 창과 겹침", document([body(1000, 2000, 2), point(1950), release(2000, 2)])],
+    ["더블 hold의 재누름이 릴리즈 창과 겹침", document([body(1000, 2000, 2), tap(1950), release(2000, 2)])],
   ];
   it.each(cases)("%s: 동일 physical events는 manual·auto·tutorial에서 같은 판정·점수·바디 상태", (_name, chart) => {
     const compiled = compileExplicitJudgmentChart(chart);
@@ -82,7 +82,7 @@ describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", ()
   });
 
   it("authored 두 키 중 B를 1300ms에 놓으면 바디 한 몫만 실패하고 manual·tutorial이 18점 중 12점", () => {
-    const chart = document([point(1000, "double"), body(1000, 2000, 2), sustain(1500, 2), release(2000, 2)]);
+    const chart = document([tap(1000, "double"), body(1000, 2000, 2), tick(1500, 2), release(2000, 2)]);
     const timings = [{ lane: 1, key: "A", startMs: 1000, endMs: 2000 }, { lane: 1, key: "B", startMs: 1000, endMs: 1300 }];
     const events: ExplicitAutoInput[] = timings.flatMap(timing => [
       { lane: timing.lane, key: timing.key, timeMs: timing.startMs, type: "down" as const },
@@ -99,7 +99,7 @@ describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", ()
   });
 
   it("1490ms up→1505ms down 회복은 유지1500을 보류 후 Perfect로 정산하고 총 6점", () => {
-    const chart = document([body(1000, 2000), sustain(1500), release(2000)]);
+    const chart = document([body(1000, 2000), tick(1500), release(2000)]);
     const controller = createExplicitTutorialPreviewSessionController(chart, { kind: "timings", timings: [
       { lane: 1, key: "A", startMs: 1000, endMs: 1490 }, { lane: 1, key: "B", startMs: 1505, endMs: 2000 },
     ] }, { maintenanceGraceMs: 20 });
@@ -113,7 +113,7 @@ describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", ()
 
   it("author down1120은 1000ms Point의 포함 Good이고 다음 반복도 같은 1점·효과 한 번", () => {
     const received: ExplicitJudgmentEffect[][] = [];
-    const controller = createExplicitTutorialPreviewSessionController(document([point(1000)]), { kind: "timings", timings: [
+    const controller = createExplicitTutorialPreviewSessionController(document([tap(1000)]), { kind: "timings", timings: [
       { lane: 1, key: "A", startMs: 1120, endMs: 1150 },
     ] }, { createPresentation(_session, iteration) {
       received[iteration] = [];
@@ -130,7 +130,7 @@ describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", ()
 
 describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () => {
   it("repeat 경계2000ms의 마지막 up을 이전 세션에서 처리하고 새 세션·새 표시 인스턴스에는 효과가 없음", () => {
-    const chart = document([point(1000), body(1000, 2000), release(2000)]);
+    const chart = document([tap(1000), body(1000, 2000), release(2000)]);
     const presentations: { render: ReturnType<typeof vi.fn>; effects: ExplicitJudgmentEffect[]; dispose: ReturnType<typeof vi.fn> }[] = [];
     const controller = createExplicitTutorialPreviewSessionController(chart, { kind: "auto" }, {
       createPresentation() {
@@ -160,7 +160,7 @@ describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () =
 
   it("1000ms 효과를 drain한 뒤 renderer를 세 번 재부착해도 snapshot만 복구하고 과거 효과를 재생하지 않음", () => {
     const sink = vi.fn();
-    const controller = createExplicitTutorialPreviewSessionController(document([point(1000)]), { kind: "auto" }, {
+    const controller = createExplicitTutorialPreviewSessionController(document([tap(1000)]), { kind: "auto" }, {
       createPresentation: () => ({ applyConfirmedEffects: sink, dispose() {} }),
     });
     controller.advanceTo(1000);
@@ -175,7 +175,7 @@ describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () =
   });
 
   it("1600→500ms 역방향 seek는 old held·미래 raw·pending 표식·effect cursor를 버리고 새 세션으로 재생", () => {
-    const chart = document([point(1000), body(1000, 2000), sustain(1800), release(2000)]);
+    const chart = document([tap(1000), body(1000, 2000), tick(1800), release(2000)]);
     const effectsByIteration: ExplicitJudgmentEffect[][] = [];
     const controller = createExplicitTutorialPreviewSessionController(chart, { kind: "auto" }, {
       createPresentation(_session, iteration) {
@@ -202,7 +202,7 @@ describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () =
   });
 
   it("1510ms 회복 대기 중 reset하면 이전 1500ms 미정산 유지와 hold 부족이 다음 반복에 유출되지 않음", () => {
-    const chart = document([body(1000, 2000), sustain(1500)]);
+    const chart = document([body(1000, 2000), tick(1500)]);
     const controller = createExplicitTutorialPreviewSessionController(chart, { kind: "timings", timings: [
       { lane: 1, key: "A", startMs: 1000, endMs: 1495 }, { lane: 1, key: "B", startMs: 1515, endMs: 2000 },
     ] }, { maintenanceGraceMs: 20 });
@@ -219,7 +219,7 @@ describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () =
   it("외부 authored event 배열을 수정해도 다음 반복의 입력은 생성 시 복사한 원본을 사용", () => {
     const events: ExplicitAutoInput[] = [{ lane: 1, key: "A", timeMs: 1000, type: "down" },
       { lane: 1, key: "A", timeMs: 1050, type: "up" }];
-    const controller = createExplicitTutorialPreviewSessionController(document([point(1000)]), { kind: "events", events });
+    const controller = createExplicitTutorialPreviewSessionController(document([tap(1000)]), { kind: "events", events });
     events.length = 0;
     expect(controller.repeat(1200).score.earnedScore).toBe(3);
     expect(controller.repeat(1200).score.earnedScore).toBe(3);
@@ -228,7 +228,7 @@ describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () =
 
   it("dispose 뒤 advance·reset·attach는 거부하고 이전 표시 인스턴스는 한 번만 dispose", () => {
     const dispose = vi.fn();
-    const controller = createExplicitTutorialPreviewSessionController(document([point(1000)]), { kind: "auto" }, {
+    const controller = createExplicitTutorialPreviewSessionController(document([tap(1000)]), { kind: "auto" }, {
       createPresentation: () => ({ applyConfirmedEffects() {}, dispose }),
     });
     controller.dispose(); controller.dispose();
@@ -239,7 +239,7 @@ describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () =
   });
 
   it("authored end900<start1000 또는 NaN 시각이면 명시 입력 재생 전에 거부", () => {
-    const chart = document([point(1000)]);
+    const chart = document([tap(1000)]);
     expect(() => createExplicitTutorialPreviewSessionController(chart, { kind: "timings", timings: [
       { lane: 1, key: "A", startMs: 1000, endMs: 900 },
     ] })).toThrow("끝");

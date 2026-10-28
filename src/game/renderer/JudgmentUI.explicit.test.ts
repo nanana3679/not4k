@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Container, Text } from "pixi.js";
 import { compileExplicitJudgmentChart } from "../judgment/explicitCompiledChart";
-import { explicitFixturePoint as p, makeExplicitReplayFixture } from "../judgment/explicitJudgmentTestHarness";
+import { explicitFixtureTap as p, makeExplicitReplayFixture } from "../judgment/explicitJudgmentTestHarness";
 import { ExplicitJudgmentSession } from "../judgment/ExplicitJudgmentSession";
 import type { ExplicitJudgmentDisplayState } from "../judgment/ExplicitJudgmentState";
 import { ExplicitJudgmentEffectSink } from "../judgment/ExplicitJudgmentEffectSink";

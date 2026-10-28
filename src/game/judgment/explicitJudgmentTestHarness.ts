@@ -25,7 +25,7 @@ export interface ExplicitReplayFixture {
       readonly perfect: number;
       readonly great: number;
       readonly good: number;
-      readonly pointMiss: number;
+      readonly tapMiss: number;
       readonly releaseMiss: number;
       readonly maintenanceMiss: number;
       readonly dependentZero: number;
@@ -42,13 +42,13 @@ export interface ExplicitReplayBatch {
 export type ExplicitFixtureHold = readonly [key: string, downMs: number, upMs: number | null, lane?: number];
 
 /** fixture에서만 120 BPM의 ms 좌표를 Beat로 명시한다. compiler는 ChartTiming을 사용한다. */
-export const explicitFixturePoint = (atMs: number, kind: "single" | "double" | "trill" = "single", lane = 1, grace = false): ExplicitNoteEntity =>
+export const explicitFixtureTap = (atMs: number, kind: "single" | "double" | "trill" = "single", lane = 1, grace = false): ExplicitNoteEntity =>
   ({ type: "tap", kind, lane, beat: beat(atMs, 500), ...(grace ? { grace: true } : {}) });
 export const explicitFixtureBody = (startMs: number, endMs: number, holdCount: 1 | 2 = 1, lane = 1): ExplicitNoteEntity =>
   ({ type: "body", lane, beat: beat(startMs, 500), endBeat: beat(endMs, 500), holdCount });
 export const explicitFixtureRelease = (atMs: number, count: 1 | 2 = 1, lane = 1, grace = false): ExplicitNoteEntity =>
   ({ type: "release", lane, beat: beat(atMs, 500), count, ...(grace ? { grace: true } : {}) });
-export const explicitFixtureSustain = (atMs: number, count: 1 | 2 = 1, lane = 1): ExplicitNoteEntity =>
+export const explicitFixtureTick = (atMs: number, count: 1 | 2 = 1, lane = 1): ExplicitNoteEntity =>
   ({ type: "tick", lane, beat: beat(atMs, 500), count });
 
 export function makeExplicitReplayFixture(

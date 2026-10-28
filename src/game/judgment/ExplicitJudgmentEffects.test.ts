@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { beat } from "../../shared/types/beat";
 import { compileExplicitJudgmentChart } from "./explicitCompiledChart";
 import { explicitEnjFixtures } from "./explicitEnjFixtures";
-import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRelease as r,
-  explicitFixtureSustain as s, makeExplicitReplayFixture } from "./explicitJudgmentTestHarness";
+import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelease as r,
+  explicitFixtureTick as s, makeExplicitReplayFixture } from "./explicitJudgmentTestHarness";
 import { ExplicitJudgmentEffectSink } from "./ExplicitJudgmentEffectSink";
 import { ExplicitJudgmentCore } from "./ExplicitJudgmentCore";
 import { ExplicitJudgmentSession } from "./ExplicitJudgmentSession";

@@ -24,7 +24,7 @@ interface ExplicitScoreItemBase {
 
 /** 유지에는 독립 입력·Grace가 없으며 릴리즈 수량은 바디 몫 수와 별개다. */
 export type ExplicitScoreItem = ExplicitScoreItemBase & (
-  | { readonly kind: "tap"; readonly pointKind: "single" | "double" | "trill";
+  | { readonly kind: "tap"; readonly tapKind: "single" | "double" | "trill";
     readonly grace: boolean; readonly startsBodyIndices: readonly number[]; readonly trillZoneIndex?: number }
   | { readonly kind: "release"; readonly grace: boolean; readonly bodyIndex?: number;
     readonly boundaryKind: "standalone" | "end" | "decrease" }
@@ -124,7 +124,7 @@ export function compileExplicitJudgmentChart(
       const base: ExplicitScoreItemBase = { id: `n${noteIndex}:${note.type}:${ordinal}`, source: { noteIndex },
         ordinal, lane: note.lane, beat: note.beat, timeMs: timeAt(noteIndex), weight: 3 };
       if (note.type === "tap") {
-        scoreItems.push({ ...base, kind: "tap", pointKind: note.kind, grace: note.grace === true,
+        scoreItems.push({ ...base, kind: "tap", tapKind: note.kind, grace: note.grace === true,
           startsBodyIndices: relations.bodies.filter(body => body.startTapIndices.includes(noteIndex)).map(body => body.noteIndex),
           trillZoneIndex: zoneFor(note) });
       } else if (note.type === "release") {

@@ -6,7 +6,7 @@ import { ExplicitChartCompileError, compileExplicitJudgmentChart } from "./expli
 import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
 import { explicitEnjFixtures } from "./explicitEnjFixtures";
 import { explicitHcFixtures } from "./explicitHcFixtures";
-import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRelease as r, explicitFixtureSustain as s,
+import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelease as r, explicitFixtureTick as s,
   makeExplicitReplayFixture, replayExplicitFixture } from "./explicitJudgmentTestHarness";
 
 const chart = (notes: DocumentNoteEntity[]): ChartDocument => ({ ...explicitEnjFixtures[0].chart, notes });
@@ -74,10 +74,10 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
   it("2→1 경계 release는 앞 body 감소 끝, 같은 경계 sustain은 뒤 body 몫을 가리킨다", () => {
     const release = compileExplicitJudgmentChart(chart([b(1000, 2000, 2), b(2000, 3000), r(2000)]));
     expect(release.scoreItems[0]).toMatchObject({ source: { noteIndex: 2 }, bodyIndex: 0, boundaryKind: "decrease" });
-    const sustain = compileExplicitJudgmentChart(chart([b(1000, 2000, 2), b(2000, 3000), s(2000)]));
-    expect(sustain.scoreItems[0]).toMatchObject({ source: { noteIndex: 2 }, bodyIndex: 1, bodyUnit: { bodyIndex: 1, ordinal: 0 } });
-    expect(sustain.bodies[0].tickIndices).toEqual([]);
-    expect(sustain.bodies[1].tickIndices).toEqual([2]);
+    const tick = compileExplicitJudgmentChart(chart([b(1000, 2000, 2), b(2000, 3000), s(2000)]));
+    expect(tick.scoreItems[0]).toMatchObject({ source: { noteIndex: 2 }, bodyIndex: 1, bodyUnit: { bodyIndex: 1, ordinal: 0 } });
+    expect(tick.bodies[0].tickIndices).toEqual([]);
+    expect(tick.bodies[1].tickIndices).toEqual([2]);
   });
 
   it("바디 밖 release는 standalone이며 몸통·시작 Point나 자동 owner를 만들지 않는다", () => {
@@ -152,7 +152,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     document.trillZones = [{ lane: 2, beat: beat(0), endBeat: beat(4) }, { lane: 1, beat: beat(0), endBeat: beat(4) }];
     const compiled = compileExplicitJudgmentChart(document);
     expect(compiled.bodies[0].trillZoneIndex).toBe(1);
-    expect(compiled.scoreItems[0]).toMatchObject({ kind: "tap", pointKind: "trill", trillZoneIndex: 1 });
+    expect(compiled.scoreItems[0]).toMatchObject({ kind: "tap", tapKind: "trill", trillZoneIndex: 1 });
     expect(compiled.scoreItems.map(item => item.kind)).toEqual(["tap"]);
     expect(compiled.theoreticalWeight).toBe(3);
     expect(compiled.bodyUnits.map(unit => unit.weight)).toEqual([0]);

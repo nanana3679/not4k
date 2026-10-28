@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { compileExplicitJudgmentChart } from "./explicitCompiledChart";
 import { createExplicitPlaybackChartView, selectExplicitPlaybackChart } from "./explicitPlaybackChart";
-import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRelease as r,
-  explicitFixtureSustain as s, makeExplicitReplayFixture } from "./explicitJudgmentTestHarness";
+import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelease as r,
+  explicitFixtureTick as s, makeExplicitReplayFixture } from "./explicitJudgmentTestHarness";
 
 const compile = (notes: Parameters<typeof makeExplicitReplayFixture>[2]) => compileExplicitJudgmentChart(
   makeExplicitReplayFixture("ENJ-playback", "I2 재생 범위", notes, [],

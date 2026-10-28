@@ -4,8 +4,8 @@ import type { ExplicitNoteEntity } from "../../shared/types/chart";
 import { compileExplicitJudgmentChart } from "./explicitCompiledChart";
 import { explicitEnjFixtures } from "./explicitEnjFixtures";
 import { explicitHcFixtures } from "./explicitHcFixtures";
-import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRelease as r,
-  explicitFixtureSustain as s, makeExplicitReplayFixture } from "./explicitJudgmentTestHarness";
+import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelease as r,
+  explicitFixtureTick as s, makeExplicitReplayFixture } from "./explicitJudgmentTestHarness";
 import { ExplicitJudgmentSession } from "./ExplicitJudgmentSession";
 import type { ExplicitJudgmentCoreOptions } from "./ExplicitJudgmentCore";
 import type { ExplicitConfirmedFact, ExplicitJudgmentInput } from "./ExplicitJudgmentState";
@@ -83,7 +83,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     const { session } = original.reconstructAt(1500);
     const facts = session.facts;
     session.resumeAt(1500, [{ key: "B", lane: 1 }]);
-    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1120, pointStatus: "missed" });
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1120, tapStatus: "missed" });
     expect(session.facts).toEqual(facts);
     expect(session.score.judgmentCounts.miss).toBe(1);
     expect(session.snapshot.items.filter(item => item.state === "dependentZero")).toHaveLength(2);
@@ -96,7 +96,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     const { session } = original.reconstructAt(1050);
     session.resumeAt(1050, [{ key: "B", lane: 1 }]);
     expect(session.snapshot.items[0].state).toBe("pending");
-    expect(session.snapshot.bodyUnits[0].pointStatus).toBe("waiting");
+    expect(session.snapshot.bodyUnits[0].tapStatus).toBe("waiting");
     session.advance(1121);
     expect(session.snapshot.bodyUnits[0].state).toBe("failed");
     expect(session.score.judgmentCounts).toMatchObject({ perfect: 0, miss: 1 });
@@ -109,7 +109,7 @@ describe("RFD0040 실제 곡 관측 이력으로 새 세션 복원", () => {
     const { session } = original.reconstructAt(1050);
     session.resumeAt(1050, []);
     session.processObservedBatch(900, [down()], 1060);
-    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1050, pointStatus: "satisfied" });
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1050, tapStatus: "satisfied" });
     session.processBatch(2000, [up()]);
     const result = session.finalize();
     expect(result.score).toMatchObject({ earnedScore: 7, judgmentCounts: { perfect: 2, good: 1, miss: 0 } });

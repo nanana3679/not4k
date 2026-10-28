@@ -35,7 +35,7 @@ export function explicitRenderSnapshot(chart: ExplicitCompiledChart, options: {
         failedAtMs: state === "failed" ? unit.startMs + 200 : null,
         failureFactId: state === "failed" ? `fixture-failure:${unit.id}` : null,
         maintenanceSinceMs: state === "recovering" ? 1990 : null,
-        maintenanceDeadlineMs: state === "recovering" ? 2010 : null, pointStatus: "none" };
+        maintenanceDeadlineMs: state === "recovering" ? 2010 : null, tapStatus: "none" };
     }),
     items: chart.scoreItems.map(item => {
       const state = options.items?.[item.source.noteIndex]?.[item.ordinal] ?? "pending";

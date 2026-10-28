@@ -3,8 +3,8 @@ import { JUDGMENT_WINDOWS } from "../../shared/constants/judgment";
 import type { ExplicitNoteEntity } from "../../shared/types/chart";
 import { explicitEnjFixtures } from "./explicitEnjFixtures";
 import { explicitHcFixtures } from "./explicitHcFixtures";
-import { explicitFixtureBody as b, explicitFixturePoint as p, explicitFixtureRelease as r,
-  explicitFixtureSustain as s, makeExplicitReplayFixture, replayExplicitFixture } from "./explicitJudgmentTestHarness";
+import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelease as r,
+  explicitFixtureTick as s, makeExplicitReplayFixture, replayExplicitFixture } from "./explicitJudgmentTestHarness";
 import type { ExplicitReplayFixture } from "./explicitJudgmentTestHarness";
 import { compileExplicitJudgmentChart } from "./explicitCompiledChart";
 import { ExplicitJudgmentSession } from "./ExplicitJudgmentSession";
@@ -36,11 +36,11 @@ function assertFixture(fixture: ExplicitReplayFixture): void {
   expect(new Set(result.facts.filter(fact => fact.kind === "settlement").map(fact => fact.itemId)).size).toBe(fixture.expected.scoreItemCount);
   // 종속 0점과 등급 있는 Miss는 둘 다 0점이라 점수만으로 구별되지 않는다. 승인 fixture는 판정 종류별 수를 반드시 적는다.
   expect(fixture.expected.events).toBeDefined();
-  const events = { perfect: 0, great: 0, good: 0, pointMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 };
+  const events = { perfect: 0, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 };
   for (const fact of facts) if (fact.kind === "settlement") {
     if (fact.outcome === "dependentZero") events.dependentZero++;
     else if (fact.grade === "perfect" || fact.grade === "great" || fact.grade === "good") events[fact.grade]++;
-    else if (fact.grade === "miss") { if (fact.itemKind === "tap") events.pointMiss++; else events.releaseMiss++; }
+    else if (fact.grade === "miss") { if (fact.itemKind === "tap") events.tapMiss++; else events.releaseMiss++; }
   }
   for (const fact of result.facts) if (fact.kind === "bodyFailed" && fact.unscoredMiss
     && (!indices || compiled.bodyUnits.some(unit => unit.id === fact.bodyUnitId && indices.includes(unit.source.noteIndex)))) events.maintenanceMiss++;
@@ -126,10 +126,10 @@ describe("raw·hold·observed·기한의 독립 계약", () => {
   it("2120 Point Miss 확정 뒤 raw 2115·관측 2121 up은 채움 판단만 취소하고 Point Miss 1개·끝 종속 0점", () => {
     const session = makeSession([b(1000, 2000), p(2000), b(2000, 3000), r(3000)]);
     session.processBatch(1000, [down()]); session.advance(2121);
-    const pointMiss = settlements(session)[0];
-    expect(pointMiss).toMatchObject({ itemKind: "tap", grade: "miss", atMs: 2120 });
+    const tapMiss = settlements(session)[0];
+    expect(tapMiss).toMatchObject({ itemKind: "tap", grade: "miss", atMs: 2120 });
     session.processObservedBatch(2115, [up()], 2121);
-    expect(settlements(session)[0]).toEqual(pointMiss);
+    expect(settlements(session)[0]).toEqual(tapMiss);
     expect(session.snapshot.bodyUnits[1]).toMatchObject({ state: "failed", failedAtMs: 2120 });
     session.processObservedBatch(2116, [down("B")], 2121);
     expect(session.finalize().score.judgmentCounts.miss).toBe(1);
@@ -179,7 +179,7 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
     const session = makeSession([p(1000), b(1000, 2000, 2), s(1100, 2), r(2000, 2)]);
     session.processBatch(500, [down()]); session.advance(1000); session.processBatch(1005, [up()]); session.advance(1026);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", actualStartMs: 1000, failedAtMs: 1025 });
-    expect(session.snapshot.bodyUnits[1]).toMatchObject({ state: "waiting", pointStatus: "waiting" });
+    expect(session.snapshot.bodyUnits[1]).toMatchObject({ state: "waiting", tapStatus: "waiting" });
     session.processBatch(1100, [down("B")]); session.processBatch(2000, [up("B")]);
     expect(session.finalize().score).toMatchObject({ earnedScore: 7, judgmentCounts: { good: 1, perfect: 2, miss: 1 } });
   });
@@ -189,7 +189,7 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
     session.processBatch(1000, [down()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1000 });
     session.advance(1121);
-    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", pointStatus: "satisfied" });
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", tapStatus: "satisfied" });
     session.processBatch(2000, [up()]);
     const result = session.finalize();
     expect(result.score).toMatchObject({ earnedScore: 6, judgmentCounts: { perfect: 2, miss: 1 } });
@@ -215,16 +215,16 @@ describe("실제 몫·Point·릴리즈·유지의 경계", () => {
     session.advance(1050);
     session.resumeAt(1050, [{ key: "A", lane: 1 }]);
     session.advance(1121);
-    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1050, pointStatus: "satisfied" });
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: 1050, tapStatus: "satisfied" });
     session.processBatch(2000, [up()]);
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, judgmentCounts: { perfect: 2, miss: 1 } });
   });
 
-  it("double Point 1000 + single 바디에 입력이 없으면 1120에 Point 두 개만 Miss이고 바디는 pointMiss 실패로 릴리즈만 종속 0점", () => {
+  it("double Point 1000 + single 바디에 입력이 없으면 1120에 Point 두 개만 Miss이고 바디는 tapMiss 실패로 릴리즈만 종속 0점", () => {
     const session = makeSession([p(1000, "double"), b(1000, 2000), r(2000)]);
     session.advance(1121);
-    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1120, pointStatus: "missed" });
-    expect(session.facts.filter(fact => fact.kind === "bodyFailed")).toMatchObject([{ reason: "pointMiss", unscoredMiss: false }]);
+    expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "failed", failedAtMs: 1120, tapStatus: "missed" });
+    expect(session.facts.filter(fact => fact.kind === "bodyFailed")).toMatchObject([{ reason: "tapMiss", unscoredMiss: false }]);
     expect(session.finalize().score).toMatchObject({ earnedScore: 0, judgmentCounts: { miss: 2 } });
     expect(settlements(session).map(fact => fact.outcome)).toEqual(["graded", "graded", "dependentZero"]);
   });
@@ -595,9 +595,9 @@ describe("Point 없는 2→1 감소는 바디 사이 실패를 전파하지 않�
   });
 
   // 감소 위치 유지 2000은 뒤 single 소속이라 앞 두 몫의 1520 실패로 정산하지 않고 single의 시작 판단을 기다린다(RFD 0037 §4·§6-1).
-  const sustainChart = [p(1000, "double"), b(1000, 2000, 2), b(2000, 3000), s(2000), r(3000)];
+  const tickChart = [p(1000, "double"), b(1000, 2000, 2), b(2000, 3000), s(2000), r(3000)];
   const releaseBothAt1500 = () => {
-    const session = makeSession(sustainChart);
+    const session = makeSession(tickChart);
     session.processBatch(1000, [down("A"), down("B")]);
     session.processBatch(1500, [up("A"), up("B")]);
     return session;

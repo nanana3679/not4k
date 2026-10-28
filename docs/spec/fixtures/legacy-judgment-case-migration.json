@@ -26,8 +26,8 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 1500,
@@ -39,7 +39,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -69,15 +69,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -107,15 +107,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -145,15 +145,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -183,15 +183,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -221,15 +221,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 1200,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -259,15 +259,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 1200,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -297,15 +297,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 1200,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -335,8 +335,8 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
@@ -347,7 +347,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -377,8 +377,8 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
@@ -389,7 +389,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -419,15 +419,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -457,15 +457,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -495,8 +495,8 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
@@ -507,7 +507,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -537,8 +537,8 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
@@ -549,7 +549,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -579,15 +579,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -617,15 +617,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -655,15 +655,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2100,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -693,15 +693,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2100,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -731,15 +731,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2060,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -769,15 +769,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2060,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -807,15 +807,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2060,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -845,15 +845,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2200,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -883,15 +883,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -921,15 +921,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -959,15 +959,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -997,15 +997,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1035,15 +1035,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1073,15 +1073,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2100,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1111,15 +1111,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1149,15 +1149,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2100,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1187,15 +1187,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2100,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1225,15 +1225,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 2,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 2,
         "releases": [
           {
             "atMs": 2100,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1263,15 +1263,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 2,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 2,
         "releases": [
           {
             "atMs": 2100,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1301,15 +1301,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 2,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 2,
         "releases": [
           {
             "atMs": 2100,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1339,15 +1339,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1377,15 +1377,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1415,15 +1415,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1453,15 +1453,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1491,15 +1491,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1529,15 +1529,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1567,15 +1567,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2060,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1605,15 +1605,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2060,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1643,15 +1643,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1681,15 +1681,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1719,15 +1719,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1757,15 +1757,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1795,15 +1795,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1833,8 +1833,8 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
@@ -1845,7 +1845,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1875,8 +1875,8 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
@@ -1887,7 +1887,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1917,8 +1917,8 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
@@ -1929,7 +1929,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1959,15 +1959,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -1997,15 +1997,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2035,15 +2035,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2073,15 +2073,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2111,15 +2111,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2149,15 +2149,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2060,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2187,15 +2187,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2060,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2225,15 +2225,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2060,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2263,15 +2263,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2200,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2301,8 +2301,8 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2000,
@@ -2313,7 +2313,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2343,8 +2343,8 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2000,
@@ -2355,7 +2355,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2385,8 +2385,8 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2000,
@@ -2397,7 +2397,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2427,8 +2427,8 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 2000,
@@ -2439,7 +2439,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2469,8 +2469,8 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
@@ -2482,7 +2482,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2512,10 +2512,10 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2545,15 +2545,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2583,15 +2583,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2621,15 +2621,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2659,15 +2659,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 1750,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2697,15 +2697,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 1500,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2735,15 +2735,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 1500,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2773,15 +2773,15 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 1500,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2811,15 +2811,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 1500,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2849,15 +2849,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2887,10 +2887,10 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2920,10 +2920,10 @@
       "legacyRegistration": "it",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2953,8 +2953,8 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 2000,
@@ -2966,7 +2966,7 @@
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -2996,15 +2996,15 @@
       "legacyRegistration": "it.fails",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 0,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 0,
         "releases": [
           {
             "atMs": 3000,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -3034,15 +3034,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 3000,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -3072,15 +3072,15 @@
       "legacyRegistration": "it",
       "classification": "차트 표현을 옮겨 적용",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 2,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 2,
         "releases": [
           {
             "atMs": 2100,
             "count": 2
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {
@@ -3110,15 +3110,15 @@
       "legacyRegistration": "it.fails",
       "classification": "규칙 대체",
       "newChart": {
-        "bodyAndPointPositions": "원본 유지; 구형 holdOnly 속성 없음",
-        "pointItemCount": 1,
+        "bodyAndTapPositions": "원본 유지; 구형 holdOnly 속성 없음",
+        "tapItemCount": 1,
         "releases": [
           {
             "atMs": 1560,
             "count": 1
           }
         ],
-        "sustainItemCount": 0
+        "tickItemCount": 0
       },
       "expected": {
         "events": {

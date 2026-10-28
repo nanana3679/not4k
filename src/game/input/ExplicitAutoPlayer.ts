@@ -48,22 +48,22 @@ export class ExplicitAutoPlayer {
     const lanes = new Set([...chart.bodies.map(body => body.lane), ...chart.scoreItems.map(item => item.lane)]);
     for (const lane of lanes) {
       // sustain은 입력 계획에 전혀 참여하지 않는다.
-      const points = chart.scoreItems.filter(item => item.lane === lane && item.kind === "tap" && isAutoAt(item.timeMs));
+      const taps = chart.scoreItems.filter(item => item.lane === lane && item.kind === "tap" && isAutoAt(item.timeMs));
       const bodies = chart.bodies.filter(body => body.lane === lane && isAutoAt(body.startMs));
       const ownedBodies = new Set(bodies.map(body => body.source.noteIndex));
       const releases = chart.scoreItems.filter(item => item.lane === lane && item.kind === "release"
         && (isAutoAt(item.timeMs) || (item.bodyIndex !== undefined && ownedBodies.has(item.bodyIndex))));
-      if (!points.length && !bodies.length && !releases.length) continue;
+      if (!taps.length && !bodies.length && !releases.length) continue;
       const keys = keysByLane.get(lane) ?? [];
       const required = Math.max(1, ...bodies.map(body => body.holdCount),
-        ...[...points, ...releases].map(item => item.ordinal + 1));
+        ...[...taps, ...releases].map(item => item.ordinal + 1));
       if (keys.length < required) throw new Error(`레인 ${lane}: 자동 입력에 ${required}개의 서로 다른 키가 필요합니다`);
       const held = new Set<string>();
       const lastTrillKeyByZone = new Map<number, string>();
-      const times = new Set([...points, ...releases].map(item => item.timeMs));
+      const times = new Set([...taps, ...releases].map(item => item.timeMs));
       for (const body of bodies) { times.add(body.startMs); times.add(body.endMs); }
       const cleanupTimes = new Set<number>();
-      for (const point of points) { times.add(point.timeMs + tapDuration); cleanupTimes.add(point.timeMs + tapDuration); }
+      for (const tap of taps) { times.add(tap.timeMs + tapDuration); cleanupTimes.add(tap.timeMs + tapDuration); }
       const atTimes = [...times].sort((a, b) => a - b);
       const emit = (at: number, key: string, type: "down" | "up") => {
         if (type === "down" ? held.has(key) : !held.has(key)) throw new Error("자동 입력의 물리 키 수명이 잘못되었습니다");
@@ -84,18 +84,18 @@ export class ExplicitAutoPlayer {
         fill(at, releaseCount);
         for (const key of [...held].slice(0, releaseCount)) emit(at, key, "up");
 
-        const pointItems = points.filter(item => item.timeMs === at);
+        const tapItems = taps.filter(item => item.timeMs === at);
         const selected = new Set<string>();
-        for (const point of pointItems) {
-          const previous = point.kind === "tap" && point.trillZoneIndex !== undefined
-            ? lastTrillKeyByZone.get(point.trillZoneIndex) : undefined;
+        for (const tap of tapItems) {
+          const previous = tap.kind === "tap" && tap.trillZoneIndex !== undefined
+            ? lastTrillKeyByZone.get(tap.trillZoneIndex) : undefined;
           const available = keys.filter(key => !selected.has(key));
           const key = available.find(key => !held.has(key) && key !== previous)
             ?? available.find(key => key !== previous) ?? available[0];
           if (held.has(key)) emit(at, key, "up");
           emit(at, key, "down");
           selected.add(key);
-          if (point.kind === "tap" && point.trillZoneIndex !== undefined) lastTrillKeyByZone.set(point.trillZoneIndex, key);
+          if (tap.kind === "tap" && tap.trillZoneIndex !== undefined) lastTrillKeyByZone.set(tap.trillZoneIndex, key);
         }
         // 릴리즈 수는 hold 수와 별개다. 끝에서 추가 down이 금지되는 부분 구간도 미리 확보한다.
         const active = bodies.filter(body => body.startMs <= at && at < body.endMs);

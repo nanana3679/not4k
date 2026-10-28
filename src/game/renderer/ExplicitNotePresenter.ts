@@ -155,9 +155,9 @@ export class ExplicitNotePresenter {
           id = `release.${items.length === 2 ? "double" : "single"}.${state}`;
         } else {
           // 싱글 Miss의 기존 수명은 유지하고 더블은 몫별 실패색과 성공 alpha를 독립 합성한다.
-          id = `tap.${first.pointKind}.${first.pointKind !== "single" && failed.length === items.length ? "failed" : "pending"}`;
+          id = `tap.${first.tapKind}.${first.tapKind !== "single" && failed.length === items.length ? "failed" : "pending"}`;
         }
-        if (first.kind === "tap" && first.pointKind === "double" && failed.length === 1) {
+        if (first.kind === "tap" && first.tapKind === "double" && failed.length === 1) {
           for (const item of items) {
             const half = side(item.ordinal);
             const full = sprite(index, first.lane, first.timeMs,
@@ -169,7 +169,7 @@ export class ExplicitNotePresenter {
           // Point Grace는 기존처럼 Miss 뒤 외곽을 숨긴다. release Grace는 실패 중에도 흰 외곽을 유지한다.
           const overlayVisible = visible && (first.kind === "release" || failed.length === 0);
           overlayAlpha = overlayVisible ? 1 : 0;
-          const variant = first.kind === "release" ? "release" : first.pointKind === "trill" ? "trill" : "tap";
+          const variant = first.kind === "release" ? "release" : first.tapKind === "trill" ? "trill" : "tap";
           layers.push(sprite(index, first.lane, first.timeMs, `graceOverlay.${variant}.overlay`, first.kind, 1, overlayVisible, null, true));
         }
       }

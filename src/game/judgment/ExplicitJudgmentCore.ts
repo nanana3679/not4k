@@ -17,7 +17,7 @@ interface UnitRuntime {
   readonly ordinal: number;
   readonly id: string;
   /** 이 몫의 시작을 맡는 시작 Point 항목. double Point + single 바디는 한 몫이 두 항목을 모두 맡는다. */
-  readonly startPoints: readonly ItemRuntime[];
+  readonly startTaps: readonly ItemRuntime[];
   startedAt: number | null;
   completedAt: number | null;
   failedAt: number | null;
@@ -27,7 +27,7 @@ interface UnitRuntime {
   startKey: string | null;
   inherited: boolean;
   judgedFrom: number | null;
-  pointDecisionAt: number | null;
+  tapDecisionAt: number | null;
   /** 재개한 남은 부분에는 원래 시작 Point의 바디 시작 의무를 다시 부과하지 않는다. */
   reentered: boolean;
   /** 마지막으로 다시 연 재개 차수. 같은 차수에서 시작한 몫끼리만 시작 키가 겹치지 않게 비교한다. */
@@ -37,8 +37,8 @@ interface BodyRuntime {
   readonly body: ExplicitCompiledBody;
   activationStartMs: number;
   readonly units: UnitRuntime[];
-  readonly startPoints: ItemRuntime[];
-  readonly pointDownByKey: Map<string, number>;
+  readonly startTaps: ItemRuntime[];
+  readonly tapDownByKey: Map<string, number>;
 }
 interface InputToken {
   readonly input: ExplicitJudgmentInput;
@@ -71,7 +71,7 @@ export class ExplicitJudgmentCore {
   private readonly bodyByIndex: Map<number, BodyRuntime>;
   private readonly timelineByLane = new Map<number, number[]>();
   private readonly timelineIndexByLane = new Map<number, number>();
-  private readonly pointKeysByNote = new Map<number, Set<string>>();
+  private readonly tapKeysByNote = new Map<number, Set<string>>();
   private readonly releaseUsesByNote = new Map<number, Map<string, number>>();
   private readonly trillKeysByZone = new Map<number, Set<string>>();
   private clock = -Infinity;
@@ -96,17 +96,17 @@ export class ExplicitJudgmentCore {
     this.items = playbackChart.scoreItems.map(item => ({ item, settlement: null })).sort((a, b) =>
       a.item.timeMs - b.item.timeMs || a.item.source.noteIndex - b.item.source.noteIndex || a.item.ordinal - b.item.ordinal);
     this.bodies = playbackChart.bodies.map(body => {
-      const startPoints = this.items.filter(({ item }) => item.kind === "tap" && item.startsBodyIndices.includes(body.source.noteIndex));
-      const runtime: BodyRuntime = { body, activationStartMs: body.startMs, startPoints, units: [], pointDownByKey: new Map() };
+      const startTaps = this.items.filter(({ item }) => item.kind === "tap" && item.startsBodyIndices.includes(body.source.noteIndex));
+      const runtime: BodyRuntime = { body, activationStartMs: body.startMs, startTaps, units: [], tapDownByKey: new Map() };
       for (const unit of body.units) {
         // single Point는 double의 높은 hold 기준을 맡고 비담당 몫은 낮은 기준을 먼저 채운다.
         // 몫보다 많은 Point(double Point + single 바디)는 가장 높은 몫이 모두 맡아 먼저 성공한 down으로 시작한다.
-        const offset = body.holdCount - startPoints.length;
-        const unitStartPoints = offset >= 0 ? startPoints.filter((_, index) => index === unit.ref.ordinal - offset)
-          : startPoints.filter((_, index) => index === unit.ref.ordinal || (unit.ref.ordinal === body.holdCount - 1 && index >= body.holdCount));
-        runtime.units.push({ body: runtime, ordinal: unit.ref.ordinal, id: unit.id, startPoints: unitStartPoints,
+        const offset = body.holdCount - startTaps.length;
+        const unitStartTaps = offset >= 0 ? startTaps.filter((_, index) => index === unit.ref.ordinal - offset)
+          : startTaps.filter((_, index) => index === unit.ref.ordinal || (unit.ref.ordinal === body.holdCount - 1 && index >= body.holdCount));
+        runtime.units.push({ body: runtime, ordinal: unit.ref.ordinal, id: unit.id, startTaps: unitStartTaps,
           startedAt: null, completedAt: null, failedAt: null, failureFactId: null,
-          startFact: null, completeFact: null, startKey: null, inherited: false, judgedFrom: null, pointDecisionAt: null,
+          startFact: null, completeFact: null, startKey: null, inherited: false, judgedFrom: null, tapDecisionAt: null,
           reentered: false, resumeEpoch: 0 });
       }
       return runtime;
@@ -145,10 +145,10 @@ export class ExplicitJudgmentCore {
       for (const unit of runtime.units) {
         if (!this.open(unit)) continue;
         // 되감기 뒤에도 미처리 시작 Point의 일반 실패 종속은 면제하지 않는다.
-        unit.reentered = !unit.startPoints.length || this.pointSatisfied(unit) || unit.startPoints.every(point => point.settlement !== null);
+        unit.reentered = !unit.startTaps.length || this.tapSatisfied(unit) || unit.startTaps.every(tap => tap.settlement !== null);
         unit.resumeEpoch = this.resumeEpoch;
         unit.startedAt = null; unit.startFact = null; unit.startKey = null;
-        unit.inherited = false; unit.judgedFrom = null; unit.pointDecisionAt = null;
+        unit.inherited = false; unit.judgedFrom = null; unit.tapDecisionAt = null;
       }
     }
     this.rebuildTimeline(atMs);
@@ -174,7 +174,7 @@ export class ExplicitJudgmentCore {
     for (const lane of changedLanes) this.lastHeldAtByLane.set(lane, Math.max(this.lastHeldAtByLane.get(lane) ?? atMs, atMs));
     for (const runtime of this.bodies) {
       if (!changedLanes.has(runtime.body.lane) || runtime.activationStartMs > atMs) continue;
-      for (const unit of runtime.units) this.tryStart(unit, atMs, "preheld", null, this.pointSatisfied(unit));
+      for (const unit of runtime.units) this.tryStart(unit, atMs, "preheld", null, this.tapSatisfied(unit));
     }
     this.reconcile(atMs, "timeline");
   }
@@ -220,8 +220,8 @@ export class ExplicitJudgmentCore {
         state: unit.failedAt !== null ? "failed" : unit.completedAt !== null ? "complete" : unit.startedAt === null ? "waiting" : recovering ? "recovering" : "active",
         actualStartMs: unit.startedAt, completedAtMs: unit.completedAt, failedAtMs: unit.failedAt, failureFactId: unit.failureFactId,
         maintenanceSinceMs: since, maintenanceDeadlineMs: recovering ? this.maintenanceDeadline(unit) ?? null : null,
-        pointStatus: !unit.startPoints.length ? "none" : this.pointSatisfied(unit) ? "satisfied"
-          : this.pointMissed(unit) ? "missed" : "waiting" });
+        tapStatus: !unit.startTaps.length ? "none" : this.tapSatisfied(unit) ? "satisfied"
+          : this.tapMissed(unit) ? "missed" : "waiting" });
     }));
     const items: ExplicitItemSnapshot[] = this.items.map(({ item, settlement }) => {
       const unit = item.kind === "tick" ? this.bodyByIndex.get(item.bodyIndex)?.units[item.bodyUnit.ordinal] : undefined;
@@ -307,18 +307,18 @@ export class ExplicitJudgmentCore {
       const queue = queuesByKey.get(token.input.key) ?? [];
       queue.push(token); queuesByKey.set(token.input.key, queue);
     }
-    const pointHits: { runtime: ItemRuntime; token: InputToken; grade: ExplicitGrade }[] = [];
+    const tapHits: { runtime: ItemRuntime; token: InputToken; grade: ExplicitGrade }[] = [];
     while (queuesByKey.size) {
       const heads = [...queuesByKey.values()].map(queue => queue[0]);
       const ups = heads.filter(token => this.action(token) === "up");
       const ordered = ups.length ? this.orderUps(ups) : heads.sort((a, b) => a.input.key.localeCompare(b.input.key));
       for (const token of ordered) {
-        this.applyInput(token, pointHits);
+        this.applyInput(token, tapHits);
         const queue = queuesByKey.get(token.input.key)!;
         queue.shift(); if (!queue.length) queuesByKey.delete(token.input.key);
       }
     }
-    this.settlePointHits(pointHits);
+    this.settleTapHits(tapHits);
   }
 
   /** 이른 항목을 우선하는 최대 매칭. 여러 적격 키의 배정을 함께 비교하여 수신 순서로 기회를 잃지 않는다. */
@@ -344,7 +344,7 @@ export class ExplicitJudgmentCore {
 
   private action(token: InputToken): "down" | "up" { return token.input.type === "down" || token.input.type === "press" ? "down" : "up"; }
 
-  private applyInput(token: InputToken, pointHits: { runtime: ItemRuntime; token: InputToken; grade: ExplicitGrade }[]): void {
+  private applyInput(token: InputToken, tapHits: { runtime: ItemRuntime; token: InputToken; grade: ExplicitGrade }[]): void {
     const { input, rawAt, heldAt, observedAt, inputId, sequence } = token;
     const lane = input.lane!;
     const action = this.action(token);
@@ -353,8 +353,8 @@ export class ExplicitJudgmentCore {
       const { item, settlement } = runtime;
       if (settlement || item.lane !== lane || Math.abs(rawAt - item.timeMs) > this.windows.GOOD) return false;
       if (action === "up") return this.eligibleRelease(runtime, token);
-      return item.kind === "tap" && !pointHits.some(hit => hit.runtime === runtime)
-        && !this.pointKeysByNote.get(item.source.noteIndex)?.has(input.key);
+      return item.kind === "tap" && !tapHits.some(hit => hit.runtime === runtime)
+        && !this.tapKeysByNote.get(item.source.noteIndex)?.has(input.key);
     }) : undefined;
     this.confirm({ kind: "input", inputId, key: input.key, action, lane, atMs: rawAt, confirmedAt: this.clock,
       phase: "input", observedAt, heldAtMs: heldAt, accepted, consumedItemId: candidate?.item.id ?? null });
@@ -366,10 +366,10 @@ export class ExplicitJudgmentCore {
       const { item } = candidate;
       const grade = "grace" in item && item.grace ? "perfect" : this.grade(rawAt - item.timeMs);
       if (item.kind === "tap") {
-        const keys = this.pointKeysByNote.get(item.source.noteIndex) ?? new Set(); keys.add(input.key);
-        this.pointKeysByNote.set(item.source.noteIndex, keys);
-        pointHits.push({ runtime: candidate, token, grade });
-        for (const bodyIndex of item.startsBodyIndices) this.bodyByIndex.get(bodyIndex)?.pointDownByKey.set(input.key, sequence);
+        const keys = this.tapKeysByNote.get(item.source.noteIndex) ?? new Set(); keys.add(input.key);
+        this.tapKeysByNote.set(item.source.noteIndex, keys);
+        tapHits.push({ runtime: candidate, token, grade });
+        for (const bodyIndex of item.startsBodyIndices) this.bodyByIndex.get(bodyIndex)?.tapDownByKey.set(input.key, sequence);
       } else {
         const uses = this.releaseUsesByNote.get(item.source.noteIndex) ?? new Map(); uses.set(input.key, sequence);
         this.releaseUsesByNote.set(item.source.noteIndex, uses);
@@ -381,15 +381,15 @@ export class ExplicitJudgmentCore {
         // 재개는 시작 창을 T로 옮기지만 차트 시각의 원래 창은 닫지 않는다. 그 창의 늦게 관측한 down도 hold 시각(≥T)에 시작한다.
         if (runtime.body.lane !== lane || (Math.abs(rawAt - runtime.activationStartMs) > this.windows.GOOD
           && Math.abs(rawAt - runtime.body.startMs) > this.windows.GOOD)) continue;
-        const own = candidate && runtime.units.find(unit => !unit.reentered && unit.startPoints.includes(candidate));
+        const own = candidate && runtime.units.find(unit => !unit.reentered && unit.startTaps.includes(candidate));
         // 여러 Point를 맡은 몫은 먼저 성공한 Point down으로만 판단한다. 다음 Point 성공이 시작·유지 기준을 옮기지 않는다.
-        if (own && this.open(own) && own.pointDecisionAt === null) {
-          own.judgedFrom = heldAt; own.pointDecisionAt = heldAt;
+        if (own && this.open(own) && own.tapDecisionAt === null) {
+          own.judgedFrom = heldAt; own.tapDecisionAt = heldAt;
           if (own.startedAt === null) this.tryStart(own, heldAt, "down", token, true);
         }
         for (const unit of runtime.units) if (unit.startedAt === null) {
-          if (!unit.startPoints.length || unit.reentered) this.tryStart(unit, heldAt, "down", token);
-          else if (this.pointSatisfied(unit)) this.tryStart(unit, heldAt, "down", token, true);
+          if (!unit.startTaps.length || unit.reentered) this.tryStart(unit, heldAt, "down", token);
+          else if (this.tapSatisfied(unit)) this.tryStart(unit, heldAt, "down", token, true);
         }
       }
     } else {
@@ -408,7 +408,7 @@ export class ExplicitJudgmentCore {
       || this.laneByHeldKey.get(input.key) !== input.lane) return false;
     const previousUse = this.releaseUsesByNote.get(item.source.noteIndex)?.get(input.key);
     const body = item.bodyIndex === undefined ? undefined : this.bodyByIndex.get(item.bodyIndex);
-    if (previousUse !== undefined && (!body || (body.pointDownByKey.get(input.key) ?? -Infinity) <= previousUse)) return false;
+    if (previousUse !== undefined && (!body || (body.tapDownByKey.get(input.key) ?? -Infinity) <= previousUse)) return false;
     if (!body) return true;
     const started = body.units.filter(unit => unit.startedAt !== null && unit.failedAt === null && unit.startedAt <= token.heldAt).length;
     const releases = this.items.filter(runtime => runtime.item.kind === "release" && runtime.item.source.noteIndex === item.source.noteIndex);
@@ -417,7 +417,7 @@ export class ExplicitJudgmentCore {
     return started > 0 && (body.body.holdCount === 1 || consumed < started);
   }
 
-  private settlePointHits(hits: { runtime: ItemRuntime; token: InputToken; grade: ExplicitGrade }[]): void {
+  private settleTapHits(hits: { runtime: ItemRuntime; token: InputToken; grade: ExplicitGrade }[]): void {
     const groupsByZone = new Map<number, typeof hits>();
     for (const hit of hits) {
       const item = hit.runtime.item;
@@ -441,22 +441,22 @@ export class ExplicitJudgmentCore {
   }
   private open(unit: UnitRuntime): boolean { return unit.failedAt === null && unit.completedAt === null; }
   /** 맡은 시작 Point 중 하나라도 성공했다. */
-  private pointSatisfied(unit: UnitRuntime): boolean {
-    return unit.startPoints.some(point => point.settlement !== null && point.settlement.grade !== "miss");
+  private tapSatisfied(unit: UnitRuntime): boolean {
+    return unit.startTaps.some(tap => tap.settlement !== null && tap.settlement.grade !== "miss");
   }
   /** 맡은 시작 Point가 모두 Miss다. 하나라도 성공하거나 대기 중이면 Point Miss 실패가 아니다. */
-  private pointMissed(unit: UnitRuntime): boolean {
-    return unit.startPoints.length > 0 && unit.startPoints.every(point => point.settlement?.grade === "miss");
+  private tapMissed(unit: UnitRuntime): boolean {
+    return unit.startTaps.length > 0 && unit.startTaps.every(tap => tap.settlement?.grade === "miss");
   }
   private need(unit: UnitRuntime): number {
     return unit.body.units.filter(other => other.ordinal <= unit.ordinal && other.failedAt === null
-      && other.completedAt === null && (other.startedAt !== null || (other.pointDecisionAt !== null
-        && this.pointSatisfied(other)))).length;
+      && other.completedAt === null && (other.startedAt !== null || (other.tapDecisionAt !== null
+        && this.tapSatisfied(other)))).length;
   }
   private filled(unit: UnitRuntime): boolean { return this.holds.count(unit.body.body.lane) >= this.need(unit); }
   private heldKeys(lane: number): string[] { return [...this.laneByHeldKey].filter(([, value]) => value === lane).map(([key]) => key).sort(); }
 
-  private tryStart(unit: UnitRuntime, at: number, via: "preheld" | "down", token: InputToken | null, ownPoint = false): void {
+  private tryStart(unit: UnitRuntime, at: number, via: "preheld" | "down", token: InputToken | null, ownTap = false): void {
     if (!this.open(unit) || unit.startedAt !== null) return;
     const runtime = unit.body;
     const active = runtime.units.filter(other => this.open(other) && other.startedAt !== null).length;
@@ -465,7 +465,7 @@ export class ExplicitJudgmentCore {
       && other.startedAt !== null && other.failedAt === null).map(other => other.startKey));
     const key = this.heldKeys(runtime.body.lane).find(key => !used.has(key));
     if (key === undefined) return;
-    if (unit.startPoints.length && !unit.reentered && !ownPoint) {
+    if (unit.startTaps.length && !unit.reentered && !ownTap) {
       if (!this.hasHealthyPredecessor(unit)) return;
       unit.inherited = true;
     }
@@ -486,7 +486,7 @@ export class ExplicitJudgmentCore {
     unit.completedAt = at;
     unit.completeFact = this.confirm({ kind: "bodyCompleted", bodyUnitId: unit.id, lane: unit.body.body.lane,
       atMs: at, confirmedAt: Math.max(at, this.clock), phase, reason, inputId, provisional: phase === "timeline" });
-    this.settleSustains(unit, at, phase, true);
+    this.settleTicks(unit, at, phase, true);
   }
 
   /**
@@ -494,11 +494,11 @@ export class ExplicitJudgmentCore {
    * Point 없는 2→1 감소에서 앞 두 몫이 모두 실패해도 뒤 single은 자기 시작 조건(시작 창 안 새 down 또는 차트 시작 시각 hold)으로
    * 새로 시작하고, 시작하지 못하면 자기 시작 시간 초과로 실패한다(사용자 결정 2026-10-27).
    */
-  private fail(unit: UnitRuntime, at: number, reason: "startTimeout" | "maintenance" | "pointMiss", causeFactId: string | null): void {
+  private fail(unit: UnitRuntime, at: number, reason: "startTimeout" | "maintenance" | "tapMiss", causeFactId: string | null): void {
     if (!this.open(unit)) return;
     unit.failedAt = at;
     const fact = this.confirm({ kind: "bodyFailed", bodyUnitId: unit.id, lane: unit.body.body.lane,
-      atMs: at, confirmedAt: Math.max(at, this.clock), phase: "deadline", reason, causeFactId, unscoredMiss: reason !== "pointMiss" });
+      atMs: at, confirmedAt: Math.max(at, this.clock), phase: "deadline", reason, causeFactId, unscoredMiss: reason !== "tapMiss" });
     unit.failureFactId = fact.id;
     for (const item of this.items) if (!item.settlement && item.item.kind === "tick"
       && item.item.bodyIndex === unit.body.body.source.noteIndex && item.item.bodyUnit.ordinal === unit.ordinal) {
@@ -522,12 +522,12 @@ export class ExplicitJudgmentCore {
   }
 
   private maintenanceDeadline(unit: UnitRuntime): number | undefined {
-    if (!this.open(unit) || (unit.startPoints.length && !unit.reentered && unit.pointDecisionAt === null)
+    if (!this.open(unit) || (unit.startTaps.length && !unit.reentered && unit.tapDecisionAt === null)
       || (unit.startedAt === null && unit.judgedFrom === null)) return undefined;
     // Point는 처리했어도 두 번째 물리 키가 없어 실제 시작하지 못한 몫은 실제 down부터 부족 상태다.
     if (unit.startedAt === null) return unit.judgedFrom! + this.maintenanceGraceMs;
     return this.holds.failureDeadline(unit.body.body.lane, this.need(unit), { judgedFrom: unit.judgedFrom ?? unit.startedAt!,
-      ...(unit.body.startPoints.length && !unit.reentered ? {} : { refillUntil: unit.body.activationStartMs + this.windows.GOOD }) });
+      ...(unit.body.startTaps.length && !unit.reentered ? {} : { refillUntil: unit.body.activationStartMs + this.windows.GOOD }) });
   }
 
   private settle(runtime: ItemRuntime, grade: ExplicitGrade | null, at: number, phase: ExplicitConfirmationPhase,
@@ -543,7 +543,7 @@ export class ExplicitJudgmentCore {
     if (grade === "miss" && item.kind === "tap" && item.trillZoneIndex !== undefined) this.trillKeysByZone.delete(item.trillZoneIndex);
   }
 
-  private settleSustains(unit: UnitRuntime, at: number, phase: ExplicitConfirmationPhase, all = false): void {
+  private settleTicks(unit: UnitRuntime, at: number, phase: ExplicitConfirmationPhase, all = false): void {
     for (const item of this.items) if (!item.settlement && item.item.kind === "tick"
       && item.item.bodyIndex === unit.body.body.source.noteIndex && item.item.bodyUnit.ordinal === unit.ordinal
       && (all || item.item.timeMs <= at)) this.settle(item, "perfect", at, phase);
@@ -552,7 +552,7 @@ export class ExplicitJudgmentCore {
   private reconcile(at: number, phase: ExplicitConfirmationPhase): void {
     for (const runtime of this.bodies) for (const unit of runtime.units) {
       if (!this.open(unit) || unit.startedAt === null || !this.filled(unit)) continue;
-      this.settleSustains(unit, at, phase);
+      this.settleTicks(unit, at, phase);
       if (at >= runtime.body.endMs) this.complete(unit, at, "end", phase, null);
     }
   }
@@ -569,8 +569,8 @@ export class ExplicitJudgmentCore {
         invalidated.push(unit.startFact.id); unit.startedAt = null; unit.startFact = null; unit.startKey = null;
         unit.inherited = false; unit.judgedFrom = null;
       }
-      if (this.pointMissed(unit) && unit.pointDecisionAt !== null && unit.pointDecisionAt >= at) {
-        unit.pointDecisionAt = null; unit.judgedFrom = unit.startedAt;
+      if (this.tapMissed(unit) && unit.tapDecisionAt !== null && unit.tapDecisionAt >= at) {
+        unit.tapDecisionAt = null; unit.judgedFrom = unit.startedAt;
       }
       if (invalidated.length) this.confirm({ kind: "bodyProgressInvalidated", bodyUnitId: unit.id,
         invalidatedFactIds: Object.freeze(invalidated), lane, atMs: at, confirmedAt: this.clock, phase: "input" });
@@ -615,9 +615,9 @@ export class ExplicitJudgmentCore {
       }
       for (const runtime of this.bodies) for (const unit of [...runtime.units].reverse()) {
         if (!this.open(unit)) continue;
-        if (unit.startPoints.length && !unit.reentered && unit.pointDecisionAt === null && unit.startPoints[0].item.timeMs + this.windows.GOOD === next) {
-          unit.pointDecisionAt = next;
-          if (!unit.inherited || unit.startedAt === null || !this.filled(unit)) this.fail(unit, next, "pointMiss", unit.startPoints[0].settlement!.id);
+        if (unit.startTaps.length && !unit.reentered && unit.tapDecisionAt === null && unit.startTaps[0].item.timeMs + this.windows.GOOD === next) {
+          unit.tapDecisionAt = next;
+          if (!unit.inherited || unit.startedAt === null || !this.filled(unit)) this.fail(unit, next, "tapMiss", unit.startTaps[0].settlement!.id);
           else unit.judgedFrom = next;
         } else if (unit.startedAt === null && runtime.activationStartMs + this.windows.GOOD === next) this.fail(unit, next, "startTimeout", null);
         else if (this.maintenanceDeadline(unit) === next) this.fail(unit, next, "maintenance", null);
@@ -626,8 +626,8 @@ export class ExplicitJudgmentCore {
   }
 
   private unitDeadline(unit: UnitRuntime): number | undefined {
-    if (unit.startPoints.length && !unit.reentered && unit.pointDecisionAt === null) return unit.startPoints[0].item.timeMs + this.windows.GOOD;
-    if (!unit.reentered && unit.startedAt === null && this.pointSatisfied(unit)) return this.maintenanceDeadline(unit);
+    if (unit.startTaps.length && !unit.reentered && unit.tapDecisionAt === null) return unit.startTaps[0].item.timeMs + this.windows.GOOD;
+    if (!unit.reentered && unit.startedAt === null && this.tapSatisfied(unit)) return this.maintenanceDeadline(unit);
     return unit.startedAt === null ? unit.body.activationStartMs + this.windows.GOOD : this.maintenanceDeadline(unit);
   }
 
