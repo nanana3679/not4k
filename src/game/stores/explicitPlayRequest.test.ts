@@ -101,7 +101,7 @@ describe('명시 테스트 진입 게이트', () => {
       ['n3:tick:0', 1500], ['n4:release:0', 2000], ['n5:tap:0', 3000],
     ]);
     expect(request.compiled.bodies[0]).toMatchObject({ source: { noteIndex: 2 },
-      beat: beat(2), endBeat: beat(4), startMs: 1500, endMs: 2000, startPointIndices: [] });
+      beat: beat(2), endBeat: beat(4), startMs: 1500, endMs: 2000, startTapIndices: [] });
     expect(request.compiled.bodyUnits[0]).toMatchObject({ id: 'b2:hold:0', startMs: 1500, endMs: 2000, weight: 0 });
     expect(request.compiled.timing.noteTimesMs.get(2)).toBe(1000);
     expect(request.document).toEqual(original);

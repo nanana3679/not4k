@@ -31,11 +31,11 @@ const ALL_RULES: ValidationErrorRule[] = [
   "laneMalformed",
   "noteMalformed",
   "scoreOverlap",
-  "sustainPlacement",
-  "sustainCount",
+  "tickPlacement",
+  "tickCount",
   "releasePlacement",
   "zeroLengthBodyOverlap",
-  "sameHoldCountConnectionWithoutPointOrRelease",
+  "sameHoldCountConnectionWithoutTapOrRelease",
 ];
 
 const err = (rule: ValidationErrorRule, message: string): ValidationError => ({
@@ -132,9 +132,9 @@ describe("violationLabel", () => {
     expect(violationLabel("beatMalformed")).toBe("박자 값 오류");
   });
 
-  it("sameHoldCountConnectionWithoutPointOrRelease → 'Point·릴리즈 없는 같은 hold 수 바디 연결'이며 semantic이다", () => {
-    expect(violationLabel("sameHoldCountConnectionWithoutPointOrRelease")).toBe("Point·릴리즈 없는 같은 hold 수 바디 연결");
-    expect(RULE_SEVERITY.sameHoldCountConnectionWithoutPointOrRelease).toBe("semantic");
+  it("sameHoldCountConnectionWithoutTapOrRelease → 'Point·릴리즈 없는 같은 hold 수 바디 연결'이며 semantic이다", () => {
+    expect(violationLabel("sameHoldCountConnectionWithoutTapOrRelease")).toBe("Point·릴리즈 없는 같은 hold 수 바디 연결");
+    expect(RULE_SEVERITY.sameHoldCountConnectionWithoutTapOrRelease).toBe("semantic");
   });
 
   it("restZoneOverlap → '휴지 구간 겹침', restZoneExclusive → '휴지 구간 배타 위반' (RFD 0019)", () => {

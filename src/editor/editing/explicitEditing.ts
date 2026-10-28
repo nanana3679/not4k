@@ -5,13 +5,13 @@ import { beatLt, deriveExplicitNoteRelations } from '../../shared';
 export function bodyCompanionIndices(notes: readonly DocumentNoteEntity[], index: number): Set<number> {
   const relation = deriveExplicitNoteRelations(notes).bodyByNote.get(index);
   return new Set(relation
-    ? [index, ...relation.startPointIndices, ...relation.sustainIndices, ...relation.endReleaseIndices]
+    ? [index, ...relation.startTapIndices, ...relation.tickIndices, ...relation.endReleaseIndices]
     : [index]);
 }
 
 export function bodyDeletionBlockReason(notes: readonly DocumentNoteEntity[], indices: ReadonlySet<number>): string | null {
   for (const body of deriveExplicitNoteRelations(notes).bodies) {
-    if (indices.has(body.noteIndex) && body.sustainIndices.some(index => !indices.has(index))) {
+    if (indices.has(body.noteIndex) && body.tickIndices.some(index => !indices.has(index))) {
       return '바디의 유지 표식을 먼저 옮기거나 함께 삭제해 주세요';
     }
   }
@@ -28,7 +28,7 @@ export function resizeExplicitBodies(
     const body = relations.bodyByNote.get(index);
     if (!body) continue;
     if (beatLt(endBeat, body.note.beat)
-      || body.sustainIndices.some(i => beatLt(endBeat, notes[i].beat))) return null;
+      || body.tickIndices.some(i => beatLt(endBeat, notes[i].beat))) return null;
     result[index] = { ...body.note, endBeat };
     for (const releaseIndex of body.endReleaseIndices) {
       if (selected.has(releaseIndex)) result[releaseIndex] = { ...notes[releaseIndex], beat: endBeat };
@@ -50,7 +50,7 @@ export function reconcileMovedSustains(
   for (const index of moved) {
     const note = result[index];
     if (note?.type !== 'tick') continue;
-    const owner = relations.sustainBodyByNote.get(index);
+    const owner = relations.tickBodyByNote.get(index);
     const count = owner === undefined
       ? fallbackCountByNoteIndex?.get(index)
       : relations.bodyByNote.get(owner)!.note.holdCount;

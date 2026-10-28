@@ -51,9 +51,9 @@ export interface ExplicitCompiledBody {
   readonly holdCount: 1 | 2;
   readonly trill: boolean;
   readonly trillZoneIndex?: number;
-  readonly startPointIndices: readonly number[];
+  readonly startTapIndices: readonly number[];
   readonly releaseIndices: readonly number[];
-  readonly sustainIndices: readonly number[];
+  readonly tickIndices: readonly number[];
   readonly units: readonly ExplicitCompiledBodyUnit[];
 }
 
@@ -109,8 +109,8 @@ export function compileExplicitJudgmentChart(
     const endMs = timeAt(noteIndex, true);
     return { source: { noteIndex }, lane: note.lane, beat: note.beat, endBeat: note.endBeat, startMs, endMs,
       holdCount: note.holdCount, trill: note.trill === true, trillZoneIndex: zoneFor(note),
-      startPointIndices: body.startPointIndices, releaseIndices: body.endReleaseIndices,
-      sustainIndices: body.sustainIndices,
+      startTapIndices: body.startTapIndices, releaseIndices: body.endReleaseIndices,
+      tickIndices: body.tickIndices,
       units: Array.from({ length: note.holdCount }, (_, ordinal) => ({
         id: `b${noteIndex}:hold:${ordinal}`, source: { noteIndex }, ref: { bodyIndex: noteIndex, ordinal },
         lane: note.lane, startMs, endMs, weight: 0 as const,
@@ -125,7 +125,7 @@ export function compileExplicitJudgmentChart(
         ordinal, lane: note.lane, beat: note.beat, timeMs: timeAt(noteIndex), weight: 3 };
       if (note.type === "tap") {
         scoreItems.push({ ...base, kind: "tap", pointKind: note.kind, grace: note.grace === true,
-          startsBodyIndices: relations.bodies.filter(body => body.startPointIndices.includes(noteIndex)).map(body => body.noteIndex),
+          startsBodyIndices: relations.bodies.filter(body => body.startTapIndices.includes(noteIndex)).map(body => body.noteIndex),
           trillZoneIndex: zoneFor(note) });
       } else if (note.type === "release") {
         const bodyIndex = relations.releaseBodyByNote.get(noteIndex);
@@ -133,7 +133,7 @@ export function compileExplicitJudgmentChart(
         scoreItems.push({ ...base, kind: "release", grace: note.grace === true, bodyIndex,
           boundaryKind: bodyIndex === undefined ? "standalone" : decreased ? "decrease" : "end" });
       } else {
-        const bodyIndex = relations.sustainBodyByNote.get(noteIndex);
+        const bodyIndex = relations.tickBodyByNote.get(noteIndex);
         if (bodyIndex === undefined) throw new Error(`검증된 유지 표식의 소속이 없습니다: note ${noteIndex}`);
         scoreItems.push({ ...base, kind: "tick", bodyIndex, bodyUnit: { bodyIndex, ordinal } });
       }

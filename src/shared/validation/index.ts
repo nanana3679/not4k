@@ -49,11 +49,11 @@ export interface ValidationError {
     | "noteConstraint"
     | "noteMalformed"
     | "scoreOverlap"
-    | "sustainPlacement"
-    | "sustainCount"
+    | "tickPlacement"
+    | "tickCount"
     | "releasePlacement"
     | "zeroLengthBodyOverlap"
-    | "sameHoldCountConnectionWithoutPointOrRelease"
+    | "sameHoldCountConnectionWithoutTapOrRelease"
     | "laneMalformed";
   message: string;
   refs?: ValidationRef[];

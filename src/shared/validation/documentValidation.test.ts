@@ -9,13 +9,13 @@ const body = (start = 0, end = 4, holdCount: 1 | 2 = 1, lane = 1): DocumentNoteE
   ({ type: "body", lane, beat: beat(start), endBeat: beat(end), holdCount });
 const mark = (type: "release" | "tick", at: number, count: 1 | 2 = 1, lane = 1): DocumentNoteEntity =>
   ({ type, lane, beat: beat(at), count });
-const point = (at: number, lane = 1): DocumentNoteEntity => ({ type: "tap", kind: "single", lane, beat: beat(at) });
+const tap = (at: number, lane = 1): DocumentNoteEntity => ({ type: "tap", kind: "single", lane, beat: beat(at) });
 const createEmptyChart = (): Chart => ({ meta: { title: "C2", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1,
   imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 }, notes: [], trillZones: [],
   events: [{ type: "bpm", beat: beat(0), bpm: 120 }] });
 const document = (notes: DocumentNoteEntity[]): ChartDocument => ({ ...createEmptyChart(), notes });
 const rules = (notes: DocumentNoteEntity[]) => validateChartDocument(document(notes)).semantic.map(e => e.rule);
-const SAME_HOLD_COUNT_CONNECTION_RULE = "sameHoldCountConnectionWithoutPointOrRelease";
+const SAME_HOLD_COUNT_CONNECTION_RULE = "sameHoldCountConnectionWithoutTapOrRelease";
 
 describe("명시 문서의 구조·의미·재생 진단", () => {
   it("서로 다른 레인의 구형 single과 explicit body·sustain 혼합 문서는 저장 가능하고 새 재생만 거부한다", () => {
@@ -37,7 +37,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
 
   it("legacy subset의 중복은 문서 원본 index 1·3으로 refs와 메시지를 반환한다", () => {
     const result = validateChartDocument(document([body(0, 4, 1, 4),
-      { type: "single", lane: 1, beat: beat(1) }, point(2, 2), { type: "double", lane: 1, beat: beat(1) }]));
+      { type: "single", lane: 1, beat: beat(1) }, tap(2, 2), { type: "double", lane: 1, beat: beat(1) }]));
     const duplicate = result.semantic.find(e => e.rule === "duplicate");
     expect(duplicate?.refs).toEqual([{ kind: "note", index: 1 }, { kind: "note", index: 3 }]);
     expect(duplicate?.message).toContain("notes 1, 3");
@@ -67,7 +67,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
   });
 
   it("문서의 trillZone 끝 n=4.5와 stop 이벤트 시작 n=2.5도 beatMalformed 구조 위반이다", () => {
-    const chart = document([point(1)]);
+    const chart = document([tap(1)]);
     chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: { n: 4.5, d: 1 } }];
     chart.events.push({ type: "stop", beat: { n: 2.5, d: 1 }, endBeat: beat(3) });
     const result = validateChartDocument(chart);
@@ -85,7 +85,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
   it.each([
     { ...body(), holdOnly: false }, { ...body(), grace: false },
     { ...mark("tick", 2), grace: true }, { ...mark("release", 4), holdOnly: true },
-    { ...point(2), count: 2 }, { ...body(), unexpected: "유실 금지" },
+    { ...tap(2), count: 2 }, { ...body(), unexpected: "유실 금지" },
   ])("JS 우회 노트의 지원하지 않는 속성 $type은 noteMalformed이며 codec과 검증을 일치시킨다", raw => {
     const chart = document([raw as unknown as DocumentNoteEntity]);
     const result = validateChartDocument(chart);
@@ -111,11 +111,11 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
   });
   it.each([-1, 5])("body [0,4] 밖 sustain %s는 의미 위반으로 보존한다", at => {
     const chart = document([body(), mark("tick", at)]);
-    expect(validateChartDocument(chart).semantic.map(e => e.rule)).toContain("sustainPlacement");
+    expect(validateChartDocument(chart).semantic.map(e => e.rule)).toContain("tickPlacement");
     expect(chartDocumentFromJson(chartToJson(chart)).notes).toEqual(chart.notes);
   });
   it("double body에 single sustain은 sustainCount지만 single release는 허용한다", () => {
-    expect(rules([body(0, 4, 2), mark("tick", 2)])).toEqual(["sustainCount"]);
+    expect(rules([body(0, 4, 2), mark("tick", 2)])).toEqual(["tickCount"]);
     expect(rules([body(0, 4, 2), mark("release", 4)])).toEqual([]);
   });
   it("single body의 double release 수량2는 수량1로 제한하거나 보정하지 않는다", () => {
@@ -126,7 +126,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
   });
   it.each([1, 2] as const)("hold %s→같은 수 연결점 2의 sustain은 sustainPlacement이고 Point·릴리즈가 없는 경계 위반도 함께 보고한다", count => {
     expect(rules([body(0, 2, count), body(2, 4, count), mark("tick", 2, count)]))
-      .toEqual(["sustainPlacement", SAME_HOLD_COUNT_CONNECTION_RULE]);
+      .toEqual(["tickPlacement", SAME_HOLD_COUNT_CONNECTION_RULE]);
   });
 
   describe("같은 hold 수로 맞닿은 바디 경계의 Point·릴리즈 요구", () => {
@@ -143,7 +143,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     });
 
     it("다른 레인2의 Point2는 레인1 경계 2의 Point로 인정하지 않아 위반이 남는다", () => {
-      expect(rules([body(0, 2), body(2, 4), point(2, 2)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
+      expect(rules([body(0, 2), body(2, 4), tap(2, 2)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
     });
 
     it("다른 레인2의 릴리즈2는 레인1 경계 2의 릴리즈로 인정하지 않아 앞·뒤 바디를 가리키는 위반이 남는다", () => {
@@ -156,7 +156,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
       { name: "경계 2에만 Point를", at: 2, refs: [{ kind: "note", index: 1 }, { kind: "note", index: 2 }] },
       { name: "경계 4에만 릴리즈를", at: 4, refs: [{ kind: "note", index: 0 }, { kind: "note", index: 1 }] },
     ])("같은 수 바디 [0,2]·[2,4]·[4,6] 연쇄에서 $name 놓으면 Point도 릴리즈도 없는 나머지 경계의 두 바디를 가리키는 위반 1건만 남는다", ({ at, refs }) => {
-      const jointNote = at === 2 ? point(2) : mark("release", 4);
+      const jointNote = at === 2 ? tap(2) : mark("release", 4);
       expect(validateChartDocument(document([body(0, 2), body(2, 4), body(4, 6), jointNote])).semantic
         .map(e => [e.rule, e.refs])).toEqual([[SAME_HOLD_COUNT_CONNECTION_RULE, refs]]);
     });
@@ -181,7 +181,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     });
 
     const jointNotes = ([1, 2] as const).flatMap(holdCount => [
-      { holdCount, name: "일반 single Point", note: point(2) },
+      { holdCount, name: "일반 single Point", note: tap(2) },
       { holdCount, name: "double Point", note: { type: "tap", kind: "double", lane: 1, beat: beat(2) } as DocumentNoteEntity },
       { holdCount, name: "Grace single Point", note: { type: "tap", kind: "single", lane: 1, beat: beat(2), grace: true } as DocumentNoteEntity },
       { holdCount, name: "릴리즈 count1", note: mark("release", 2, 1) },
@@ -202,7 +202,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     });
 
     it.each(["tap", "release"] as const)("길이0 뒤 바디 [2,2]에 놓은 경계 %s는 경계의 Point·릴리즈로 인정되어도 zeroLengthBodyOverlap이라 저장할 수 없다", kind => {
-      const notes = [body(0, 2), body(2, 2), kind === "tap" ? point(2) : mark("release", 2)];
+      const notes = [body(0, 2), body(2, 2), kind === "tap" ? tap(2) : mark("release", 2)];
       expect(rules(notes)).toEqual(["zeroLengthBodyOverlap"]);
       expect(validateChartDocument(document(notes)).canSave).toBe(false);
     });
@@ -214,14 +214,14 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
 
     const trillBody = (start: number, end: number, lane = 1): DocumentNoteEntity =>
       ({ type: "body", lane, beat: beat(start), endBeat: beat(end), holdCount: 1, trill: true });
-    const trillPoint = (at: number, lane = 1): DocumentNoteEntity => ({ type: "tap", kind: "trill", lane, beat: beat(at) });
+    const trillTap = (at: number, lane = 1): DocumentNoteEntity => ({ type: "tap", kind: "trill", lane, beat: beat(at) });
 
     it("보조 lane5의 트릴 바디 [0,2] 뒤 일반 바디 [2,4]는 이어 보이지 않으므로 Point·릴리즈 없이 유효하다", () => {
       expect(rules([trillBody(0, 2, 5), body(2, 4, 1, 5)])).toEqual([]);
     });
 
     it("메인 레인1의 트릴 바디 [0,2] 뒤 일반 바디 [2,4]는 zone [0,2] 끝의 trillExclusive만 보고하고 같은 수 경계 위반은 내지 않는다", () => {
-      const chart = document([trillPoint(0), trillBody(0, 2), body(2, 4)]);
+      const chart = document([trillTap(0), trillBody(0, 2), body(2, 4)]);
       chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(2) }];
       expect(validateChartDocument(chart).semantic.map(e => e.rule)).toEqual(["trillExclusive"]);
     });
@@ -244,7 +244,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     });
 
     it.each([
-      { name: "트릴 Point", note: trillPoint(2, 5) },
+      { name: "트릴 Point", note: trillTap(2, 5) },
       { name: "릴리즈", note: mark("release", 2, 1, 5) },
       { name: "구형 trill", note: legacyPoint("trill", 2, 5) },
     ])("보조 lane5의 트릴 바디 [0,2]·[2,4] 경계 2의 $name은 경계의 Point·릴리즈로 인정해 유효하다", ({ note }) => {
@@ -258,11 +258,11 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     });
 
     it("메인 레인1의 트릴 바디 [0,2]·[2,4] 경계에 트릴 Point가 없으면 trillLongInvalid만 보고하고 트릴 Point를 놓으면 유효하다", () => {
-      const chart = document([trillPoint(0), trillBody(0, 2), trillBody(2, 4)]);
+      const chart = document([trillTap(0), trillBody(0, 2), trillBody(2, 4)]);
       chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
       expect(validateChartDocument(chart).semantic.map(e => [e.rule, e.refs])).toEqual([
         ["trillLongInvalid", [{ kind: "note", index: 2 }]]]);
-      chart.notes.push(trillPoint(2));
+      chart.notes.push(trillTap(2));
       expect(validateChartDocument(chart).semantic).toEqual([]);
     });
 
@@ -277,10 +277,10 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     expect(rules([body(2, 2, count), mark("tick", 2, count)])).toEqual([]);
   });
   it.each(["tap", "release"] as const)("길이0 body+%s는 zeroLengthBodyOverlap 의미 위반이다", kind => {
-    expect(rules([body(2, 2), kind === "tap" ? point(2) : mark("release", 2)])).toContain("zeroLengthBodyOverlap");
+    expect(rules([body(2, 2), kind === "tap" ? tap(2) : mark("release", 2)])).toContain("zeroLengthBodyOverlap");
   });
   it.each([["tap", "release"], ["tap", "tick"], ["release", "tick"]] as const)("같은 위치의 %s+%s는 scoreOverlap이다", (a, b) => {
-    const note = (kind: typeof a | typeof b) => kind === "tap" ? point(4) : mark(kind, 4);
+    const note = (kind: typeof a | typeof b) => kind === "tap" ? tap(4) : mark(kind, 4);
     expect(rules([body(), note(a), note(b)])).toContain("scoreOverlap");
   });
   it("같은 sustain 4/2=2/1 두 노트는 double이 아니라 duplicate다", () => {
@@ -290,7 +290,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     expect(rules([body(), mark("release", at)])).toEqual(["releasePlacement"]);
   });
   it("release는 body 끝4·공유 경계4·바깥6에서 유효하고 바디 내부 Point2도 허용한다", () => {
-    expect(rules([body(), body(4, 8), mark("release", 4), mark("release", 10), point(2)])).toEqual([]);
+    expect(rules([body(), body(4, 8), mark("release", 4), mark("release", 10), tap(2)])).toEqual([]);
   });
   it("겹친 body [0,4]·[1,3]은 longOverlap이며 경계가 같은 복제 body는 duplicate다", () => {
     expect(rules([body(), body(1, 3)])).toContain("longOverlap");
@@ -301,13 +301,13 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     expect(rules([body(0, 4, 1, 5), mark("release", 2, 1, 5)])).toEqual(["releasePlacement"]);
   });
   it("stop [2,3]은 main Point2를 막고 aux Point2와 관통 body [0,4]는 허용한다", () => {
-    const chart = document([body(), point(2), point(2, 5)]);
+    const chart = document([body(), tap(2), tap(2, 5)]);
     chart.events.push({ type: "stop", beat: beat(2), endBeat: beat(3) });
     const errors = validateChartDocument(chart).semantic;
     expect(errors.filter(e => e.rule === "stopZone").map(e => e.refs?.[0])).toEqual([{ kind: "note", index: 1 }]);
   });
   it("restZone (1,3)은 main body를 막되 경계 Point1·3과 다른 aux lane은 허용한다", () => {
-    const chart = document([body(), point(1), point(3), body(0, 4, 1, 5)]);
+    const chart = document([body(), tap(1), tap(3), body(0, 4, 1, 5)]);
     chart.restZones = [{ lane: 1, beat: beat(1), endBeat: beat(3) }];
     expect(validateChartDocument(chart).semantic.filter(e => e.rule === "restZoneExclusive").map(e => e.refs?.[1]))
       .toEqual([{ kind: "note", index: 0 }]);
@@ -327,7 +327,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
   const zoneReleases = [0, 2, 4].flatMap(at => ([1, 2] as const).flatMap(count =>
     [false, true].flatMap(grace => [false, true].map(attached => ({ at, count, grace, attached })))));
   it.each(zoneReleases)("zone [0,4]의 $at박 release count$count·Grace=$grace·바디끝=$attached는 의미 위반이다", ({ at, count, grace, attached }) => {
-    const before: DocumentNoteEntity[] = !attached ? [] : at === 0 ? [point(-2), body(-2, 0)] : [
+    const before: DocumentNoteEntity[] = !attached ? [] : at === 0 ? [tap(-2), body(-2, 0)] : [
       { type: "tap", kind: "trill", lane: 1, beat: beat(0) },
       { type: "body", lane: 1, beat: beat(0), endBeat: beat(at), holdCount: 1, trill: true }];
     const chart = document([...before, { type: "release", lane: 1, beat: beat(at), count, grace }]);
@@ -371,10 +371,10 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
 
   it("트릴 바디 내부 sustain은 sustainPlacement이며 일반 Point의 zone배타도 보존한다", () => {
     const chart = document([{ type: "tap", kind: "trill", lane: 1, beat: beat(1) },
-      { type: "body", lane: 1, beat: beat(1), endBeat: beat(3), holdCount: 1, trill: true }, mark("tick", 2), point(2, 2)]);
+      { type: "body", lane: 1, beat: beat(1), endBeat: beat(3), holdCount: 1, trill: true }, mark("tick", 2), tap(2, 2)]);
     chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(4) }, { lane: 2, beat: beat(0), endBeat: beat(4) }];
     const result = validateChartDocument(chart);
-    expect(result.semantic.filter(e => e.rule === "sustainPlacement")[0].refs)
+    expect(result.semantic.filter(e => e.rule === "tickPlacement")[0].refs)
       .toEqual([{ kind: "note", index: 2 }, { kind: "note", index: 1 }]);
     expect(result.semantic.filter(e => e.rule === "trillExclusive").flatMap(e => e.refs ?? []))
       .toEqual([{ kind: "note", index: 2 }, { kind: "note", index: 3 }]);
@@ -386,21 +386,21 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
   });
 
   it("explicit Point와 legacy single의 같은 위치는 duplicate이며 원본 index0·2를 가리킨다", () => {
-    const result = validateChartDocument(document([point(2), body(0, 4, 1, 3), { type: "single", lane: 1, beat: { n: 8, d: 4 } }]));
+    const result = validateChartDocument(document([tap(2), body(0, 4, 1, 3), { type: "single", lane: 1, beat: { n: 8, d: 4 } }]));
     expect(result.semantic[0]).toMatchObject({ rule: "duplicate", refs: [{ kind: "note", index: 0 }, { kind: "note", index: 2 }] });
   });
 
   it("구형 holdOnly long [0,4] 끝 4의 Point는 구형 single이든 명시 Point든 noteConstraint이고 저장을 막는다", () => {
     const holdOnly: DocumentNoteEntity = { type: "long", lane: 1, beat: beat(0), endBeat: beat(4), holdOnly: true };
     expect(rules([holdOnly, { type: "single", lane: 1, beat: beat(4) }])).toEqual(["noteConstraint"]);
-    const result = validateChartDocument(document([holdOnly, point(4)]));
+    const result = validateChartDocument(document([holdOnly, tap(4)]));
     expect(result.semantic.map(e => [e.rule, e.refs])).toEqual([
       ["noteConstraint", [{ kind: "note", index: 0 }, { kind: "note", index: 1 }]]]);
     expect(result.canSave).toBe(false);
   });
 
   it("구형 길이 0 long [2,2]와 같은 박 2의 명시 Point는 noteConstraint이고 저장을 막는다", () => {
-    const result = validateChartDocument(document([point(2), { type: "long", lane: 1, beat: beat(2), endBeat: beat(2) }]));
+    const result = validateChartDocument(document([tap(2), { type: "long", lane: 1, beat: beat(2), endBeat: beat(2) }]));
     expect(result.semantic.map(e => [e.rule, e.refs])).toEqual([
       ["noteConstraint", [{ kind: "note", index: 1 }, { kind: "note", index: 0 }]]]);
     expect(result.canSave).toBe(false);
@@ -410,7 +410,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
     const ranges: DocumentNoteEntity[] = [{ type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
       { type: "long", lane: 1, beat: beat(2), endBeat: beat(4) }];
     expect(rules(ranges)).toEqual(["noteConstraint"]);
-    expect(rules([...ranges, point(2)])).toEqual([]);
+    expect(rules([...ranges, tap(2)])).toEqual([]);
   });
 
   it("구형 trillLong [1,3]은 시작 1의 명시 트릴 Point를 head로 인식해 trillLongInvalid가 아니다", () => {

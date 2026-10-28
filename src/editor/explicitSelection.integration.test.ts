@@ -175,7 +175,7 @@ describe('명시 노트 실제 선택 집합과 관계 재도출', () => {
     mode.selectNote(2); expect(mode.copy()).toBe(1); mode.paste(beat(8));
     expect(notes()).toHaveLength(6); expect(editorChartViolationIndices(current().chart).notes).toContain(5);
     mode.confirmPlacement(); expect(current().clearSelection()).toBe(true); expect(selection()).toEqual(new Set());
-    expect(editorChartErrors(current().chart).some(error => error.rule === 'sustainPlacement')).toBe(true);
+    expect(editorChartErrors(current().chart).some(error => error.rule === 'tickPlacement')).toBe(true);
     expect(current().historyPast).toHaveLength(1); current().undo(); expect(current().chart).toEqual(initial);
   });
   it('lane7 Sustain paste로 확장한 extraCount는 Esc 취소로 2에 돌아가고 history도 늘지 않는다', () => {

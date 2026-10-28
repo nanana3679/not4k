@@ -15,9 +15,9 @@ describe("원본 출처를 보존하는 명시 재생 범위", () => {
     expect(view.scoreItems.map(item => [item.id, item.timeMs])).toEqual([["n3:tick:0", 1500], ["n4:release:0", 2000]]);
     expect(view).toMatchObject({ totalJudgments: 2, theoreticalWeight: 6 });
     expect(view.bodies[0]).toMatchObject({ source: { noteIndex: 1 }, startMs: 1500, endMs: 2000,
-      startPointIndices: [], sustainIndices: [3], releaseIndices: [4] });
+      startTapIndices: [], tickIndices: [3], releaseIndices: [4] });
     expect(source).toMatchObject({ totalJudgments: 4, theoreticalWeight: 12 });
-    expect(source.bodies[0].startPointIndices).toEqual([0]);
+    expect(source.bodies[0].startTapIndices).toEqual([0]);
   });
 
   it.each(["tap", "release", "tick"] as const)("%s의 명시 시각 1500ms는 cut1500에 포함하고 cut1500.001에는 제외", kind => {
@@ -61,7 +61,7 @@ describe("원본 출처를 보존하는 명시 재생 범위", () => {
     expect(view.scoreItems).toEqual(source.scoreItems);
     expect(view.totalJudgments).toBe(4);
     expect(view.theoreticalWeight).toBe(12);
-    expect(view.bodies[0].startPointIndices).toEqual([0]);
+    expect(view.bodies[0].startTapIndices).toEqual([0]);
   });
 
   it("1500ms 이전에 끝난 바디는 표시에서 제외하고 정확히 1500ms 끝·길이0·시작은 원본 index로 보존", () => {
@@ -87,7 +87,7 @@ describe("원본 출처를 보존하는 명시 재생 범위", () => {
     const view = createExplicitPlaybackChartView(source, 1500, source.scoreItems);
     for (const value of [view, view.bodies, view.bodies[0], view.bodies[0].source, view.bodies[0].units,
       view.bodyUnits, view.bodyUnits[0], view.bodyUnits[0].ref, view.scoreItems, view.scoreItems[0], view.scoreItems[0].source,
-      view.bodies[0].startPointIndices, view.bodies[0].releaseIndices, view.bodies[0].sustainIndices]) {
+      view.bodies[0].startTapIndices, view.bodies[0].releaseIndices, view.bodies[0].tickIndices]) {
       expect(Object.isFrozen(value)).toBe(true);
     }
     expect(Object.isFrozen(source)).toBe(false);

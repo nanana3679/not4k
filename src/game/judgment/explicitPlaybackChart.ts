@@ -25,9 +25,9 @@ export function createExplicitPlaybackChartView(
     return Object.freeze({ ...body, source, startMs,
       // Beat와 timing은 원본 배치의 출처다. 실제 재생·표시 경계만 ms 범위로 자른다.
       beat: Object.freeze({ ...body.beat }), endBeat: Object.freeze({ ...body.endBeat }),
-      startPointIndices: Object.freeze(body.startPointIndices.filter(index => retainedNoteIndices.has(index))),
+      startTapIndices: Object.freeze(body.startTapIndices.filter(index => retainedNoteIndices.has(index))),
       releaseIndices: Object.freeze(body.releaseIndices.filter(index => retainedNoteIndices.has(index))),
-      sustainIndices: Object.freeze(body.sustainIndices.filter(index => retainedNoteIndices.has(index))),
+      tickIndices: Object.freeze(body.tickIndices.filter(index => retainedNoteIndices.has(index))),
       units: Object.freeze(body.units.map(unit => Object.freeze({ ...unit, source, startMs,
         ref: Object.freeze({ ...unit.ref }) }))),
     });

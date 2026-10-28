@@ -109,14 +109,14 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     useEditorStore.getState().setChart(moved);
     expect(useEditorStore.getState().chart).toBe(moved);
     const errors = editorChartErrors(moved);
-    expect(errors).toContainEqual(expect.objectContaining({ rule: 'sustainPlacement', refs: [{ kind: 'note', index: 3 }] }));
+    expect(errors).toContainEqual(expect.objectContaining({ rule: 'tickPlacement', refs: [{ kind: 'note', index: 3 }] }));
     expect(editorChartViolationIndices(moved).notes).toEqual(new Set([3]));
     expect(hiddenViolationLanes(errors, moved.notes, 2)).toEqual([7]);
     useEditorStore.getState().undo(); expect(useEditorStore.getState().chart).toEqual(invalid);
     warn.mockRestore();
   });
 
-  it('Point 없는 4～8박 싱글 바디 앞에 바디 도구로 0～4박 싱글 바디를 그리면 두 바디가 sameHoldCountConnectionWithoutPointOrRelease 위반으로 표시되어 저장 게이트(editorChartErrors)가 비지 않고 Undo 한 번에 유효 차트로 돌아간다', () => {
+  it('Point 없는 4～8박 싱글 바디 앞에 바디 도구로 0～4박 싱글 바디를 그리면 두 바디가 sameHoldCountConnectionWithoutTapOrRelease 위반으로 표시되어 저장 게이트(editorChartErrors)가 비지 않고 Undo 한 번에 유효 차트로 돌아간다', () => {
     const valid: ChartDocument = { ...seed(), notes: [{ type: 'body', lane: 1, beat: beat(4), endBeat: beat(8), holdCount: 1 }] };
     useEditorStore.getState().loadChart(valid); useEditorStore.getState().resetHistory();
     expect(editorChartErrors(valid)).toEqual([]);
@@ -126,7 +126,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     expect(touched.notes).toEqual([...valid.notes, { type: 'body', lane: 1, beat: beat(0), endBeat: beat(4), holdCount: 1 }]);
     const errors = editorChartErrors(touched);
     expect(errors).toEqual([expect.objectContaining({
-      rule: 'sameHoldCountConnectionWithoutPointOrRelease', refs: [{ kind: 'note', index: 1 }, { kind: 'note', index: 0 }],
+      rule: 'sameHoldCountConnectionWithoutTapOrRelease', refs: [{ kind: 'note', index: 1 }, { kind: 'note', index: 0 }],
     })]);
     expect(editorChartViolationIndices(touched).notes).toEqual(new Set([0, 1]));
     expect(buildViolationList(errors)).toEqual([expect.objectContaining({ label: 'Point·릴리즈 없는 같은 hold 수 바디 연결', severity: 'semantic' })]);

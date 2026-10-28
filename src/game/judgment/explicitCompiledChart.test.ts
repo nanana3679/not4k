@@ -49,7 +49,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(() => compileExplicitJudgmentChart(document)).toThrow(ExplicitChartCompileError);
     try { compileExplicitJudgmentChart(document); } catch (error) {
       expect((error as ExplicitChartCompileError).validation.semantic).toEqual([expect.objectContaining({
-        rule: "sameHoldCountConnectionWithoutPointOrRelease",
+        rule: "sameHoldCountConnectionWithoutTapOrRelease",
         refs: expect.arrayContaining([{ kind: "note", index: 0 }, { kind: "note", index: 1 }]) })]);
     }
   });
@@ -76,8 +76,8 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     expect(release.scoreItems[0]).toMatchObject({ source: { noteIndex: 2 }, bodyIndex: 0, boundaryKind: "decrease" });
     const sustain = compileExplicitJudgmentChart(chart([b(1000, 2000, 2), b(2000, 3000), s(2000)]));
     expect(sustain.scoreItems[0]).toMatchObject({ source: { noteIndex: 2 }, bodyIndex: 1, bodyUnit: { bodyIndex: 1, ordinal: 0 } });
-    expect(sustain.bodies[0].sustainIndices).toEqual([]);
-    expect(sustain.bodies[1].sustainIndices).toEqual([2]);
+    expect(sustain.bodies[0].tickIndices).toEqual([]);
+    expect(sustain.bodies[1].tickIndices).toEqual([2]);
   });
 
   it("바디 밖 release는 standalone이며 몸통·시작 Point나 자동 owner를 만들지 않는다", () => {
@@ -104,7 +104,7 @@ describe("명시적 점수 항목과 무점수 바디 컴파일", () => {
     ]));
     expect(compiled.bodies.map(body => body.source.noteIndex)).toEqual([1]);
     expect(compiled.scoreItems.map(item => item.source.noteIndex)).toEqual([3]);
-    expect(compiled.relations.sustainBodyByNote.get(2)).toBe(4);
+    expect(compiled.relations.tickBodyByNote.get(2)).toBe(4);
   });
 
   it.each(["single", "long"] as const)("게임 레인에 남은 구형 %s는 변환 없이 compiler에서 거부한다", type => {

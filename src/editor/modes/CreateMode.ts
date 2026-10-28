@@ -9,7 +9,7 @@
 
 import type {
   ChartDocument,
-  ExplicitPointNote,
+  TapNote,
   BodyNote,
   DocumentNoteEntity,
   TrillZone,
@@ -453,7 +453,7 @@ export class CreateMode implements EditorMode {
   }
 
   private createPointNote(lane: number, beat: Beat): void {
-    const newNote: ExplicitPointNote = {
+    const newNote: TapNote = {
       type: "tap", kind: this.isInsideTrillZone(lane, beat) ? "trill" : this.selectedEntityType === "double" ? "double" : "single",
       lane, beat, ...(this._graceMode ? { grace: true } : {}),
     };
@@ -482,7 +482,7 @@ export class CreateMode implements EditorMode {
   private createSustain(lane: number, at: Beat): void {
     const probe: DocumentNoteEntity = { type: "tick", lane, beat: at, count: 1 };
     const relations = deriveExplicitNoteRelations([...this.chart.notes, probe]);
-    const bodyIndex = relations.sustainBodyByNote.get(this.chart.notes.length);
+    const bodyIndex = relations.tickBodyByNote.get(this.chart.notes.length);
     if (bodyIndex !== undefined) {
       const body = this.chart.notes[bodyIndex];
       if (body.type !== "body" || body.trill) return;
