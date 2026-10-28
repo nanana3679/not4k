@@ -129,7 +129,7 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
       rule: 'sameHoldCountConnectionWithoutTapOrRelease', refs: [{ kind: 'note', index: 1 }, { kind: 'note', index: 0 }],
     })]);
     expect(editorChartViolationIndices(touched).notes).toEqual(new Set([0, 1]));
-    expect(buildViolationList(errors)).toEqual([expect.objectContaining({ label: 'Point·릴리즈 없는 같은 hold 수 바디 연결', severity: 'semantic' })]);
+    expect(buildViolationList(errors)).toEqual([expect.objectContaining({ label: '탭·릴리즈 없는 같은 hold 수 바디 연결', severity: 'semantic' })]);
     // 저장·다른 이름 저장은 editorChartErrors가 비어 있지 않으면 멈춘다. 막다른 탈출 지점도 위반 전 차트에 남는다.
     expect(useEditorStore.getState().lastValidSnapshot?.chart).toBe(valid);
     useEditorStore.getState().undo();

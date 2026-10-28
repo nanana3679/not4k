@@ -100,9 +100,9 @@ export function validateExplicitSkinManifest(manifest: ExplicitSkinManifest): vo
     if (asset.role === "tick") {
       const x = asset.variant === "single" ? 100 : asset.side === "left" ? 84 : 116;
       if (asset.markerCenter?.x !== x || asset.markerCenter.y !== 20) {
-        throw new Error(`Invalid sustain marker position: ${asset.id}`);
+        throw new Error(`Invalid tick marker position: ${asset.id}`);
       }
-    } else if (asset.markerCenter) throw new Error(`Unexpected sustain marker: ${asset.id}`);
+    } else if (asset.markerCenter) throw new Error(`Unexpected tick marker: ${asset.id}`);
     for (const image of [asset, ...(asset.highResolution ? [asset.highResolution] : [])]) {
       const expectedResolution = image === asset ? 1 : 2;
       if (image.resolution !== expectedResolution

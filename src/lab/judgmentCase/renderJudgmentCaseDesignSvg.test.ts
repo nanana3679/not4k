@@ -140,7 +140,7 @@ describe("설계 도식", () => {
     const { svg, height } = renderJudgmentCaseDesignSvg([first, second]);
     expect(svg.match(/엔진 미실행/g)).toHaveLength(2);
     expect(svg).toContain("A (계속)");
-    expect(svg).toContain("유지 노트 ×1");
+    expect(svg).toContain("틱 노트 ×1");
     expect(svg).not.toMatch(/NaN|Infinity|Full Combo|달성률/);
     expect(height).toBeGreaterThan(600);
   });

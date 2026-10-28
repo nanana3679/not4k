@@ -35,7 +35,7 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
   {
     id: "explicit-renderer",
     title: "명시 노트 표시",
-    description: "바디·릴리즈·유지 표식의 독립 수명과 부분 성공·실패를 공개 상태와 실제 싱글 세션으로 비교합니다.",
+    description: "바디·릴리즈·틱 노트의 독립 수명과 부분 성공·실패를 공개 상태와 실제 싱글 세션으로 비교합니다.",
     category: "Gameplay",
     path: "/lab/explicit-renderer",
   },

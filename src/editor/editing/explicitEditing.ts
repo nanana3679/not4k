@@ -12,7 +12,7 @@ export function bodyCompanionIndices(notes: readonly DocumentNoteEntity[], index
 export function bodyDeletionBlockReason(notes: readonly DocumentNoteEntity[], indices: ReadonlySet<number>): string | null {
   for (const body of deriveExplicitNoteRelations(notes).bodies) {
     if (indices.has(body.noteIndex) && body.tickIndices.some(index => !indices.has(index))) {
-      return '바디의 유지 표식을 먼저 옮기거나 함께 삭제해 주세요';
+      return '바디의 틱 노트를 먼저 옮기거나 함께 삭제해 주세요';
     }
   }
   return null;

@@ -51,10 +51,10 @@
       "note": "N2",
       "atMs": 1500,
       "label": "Perfect",
-      "text": "N2를 표식 시각에 Perfect 3점·가중치 3으로 정산한다.",
+      "text": "N2를 틱 노트 시각에 Perfect 3점·가중치 3으로 정산한다.",
       "tone": "success"
     }
   ],
   "summary": "N1은 무점수, N2만 3/3점·콤보 +1·일반 Perfect 고도 기여·Perfect 글자·레인 타격 이펙트, 타이밍 없음. N1은 2000ms 정상 완료하며 릴리즈 요구를 만들지 않는다.",
-  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-1·§5·§7 / 논의 §5·56·62·63·101～103."
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 틱 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-1·§5·§7 / 논의 §5·56·62·63·101～103."
 }

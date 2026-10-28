@@ -83,7 +83,7 @@
       "note": "N3",
       "atMs": 2000,
       "label": "Perfect ×2",
-      "text": "N3의 두 표식은 앞 N1이 아니라 뒤 N2 상태를 따른다.",
+      "text": "N3의 두 몫은 앞 N1이 아니라 뒤 N2 상태를 따른다.",
       "tone": "success"
     },
     {
@@ -94,6 +94,6 @@
       "tone": "success"
     }
   ],
-  "summary": "뒤 점수 네 항목은 12/12점이고 N1의 무점수 실패는 남아 Full Combo가 아니다. 증가의 표식은 뒤 double 기준이며 앞 실패/이른 종료 정산에 넣지 않는다.",
-  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-1·§4·§5·§6-1 / 논의 §20·21·47·51·57."
+  "summary": "뒤 점수 네 항목은 12/12점이고 N1의 무점수 실패는 남아 Full Combo가 아니다. 증가 위치의 틱 노트는 뒤 double 기준이며 앞 실패/이른 종료 정산에 넣지 않는다.",
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 틱 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-1·§4·§5·§6-1 / 논의 §20·21·47·51·57."
 }

@@ -1,6 +1,6 @@
 {
   "format": "judgment-case-design",
-  "title": "ENJ-07 — Good 릴리즈와 남은 유지 두 개의 Perfect 일괄 정산",
+  "title": "ENJ-07 — Good 릴리즈와 남은 틱 노트 두 개의 Perfect 일괄 정산",
   "notes": [
     {
       "kind": "body",
@@ -73,6 +73,6 @@
       "tone": "success"
     }
   ],
-  "summary": "유지 6점 + 릴리즈 1점 = 7/9점, 성공 콤보 기여 3회. 유지에는 타이밍을 만들지 않는다. 같은 확정 시각 대표 글자는 Good·FAST −110ms이며 각 유지 성공의 고도·레인 타격 효과는 보존한다.",
-  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-2·§5·§7 / 논의 §34·35·56·62·63·79·101～104."
+  "summary": "틱 노트 6점 + 릴리즈 1점 = 7/9점, 성공 콤보 기여 3회. 틱 노트에는 타이밍을 만들지 않는다. 같은 확정 시각 대표 글자는 Good·FAST −110ms이며 각 틱 노트 성공의 고도·레인 타격 효과는 보존한다.",
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 틱 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-2·§5·§7 / 논의 §34·35·56·62·63·79·101～104."
 }

@@ -134,7 +134,7 @@ export function compileExplicitJudgmentChart(
           boundaryKind: bodyIndex === undefined ? "standalone" : decreased ? "decrease" : "end" });
       } else {
         const bodyIndex = relations.tickBodyByNote.get(noteIndex);
-        if (bodyIndex === undefined) throw new Error(`검증된 유지 표식의 소속이 없습니다: note ${noteIndex}`);
+        if (bodyIndex === undefined) throw new Error(`검증된 틱 노트의 소속이 없습니다: note ${noteIndex}`);
         scoreItems.push({ ...base, kind: "tick", bodyIndex, bodyUnit: { bodyIndex, ordinal } });
       }
     }

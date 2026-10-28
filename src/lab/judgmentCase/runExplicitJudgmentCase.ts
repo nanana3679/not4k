@@ -123,7 +123,7 @@ export function explicitCaseLabels(example: ExplicitChartCase, run: ExplicitCase
       const unitName = explicitCaseNoteName(example, unit.source.noteIndex, unit.ref.ordinal);
       failure = fact.kind === "bodyFailed";
       text = `${unitName} ${fact.kind === "bodyStarted" ? "시작" : fact.kind === "bodyCompleted" ? "무점수 완료"
-        : fact.reason === "startTimeout" ? "시작 실패" : fact.reason === "maintenance" ? "유지 실패" : "Point Miss 종속 실패"}`;
+        : fact.reason === "startTimeout" ? "시작 실패" : fact.reason === "maintenance" ? "유지 실패" : "탭 노트 Miss 종속 실패"}`;
       // finalize 뒤에는 늦은 입력이 더 없어 무효화되지 않은 provisional 진행이 그대로 확정이다.
       if (fact.kind !== "bodyFailed" && fact.provisional && !run.finalized) text += " (잠정)";
       if (fact.kind === "bodyFailed") text += fact.unscoredMiss ? " · 무점수 Miss" : " · 추가 Miss 없음";

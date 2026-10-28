@@ -132,8 +132,8 @@ describe("violationLabel", () => {
     expect(violationLabel("beatMalformed")).toBe("박자 값 오류");
   });
 
-  it("sameHoldCountConnectionWithoutTapOrRelease → 'Point·릴리즈 없는 같은 hold 수 바디 연결'이며 semantic이다", () => {
-    expect(violationLabel("sameHoldCountConnectionWithoutTapOrRelease")).toBe("Point·릴리즈 없는 같은 hold 수 바디 연결");
+  it("sameHoldCountConnectionWithoutTapOrRelease → '탭·릴리즈 없는 같은 hold 수 바디 연결'이며 semantic이다", () => {
+    expect(violationLabel("sameHoldCountConnectionWithoutTapOrRelease")).toBe("탭·릴리즈 없는 같은 hold 수 바디 연결");
     expect(RULE_SEVERITY.sameHoldCountConnectionWithoutTapOrRelease).toBe("semantic");
   });
 

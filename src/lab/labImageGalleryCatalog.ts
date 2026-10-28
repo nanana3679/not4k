@@ -19,7 +19,7 @@ export const labImageGalleryCatalog = Object.freeze<readonly LabImageGalleryEntr
   registerImageGallery({
     id: "classic-approved-states-20261025",
     title: "Classic 확정 도안 · 상태별 에셋",
-    description: "바디·J2-C·M6·D 유지 표식의 실패와 부분 상태, 릴리즈의 남은 몫을 비교합니다.",
+    description: "바디·J2-C·M6·D 틱 노트의 실패와 부분 상태, 릴리즈의 남은 몫을 비교합니다.",
     createdAt: "2026-10-25",
   }),
   registerImageGallery({

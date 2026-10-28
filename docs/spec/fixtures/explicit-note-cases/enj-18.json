@@ -49,7 +49,7 @@
       "note": "N2",
       "atMs": 1030,
       "label": "시작 대기",
-      "text": "표식 시각에 N1의 최초 시작 판단이 남아 있으므로 N2는 대기한다.",
+      "text": "틱 노트 시각에 N1의 최초 시작 판단이 남아 있으므로 N2는 대기한다.",
       "tone": "neutral"
     },
     {
@@ -82,5 +82,5 @@
     }
   ],
   "summary": "N2·N3 6/6점·콤보 기여 2회. N2는 타이밍 없음, N3는 raw +20ms이며 Normal FAST/SLOW 임계값 안이다.",
-  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-2·§5 / 논의 §17·28·56."
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 틱 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-2·§5 / 논의 §17·28·56."
 }

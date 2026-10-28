@@ -163,14 +163,14 @@ export function validateChartDocumentSemantic(
         return tap.type === "tap" && tap.kind === "trill";
       });
       if (beatEq(a.beat, a.endBeat) || !hasTrillTap) {
-        add("trillLongInvalid", "트릴 바디는 양수 길이와 시작 트릴 Point가 필요합니다", i);
+        add("trillLongInvalid", "트릴 바디는 양수 길이와 시작 트릴 탭 노트가 필요합니다", i);
       }
     }
 
     if (a.type === "body" && beatEq(a.beat, a.endBeat)) {
       notes.forEach((other, j) => {
         if ((other.type === "tap" || other.type === "release" || (!isExplicitNote(other) && !("endBeat" in other)))
-          && other.lane === a.lane && beatEq(other.beat, a.beat)) add("zeroLengthBodyOverlap", "길이 0 바디에는 Point·릴리즈를 겹칠 수 없습니다", i, j);
+          && other.lane === a.lane && beatEq(other.beat, a.beat)) add("zeroLengthBodyOverlap", "길이 0 바디에는 탭·릴리즈를 겹칠 수 없습니다", i, j);
       });
     }
     if (a.type === "release") {
@@ -183,14 +183,14 @@ export function validateChartDocumentSemantic(
     if (a.type === "tick") {
       const ownerIndex = relations.tickBodyByNote.get(i);
       const owner = ownerIndex === undefined ? undefined : relations.bodyByNote.get(ownerIndex);
-      if (!owner) add("tickPlacement", "유지 표식의 소속 바디가 없거나 유일하지 않습니다", i,
+      if (!owner) add("tickPlacement", "틱 노트의 소속 바디가 없거나 유일하지 않습니다", i,
         ...(relations.tickBodyCandidatesByNote.get(i) ?? []));
       else {
-        if (a.count !== owner.note.holdCount) add("tickCount", "유지 표식 수는 소속 바디의 hold 수와 같아야 합니다", i, owner.noteIndex);
-        if (owner.note.trill) add("tickPlacement", "트릴 바디에는 유지 표식을 놓을 수 없습니다", i, owner.noteIndex);
+        if (a.count !== owner.note.holdCount) add("tickCount", "틱 노트 수는 소속 바디의 hold 수와 같아야 합니다", i, owner.noteIndex);
+        if (owner.note.trill) add("tickPlacement", "트릴 바디에는 틱 노트를 놓을 수 없습니다", i, owner.noteIndex);
         const equalConnections = relations.connections.filter(c => c.successorIndex === owner.noteIndex
           && c.predecessorHoldCount === c.successorHoldCount && beatEq(c.beat, a.beat));
-        for (const connection of equalConnections) add("tickPlacement", "같은 hold 수 연결점에는 유지 표식을 놓을 수 없습니다",
+        for (const connection of equalConnections) add("tickPlacement", "같은 hold 수 연결점에는 틱 노트를 놓을 수 없습니다",
           i, connection.predecessorIndex, connection.successorIndex);
       }
     }
@@ -215,7 +215,7 @@ export function validateChartDocumentSemantic(
     // 메인 레인 트릴 → 트릴 경계의 시작 트릴 Point 누락은 trillLongInvalid가 이미 보고하므로 겹쳐 내지 않는다.
     if (successor.trill && isMainLane(connection.lane)) continue;
     if (hasJointNoteAt(connection.lane, connection.beat)) continue;
-    add("sameHoldCountConnectionWithoutTapOrRelease", "같은 hold 수로 맞닿은 바디 경계에는 Point나 릴리즈가 필요합니다",
+    add("sameHoldCountConnectionWithoutTapOrRelease", "같은 hold 수로 맞닿은 바디 경계에는 탭 노트나 릴리즈가 필요합니다",
       connection.predecessorIndex, connection.successorIndex);
   }
   return errors;
