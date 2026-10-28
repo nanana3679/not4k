@@ -174,7 +174,8 @@ export class SelectMode implements EditorMode {
   get selectedEvents(): ReadonlySet<number> { return this.sel.events; }
 
   selectEvent(index: number): boolean {
-    if (!this.chart.events[index]) return false;
+    const event = this.chart.events[index];
+    if (!event || isInitialTimingEvent(event)) return false;
     return this.callbacks.setSelection({ ...emptySelection(), events: new Set([index]) });
   }
 
@@ -347,8 +348,6 @@ export class SelectMode implements EditorMode {
       minBeat: { n: 0, d: 1 }, maxBeat: { n: Number.MAX_SAFE_INTEGER, d: 1 } };
     const selection = selectionFromBox(this.chart.trillZones, this.chart.notes, this.chart.restZones ?? [], box);
     const events = this.eventsInBox(box);
-    // 0박 초기 설정은 직접 선택할 수 있지만 Ctrl+A 후 전체 이동에서는 제외한다.
-    for (const index of events) if (isInitialTimingEvent(this.chart.events[index])) events.delete(index);
     this.callbacks.setSelection({ ...selection, events });
   }
 
@@ -462,8 +461,9 @@ export class SelectMode implements EditorMode {
     if (hits.noteHit === null && hits.noteEndHit === null) {
       const index = hits.eventEndHit ?? hits.eventHit;
       if (index !== undefined && index !== null) {
-        if (!this.sel.events.has(index) && !this.selectEvent(index)) return false;
         const event = this.chart.events[index];
+        if (!event || isInitialTimingEvent(event)) return false;
+        if (!this.sel.events.has(index) && !this.selectEvent(index)) return false;
         if (hits.eventEndHit === index && 'endBeat' in event) this.startResize('event', index, event.beat, event.endBeat);
         else this.beginMoveDrag(x, y);
         return this.isDragging;
@@ -667,6 +667,8 @@ export class SelectMode implements EditorMode {
       }
       case "event": {
         const index = target.index;
+        const event = this.chart.events[index];
+        if (!event || isInitialTimingEvent(event)) return;
         const events = new Set(this.sel.events);
         if (altKey || (toggleSelection && events.has(index))) {
           events.delete(index);
@@ -1078,6 +1080,7 @@ export class SelectMode implements EditorMode {
   private eventsInBox(box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat }): Set<number> {
     const indices = new Set<number>();
     this.chart.events.forEach((event, index) => {
+      if (isInitialTimingEvent(event)) return;
       const column = eventLaneToBoxColumn(event.editorLane ?? 1);
       const end = 'endBeat' in event ? event.endBeat : event.beat;
       if (column >= box.minLane && column <= box.maxLane

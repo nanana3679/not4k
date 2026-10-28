@@ -792,6 +792,7 @@ function ChartEditorPage() {
           editingEvent={editingEvent}
           chart={chart}
           isBeatZero={!!isEditingInitial}
+          extraLaneCount={extraLaneCount}
           onSave={fileOps.handleEventSave}
           onDelete={fileOps.handleEventDelete}
           onClose={() => setEditingEvent(null)}

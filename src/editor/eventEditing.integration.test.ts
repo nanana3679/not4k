@@ -60,7 +60,61 @@ beforeEach(() => {
 });
 
 describe('이벤트와 노트의 공통 선택·편집', () => {
-  it('editorLane 없는 초기 BPM·박자는 자동 이동 없이 열어 위반을 표시하고 박자 설정을 오른쪽으로 옮겨 수리한다', () => {
+  it('store에 추가된 16박 이벤트를 모드 동기화 전에 클릭해도 예외나 잘못된 선택이 생기지 않는다', () => {
+    const { mode, store, space } = editor();
+    mode.selectNote(0);
+    store().setChart({ ...store().chart, events: [...store().chart.events,
+      { type: 'text', beat: beat(16), endBeat: beat(20), text: 'new', editorLane: 2 },
+    ] });
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH * 1.5;
+    const y = beatToMs(beat(16), space.getBpmChanges());
+    expect(space.hitTestEvent(x, y)).toBe(4);
+    expect(() => mode.onPointerDown(x, y, false, false)).not.toThrow();
+    expect(store().selection.notes).toEqual(new Set([0]));
+    expect(store().selection.events).toEqual(new Set());
+  });
+
+  it.each([
+    { name: '일반', shift: false, alt: false, toggle: false },
+    { name: 'Shift', shift: true, alt: false, toggle: false },
+    { name: 'Alt', shift: false, alt: true, toggle: false },
+    { name: '터치 토글', shift: false, alt: false, toggle: true },
+  ])('$name 클릭으로 초기 BPM·박자를 누르면 노트 선택을 보존하고 초기 설정은 선택·이동하지 않는다', ({ shift, alt, toggle }) => {
+    const { mode, store } = editor();
+    mode.selectNote(0);
+    for (const index of [0, 1]) {
+      const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH * (index + 0.5);
+      mode.onPointerDown(x, 0, shift, alt, toggle);
+      mode.onPointerMove(x + EXTRA_LANE_WIDTH, 500);
+      mode.onPointerUp(x + EXTRA_LANE_WIDTH, 500);
+      expect(store().selection.notes).toEqual(new Set([0]));
+      expect(store().selection.events).toEqual(new Set());
+      expect(store().chart).toEqual(chartFixture());
+    }
+  });
+
+  it('초기 BPM·박자의 터치 탭·롱프레스·직접 selectEvent는 선택과 드래그를 시작하지 않는다', () => {
+    const { mode, store } = editor();
+    for (const index of [0, 1]) {
+      const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH * (index + 0.5);
+      mode.clickAt(x, 0, true);
+      expect(mode.selectEvent(index)).toBe(false);
+      expect(mode.beginLongPressDrag(x, 0, { noteHit: null, noteEndHit: null, eventHit: index })).toBe(false);
+      expect(store().selection.events).toEqual(new Set());
+      expect(mode.isMoveDragging).toBe(false);
+    }
+  });
+
+  it('0～5박의 노트와 초기 설정·4박 BPM을 박스로 감싸면 노트0·비초기 이벤트2만 선택한다', () => {
+    const { mode, store } = editor();
+    mode.onPointerDown(1, -100, false, false);
+    mode.onPointerMove(TIMELINE_WIDTH + EXTRA_LANE_WIDTH * 2, 2500);
+    mode.onPointerUp(TIMELINE_WIDTH + EXTRA_LANE_WIDTH * 2, 2500);
+    expect(store().selection.notes).toEqual(new Set([0]));
+    expect(store().selection.events).toEqual(new Set([2]));
+  });
+
+  it('editorLane 없는 초기 BPM·박자는 자동 이동 없이 열어 위반을 표시하고 선택에서는 제외한다', () => {
     const chart = chartFixture();
     chart.events = chart.events.slice(0, 2).map(({ editorLane: _editorLane, ...event }) => event);
     useEditorStore.getState().loadChart(chart);
@@ -68,9 +122,10 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
     expect(store().chart.events.every(event => event.editorLane === undefined)).toBe(true);
     expect(editorChartViolationIndices(store().chart).events).toEqual(new Set([0, 1]));
     selectEvents(1);
+    expect(store().selection.events).toEqual(new Set());
     mode.moveByLane('right');
-    expect(store().chart.events[1]).toMatchObject({ type: 'timeSignature', editorLane: 2, beat: beat(0) });
-    expect(editorChartErrors(store().chart)).toEqual([]);
+    expect(store().chart.events.every(event => event.editorLane === undefined)).toBe(true);
+    expect(editorChartViolationIndices(store().chart).events).toEqual(new Set([0, 1]));
   });
 
   it('TextEvent를 BPM이 있는 보조 레인1·4박으로 이동하면 양쪽 위반을 표시하고 Undo·Redo·레인 분리로 수리한다', () => {
@@ -195,23 +250,26 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
     expect(store().chart.events[3]).toMatchObject({ beat: beat(8), endBeat: beat(13), text: 'hello' });
   });
 
-  it('초기 BPM만 선택하면 삭제·잘라내기·시간 이동은 원본을 보존하고 가로 이동은 허용한다', () => {
+  it('초기 BPM 선택 입력은 제외하므로 Copy·Delete·Cut·시간/레인 이동은 원본을 보존한다', () => {
     const { mode, store, selectEvents } = editor();
     selectEvents(0);
+    expect(store().selection.events).toEqual(new Set());
+    expect(mode.copy()).toBe(0);
     mode.deleteSelected();
     expect(store().chart).toEqual(chartFixture());
     expect(mode.cut()).toBe(0);
     mode.moveBySnap('up');
     expect(store().chart).toEqual(chartFixture());
     mode.moveByLane('right');
-    expect(store().chart.events[0]).toMatchObject({ beat: beat(0), editorLane: 2 });
+    expect(store().chart).toEqual(chartFixture());
   });
 
-  it('초기 BPM과 일반 노트를 함께 선택하면 시간 이동은 차단하지만 Delete는 초기 BPM을 남기고 노트를 지운다', () => {
+  it('초기 BPM과 일반 노트를 함께 선택하려 하면 노트만 선택해 4→5박 이동·Delete가 동작한다', () => {
     const { mode, store } = editor();
     store().setSelection({ ...emptySelection(), notes: new Set([0]), events: new Set([0]) });
+    expect(store().selection.events).toEqual(new Set());
     mode.moveBySnap('up');
-    expect(store().chart).toEqual(chartFixture());
+    expect(store().chart.notes[0].beat).toEqual(beat(5));
     mode.deleteSelected();
     expect(store().chart.notes).toEqual([]);
     expect(store().chart.events).toEqual(chartFixture().events);

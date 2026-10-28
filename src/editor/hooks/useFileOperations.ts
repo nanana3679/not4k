@@ -1,4 +1,4 @@
-import { deleteEvents } from '../editing/eventEditing';
+import { deleteEvents, isInitialTimingEvent } from '../editing/eventEditing';
 /**
  * useFileOperations — 파일 저장/삭제 핸들러
  */
@@ -416,12 +416,20 @@ export function useFileOperations(
       newEvt = evt;
     }
 
+    if (isInitialTimingEvent(evt)) {
+      const editorLane = Number(values.editorLane ?? evt.editorLane ?? 1);
+      if (!Number.isInteger(editorLane) || editorLane < 1 || editorLane > extraLaneCount) {
+        addToast('보조 레인은 현재 보조 레인 범위 안의 정수여야 합니다');
+        return;
+      }
+      newEvt = { ...newEvt, editorLane };
+    }
     updated.events[editingEvent.index] = newEvt;
 
     setChart(updated);
     rendererRef.current?.setChart(updated);
     setEditingEvent(null);
-  }, [editingEvent, chart, rendererRef, setChart, setEditingEvent, addToast]);
+  }, [editingEvent, chart, extraLaneCount, rendererRef, setChart, setEditingEvent, addToast]);
 
   const handleEventDelete = useCallback(() => {
     if (!editingEvent) return;

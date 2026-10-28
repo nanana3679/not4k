@@ -18,9 +18,11 @@
  * - notes가 트릴 노트 모드(개별 트릴 선택)이면 zones는 빈 집합이다 —
  *   개별 트릴 선택만 구간 유닛과 배타로 남는다.
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
+ * - events는 0박 초기 BPM·박자를 포함하지 않는다. 초기 설정은 속성 모달에서만 편집한다.
  */
 import type { ChartDocument, DocumentNoteEntity, TrillZone } from '../../shared';
 import { beatToFloat } from '../../shared';
+import { isInitialTimingEvent } from '../editing/eventEditing';
 import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
 
 /**
@@ -122,11 +124,15 @@ export function normalizeSelection(
   // 개별 트릴 노트 모드는 구간 유닛과 배타 — zones를 비운다 (RFD 0016 §4.1).
   // 일반/빈 모드면 zones는 일반 노트와 공존한다(내부 노트 주입 없음).
   const kind = classifySelection(chart.trillZones, chart.notes, kept);
+  const events = pruneBounds(input.events, chart.events.length);
+  for (const index of events) {
+    if (isInitialTimingEvent(chart.events[index])) events.delete(index);
+  }
   return {
     notes: kept,
     zones: kind.kind === 'trill' ? new Set<number>() : zones,
     restZones,
-    events: pruneBounds(input.events, chart.events.length),
+    events,
   };
 }
 

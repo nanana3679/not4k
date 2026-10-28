@@ -77,6 +77,18 @@ describe('normalizeSelection — 동질성 정규화', () => {
 });
 
 describe('normalizeSelection — 범위 보정', () => {
+  it('초기 BPM·박자 0·1을 제외하고 4박 BPM과 0박 텍스트 2·3만 선택하며 입력 집합을 보존한다', () => {
+    const events: ChartDocument['events'] = [
+      { type: 'bpm', beat: beat(0), bpm: 120 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'bpm', beat: beat(4), bpm: 180 },
+      { type: 'text', beat: beat(0), endBeat: beat(2), text: 'text', editorLane: 3 },
+    ];
+    const input = sel({ events: new Set([-1, 0, 1, 2, 3, 9]) });
+    expect(normalizeSelection(input, { ...chart, events }).events).toEqual(new Set([2, 3]));
+    expect(input.events).toEqual(new Set([-1, 0, 1, 2, 3, 9]));
+  });
+
   it('notes 5개에서 범위 밖 인덱스 7과 음수 -1은 제거된다({0,7,-1} → {0})', () => {
     const result = normalizeSelection(sel({ notes: new Set([0, 7, -1]) }), chart);
     expect(result.notes).toEqual(new Set([0]));
@@ -291,6 +303,12 @@ const singles: DocumentNoteEntity[] = [
 
 describe('SelectionSlice 액션 (editorStore 경유)', () => {
   beforeEach(resetSelectionStore);
+
+  it.each(['setSelection', 'setSelectionTransient'] as const)('%s로 노트0·초기 이벤트0·1을 넣으면 노트0만 선택한다', action => {
+    useEditorStore.getState()[action](sel({ notes: new Set([0]), events: new Set([0, 1]) }));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0]));
+    expect(useEditorStore.getState().selection.events).toEqual(new Set());
+  });
 
   it('setSelection: 일반+트릴 섞인 입력이 게이트를 지나 일반 그룹 {0,3}만 store에 남는다', () => {
     useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1, 3]) }));
