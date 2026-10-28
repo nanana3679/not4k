@@ -100,10 +100,10 @@ export class SelectMode implements EditorMode {
   // 박스 드래그 취소 시 복구할 시작 전 선택.
   private preDragSelection: Selection | null = null;
 
-  // 미선택 존 몸통에서 시작한 박스의 탭 후보(§6-6) — up에서 움직임이 없었으면
+  // 미선택 존 몸통에서 시작한 박스의 클릭 후보(§6-6) — up에서 움직임이 없었으면
   // 빈 박스 확정 대신 이 존을 유닛 선택한다. 모든 종료 경로(up·cancel)에서 리셋.
   private _pendingZoneSelect: number | null = null;
-  // 미선택 restZone 몸통 탭 후보 — trillZone(§6-6) 미러 (RFD 0019). down은 한 몸통만
+  // 미선택 restZone 몸통 클릭 후보 — trillZone(§6-6) 미러 (RFD 0019). down은 한 몸통만
   // 히트하므로 둘 중 하나만 산다.
   private _pendingRestZoneSelect: number | null = null;
 
@@ -503,15 +503,15 @@ export class SelectMode implements EditorMode {
   }
 
   /**
-   * 터치 탭 한 번을 (x, y)의 down+up 한 쌍으로 처리한다 — 마우스 클릭과 같은 짝이다(#154).
+   * 터치 클릭 한 번을 (x, y)의 down+up 한 쌍으로 처리한다 — 마우스 클릭과 같은 짝이다(#154).
    *
-   * 터치 탭은 뗀 시점(up)에 발화해 물리 up이 따로 오지 않는다. down만 보내면 노트 down이 연
+   * 터치 클릭은 뗀 시점(up)에 발화해 물리 up이 따로 오지 않는다. down만 보내면 노트 down이 연
    * 이동 드래그(beginMoveDrag)가 남아, 다음 박스 드래그의 down이 재진입 가드에 막히고 그 move가
-   * 직전에 탭한 노트를 끌고 간다. 같은 좌표의 up으로 바로 닫는다(이동량 0 커밋 하나는 마우스
-   * 클릭과 같다). toggleSelection에는 터치 다중선택 래치를 넘긴다 — 켜져 있으면 탭한 노트를
+   * 직전에 클릭한 노트를 끌고 간다. 같은 좌표의 up으로 바로 닫는다(이동량 0 커밋 하나는 마우스
+   * 클릭과 같다). toggleSelection에는 터치 다중선택 래치를 넘긴다 — 켜져 있으면 클릭한 노트를
    * 선택에 추가/제거만 하고 드래그를 열지 않는다.
    */
-  tapAt(x: number, y: number, toggleSelection: boolean): void {
+  clickAt(x: number, y: number, toggleSelection: boolean): void {
     this.onPointerDown(x, y, false, false, toggleSelection);
     this.onPointerUp(x, y);
   }
@@ -655,8 +655,8 @@ export class SelectMode implements EditorMode {
           this.beginMoveDrag(x, y);
           return;
         }
-        // 미선택 존 몸통: 탭=유닛 선택, 드래그=박스 — 박스로 시작하되 존을 기억해
-        // up의 탭 판정(움직임 없음)에서 빈 박스 확정 대신 유닛 선택으로 바꾼다.
+        // 미선택 존 몸통: 클릭=유닛 선택, 드래그=박스 — 박스로 시작하되 존을 기억해
+        // up의 클릭 판정(움직임 없음)에서 빈 박스 확정 대신 유닛 선택으로 바꾼다.
         this._pendingZoneSelect = zoneHit;
         this.startBoxSelect(x, y);
         return;
@@ -680,7 +680,7 @@ export class SelectMode implements EditorMode {
           this.beginMoveDrag(x, y);
           return;
         }
-        // 미선택 restZone 몸통: 탭=유닛 선택(교체), 드래그=박스(노트·존·restZone 감쌈 픽업).
+        // 미선택 restZone 몸통: 클릭=유닛 선택(교체), 드래그=박스(노트·존·restZone 감쌈 픽업).
         this._pendingRestZoneSelect = restHit;
         this.startBoxSelect(x, y);
         return;
@@ -908,26 +908,26 @@ export class SelectMode implements EditorMode {
     } else if (this.dragType === "boxSelect") {
       // Update end positions from final pointer position
       this._boxEndBeat = this.callbacks.space.yToBeatRaw(y);
-      this._boxEndY = y; // px 기반 탭 판정(§6-6)용 — 최종 up 위치 반영
+      this._boxEndY = y; // px 기반 클릭 판정(§6-6)용 — 최종 up 위치 반영
       const endLane = this.callbacks.space.xToUnifiedLane(x);
       if (endLane !== null) {
         this._boxEndLane = endLane;
       }
       this.updateBoxSelection();
 
-      // 미선택 존/restZone 몸통 탭(움직임 없음)이면 빈 박스 확정 대신 그 유닛을 선택한다
+      // 미선택 존/restZone 몸통 클릭(움직임 없음)이면 빈 박스 확정 대신 그 유닛을 선택한다
       // (§6-6 · RFD 0019 미러). 후보는 배타적으로 하나만 산다.
-      const tappedZone = this.pendingTapTarget(this._pendingZoneSelect);
-      const tappedRestZone = this.pendingTapTarget(this._pendingRestZoneSelect);
+      const clickedZone = this.pendingClickTarget(this._pendingZoneSelect);
+      const clickedRestZone = this.pendingClickTarget(this._pendingRestZoneSelect);
 
       // 프리뷰로 쌓인 최종 박스 선택을 확정한다.
       if (this.preDragSelection) {
-        const finalSel: Selection = tappedZone !== null
-          // 트릴존 탭 = 유닛 선택으로 전체 교체 — restZones도 비운다(단순 탭=전축 교체, 리뷰 C4)
-          ? { notes: new Set(), zones: new Set([tappedZone]), restZones: new Set() }
-          : tappedRestZone !== null
-            // restZone 탭 = 유닛 선택으로 교체 {notes:∅, zones:∅, restZones:{i}} (RFD 0019)
-            ? { notes: new Set(), zones: new Set(), restZones: new Set([tappedRestZone]) }
+        const finalSel: Selection = clickedZone !== null
+          // 트릴존 클릭 = 유닛 선택으로 전체 교체 — restZones도 비운다(단순 클릭=전축 교체, 리뷰 C4)
+          ? { notes: new Set(), zones: new Set([clickedZone]), restZones: new Set() }
+          : clickedRestZone !== null
+            // restZone 클릭 = 유닛 선택으로 교체 {notes:∅, zones:∅, restZones:{i}} (RFD 0019)
+            ? { notes: new Set(), zones: new Set(), restZones: new Set([clickedRestZone]) }
             : this.sel;
         this.callbacks.setSelectionTransient(this.preDragSelection);
         this.callbacks.setSelection(finalSel);
@@ -948,16 +948,16 @@ export class SelectMode implements EditorMode {
   }
 
   /**
-   * 박스 종료 시 존/restZone 몸통 탭 판정(§6-6) — 미선택 몸통에서 시작했고(pending),
+   * 박스 종료 시 존/restZone 몸통 클릭 판정(§6-6) — 미선택 몸통에서 시작했고(pending),
    * 레인·beat 모두 움직임이 없었으면 그 인덱스를, 아니면 null을 반환한다.
    * (드래그가 일어났으면 null — 그냥 박스 결과로 확정된다.)
    */
-  private pendingTapTarget(pending: number | null): number | null {
+  private pendingClickTarget(pending: number | null): number | null {
     if (pending === null) return null;
     if (this._boxStartLane === null || this._boxEndLane === null) return null;
     if (this._boxStartLane !== this._boxEndLane) return null;
     // 마우스 down↔up 미세 드리프트(1~2px, 트랙패드에서 흔함)를 흡수한다 — 정확 beat 일치(zero-slop)면
-    // 탭이 쉽게 무산돼 존 선택 실패 + 기존 선택까지 통째로 해제된다. 터치와 같은 tap-slop(px)으로 판정.
+    // 클릭이 쉽게 무산돼 존 선택 실패 + 기존 선택까지 통째로 해제된다. 터치와 같은 click-slop(px)으로 판정.
     return Math.abs(this._boxEndY - this._boxStartY) <= TOUCH_MOVE_CANCEL_PX ? pending : null;
   }
 

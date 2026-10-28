@@ -9,12 +9,12 @@
 import type { GrabTarget } from "../modes/resolveGrab";
 
 /** create 모드 터치 후보가 뗄 때 확정되는 액션. */
-export type TouchCreateUpAction = 'commitDrag' | 'cancelDrag' | 'createPointTap' | 'none';
+export type TouchCreateUpAction = 'commitDrag' | 'cancelDrag' | 'createPointClick' | 'none';
 
 /**
  * create 후보 up 결정.
  * - 롱프레스로 범위 드래그가 발화(fired)했으면: 범위 안이면 커밋, 밖이면 취소.
- * - 발화 안 했고 이동도 없고 시작점이 범위 안이면: 탭 = 단노트 생성.
+ * - 발화 안 했고 이동도 없고 시작점이 범위 안이면: 클릭 = 단노트 생성.
  * - 그 외: 아무것도 안 함.
  */
 export function resolveTouchCreateUpAction(input: {
@@ -26,15 +26,15 @@ export function resolveTouchCreateUpAction(input: {
   candidateStartInBounds: boolean;
 }): TouchCreateUpAction {
   if (input.fired) return input.endInBounds ? 'commitDrag' : 'cancelDrag';
-  if (!input.moved && input.candidateStartInBounds) return 'createPointTap';
+  if (!input.moved && input.candidateStartInBounds) return 'createPointClick';
   return 'none';
 }
 
 /**
- * select 모드에서 노트/엑스트라를 탭했을 때 선택 토글을 발화할지.
- * 이동하지 않았고(탭) 롱프레스가 발화하지 않았을 때만 토글한다. (note/extra 모두 동일 처리)
+ * select 모드에서 노트/엑스트라를 클릭했을 때 선택 토글을 발화할지.
+ * 이동하지 않았고(클릭) 롱프레스가 발화하지 않았을 때만 토글한다. (note/extra 모두 동일 처리)
  */
-export function shouldFireTapToggle(input: {
+export function shouldFireClickToggle(input: {
   moved: boolean;
   longPressFired: boolean;
 }): boolean {
@@ -43,7 +43,7 @@ export function shouldFireTapToggle(input: {
 
 /**
  * delete 모드 터치 후보가 뗄 때 삭제를 실행할지.
- * 롱프레스로 드래그 삭제가 발화했거나(fired), 이동 없이 뗀 탭(!moved)이면 삭제한다.
+ * 롱프레스로 드래그 삭제가 발화했거나(fired), 이동 없이 뗀 클릭(!moved)이면 삭제한다.
  * 이동만 하고 발화 안 했으면(스크롤성 이동) 삭제하지 않는다.
  */
 export function shouldDeleteOnUp(input: { fired: boolean; moved: boolean }): boolean {
@@ -53,10 +53,10 @@ export function shouldDeleteOnUp(input: { fired: boolean; moved: boolean }): boo
 /**
  * 터치 다중선택 래치(touchMultiSelect)의 다음 상태.
  *
- * 래치는 롱프레스 select-drag가 발화할 때 켜져, 이어지는 노트 탭이 기존 선택을 대체하지 않고
- * 누적 토글되게 한다. 선택이 0개가 되면(빈 곳 탭 해제·마지막 노트 토글 해제 등) 누적 모드를
+ * 래치는 롱프레스 select-drag가 발화할 때 켜져, 이어지는 노트 클릭이 기존 선택을 대체하지 않고
+ * 누적 토글되게 한다. 선택이 0개가 되면(빈 곳 클릭 해제·마지막 노트 토글 해제 등) 누적 모드를
  * 끝내야 하므로 꺼진다 — 그 외에는 현재 값을 유지한다. 끄는 지점이 없으면 한 번 켜진 뒤
- * 세션 내내 모든 탭이 누적 토글로 굳는 버그가 된다.
+ * 세션 내내 모든 클릭이 누적 토글로 굳는 버그가 된다.
  */
 export function nextTouchMultiSelectLatch(current: boolean, selectionSize: number): boolean {
   return selectionSize === 0 ? false : current;
@@ -64,22 +64,22 @@ export function nextTouchMultiSelectLatch(current: boolean, selectionSize: numbe
 
 /**
  * select 모드 터치 down에서 어떤 후보를 예약(schedule)할지.
- * - `tapToggle`: 뗄 때 노트 선택을 토글하는 후보.
+ * - `clickToggle`: 뗄 때 노트 선택을 토글하는 후보.
  * - `emptySelectBox`: 첫 move/up에서 onPointerDown을 재생하는 지연-드래그 후보.
- *   빈 곳 박스 셀렉트뿐 아니라 트릴존 끝 리사이즈·몸통 탭/이동(§6-6)도 이 경로로 시작된다.
+ *   빈 곳 박스 셀렉트뿐 아니라 트릴존 끝 리사이즈·몸통 클릭/이동(§6-6)도 이 경로로 시작된다.
  */
-export type SelectTouchDownSchedule = 'tapToggle' | 'emptySelectBox';
+export type SelectTouchDownSchedule = 'clickToggle' | 'emptySelectBox';
 
 /**
  * grab 사다리(resolveGrab)가 확정한 `GrabTarget`을 터치 select down 스케줄로 접는다.
  *
  * 우선순위 지식은 전혀 없다 — resolveGrab이 이미 8단계 사다리(캡·노트·몸통·빈곳)를
- * 단독으로 결정했고, 여기선 "순수 노트면 탭 토글, 그 외 전부 지연-드래그"라는 2택만 남는다.
+ * 단독으로 결정했고, 여기선 "순수 노트면 클릭 토글, 그 외 전부 지연-드래그"라는 2택만 남는다.
  * emptySelectBox 후보는 첫 move/up에서 SelectMode.onPointerDown을 재생하므로(=같은 사다리
  * 재실행) 캡 리사이즈·존 몸통·빈 곳 박스가 모두 마우스와 글자 그대로 같은 경로를 탄다(#143).
  */
 export function scheduleFromGrabTarget(target: GrabTarget): SelectTouchDownSchedule {
-  return target.kind === 'note' ? 'tapToggle' : 'emptySelectBox';
+  return target.kind === 'note' ? 'clickToggle' : 'emptySelectBox';
 }
 
 /** 롱프레스 hold 후보를 무장·발화할 때 참조하는 down 시점 히트. */

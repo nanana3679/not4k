@@ -6,13 +6,13 @@
  * 쓰지 않아 `(샘플들 + tick들)`에 대한 순수 reducer로서 시퀀스 단위로 테스트 가능하다.
  *
  * 슬라이스 1a: 터치 포인트 추적 + 두 손가락 내비게이션(pinch/pan) 인식만 담는다.
- * 편집 제스처(tap/longPress/drag/box)와 롱프레스 타이머는 후속 슬라이스(1c)에서 이 모듈로
+ * 편집 제스처(click/longPress/drag/box)와 롱프레스 타이머는 후속 슬라이스(1c)에서 이 모듈로
  * 이관된다 — 그때 `tick`이 채워지고 `EditGesture`가 확장된다.
  */
 import {
   advanceTouchNavigationSession,
   beginTouchNavigationSession,
-  didTouchMoveBeyondTapSlop,
+  didTouchMoveBeyondClickSlop,
   isTouchNavigationGesture,
   TOUCH_MOVE_CANCEL_PX,
   type TouchGesturePoint,
@@ -31,7 +31,7 @@ export interface PointerSample {
   x: number;
   /** 캔버스 공간 y. */
   y: number;
-  /** raw client 좌표 — tap-slop·멀티터치 거리/중심 계산용(내비는 이 좌표만 쓴다). */
+  /** raw client 좌표 — click-slop·멀티터치 거리/중심 계산용(내비는 이 좌표만 쓴다). */
   clientX: number;
   clientY: number;
   /** 주입된 시각(ms). 벽시계 대신 이 값으로 롱프레스 등을 판정한다. */
@@ -57,13 +57,13 @@ export type ViewportGesture =
 /**
  * 차트를 편집하는 의미를 갖는 제스처.
  * - `editCancel`: 두 손가락 내비가 편집을 가로챌 때 진행 중 편집을 폐기하라는 신호.
- * - `longPress`: 단일 터치를 tap-slop 안에서 LONG_PRESS_MS 유지했을 때(좌표는 down 시점 위치).
+ * - `longPress`: 단일 터치를 click-slop 안에서 LONG_PRESS_MS 유지했을 때(좌표는 down 시점 위치).
  *   무엇을 뜻하는지(이동/리사이즈/범위생성/삭제)는 모드·히트테스트를 아는 어댑터가 정한다.
  * - `holdEnd`: hold 후보를 가진 단일 터치가 떨어질(up/cancel) 때, 그 결말(`fired`·`moved`)과
- *   down 좌표(`x`·`y`)를 실어 방출한다. 어댑터는 이 입력층 사실만으로 커밋/취소/탭을 판정한다
+ *   down 좌표(`x`·`y`)를 실어 방출한다. 어댑터는 이 입력층 사실만으로 커밋/취소/클릭을 판정한다
  *   (범위·스냅 같은 도메인은 여전히 어댑터가 합친다 — 인식기는 도메인을 모른다). 발화·이동이
- *   없었으면 탭, 이동만 했으면 스크롤성, 발화했으면 드래그 결말로 어댑터가 해석한다. down 좌표는
- *   탭 폴백(범위 엔티티를 탭하면 점노트 생성)이 시작 지점을 그대로 쓰도록 실어 보낸다.
+ *   없었으면 클릭, 이동만 했으면 스크롤성, 발화했으면 드래그 결말로 어댑터가 해석한다. down 좌표는
+ *   클릭 폴백(범위 엔티티를 클릭하면 점노트 생성)이 시작 지점을 그대로 쓰도록 실어 보낸다.
  */
 export type EditGesture =
   | { kind: 'editCancel' }
@@ -86,7 +86,7 @@ export class GestureRecognizer {
         downTimeMs: number;
         /** LONG_PRESS_MS 유지로 longPress가 발화했는지. */
         fired: boolean;
-        /** tap-slop을 넘게 움직였는지(발화 봉인). up까지 존속시켜 holdEnd에 실어 보낸다. */
+        /** click-slop을 넘게 움직였는지(발화 봉인). up까지 존속시켜 holdEnd에 실어 보낸다. */
         moved: boolean;
       }
     | null = null;
@@ -140,7 +140,7 @@ export class GestureRecognizer {
 
   /**
    * 주입된 시각으로 시간 기반 제스처(롱프레스)를 발화한다. 어댑터가 down 이후 적절한 시점에 부른다.
-   * 단일 터치가 tap-slop 안에서 LONG_PRESS_MS 이상 유지되면 longPress를 한 번 방출한다.
+   * 단일 터치가 click-slop 안에서 LONG_PRESS_MS 이상 유지되면 longPress를 한 번 방출한다.
    */
   tick(nowMs: number): Gesture[] {
     const hold = this.hold;
@@ -187,22 +187,22 @@ export class GestureRecognizer {
     // legacy updateTouchPoint와 동일하게 무조건 add-or-update 한다.
     this.activePoints.set(sample.pointerId, { clientX: sample.clientX, clientY: sample.clientY });
 
-    // tap-slop을 넘어가면 롱프레스 후보를 취소한다(발화 전에만).
+    // click-slop을 넘어가면 롱프레스 후보를 취소한다(발화 전에만).
     const hold = this.hold;
     if (
       hold &&
       !hold.fired &&
       hold.pointerId === sample.pointerId &&
-      didTouchMoveBeyondTapSlop({
+      didTouchMoveBeyondClickSlop({
         startClientX: hold.startClientX,
         startClientY: hold.startClientY,
         clientX: sample.clientX,
         clientY: sample.clientY,
-        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
+        clickSlopPx: TOUCH_MOVE_CANCEL_PX,
       })
     ) {
       // 발화만 봉인하고 hold는 up까지 존속시킨다 — moved 사실을 holdEnd에 실어 보내
-      // 어댑터가 "이동(스크롤성) vs 무이동(탭)"을 구분할 수 있게 한다.
+      // 어댑터가 "이동(스크롤성) vs 무이동(클릭)"을 구분할 수 있게 한다.
       hold.moved = true;
     }
 

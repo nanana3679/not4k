@@ -150,14 +150,14 @@ describe("GestureRecognizer — 롱프레스(Time-A)", () => {
     expect(r.tick(600)).toEqual([]);
   });
 
-  it("tap-slop(10px)을 넘게 움직이면 롱프레스가 취소된다", () => {
+  it("click-slop(10px)을 넘게 움직이면 롱프레스가 취소된다", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("move", 1, 100, 215, 100)); // 15px 이동 > 10
     expect(r.tick(450)).toEqual([]);
   });
 
-  it("tap-slop 안(5px) 이동은 롱프레스를 취소하지 않고 down 좌표로 발화한다", () => {
+  it("click-slop 안(5px) 이동은 롱프레스를 취소하지 않고 down 좌표로 발화한다", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("move", 1, 103, 204, 100)); // hypot(3,4)=5 <= 10
@@ -180,7 +180,7 @@ describe("GestureRecognizer — 롱프레스(Time-A)", () => {
 });
 
 describe("GestureRecognizer — holdEnd(결말 방출)", () => {
-  it("이동·발화 없이 뗀 up은 holdEnd{fired:false, moved:false} (탭)", () => {
+  it("이동·발화 없이 뗀 up은 holdEnd{fired:false, moved:false} (클릭)", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     expect(r.feed(touch("up", 1, 100, 200, 100))).toEqual([
@@ -188,7 +188,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     ]);
   });
 
-  it("tap-slop(10px) 넘게 이동 후 뗀 up은 holdEnd{fired:false, moved:true} (스크롤성)", () => {
+  it("click-slop(10px) 넘게 이동 후 뗀 up은 holdEnd{fired:false, moved:true} (스크롤성)", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("move", 1, 100, 215, 100)); // 15px > 10
@@ -213,7 +213,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     ]);
   });
 
-  it("발화 후 tap-slop 안 이동은 moved를 켜지 않는다 (발화 뒤 드래그는 스크롤성 아님)", () => {
+  it("발화 후 click-slop 안 이동은 moved를 켜지 않는다 (발화 뒤 드래그는 스크롤성 아님)", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.tick(450); // 발화
@@ -230,7 +230,7 @@ describe("GestureRecognizer — holdEnd(결말 방출)", () => {
     expect(r.feed(touch("up", 1, 100, 200, 100))).toEqual([]);
   });
 
-  it("tap-slop 안(5px) 이동은 moved를 켜지 않아 발화·holdEnd{moved:false}", () => {
+  it("click-slop 안(5px) 이동은 moved를 켜지 않아 발화·holdEnd{moved:false}", () => {
     const r = new GestureRecognizer();
     r.feed(touch("down", 1, 100, 200, 0));
     r.feed(touch("move", 1, 103, 204, 100)); // hypot(3,4)=5 <= 10

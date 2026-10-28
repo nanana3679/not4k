@@ -20,8 +20,8 @@ import {
 import type { TimelineSpace } from '../timeline/TimelineSpace';
 import {
   TOUCH_MOVE_CANCEL_PX,
-  didTouchMoveBeyondTapSlop,
-  shouldPromoteTapToggleToBox,
+  didTouchMoveBeyondClickSlop,
+  shouldPromoteClickToggleToBox,
   shouldRunTouchBoxSelectDrag,
 } from './touchGesture';
 import { GestureRecognizer, type Gesture, type PointerSample } from './gestureRecognizer';
@@ -32,7 +32,7 @@ import {
   scheduleFromGrabTarget,
   shouldArmHoldTimer,
   shouldDeleteOnUp,
-  shouldFireTapToggle,
+  shouldFireClickToggle,
   type EditorTouchMode,
   type HoldHits,
 } from './touchEditRouting';
@@ -51,8 +51,8 @@ export interface CanvasEventHandlers {
 
 const LONG_PRESS_MS = 450;
 
-// 노트·엑스트라 탭 토글은 up에서 동일 처리되므로 후보는 한 형태다(kind 구분 불필요).
-type TouchTapToggleCandidate = {
+// 노트·엑스트라 클릭 토글은 up에서 동일 처리되므로 후보는 한 형태다(kind 구분 불필요).
+type TouchClickToggleCandidate = {
   pointerId: number;
   x: number;
   y: number;
@@ -114,7 +114,7 @@ export function useCanvasEvents(
   const holdTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const touchEmptySelectCandidateRef = useRef<TouchEmptySelectCandidate | null>(null);
   const touchMultiSelectRef = useRef(false);
-  const touchTapToggleRef = useRef<TouchTapToggleCandidate | null>(null);
+  const touchClickToggleRef = useRef<TouchClickToggleCandidate | null>(null);
   const suppressContextMenuUntilRef = useRef(0);
   // 한 손가락 터치 누름과 그 시작 때 SelectMode가 센 끊긴 드래그 수. 누르는 동안 수가 늘면
   // Undo·모드 전환 같은 독립 명령이 이 누름의 드래그를 끊은 것이다(onInterrupt).
@@ -146,7 +146,7 @@ export function useCanvasEvents(
     touchEmptySelectCandidateRef.current = null;
   }, []);
 
-  // 끊긴 누름은 손을 뗄 때까지 남은 후보(지연 박스·탭 토글·롱프레스)로 새 편집을 다시 열지 않는다.
+  // 끊긴 누름은 손을 뗄 때까지 남은 후보(지연 박스·클릭 토글·롱프레스)로 새 편집을 다시 열지 않는다.
   const isTouchContactInterrupted = useCallback((pointerId: number) => {
     const contact = touchContactRef.current;
     return contact !== null && contact.pointerId === pointerId
@@ -248,12 +248,12 @@ export function useCanvasEvents(
 
   // 두 손가락 내비가 편집을 가로챌 때(editCancel) 진행 중이던 편집 후보를 폐기한다.
   // recognizer는 2번째 손가락 down에서 자기 hold를 이미 버렸다(editCancel 방출). 훅은 타이머와
-  // 남은 후보(empty-select/tap-toggle)만 정리하고, 발화했을 수 있는 create 드래그를 취소한다.
+  // 남은 후보(empty-select/click-toggle)만 정리하고, 발화했을 수 있는 create 드래그를 취소한다.
   const handleEditCancel = useCallback(() => {
     clearHoldTimer();
     eraseGestureRef.current.finish();
     touchEmptySelectCandidateRef.current = null;
-    touchTapToggleRef.current = null;
+    touchClickToggleRef.current = null;
     touchContactRef.current = null;
     createModeRef.current?.cancelDrag();
     // 발화했을 수 있는 select 드래그(이동/리사이즈/박스)도 폐기하고 프리뷰를 걷는다.
@@ -306,33 +306,33 @@ export function useCanvasEvents(
     }
   }, [onHorizontalPan, onPinchZoom, onVerticalPan]);
 
-  // hold 후보(롱프레스/create/delete)의 tap-slop·moved 추적은 recognizer.feed(move)가 소유한다.
-  // 훅은 아직 recognizer로 옮기지 않은 후보(empty-select/tap-toggle)의 moved만 여기서 갱신한다.
+  // hold 후보(롱프레스/create/delete)의 click-slop·moved 추적은 recognizer.feed(move)가 소유한다.
+  // 훅은 아직 recognizer로 옮기지 않은 후보(empty-select/click-toggle)의 moved만 여기서 갱신한다.
   const updateTouchMovement = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const emptySelectCandidate = touchEmptySelectCandidateRef.current;
     if (emptySelectCandidate?.pointerId === e.pointerId && !emptySelectCandidate.moved) {
-      if (didTouchMoveBeyondTapSlop({
+      if (didTouchMoveBeyondClickSlop({
         startClientX: emptySelectCandidate.startClientX,
         startClientY: emptySelectCandidate.startClientY,
         clientX: e.clientX,
         clientY: e.clientY,
-        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
+        clickSlopPx: TOUCH_MOVE_CANCEL_PX,
       })) {
         emptySelectCandidate.moved = true;
         rendererRef.current?.hideGhostNote();
       }
     }
 
-    const tapToggle = touchTapToggleRef.current;
-    if (tapToggle?.pointerId === e.pointerId && !tapToggle.moved) {
-      if (didTouchMoveBeyondTapSlop({
-        startClientX: tapToggle.startClientX,
-        startClientY: tapToggle.startClientY,
+    const clickToggle = touchClickToggleRef.current;
+    if (clickToggle?.pointerId === e.pointerId && !clickToggle.moved) {
+      if (didTouchMoveBeyondClickSlop({
+        startClientX: clickToggle.startClientX,
+        startClientY: clickToggle.startClientY,
         clientX: e.clientX,
         clientY: e.clientY,
-        tapSlopPx: TOUCH_MOVE_CANCEL_PX,
+        clickSlopPx: TOUCH_MOVE_CANCEL_PX,
       })) {
-        tapToggle.moved = true;
+        clickToggle.moved = true;
       }
     }
   }, [rendererRef]);
@@ -465,8 +465,8 @@ export function useCanvasEvents(
         // 터치는 그 GrabTarget을 2택 스케줄로 접기만 한다 — 존끝 선택게이트(RFD 0016 §6-6)를
         // 포함해 마우스와 글자 그대로 같은 사다리라, 우선순위가 두 경로로 갈라질 곳이 없다.
         const schedule = scheduleFromGrabTarget(selectModeRef.current.resolveGrabAt(x, y));
-        if (schedule === 'tapToggle') {
-          touchTapToggleRef.current = {
+        if (schedule === 'clickToggle') {
+          touchClickToggleRef.current = {
             pointerId: e.pointerId,
             x,
             y,
@@ -479,7 +479,7 @@ export function useCanvasEvents(
         }
         return;
       } else if (mode === 'delete' && deleteModeRef.current) {
-        // 드래그 삭제(hold 발화)와 탭 삭제(up)는 hold + holdEnd 경로가 처리한다.
+        // 드래그 삭제(hold 발화)와 클릭 삭제(up)는 hold + holdEnd 경로가 처리한다.
         return;
       }
     }
@@ -536,7 +536,7 @@ export function useCanvasEvents(
     if (e.pointerType === 'touch' && isTouchContactInterrupted(e.pointerId)) {
       clearHoldTimer();
       touchEmptySelectCandidateRef.current = null;
-      touchTapToggleRef.current = null;
+      touchClickToggleRef.current = null;
       return;
     }
 
@@ -561,7 +561,7 @@ export function useCanvasEvents(
       return;
     }
 
-    // create 범위 후보가 발화 전 tap-slop을 넘으면(스크롤성) 고스트를 숨기고 만다.
+    // create 범위 후보가 발화 전 click-slop을 넘으면(스크롤성) 고스트를 숨기고 만다.
     // (범위 엔티티일 때만 — 점노트 모드에서 노트를 롱프레스한 hold는 select-drag 의도라 여기서 걸지 않는다.)
     if (
       mode === 'create' &&
@@ -574,33 +574,33 @@ export function useCanvasEvents(
       return;
     }
 
-    // 노트/엑스트라 위에서 시작한 tapToggle 후보도 slop을 넘으면 박스로 승격한다 (RFD 0016 §4.4).
+    // 노트/엑스트라 위에서 시작한 clickToggle 후보도 slop을 넘으면 박스로 승격한다 (RFD 0016 §4.4).
     // 승격은 후보를 empty-select 후보로 전환해 기존 박스 재생·up 경로를 그대로 태운다
     // (beginBoxSelect가 드래그를 시작하므로 재생 onPointerDown은 idempotency 가드에 걸려 no-op).
-    const tapCand = touchTapToggleRef.current;
+    const clickCand = touchClickToggleRef.current;
     if (
-      tapCand &&
-      shouldPromoteTapToggleToBox({
+      clickCand &&
+      shouldPromoteClickToggleToBox({
         pointerType: e.pointerType,
         editorMode: mode,
-        candidatePointerId: tapCand.pointerId,
+        candidatePointerId: clickCand.pointerId,
         pointerId: e.pointerId,
-        moved: tapCand.moved,
+        moved: clickCand.moved,
         activeTouchCount: recognizerRef.current.activeTouchCount,
         holdFired: holdState?.fired ?? false,
       }) &&
       selectModeRef.current
     ) {
-      selectModeRef.current.beginBoxSelect(tapCand.x, tapCand.y);
+      selectModeRef.current.beginBoxSelect(clickCand.x, clickCand.y);
       touchEmptySelectCandidateRef.current = {
-        pointerId: tapCand.pointerId,
-        x: tapCand.x,
-        y: tapCand.y,
+        pointerId: clickCand.pointerId,
+        x: clickCand.x,
+        y: clickCand.y,
         moved: true,
-        startClientX: tapCand.startClientX,
-        startClientY: tapCand.startClientY,
+        startClientX: clickCand.startClientX,
+        startClientY: clickCand.startClientY,
       };
-      touchTapToggleRef.current = null;
+      touchClickToggleRef.current = null;
     }
 
     const emptySelectCandidate = touchEmptySelectCandidateRef.current;
@@ -814,9 +814,9 @@ export function useCanvasEvents(
       return;
     }
 
-    // 끊긴 누름의 up은 지연 박스 재생·탭 토글을 하지 않는다. 다중선택 래치만 남은 선택에 맞춘다.
+    // 끊긴 누름의 up은 지연 박스 재생·클릭 토글을 하지 않는다. 다중선택 래치만 남은 선택에 맞춘다.
     if (interruptedTouchContact) {
-      if (touchTapToggleRef.current?.pointerId === e.pointerId) touchTapToggleRef.current = null;
+      if (touchClickToggleRef.current?.pointerId === e.pointerId) touchClickToggleRef.current = null;
       const sel = useEditorStore.getState().selection;
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(
         touchMultiSelectRef.current,
@@ -838,7 +838,7 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    // 드래그 삭제(발화) / 탭 삭제(무이동). delete 모드에서 hold가 있었을 때만.
+    // 드래그 삭제(발화) / 클릭 삭제(무이동). delete 모드에서 hold가 있었을 때만.
     if (mode === 'delete' && holdDown) {
       if (shouldDeleteOnUp({ fired: holdFired, moved: holdMoved })) {
         if (!eraseGestureRef.current.isActive) eraseGestureRef.current.begin();
@@ -862,8 +862,8 @@ export function useCanvasEvents(
         const sel = useEditorStore.getState();
         const selectionSize =
           sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size;
-        // 박스 드래그(moved)가 비어있지 않게 끝나면 래치 on — 이후 탭이 토글이 된다 (RFD 0016 §4.4).
-        // 탭(빈 곳 탭·핸들 탭)은 기존 규칙 유지: 선택이 비면 off, 아니면 현 상태 유지.
+        // 박스 드래그(moved)가 비어있지 않게 끝나면 래치 on — 이후 클릭이 토글이 된다 (RFD 0016 §4.4).
+        // 클릭(빈 곳 클릭·핸들 클릭)은 기존 규칙 유지: 선택이 비면 off, 아니면 현 상태 유지.
         touchMultiSelectRef.current = touchEmptySelectCandidate.moved
           ? selectionSize > 0
           : nextTouchMultiSelectLatch(touchMultiSelectRef.current, selectionSize);
@@ -885,8 +885,8 @@ export function useCanvasEvents(
         createModeRef.current.onPointerUp(x, y);
       } else if (createAction === 'cancelDrag') {
         createModeRef.current.cancelDrag();
-      } else if (createAction === 'createPointTap') {
-        // 탭 = 길이 0 드래그 → 단노트. CreateMode가 down→up을 길이로 판정하므로 둘 다 호출한다.
+      } else if (createAction === 'createPointClick') {
+        // 클릭 = 길이 0 드래그 → 단노트. CreateMode가 down→up을 길이로 판정하므로 둘 다 호출한다.
         createModeRef.current.onPointerDown(holdDown.x, holdDown.y);
         createModeRef.current.onPointerUp(holdDown.x, holdDown.y);
       }
@@ -905,16 +905,16 @@ export function useCanvasEvents(
       );
     }
 
-    // 노트·엑스트라 탭 토글은 동일 처리 — 하나로 합친다.
-    const tapToggle = touchTapToggleRef.current;
+    // 노트·엑스트라 클릭 토글은 동일 처리 — 하나로 합친다.
+    const clickToggle = touchClickToggleRef.current;
     if (
       e.pointerType === 'touch' &&
-      tapToggle?.pointerId === e.pointerId &&
+      clickToggle?.pointerId === e.pointerId &&
       selectModeRef.current &&
-      shouldFireTapToggle({ moved: tapToggle.moved, longPressFired: holdFired })
+      shouldFireClickToggle({ moved: clickToggle.moved, longPressFired: holdFired })
     ) {
-      // 탭은 down+up 한 쌍(마우스 클릭과 동일) — down만 보내면 이동 드래그가 열린 채 남는다(#154).
-      selectModeRef.current.tapAt(tapToggle.x, tapToggle.y, touchMultiSelectRef.current);
+      // 클릭은 down+up 한 쌍(마우스 클릭과 동일) — down만 보내면 이동 드래그가 열린 채 남는다(#154).
+      selectModeRef.current.clickAt(clickToggle.x, clickToggle.y, touchMultiSelectRef.current);
       // 토글로 마지막 선택까지 해제됐으면 다중선택 래치를 끈다(누적 토글 모드 종료).
       const sel = useEditorStore.getState();
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(
@@ -922,8 +922,8 @@ export function useCanvasEvents(
         sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size,
       );
     }
-    if (tapToggle?.pointerId === e.pointerId) {
-      touchTapToggleRef.current = null;
+    if (clickToggle?.pointerId === e.pointerId) {
+      touchClickToggleRef.current = null;
     }
   }, [
     mode, entityType, isTimeInBounds, toSample, clearHoldTimer,
@@ -939,7 +939,7 @@ export function useCanvasEvents(
       recognizerRef.current.clearNavigation();
       clearHoldTimer();
       clearTouchEmptySelectCandidate();
-      touchTapToggleRef.current = null;
+      touchClickToggleRef.current = null;
       if (touchContactRef.current?.pointerId === e.pointerId) touchContactRef.current = null;
     }
     rendererRef.current?.handleMinimapPointerUp();

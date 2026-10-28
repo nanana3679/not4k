@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   advanceTouchNavigationSession,
   beginTouchNavigationSession,
-  didTouchMoveBeyondTapSlop,
+  didTouchMoveBeyondClickSlop,
   isTouchNavigationGesture,
-  shouldPromoteTapToggleToBox,
+  shouldPromoteClickToggleToBox,
   shouldRunTouchBoxSelectDrag,
   resolveTouchNavigationMode,
 } from "./touchGesture";
@@ -49,23 +49,23 @@ describe("editor touch gesture policy", () => {
     expect(isTouchNavigationGesture(2)).toBe(true);
   });
 
-  it("keeps small one-finger movement inside tap slop", () => {
-    expect(didTouchMoveBeyondTapSlop({
+  it("keeps small one-finger movement inside click slop", () => {
+    expect(didTouchMoveBeyondClickSlop({
       startClientX: 10,
       startClientY: 10,
       clientX: 15,
       clientY: 15,
-      tapSlopPx: 10,
+      clickSlopPx: 10,
     })).toBe(false);
   });
 
-  it("detects movement beyond tap slop", () => {
-    expect(didTouchMoveBeyondTapSlop({
+  it("detects movement beyond click slop", () => {
+    expect(didTouchMoveBeyondClickSlop({
       startClientX: 10,
       startClientY: 10,
       clientX: 25,
       clientY: 10,
-      tapSlopPx: 10,
+      clickSlopPx: 10,
     })).toBe(true);
   });
 
@@ -188,7 +188,7 @@ describe("editor touch gesture policy", () => {
   });
 });
 
-describe("shouldPromoteTapToggleToBox — 노트 위 드래그의 박스 승격 (RFD 0016)", () => {
+describe("shouldPromoteClickToggleToBox — 노트 위 드래그의 박스 승격 (RFD 0016)", () => {
   const base = {
     pointerType: "touch",
     editorMode: "select",
@@ -199,23 +199,23 @@ describe("shouldPromoteTapToggleToBox — 노트 위 드래그의 박스 승격 
     holdFired: false,
   };
 
-  it("select 모드에서 tapToggle 후보가 slop을 넘고 롱프레스 미발화면 박스로 승격한다", () => {
-    expect(shouldPromoteTapToggleToBox(base)).toBe(true);
+  it("select 모드에서 clickToggle 후보가 slop을 넘고 롱프레스 미발화면 박스로 승격한다", () => {
+    expect(shouldPromoteClickToggleToBox(base)).toBe(true);
   });
 
   it("롱프레스가 이미 발화했으면 승격하지 않는다(이동 드래그 우선)", () => {
-    expect(shouldPromoteTapToggleToBox({ ...base, holdFired: true })).toBe(false);
+    expect(shouldPromoteClickToggleToBox({ ...base, holdFired: true })).toBe(false);
   });
 
-  it("slop을 넘지 않았으면(탭) 승격하지 않는다", () => {
-    expect(shouldPromoteTapToggleToBox({ ...base, moved: false })).toBe(false);
+  it("slop을 넘지 않았으면(클릭) 승격하지 않는다", () => {
+    expect(shouldPromoteClickToggleToBox({ ...base, moved: false })).toBe(false);
   });
 
   it("두 손가락(내비게이션)이면 승격하지 않는다", () => {
-    expect(shouldPromoteTapToggleToBox({ ...base, activeTouchCount: 2 })).toBe(false);
+    expect(shouldPromoteClickToggleToBox({ ...base, activeTouchCount: 2 })).toBe(false);
   });
 
   it("다른 pointerId의 move에는 승격하지 않는다", () => {
-    expect(shouldPromoteTapToggleToBox({ ...base, pointerId: 9 })).toBe(false);
+    expect(shouldPromoteClickToggleToBox({ ...base, pointerId: 9 })).toBe(false);
   });
 });

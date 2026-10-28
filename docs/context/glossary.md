@@ -874,13 +874,13 @@ raw 포인터 입력을 편집·뷰포트 제스처로 인식하는 순수 상�
 
 ### PointerSample
 
-DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|touch|pen), phase(down|move|up|cancel), x, y, clientX, clientY, timeMs, button, buttons}`. 마우스·터치를 같은 모양으로 만들어 **`GestureRecognizer`**에 넣는다. client 좌표는 tap-slop·멀티터치 거리 계산에, x/y는 방출 제스처에 실려 모드로 전달된다.
+DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|touch|pen), phase(down|move|up|cancel), x, y, clientX, clientY, timeMs, button, buttons}`. 마우스·터치를 같은 모양으로 만들어 **`GestureRecognizer`**에 넣는다. client 좌표는 click-slop·멀티터치 거리 계산에, x/y는 방출 제스처에 실려 모드로 전달된다.
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`.
 
 ### EditGesture
 
-차트를 편집하는 의미를 갖는 제스처. 현재: `editCancel`(두 손가락 내비가 편집을 가로챌 때 진행 중 편집 폐기), `longPress`(단일 터치를 tap-slop 안에서 유지; 좌표는 down 시점). 무엇을 뜻하는지(이동/리사이즈/범위생성/삭제)는 모드·히트 테스트를 아는 어댑터가 순수 라우팅 함수로 정한다. tap/drag/box 트랜잭션은 후속 슬라이스에서 이 어휘로 이관된다.
+차트를 편집하는 의미를 갖는 제스처. 현재: `editCancel`(두 손가락 내비가 편집을 가로챌 때 진행 중 편집 폐기), `longPress`(단일 터치를 click-slop 안에서 유지; 좌표는 down 시점). 무엇을 뜻하는지(이동/리사이즈/범위생성/삭제)는 모드·히트 테스트를 아는 어댑터가 순수 라우팅 함수로 정한다. click/drag/box 트랜잭션은 후속 슬라이스에서 이 어휘로 이관된다.
 
 **구현**: `src/editor/hooks/gestureRecognizer.ts`(타입), 라우팅 `longPressRouting.ts`·`touchEditRouting.ts`.
 
@@ -894,7 +894,7 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 정하는 순수 우선순위 사다리. z-order 8단계(끝 리사이즈 캡 4종 `noteEndCap`·`eventEndCap`·`trillZoneEndCap`·`restZoneEndCap` > 통합 `note` > 몸통 `trillZoneBody`·`restZoneBody` > `empty`)를 **단독으로 소유**한다. 캡 게이트(사다리 1·3·4)는 down 시점 선택(`sel`)을 읽어, 미선택 구간의 끝 캡은 리사이즈로 잡지 않고 겹친 노트/몸통으로 하강한다(RFD 0016 §6-6). 범위 노트 끝 캡의 hit 영역(`hitTestNoteEnd`)은 명시 Point·릴리즈·유지 노트와 겹친 자리를 비우고, 그 노트가 덮은 끝은 노트 hit 바로 위 띠(끝+1/16～3/16박)로 옮긴다. 그 띠에 겹친 노트가 없으면 미선택 바디도 사다리 1에서 바로 잡힌다. 연결 경계처럼 이어진 뒤 바디가 그 띠를 덮어도 띠는 앞 바디의 끝 hit이며, 사다리 1의 게이트(선택됐거나 최상위)에 따라 앞 바디가 선택됐을 때만 끝 캡으로 잡히고 미선택이면 뒤 바디를 잡는다. 선택 게이트가 없는 끝 캡 롱프레스는 그 띠에서 앞 바디 끝을 리사이즈한다. 수식자(shift/alt/toggle)는 대상 확정 "후"의 동작이라 사다리에 나타나지 않는다.
 
-**불변식**: grab 우선순위를 아는 코드는 `resolveGrab` 한 곳뿐이다. 마우스(`SelectMode.onPointerDown`)와 터치(`useCanvasEvents` → `scheduleFromGrabTarget`)는 `SelectMode.resolveGrabAt(x, y)`라는 **같은 seam**을 소비하므로 두 경로로 갈라질 코드 위치가 없다. 터치 스케줄은 `GrabTarget`을 "`note`면 탭 토글, 그 외 전부 지연-드래그(재생 위임)"의 2택으로 접기만 한다. 롱프레스 발화 사다리(`resolveLongPressAction`)는 선택 게이트 없는 별개 "직접 조작" 축이라 흡수하지 않는다(#143). 구현은 `src/editor/modes/resolveGrab.ts`.
+**불변식**: grab 우선순위를 아는 코드는 `resolveGrab` 한 곳뿐이다. 마우스(`SelectMode.onPointerDown`)와 터치(`useCanvasEvents` → `scheduleFromGrabTarget`)는 `SelectMode.resolveGrabAt(x, y)`라는 **같은 seam**을 소비하므로 두 경로로 갈라질 코드 위치가 없다. 터치 스케줄은 `GrabTarget`을 "`note`면 클릭 토글, 그 외 전부 지연-드래그(재생 위임)"의 2택으로 접기만 한다. 롱프레스 발화 사다리(`resolveLongPressAction`)는 선택 게이트 없는 별개 "직접 조작" 축이라 흡수하지 않는다(#143). 구현은 `src/editor/modes/resolveGrab.ts`.
 
 ### 차트 변이 게이트 (Chart Mutation Gate)
 
@@ -910,7 +910,7 @@ Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 
 
 **축소 커밋과 선택**: 노트·구간 개수가 줄어드는 커밋은 같은 트랜잭션에서 선택을 **엔티티 identity로 재매핑**한다 — 남은 엔티티는 새 인덱스로 계속 선택되고 지워진 엔티티만 빠진다. 인덱스 밀림으로 엉뚱한 엔티티가 선택되는 것을 막으면서, 선택된 바디 우클릭처럼 일부만 지우는 삭제가 다른 선택을 잃지 않게 한다. 개수가 줄지 않는 커밋은 재정규화만 한다.
 
-**편집 transaction**: 붙여넣기 대기·이동 드래그·끝점 리사이즈·우클릭 드래그 삭제처럼 한 조작의 여러 쓰기는 `beginEditTransaction`이 준 token을 달고 history를 쌓지 않다가, 소유자가 확정하면 Undo 한 단위로 기록하고 취소하면 시작 전 차트·선택으로 돌린다. token 없는 쓰기·모드 전환·Undo/Redo·로드 같은 독립 명령은 열린 transaction을 먼저 확정하고 소유자에게 `onInterrupt`로 알린다. 소유자(`SelectMode`·`EraseGesture`)는 그때 진행 중 조작을 끝내 옛 token으로 쓰지 않는다. 끊긴 조작의 마우스·터치 누름은 손을 뗄 때까지 같은 누름으로 새 조작을 다시 열지 않는다(터치의 지연 박스·탭 토글·롱프레스 후보 포함). Undo 가능 여부(`selectCanUndo`)는 아직 history에 들어가지 않은 transaction 변경도 셈한다.
+**편집 transaction**: 붙여넣기 대기·이동 드래그·끝점 리사이즈·우클릭 드래그 삭제처럼 한 조작의 여러 쓰기는 `beginEditTransaction`이 준 token을 달고 history를 쌓지 않다가, 소유자가 확정하면 Undo 한 단위로 기록하고 취소하면 시작 전 차트·선택으로 돌린다. token 없는 쓰기·모드 전환·Undo/Redo·로드 같은 독립 명령은 열린 transaction을 먼저 확정하고 소유자에게 `onInterrupt`로 알린다. 소유자(`SelectMode`·`EraseGesture`)는 그때 진행 중 조작을 끝내 옛 token으로 쓰지 않는다. 끊긴 조작의 마우스·터치 누름은 손을 뗄 때까지 같은 누름으로 새 조작을 다시 열지 않는다(터치의 지연 박스·클릭 토글·롱프레스 후보 포함). Undo 가능 여부(`selectCanUndo`)는 아직 history에 들어가지 않은 transaction 변경도 셈한다.
 
 **`loadChart`**: 레거시/외부 위반 차트를 구조·의미 모두 열어 수리를 허용한다(경고만). 재저장은 저장 게이트가 차단하므로 위반 상태가 저장·전파되지는 않는다 — "열 수는 있되, 다 고쳐야 저장할 수 있다".
 
