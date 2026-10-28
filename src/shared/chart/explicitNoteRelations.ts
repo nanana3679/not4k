@@ -57,7 +57,7 @@ export function deriveExplicitNoteRelations(notes: readonly DocumentNoteEntity[]
     const candidates = bodies.filter(body => body.note.lane === note.lane && (note.type === "release"
       ? beatEq(body.note.endBeat, note.beat)
       : beatGte(note.beat, body.note.beat) && beatLte(note.beat, body.note.endBeat)));
-    // 공유 경계 표식은 앞 끝이 아니라 뒤 시작에만 속한다.
+    // 앞 바디 끝과 뒤 바디 시작이 맞닿은 경계에 놓인 유지 표식은 앞 바디가 아니라 뒤 바디에만 속한다.
     const starts = candidates.filter(body => beatEq(body.note.beat, note.beat));
     const owners = (note.type === "sustain" && starts.length ? starts : candidates).map(body => body.noteIndex);
     const candidatesByNote = note.type === "sustain" ? sustainBodyCandidatesByNote : releaseBodyCandidatesByNote;

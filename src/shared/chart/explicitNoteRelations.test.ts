@@ -9,7 +9,7 @@ const sustain = (at: number, count: 1 | 2 = 1, lane = 1): DocumentNoteEntity =>
   ({ type: "sustain", lane, beat: beat(at), count });
 
 describe("명시 노트의 정적 위치 관계", () => {
-  it("1→2의 공유 경계 2/1=8/4 표식은 뒤 바디에만, 릴리즈는 앞 바디에 귀속된다", () => {
+  it("1→2의 공유 경계 2/1=8/4 유지 표식은 뒤 바디에만, 릴리즈는 앞 바디에 귀속된다", () => {
     const notes: DocumentNoteEntity[] = [body(0, 2), body(2, 4, 2),
       { type: "sustain", lane: 1, beat: { n: 8, d: 4 }, count: 2 },
       { type: "release", lane: 1, beat: beat(2), count: 1 }];

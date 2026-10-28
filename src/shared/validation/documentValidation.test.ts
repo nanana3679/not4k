@@ -142,45 +142,45 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
         [{ kind: "note", index: 1 }, { kind: "note", index: 0 }]]);
     });
 
-    it("다른 레인2의 Point2는 레인1 경계 2를 표시하지 않아 위반이 남는다", () => {
+    it("다른 레인2의 Point2는 레인1 경계 2의 Point로 인정하지 않아 위반이 남는다", () => {
       expect(rules([body(0, 2), body(2, 4), point(2, 2)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
     });
 
-    it("다른 레인2의 릴리즈2는 레인1 경계 2를 표시하지 않아 앞·뒤 바디를 가리키는 위반이 남는다", () => {
+    it("다른 레인2의 릴리즈2는 레인1 경계 2의 릴리즈로 인정하지 않아 앞·뒤 바디를 가리키는 위반이 남는다", () => {
       expect(validateChartDocument(document([body(0, 2), body(2, 4), mark("release", 2, 1, 2)])).semantic
         .map(e => [e.rule, e.refs])).toEqual([
         [SAME_HOLD_COUNT_CONNECTION_RULE, [{ kind: "note", index: 0 }, { kind: "note", index: 1 }]]]);
     });
 
     it.each([
-      { name: "경계 2를 Point로만", mark: 2, refs: [{ kind: "note", index: 1 }, { kind: "note", index: 2 }] },
-      { name: "경계 4를 릴리즈로만", mark: 4, refs: [{ kind: "note", index: 0 }, { kind: "note", index: 1 }] },
-    ])("같은 수 바디 [0,2]·[2,4]·[4,6] 연쇄에서 $name 표시하면 표시 없는 나머지 경계의 두 바디를 가리키는 위반 1건만 남는다", ({ mark: at, refs }) => {
-      const marker = at === 2 ? point(2) : mark("release", 4);
-      expect(validateChartDocument(document([body(0, 2), body(2, 4), body(4, 6), marker])).semantic
+      { name: "경계 2에만 Point를", at: 2, refs: [{ kind: "note", index: 1 }, { kind: "note", index: 2 }] },
+      { name: "경계 4에만 릴리즈를", at: 4, refs: [{ kind: "note", index: 0 }, { kind: "note", index: 1 }] },
+    ])("같은 수 바디 [0,2]·[2,4]·[4,6] 연쇄에서 $name 놓으면 Point도 릴리즈도 없는 나머지 경계의 두 바디를 가리키는 위반 1건만 남는다", ({ at, refs }) => {
+      const jointNote = at === 2 ? point(2) : mark("release", 4);
+      expect(validateChartDocument(document([body(0, 2), body(2, 4), body(4, 6), jointNote])).semantic
         .map(e => [e.rule, e.refs])).toEqual([[SAME_HOLD_COUNT_CONNECTION_RULE, refs]]);
     });
 
     const legacyPoint = (type: "single" | "double" | "trill", at: number, lane = 1): DocumentNoteEntity => ({ type, lane, beat: beat(at) });
 
-    it.each(["single", "double"] as const)("메인 레인1 같은 수 바디 [0,2]·[2,4] 경계 2에 구형 %s Point가 있으면 경계 표시로 인정해 저장할 수 있고 구형 노트라 새 재생만 막는다", type => {
+    it.each(["single", "double"] as const)("메인 레인1 같은 수 바디 [0,2]·[2,4] 경계 2에 구형 %s Point가 있으면 경계의 Point로 인정해 저장할 수 있고 구형 노트라 새 재생만 막는다", type => {
       const result = validateChartDocument(document([body(0, 2), body(2, 4), legacyPoint(type, 2)]));
       expect(result.semantic).toEqual([]);
       expect(result).toMatchObject({ canSave: true, canPlayExplicit: false });
       expect(result.runtimeIncompatible.map(e => [e.rule, e.refs])).toEqual([["legacyGameContent", [{ kind: "note", index: 2 }]]]);
     });
 
-    it.each(["single", "double"] as const)("보조 lane5 같은 수 바디 [0,2]·[2,4] 경계 2에 구형 %s Point가 있으면 경계 표시로 인정해 저장·새 재생이 가능하다", type => {
+    it.each(["single", "double"] as const)("보조 lane5 같은 수 바디 [0,2]·[2,4] 경계 2에 구형 %s Point가 있으면 경계의 Point로 인정해 저장·새 재생이 가능하다", type => {
       const result = validateChartDocument(document([body(0, 2, 1, 5), body(2, 4, 1, 5), legacyPoint(type, 2, 5)]));
       expect(result.semantic).toEqual([]);
       expect(result).toMatchObject({ canSave: true, canPlayExplicit: true });
     });
 
-    it("다른 레인2의 구형 single2는 레인1 경계 2를 표시하지 않아 위반이 남는다", () => {
+    it("다른 레인2의 구형 single2는 레인1 경계 2의 Point로 인정하지 않아 위반이 남는다", () => {
       expect(rules([body(0, 2), body(2, 4), legacyPoint("single", 2, 2)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
     });
 
-    const jointMarks = ([1, 2] as const).flatMap(holdCount => [
+    const jointNotes = ([1, 2] as const).flatMap(holdCount => [
       { holdCount, name: "일반 single Point", note: point(2) },
       { holdCount, name: "double Point", note: { type: "point", kind: "double", lane: 1, beat: beat(2) } as DocumentNoteEntity },
       { holdCount, name: "Grace single Point", note: { type: "point", kind: "single", lane: 1, beat: beat(2), grace: true } as DocumentNoteEntity },
@@ -188,7 +188,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
       { holdCount, name: "릴리즈 count2", note: mark("release", 2, 2) },
       { holdCount, name: "Grace 릴리즈 count1", note: { type: "release", lane: 1, beat: beat(2), count: 1, grace: true } as DocumentNoteEntity },
     ]);
-    it.each(jointMarks)("hold $holdCount→같은 수 경계 2의 $name은 경계를 표시하므로 유효하다", ({ holdCount, note }) => {
+    it.each(jointNotes)("hold $holdCount→같은 수 경계 2의 $name은 경계의 Point·릴리즈로 인정해 유효하다", ({ holdCount, note }) => {
       expect(rules([body(0, 2, holdCount), body(2, 4, holdCount), note])).toEqual([]);
     });
 
@@ -201,7 +201,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
         [SAME_HOLD_COUNT_CONNECTION_RULE, [{ kind: "note", index: 0 }, { kind: "note", index: 1 }]]]);
     });
 
-    it.each(["point", "release"] as const)("길이0 뒤 바디 [2,2]에 놓은 경계 %s는 zeroLengthBodyOverlap이라 표시로 인정해도 저장할 수 없다", kind => {
+    it.each(["point", "release"] as const)("길이0 뒤 바디 [2,2]에 놓은 경계 %s는 경계의 Point·릴리즈로 인정되어도 zeroLengthBodyOverlap이라 저장할 수 없다", kind => {
       const notes = [body(0, 2), body(2, 2), kind === "point" ? point(2) : mark("release", 2)];
       expect(rules(notes)).toEqual(["zeroLengthBodyOverlap"]);
       expect(validateChartDocument(document(notes)).canSave).toBe(false);
@@ -232,7 +232,7 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
       expect(result.canSave).toBe(true);
     });
 
-    it("메인 레인1의 일반 바디 [0,2] 뒤 트릴 바디 [2,4] 경계에 표시가 없으면 시작 트릴 Point 누락인 trillLongInvalid만 보고하고 트릴 여부가 달라 같은 수 경계 위반은 내지 않는다", () => {
+    it("메인 레인1의 일반 바디 [0,2] 뒤 트릴 바디 [2,4] 경계에 Point도 릴리즈도 없으면 시작 트릴 Point 누락인 trillLongInvalid만 보고하고 트릴 여부가 달라 같은 수 경계 위반은 내지 않는다", () => {
       const chart = document([body(0, 2), trillBody(2, 4)]);
       chart.trillZones = [{ lane: 1, beat: beat(2), endBeat: beat(4) }];
       expect(validateChartDocument(chart).semantic.map(e => [e.rule, e.refs])).toEqual([
@@ -247,11 +247,11 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
       { name: "트릴 Point", note: trillPoint(2, 5) },
       { name: "릴리즈", note: mark("release", 2, 1, 5) },
       { name: "구형 trill", note: legacyPoint("trill", 2, 5) },
-    ])("보조 lane5의 트릴 바디 [0,2]·[2,4] 경계 2의 $name은 경계를 표시하므로 유효하다", ({ note }) => {
+    ])("보조 lane5의 트릴 바디 [0,2]·[2,4] 경계 2의 $name은 경계의 Point·릴리즈로 인정해 유효하다", ({ note }) => {
       expect(rules([trillBody(0, 2, 5), trillBody(2, 4, 5), note])).toEqual([]);
     });
 
-    it("보조 lane5의 일반 [0,2]·트릴 [2,4]·트릴 [4,6] 연쇄에 표시가 없으면 트릴 여부가 같은 경계 4의 두 트릴 바디를 가리키는 위반 1건만 남는다", () => {
+    it("보조 lane5의 일반 [0,2]·트릴 [2,4]·트릴 [4,6] 연쇄의 경계에 Point도 릴리즈도 없으면 트릴 여부가 같은 경계 4의 두 트릴 바디를 가리키는 위반 1건만 남는다", () => {
       expect(validateChartDocument(document([body(0, 2, 1, 5), trillBody(2, 4, 5), trillBody(4, 6, 5)])).semantic
         .map(e => [e.rule, e.refs])).toEqual([
         [SAME_HOLD_COUNT_CONNECTION_RULE, [{ kind: "note", index: 1 }, { kind: "note", index: 2 }]]]);
