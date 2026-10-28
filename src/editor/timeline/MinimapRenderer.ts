@@ -15,11 +15,11 @@ import { isRightRailX } from "./timelineViewport";
 import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
 import { computeMinimapRestZoneRects } from "./minimapRestZone";
 import { computeMinimapViolationRects, type MinimapViolationRect } from "./minimapViolation";
-import type { Chart } from "../../shared";
+import type { ChartDocument } from "../../shared";
 
 /** MinimapRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface MinimapHost {
-  readonly chart: Chart | null;
+  readonly chart: ChartDocument | null;
   readonly options: { canvas: HTMLCanvasElement; width: number; height: number; onScroll?: (scrollY: number) => void };
   readonly scrollY: number;
   readonly totalTimelineHeight: number;
@@ -283,6 +283,7 @@ export class MinimapRenderer {
 
         let noteColor: number;
         switch (note.type) {
+          case "body": noteColor = note.trill ? COLORS.TRILL_LONG : note.holdCount === 2 ? COLORS.DOUBLE_LONG : COLORS.SINGLE_LONG; break;
           case "long": noteColor = COLORS.SINGLE_LONG; break;
           case "doubleLong": noteColor = COLORS.DOUBLE_LONG; break;
           case "trillLong": noteColor = COLORS.TRILL_LONG; break;
@@ -298,6 +299,9 @@ export class MinimapRenderer {
         // Point note: 1px height horizontal line
         let noteColor: number;
         switch (note.type) {
+          case "point": noteColor = note.kind === "double" ? COLORS.DOUBLE_NOTE : note.kind === "trill" ? COLORS.TRILL_NOTE : COLORS.SINGLE_NOTE; break;
+          case "release": noteColor = note.count === 2 ? COLORS.DOUBLE_NOTE : COLORS.SINGLE_NOTE; break;
+          case "sustain": noteColor = note.count === 2 ? COLORS.DOUBLE_LONG : COLORS.SINGLE_LONG; break;
           case "single": noteColor = COLORS.SINGLE_NOTE; break;
           case "double": noteColor = COLORS.DOUBLE_NOTE; break;
           case "trill": noteColor = COLORS.TRILL_NOTE; break;

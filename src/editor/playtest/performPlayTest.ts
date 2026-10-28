@@ -1,5 +1,6 @@
-import { mainNotes, validateChart } from "../../shared";
-import type { Chart } from "../../shared";
+import { editorChartErrors } from '../documentValidation';
+import { mainNotes, requireLegacyChart } from "../../shared";
+import type { Chart, ChartDocument } from "../../shared";
 
 export interface PlayTestGameActions {
   setChartData: (chart: Chart | null) => void;
@@ -14,7 +15,7 @@ export interface PerformPlayTestParams {
   audioBuffer: AudioBuffer | null;
   isPlaying: boolean;
   pause: () => void;
-  chart: Chart;
+  chart: ChartDocument;
   currentTimeMs: number;
   returnUrl: string;
   game: PlayTestGameActions;
@@ -39,7 +40,7 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
 
   // 플레이/프리뷰 진입 게이트 (RFD 0017 §3-2). 낙관적 편집으로 남은 위반이 있으면
   // 게임의 valid chart 전제를 지키기 위해 다른 진입 경로까지 여기서 막는다.
-  const violations = validateChart({
+  const violations = editorChartErrors({
     notes: chart.notes,
     trillZones: chart.trillZones,
     restZones: chart.restZones,
@@ -50,11 +51,20 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
     return false;
   }
 
+  // 새 게임 연결 전까지 구형 main만 실행한다. 위에서 검증한 보조 노트는 실행하지 않는다.
+  let playableChart: Chart;
+  try {
+    playableChart = requireLegacyChart({ ...chart, notes: mainNotes(chart.notes) }, "현재 테스트 플레이");
+  } catch {
+    addToast("명시적 노트의 테스트 플레이는 새 게임 연결 후 사용할 수 있습니다", "error");
+    return false;
+  }
+
   if (isPlaying) pause();
 
   // 게임 진입 필터 (RFD 0018 §3-3). 파일 직렬화를 거치지 않는 테스트 플레이에서도
   // 보조 레인을 제거한다. 에디터와 Lab이 공유하는 온라인 서비스 비의존 초크포인트다.
-  game.setChartData({ ...chart, notes: mainNotes(chart.notes) });
+  game.setChartData(playableChart);
   game.setAudioBuffer(audioBuffer);
   game.setStartTimeMs(fromCursor ? currentTimeMs : 0);
   game.setEditorReturnUrl(returnUrl);

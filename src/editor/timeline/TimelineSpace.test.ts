@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createTimelineSpace, type TimelineSpaceSource } from "./TimelineSpace";
 import { beat } from "../../shared";
-import type { Chart, NoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
+import type { ChartDocument, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // fake source — 가변 필드로 라이브 읽기(no-stale)를 검증한다 (mock 아님, 진짜 조립)
 // ---------------------------------------------------------------------------
 
-function makeChart(overrides?: Partial<Chart>): Chart {
+function makeChart(overrides?: Partial<ChartDocument>): ChartDocument {
   return {
     meta: {
       title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1,
@@ -24,7 +24,7 @@ function makeChart(overrides?: Partial<Chart>): Chart {
 }
 
 interface FakeSourceState {
-  chart: Chart;
+  chart: ChartDocument;
   snapDivision: number;
   selectedNotes: Set<number>;
   extraLaneCount: number;
@@ -81,7 +81,7 @@ describe("TimelineSpace — 라이브 읽기 (no-stale)", () => {
   });
 
   it("source의 selectedNotes에 노트를 넣으면 space 재생성 없이 겹친 노트 중 선택된 쪽이 우선 히트", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1, beat: beat(2, 1) },
       { type: "single", lane: 1, beat: beat(2, 1) },
     ];
@@ -229,7 +229,7 @@ describe("TimelineSpace — 히트테스트", () => {
   });
 
   it("hitTestUnifiedNote: 보조 노트(lane 5)도 x=250에서 chart.notes 통합 인덱스 1을 반환", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1, beat: beat(0, 1) },
       { type: "single", lane: 5, beat: beat(2, 1) },
     ];
@@ -241,7 +241,7 @@ describe("TimelineSpace — 히트테스트", () => {
   });
 
   it("hitTestExtraNote: 보조 노트(lane 5)는 aux 파생 배열 인덱스 0을 반환, 다른 보조 레인은 미스", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1, beat: beat(2, 1) }, // 메인 — aux 배열에 없음
       { type: "single", lane: 5, beat: beat(2, 1) },
     ];
@@ -252,13 +252,82 @@ describe("TimelineSpace — 히트테스트", () => {
   });
 
   it("hitTestNoteEnd: 롱노트 endBeat=2를 y=1000에서 히트(tolerance 1/16), y=1100(0.2박 차이)은 미스", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "long", lane: 1, beat: beat(0, 1), endBeat: beat(2, 1) },
     ];
     const { source } = makeFakeSource({ chart: makeChart({ notes }) });
     const space = createTimelineSpace(source);
     expect(space.hitTestNoteEnd(30, 1000)).toBe(0);
     expect(space.hitTestNoteEnd(30, 1100)).toBeNull();
+  });
+
+  describe("끝 Release가 덮은 바디 끝 핸들", () => {
+    // 1～5박 싱글 바디 + 5박 Release. y=500이 1박이라 5박은 y=2500, 1/16박은 y≈31.
+    const bodyWithEndRelease = (): DocumentNoteEntity[] => [
+      { type: "body", lane: 1, beat: beat(1), endBeat: beat(5), holdCount: 1 },
+      { type: "release", lane: 1, beat: beat(5), count: 1 },
+    ];
+
+    it("5박(y=2500)은 Release와 끝 핸들이 겹쳐 Release가 이기고 hitTestNoteEnd는 null이다", () => {
+      const { source } = makeFakeSource({ chart: makeChart({ notes: bodyWithEndRelease() }) });
+      const space = createTimelineSpace(source);
+      expect(space.hitTestUnifiedNote(30, 2500)).toBe(1);
+      expect(space.hitTestNoteEnd(30, 2500)).toBeNull();
+    });
+
+    it("Release hit 밖 바로 위 5.1박(y=2550)은 노트가 없고 hitTestNoteEnd가 바디 0을 돌려준다", () => {
+      const { source } = makeFakeSource({ chart: makeChart({ notes: bodyWithEndRelease() }) });
+      const space = createTimelineSpace(source);
+      expect(space.hitTestUnifiedNote(30, 2550)).toBeNull();
+      expect(space.hitTestNoteEnd(30, 2550)).toBe(0);
+    });
+
+    it("끝 핸들 띠 밖 5.2박(y=2600)은 hitTestNoteEnd가 null이다", () => {
+      const { source } = makeFakeSource({ chart: makeChart({ notes: bodyWithEndRelease() }) });
+      expect(createTimelineSpace(source).hitTestNoteEnd(30, 2600)).toBeNull();
+    });
+
+    describe("이어진 뒤 바디가 끝 핸들 띠를 덮는 연결 경계", () => {
+      // holdCount 2 바디 1～5박 + 5박 Release + holdCount 1 바디 5～9박. 5.1박(y=2550)은 뒤 바디 안이다.
+      const connectedBodies = (): DocumentNoteEntity[] => [
+        { type: "body", lane: 1, beat: beat(1), endBeat: beat(5), holdCount: 2 },
+        { type: "release", lane: 1, beat: beat(5), count: 1 },
+        { type: "body", lane: 1, beat: beat(5), endBeat: beat(9), holdCount: 1 },
+      ];
+
+      it.each([
+        { label: "선택 없음", selected: [] },
+        { label: "앞 바디 0 선택", selected: [0] },
+      ])("$label이어도 뒤 바디 2 안인 5.1박(y=2550)의 hitTestNoteEnd는 앞 바디 0이다(선택 게이트는 resolveGrab)", ({ selected }) => {
+        const { source } = makeFakeSource({ chart: makeChart({ notes: connectedBodies() }), selectedNotes: new Set(selected) });
+        const space = createTimelineSpace(source);
+        expect(space.hitTestUnifiedNote(30, 2550)).toBe(2);
+        expect(space.hitTestNoteEnd(30, 2550)).toBe(0);
+      });
+
+      it("5.125박 유지 노트가 덮는 5.1박(y=2550)은 점수 노트가 이겨 hitTestNoteEnd가 null이다", () => {
+        const notes: DocumentNoteEntity[] = [...connectedBodies(), { type: "sustain", lane: 1, beat: beat(41, 8), count: 1 }];
+        const { source } = makeFakeSource({ chart: makeChart({ notes }) });
+        const space = createTimelineSpace(source);
+        expect(space.hitTestUnifiedNote(30, 2550)).toBe(3);
+        expect(space.hitTestNoteEnd(30, 2550)).toBeNull();
+      });
+
+      it("5.125박 구형 single 노트가 덮는 5.1박(y=2550)은 띠를 막아 hitTestNoteEnd가 null이다", () => {
+        const notes: DocumentNoteEntity[] = [...connectedBodies(), { type: "single", lane: 1, beat: beat(41, 8) }];
+        const { source } = makeFakeSource({ chart: makeChart({ notes }) });
+        const space = createTimelineSpace(source);
+        expect(space.hitTestUnifiedNote(30, 2550)).toBe(3);
+        expect(space.hitTestNoteEnd(30, 2550)).toBeNull();
+      });
+    });
+
+    it("Release 없는 바디는 기존처럼 끝 ±1/16박만 핸들이라 5.1박(y=2550)은 null이다", () => {
+      const { source } = makeFakeSource({ chart: makeChart({ notes: [bodyWithEndRelease()[0]] }) });
+      const space = createTimelineSpace(source);
+      expect(space.hitTestNoteEnd(30, 2500)).toBe(0);
+      expect(space.hitTestNoteEnd(30, 2550)).toBeNull();
+    });
   });
 
   it("hitTestEventEnd: editorLane 1 구간 이벤트 endBeat=2를 보조 x=250·y=1000에서 히트, editorLane 2 위치(x=310)는 미스", () => {

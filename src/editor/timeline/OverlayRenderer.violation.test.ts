@@ -1,21 +1,22 @@
+import { editorChartViolationIndices } from '../documentValidation';
 import { describe, it, expect, vi } from "vitest";
 import { Container } from "pixi.js";
 import type { Graphics, GraphicsPath, Polygon, Rectangle } from "pixi.js";
-import { beat, chartViolationIndices } from "../../shared";
-import type { Chart, BpmMarker, NoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
+import { beat } from "../../shared";
+import type { ChartDocument, BpmMarker, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
 import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 
 function makeChart(
-  notes: NoteEntity[],
+  notes: DocumentNoteEntity[],
   trillZones: TrillZone[] = [],
   events: ChartEvent[] = [
     { type: "bpm", beat: beat(0), bpm: 120 },
     { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
   ],
   restZones?: RestZone[],
-): Chart {
+): ChartDocument {
   return {
     meta: {
       title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1,
@@ -54,7 +55,7 @@ function hatchShapes(g: Graphics): { rect: Rectangle; segments: number[][] } {
 }
 
 function makeHost(
-  chart: Chart,
+  chart: ChartDocument,
   violatingNotes: Set<number>,
   violatingZones: Set<number>,
   violatingEvents: Set<number> = new Set(),
@@ -133,7 +134,7 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
       { type: "long", lane: 1, beat: beat(0), endBeat: beat(2) },
       { type: "long", lane: 1, beat: beat(2), endBeat: beat(2) },
     ]);
-    const indices = chartViolationIndices(chart);
+    const indices = editorChartViolationIndices(chart);
     const host = makeHost(chart, indices.notes, indices.trillZones);
     const r = new OverlayRenderer(host);
     r.renderViolationOverlay();

@@ -1,21 +1,15 @@
-/**
- * SelectMode × 실제 editorStore(§3-5 선택 해제 게이트 포함) 결합 테스트.
- *
- * SelectMode.test.ts의 페이크 setSelection은 게이트가 없어(항상 통과) 게이트 거부와
- * 얽힌 동작 — select→move 가드, 삭제/붙여넣기 취소의 커밋 순서, 박스 프리뷰 확정 —
- * 을 검증할 수 없다. 여기서는 진짜 store에 배선해 그 사각지대를 커버한다.
- */
+/** SelectMode × 실제 store: 구형 의미 위반 수리에서도 선택 교체·이동·취소를 허용한다. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SelectMode } from "./SelectMode";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
 import { useEditorStore } from "../stores/editorStore";
 import { emptySelection, type Selection } from "../stores/selectionSlice";
 import { beat, beatToFloat, auxNotesAsExtra, withAuxNotes } from "../../shared";
-import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity } from "../../shared";
+import type { ChartDocument, Beat, Lane, DocumentNoteEntity, DocumentExtraNoteEntity } from "../../shared";
 
 vi.mock("../../shared/toast", () => ({ showToast: vi.fn() }));
 
-function fullChart(notes: NoteEntity[]): Chart {
+function fullChart(notes: DocumentNoteEntity[]): ChartDocument {
   return {
     meta: {
       title: "Test",
@@ -40,15 +34,14 @@ function sel(input: Partial<Selection>): Selection {
   return { ...emptySelection(), ...input };
 }
 
-// 픽스처: 0·1이 같은 레인·박 중복(의미 위반, §3-5 대상), 2는 무관(lane2 beat2)
-const dupNotes: NoteEntity[] = [
+const dupNotes: DocumentNoteEntity[] = [
   { type: "single", lane: 1, beat: beat(0) },
   { type: "single", lane: 1, beat: beat(0) },
   { type: "single", lane: 2, beat: beat(2) },
 ];
 
 function makeIntegration(
-  notes: NoteEntity[],
+  notes: DocumentNoteEntity[],
   hitTestNote: (x: number, y: number) => number | null,
 ) {
   useEditorStore.setState({
@@ -59,12 +52,10 @@ function makeIntegration(
     historyLastCaptureAt: 0,
   });
 
-  // 모든 게이트 커밋의 반환값을 기록한다 — false가 하나라도 있으면 어떤 경로가
-  // 게이트에 거부된 채 진행됐다는 뜻(예: 삭제가 차트 커밋 전에 해제를 시도)
   const setSelectionSpy = vi.fn((s: Selection) => useEditorStore.getState().setSelection(s));
 
   const cb = {
-    onChartUpdate: (c: Chart) => {
+    onChartUpdate: (c: ChartDocument) => {
       useEditorStore.getState().setChart(c);
       mode.setChart(useEditorStore.getState().chart);
     },
@@ -72,7 +63,6 @@ function makeIntegration(
     setSelection: setSelectionSpy,
     setSelectionTransient: (s: Selection) =>
       useEditorStore.getState().setSelectionTransient(s),
-    // 좌표/히트만 space로 — 선택 게이트 콜백(setSelection 등)은 실제 store 결합 그대로.
     // SelectMode 의미론: 구 hitTestNote 콜백은 통합 히트테스트 → hitTestUnifiedNote로 주입.
     space: makeFakeSpace({
       yToBeat: (y: number): Beat => beat(y),
@@ -87,7 +77,7 @@ function makeIntegration(
     onWarn: vi.fn(),
     // ③ 병합 어댑터 (RFD 0018): 보조는 chart.notes(lane 5+)에 살고, 콜백이 파생·병합한다.
     getExtraNotes: () => auxNotesAsExtra(useEditorStore.getState().chart.notes),
-    onExtraNotesUpdate: (e: ExtraNoteEntity[]) => {
+    onExtraNotesUpdate: (e: DocumentExtraNoteEntity[]) => {
       const cur = useEditorStore.getState().chart;
       useEditorStore.getState().setChart({ ...cur, notes: withAuxNotes(cur.notes, e) });
     },
@@ -100,29 +90,29 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("select→move seam × §3-5 게이트 (stale 선택 오이동 방지)", () => {
-  it("위반 노트를 쥔 채 다른 노트를 클릭+드래그해도 게이트가 거부하면 아무것도 이동하지 않는다", () => {
+describe("구형 의미 위반 선택 교체와 이동", () => {
+  it("위반 노트 {0}에서 노트 {2}를 클릭·드래그하면 {2}만 2→3박 이동한다", () => {
     const { mode, store } = makeIntegration(dupNotes, (x, y) => (x === 2 && y === 2 ? 2 : null));
     store.getState().setSelection(sel({ notes: new Set([0]) })); // 위반 당사자 선택 (∅→{0} 통과)
     const before = store.getState().chart.notes.map((n) => beatToFloat(n.beat));
 
-    mode.onPointerDown(2, 2, false, false); // 노트 2 클릭 → 교체 전이 {0}→{2} 거부
+    mode.onPointerDown(2, 2, false, false);
     mode.onPointerMove(2, 3); // 드래그 시도
     mode.onPointerUp(2, 3);
 
-    expect(store.getState().selection.notes).toEqual(new Set([0])); // 선택 유지(§3-5)
-    expect(store.getState().chart.notes.map((n) => beatToFloat(n.beat))).toEqual(before); // 오이동 없음
+    expect(store.getState().selection.notes).toEqual(new Set([2]));
+    expect(store.getState().chart.notes.map((n) => beatToFloat(n.beat))).toEqual([before[0], before[1], 3]);
   });
 
-  it("터치 롱프레스(beginTouchMoveDragFromNote)도 게이트 거부 시 이동을 시작하지 않고 false를 반환한다", () => {
+  it("구형 위반 노트 {0}에서 노트 {2}를 터치 롱프레스하면 선택을 바꾸고 이동을 시작한다", () => {
     const { mode, store } = makeIntegration(dupNotes, () => null);
     store.getState().setSelection(sel({ notes: new Set([0]) }));
 
-    const ok = mode.beginTouchMoveDragFromNote(2, 2, 2); // 노트 2로 교체 시도 → 거부
+    const ok = mode.beginTouchMoveDragFromNote(2, 2, 2);
 
-    expect(ok).toBe(false);
-    expect(mode.isMoveDragging).toBe(false);
-    expect(store.getState().selection.notes).toEqual(new Set([0]));
+    expect(ok).toBe(true);
+    expect(mode.isMoveDragging).toBe(true);
+    expect(store.getState().selection.notes).toEqual(new Set([2]));
   });
 });
 
@@ -136,7 +126,6 @@ describe("차트 축소 커밋의 게이트 면제 — 커밋 순서 회귀 가�
 
     expect(store.getState().chart.notes).toHaveLength(1); // 무관 노트만 남음
     expect(store.getState().selection).toEqual(emptySelection());
-    // 순서를 뒤집으면(해제→차트 커밋) 첫 커밋이 게이트에 거부돼 false가 기록된다
     expect(setSelectionSpy.mock.results.every((r) => r.value === true)).toBe(true);
   });
 
@@ -160,19 +149,18 @@ describe("차트 축소 커밋의 게이트 면제 — 커밋 순서 회귀 가�
 });
 
 describe("박스 드래그 × §3-5 — 프레임은 프리뷰, 확정은 (시작 전 → 최종) 전이 하나", () => {
-  it("위반 선택을 쥔 채 박스 드래그: 중간 프레임은 얼지 않고, 위반 노트를 안 덮은 최종 확정은 거부되어 시작 전 선택이 유지된다", () => {
+  it("위반 노트 {0}을 제외한 박스 드래그도 최종 {2} 선택으로 확정된다", () => {
     const { mode, store } = makeIntegration(dupNotes, () => null);
     store.getState().setSelection(sel({ notes: new Set([0]) })); // 위반 당사자 선택
 
     mode.onPointerDown(3, 3, false, false); // 빈 곳 → 박스 시작(프리뷰 clear, 게이트 미발화)
     mode.onPointerMove(2, 1); // lanes 2..3 × beats 1..3 → 노트 2만 포함
 
-    // 중간 프레임: 프리뷰(transient)라 게이트에 얼어붙지 않고 박스 내용이 반영된다
     expect(store.getState().selection.notes).toEqual(new Set([2]));
 
-    mode.onPointerUp(2, 1); // 확정: {0}→{2} 전이 → 위반 노트 0을 떨구므로 거부
+    mode.onPointerUp(2, 1);
 
-    expect(store.getState().selection.notes).toEqual(new Set([0])); // 시작 전 선택 복원·유지
+    expect(store.getState().selection.notes).toEqual(new Set([2]));
   });
 
   it("박스가 위반 노트를 포함해 끝나면 removed=∅이라 확정이 통과한다", () => {
@@ -200,7 +188,7 @@ describe("박스 드래그 × §3-5 — 프레임은 프리뷰, 확정은 (시�
   });
 
   it("위반이 없으면 박스 확정이 그대로 통과한다 (기존 박스 UX 불변)", () => {
-    const clean: NoteEntity[] = [
+    const clean: DocumentNoteEntity[] = [
       { type: "single", lane: 1, beat: beat(0) },
       { type: "single", lane: 2, beat: beat(2) },
     ];

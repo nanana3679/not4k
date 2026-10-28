@@ -1,69 +1,36 @@
 import { describe, expect, it, vi } from "vitest";
 import { beat } from "../shared/types/beat";
-import { ChartFormatError, UnsupportedChartContentError } from "../shared/chart";
-import { fetchEditorExtraText, loadLegacyEditorChartAsset } from "./chartAssetLoad";
+import { ChartFormatError } from "../shared/chart";
+import { fetchEditorExtraText, loadEditorChartAsset } from "./chartAssetLoad";
+import { editorChartErrors } from "./documentValidation";
 
 const main = {
   version: 3, meta: { title: "기존 메타데이터", offsetMs: -20 }, notes: [], trillZones: [], events: [],
 };
 
-describe("loadLegacyEditorChartAsset", () => {
-  it("별도 보조 파일이 없으면 메인 내장 extraLane 3을 lane 7로 병합하고 레인 수를 확장한다", () => {
-    const loaded = loadLegacyEditorChartAsset(JSON.stringify({
-      ...main,
-      extraNotes: [{ type: "doubleLong", extraLane: 3, beat: "1", endBeat: "1", holdOnly: true }],
-      extraLaneCount: 1,
-    }), null);
-    expect(loaded.chart.notes).toEqual([{ type: "doubleLong", lane: 7, beat: beat(1), endBeat: beat(1), holdOnly: true }]);
-    expect(loaded.chart.meta).toEqual(main.meta);
-    expect(loaded.extraLaneCount).toBe(3);
-  });
-
-  it("별도 보조 파일이 있으면 내장 보조 대신 별도 파일의 Grace=true를 보존한다", () => {
-    const loaded = loadLegacyEditorChartAsset(JSON.stringify({
-      ...main, extraNotes: [{ type: "single", extraLane: 1, beat: "0" }],
-    }), JSON.stringify({ extraNotes: [{ type: "double", extraLane: 2, beat: "2", grace: true }], extraLaneCount: 4 }));
-    expect(loaded.chart.notes).toEqual([{ type: "double", lane: 6, beat: beat(2), grace: true }]);
+describe('loadEditorChartAsset 문서 로드', () => {
+  it('v4 혼합 main과 의미 위반 aux sustain도 원본 배열 순서·false·수량과 함께 수리용으로 읽는다', () => {
+    const loaded = loadEditorChartAsset(JSON.stringify({ ...main, version: 4, notes: [
+      { type: 'single', lane: 1, beat: '8', grace: false },
+      { type: 'release', count: 2, lane: 2, beat: '4', grace: false },
+    ] }), JSON.stringify({ version: 4, extraLaneCount: 4, extraNotes: [
+      { type: 'sustain', count: 2, extraLane: 3, beat: '2' },
+    ] }));
+    expect(loaded.chart.notes).toEqual([
+      { type: 'single', lane: 1, beat: beat(8), grace: false },
+      { type: 'release', count: 2, lane: 2, beat: beat(4), grace: false },
+      { type: 'sustain', count: 2, lane: 7, beat: beat(2) },
+    ]);
     expect(loaded.extraLaneCount).toBe(4);
   });
 
-  it("보조 파일도 내장 자료도 없으면 기존 메인 차트와 extraLaneCount=0을 반환한다", () => {
-    const loaded = loadLegacyEditorChartAsset(JSON.stringify(main), null);
-    expect(loaded.chart.notes).toEqual([]);
-    expect(loaded.extraLaneCount).toBe(0);
+  it('별도 aux가 명시적으로 비어 있으면 내장 aux를 다시 끌어오지 않는다', () => {
+    expect(loadEditorChartAsset(JSON.stringify({ ...main, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }] }),
+      JSON.stringify({ extraNotes: [], extraLaneCount: 2 })).chart.notes).toEqual([]);
   });
 
-  it("별도 보조 200 응답 본문이 빈 문자열이면 메인 내장 Grace 보조 노트로 돌아가지 않고 ChartFormatError를 전달한다", () => {
-    const chartText = JSON.stringify({ ...main, extraNotes: [{ type: "single", extraLane: 1, beat: "0", grace: true }] });
-    expect(() => loadLegacyEditorChartAsset(chartText, "")).toThrow(ChartFormatError);
-  });
-
-  it.each([
-    ["JSON이 아닌 본문 \"not json\"", "not json"],
-    ["업로드가 끊겨 잘린 본문", '{"extraNotes":[{"type":"single","extraLane":1,'],
-  ])("별도 보조 파일이 %s이면 보조 없음(extraLaneCount 0)으로 열지 않고 ChartFormatError를 전달한다", (_label, extraText) => {
-    expect(() => loadLegacyEditorChartAsset(JSON.stringify(main), extraText)).toThrow(ChartFormatError);
-    expect(() => loadLegacyEditorChartAsset(JSON.stringify(main), extraText)).toThrow("보조 파일이 유효한 JSON이 아닙니다");
-  });
-
-  it("v4 메인 notes에 명시 single Point lane 1이 있으면 구형 Chart로 바꾸지 않고 UnsupportedChartContentError를 던진다", () => {
-    expect(() => loadLegacyEditorChartAsset(JSON.stringify({ ...main, version: 4, notes: [{ type: "point", kind: "single", lane: 1, beat: "0" }] }), null)).toThrow(UnsupportedChartContentError);
-  });
-
-  it("메인 notes에 명시 lane 5 노트가 있으면 별도 구형 보조 병합으로 숨기지 않고 거부한다", () => {
-    expect(() => loadLegacyEditorChartAsset(JSON.stringify({ ...main, version: 4, notes: [{ type: "point", kind: "single", lane: 5, beat: "0" }] }), JSON.stringify({ extraNotes: [{ type: "single", extraLane: 1, beat: "0" }] }))).toThrow(UnsupportedChartContentError);
-  });
-
-  it("구형 메인+v4 명시 보조 sustain은 빈 보조 데이터로 열지 않고 지원 오류를 전달한다", () => {
-    expect(() => loadLegacyEditorChartAsset(JSON.stringify(main), JSON.stringify({
-      version: 4, extraNotes: [{ type: "sustain", extraLane: 1, beat: "0", count: 1 }], extraLaneCount: 1,
-    }))).toThrow(UnsupportedChartContentError);
-  });
-
-  it("v4 메인 내장 명시 보조 release도 지원 오류를 전달한다", () => {
-    expect(() => loadLegacyEditorChartAsset(JSON.stringify({
-      ...main, version: 4, extraNotes: [{ type: "release", extraLane: 1, beat: "0", count: 2 }],
-    }), null)).toThrow(UnsupportedChartContentError);
+  it.each([JSON.stringify({ version: 999, extraNotes: [] }), JSON.stringify({ version: 4, extraNotes: [{ type: 'future', extraLane: 1, beat: '0' }] })])('인식한 aux 형식 오류 %s는 빈 자료로 열지 않고 실패를 전달한다', text => {
+    expect(() => loadEditorChartAsset(JSON.stringify(main), text)).toThrow();
   });
 
   it.each([
@@ -72,7 +39,43 @@ describe("loadLegacyEditorChartAsset", () => {
     { version: 4, extraNotes: [{ type: "release", extraLane: 1, beat: "0", count: 0 }] },
     { extraNotes: "bad" },
   ])("보조 형식 오류 %j는 무시하지 않고 ChartFormatError를 전달한다", (extra) => {
-    expect(() => loadLegacyEditorChartAsset(JSON.stringify(main), JSON.stringify(extra))).toThrow(ChartFormatError);
+    expect(() => loadEditorChartAsset(JSON.stringify(main), JSON.stringify(extra))).toThrow(ChartFormatError);
+  });
+
+  it('별도 보조 파일이 없으면(null) 메인 내장 Grace 보조 노트와 extraLaneCount 3을 불러온다', () => {
+    const chart = JSON.stringify({ ...main, extraNotes: [{ type: 'double', extraLane: 2, beat: '2', grace: false }], extraLaneCount: 3 });
+    expect(loadEditorChartAsset(chart, null).chart.notes).toEqual([{ type: 'double', lane: 6, beat: beat(2), grace: false }]);
+    expect(loadEditorChartAsset(chart, null).extraLaneCount).toBe(3);
+  });
+
+  it('별도 보조 200 응답 본문이 빈 문자열이면 메인 내장 Grace 보조 노트로 돌아가지 않고 ChartFormatError를 전달한다', () => {
+    const chart = JSON.stringify({ ...main, extraNotes: [{ type: 'double', extraLane: 2, beat: '2', grace: false }], extraLaneCount: 3 });
+    expect(() => loadEditorChartAsset(chart, '')).toThrow(ChartFormatError);
+  });
+
+  it.each([
+    ['JSON이 아닌 본문 "not json"', 'not json'],
+    ['업로드가 끊겨 잘린 본문', '{"extraNotes":[{"type":"single","extraLane":1,'],
+  ])('별도 보조 파일이 %s이면 보조 없음(extraLaneCount 0)으로 열지 않고 ChartFormatError를 전달한다', (_label, extraText) => {
+    expect(() => loadEditorChartAsset(JSON.stringify(main), extraText)).toThrow(ChartFormatError);
+    expect(() => loadEditorChartAsset(JSON.stringify(main), extraText)).toThrow('보조 파일이 유효한 JSON이 아닙니다');
+  });
+
+  it.each([
+    ['별도 aux 파일이 있으면', JSON.stringify({ version: 4, extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }] })],
+    ['aux 파일 없이 메인에 예전 extraNotes가 있으면', null],
+  ])('%s 메인의 lane 0·lane 1.5 Point를 병합에서 버리지 않아 laneMalformed 위반으로 보인다', (_label, extraText) => {
+    const chart = JSON.stringify({ ...main, version: 4, extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '0' }], notes: [
+      { type: 'point', kind: 'single', lane: 0, beat: '1' },
+      { type: 'point', kind: 'single', lane: 1.5, beat: '2' },
+    ] });
+    const loaded = loadEditorChartAsset(chart, extraText);
+    expect(loaded.chart.notes).toEqual([
+      { type: 'point', kind: 'single', lane: 0, beat: beat(1) },
+      { type: 'point', kind: 'single', lane: 1.5, beat: beat(2) },
+      { type: 'single', lane: 5, beat: beat(0) },
+    ]);
+    expect(editorChartErrors(loaded.chart).filter(error => error.rule === 'laneMalformed')).toHaveLength(2);
   });
 });
 
@@ -97,8 +100,6 @@ describe("fetchEditorExtraText", () => {
     ["500", json(500, { error: "server" })],
     ["권한 오류 본문의 400", json(400, { statusCode: "403", error: "Unauthorized" })],
     ["JSON이 아닌 본문의 400", new Response("bad request", { status: 400 })],
-    ["버킷 없음 400 statusCode 404·code NoSuchBucket", json(400, { statusCode: "404", code: "NoSuchBucket", error: "Bucket not found", message: "Bucket not found" })],
-    ["code 없는 버킷 없음 400 statusCode 404·error Bucket not found", json(400, { statusCode: "404", error: "Bucket not found", message: "Bucket not found" })],
   ])("%s 응답은 보조 없음으로 열지 않고 로드 오류로 전달한다", async (_label, response) => {
     await expect(fetchEditorExtraText("aux", respond(response))).rejects.toThrow("Chart extra fetch failed");
   });

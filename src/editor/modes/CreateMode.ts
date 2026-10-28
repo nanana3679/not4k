@@ -8,16 +8,17 @@
  */
 
 import type {
-  Chart,
-  PointNote,
-  RangeNote,
+  ChartDocument,
+  ExplicitPointNote,
+  BodyNote,
+  DocumentNoteEntity,
   TrillZone,
   RestZone,
   ChartEvent,
   Beat,
   Lane,
 } from "../../shared";
-import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex } from "../../shared";
+import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex, beatEq, deriveExplicitNoteRelations } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
@@ -27,6 +28,9 @@ export type EntityType =
   | "double"
   | "long"
   | "doubleLong"
+  | "release"
+  | "doubleRelease"
+  | "sustain"
   | "trillZone"
   | "restZone"
   | "bpm"
@@ -43,6 +47,9 @@ const ENTITY_TYPES: readonly EntityType[] = [
   "double",
   "long",
   "doubleLong",
+  "release",
+  "doubleRelease",
+  "sustain",
   "trillZone",
   "restZone",
 ] as const;
@@ -67,7 +74,7 @@ type RangeNoteEntityType = "long" | "doubleLong";
 
 export interface CreateModeCallbacks {
   /** Called when chart data is modified */
-  onChartUpdate: (chart: Chart) => void;
+  onChartUpdate: (chart: ChartDocument) => void;
   /** 좌표 변환·스냅·히트테스트 — 입력 좌표 공간 deep module */
   space: TimelineSpace;
   /** 배치 위치가 편집 가능한 시간 범위 안인지 (배치 제약용) */
@@ -75,7 +82,7 @@ export interface CreateModeCallbacks {
 }
 
 export class CreateMode implements EditorMode {
-  private chart: Chart;
+  private chart: ChartDocument;
   private callbacks: CreateModeCallbacks;
   private selectedEntityType: EntityType = "single";
   private _graceMode = false;
@@ -90,7 +97,7 @@ export class CreateMode implements EditorMode {
   // 명시적 long/doubleLong 드래그(=beginRangeNoteAt, 또는 long 엔티티)에서는 null로 둔다.
   private _dragPointFallback: "single" | "double" | null = null;
 
-  constructor(chart: Chart, callbacks: CreateModeCallbacks) {
+  constructor(chart: ChartDocument, callbacks: CreateModeCallbacks) {
     this.chart = chart;
     this.callbacks = callbacks;
   }
@@ -105,7 +112,7 @@ export class CreateMode implements EditorMode {
     this.selectedEntityType = type;
   }
 
-  /** Grace mode — 배치 시 면제 플래그 부여 (포인트→grace, 싱글롱→holdOnly) */
+  /** Grace mode — Point·Release에만 타이밍 면제 적용 */
   get graceMode(): boolean {
     return this._graceMode;
   }
@@ -155,7 +162,7 @@ export class CreateMode implements EditorMode {
   }
 
   /** Update the chart reference */
-  setChart(chart: Chart): void {
+  setChart(chart: ChartDocument): void {
     this.chart = chart;
   }
 
@@ -188,6 +195,13 @@ export class CreateMode implements EditorMode {
     return true;
   }
 
+  /** 터치 롱프레스도 Point 도구의 드래그와 같은 생성 조합을 사용한다. */
+  beginPointDragAt(x: number, y: number, kind: "single" | "double"): boolean {
+    const started = this.beginRangeNoteAt(x, y, kind === "double" ? "doubleLong" : "long");
+    if (started) this._dragPointFallback = kind;
+    return started;
+  }
+
   /** Handle mouse down on timeline */
   /**
    * 통합 포인터 down 진입점. 배치 제약을 스스로 검사하고 통과 시에만 배치한다.
@@ -203,6 +217,11 @@ export class CreateMode implements EditorMode {
    * 훅의 터치 예약 게이트에서도 재사용한다.
    */
   isPlacementBlocked(x: number, y: number): boolean {
+    if (!this.callbacks.isTimeInBounds(y)) return true;
+    // 명시 표식은 바디 안에도 놓는다. 중복·소속은 공용 의미 검증으로 표시한다.
+    if (this.selectedEntityType === "sustain" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
+    const unifiedHit = this.callbacks.space.hitTestUnifiedNote(x, y);
+    if (unifiedHit !== null && this.chart.notes[unifiedHit]?.type === "body") return false;
     const hitIdx = this.callbacks.space.hitTestNote(x, y);
     const rawBeat = this.callbacks.space.yToBeatRaw(y);
     return isCreatePlacementBlocked({
@@ -227,6 +246,13 @@ export class CreateMode implements EditorMode {
 
   onPointerDown(x: number, y: number): void {
     const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
+
+    const unifiedLane = this.callbacks.space.xToUnifiedLane(x);
+    if (unifiedLane !== null && (this.selectedEntityType === "sustain" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease")) {
+      if (this.selectedEntityType === "sustain") this.createSustain(unifiedLane, beat);
+      else this.commitNotes([...this.chart.notes, { type: "release", lane: unifiedLane, beat, count: this.selectedEntityType === "doubleRelease" ? 2 : 1, ...(this._graceMode ? { grace: true } : {}) }]);
+      return;
+    }
 
     // --- Extra lane detection ---
     const extraLane = this.callbacks.space.xToExtraLane(x);
@@ -415,77 +441,68 @@ export class CreateMode implements EditorMode {
   // 거부가 발화하지 않아 "this.chart 선갱신 후 store 거부" desync는 도달 불가하다.
   // -------------------------------------------------------------------------
 
-  private isInsideTrillZone(lane: Lane, beat: Beat): boolean {
+  private isInsideTrillZone(lane: number, beat: Beat): boolean {
     return this.chart.trillZones.some(
       (z) => z.lane === lane && beatGte(beat, z.beat) && beatLte(beat, z.endBeat)
     );
   }
 
-  private createPointNote(lane: Lane, beat: Beat): void {
-    const inTrill = this.isInsideTrillZone(lane, beat);
-    const newNote: PointNote = {
-      type: inTrill ? "trill" : (this.selectedEntityType as "single" | "double"),
-      lane,
-      beat,
-      ...(this._graceMode ? { grace: true } : {}),
-    };
-
-    // Create new chart with immutable update
-    const updatedChart: Chart = {
-      ...this.chart,
-      notes: [...this.chart.notes, newNote],
-    };
-
-    this.chart = updatedChart;
-    this.callbacks.onChartUpdate(updatedChart);
+  private commitNotes(notes: DocumentNoteEntity[]): void {
+    this.chart = { ...this.chart, notes };
+    this.callbacks.onChartUpdate(this.chart);
   }
 
-  private createRangeNote(lane: Lane, startBeat: Beat, endBeat: Beat): void {
-    // Ensure startBeat <= endBeat
-    const actualStartBeat = beatLt(startBeat, endBeat)
-      ? startBeat
-      : beatMin(startBeat, endBeat);
-    const actualEndBeat = beatGt(endBeat, startBeat)
-      ? endBeat
-      : beatMax(startBeat, endBeat);
+  private createPointNote(lane: number, beat: Beat): void {
+    const newNote: ExplicitPointNote = {
+      type: "point", kind: this.isInsideTrillZone(lane, beat) ? "trill" : this.selectedEntityType === "double" ? "double" : "single",
+      lane, beat, ...(this._graceMode ? { grace: true } : {}),
+    };
+    this.commitNotes([...this.chart.notes, newNote]);
+  }
 
-    const inTrill = this.isInsideTrillZone(lane, actualStartBeat);
-
-    // Determine head and body types
-    let headType: "single" | "double" | "trill";
-    let bodyType: "long" | "doubleLong" | "trillLong";
-    if (inTrill) {
-      headType = "trill";
-      bodyType = "trillLong";
-    } else if (this.currentRangeNoteType() === "doubleLong") {
-      headType = "double";
-      bodyType = "doubleLong";
-    } else {
-      headType = "single";
-      bodyType = "long";
+  private createRangeNote(lane: number, startBeat: Beat, endBeat: Beat): void {
+    const start = beatMin(startBeat, endBeat);
+    const end = beatMax(startBeat, endBeat);
+    const inTrill = this.isInsideTrillZone(lane, start);
+    const holdCount = inTrill ? 1 : this.currentRangeNoteType() === "doubleLong" ? 2 : 1;
+    const body: BodyNote = holdCount === 2
+      ? { type: "body", lane, beat: start, endBeat: end, holdCount: 2 }
+      : { type: "body", lane, beat: start, endBeat: end, holdCount: 1, ...(inTrill ? { trill: true } : {}) };
+    const notes: DocumentNoteEntity[] = [body];
+    // Point 도구로 시작한 양수 드래그만 점수 노트를 함께 만든다. 바디 도구는 바디만 만든다.
+    if (this._dragPointFallback && !beatEq(start, end)) {
+      notes.unshift({ type: "point", kind: inTrill ? "trill" : holdCount === 2 ? "double" : "single",
+        lane, beat: start, ...(this._graceMode ? { grace: true } : {}) });
+      if (!inTrill) notes.push({ type: "release", count: holdCount, lane, beat: end,
+        ...(this._graceMode ? { grace: true } : {}) });
     }
+    this.commitNotes([...this.chart.notes, ...notes]);
+  }
 
-    const bodyNote: RangeNote = {
-      type: bodyType,
-      lane,
-      beat: actualStartBeat,
-      endBeat: actualEndBeat,
-      ...(this._graceMode && (bodyType === "long" || bodyType === "doubleLong") ? { holdOnly: true } : {}),
-    };
-
-    // Length 0 (startBeat == endBeat): body only, no head note
-    const isZeroLength = actualStartBeat.n * actualEndBeat.d === actualEndBeat.n * actualStartBeat.d;
-    const newNotes: (PointNote | RangeNote)[] = isZeroLength
-      ? [bodyNote]
-      : [{ type: headType, lane, beat: actualStartBeat } as PointNote, bodyNote];
-
-    const updatedChart: Chart = {
-      ...this.chart,
-      notes: [...this.chart.notes, ...newNotes],
-    };
-
-    this.chart = updatedChart;
-    this.callbacks.onChartUpdate(updatedChart);
+  private createSustain(lane: number, at: Beat): void {
+    const probe: DocumentNoteEntity = { type: "sustain", lane, beat: at, count: 1 };
+    const relations = deriveExplicitNoteRelations([...this.chart.notes, probe]);
+    const bodyIndex = relations.sustainBodyByNote.get(this.chart.notes.length);
+    if (bodyIndex !== undefined) {
+      const body = this.chart.notes[bodyIndex];
+      if (body.type !== "body" || body.trill) return;
+      const existingIndex = this.chart.notes.findIndex(n => n.type === "sustain" && n.lane === lane && beatEq(n.beat, at));
+      if (existingIndex >= 0) {
+        if (body.holdCount === 2 || !beatEq(body.beat, body.endBeat)) return;
+        const notes = [...this.chart.notes];
+        notes[bodyIndex] = { type: "body", lane: body.lane, beat: body.beat, endBeat: body.endBeat, holdCount: 2 };
+        notes[existingIndex] = { type: "sustain", lane, beat: at, count: 2 };
+        this.commitNotes(notes);
+      } else {
+        this.commitNotes([...this.chart.notes, { type: "sustain", lane, beat: at, count: body.holdCount }]);
+      }
+      return;
+    }
+    // 겹치는 바디나 기존 점수 노트가 있는 위치는 빈 위치가 아니다.
+    if (this.chart.notes.some(n => n.lane === lane && ("endBeat" in n
+      ? beatGte(at, n.beat) && beatLte(at, n.endBeat) : beatEq(at, n.beat)))) return;
+    this.commitNotes([...this.chart.notes,
+      { type: "body", lane, beat: at, endBeat: at, holdCount: 1 }, probe]);
   }
 
   private createTrillZone(lane: Lane, startBeat: Beat, endBeat: Beat): void {
@@ -504,7 +521,7 @@ export class CreateMode implements EditorMode {
     };
 
     // Create new chart with immutable update
-    const updatedChart: Chart = {
+    const updatedChart: ChartDocument = {
       ...this.chart,
       trillZones: [...this.chart.trillZones, newZone],
     };
@@ -536,7 +553,7 @@ export class CreateMode implements EditorMode {
     };
 
     // Create new chart with immutable update
-    const updatedChart: Chart = {
+    const updatedChart: ChartDocument = {
       ...this.chart,
       restZones: [...(this.chart.restZones ?? []), newRestZone],
     };
@@ -598,7 +615,7 @@ export class CreateMode implements EditorMode {
     }
 
     // Create new chart with immutable update
-    const updatedChart: Chart = {
+    const updatedChart: ChartDocument = {
       ...this.chart,
       events: [...this.chart.events, newEvent],
     };
@@ -609,49 +626,15 @@ export class CreateMode implements EditorMode {
 
   // -------------------------------------------------------------------------
   // 보조 레인 생성 — chart.notes에 lane 5+ 노트로 append (RFD 0018 ④d, 통합 축).
-  // 보조 노트는 표시 전용이라 validateChart 배치 제약을 적용하지 않는다(기존 동작 계승).
+  // 보조 노트는 표시 전용이라 editorChartErrors 배치 제약을 적용하지 않는다(기존 동작 계승).
   // -------------------------------------------------------------------------
 
-  private createExtraPointNote(extraLane: number, beat: Beat): void {
-    const newNote: PointNote = {
-      type: this.selectedEntityType as "single" | "double",
-      lane: fromAuxIndex(extraLane),
-      beat,
-    };
-    const updatedChart: Chart = {
-      ...this.chart,
-      notes: [...this.chart.notes, newNote],
-    };
-    this.chart = updatedChart;
-    this.callbacks.onChartUpdate(updatedChart);
+  private createExtraPointNote(extraLane: number, at: Beat): void {
+    this.createPointNote(fromAuxIndex(extraLane), at);
   }
 
   private createExtraRangeNote(extraLane: number, startBeat: Beat, endBeat: Beat): void {
-    const actualStartBeat = beatLt(startBeat, endBeat) ? startBeat : beatMin(startBeat, endBeat);
-    const actualEndBeat = beatGt(endBeat, startBeat) ? endBeat : beatMax(startBeat, endBeat);
-
-    let headType: "single" | "double";
-    let bodyType: "long" | "doubleLong";
-    if (this.currentRangeNoteType() === "doubleLong") {
-      headType = "double";
-      bodyType = "doubleLong";
-    } else {
-      headType = "single";
-      bodyType = "long";
-    }
-
-    const lane = fromAuxIndex(extraLane);
-    const bodyNote: RangeNote = { type: bodyType, lane, beat: actualStartBeat, endBeat: actualEndBeat };
-    const isZeroLength = actualStartBeat.n * actualEndBeat.d === actualEndBeat.n * actualStartBeat.d;
-    const newNotes: (PointNote | RangeNote)[] = isZeroLength
-      ? [bodyNote]
-      : [{ type: headType, lane, beat: actualStartBeat } as PointNote, bodyNote];
-    const updatedChart: Chart = {
-      ...this.chart,
-      notes: [...this.chart.notes, ...newNotes],
-    };
-    this.chart = updatedChart;
-    this.callbacks.onChartUpdate(updatedChart);
+    this.createRangeNote(fromAuxIndex(extraLane), startBeat, endBeat);
   }
 
   private currentRangeNoteType(): RangeNoteEntityType {

@@ -3,9 +3,10 @@
  * TimelineRenderer에서 Composition 패턴으로 사용된다.
  */
 
+import { ExplicitNoteRenderer } from "./ExplicitNoteRenderer";
 import { Container, Graphics, FillGradient } from "pixi.js";
-import { beatToMs, beatEq, isGraceNote, isHoldOnlyNote, isMainLane } from "../../shared";
-import type { Chart, Beat, NoteEntity, PointNote, RangeNote, BpmMarker } from "../../shared";
+import { beatToMs, beatEq, isGraceNote, isHoldOnlyNote, isMainLane, isExplicitNote } from "../../shared";
+import type { ChartDocument, Beat, DocumentNoteEntity, PointNote, RangeNote, BpmMarker } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
@@ -16,7 +17,7 @@ import { laneToX, laneWidth } from "./laneGeometry";
 
 /** NoteRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface NoteHost {
-  readonly chart: Chart | null;
+  readonly chart: ChartDocument | null;
   readonly selectedNotes: Set<number>;
   readonly cachedBpmMarkers: BpmMarker[];
   readonly bodyGradientCache: Map<number, FillGradient>;
@@ -36,6 +37,10 @@ export interface NoteHost {
 
 export class NoteRenderer {
   /** Graphics 오브젝트 풀 — destroy 없이 재사용하여 GC 압력 감소 */
+  private readonly explicitRenderer = new ExplicitNoteRenderer();
+
+  async loadExplicitSkin(): Promise<void> { await this.explicitRenderer.load(); }
+
   private pool: Graphics[] = [];
   private poolIdx = 0;
 
@@ -46,6 +51,7 @@ export class NoteRenderer {
    */
   beginRender(): void {
     this.poolIdx = 0;
+    this.explicitRenderer.beginRender();
     this.host.longNoteBodyLayer.removeChildren();
     this.host.longNoteEndLayer.removeChildren();
     this.host.longNoteHeadLayer.removeChildren();
@@ -83,6 +89,7 @@ export class NoteRenderer {
    * 여기서는 참조만 해제한다.
    */
   dispose(): void {
+    this.explicitRenderer.dispose();
     this.pool.length = 0;
     this.poolIdx = 0;
   }
@@ -122,7 +129,7 @@ export class NoteRenderer {
     const chart = this.host.chart;
     if (!chart) return false;
     for (const n of chart.notes) {
-      if ("endBeat" in n) continue;
+      if (n.type !== "single" && n.type !== "double" && n.type !== "trill" && n.type !== "point") continue;
       if (n.lane === note.lane && beatEq(n.beat, note.beat)) return true;
     }
     return false;
@@ -509,16 +516,24 @@ export class NoteRenderer {
     for (const index of sortedIndices) {
       const note = notes[index];
       const noteStartMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-      if (this.isPointNote(note)) {
+      if (!("endBeat" in note)) {
         if (noteStartMs < minTimeMs || noteStartMs > maxTimeMs) continue;
       } else {
-        const noteEndMs = beatToMs((note as RangeNote).endBeat, bpmMarkers, meta.offsetMs);
+        const noteEndMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
         const lo = Math.min(noteStartMs, noteEndMs);
         const hi = Math.max(noteStartMs, noteEndMs);
         if (hi < minTimeMs || lo > maxTimeMs) continue;
       }
 
       const isSelected = this.host.selectedNotes.has(index);
+      if (isExplicitNote(note)) {
+        const startY = this.host.timeToY(noteStartMs);
+        const endY = 'endBeat' in note ? this.host.timeToY(beatToMs(note.endBeat, bpmMarkers, meta.offsetMs)) : startY;
+        this.explicitRenderer.render(note, laneToX(note.lane), laneWidth(note.lane), startY, endY,
+          this.host.longNoteBodyLayer,
+          isSelected ? this.host.selectedNoteLayer : this.host.noteLayer, isSelected);
+        continue;
+      }
 
       // 보조 레인(5+)은 보조 영역 x로 투영해 그린다 (RFD 0018 — 단일 배열, 시각만 분기).
       // 표시 범위 밖 보조 레인의 숨김(§8-4)은 현행대로 캔버스 폭 클리핑이 담당한다.
@@ -528,7 +543,7 @@ export class NoteRenderer {
         if (this.isPointNote(note)) {
           this.renderPointNoteAt(x, w, note.beat, note.type, isSelected, bpmMarkers, meta);
         } else {
-          this.renderRangeNoteAt(x, w, note.beat, (note as RangeNote).endBeat, note.type, isSelected, bpmMarkers, meta);
+          this.renderRangeNoteAt(x, w, note.beat, note.endBeat, note.type, isSelected, bpmMarkers, meta);
         }
         continue;
       }
@@ -536,7 +551,7 @@ export class NoteRenderer {
       if (this.isPointNote(note)) {
         this.renderPointNote(note, isSelected);
       } else {
-        this.renderRangeNote(note as RangeNote, isSelected);
+        this.renderRangeNote(note, isSelected);
       }
     }
   }
@@ -544,7 +559,7 @@ export class NoteRenderer {
   /**
    * Type guard for PointNote
    */
-  isPointNote(note: NoteEntity): note is PointNote {
-    return "type" in note && !("endBeat" in note);
+  isPointNote(note: DocumentNoteEntity): note is PointNote {
+    return note.type === "single" || note.type === "double" || note.type === "trill";
   }
 }

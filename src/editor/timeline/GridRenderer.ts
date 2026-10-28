@@ -21,7 +21,7 @@ import { diagonalStripeBands } from "./restZoneHatch";
 
 /** GridRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface GridHost {
-  readonly chart: import("../../shared").Chart | null;
+  readonly chart: import("../../shared").ChartDocument | null;
   readonly zoom: number;
   readonly snap: number;
   readonly extraLaneCount: number;

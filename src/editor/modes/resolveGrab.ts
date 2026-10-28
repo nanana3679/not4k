@@ -53,9 +53,12 @@ export function resolveGrab(input: {
 
   // 1. RangeNote 끝(리사이즈) — 끝 캡을 잡으면 리사이즈. 게이트: 선택됐거나 z-order 최상위.
   //    미선택 끝 노트를 리사이즈가 가로채면 끝 노트 클릭이 안 되므로 topmost로 제한.
+  //    명시 점수 노트와 겹친 끝은 hitTestNoteEnd가 비워 두고, 그 노트가 덮은 끝은 노트 hit
+  //    밖의 띠에서만 잡히므로(front === null) 미선택 바디도 그 띠에서 바로 리사이즈한다.
   const endHit = space.hitTestNoteEnd(x, y);
   if (endHit !== null && isRangeNote(endHit)) {
-    if (sel.notes.has(endHit) || space.hitTestUnifiedNote(x, y) === endHit) {
+    const front = space.hitTestUnifiedNote(x, y);
+    if (sel.notes.has(endHit) || front === endHit || front === null) {
       return { kind: "noteEndCap", index: endHit };
     }
   }

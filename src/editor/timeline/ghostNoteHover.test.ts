@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import { hitTestNoteAt, hitTestExtraNoteAt, noteExistsAtSnap } from "./hitTest";
-import type { NoteEntity, ExtraNoteEntity } from "../../shared/types";
+import type { DocumentNoteEntity, DocumentExtraNoteEntity } from "../../shared/types";
 
 /** beat fraction helper */
 const beat = (n: number, d: number = 1) => ({ n, d });
@@ -20,7 +20,7 @@ const beat = (n: number, d: number = 1) => ({ n, d });
 // ---------------------------------------------------------------------------
 
 describe("고스트 노트 호버 — 메인 레인", () => {
-  const notes: NoteEntity[] = [
+  const notes: DocumentNoteEntity[] = [
     { type: "single", lane: 1 as const, beat: beat(1) },  // beat 1.0
   ];
 
@@ -68,7 +68,7 @@ describe("고스트 노트 호버 — 메인 레인", () => {
 // ---------------------------------------------------------------------------
 
 describe("고스트 노트 호버 — 엑스트라 레인", () => {
-  const extraNotes: ExtraNoteEntity[] = [
+  const extraNotes: DocumentExtraNoteEntity[] = [
     { type: "single", extraLane: 1, beat: beat(2) },  // beat 2.0
   ];
 
@@ -99,7 +99,7 @@ describe("고스트 노트 호버 — 엑스트라 레인", () => {
 // ---------------------------------------------------------------------------
 
 describe("고스트 노트 호버 — 롱노트 범위", () => {
-  const notes: NoteEntity[] = [
+  const notes: DocumentNoteEntity[] = [
     { type: "long", lane: 2 as const, beat: beat(4), endBeat: beat(8) },
   ];
 

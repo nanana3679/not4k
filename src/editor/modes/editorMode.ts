@@ -1,10 +1,10 @@
 import type { EntityType } from "./CreateMode";
 import type { EditorModeName } from "../stores/editorStore";
-import type { NoteEntity, Beat } from "../../shared";
+import type { DocumentNoteEntity, Beat } from "../../shared";
 
 /** 이동 드래그 중 한 노트의 원본 위치(고스트로 그려짐). */
 export interface MoveOriginDatum {
-  note: NoteEntity;
+  note: DocumentNoteEntity;
   beat: Beat;
   endBeat?: Beat;
   lane: number;

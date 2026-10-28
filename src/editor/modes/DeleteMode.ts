@@ -1,4 +1,4 @@
-import type { Chart } from "../../shared";
+import type { ChartDocument } from "../../shared";
 import {
   deleteChartNoteAtIndex,
   deleteEmptyTrillZoneAtIndex,
@@ -6,11 +6,14 @@ import {
 } from "../editing/editApplication";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
+import { bodyCompanionIndices, bodyDeletionBlockReason } from '../editing/explicitEditing';
+import { deleteChartNotesAtIndices } from '../editing/editApplication';
 
 export interface DeleteModeCallbacks {
-  onChartUpdate: (chart: Chart) => void;
+  onChartUpdate: (chart: ChartDocument) => void;
   space: TimelineSpace;
   onWarn?: (message: string) => void;
+  getSelectedNotes?: () => ReadonlySet<number>;
 }
 
 /**
@@ -19,15 +22,15 @@ export interface DeleteModeCallbacks {
  * 깨진 차트(통합 이동·paste 이후)에서도 클릭한 노트가 정확히 삭제된다 (RFD 0018 ④d).
  */
 export class DeleteMode implements EditorMode {
-  private chart: Chart;
+  private chart: ChartDocument;
   private callbacks: DeleteModeCallbacks;
 
-  constructor(chart: Chart, callbacks: DeleteModeCallbacks) {
+  constructor(chart: ChartDocument, callbacks: DeleteModeCallbacks) {
     this.chart = chart;
     this.callbacks = callbacks;
   }
 
-  setChart(chart: Chart): void {
+  setChart(chart: ChartDocument): void {
     this.chart = chart;
   }
 
@@ -53,7 +56,9 @@ export class DeleteMode implements EditorMode {
       this.chart,
       this.callbacks.space.hitTestUnifiedNote,
       x,
-      y
+      y,
+      this.callbacks.getSelectedNotes?.(),
+      this.callbacks.onWarn,
     );
 
     if (result !== null) {
@@ -62,39 +67,58 @@ export class DeleteMode implements EditorMode {
       return;
     }
 
-    // Try deleting a trill zone (only if empty)
-    const zoneIdx = this.callbacks.space.hitTestTrillZone(x, y);
-    if (zoneIdx !== null) {
-      const result = deleteEmptyTrillZoneAtIndex(this.chart, zoneIdx);
-      if (result.blockedReason) {
-        this.callbacks.onWarn?.(result.blockedReason);
-      } else if (result.chart) {
-        this.chart = result.chart;
-        this.callbacks.onChartUpdate(result.chart);
-      }
-      return;
-    }
+    // 삭제 보호에 걸린 노트 뒤의 구간을 대신 지우지 않는다.
+    if (this.callbacks.space.hitTestUnifiedNote(x, y) !== null) return;
 
-    // Try deleting a rest zone (RFD 0019 — trillZone 미러, empty 가드 없음)
-    const restIdx = this.callbacks.space.hitTestRestZone(x, y);
-    if (restIdx !== null) {
-      const result = deleteRestZoneAtIndex(this.chart, restIdx);
-      if (result) {
-        this.chart = result;
-        this.callbacks.onChartUpdate(result);
-      }
+    const zoneResult = DeleteMode.deleteZoneAtHits(
+      this.chart,
+      this.callbacks.space.hitTestTrillZone(x, y),
+      this.callbacks.space.hitTestRestZone(x, y),
+      this.callbacks.onWarn,
+    );
+    if (zoneResult !== null) {
+      this.chart = zoneResult;
+      this.callbacks.onChartUpdate(zoneResult);
     }
+  }
+
+  /**
+   * 노트가 없는 자리의 구간 삭제. `trillZone`이 겹치면 그 구간만 보며 비어 있을 때만 지우고
+   * (노트가 있으면 경고), 없으면 `restZone`을 지운다(RFD 0019 — empty 가드 없음).
+   */
+  static deleteZoneAtHits(
+    chart: ChartDocument,
+    trillZoneIndex: number | null,
+    restZoneIndex: number | null,
+    onWarn?: (message: string) => void,
+  ): ChartDocument | null {
+    if (trillZoneIndex !== null) {
+      const result = deleteEmptyTrillZoneAtIndex(chart, trillZoneIndex);
+      if (result.blockedReason) onWarn?.(result.blockedReason);
+      return result.chart;
+    }
+    return restZoneIndex === null ? null : deleteRestZoneAtIndex(chart, restZoneIndex);
   }
 
   /** Right-click delete (mode-independent, also called from other modes) */
   static deleteNoteAtPoint(
-    chart: Chart,
+    chart: ChartDocument,
     hitTestNote: (x: number, y: number) => number | null,
     x: number,
-    y: number
-  ): Chart | null {
+    y: number,
+    selected: ReadonlySet<number> = new Set(),
+    onWarn?: (message: string) => void,
+  ): ChartDocument | null {
     const hitIndex = hitTestNote(x, y);
     if (hitIndex === null) return null;
+    if (chart.notes[hitIndex]?.type === 'body') {
+      const companions = bodyCompanionIndices(chart.notes, hitIndex);
+      const indices = selected.has(hitIndex)
+        ? new Set([...companions].filter(index => selected.has(index))) : companions;
+      const reason = bodyDeletionBlockReason(chart.notes, indices);
+      if (reason) { onWarn?.(reason); return null; }
+      return deleteChartNotesAtIndices(chart, indices);
+    }
     return deleteChartNoteAtIndex(chart, hitIndex);
   }
 }

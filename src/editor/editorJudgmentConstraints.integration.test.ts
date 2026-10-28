@@ -1,10 +1,11 @@
+import { editorChartErrors, editorChartViolationIndices } from './documentValidation';
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { beat, chartViolationIndices, validateChart } from "../shared";
-import type { Chart, Lane, NoteEntity, TrillZone } from "../shared";
+import { beat } from "../shared";
+import type { ChartDocument, Lane, DocumentNoteEntity, TrillZone } from "../shared";
 import { useEditorStore } from "./stores";
 import { performPlayTest, type PerformPlayTestParams } from "./hooks/useFileOperations";
 
-function chart(notes: readonly NoteEntity[], trillZones: readonly TrillZone[] = []): Chart {
+function chart(notes: readonly DocumentNoteEntity[], trillZones: readonly TrillZone[] = []): ChartDocument {
   return {
     meta: { title: "constraints", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1, imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 },
     notes: [...notes], trillZones: [...trillZones],
@@ -12,9 +13,9 @@ function chart(notes: readonly NoteEntity[], trillZones: readonly TrillZone[] = 
   };
 }
 
-const long = (lane: Lane, start: number, end: number, holdOnly = false): NoteEntity => ({ type: "long", lane, beat: beat(start), endBeat: beat(end), ...(holdOnly ? { holdOnly: true } : {}) });
-const doubleLong = (lane: Lane, start: number, end: number): NoteEntity => ({ type: "doubleLong", lane, beat: beat(start), endBeat: beat(end) });
-const point = (lane: Lane, at: number, type: "single" | "trill" = "single"): NoteEntity => ({ type, lane, beat: beat(at) });
+const long = (lane: Lane, start: number, end: number, holdOnly = false): DocumentNoteEntity => ({ type: "long", lane, beat: beat(start), endBeat: beat(end), ...(holdOnly ? { holdOnly: true } : {}) });
+const doubleLong = (lane: Lane, start: number, end: number): DocumentNoteEntity => ({ type: "doubleLong", lane, beat: beat(start), endBeat: beat(end) });
+const point = (lane: Lane, at: number, type: "single" | "trill" = "single"): DocumentNoteEntity => ({ type, lane, beat: beat(at) });
 
 const semanticCases = {
   "NJ-C01 양수 끝과 같은 시각 zero range": chart([long(1, 0, 2), long(1, 2, 2)]),
@@ -23,7 +24,7 @@ const semanticCases = {
   "NJ-C03 zero trillLong head와 H": chart([point(1, 0, "trill"), { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(0), holdOnly: true }], [{ lane: 1, beat: beat(0), endBeat: beat(2) }]),
 };
 
-function playParams(candidate: Chart, addToast = vi.fn()): PerformPlayTestParams {
+function playParams(candidate: ChartDocument, addToast = vi.fn()): PerformPlayTestParams {
   return {
     fromCursor: false, audioBuffer: {} as AudioBuffer, isPlaying: false, pause: vi.fn(), chart: candidate,
     currentTimeMs: 0, returnUrl: "/editor", addToast,
@@ -40,9 +41,9 @@ describe("RFD 0019 NJ-C01~C03 editor integration gates", () => {
   it.each(Object.entries(semanticCases))("%s는 store에 transient로 커밋되고 violation index로 표시된다", (_name, candidate) => {
     useEditorStore.getState().setChart(candidate);
     expect(useEditorStore.getState().chart.notes).toEqual(candidate.notes);
-    const errors = validateChart(candidate);
+    const errors = editorChartErrors(candidate);
     expect(errors.some((error) => error.rule === "noteConstraint")).toBe(true);
-    const indices = chartViolationIndices(candidate);
+    const indices = editorChartViolationIndices(candidate);
     expect(indices.notes.size).toBeGreaterThan(0);
   });
 
@@ -56,7 +57,7 @@ describe("RFD 0019 NJ-C01~C03 editor integration gates", () => {
 
   it("NJ-C01: ordinary end와 같은 시각의 Point는 저장/플레이 의미상 허용된다", () => {
     const candidate = chart([long(1, 0, 2), point(1, 2)]);
-    expect(validateChart(candidate).some((error) => error.rule === "noteConstraint")).toBe(false);
+    expect(editorChartErrors(candidate).some((error) => error.rule === "noteConstraint")).toBe(false);
     const params = playParams(candidate);
     expect(performPlayTest(params)).toBe(true);
     expect(params.game.setScreen).toHaveBeenCalledWith("play");
@@ -65,14 +66,14 @@ describe("RFD 0019 NJ-C01~C03 editor integration gates", () => {
   it("NJ-C02: 같은 unit 수 연결은 head 또는 holdOnly가 있어야 하고 unit count 변화는 허용한다", () => {
     const missing = chart([long(1, 0, 2), long(1, 2, 4)]);
     const changed = chart([doubleLong(1, 0, 2), long(1, 2, 4)]);
-    expect(validateChart(missing).some((error) => error.rule === "noteConstraint")).toBe(true);
-    expect(validateChart(changed).some((error) => error.rule === "noteConstraint")).toBe(false);
+    expect(editorChartErrors(missing).some((error) => error.rule === "noteConstraint")).toBe(true);
+    expect(editorChartErrors(changed).some((error) => error.rule === "noteConstraint")).toBe(false);
   });
 
   it("NJ-C03: positive trillLong+holdOnly는 head와 zone 안에서 허용되고 zero trillLong은 금지된다", () => {
     const zone = [{ lane: 1 as Lane, beat: beat(0), endBeat: beat(2) }];
     const positive = chart([point(1, 0, "trill"), { type: "trillLong", lane: 1, beat: beat(0), endBeat: beat(2), holdOnly: true }], zone);
-    expect(validateChart(positive).some((error) => error.rule === "noteConstraint")).toBe(false);
-    expect(validateChart(semanticCases["NJ-C03 zero trillLong head와 H"]).some((error) => error.rule === "noteConstraint")).toBe(true);
+    expect(editorChartErrors(positive).some((error) => error.rule === "noteConstraint")).toBe(false);
+    expect(editorChartErrors(semanticCases["NJ-C03 zero trillLong head와 H"]).some((error) => error.rule === "noteConstraint")).toBe(true);
   });
 });

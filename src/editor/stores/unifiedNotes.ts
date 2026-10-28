@@ -1,11 +1,11 @@
 /**
  * hiddenViolationLanes — 저장 게이트의 "숨은 보조 레인 위반" 안내 재료 (RFD 0018 §8-7)
  *
- * 보조 노트 ↔ ExtraNoteEntity 매핑은 `shared/chart/auxAdapter`로 이관됐다(editor→shared
+ * 보조 노트 ↔ DocumentExtraNoteEntity 매핑은 `shared/chart/auxAdapter`로 이관됐다(editor→shared
  * 단방향 의존 유지). 이 모듈은 위반 refs → 숨은 보조 레인 목록 파생만 남긴다.
  */
 
-import type { NoteEntity, ValidationError } from "../../shared";
+import type { DocumentNoteEntity, ValidationError } from "../../shared";
 import { isAuxLane, isVisibleLane } from "../../shared";
 
 /**
@@ -17,7 +17,7 @@ import { isAuxLane, isVisibleLane } from "../../shared";
  */
 export function hiddenViolationLanes(
   errors: readonly ValidationError[],
-  notes: readonly NoteEntity[],
+  notes: readonly DocumentNoteEntity[],
   extraLaneCount: number,
 ): number[] {
   const lanes = new Set<number>();

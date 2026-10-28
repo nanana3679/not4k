@@ -9,9 +9,9 @@
 import { Application, Container, Graphics, TextStyle, FillGradient } from "pixi.js";
 import type { ViewportSource } from "../stores/viewportSlice";
 import type {
-  Chart,
+  ChartDocument,
   Beat,
-  NoteEntity,
+  DocumentNoteEntity,
   BpmMarker,
   TimeSignatureMarker,
 } from "../../shared";
@@ -74,6 +74,7 @@ export interface TimelineRendererOptions {
 export class TimelineRenderer {
   private app!: Application;
   private initialized: boolean = false;
+  private disposed = false;
 
   // Layer containers (z-order: back to front)
   private laneBackgrounds!: Container;
@@ -117,7 +118,7 @@ export class TimelineRenderer {
   private _selectedNotes: Set<number> = new Set();
   private _selectedTrillZones: Set<number> = new Set();
   private _selectedRestZones: Set<number> = new Set();
-  private _moveOrigins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
+  private _moveOrigins: { note: DocumentNoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
   private _boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null = null;
 
   // Extra lane state
@@ -151,8 +152,8 @@ export class TimelineRenderer {
   private _violatingRestZoneIndices: Set<number> = new Set();
   private _violatingEventIndices: Set<number> = new Set();
 
-  // Chart data
-  private chart: Chart | null = null;
+  // ChartDocument data
+  private chart: ChartDocument | null = null;
 
   // Waveform data
   private waveformPeaks: Float32Array | null = null;
@@ -256,6 +257,8 @@ export class TimelineRenderer {
       antialias: true,
     });
 
+    if (this.disposed) { this.app.destroy(true, { children: true }); return; }
+
     // Create all layers in z-order
     this.laneBackgrounds = new Container();
     this.waveformLayer = new Container();
@@ -318,6 +321,9 @@ export class TimelineRenderer {
 
     // Build sub-renderers via host interfaces
     this._initSubRenderers();
+    this.initialized = true;
+    await this.noteRenderer.loadExplicitSkin();
+    if (this.disposed) return;
 
     this.minimapRenderer.setupEvents();
 
@@ -430,7 +436,7 @@ export class TimelineRenderer {
   /**
    * Set the chart data to render
    */
-  setChart(chart: Chart): void {
+  setChart(chart: ChartDocument): void {
     this.chart = chart;
     this._cachedEventsRef = null;
     this._cachedTotalTimelineMs = null;
@@ -569,7 +575,7 @@ export class TimelineRenderer {
    * Set move origin ghost data (shown during note drag move).
    * Pass original note entities with their original positions.
    */
-  setMoveOrigins(origins: { note: NoteEntity; beat: Beat; endBeat?: Beat; lane: number }[]): void {
+  setMoveOrigins(origins: { note: DocumentNoteEntity; beat: Beat; endBeat?: Beat; lane: number }[]): void {
     this._moveOrigins = origins;
   }
 
@@ -956,7 +962,7 @@ export class TimelineRenderer {
 
   /**
    * 제약을 위반하는 노트·트릴존·restZone·이벤트 인덱스를 설정한다(빨간 해칭 오버레이).
-   * 낙관적 편집에서 차트 변경 시마다 App이 validateChart 파생 인덱스로 호출한다(RFD 0017 §3-3·§7, RFD 0019).
+   * 낙관적 편집에서 차트 변경 시마다 App이 editorChartErrors 파생 인덱스로 호출한다(RFD 0017 §3-3·§7, RFD 0019).
    */
   setViolations(noteIndices: Set<number>, trillZoneIndices: Set<number>, restZoneIndices: Set<number>, eventIndices: Set<number>): void {
     this._violatingNoteIndices = noteIndices;
@@ -1025,6 +1031,7 @@ export class TimelineRenderer {
    * Cleanup
    */
   dispose(): void {
+    this.disposed = true;
     if (!this.initialized) return;
     this.unsubscribeViewport?.();
     this.unsubscribeViewport = null;

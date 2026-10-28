@@ -11,7 +11,6 @@ import {
   songJacketPath,
   songAudioPath,
   encodeWavBlob,
-  validateChart,
   extractTimeSignatures,
   isMeasureBoundary,
 } from '../../shared';
@@ -24,6 +23,7 @@ import {
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { performPlayTest } from '../playtest/performPlayTest';
+import { editorChartErrors } from '../documentValidation';
 export { performPlayTest } from '../playtest/performPlayTest';
 export type { PerformPlayTestParams, PlayTestGameActions } from '../playtest/performPlayTest';
 
@@ -119,7 +119,7 @@ export function useFileOperations(
     }
 
     // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6 — ③ 후 chart.notes로 환원)
-    const errors = validateChart({
+    const errors = editorChartErrors({
       notes: chart.notes,
       trillZones: chart.trillZones,
       restZones: chart.restZones,
@@ -249,7 +249,7 @@ export function useFileOperations(
     }
 
     // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6)
-    const errors = validateChart({
+    const errors = editorChartErrors({
       notes: chart.notes,
       trillZones: chart.trillZones,
       restZones: chart.restZones,
@@ -305,8 +305,7 @@ export function useFileOperations(
       audioBuffer: playbackRef.current?.audioBufferData ?? null,
       isPlaying: playbackRef.current?.isPlaying ?? false,
       pause: () => playbackRef.current?.pause(),
-      // 진입 게이트는 chart.notes(보조 포함)를 검증하고(§3-6), 게임에는 performPlayTest
-      // 내부 mainNotes 필터가 메인 노트만 넘긴다 (RFD 0018 §3-3).
+      // 원본문서 전체를 검증한다. 새 게임 연결 전까지 명시 main은 거부하고 구형 main만 실행한다.
       chart,
       currentTimeMs,
       returnUrl: window.location.pathname + window.location.search,

@@ -88,6 +88,10 @@ export const COLORS = {
  * 렌더링 순서와 히트 테스트 우선순위 모두 이 값을 사용한다.
  */
 export const NOTE_Z_ORDER: Record<string, number> = {
+  body: 0,
+  point: 3,
+  release: 3,
+  sustain: 3,
   doubleLong: 0,
   long: 1,
   trillLong: 1,

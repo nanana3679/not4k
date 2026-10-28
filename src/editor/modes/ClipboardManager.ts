@@ -1,4 +1,5 @@
-import type { Chart, ChartEvent, NoteEntity, RangeNote, Beat, TrillZone, RestZone } from "../../shared";
+import { reconcileMovedSustains } from '../editing/explicitEditing';
+import type { ChartDocument, ChartEvent, DocumentNoteEntity, RangeNote, BodyNote, Beat, TrillZone, RestZone } from "../../shared";
 import { beatToFloat, isVisibleLane, isMainLane, maxAuxLane, toAuxIndex } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
 import { translateRestZone } from "./restZoneSelection";
@@ -11,7 +12,7 @@ import type { TimelineSpace } from "../timeline/TimelineSpace";
  * 모두 담는다 — 별도 extraNotes 축 없이 lane 번호만으로 구분한다.
  */
 export interface NoteClipboard {
-  notes: NoteEntity[];
+  notes: DocumentNoteEntity[];
   /** 함께 복사된 trillZone(트릴 선택 시 구간째 복사) */
   trillZones: TrillZone[];
   /**
@@ -37,11 +38,11 @@ export interface ClipboardCallbacks {
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) — 미설정이면 확장 없이 클램프만 */
   setExtraLaneCount?: (count: number) => void;
   onWarn?: (msg: string) => void;
-  onChartUpdate: (chart: Chart) => void;
+  onChartUpdate: (chart: ChartDocument) => void;
 }
 
 export interface PasteResult {
-  chart: Chart;
+  chart: ChartDocument;
   selectedIndices: Set<number>;
   pastedNoteIndices: Set<number>;
   /** 붙여넣은 restZone 인덱스 — 호출자가 이것으로 선택을 구성한다 (RFD 0019, 공존 축) */
@@ -52,7 +53,7 @@ export interface PasteResult {
 export class ClipboardManager {
   private clipboard: NoteClipboard | null = null;
   private _isPendingPaste = false;
-  private prePasteNotes: NoteEntity[] | null = null;
+  private prePasteNotes: DocumentNoteEntity[] | null = null;
   private prePasteZones: TrillZone[] | null = null;
   // 붙여넣기 직전 restZones 스냅샷 — restZone을 붙여넣었을 때만 기록·복원 (prePasteZones 미러, RFD 0019)
   private prePasteRestZones: RestZone[] | null = null;
@@ -63,6 +64,8 @@ export class ClipboardManager {
   private pastedZoneIndices: Set<number> = new Set();
   private pastedRestZoneIndices: Set<number> = new Set();
   private pastedEventIndices: Set<number> = new Set();
+  // 붙여넣은 유지 노트의 클립보드 수량. 대기 중 이동으로 바디 밖에 두면 이 수량으로 돌린다.
+  private pastedSustainCountByNoteIndex = new Map<number, 1 | 2>();
 
   /** Whether clipboard has data */
   get hasClipboard(): boolean {
@@ -89,7 +92,7 @@ export class ClipboardManager {
    * Returns count of copied notes + zones.
    */
   copy(
-    chart: Chart,
+    chart: ChartDocument,
     selectedIndices: ReadonlySet<number>,
     trillZoneIndices: ReadonlySet<number> = new Set(),
     restZoneIndices: ReadonlySet<number> = new Set(),
@@ -100,7 +103,7 @@ export class ClipboardManager {
       return 0;
     }
 
-    const copiedNotes: NoteEntity[] = [];
+    const copiedNotes: DocumentNoteEntity[] = [];
     let anchorBeat: Beat | null = null;
     // 선택 beat-span [min, max] — 이벤트 수집 범위(endBeat가 있으면 끝까지 반영)
     let spanMax = -Infinity;
@@ -114,7 +117,7 @@ export class ClipboardManager {
         anchorBeat = note.beat;
       }
       const endFloat = this._isRangeNote(note)
-        ? beatToFloat((note as RangeNote).endBeat)
+        ? beatToFloat((note as RangeNote | BodyNote).endBeat)
         : beatToFloat(note.beat);
       if (endFloat > spanMax) spanMax = endFloat;
     }
@@ -175,7 +178,7 @@ export class ClipboardManager {
    * 자동 확장한다(붙여넣은 노트가 숨지 않도록). 이동(클램프)·축소(숨김)와 달리 붙여넣기만 확장한다.
    */
   paste(
-    chart: Chart,
+    chart: ChartDocument,
     targetBeat: Beat,
     callbacks: ClipboardCallbacks,
     clearSelection: () => void,
@@ -206,11 +209,11 @@ export class ClipboardManager {
 
     const beatOffset = beatSub(targetBeat, anchorBeat);
 
-    const pastedEntries: NoteEntity[] = [];
+    const pastedEntries: DocumentNoteEntity[] = [];
     for (const clipNote of clipNotes) {
       const newBeat = beatAdd(clipNote.beat, beatOffset);
       if (this._isRangeNote(clipNote)) {
-        const rn = clipNote as RangeNote;
+        const rn = clipNote as RangeNote | BodyNote;
         const newEndBeat = beatAdd(rn.endBeat, beatOffset);
         pastedEntries.push({ ...rn, beat: newBeat, endBeat: newEndBeat });
       } else {
@@ -226,7 +229,7 @@ export class ClipboardManager {
         return null;
       }
       if (this._isRangeNote(note)) {
-        const ef = beatToFloat((note as RangeNote).endBeat);
+        const ef = beatToFloat((note as RangeNote | BodyNote).endBeat);
         if (ef < 0 || ef > maxFloat) {
           callbacks.onWarn?.("붙여넣기 위치가 차트 범위를 벗어납니다");
           return null;
@@ -275,11 +278,13 @@ export class ClipboardManager {
     this.pastedNoteIndices.clear();
     const newSelectedIndices = new Set<number>();
 
+    this.pastedSustainCountByNoteIndex.clear();
     for (const pasted of pastedEntries) {
       const idx = newNotes.length;
       newNotes.push(pasted);
       this.pastedNoteIndices.add(idx);
       newSelectedIndices.add(idx);
+      if (pasted.type === "sustain") this.pastedSustainCountByNoteIndex.set(idx, pasted.count);
     }
 
     // trillZone도 함께 붙여넣기(같은 beatOffset, 레인 유지)
@@ -317,7 +322,7 @@ export class ClipboardManager {
 
     const newChart = {
       ...chart,
-      notes: newNotes,
+      notes: reconcileMovedSustains(newNotes, this.pastedNoteIndices, this.pastedSustainCountByNoteIndex),
       trillZones: newZones,
       events: newEvents,
       // restZone을 붙여넣을 때만 축을 갱신 — 무관한 붙여넣기는 undefined 축을 유지한다
@@ -343,9 +348,9 @@ export class ClipboardManager {
    * 붙여넣은 노트가 점유한 최대 보조 레인이 현재 extraLaneCount를 넘으면 확장한다.
    * setExtraLaneCount 미설정 시 no-op(확장 없이 숨김 — 옛 동작 계승).
    */
-  private expandExtraLanesForPasted(chart: Chart, callbacks: ClipboardCallbacks): void {
+  private expandExtraLanesForPasted(chart: ChartDocument, callbacks: ClipboardCallbacks): void {
     if (!callbacks.setExtraLaneCount || !callbacks.getExtraLaneCount) return;
-    const pastedNotes: NoteEntity[] = [];
+    const pastedNotes: DocumentNoteEntity[] = [];
     for (const idx of this.pastedNoteIndices) {
       const n = chart.notes[idx];
       if (n) pastedNotes.push(n);
@@ -364,19 +369,19 @@ export class ClipboardManager {
    * Returns the restored chart.
    */
   cancelPaste(
-    chart: Chart,
+    chart: ChartDocument,
     callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "setExtraLaneCount">,
     clearSelection: () => void,
-  ): Chart {
+  ): ChartDocument {
     if (!this._isPendingPaste) return chart;
     return this._cancelPasteInternal(chart, callbacks, clearSelection);
   }
 
   private _cancelPasteInternal(
-    chart: Chart,
+    chart: ChartDocument,
     callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "setExtraLaneCount">,
     clearSelection?: () => void,
-  ): Chart {
+  ): ChartDocument {
     let newChart = chart;
 
     if (this.prePasteNotes) {
@@ -404,11 +409,11 @@ export class ClipboardManager {
     this.pastedZoneIndices.clear();
     this.pastedRestZoneIndices.clear();
     this.pastedEventIndices.clear();
+    this.pastedSustainCountByNoteIndex.clear();
     const restoreExtraLaneCount = this.prePasteExtraLaneCount;
     this.prePasteExtraLaneCount = null;
 
-    // 순서 주의: 차트 복원(축소 커밋 → 선택 원자 clear, §3-5 면제 경로) → 선택 해제.
-    // 반대면 붙여넣은 위반 노트의 선택 해제가 §3-5 게이트에 막혀 취소가 불가능해진다.
+    // 차트를 먼저 복원하고 선택을 정리한다. 실제 editor transaction은 history도 복구한다.
     callbacks.onChartUpdate(newChart);
 
     // 노트 복원 후 D3 자동 확장을 되돌린다 — 붙여넣기로 늘어난 보조 레인 수를 원상 복구 (§8-6).
@@ -425,10 +430,10 @@ export class ClipboardManager {
    * Returns updated chart, or null if no movement applied.
    */
   movePasteBySnap(
-    chart: Chart,
+    chart: ChartDocument,
     direction: "up" | "down",
     callbacks: ClipboardCallbacks,
-  ): Chart | null {
+  ): ChartDocument | null {
     // restZone-only 붙여넣기(노트 0개)도 이동 가능해야 한다 (RFD 0019)
     if (
       !this._isPendingPaste ||
@@ -447,7 +452,7 @@ export class ClipboardManager {
       const newBeat = beatAdd(note.beat, offset);
 
       if (this._isRangeNote(note)) {
-        const rn = note as RangeNote;
+        const rn = note as RangeNote | BodyNote;
         const duration = beatSub(rn.endBeat, rn.beat);
         newNotes[idx] = { ...rn, beat: newBeat, endBeat: beatAdd(newBeat, duration) };
       } else {
@@ -501,7 +506,7 @@ export class ClipboardManager {
 
     const newChart = {
       ...chart,
-      notes: newNotes,
+      notes: reconcileMovedSustains(newNotes, this.pastedNoteIndices, this.pastedSustainCountByNoteIndex),
       trillZones: newZones,
       events: newEvents,
       ...(this.pastedRestZoneIndices.size > 0 ? { restZones: newRestZones } : {}),
@@ -520,10 +525,10 @@ export class ClipboardManager {
    * (1..4+extraLaneCount). trillZone은 게임 판정 대상이라 메인 레인(1..4)만.
    */
   movePasteByLane(
-    chart: Chart,
+    chart: ChartDocument,
     direction: "left" | "right",
     callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getExtraLaneCount">,
-  ): Chart | null {
+  ): ChartDocument | null {
     // restZone-only 붙여넣기(노트 0개)도 이동 가능해야 한다 (RFD 0019)
     if (
       !this._isPendingPaste ||
@@ -570,7 +575,7 @@ export class ClipboardManager {
 
     const newChart = {
       ...chart,
-      notes: newNotes,
+      notes: reconcileMovedSustains(newNotes, this.pastedNoteIndices, this.pastedSustainCountByNoteIndex),
       trillZones: newZones,
       ...(this.pastedRestZoneIndices.size > 0 ? { restZones: newRestZones } : {}),
     };
@@ -583,25 +588,15 @@ export class ClipboardManager {
    * Commit pending paste. Returns true if committed, false if violations prevent it.
    */
   confirmPaste(
-    chart: Chart,
+    chart: ChartDocument,
     callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "onWarn">,
-    validateFn: (chart: Chart) => string[],
+    validateFn: (chart: ChartDocument) => string[],
   ): boolean {
     if (!this._isPendingPaste) return false;
 
     const errors = validateFn(chart);
     if (errors.length === 0) {
-      this._isPendingPaste = false;
-      this.prePasteNotes = null;
-      this.prePasteZones = null;
-      this.prePasteRestZones = null;
-      this.prePasteEvents = null;
-      // 정상 확정은 D3 확장을 유지한다(취소만 되돌린다) — 스냅샷만 폐기.
-      this.prePasteExtraLaneCount = null;
-      this.pastedNoteIndices.clear();
-      this.pastedZoneIndices.clear();
-      this.pastedRestZoneIndices.clear();
-      this.pastedEventIndices.clear();
+      this.clearPendingPaste();
       callbacks.onChartUpdate(chart);
       return true;
     } else {
@@ -610,7 +605,30 @@ export class ClipboardManager {
     }
   }
 
-  private _isRangeNote(note: NoteEntity): note is RangeNote {
+  /**
+   * 다른 명령이 붙여넣은 차트를 이미 history에 기록했다. 차트를 다시 쓰지 않고 대기만
+   * 확정 상태로 끝낸다. 대기 중이 아니면 아무것도 하지 않는다.
+   */
+  settlePaste(): void {
+    if (this._isPendingPaste) this.clearPendingPaste();
+  }
+
+  private clearPendingPaste(): void {
+    this._isPendingPaste = false;
+    this.prePasteNotes = null;
+    this.prePasteZones = null;
+    this.prePasteRestZones = null;
+    this.prePasteEvents = null;
+    // 정상 확정은 D3 확장을 유지한다(취소만 되돌린다) — 스냅샷만 폐기.
+    this.prePasteExtraLaneCount = null;
+    this.pastedNoteIndices.clear();
+    this.pastedZoneIndices.clear();
+    this.pastedRestZoneIndices.clear();
+    this.pastedEventIndices.clear();
+    this.pastedSustainCountByNoteIndex.clear();
+  }
+
+  private _isRangeNote(note: DocumentNoteEntity): note is RangeNote | BodyNote {
     return "endBeat" in note;
   }
 
@@ -623,7 +641,7 @@ export class ClipboardManager {
   }
 
   private _areNotesInBounds(
-    notes: NoteEntity[],
+    notes: DocumentNoteEntity[],
     indices: ReadonlySet<number>,
     maxFloat: number,
   ): boolean {
@@ -632,7 +650,7 @@ export class ClipboardManager {
       const beatFloat = beatToFloat(note.beat);
       if (beatFloat < 0 || beatFloat > maxFloat) return false;
       if (this._isRangeNote(note)) {
-        const endFloat = beatToFloat((note as RangeNote).endBeat);
+        const endFloat = beatToFloat((note as RangeNote | BodyNote).endBeat);
         if (endFloat < 0 || endFloat > maxFloat) return false;
       }
     }

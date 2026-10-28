@@ -1,4 +1,4 @@
-import type { NoteEntity, Lane } from "../../shared";
+import type { DocumentNoteEntity, Lane } from "../../shared";
 import { hitTestRangeNoteRegion, SNAP_POSITION_TOLERANCE } from "../timeline/hitTest";
 
 /**
@@ -9,13 +9,13 @@ export interface CreatePlacementQuery {
   /** 배치 위치가 편집 가능한 시간 범위 안인가 (isTimeInBounds). */
   inBounds: boolean;
   /** 배치 좌표에서 히트된 노트, 없으면 null (hitTestNote 결과의 노트). */
-  hitNote: NoteEntity | null;
+  hitNote: DocumentNoteEntity | null;
   /** 배치 좌표의 노트 레인, 노트 레인 밖이면 null (xToLane). */
   lane: Lane | null;
   /** 스냅 전 raw 박 위치 (yToBeatRaw). 롱노트 head/end 캡 판정에 쓴다. */
   beatFloatRaw: number;
   /** 현재 차트의 노트들 (head/end 캡에 이미 점노트가 있는지 검사). */
-  notes: readonly NoteEntity[];
+  notes: readonly DocumentNoteEntity[];
   /** 배치 좌표에서 히트된 엑스트라 노트 인덱스, 없으면 null (hitTestExtraNote). */
   extraHit: number | null;
 }

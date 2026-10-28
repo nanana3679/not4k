@@ -1,19 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { Chart, Lane, NoteEntity, TrillZone, RestZone } from "../../shared";
+import type { ChartDocument, Lane, DocumentNoteEntity, TrillZone, RestZone } from "../../shared";
 import { beat } from "../../shared";
 import {
   deleteChartNoteAtIndex,
-  deleteChartNoteAtLaneBeat,
   deleteChartNotesAtIndices,
   deleteEmptyTrillZoneAtIndex,
   deleteRestZoneAtIndex,
 } from "./editApplication";
 
 function makeChart(input: {
-  notes?: NoteEntity[];
+  notes?: DocumentNoteEntity[];
   trillZones?: TrillZone[];
   restZones?: RestZone[];
-} = {}): Chart {
+} = {}): ChartDocument {
   return {
     meta: {
       title: "Test",
@@ -85,38 +84,6 @@ describe("editor edit application", () => {
 
     expect(updated.notes).toEqual([{ type: "single", lane: 2 as Lane, beat: beat(1) }]);
     expect(updated.trillZones).toEqual([{ lane: 4 as Lane, beat: beat(8), endBeat: beat(12) }]);
-  });
-
-  it("deletes chart notes by lane and beat for drag-delete", () => {
-    const chart = makeChart({
-      notes: [
-        { type: "single", lane: 1 as Lane, beat: beat(1) },
-        { type: "long", lane: 2 as Lane, beat: beat(2), endBeat: beat(4) },
-      ],
-      trillZones: [{ lane: 2 as Lane, beat: beat(2), endBeat: beat(4) }],
-    });
-
-    expect(deleteChartNoteAtLaneBeat(chart, { lane: 1 as Lane, beatFloat: 1 + 1 / 32 })?.notes).toHaveLength(1);
-    const deletedRange = deleteChartNoteAtLaneBeat(chart, { lane: 2 as Lane, beatFloat: 3 });
-    expect(deletedRange?.notes).toEqual([{ type: "single", lane: 1 as Lane, beat: beat(1) }]);
-    expect(deletedRange?.trillZones).toEqual([]);
-  });
-
-  it("보조 노트(lane 5+)도 통합 lane/beat 드래그 삭제 한 경로로 지워진다 (RFD 0018 ④d)", () => {
-    const chart = makeChart({
-      notes: [
-        { type: "single", lane: 1 as Lane, beat: beat(1) },
-        { type: "long", lane: 5, beat: beat(2), endBeat: beat(4) },
-        { type: "single", lane: 6, beat: beat(8) },
-      ],
-    });
-
-    // lane5 롱노트 바디(beat 3) 삭제
-    const deletedAuxRange = deleteChartNoteAtLaneBeat(chart, { lane: 5, beatFloat: 3 });
-    expect(deletedAuxRange?.notes.map((n) => n.lane)).toEqual([1, 6]);
-    // lane6 점노트 삭제
-    const deletedAuxPoint = deleteChartNoteAtLaneBeat(chart, { lane: 6, beatFloat: 8 });
-    expect(deletedAuxPoint?.notes.map((n) => n.lane)).toEqual([1, 5]);
   });
 
   it("blocks deleting non-empty trill zones", () => {
@@ -210,13 +177,6 @@ describe("트릴 쌍 쌍소멸", () => {
     expect(result.notes).toHaveLength(1);
     expect(result.notes[0].type).toBe("single");
     expect(result.trillZones).toHaveLength(0); // 기존 존 정리 규칙과 결합
-  });
-
-  it("우클릭 드래그 경로(deleteChartNoteAtLaneBeat)로 헤드를 지목해도 쌍소멸한다", () => {
-    const result = deleteChartNoteAtLaneBeat(trillPairChart(), { lane: 1 as Lane, beatFloat: 0 })!;
-
-    expect(result.notes.some((n) => n.type === "trillLong")).toBe(false);
-    expect(result.notes.some((n) => n.type === "trill")).toBe(false);
   });
 
   it("다른 박에서 시작하는 trill 노트는 쌍이 아니므로 확장하지 않는다", () => {

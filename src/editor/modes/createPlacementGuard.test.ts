@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { beat } from "../../shared";
-import type { NoteEntity, Lane } from "../../shared";
+import type { DocumentNoteEntity, Lane } from "../../shared";
 import { isCreatePlacementBlocked, type CreatePlacementQuery } from "./createPlacementGuard";
 
-const point = (lane: Lane, n: number, d = 1): NoteEntity => ({
+const point = (lane: Lane, n: number, d = 1): DocumentNoteEntity => ({
   type: "single",
   lane,
   beat: beat(n, d),
 });
 
-const long = (lane: Lane, headN: number, endN: number): NoteEntity => ({
+const long = (lane: Lane, headN: number, endN: number): DocumentNoteEntity => ({
   type: "long",
   lane,
   beat: beat(headN),

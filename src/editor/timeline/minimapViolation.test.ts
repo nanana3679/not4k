@@ -8,7 +8,7 @@ import { beat } from "../../shared/types";
 import type {
   BpmMarker,
   ChartEvent,
-  NoteEntity,
+  DocumentNoteEntity,
   RestZone,
   TrillZone,
 } from "../../shared/types";
@@ -27,8 +27,8 @@ const minimapWidth = 32;
 // 우측 경계 틱 x = trackX + minimapWidth - 틱폭 = 100 + 32 - 6 = 126
 const tickX = trackX + minimapWidth - MINIMAP_VIOLATION_TICK_WIDTH;
 
-function note(lane: number, b: number): NoteEntity {
-  return { type: "single", lane: lane as NoteEntity["lane"], beat: beat(b) };
+function note(lane: number, b: number): DocumentNoteEntity {
+  return { type: "single", lane: lane as DocumentNoteEntity["lane"], beat: beat(b) };
 }
 
 function zone(lane: number, startBeat: number, endBeat: number): TrillZone {

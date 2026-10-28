@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Chart, ChartEvent } from '../../shared';
+import type { ChartDocument, ChartEvent } from '../../shared';
 import type { EditingMarker } from '../stores';
 import { modalStyles } from './modalStyles';
 
@@ -176,7 +176,7 @@ function EventFields({ evt, values, setValues }: {
 
 export interface MarkerEditModalProps {
   editingMarker: NonNullable<EditingMarker>;
-  chart: Chart;
+  chart: ChartDocument;
   isBeatZero: boolean;
   onSave: (values: Record<string, string>) => void;
   onDelete: () => void;

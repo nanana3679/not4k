@@ -10,7 +10,7 @@ import {
   type SelectionSlice,
 } from './selectionSlice';
 import { beat } from '../../shared';
-import type { Chart, NoteEntity, TrillZone, RestZone } from '../../shared';
+import type { ChartDocument, DocumentNoteEntity, TrillZone, RestZone } from '../../shared';
 
 // ---------------------------------------------------------------------------
 // 픽스처: zoneA(lane1, 0~2), zoneB(lane2, 4~6)
@@ -24,7 +24,7 @@ import type { Chart, NoteEntity, TrillZone, RestZone } from '../../shared';
 const zoneA: TrillZone = { lane: 1, beat: beat(0), endBeat: beat(2) };
 const zoneB: TrillZone = { lane: 2, beat: beat(4), endBeat: beat(6) };
 
-const notes: NoteEntity[] = [
+const notes: DocumentNoteEntity[] = [
   { type: 'single', lane: 3, beat: beat(0) },
   { type: 'trill', lane: 1, beat: beat(1) },
   { type: 'trill', lane: 2, beat: beat(5) },
@@ -34,13 +34,13 @@ const notes: NoteEntity[] = [
 
 // 보조 노트는 chart.notes(정규형 [...main, ...aux])의 lane 5+로 산다 (RFD 0018 ③).
 // selection.extraNotes 인덱스는 이 aux 서브배열(여기선 인덱스 0·1)을 가리킨다.
-const auxNotesFixture: NoteEntity[] = [
+const auxNotesFixture: DocumentNoteEntity[] = [
   { type: 'single', lane: 5, beat: beat(0) },
   { type: 'single', lane: 6, beat: beat(1) },
 ];
-const notesWithAux: NoteEntity[] = [...notes, ...auxNotesFixture];
+const notesWithAux: DocumentNoteEntity[] = [...notes, ...auxNotesFixture];
 
-const chart: Pick<Chart, 'notes' | 'trillZones'> = {
+const chart: Pick<ChartDocument, 'notes' | 'trillZones'> = {
   notes: notesWithAux,
   trillZones: [zoneA, zoneB],
 };
@@ -160,7 +160,7 @@ describe('normalizeSelection — restZones 독립 축 (RFD 0019)', () => {
     { lane: 3, beat: beat(0), endBeat: beat(2) },
     { lane: 4, beat: beat(4), endBeat: beat(6) },
   ];
-  const chartWithRest: Pick<Chart, 'notes' | 'trillZones' | 'restZones'> = {
+  const chartWithRest: Pick<ChartDocument, 'notes' | 'trillZones' | 'restZones'> = {
     ...chart,
     restZones,
   };
@@ -188,7 +188,7 @@ describe('normalizeSelection — restZones 독립 축 (RFD 0019)', () => {
 describe('zoneContainedNoteIndices — 실행 시점 파생 규칙 (RFD 0016 §4.2)', () => {
   it('구간과 부분만 겹치는 노트는 파생에 포함되지 않는다(포함 기준, 겹침 아님)', () => {
     // trillLong 1~3: zoneA(0~2)와 겹치지만 끝(3)이 구간 밖 → 제외
-    const partialNotes: NoteEntity[] = [
+    const partialNotes: DocumentNoteEntity[] = [
       { type: 'trillLong', lane: 1, beat: beat(1), endBeat: beat(3) },
     ];
     expect(zoneContainedNoteIndices(partialNotes, zoneA)).toEqual(new Set());
@@ -205,7 +205,7 @@ describe('zoneContainedNoteIndices — 실행 시점 파생 규칙 (RFD 0016 §4
 // 합성 후에는 setChart 선택 보정·undo clear 등 store 경유 테스트가 추가된다.
 // ---------------------------------------------------------------------------
 
-type HarnessState = SelectionSlice & { chart: Chart };
+type HarnessState = SelectionSlice & { chart: ChartDocument };
 
 function makeSliceHarness() {
   let state: HarnessState;
@@ -218,7 +218,7 @@ function makeSliceHarness() {
   const get = () => state;
   const slice = createSelectionSlice(set, get);
   // §3-5 게이트가 validateChart를 읽으므로 events까지 채운다 (meta는 게이트가 안 읽어 생략)
-  state = { chart: { ...chart, events: [] } as unknown as Chart, ...slice };
+  state = { chart: { ...chart, events: [] } as unknown as ChartDocument, ...slice };
   return { getState: () => state };
 }
 
@@ -260,7 +260,7 @@ function resetSelectionStore() {
 }
 
 /** 변이 게이트를 통과하는 유효한 전체 차트를 만든다. */
-function makeFullChart(chartNotes: NoteEntity[], restZones?: RestZone[]): Chart {
+function makeFullChart(chartNotes: DocumentNoteEntity[], restZones?: RestZone[]): ChartDocument {
   return {
     meta: {
       title: 'Test',
@@ -282,7 +282,7 @@ function makeFullChart(chartNotes: NoteEntity[], restZones?: RestZone[]): Chart 
   };
 }
 
-const singles: NoteEntity[] = [
+const singles: DocumentNoteEntity[] = [
   { type: 'single', lane: 1, beat: beat(0) },
   { type: 'single', lane: 2, beat: beat(1) },
   { type: 'single', lane: 3, beat: beat(2) },
@@ -308,11 +308,11 @@ describe('SelectionSlice 액션 (editorStore 경유)', () => {
 describe('변이 액션의 선택 보정', () => {
   beforeEach(resetSelectionStore);
 
-  it('setChart: 노트 3→2개 축소 커밋이면 선택이 같은 트랜잭션에서 전부 비워진다 (인덱스 밀림 방지, §3-5 면제 경로)', () => {
+  it('setChart: 노트 3→2개 삭제 후 살아남은 선택 {0,1}을 유지한다', () => {
     useEditorStore.setState({ chart: makeFullChart(singles) });
     useEditorStore.getState().setSelection(sel({ notes: new Set([0, 1, 2]) }));
     useEditorStore.getState().setChart(makeFullChart(singles.slice(0, 2)));
-    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+    expect(useEditorStore.getState().selection).toEqual(sel({ notes: new Set([0, 1]) }));
   });
 
   it('setChart: 선택이 여전히 유효하면 selection 참조가 유지된다(불필요한 통지 없음)', () => {
@@ -331,14 +331,14 @@ describe('변이 액션의 선택 보정', () => {
     expect(useEditorStore.getState().selection).toEqual(emptySelection());
   });
 
-  it('보조 노트 삭제(chart.notes 개수 감소)는 setChart 경유라 선택이 전체 비워진다 (RFD 0018 ④)', () => {
-    // 보조 노트는 통합 인덱스(5·6). 1개를 지운 차트 커밋(7→6개) — 인덱스 밀림 방지로 선택 전체 clear
+  it('보조 노트 6을 삭제해도 남은 보조 노트 5의 선택을 유지한다', () => {
+
     useEditorStore.getState().setSelection(sel({ notes: new Set([5, 6]) }));
     useEditorStore.getState().setChart({
       ...useEditorStore.getState().chart,
       notes: [...notes, auxNotesFixture[0]],
     });
-    expect(useEditorStore.getState().selection).toEqual(emptySelection());
+    expect(useEditorStore.getState().selection).toEqual(sel({ notes: new Set([5]) }));
   });
 
   it('loadChart: 다른 차트를 열면 선택이 전부 비워진다', () => {
@@ -363,12 +363,12 @@ describe('변이 액션의 선택 보정', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 선택 해제 게이트 (RFD 0017 §3-5) — removed = 현재 − 다음, 위반 관여 노트가 있으면 거부
+// RFD 0037: 실제 의미 위반을 남긴 상태에서도 선택 해제·교체한다.
 // ---------------------------------------------------------------------------
 
-describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
+describe('RFD 0037 의미 위반 선택 해제·교체', () => {
   // 노트 0·1이 같은 레인·박 중복(의미 위반), 노트 2는 무관
-  const dupNotes: NoteEntity[] = [
+  const dupNotes: DocumentNoteEntity[] = [
     { type: 'single', lane: 1, beat: beat(0) },
     { type: 'single', lane: 1, beat: beat(0) },
     { type: 'single', lane: 2, beat: beat(2) },
@@ -386,16 +386,16 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
 
   beforeEach(resetWithDupChart);
 
-  it('위반(중복) 노트 {0}을 비우는 전이(clearSelection)는 거부되고 선택이 유지된다', () => {
+  it('중복 위반 노트 {0}도 clearSelection으로 선택을 해제할 수 있다', () => {
     useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
     useEditorStore.getState().clearSelection();
-    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0]));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set());
   });
 
-  it('위반 노트 {0}을 다른 노트 {2}로 교체하는 전이도 거부된다 (교체 = removed 발생)', () => {
+  it('중복 위반 노트 {0}에서 다른 노트 {2}로 선택을 교체할 수 있다', () => {
     useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
     useEditorStore.getState().setSelection(sel({ notes: new Set([2]) }));
-    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0]));
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set([2]));
   });
 
   it('위반 노트를 유지한 채 확장하는 전이({0}→{0,2})는 removed=∅라 통과한다', () => {
@@ -413,7 +413,7 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
   it('위반을 해소(중복 노트 이동)한 뒤에는 해제가 통과한다 — place-then-fix의 상한', () => {
     useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }));
     // 노트 0을 빈 박으로 이동 → 위반 해소 (커밋 게이트 통과)
-    const fixedNotes: NoteEntity[] = [
+    const fixedNotes: DocumentNoteEntity[] = [
       { type: 'single', lane: 1, beat: beat(4) },
       { type: 'single', lane: 1, beat: beat(0) },
       { type: 'single', lane: 2, beat: beat(2) },
@@ -438,10 +438,10 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
     expect(useEditorStore.getState().selection).toEqual(emptySelection());
   });
 
-  it('겹치는 트릴존 {0}을 선택에서 놓는 전이도 거부된다 (zones도 게이트 대상)', () => {
+  it('겹침 위반 trillZone {0}도 선택을 해제할 수 있다', () => {
     const zones: TrillZone[] = [
       { lane: 1, beat: beat(0), endBeat: beat(4) },
-      { lane: 1, beat: beat(2), endBeat: beat(6) }, // 존 겹침(의미 위반)
+      { lane: 1, beat: beat(2), endBeat: beat(6) },
     ];
     useEditorStore.setState({
       chart: { ...makeFullChart([]), trillZones: zones },
@@ -449,12 +449,12 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
     });
     useEditorStore.getState().setSelection(sel({ zones: new Set([0]) }));
     useEditorStore.getState().clearSelection();
-    expect(useEditorStore.getState().selection.zones).toEqual(new Set([0]));
+    expect(useEditorStore.getState().selection.zones).toEqual(new Set());
   });
 
-  it('위반(중복) 보조 노트 {0} 선택 해제도 §3-6 동일 취급으로 거부된다 — 선택 유지 + false 반환 (RFD 0018)', () => {
-    // 보조끼리 중복(전 레인 duplicate 규칙 위반)이 chart.notes(lane 5)에 상주.
-    const dupAux: NoteEntity[] = [
+  it('lane5 중복 위반 노트 {0}도 선택 해제하면 true와 빈 set을 반환한다', () => {
+
+    const dupAux: DocumentNoteEntity[] = [
       { type: 'single', lane: 5, beat: beat(0) },
       { type: 'single', lane: 5, beat: beat(0) },
     ];
@@ -465,17 +465,17 @@ describe('선택 해제 게이트 (RFD 0017 §3-5)', () => {
       historyFuture: [],
       historyLastCaptureAt: 0,
     });
-    // 보조 노트도 통합 인덱스(0)로 선택된다 — 별도 extraNotes 축은 소멸 (RFD 0018 ④).
-    expect(useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }))).toBe(true); // ∅→{0}
-    expect(useEditorStore.getState().clearSelection()).toBe(false); // 위반 보조 놓기 = 거부
-    expect(useEditorStore.getState().selection.notes).toEqual(new Set([0]));
+
+    expect(useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }))).toBe(true);
+    expect(useEditorStore.getState().clearSelection()).toBe(true);
+    expect(useEditorStore.getState().selection.notes).toEqual(new Set());
   });
 });
 
 describe('zoneContainedNoteIndices — 트릴 타입만 파생 (RFD 0016 §4.2 + 낙관 편집 공존)', () => {
   it('존 범위 안에 transient 위반으로 상주하는 일반 노트(single·long)는 파생에서 제외된다', () => {
     const zone: TrillZone = { lane: 1, beat: beat(0), endBeat: beat(4) };
-    const mixed: NoteEntity[] = [
+    const mixed: DocumentNoteEntity[] = [
       { type: 'trill', lane: 1, beat: beat(1) },                       // 0: 파생 대상
       { type: 'single', lane: 1, beat: beat(2) },                      // 1: 위반 상주 일반 노트 — 제외
       { type: 'long', lane: 1, beat: beat(0), endBeat: beat(3) },      // 2: 위반 상주 롱 — 제외
@@ -486,7 +486,7 @@ describe('zoneContainedNoteIndices — 트릴 타입만 파생 (RFD 0016 §4.2 +
 });
 
 describe('setSelection 반환값 · setSelectionTransient (§3-5 전이 = 확정된 선택 변경)', () => {
-  const gateNotes: NoteEntity[] = [
+  const gateNotes: DocumentNoteEntity[] = [
     { type: 'single', lane: 1, beat: beat(0) },
     { type: 'single', lane: 1, beat: beat(0) }, // 0·1 중복(의미 위반)
     { type: 'single', lane: 2, beat: beat(2) },
@@ -502,10 +502,10 @@ describe('setSelection 반환값 · setSelectionTransient (§3-5 전이 = 확정
     });
   });
 
-  it('setSelection은 게이트 통과 시 true, 거부 시 false를 반환한다', () => {
-    expect(useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }))).toBe(true); // ∅→{0}
-    expect(useEditorStore.getState().setSelection(sel({ notes: new Set([2]) }))).toBe(false); // {0}→{2} 거부
-    expect(useEditorStore.getState().clearSelection()).toBe(false); // {0}→∅ 거부
+  it('setSelection은 위반 노트 {0}→{2} 교체와 clearSelection에 true를 반환한다', () => {
+    expect(useEditorStore.getState().setSelection(sel({ notes: new Set([0]) }))).toBe(true);
+    expect(useEditorStore.getState().setSelection(sel({ notes: new Set([2]) }))).toBe(true);
+    expect(useEditorStore.getState().clearSelection()).toBe(true);
   });
 
   it('setSelectionTransient는 위반 노트를 떨궈도 게이트 없이 커밋된다 (박스 프리뷰 전용)', () => {
@@ -557,14 +557,14 @@ describe('restZones 선택 보정·해제 게이트 (RFD 0019)', () => {
     expect(useEditorStore.getState().selection.restZones).toEqual(new Set([0]));
   });
 
-  it('위반(노트 겹침) restZone {0}을 비우는 전이(clearSelection)는 §3-5 게이트에 거부되고 선택이 유지된다', () => {
-    // lane 3, beat 1 노트가 restZone 0(lane 3, 0~2) 안에 상주 — restZoneExclusive 의미 위반
+  it('노트 겹침 위반 restZone {0}도 선택 해제하면 true와 빈 set을 반환한다', () => {
+
     useEditorStore.setState({
       chart: makeFullChart([{ type: 'single', lane: 3, beat: beat(1) }], twoRest),
     });
     useEditorStore.getState().setSelection(sel({ restZones: new Set([0]) }));
-    expect(useEditorStore.getState().clearSelection()).toBe(false);
-    expect(useEditorStore.getState().selection.restZones).toEqual(new Set([0]));
+    expect(useEditorStore.getState().clearSelection()).toBe(true);
+    expect(useEditorStore.getState().selection.restZones).toEqual(new Set());
   });
 
   it('위반과 무관한 restZone {1}의 해제는 통과한다', () => {

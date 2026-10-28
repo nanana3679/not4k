@@ -5,9 +5,9 @@ import { scheduleFromGrabTarget } from "../hooks/touchEditRouting";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { emptySelection, normalizeSelection, type Selection } from "../stores/selectionSlice";
 import { beat, beatToFloat, withAuxNotes } from "../../shared";
-import type { Chart, Beat, Lane, NoteEntity, ExtraNoteEntity, TrillZone } from "../../shared";
+import type { ChartDocument, Beat, Lane, DocumentNoteEntity, DocumentExtraNoteEntity, TrillZone } from "../../shared";
 
-function makeChart(overrides?: Partial<Chart>): Chart {
+function makeChart(overrides?: Partial<ChartDocument>): ChartDocument {
   return {
     meta: {
       title: "", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1,
@@ -21,9 +21,9 @@ function makeChart(overrides?: Partial<Chart>): Chart {
 }
 
 function makeCallbacks(
-  chartOrOverrides?: Chart | Record<string, unknown>,
+  chartOrOverrides?: ChartDocument | Record<string, unknown>,
   opts: {
-    extraNotes?: ExtraNoteEntity[];
+    extraNotes?: DocumentExtraNoteEntity[];
     extraLaneCount?: number;
   } = {},
 ) {
@@ -59,8 +59,8 @@ function makeCallbacks(
   // 선택의 소유자(SelectionSlice)를 흉내 내는 페이크 — 실제 게이트(normalizeSelection)를
   // 그대로 사용해 프로덕션과 의미론을 맞춘다. 게이트가 읽는 차트는 프로덕션 store처럼
   // onChartUpdate로 추적하고, SelectMode 생성 시점의 초기 차트는 makeMode가 동기화한다.
-  let currentChart: Chart = (chartOrOverrides && 'meta' in chartOrOverrides)
-    ? chartOrOverrides as Chart
+  let currentChart: ChartDocument = (chartOrOverrides && 'meta' in chartOrOverrides)
+    ? chartOrOverrides as ChartDocument
     : makeChart();
   let selection: Selection = emptySelection();
   const selectionChart = () => currentExtraNotes.length > 0
@@ -68,7 +68,7 @@ function makeCallbacks(
     : currentChart;
 
   return {
-    onChartUpdate: vi.fn((chart: Chart) => {
+    onChartUpdate: vi.fn((chart: ChartDocument) => {
       currentChart = chart;
     }),
     getSelection: () => selection,
@@ -84,7 +84,7 @@ function makeCallbacks(
     /** 테스트 검증용 — 페이크가 소유한 선택 상태를 읽는다 */
     getSelectionState: () => selection,
     /** 게이트가 읽을 차트를 동기화한다 (프로덕션에서 store.chart가 먼저 갱신되는 것에 대응) */
-    syncChart: (chart: Chart) => {
+    syncChart: (chart: ChartDocument) => {
       currentChart = chart;
     },
     // 이 파일의 기존 top-level 좌표/히트 stub 기본값을 space로 그대로 이전한다
@@ -110,7 +110,7 @@ function makeCallbacks(
     onWarn: vi.fn(),
     getExtraNotes: () => currentExtraNotes,
     getExtraLaneCount: () => extraLaneCount,
-    onExtraNotesUpdate: vi.fn((notes: ExtraNoteEntity[]) => {
+    onExtraNotesUpdate: vi.fn((notes: DocumentExtraNoteEntity[]) => {
       currentExtraNotes = notes;
     }),
     ...restOverrides,
@@ -119,8 +119,8 @@ function makeCallbacks(
 
 /** SelectMode 생성 + 페이크 게이트의 차트 동기화 (모든 테스트의 공통 진입점) */
 function makeMode(
-  chart: Chart,
-  cb: SelectModeCallbacks & { syncChart: (chart: Chart) => void },
+  chart: ChartDocument,
+  cb: SelectModeCallbacks & { syncChart: (chart: ChartDocument) => void },
 ): SelectMode {
   cb.syncChart(chart);
   return new SelectMode(chart, cb);
@@ -326,7 +326,7 @@ describe("SelectMode — computeHoveredTrillZone", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 리사이즈 프리뷰 — 낙관적 표시 (RFD 0017)
+// 리사이즈 프리뷰 — 일반 낙관 편집과 trillZone 내부 트릴 경계 가드
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — 리사이즈 프리뷰 (낙관적 표시)", () => {
@@ -343,7 +343,7 @@ describe("SelectMode — 리사이즈 프리뷰 (낙관적 표시)", () => {
     });
     const mode = makeMode(chart, cb);
     mode.selectZoneUnit(0); // 리사이즈는 선택된 존만 (§6-6)
-    const priv = mode as unknown as { chart: Chart };
+    const priv = mode as unknown as { chart: ChartDocument };
     return { mode, cb, priv };
   }
 
@@ -354,16 +354,63 @@ describe("SelectMode — 리사이즈 프리뷰 (낙관적 표시)", () => {
     expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5);
   });
 
-  it("트릴존 끝을 트릴노트 밖(beat3)으로 축소하면 프리뷰가 위반 위치를 그대로 표시(낙관적 편집)", () => {
+  it("트릴존 끝을 트릴노트 밖(beat3)으로 축소하면 마지막 유효 끝(beat5)을 유지", () => {
     const { mode, cb, priv } = setup();
     mode.onPointerDown(9, 6, false, false);
     mode.onPointerMove(9, 5); // 유효 → endBeat=5
     const callsAfterValid = cb.onChartUpdate.mock.calls.length;
 
-    mode.onPointerMove(9, 3); // endBeat 3이면 트릴노트 beat4가 구간 밖(의미 위반) — 낙관적으로 그대로 표시
+    mode.onPointerMove(9, 3); // endBeat 3이면 트릴노트 beat4가 구간 밖이므로 resize를 막는다
 
-    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(3); // 위반 위치까지 축소 반영
-    expect(cb.onChartUpdate.mock.calls.length).toBeGreaterThan(callsAfterValid); // 프리뷰 재커밋됨
+    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5);
+    expect(cb.onChartUpdate.mock.calls).toHaveLength(callsAfterValid);
+  });
+
+  it("트릴존 끝을 trillLong 끝(beat5)보다 앞(beat4)으로 줄이면 마지막 유효 끝(beat5)을 유지", () => {
+    const chart = makeChart({
+      notes: [
+        { type: "trill", lane: 1 as Lane, beat: beat(3) },
+        { type: "trillLong", lane: 1 as Lane, beat: beat(3), endBeat: beat(5) },
+      ],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+    const priv = mode as unknown as { chart: ChartDocument };
+
+    mode.onPointerDown(9, 6, false, false);
+    mode.onPointerMove(9, 5); // trillLong 끝까지 포함하는 유효 끝
+    const callsAfterValid = cb.onChartUpdate.mock.calls.length;
+    mode.onPointerMove(9, 4); // 시작은 포함해도 trillLong 끝이 빠져 위반
+
+    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(5);
+    expect(cb.onChartUpdate.mock.calls).toHaveLength(callsAfterValid);
+  });
+
+  it("이미 구간 밖인 트릴 노트가 있어도 그 위반을 새로 늘리지 않는 축소는 적용", () => {
+    const chart = makeChart({
+      notes: [{ type: "trill", lane: 1 as Lane, beat: beat(6) }],
+      trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(5) }],
+    });
+    const cb = makeCallbacks({
+      yToBeat: (y: number): Beat => beat(y),
+      snapBeat: (b: Beat): Beat => b,
+      hitTestTrillZoneEnd: (x: number): number | null => (x === 9 ? 0 : null),
+    });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+    const priv = mode as unknown as { chart: ChartDocument };
+
+    mode.onPointerDown(9, 5, false, false);
+    mode.onPointerMove(9, 4);
+
+    expect(beatToFloat(priv.chart.trillZones[0].endBeat)).toBe(4);
+    expect(cb.onChartUpdate).toHaveBeenCalled();
   });
 });
 
@@ -396,7 +443,7 @@ describe("SelectMode — 복사/잘라내기", () => {
   });
 
   it("cut()하면 노트가 삭제되고 클립보드에 저장", () => {
-    const notes: NoteEntity[] = [
+    const notes: DocumentNoteEntity[] = [
       { type: "single", lane: 1 as Lane, beat: beat(0) },
       { type: "single", lane: 2 as Lane, beat: beat(1) },
     ];
@@ -411,7 +458,7 @@ describe("SelectMode — 복사/잘라내기", () => {
     expect(mode.hasClipboard).toBe(true);
     // deleteSelected should have been called — onChartUpdate with fewer notes
     expect(cb.onChartUpdate).toHaveBeenCalled();
-    const updatedChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as Chart;
+    const updatedChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as ChartDocument;
     expect(updatedChart.notes.length).toBe(1);
     expect(updatedChart.notes[0].lane).toBe(2);
   });
@@ -588,7 +635,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     mode.onPointerMove(2, 1);
     mode.onPointerUp(2, 1);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(2);
     expect(updated.notes[0].beat.n / updated.notes[0].beat.d).toBe(1);
   });
@@ -600,11 +647,11 @@ describe("SelectMode — 모바일 터치 선택", () => {
 
     mode.selectNote(0);
     mode.moveBySnap("up");
-    let updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    let updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].beat.n / updated.notes[0].beat.d).toBe(3);
 
     mode.moveBySnap("down");
-    updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].beat.n / updated.notes[0].beat.d).toBe(2);
   });
 
@@ -624,7 +671,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     mode.onPointerMove(2, 1);
     mode.onPointerUp(2, 1);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(2);
     expect(updated.notes[0].beat.n / updated.notes[0].beat.d).toBe(1);
   });
@@ -649,7 +696,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     mode.onPointerMove(1, 4);
     mode.onPointerUp(1, 4);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes.map((n) => n.beat.n / n.beat.d)).toEqual([
       5 / 16,
       6 / 16,
@@ -667,7 +714,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     mode.onPointerMove(6, 3); // 보조 레인 2(x=6), beat 3
     mode.onPointerUp(6, 3);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(6);
     expect(updated.notes[0].beat.n / updated.notes[0].beat.d).toBe(3);
   });
@@ -689,7 +736,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     mode.onPointerMove(5, 4);
     mode.onPointerUp(5, 4);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes.map((n) => n.beat.n / n.beat.d)).toEqual([
       5 / 16,
       6 / 16,
@@ -712,7 +759,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     mode.onPointerMove(2, 3);
     mode.onPointerUp(2, 3);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0]).toMatchObject({
       lane: 2,
       beat: beat(3),
@@ -735,7 +782,7 @@ describe("SelectMode — 모바일 터치 선택", () => {
     mode.onPointerMove(1, 3);
     mode.onPointerUp(1, 3);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0]).toMatchObject({
       beat: beat(1),
       endBeat: beat(3),
@@ -765,7 +812,7 @@ describe("SelectMode — 터치 탭 tapAt (down+up 한 쌍, #154)", () => {
       yToBeatRaw: (y: number): Beat => beat(y),
     });
     const mode = makeMode(chart, cb);
-    const priv = mode as unknown as { chart: Chart };
+    const priv = mode as unknown as { chart: ChartDocument };
     return { cb, mode, priv };
   }
 
@@ -868,7 +915,7 @@ describe("SelectMode — 롱노트 끝 캡 리사이즈", () => {
     mode.onPointerMove(1, 9);
     mode.onPointerUp(1, 9);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0]).toMatchObject({ beat: beat(2), endBeat: beat(9) });
     expect([...mode.selection]).toEqual([0]);
   });
@@ -971,7 +1018,7 @@ describe("SelectMode — 붙여넣기", () => {
     // beat(10)에 붙여넣기 — anchor는 beat(2), offset = beat(8)
     mode.paste(beat(10));
 
-    const updatedChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as Chart;
+    const updatedChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as ChartDocument;
     const pasted = updatedChart.notes[updatedChart.notes.length - 1];
     expect(pasted.type).toBe("long");
     expect(pasted.beat.n / pasted.beat.d).toBe(10);
@@ -1001,7 +1048,7 @@ describe("SelectMode — 붙여넣기", () => {
     // beat(10)에 붙여넣기 — anchor = beat(2), offset = beat(8)
     mode.paste(beat(10));
 
-    const updatedChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as Chart;
+    const updatedChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as ChartDocument;
     const pastedNotes = updatedChart.notes.slice(2); // 원본 2개 뒤에 추가됨
 
     expect(pastedNotes.length).toBe(2);
@@ -1050,7 +1097,7 @@ describe("SelectMode — 붙여넣기 확정/취소", () => {
 
     expect(mode.isPendingPaste).toBe(false);
     // 원래 노트만 남아야 함
-    const lastChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as Chart;
+    const lastChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as ChartDocument;
     expect(lastChart.notes.length).toBe(1);
     expect(lastChart.notes[0].beat.n / lastChart.notes[0].beat.d).toBe(0);
   });
@@ -1095,14 +1142,14 @@ describe("SelectMode — 붙여넣기 후 이동", () => {
     mode.paste(beat(4));
 
     // 이동 전 위치 확인
-    let lastChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as Chart;
+    let lastChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as ChartDocument;
     const pastedBefore = lastChart.notes[lastChart.notes.length - 1];
     expect(pastedBefore.beat.n / pastedBefore.beat.d).toBe(4);
 
     // snap 1단위 위로 이동
     mode.movePasteBySnap('up');
 
-    lastChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as Chart;
+    lastChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as ChartDocument;
     const pastedAfter = lastChart.notes[lastChart.notes.length - 1];
     expect(pastedAfter.beat.n / pastedAfter.beat.d).toBe(5); // 4 + 1 snap step
   });
@@ -1122,7 +1169,7 @@ describe("SelectMode — 붙여넣기 후 이동", () => {
 
     mode.movePasteByLane('right');
 
-    const lastChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as Chart;
+    const lastChart = cb.onChartUpdate.mock.calls[cb.onChartUpdate.mock.calls.length - 1][0] as ChartDocument;
     const pasted = lastChart.notes[lastChart.notes.length - 1];
     expect(pasted.lane).toBe(2);
   });
@@ -1295,7 +1342,7 @@ describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
 
     mode.moveByLane("left");
 
-    const updated = cb.onChartUpdate.mock.calls[0][0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls[0][0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(1);
   });
 
@@ -1322,7 +1369,7 @@ describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
 
     mode.moveByLane("right");
 
-    const updated = cb.onChartUpdate.mock.calls[0][0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls[0][0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(4);
   });
 
@@ -1339,7 +1386,7 @@ describe("SelectMode.moveByLane — 메인 레인 내 이동", () => {
 
     mode.moveByLane("left"); // 레인 2 → 1 → 레인1 beat0 노트와 중복(의미 위반)
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[1].lane).toBe(1); // 원위치(레인2)로 되돌리지 않고 중복 상태로 커밋
   });
 });
@@ -1359,7 +1406,7 @@ describe("SelectMode.moveByLane — 통합 레인 이동 (메인↔보조 연속
 
     mode.moveByLane("right");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes).toHaveLength(1);
     expect(updated.notes[0].lane).toBe(5); // 보조 레인 1 = 통합 lane 5
     expect(updated.notes[0].type).toBe("single");
@@ -1377,7 +1424,7 @@ describe("SelectMode.moveByLane — 통합 레인 이동 (메인↔보조 연속
 
     mode.moveByLane("right");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(5);
     expect("endBeat" in updated.notes[0]).toBe(true);
   });
@@ -1405,7 +1452,7 @@ describe("SelectMode.moveByLane — 통합 레인 이동 (메인↔보조 연속
 
     mode.moveByLane("right");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(6);
   });
 
@@ -1432,7 +1479,7 @@ describe("SelectMode.moveByLane — 통합 레인 이동 (메인↔보조 연속
 
     mode.moveByLane("left");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(4); // 메인 레인 4
     expect(cb.getSelectionState().notes).toEqual(new Set([0]));
   });
@@ -1447,7 +1494,7 @@ describe("SelectMode.moveByLane — 통합 레인 이동 (메인↔보조 연속
 
     mode.moveByLane("left");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(4);
     expect("endBeat" in updated.notes[0]).toBe(true);
   });
@@ -1630,7 +1677,7 @@ describe("SelectMode — 박스 선택 보조 레인 (통합 인덱스, RFD 0018
 
 describe("SelectMode — 선택 동질성", () => {
   // 인덱스 0,1: 구간0(레인1) 트릴, 2: 구간1(레인2) 트릴, 3: 일반(레인3)
-  function makeChartH(): Chart {
+  function makeChartH(): ChartDocument {
     return makeChart({
       notes: [
         { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0
@@ -1710,7 +1757,7 @@ describe("SelectMode — 선택 동질성", () => {
 
 describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
   // 인덱스 0,1: 구간0(레인1) 트릴, 2: 구간1(레인2) 트릴, 3: 일반(레인3)
-  function makeChartL(): Chart {
+  function makeChartL(): ChartDocument {
     return makeChart({
       notes: [
         { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0
@@ -1834,7 +1881,7 @@ describe("SelectMode — 박스 감쌈 모델 (RFD 0016 §6-2)", () => {
 
 describe("SelectMode — 트릴 노트 이동 제약", () => {
   // 구간[2,6] 레인1, 트릴 노트 1개
-  function makeChartT(noteBeat: Beat): Chart {
+  function makeChartT(noteBeat: Beat): ChartDocument {
     return makeChart({
       notes: [{ type: "trill", lane: 1 as Lane, beat: noteBeat }],
       trillZones: [{ lane: 1 as Lane, beat: beat(2), endBeat: beat(6) }],
@@ -1858,7 +1905,7 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
     mode.moveBySnap("up"); // +1박 → beat4, 구간[2,6] 안
 
     const calls = cb.onChartUpdate.mock.calls;
-    const updated = calls[calls.length - 1][0] as Chart;
+    const updated = calls[calls.length - 1][0] as ChartDocument;
     expect(beatToFloat(updated.notes[0].beat)).toBe(4);
   });
 
@@ -1884,7 +1931,7 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
     mode.onPointerMove(1, -2);
 
     const calls = cb.onChartUpdate.mock.calls;
-    const updated = calls[calls.length - 1][0] as Chart;
+    const updated = calls[calls.length - 1][0] as ChartDocument;
     expect(beatToFloat(updated.notes[0].beat)).toBe(2); // 구간 밖(beat-2)으로 안 나감
   });
 });
@@ -1895,7 +1942,7 @@ describe("SelectMode — 트릴 노트 이동 제약", () => {
 
 describe("SelectMode — 구간 단위 선택", () => {
   // 구간0[lane1, 2~4]에 트릴노트 2개(beat2, beat3), 구간 밖 일반노트 1개
-  function makeChartZ(): Chart {
+  function makeChartZ(): ChartDocument {
     return makeChart({
       notes: [
         { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0 (구간0)
@@ -1984,7 +2031,7 @@ describe("SelectMode — 구간 단위 선택", () => {
     mode.onPointerMove(2, 5);
 
     const calls = cb.onChartUpdate.mock.calls;
-    const updated = calls[calls.length - 1][0] as Chart;
+    const updated = calls[calls.length - 1][0] as ChartDocument;
     // 구간 이동
     expect(updated.trillZones[0].lane).toBe(2);
     expect(beatToFloat(updated.trillZones[0].beat)).toBe(5);
@@ -2014,7 +2061,7 @@ describe("SelectMode — 구간 단위 선택", () => {
     mode.selectZoneUnit(0);
     mode.moveBySnap("up"); // snapStep = 1박
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.trillZones[0].beat)).toBe(3);
     expect(beatToFloat(updated.trillZones[0].endBeat)).toBe(5);
     expect(beatToFloat(updated.notes[0].beat)).toBe(3);
@@ -2027,7 +2074,7 @@ describe("SelectMode — 구간 단위 선택", () => {
     mode.selectZoneUnit(0);
     mode.moveByLane("right");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.trillZones[0].lane).toBe(2);
     expect(updated.notes[0].lane).toBe(2);
     expect(updated.notes[1].lane).toBe(2);
@@ -2041,7 +2088,7 @@ describe("SelectMode — 구간 단위 선택", () => {
 
 describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
   // 구간0[lane1, 2~4]에 트릴노트 2개(beat2, beat3), 구간 밖 일반노트 1개
-  function makeChartB(): Chart {
+  function makeChartB(): ChartDocument {
     return makeChart({
       notes: [
         { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0 (구간0)
@@ -2065,7 +2112,7 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     mode.onPointerMove(2, 6);               // +1레인 +3박
 
     expect(mode.isMoveDragging).toBe(true);
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.trillZones[0].lane).toBe(2);
     expect(beatToFloat(updated.trillZones[0].beat)).toBe(5);
     expect(beatToFloat(updated.trillZones[0].endBeat)).toBe(7);
@@ -2142,7 +2189,7 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     mode.onPointerMove(1, 6);
     mode.onPointerUp(1, 6);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.trillZones[0].endBeat)).toBe(6);
     expect(beatToFloat(updated.trillZones[0].beat)).toBe(2); // 시작은 불변
   });
@@ -2159,7 +2206,7 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
     mode.onPointerUp(1, 4);
 
     // 차트(구간 endBeat)는 불변 — 리사이즈가 일어나지 않았다
-    const lastChart = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart | undefined;
+    const lastChart = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument | undefined;
     if (lastChart) expect(beatToFloat(lastChart.trillZones[0].endBeat)).toBe(4);
   });
 
@@ -2183,7 +2230,7 @@ describe("SelectMode — 존 몸통 상호작용 (RFD 0016 §6-6)", () => {
 
 describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", () => {
   // 구간0[lane1, 2~4]에 트릴노트 2개(beat2, beat3), 일반노트(lane3, beat9), 선택 밖 노트(lane4, beat0)
-  function makeChartM(): Chart {
+  function makeChartM(): ChartDocument {
     return makeChart({
       notes: [
         { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0 (구간0 내부 — 파생 대상)
@@ -2239,7 +2286,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
 
     mode.moveBySnap("up"); // snapStep = 1박
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.trillZones[0].beat)).toBe(3);
     expect(beatToFloat(updated.trillZones[0].endBeat)).toBe(5);
     expect(beatToFloat(updated.notes[0].beat)).toBe(3);  // 파생 노트 동반
@@ -2260,7 +2307,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
     mode.onPointerMove(3, 10);  // 레인 유지, +1박
     mode.onPointerUp(3, 10);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.trillZones[0].beat)).toBe(3);
     expect(beatToFloat(updated.notes[0].beat)).toBe(3);
     expect(beatToFloat(updated.notes[1].beat)).toBe(4);
@@ -2294,7 +2341,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
 
     mode.moveBySnap("up");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.notes[1].beat)).toBe(10); // 중복 위치로 커밋(해칭·게이트가 강제)
     expect(cb.onWarn).not.toHaveBeenCalled();
   });
@@ -2319,7 +2366,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
     mode.onPointerMove(3, 10); // 라이브 프리뷰 적용
     mode.onPointerUp(3, 10);   // 의미 위반(중복)이어도 낙관 커밋 — 되돌리기는 undo
 
-    const committed = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const committed = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(committed.notes[1].beat)).toBe(10);      // 일반 노트: 위반 위치 유지
     expect(beatToFloat(committed.notes[0].beat)).toBe(3);       // 파생 노트: +1박 이동 유지
     expect(beatToFloat(committed.trillZones[0].beat)).toBe(3);  // 구간: +1박 이동 유지
@@ -2332,7 +2379,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
 
     mode.deleteSelected();
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.trillZones.length).toBe(0);
     expect(updated.notes.length).toBe(1);   // 선택 밖 노트만 생존
     expect(updated.notes[0].lane).toBe(4);
@@ -2348,7 +2395,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
     // anchor = beat2(구간·트릴 시작) → target beat12 = +10박
     mode.paste(beat(12));
 
-    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(pasted.trillZones.length).toBe(2);
     const newZone = pasted.trillZones[1];
     expect(beatToFloat(newZone.beat)).toBe(12);
@@ -2389,7 +2436,7 @@ describe("SelectMode — 혼합 선택(일반 노트+구간 유닛, RFD 0016)", 
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — 삭제 연동", () => {
-  function makeChartZ(): Chart {
+  function makeChartZ(): ChartDocument {
     return makeChart({
       notes: [
         { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0 (구간0)
@@ -2406,7 +2453,7 @@ describe("SelectMode — 삭제 연동", () => {
     mode.selectZoneUnit(0);
     mode.deleteSelected();
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.trillZones.length).toBe(0);
     expect(updated.notes.length).toBe(1);        // 구간 밖 일반노트만 남음
     expect(updated.notes[0].lane).toBe(3);
@@ -2418,7 +2465,7 @@ describe("SelectMode — 삭제 연동", () => {
     mode.selectNote(0); // 트릴 포인트 노트(노트 단위)
     mode.deleteSelected();
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.trillZones.length).toBe(1);    // 구간 유지
     expect(updated.notes.length).toBe(2);         // 노트 1개만 삭제
   });
@@ -2429,7 +2476,7 @@ describe("SelectMode — 삭제 연동", () => {
 // ---------------------------------------------------------------------------
 
 describe("SelectMode — 트릴존 복붙", () => {
-  function makeChartZ(): Chart {
+  function makeChartZ(): ChartDocument {
     return makeChart({
       notes: [
         { type: "trill", lane: 1 as Lane, beat: beat(2) },  // 0 (구간0)
@@ -2454,7 +2501,7 @@ describe("SelectMode — 트릴존 복붙", () => {
     // anchor=2, target=6 → +4박
     mode.paste(beat(6));
 
-    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(pasted.trillZones.length).toBe(2); // 원본 + 붙여넣은 구간
     const newZone = pasted.trillZones[1];
     expect(newZone.lane).toBe(1);
@@ -2473,7 +2520,7 @@ describe("SelectMode — 트릴존 복붙", () => {
     expect(mode.copy()).toBe(2); // 노트1 + 구간1(승격)
 
     mode.paste(beat(6));
-    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(pasted.trillZones.length).toBe(2); // 구간도 붙여넣어짐
   });
 
@@ -2497,7 +2544,7 @@ describe("SelectMode — 트릴존 복붙", () => {
 
 describe("SelectMode — restZone 복붙 (RFD 0019)", () => {
   // restZone 2개: 0=lane2[2,6], 1=lane4[8,10]. 노트 1개(lane1, beat0) — restZone과 무관.
-  function makeChartRC(): Chart {
+  function makeChartRC(): ChartDocument {
     return makeChart({
       notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
       restZones: [
@@ -2521,7 +2568,7 @@ describe("SelectMode — restZone 복붙 (RFD 0019)", () => {
     mode.copy();
     expect(mode.paste(beat(10))).toBe(1);
 
-    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(pasted.restZones).toHaveLength(3);
     expect(pasted.restZones![2].lane).toBe(2);
     expect(beatToFloat(pasted.restZones![2].beat)).toBe(10);
@@ -2552,7 +2599,7 @@ describe("SelectMode — restZone 복붙 (RFD 0019)", () => {
     mode.paste(beat(10));
     mode.movePasteBySnap("up");
 
-    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(moved.restZones![2].beat)).toBe(11);
     expect(beatToFloat(moved.restZones![2].endBeat)).toBe(15);
   });
@@ -2565,7 +2612,7 @@ describe("SelectMode — restZone 복붙 (RFD 0019)", () => {
     mode.paste(beat(10));
     mode.movePasteByLane("right");
 
-    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(moved.restZones![2].lane).toBe(3);
     expect(moved.restZones![0].lane).toBe(2); // 원본 불변
   });
@@ -2578,7 +2625,7 @@ describe("SelectMode — restZone 복붙 (RFD 0019)", () => {
     mode.paste(beat(10));
     mode.cancelPaste();
 
-    const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(restored.restZones).toHaveLength(2);
     expect(cb.getSelectionState().restZones.size).toBe(0);
     expect(mode.isPendingPaste).toBe(false);
@@ -2598,7 +2645,7 @@ describe("SelectMode — restZone 복붙 (RFD 0019)", () => {
 
     mode.confirmPlacement(); // 구조 위반이 아니므로 확정된다(place-then-fix, RFD 0017)
     expect(mode.isPendingPaste).toBe(false);
-    const confirmed = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const confirmed = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(confirmed.restZones).toHaveLength(2);
     expect(beatToFloat(confirmed.restZones![1].beat)).toBe(10);
   });
@@ -2609,7 +2656,7 @@ describe("SelectMode — restZone 복붙 (RFD 0019)", () => {
     mode.selectRestZoneUnit(0);
     expect(mode.cut()).toBe(1);
 
-    const afterCut = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const afterCut = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(afterCut.restZones).toHaveLength(1);
     expect(afterCut.restZones![0].lane).toBe(4); // lane4[8,10]만 남음
     expect(mode.hasClipboard).toBe(true);
@@ -2631,13 +2678,13 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     mode.selectNote(0);
     mode.beginMoveDrag(1, 0);
     mode.onPointerMove(2, 0); // 레인 1 → 2로 이동(라이브 적용)
-    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(2);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument).notes[0].lane).toBe(2);
 
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
     expect(mode.isMoveDragging).toBe(false);
-    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(1); // 원위치
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument).notes[0].lane).toBe(1); // 원위치
   });
 
   it("트릴존 리사이즈 중 cancel은 endBeat를 원본(6)으로 되돌린다", () => {
@@ -2653,12 +2700,12 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
 
     mode.onPointerDown(9, 6, false, false); // 트릴존 끝 잡고 리사이즈 시작
     mode.onPointerMove(9, 10); // endBeat 6→10 (라이브 적용)
-    expect(beatToFloat((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).trillZones[0].endBeat)).toBe(10);
+    expect(beatToFloat((cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument).trillZones[0].endBeat)).toBe(10);
 
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
-    expect(beatToFloat((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).trillZones[0].endBeat)).toBe(6);
+    expect(beatToFloat((cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument).trillZones[0].endBeat)).toBe(6);
   });
 
   it("보조 노트 이동 중 cancel은 lane을 원본(5)으로 되돌린다 (RFD 0018 ④)", () => {
@@ -2668,12 +2715,12 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
 
     mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: 0 });
     mode.onPointerMove(6, 0); // lane 5 → 6 (라이브 적용)
-    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(6);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument).notes[0].lane).toBe(6);
 
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
-    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart).notes[0].lane).toBe(5);
+    expect((cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument).notes[0].lane).toBe(5);
   });
 
   it("박스 선택 중 cancel은 차트 변이 없이 박스만 닫는다", () => {
@@ -2710,13 +2757,13 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
     mode.selectZoneUnit(0);
     mode.onPointerDown(1, 2, false, false); // 선택된 존 몸통 → 구간 단위 드래그 시작
     mode.onPointerMove(2, 5); // +1레인 +3박 (라이브 적용)
-    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(moved.trillZones[0].lane).toBe(2);
 
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
-    const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(restored.trillZones[0].lane).toBe(1);
     expect(beatToFloat(restored.trillZones[0].beat)).toBe(2);
     expect(beatToFloat(restored.trillZones[0].endBeat)).toBe(4);
@@ -2733,14 +2780,14 @@ describe("SelectMode — cancel (editCancel 드래그 폐기)", () => {
 
     mode.beginLongPressDrag(5, 0, { noteEndHit: null, noteHit: 0 });
     mode.onPointerMove(6, 3); // +1레인 +3박 (라이브 적용)
-    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const moved = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(moved.notes[0].lane).toBe(6);
     expect(beatToFloat(moved.notes[0].beat)).toBe(3);
 
     const result = mode.cancel();
 
     expect(result.clearDragPreview).toBe(true);
-    const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const restored = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     const rn = restored.notes[0];
     expect(rn.lane).toBe(5);
     expect(beatToFloat(rn.beat)).toBe(0);
@@ -2807,7 +2854,7 @@ describe("SelectMode — 트릴 쌍 동반 선택", () => {
     mode.onPointerMove(1, 1); // 레인 유지 +1박 (트릴 단위 이동은 존 안 클램프)
     mode.onPointerUp(1, 1);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.notes[0].beat)).toBe(1); // 헤드 이동
     expect(beatToFloat(updated.notes[1].beat)).toBe(1); // 바디 시작 이동
     expect(beatToFloat((updated.notes[1] as { endBeat: Beat }).endBeat)).toBe(3); // 길이 보존
@@ -2948,7 +2995,7 @@ describe("SelectMode — 파생 내부 노트 드래그 (RFD 0016 §4.2)", () =>
     mode.onPointerDown(1, 1, false, false); // 파생 내부 노트 0 히트
     mode.onPointerMove(1, 3); // +2박 프리뷰
 
-    const priv = mode as unknown as { chart: Chart };
+    const priv = mode as unknown as { chart: ChartDocument };
     expect(cb.getSelectionState().zones).toEqual(new Set([0])); // 유닛 선택 유지
     expect(cb.getSelectionState().notes).toEqual(new Set()); // 단독 선택으로 교체 안 됨
     expect(beatToFloat(priv.chart.trillZones[0].beat)).toBe(2); // 존 0→2
@@ -2963,7 +3010,7 @@ describe("SelectMode — 파생 내부 노트 드래그 (RFD 0016 §4.2)", () =>
 
     expect(ok).toBe(true);
     expect(cb.getSelectionState().zones).toEqual(new Set([0])); // 단독 선택 전환 없음
-    const priv = mode as unknown as { chart: Chart };
+    const priv = mode as unknown as { chart: ChartDocument };
     expect(beatToFloat(priv.chart.trillZones[0].beat)).toBe(2);
   });
 });
@@ -3071,7 +3118,7 @@ describe("SelectMode — 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-
 
 describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019)", () => {
   // restZone 2개: 0=lane2[2,6], 1=lane4[8,10]. 노트 1개(lane1, beat0) — restZone과 무관.
-  function makeChartR(): Chart {
+  function makeChartR(): ChartDocument {
     return makeChart({
       notes: [{ type: "single", lane: 1 as Lane, beat: beat(0) }],
       restZones: [
@@ -3138,7 +3185,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     mode.onPointerUp(3, 4);
 
     expect(cb.onChartUpdate).toHaveBeenCalled();
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.restZones?.[0].lane).toBe(3);
     expect(beatToFloat(updated.restZones![0].beat)).toBe(4);
     expect(beatToFloat(updated.restZones![0].endBeat)).toBe(8);
@@ -3159,7 +3206,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     mode.onPointerMove(2, 0); // -3박 요청 — 허용 하한은 -2박(시작=0)
     mode.onPointerUp(2, 0);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.restZones![0].beat)).toBe(0);
     expect(beatToFloat(updated.restZones![0].endBeat)).toBe(4);
   });
@@ -3171,7 +3218,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
 
     mode.moveBySnap("up"); // snapStep = 1박
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.restZones![0].beat)).toBe(3);
     expect(beatToFloat(updated.restZones![0].endBeat)).toBe(7);
     expect(beatToFloat(updated.notes[0].beat)).toBe(0);
@@ -3184,7 +3231,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
 
     mode.moveByLane("right");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.restZones?.[0].lane).toBe(3);
   });
 
@@ -3213,7 +3260,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     mode.onPointerMove(2, 8);
     mode.onPointerUp(2, 8);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.restZones![0].endBeat)).toBe(8);
     expect(beatToFloat(updated.restZones![0].beat)).toBe(2);
   });
@@ -3230,7 +3277,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     mode.onPointerMove(2, 1); // 시작(2) 아래 — 길이 0 프레임은 커밋 금지
     mode.onPointerUp(2, 1);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.restZones![0].endBeat)).toBe(6);
     expect(beatToFloat(updated.restZones![0].beat)).toBe(2);
   });
@@ -3247,7 +3294,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     mode.onPointerUp(2, 8);
 
     // 차트(구간 endBeat)는 불변 — 리사이즈가 일어나지 않았다
-    const lastChart = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart | undefined;
+    const lastChart = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument | undefined;
     if (lastChart) expect(beatToFloat(lastChart.restZones![0].endBeat)).toBe(6);
   });
 
@@ -3258,7 +3305,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
 
     mode.deleteSelected();
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.restZones).toHaveLength(1);
     expect(updated.restZones?.[0].lane).toBe(4); // lane4[8,10]만 남음
     expect(updated.notes).toHaveLength(1);
@@ -3310,7 +3357,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
     mode.onPointerMove(3, 4); // +1레인 +2박 프리뷰
     mode.cancel();
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.restZones?.[0].lane).toBe(2);
     expect(beatToFloat(updated.restZones![0].beat)).toBe(2);
     expect(beatToFloat(updated.restZones![0].endBeat)).toBe(6);
@@ -3324,7 +3371,7 @@ describe("SelectMode — restZone 선택·이동·리사이즈·삭제 (RFD 0019
 
 describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (RFD 0019)", () => {
   // 노트 1개(lane2, beat3) + restZone 2개: 0=lane3[2,4], 1=lane4[8,10].
-  function makeChartC(): Chart {
+  function makeChartC(): ChartDocument {
     return makeChart({
       notes: [{ type: "single", lane: 2 as Lane, beat: beat(3) }],
       restZones: [
@@ -3393,7 +3440,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
     mode.onPointerMove(3, 5);               // +1레인 +2박
     mode.onPointerUp(3, 5);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(3);
     expect(beatToFloat(updated.notes[0].beat)).toBe(5);
     expect(updated.restZones?.[0].lane).toBe(4);
@@ -3415,7 +3462,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
     mode.onPointerMove(2, 0); // -3박 요청 — restZone [2,4] 하한은 -2박
     mode.onPointerUp(2, 0);
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.restZones![0].beat)).toBe(0);
     expect(beatToFloat(updated.notes[0].beat)).toBe(1); // 노트도 같은 -2박
   });
@@ -3427,7 +3474,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
 
     mode.moveBySnap("up");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.notes[0].beat)).toBe(4);
     expect(beatToFloat(updated.restZones![0].beat)).toBe(3);
     expect(beatToFloat(updated.restZones![0].endBeat)).toBe(5);
@@ -3440,7 +3487,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
 
     mode.moveByLane("right");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes[0].lane).toBe(3);
     expect(updated.restZones?.[0].lane).toBe(4);
   });
@@ -3467,7 +3514,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
 
     mode.moveBySnap("up");
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(beatToFloat(updated.trillZones[0].beat)).toBe(3);
     expect(beatToFloat(updated.trillZones[0].endBeat)).toBe(5);
     expect(beatToFloat(updated.restZones![0].beat)).toBe(3);
@@ -3481,7 +3528,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
 
     mode.deleteSelected();
 
-    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const updated = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(updated.notes).toHaveLength(0);
     expect(updated.restZones).toHaveLength(1);
     expect(updated.restZones?.[0].lane).toBe(4); // lane4[8,10]만 남음
@@ -3496,7 +3543,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
     // anchor = min(노트 beat3, restZone 시작 beat2) = 2 → offset +8
     mode.paste(beat(10));
 
-    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as Chart;
+    const pasted = cb.onChartUpdate.mock.calls.at(-1)?.[0] as ChartDocument;
     expect(pasted.notes).toHaveLength(2);
     expect(beatToFloat(pasted.notes[1].beat)).toBe(11); // 3+8
     expect(pasted.restZones).toHaveLength(3);

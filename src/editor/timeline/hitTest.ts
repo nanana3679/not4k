@@ -6,7 +6,7 @@
  * All functions use raw (unsnapped) beat values for snap-independent detection.
  */
 
-import type { NoteEntity, ExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
+import type { DocumentNoteEntity, DocumentExtraNoteEntity, RangeNote, BodyNote, TrillZone, RestZone } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
 
 /** Tolerance for point note hit detection (in beats) */
@@ -15,6 +15,11 @@ const POINT_NOTE_TOLERANCE = 1 / 16;
 /** Tolerance for snap-position note detection (tighter, exact match) */
 export const SNAP_POSITION_TOLERANCE = 1 / 32;
 
+/** 명시적 점수 노트(Point·릴리즈·유지 노트). 같은 자리의 바디·끝 핸들보다 먼저 잡힌다(RFD 0037 §6-2). */
+export function isExplicitScoreNote(note: DocumentNoteEntity | undefined): boolean {
+  return note?.type === "point" || note?.type === "release" || note?.type === "sustain";
+}
+
 /** Highest z-order value — used for early exit in hit test */
 const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
 
@@ -22,7 +27,7 @@ const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
 const SELECTED_BONUS = MAX_Z_ORDER + 1;
 
 export function hitTestNoteAt(
-  notes: readonly NoteEntity[],
+  notes: readonly DocumentNoteEntity[],
   lane: number,
   beatFloat: number,
   tolerance: number = POINT_NOTE_TOLERANCE,
@@ -39,13 +44,15 @@ export function hitTestNoteAt(
     let hit: boolean;
     if ("endBeat" in note) {
       const eb = note.endBeat.n / note.endBeat.d;
-      hit = beatFloat >= nb - tolerance && beatFloat <= eb + tolerance;
+      const rangeTolerance = note.type === "body" && nb === eb ? tolerance * 1.5 : tolerance;
+      hit = beatFloat >= nb - rangeTolerance && beatFloat <= eb + rangeTolerance;
     } else {
       hit = Math.abs(beatFloat - nb) < tolerance;
     }
 
     if (hit) {
       let priority = NOTE_Z_ORDER[note.type] ?? 0;
+      if (isExplicitScoreNote(note)) priority += SELECTED_BONUS;
       if (selectedNotes?.has(i)) {
         priority += SELECTED_BONUS;
       }
@@ -65,24 +72,12 @@ export function hitTestNoteAt(
  * Returns the index of the first matching extra note, or null.
  */
 export function hitTestExtraNoteAt(
-  extraNotes: readonly ExtraNoteEntity[],
+  extraNotes: readonly DocumentExtraNoteEntity[],
   extraLane: number,
   beatFloat: number,
   tolerance: number = POINT_NOTE_TOLERANCE,
 ): number | null {
-  for (let i = 0; i < extraNotes.length; i++) {
-    const note = extraNotes[i];
-    if (note.extraLane !== extraLane) continue;
-
-    const nb = note.beat.n / note.beat.d;
-    if ("endBeat" in note) {
-      const eb = note.endBeat.n / note.endBeat.d;
-      if (beatFloat >= nb - tolerance && beatFloat <= eb + tolerance) return i;
-    } else {
-      if (Math.abs(beatFloat - nb) < tolerance) return i;
-    }
-  }
-  return null;
+  return hitTestNoteAt(extraNotes.map(({ extraLane: lane, ...note }) => ({ ...note, lane })), extraLane, beatFloat, tolerance);
 }
 
 /**
@@ -137,7 +132,7 @@ export function hitTestRestZoneAt(
  * Used to suppress ghost note when it would overlap an existing note.
  */
 export function noteExistsAtSnap(
-  notes: readonly NoteEntity[],
+  notes: readonly DocumentNoteEntity[],
   lane: number,
   snappedBeatFloat: number,
 ): number | null {
@@ -161,7 +156,7 @@ export type RangeNoteRegion = "head" | "body" | "end";
  * head와 end 영역이 겹치는 경우(짧은 롱노트), 가까운 쪽을 우선한다.
  */
 export function hitTestRangeNoteRegion(
-  note: RangeNote,
+  note: RangeNote | BodyNote,
   beatFloat: number,
   tolerance: number = POINT_NOTE_TOLERANCE,
 ): RangeNoteRegion | null {

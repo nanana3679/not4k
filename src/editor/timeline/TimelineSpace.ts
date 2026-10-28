@@ -20,6 +20,7 @@ import {
   hitTestExtraNoteAt,
   hitTestTrillZoneAt,
   hitTestRestZoneAt,
+  isExplicitScoreNote,
 } from "./hitTest";
 import {
   beatFloatToRawBeat,
@@ -34,14 +35,14 @@ import {
   fromAuxIndex,
   extractBpmMarkers,
 } from "../../shared";
-import type { Beat, Lane, BpmMarker, Chart, ChartEvent } from "../../shared";
+import type { Beat, Lane, BpmMarker, ChartDocument, ChartEvent } from "../../shared";
 
 /**
  * TimelineSpace가 의존하는 외부 사실의 주입 통로.
  * 어댑터(useTimelineSpace)가 store·renderer를 여기에 접어 넘긴다.
  */
 export interface TimelineSpaceSource {
-  getChart(): Chart;
+  getChart(): ChartDocument;
   getSnapDivision(): number;
   getSelectedNotes(): Set<number>;
   getExtraLaneCount(): number;
@@ -174,19 +175,33 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     return hitTestNoteAt(source.getChart().notes, lane, b.n / b.d, undefined, source.getSelectedNotes());
   };
 
+  // 범위 노트 끝 핸들. 명시 점수 노트와 겹친 자리는 노트가 이긴다(RFD 0037 §6-2).
+  // 끝을 점수 노트(기본 끝 Release 등)가 덮으면 그 노트 hit 바로 위 띠에서 핸들을 잡는다.
+  // 연결 경계처럼 이어진 뒤 바디가 그 띠를 덮어도 띠는 앞 바디의 끝 hit다. 정확한 끝 ±1/16박과 같이
+  // 선택 게이트(선택됐거나 최상위)는 resolveGrab이 적용하고, 끝 캡 롱프레스는 선택과 무관하게 잡는다.
   const hitTestNoteEnd = (x: number, y: number): number | null => {
-    const lane = xToLane(x);
+    const lane = xToUnifiedLane(x);
     if (lane === null) return null;
     const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 16;
+    const coveredEndBandTop = 3 / 16;
     const notes = source.getChart().notes;
+    const front = hitTestNoteAt(notes, lane, testBeatFloat);
+    if (front !== null && isExplicitScoreNote(notes[front])) return null;
+    const endCoveredByScoreNote = (endBeatFloat: number) =>
+      isExplicitScoreNote(notes[hitTestNoteAt(notes, lane, endBeatFloat) ?? -1]);
+    // 띠 위의 앞쪽 hit가 범위 노트(이어진 뒤 바디 등)면 띠를 막지 않는다. 구형 단노트 같은 다른 노트는 막는다.
+    const bandOpen = front === null || "endBeat" in notes[front];
     for (let i = 0; i < notes.length; i++) {
       const note = notes[i];
       if (note.lane !== lane) continue;
       if (!("endBeat" in note)) continue;
       const endBeatFloat = note.endBeat.n / note.endBeat.d;
-      if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;
+      const offset = testBeatFloat - endBeatFloat;
+      if (Math.abs(offset) < tolerance) return i;
+      if (bandOpen && offset >= tolerance && offset < coveredEndBandTop
+        && endCoveredByScoreNote(endBeatFloat)) return i;
     }
     return null;
   };

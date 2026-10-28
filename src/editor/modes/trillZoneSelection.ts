@@ -6,12 +6,13 @@
  * 선택되면 그 트릴존도 선택된 것으로 취급한다.
  */
 
-import type { Beat, NoteEntity, RestZone, TrillZone } from "../../shared";
+import type { Beat, DocumentNoteEntity, RestZone, TrillZone } from "../../shared";
 import { beatAdd, beatSub, beatToFloat } from "../../shared";
+import { bodyCompanionIndices } from '../editing/explicitEditing';
 import { restZoneOverlapsBox } from "./restZoneSelection";
 
 /** 노트가 트릴존과 같은 레인에서 구간이 겹치는지 판정한다. */
-export function trillZoneOverlapsNote(zone: TrillZone, note: NoteEntity): boolean {
+export function trillZoneOverlapsNote(zone: TrillZone, note: DocumentNoteEntity): boolean {
   if (zone.lane !== note.lane) return false;
 
   const zoneStart = beatToFloat(zone.beat);
@@ -64,7 +65,7 @@ export function boxEnclosesZone(
  */
 export function getSelectedTrillZoneIndices(
   trillZones: readonly TrillZone[],
-  notes: readonly NoteEntity[],
+  notes: readonly DocumentNoteEntity[],
   selectedNoteIndices: ReadonlySet<number>,
 ): Set<number> {
   const result = new Set<number>();
@@ -84,14 +85,15 @@ export function getSelectedTrillZoneIndices(
 }
 
 /** 노트가 트릴 노트(trill/trillLong)인지 판정한다. */
-export function isTrillNote(note: NoteEntity): boolean {
-  return note.type === "trill" || note.type === "trillLong";
+export function isTrillNote(note: DocumentNoteEntity): boolean {
+  return note.type === "trill" || note.type === "trillLong"
+    || (note.type === "point" && note.kind === "trill") || (note.type === "body" && note.trill === true);
 }
 
 /** 트릴 노트가 속한 트릴존 인덱스를 반환한다. 트릴이 아니거나 어느 구간에도 없으면 null. */
 export function trillZoneIndexOfNote(
   trillZones: readonly TrillZone[],
-  note: NoteEntity,
+  note: DocumentNoteEntity,
 ): number | null {
   if (!isTrillNote(note)) return null;
   for (let i = 0; i < trillZones.length; i++) {
@@ -114,7 +116,7 @@ export type SelectionKind =
 /** 단일 노트가 만드는 선택 종류를 반환한다. */
 export function noteSelectionKind(
   trillZones: readonly TrillZone[],
-  note: NoteEntity,
+  note: DocumentNoteEntity,
 ): SelectionKind {
   if (!isTrillNote(note)) return { kind: "normal" };
   return { kind: "trill", zoneIndex: trillZoneIndexOfNote(trillZones, note) ?? -1 };
@@ -123,7 +125,7 @@ export function noteSelectionKind(
 /** 현재 선택된 노트들의 종류를 판정한다(가장 먼저 발견된 노트 기준). */
 export function classifySelection(
   trillZones: readonly TrillZone[],
-  notes: readonly NoteEntity[],
+  notes: readonly DocumentNoteEntity[],
   selectedNoteIndices: ReadonlySet<number>,
 ): SelectionKind {
   let result: SelectionKind = { kind: "empty" };
@@ -142,7 +144,7 @@ export function classifySelection(
 export function canAddNoteToSelection(
   currentKind: SelectionKind,
   trillZones: readonly TrillZone[],
-  note: NoteEntity,
+  note: DocumentNoteEntity,
 ): boolean {
   if (currentKind.kind === "empty") return true;
   const candidate = noteSelectionKind(trillZones, note);
@@ -155,7 +157,7 @@ export function canAddNoteToSelection(
 export function selectionBlockReason(
   currentKind: SelectionKind,
   trillZones: readonly TrillZone[],
-  note: NoteEntity,
+  note: DocumentNoteEntity,
 ): string | null {
   if (canAddNoteToSelection(currentKind, trillZones, note)) return null;
   if (isTrillNote(note) !== (currentKind.kind === "trill")) {
@@ -170,7 +172,7 @@ export function selectionBlockReason(
  */
 export function filterHomogeneousSelection(
   trillZones: readonly TrillZone[],
-  notes: readonly NoteEntity[],
+  notes: readonly DocumentNoteEntity[],
   candidateIndices: Iterable<number>,
 ): { kept: Set<number>; dropped: number } {
   const sorted = [...candidateIndices].sort((a, b) => a - b);
@@ -194,13 +196,13 @@ export function filterHomogeneousSelection(
 
 /** 노트가 박스 범위(레인·박 폐구간) 안에 있는지 — 기존 박스 커밋과 동일한 판정. */
 function noteInBox(
-  note: NoteEntity,
+  note: DocumentNoteEntity,
   box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
 ): boolean {
   return (
     note.lane >= box.minLane &&
     note.lane <= box.maxLane &&
-    beatSub(note.beat, box.minBeat).n >= 0 &&
+    beatSub(note.type === "body" ? note.endBeat : note.beat, box.minBeat).n >= 0 &&
     beatSub(box.maxBeat, note.beat).n >= 0
   );
 }
@@ -218,7 +220,7 @@ function noteInBox(
  */
 export function selectionFromBox(
   trillZones: readonly TrillZone[],
-  notes: readonly NoteEntity[],
+  notes: readonly DocumentNoteEntity[],
   restZones: readonly RestZone[],
   box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
 ): { notes: Set<number>; zones: Set<number>; restZones: Set<number> } {
@@ -241,6 +243,11 @@ export function selectionFromBox(
       if (zi === null || !selectedZones.has(zi)) selectedNotes.add(i);
     } else {
       selectedNotes.add(i);
+    }
+  }
+  for (const index of [...selectedNotes]) {
+    if (notes[index].type === 'body') {
+      for (const companion of bodyCompanionIndices(notes, index)) selectedNotes.add(companion);
     }
   }
   return { notes: selectedNotes, zones: selectedZones, restZones: selectedRestZones };
