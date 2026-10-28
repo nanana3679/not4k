@@ -14,3 +14,8 @@ assets-lab/classic/revisions/selected-notes-20261026/README.md -linguist-generat
 assets-lab/classic/revisions/selected-notes-20261026/manifest.json -linguist-generated
 assets-lab/classic/revisions/selected-notes-20261026/*.mjs -linguist-generated
 assets-lab/classic/revisions/selected-notes-20261026/*.test.ts -linguist-generated
+
+# 명시 노트 설계 사례의 생성 그림·고정 입력 자료
+docs/spec/images/explicit-note-cases/** linguist-generated=true
+docs/spec/fixtures/explicit-note-cases/** linguist-generated=true
+docs/spec/fixtures/legacy-judgment-case-migration.json linguist-generated=true

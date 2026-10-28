@@ -1,0 +1,116 @@
+{
+  "format": "judgment-case-design",
+  "title": "ENJ-17 — 같은 Perfect 후보는 표시 가능한 실제 입력의 큰 오차 우선",
+  "notes": [
+    {
+      "kind": "body",
+      "startMs": 1000,
+      "endMs": 2000,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "maintain",
+      "atMs": 1500,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "point",
+      "atMs": 1530,
+      "count": 1,
+      "lane": 2
+    },
+    {
+      "kind": "point",
+      "atMs": 1480,
+      "count": 1,
+      "lane": 3
+    },
+    {
+      "kind": "point",
+      "atMs": 1400,
+      "count": 1,
+      "lane": 4,
+      "name": "Grace"
+    }
+  ],
+  "inputs": [
+    {
+      "key": "A",
+      "downMs": 1000,
+      "upMs": 2000,
+      "lane": 1
+    },
+    {
+      "key": "B",
+      "downMs": 1500,
+      "upMs": 1540,
+      "lane": 2
+    },
+    {
+      "key": "C",
+      "downMs": 1500,
+      "upMs": 1540,
+      "lane": 3
+    },
+    {
+      "key": "D",
+      "downMs": 1500,
+      "upMs": 1540,
+      "lane": 4
+    }
+  ],
+  "windows": [
+    {
+      "note": "N3",
+      "startMs": 1489,
+      "endMs": 1571,
+      "label": "Perfect ±41"
+    },
+    {
+      "note": "N4",
+      "startMs": 1439,
+      "endMs": 1521,
+      "label": "Perfect ±41"
+    },
+    {
+      "note": "N5",
+      "startMs": 1280,
+      "endMs": 1520,
+      "label": "Grace 최대 Good"
+    }
+  ],
+  "annotations": [
+    {
+      "note": "N2",
+      "atMs": 1500,
+      "label": "Perfect",
+      "text": "N2의 유지 성공에는 타이밍 정보가 없다.",
+      "tone": "success"
+    },
+    {
+      "note": "N3",
+      "atMs": 1500,
+      "label": "Perfect −30",
+      "text": "N3의 실제 입력 오차는 −30ms다.",
+      "tone": "success"
+    },
+    {
+      "note": "N4",
+      "atMs": 1500,
+      "label": "Perfect +20",
+      "text": "N4는 +20ms로 Perfect이며 기존 20.5ms FAST/SLOW 임계값 안이다.",
+      "tone": "success"
+    },
+    {
+      "note": "N5",
+      "atMs": 1500,
+      "label": "Grace Perfect",
+      "text": "N5는 Grace라 raw +100ms의 표시·통계를 만들지 않는다.",
+      "tone": "success"
+    }
+  ],
+  "summary": "네 점수 항목 12/12점·콤보 기여 4회. 대표는 Perfect·N3의 FAST −30ms이며 N4의 +20ms나 N5의 타이밍을 빌리지 않는다. 항목별 타이밍 통계는 별도로 보존한다.",
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §2·§5·§7 / 논의 §101～104."
+}

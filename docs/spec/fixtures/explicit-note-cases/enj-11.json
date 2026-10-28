@@ -1,0 +1,99 @@
+{
+  "format": "judgment-case-design",
+  "title": "ENJ-11 — 1→2는 앞 single 탈락 뒤 두 몫 모두 새 시작",
+  "notes": [
+    {
+      "kind": "body",
+      "startMs": 1000,
+      "endMs": 2000,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "body",
+      "startMs": 2000,
+      "endMs": 3000,
+      "count": 2,
+      "lane": 1
+    },
+    {
+      "kind": "maintain",
+      "atMs": 2000,
+      "count": 2,
+      "lane": 1
+    },
+    {
+      "kind": "release",
+      "atMs": 3000,
+      "count": 2,
+      "lane": 1
+    }
+  ],
+  "inputs": [
+    {
+      "key": "A",
+      "downMs": 1000,
+      "upMs": 1500,
+      "lane": 1
+    },
+    {
+      "key": "B",
+      "downMs": 1990,
+      "upMs": 3000,
+      "lane": 1
+    },
+    {
+      "key": "C",
+      "downMs": 1995,
+      "upMs": 3000,
+      "lane": 1
+    }
+  ],
+  "windows": [
+    {
+      "note": "N2",
+      "startMs": 1880,
+      "endMs": 2120,
+      "label": "뒤 두 몫 시작 허용"
+    }
+  ],
+  "annotations": [
+    {
+      "note": "N1",
+      "atMs": 1520,
+      "label": "유지 기한",
+      "text": "앞 N1의 확정 실패는 남는다.",
+      "tone": "failure"
+    },
+    {
+      "note": "N2",
+      "atMs": 1990,
+      "label": "새 시작 1",
+      "text": "B down으로 충족한 첫 몫을 시작한다.",
+      "tone": "neutral"
+    },
+    {
+      "note": "N2",
+      "atMs": 1995,
+      "label": "새 시작 2",
+      "text": "C down으로 서로 다른 두 키의 요구를 채운다.",
+      "tone": "neutral"
+    },
+    {
+      "note": "N3",
+      "atMs": 2000,
+      "label": "Perfect ×2",
+      "text": "N3의 두 표식은 앞 N1이 아니라 뒤 N2 상태를 따른다.",
+      "tone": "success"
+    },
+    {
+      "note": "N4",
+      "atMs": 3000,
+      "label": "Perfect ×2",
+      "text": "서로 다른 B·C up으로 명시 릴리즈 두 항목을 처리한다.",
+      "tone": "success"
+    }
+  ],
+  "summary": "뒤 점수 네 항목은 12/12점이고 N1의 무점수 실패는 남아 Full Combo가 아니다. 증가의 표식은 뒤 double 기준이며 앞 실패/이른 종료 정산에 넣지 않는다.",
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §3-1·§4·§5·§6-1 / 논의 §20·21·47·51·57."
+}

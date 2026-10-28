@@ -1,0 +1,105 @@
+{
+  "format": "judgment-case-design",
+  "title": "ENJ-12 — 2→1 일부 실패는 건강한 몫 승계와 감소 릴리즈 종속 0점",
+  "notes": [
+    {
+      "kind": "body",
+      "startMs": 1000,
+      "endMs": 2000,
+      "count": 2,
+      "lane": 1
+    },
+    {
+      "kind": "body",
+      "startMs": 2000,
+      "endMs": 3000,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "release",
+      "atMs": 2000,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "maintain",
+      "atMs": 2500,
+      "count": 1,
+      "lane": 1
+    },
+    {
+      "kind": "release",
+      "atMs": 3000,
+      "count": 1,
+      "lane": 1
+    }
+  ],
+  "inputs": [
+    {
+      "key": "A",
+      "downMs": 1000,
+      "upMs": 1500,
+      "lane": 1
+    },
+    {
+      "key": "B",
+      "downMs": 1000,
+      "upMs": 3000,
+      "lane": 1
+    }
+  ],
+  "windows": [
+    {
+      "note": "N1",
+      "startMs": 1500,
+      "endMs": 1520,
+      "label": "부족 한 몫 유지 유예"
+    },
+    {
+      "note": "N3",
+      "startMs": 1880,
+      "endMs": 2120,
+      "label": "감소 릴리즈 Good"
+    }
+  ],
+  "annotations": [
+    {
+      "note": "N1",
+      "atMs": 1520,
+      "label": "한 몫 실패",
+      "text": "한 몫 유지 기한을 넘겨 실패해도 건강한 몫을 함께 실패시키지 않는다.",
+      "tone": "failure"
+    },
+    {
+      "note": "N3",
+      "atMs": 1520,
+      "label": "종속 0점",
+      "text": "명시 감소 릴리즈 N3는 실패한 몫에 귀속되어 0점·가중치 3이다. 실패 기회 소멸의 귀속을 뜻하며 실제 확정 프레임을 지정하지 않는다.",
+      "tone": "failure"
+    },
+    {
+      "note": "N2",
+      "atMs": 2000,
+      "label": "정상 승계",
+      "text": "건강한 몫을 N2로 이어준다.",
+      "tone": "neutral"
+    },
+    {
+      "note": "N4",
+      "atMs": 2500,
+      "label": "Perfect",
+      "text": "N4는 뒤 N2의 정상 유지로 성공한다.",
+      "tone": "success"
+    },
+    {
+      "note": "N5",
+      "atMs": 3000,
+      "label": "Perfect",
+      "text": "B up은 건강한 뒤 몫의 N5를 처리한다.",
+      "tone": "success"
+    }
+  ],
+  "summary": "N3 0점 + N4·N5 6점 = 6/9점. 원인 한 몫 실패 효과만 남고 N3의 추가 Miss는 없다. 전체 double 끝의 단일 릴리즈 기회 보존과 구분한다.",
+  "memo": "설계 기대값·엔진 미실행. Normal 사례 설정: Perfect ±41ms / Great ±82ms / Good ±120ms, 유지 유예는 임시 20ms. 최종 튜닝 수치 결정이 아니다. 유지 노트 자체의 창은 없고 그림의 바디 창은 시작·이른 종료 설명용이다. 본문·근거는 docs/spec/explicit-note-judgment-cases.md에서 확인한다.  근거: RFD 0037 §4·§5 / 논의 §11·19·48·98. §48의 두 몫 탈락 시 뒤 single 탈락 유지는 §106에서 번복했고 이 사례의 한 몫 실패 승계는 그대로다."
+}
