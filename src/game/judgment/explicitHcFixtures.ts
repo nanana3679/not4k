@@ -264,7 +264,7 @@ export const explicitHcFixtures = [
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,2015],["C",2020,3000]],
     { scoreItemCount: 2, theoreticalWeight: 6, earnedScore: 6, scope: 'whole', events: { perfect: 2, great: 0, good: 0, tapMiss: 0, releaseMiss: 0, maintenanceMiss: 0, dependentZero: 0 } }),
-  // HC053: 경계 탭 노트 유지본: 탭 up은 이 끝 창 밖
+  // HC053: 경계 탭 노트 유지본: C의 짧은 누름 up(2020)은 이 끝 창 밖
   fixture('HC053', 'src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts:403',
     [b(1000, 2000, 2), p(2000, 'single'), b(2000, 3000, 1), r(3000, 1)],
     [["A",1000,3000],["B",1000,3000],["C",2000,2020]],

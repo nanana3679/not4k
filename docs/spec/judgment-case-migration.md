@@ -194,7 +194,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | [HC051](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L391) | 규칙 대체 | 3000×1 | P2 | 6/6 | 경계 탭 노트 유지본: 감소/탭 중첩 제거, 숨은 연결 소비 없음 | 6 |
 | [HC052](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L397) | 규칙 대체 | 3000×1 | P2 | 6/6 | 경계 탭 노트 유지본: 앞 바디 감소 점수 자동 생성 없음 | 6 |
-| [HC053](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L403) | 규칙 대체 | 3000×1 | P2 | 6/6 | 경계 탭 노트 유지본: 탭 up은 이 끝 창 밖 | 6 |
+| [HC053](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L403) | 규칙 대체 | 3000×1 | P2 | 6/6 | 경계 탭 노트 유지본: C의 짧은 누름 up(2020)은 이 끝 창 밖 | 6 |
 | [HC054](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L409) | 규칙 대체 | 3000×1 | P2 | 6/6 | 경계 탭 노트 유지본: 중간 up 자동 소비 없음 | 6 |
 | [HC055](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L415) | 규칙 대체 | 3000×1 | P2 | 6/6 | 경계 탭 노트 유지본: A hold로 뒤 바디 유지 | 6 |
 | [HC056](../../src/game/judgment/noteJudgmentBodyHeldCountCases.test.ts#L421) | 규칙 대체 | 2060×1 | P1 Gr1 | 5/6 | 경계 탭 노트 유지본: B up2015가 마지막 릴리즈 Great | 6 |

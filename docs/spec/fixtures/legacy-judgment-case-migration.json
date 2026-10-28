@@ -2058,7 +2058,7 @@
         "earnedScore": 6,
         "theoreticalScore": 6,
         "scope": "전체 정산",
-        "note": "경계 탭 노트 유지본: 탭 up은 이 끝 창 밖"
+        "note": "경계 탭 노트 유지본: C의 짧은 누름 up(2020)은 이 끝 창 밖"
       },
       "basis": "RFD 0037 §2～5 및 충돌하지 않는 원본 RFD 0032 해당 절",
       "targetPhase": 6,
