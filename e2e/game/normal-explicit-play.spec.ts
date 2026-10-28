@@ -34,7 +34,8 @@ test('첫 시작과 Retry는 에셋 준비 뒤 음악 준비 없이 0ms에서 �
   await openNormalSong(page);
   await startNormalSong(page);
   await waitAt(page, 1100);
-  expect((await probe(page)).session?.score.processedNotes).toBeGreaterThan(0);
+  // 오디오 시계가 1100ms를 넘어도 부하로 프레임이 밀리면 세션이 1000ms 자동 입력을 아직 처리하지 않았을 수 있다.
+  await expect.poll(async () => (await probe(page)).session?.score.processedNotes ?? 0, { timeout: 10000 }).toBeGreaterThan(0);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('heading', { name: 'Paused', exact: true })).toBeVisible();
   expect((await probe(page)).session?.score.processedNotes).toBe(0);
