@@ -260,7 +260,7 @@ describe("parseJudgmentCase — 차트 모델", () => {
     const { chart } = parseJudgmentCase(D4);
     expect(chart.events.slice(0, 2)).toEqual([
       { type: "bpm", beat: beat(0), bpm: 60000 },
-      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(1000) },
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(1000), editorLane: 2 },
     ]);
     expect(chart.restZones).toEqual([]);
     expect(chart.meta.offsetMs).toBe(0);

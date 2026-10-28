@@ -24,6 +24,8 @@
 
 ## 영향과 검증
 
+이벤트의 같은 보조 레인 배치 겹침은 후속 [RFD 0078](0078-event-placement-overlap.md)을 따른다. 공통 선택·편집과 초기 설정 보호는 이 결정을 유지한다.
+
 - glossary·에디터 컨텍스트·편집 스펙·RFD 0016의 후속 결정을 동기화한다.
 - `SelectionSlice`, `TimelineSpace`, `SelectMode`, `ClipboardManager`, `DeleteMode`, 포인터 조립과 렌더링을 연결한다.
 - 실제 store·좌표 공간·편집 모드의 통합 테스트로 이벤트 단독/혼합 조작, 초기 설정 보호, 선택하지 않은 이벤트의 비복사, 취소·undo를 검증한다. UI 조작은 E2E로 확인한다.

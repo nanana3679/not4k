@@ -88,6 +88,25 @@ function makeHost(
 }
 
 describe("OverlayRenderer.renderViolationOverlay", () => {
+  it("보조 레인2의 text [4,8)·auto [6,10) 배치 위반은 양쪽 이벤트의 실제 구간에 해칭을 그린다", () => {
+    const chart = makeChart([], [], [
+      { type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 },
+      { type: "text", beat: beat(4), endBeat: beat(8), text: "text", editorLane: 2 },
+      { type: "auto", beat: beat(6), endBeat: beat(10), editorLane: 2 },
+    ]);
+    const violating = editorChartViolationIndices(chart);
+    expect(violating.events).toEqual(new Set([1, 2]));
+    const host = makeHost(chart, violating.notes, violating.trillZones, violating.events);
+    const renderer = new OverlayRenderer(host);
+    const spy = spyHatchCore(renderer);
+    renderer.renderViolationOverlay();
+    expect(spy).toHaveBeenNthCalledWith(1, TIMELINE_WIDTH + EXTRA_LANE_WIDTH, EXTRA_LANE_WIDTH,
+      2000, 4000, expect.any(Number), expect.any(Number));
+    expect(spy).toHaveBeenNthCalledWith(2, TIMELINE_WIDTH + EXTRA_LANE_WIDTH, EXTRA_LANE_WIDTH,
+      3000, 5000, expect.any(Number), expect.any(Number));
+    expect(host.violationLayer.children).toHaveLength(2);
+  });
+
   it("위반 노트가 있으면 violationLayer에 해칭 그래픽이 추가된다", () => {
     const chart = makeChart([
       { type: "single", lane: 1, beat: beat(0) },

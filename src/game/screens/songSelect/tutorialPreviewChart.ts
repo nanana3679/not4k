@@ -37,7 +37,7 @@ export const TUTORIAL_OPPOSITE_HAND_BODY_LINE = '{oppositeHandPlacement}';
 function makeTimingEvents(loopBeats: number): readonly ChartEvent[] {
   return [
     { type: 'bpm', beat: beat(0), bpm: 120 },
-    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(loopBeats) },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(loopBeats), editorLane: 2 },
   ];
 }
 

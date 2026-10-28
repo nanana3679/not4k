@@ -150,6 +150,8 @@ _Avoid_: 뷰포트 제스처
 - **고스트 프리뷰**는 확정 전 상태이고 실제 차트 엔티티가 아니다.
 - **구형 항목의 배치 제약**은 차트 모델이 성립하지 않는 배치를 막는다 — 트릴 노트는 `trillZone` 안에만·일반 노트는 밖에만 배치하며, `StopEvent` 내 배치와 `restZone`이 덮은 레인·구간의 노트·`trillZone` 공존을 금지한다(의미 위반, 역방향 대칭 — RFD 0019). 트릴 롱노트는 head가 필요하고 양수 길이의 `holdOnly`는 허용하되 길이 0 조합은 금지한다. 양수 길이 끝점과 별도 길이 0 롱노트의 중복, 같은 unit 수로 이어지는 경계 규칙은 [glossary](../../docs/context/glossary.md#holdonly-구-표기-유지-전용-롱노트)와 [사례 NJ-C01～C03](../../docs/spec/note-judgment-cases.md#nj-c01)을 따른다(RFD 0020). validator·편집기의 이행은 [PRD §12](../../docs/prd.md#12-미정-사항)에서 추적한다.
 
+이벤트는 같은 보조 레인에서 종류와 관계없이 겹치면 배치 위반이다. 끝과 다음 시작의 맞닿음은 허용하고, 위반 표시·수리·저장/플레이 차단은 [glossary](../../docs/context/glossary.md#chartevent)·[RFD 0078](../../docs/rfd/0078-event-placement-overlap.md)을 따른다.
+
 ## 새 에디터 계약 요약
 
 다음은 새 에디터에 구현·검증한 편집 계약의 요약이다(명시 차트 테스트 재생은 #346에서 연결). 정의는 [glossary](../../docs/context/glossary.md), 조작별 세부는 [공식 편집 스펙](../../docs/spec/chart-editor.md#새-에디터-채택-계약), 결정은 [RFD 0037 §6](../../docs/rfd/0037-explicit-score-notes-and-body.md#6-위치-관계와-편집)·[§8](../../docs/rfd/0037-explicit-score-notes-and-body.md#8-구형-차트와-과도기)을 따른다.

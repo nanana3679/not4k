@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { beat, beatToMs, type ChartDocument } from '../shared';
 import { EraseGesture } from './editing/EraseGesture';
+import { editorChartErrors, editorChartViolationIndices } from './documentValidation';
 import { DeleteMode } from './modes/DeleteMode';
 import { SelectMode } from './modes/SelectMode';
 import { useEditorStore } from './stores/editorStore';
@@ -54,10 +55,44 @@ function editor() {
 }
 
 beforeEach(() => {
+  useEditorStore.setState(useEditorStore.getInitialState(), true);
   useEditorStore.getState().loadChart(chartFixture());
 });
 
 describe('이벤트와 노트의 공통 선택·편집', () => {
+  it('editorLane 없는 초기 BPM·박자는 자동 이동 없이 열어 위반을 표시하고 박자 설정을 오른쪽으로 옮겨 수리한다', () => {
+    const chart = chartFixture();
+    chart.events = chart.events.slice(0, 2).map(({ editorLane: _editorLane, ...event }) => event);
+    useEditorStore.getState().loadChart(chart);
+    const { mode, store, selectEvents } = editor();
+    expect(store().chart.events.every(event => event.editorLane === undefined)).toBe(true);
+    expect(editorChartViolationIndices(store().chart).events).toEqual(new Set([0, 1]));
+    selectEvents(1);
+    mode.moveByLane('right');
+    expect(store().chart.events[1]).toMatchObject({ type: 'timeSignature', editorLane: 2, beat: beat(0) });
+    expect(editorChartErrors(store().chart)).toEqual([]);
+  });
+
+  it('TextEvent를 BPM이 있는 보조 레인1·4박으로 이동하면 양쪽 위반을 표시하고 Undo·Redo·레인 분리로 수리한다', () => {
+    const { mode, store, selectEvents } = editor();
+    selectEvents(3);
+    mode.moveByLane('left');
+    for (let i = 0; i < 4; i++) mode.moveBySnap('down');
+    expect(store().chart.events[3]).toMatchObject({ editorLane: 1, beat: beat(4), endBeat: beat(8) });
+    expect(editorChartViolationIndices(store().chart).events).toEqual(new Set([2, 3]));
+    expect(editorChartErrors(store().chart).map(error => error.rule)).toEqual(['eventOverlap']);
+    store().clearSelection();
+    expect(editorChartViolationIndices(store().chart).events).toEqual(new Set([2, 3]));
+    store().undo();
+    expect(editorChartErrors(store().chart)).toEqual([]);
+    store().redo();
+    expect(editorChartViolationIndices(store().chart).events).toEqual(new Set([2, 3]));
+    mode.setChart(store().chart);
+    selectEvents(3);
+    mode.moveByLane('right');
+    expect(editorChartErrors(store().chart)).toEqual([]);
+  });
+
   it('Ctrl+A는 노트와 비초기 이벤트 2·3을 선택해 일반 노트의 이동을 초기 설정 보호가 막지 않는다', () => {
     const { mode, store } = editor();
     mode.selectAll();

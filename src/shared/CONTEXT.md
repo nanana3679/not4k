@@ -41,6 +41,9 @@ _Avoid_: 이벤트의 시각 표현
 시작 박과 끝 박을 가지며 일정 구간 동안 의미가 유지되는 차트 이벤트이다.
 _Avoid_: 시점 이벤트
 
+**이벤트 배치 겹침**:
+같은 보조 레인에서 종류에 관계없이 이벤트의 점·구간이 겹치는 의미 위반이다. 경계·기존 종류별 의미 제약은 [glossary](../../docs/context/glossary.md#chartevent)와 [RFD 0078](../../docs/rfd/0078-event-placement-overlap.md)을 따른다.
+
 **`TextEvent`**:
 특정 구간 동안 튜토리얼 설명 문구를 보여주는 구간 이벤트이다.
 _Avoid_: 메시지 이벤트, 텍스트 이벤트

@@ -9,7 +9,7 @@ function chart(notes: readonly DocumentNoteEntity[], trillZones: readonly TrillZ
   return {
     meta: { title: "constraints", artist: "", difficultyLabel: "NORMAL", difficultyLevel: 1, imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 },
     notes: [...notes], trillZones: [...trillZones],
-    events: [{ type: "bpm", beat: beat(0), bpm: 120 }, { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) }],
+    events: [{ type: "bpm", beat: beat(0), bpm: 120 }, { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }],
   };
 }
 

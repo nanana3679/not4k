@@ -45,7 +45,7 @@ export function editorTestChart(notes: ChartJsonV3['notes'] = []): ChartJsonV3 {
     notes,
     trillZones: [],
     restZones: [],
-    events: [{ type: 'bpm', beat: '0', bpm: 120 }, { type: 'timeSignature', beat: '0', beatPerMeasure: '4' }],
+    events: [{ type: 'bpm', beat: '0', bpm: 120, editorLane: 1 }, { type: 'timeSignature', beat: '0', beatPerMeasure: '4', editorLane: 2 }],
   };
 }
 

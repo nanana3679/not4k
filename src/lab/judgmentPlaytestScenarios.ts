@@ -19,7 +19,7 @@ const BPM = 120;
 function baseEvents(): ChartEvent[] {
   return [
     { type: "bpm", beat: beat(0, 1), bpm: BPM },
-    { type: "timeSignature", beat: beat(0, 1), beatPerMeasure: beat(4, 1) },
+    { type: "timeSignature", beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
   ];
 }
 
