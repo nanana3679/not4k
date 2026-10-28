@@ -55,9 +55,9 @@ function skinAssetsOf(svg: string, noteIndex: number, part: string): string[] {
   return [...svg.matchAll(new RegExp(`data-note-index="${noteIndex}" data-note-type="[^"]+" data-note-part="${part}" data-skin-asset="([^"]+)"`, "g"))].map((match) => match[1]);
 }
 
-/** ms 축 눈금(data-marker-ms)의 y */
-function markerY(svg: string, ms: number): number {
-  return Number(svg.match(new RegExp(`data-marker-ms="${ms}" x="[\\d.]+" y="([\\d.]+)"`))![1]);
+/** ms 축 눈금(data-axis-ms)의 y */
+function axisY(svg: string, ms: number): number {
+  return Number(svg.match(new RegExp(`data-axis-ms="${ms}" x="[\\d.]+" y="([\\d.]+)"`))![1]);
 }
 
 /** trillZone 띠(data-trill-zone)의 y·높이 */
@@ -439,7 +439,7 @@ describe("renderJudgmentCaseSvg", () => {
   it("입력 시각마다 점선 가이드를 긋고 노트·입력 시각마다 축 눈금을 둠", () => {
     const { svg } = render([panelFor(D4)]);
     for (const ms of ["1000", "1430", "1490", "1760"]) expect(svg).toMatch(new RegExp(`data-input-guide-ms="${ms}"[^>]*stroke-dasharray`));
-    for (const ms of ["1000", "1430", "1490", "1500", "1560", "1760"]) expect(svg).toContain(`data-marker-ms="${ms}"`);
+    for (const ms of ["1000", "1430", "1490", "1500", "1560", "1760"]) expect(svg).toContain(`data-axis-ms="${ms}"`);
   });
 
   it("Classic 스킨으로 그림: head N3은 noteSingle, 바디 N2·N4는 bodySingle, 싱글 터미널은 중앙광이 꺼진 terminalSingleIdle", () => {
@@ -475,9 +475,8 @@ describe("renderJudgmentCaseSvg", () => {
 
   it("터미널·포인트는 시각 선에 가운데를 맞춤: head 1560 포인트(높이 16px)의 y + 8 = 1560 축 눈금 y", () => {
     const { svg } = render([panelFor(D4)]);
-    const markerY = Number(svg.match(/data-marker-ms="1560" x="[\d.]+" y="([\d.]+)"/)![1]);
     const pointY = Number(svg.match(/data-note-index="2" data-note-type="single" data-note-part="point" data-skin-asset="noteSingle" x="[\d.]+" y="([\d.]+)" width="80" height="16"/)![1]);
-    expect(pointY + 8).toBeCloseTo(markerY, 1);
+    expect(pointY + 8).toBeCloseTo(axisY(svg, 1560), 1);
   });
 
   it("롱노트도 게임과 같은 노트 가운데 기준(#224): long N4 1560–1760 바디는 1760 시각 선 8px 위부터 1560 시각 선 8px 아래까지, Classic 끝·시작 터미널(16px) 가운데는 각 시각 선", () => {
@@ -488,13 +487,13 @@ describe("renderJudgmentCaseSvg", () => {
       return { top: Number(match[1]), height: Number(match[2]) };
     };
     const [bodyTop, bodyHeight] = [Number(body[1]), Number(body[2])];
-    expect(bodyTop).toBeCloseTo(markerY(svg, 1760) - 8, 1);
-    expect(bodyTop + bodyHeight).toBeCloseTo(markerY(svg, 1560) + 8, 1);
+    expect(bodyTop).toBeCloseTo(axisY(svg, 1760) - 8, 1);
+    expect(bodyTop + bodyHeight).toBeCloseTo(axisY(svg, 1560) + 8, 1);
     const end = terminal("end");
     const start = terminal("start");
     expect(end.height).toBeCloseTo(16, 1);
-    expect(end.top + 8).toBeCloseTo(markerY(svg, 1760), 1);
-    expect(start.top + 8).toBeCloseTo(markerY(svg, 1560), 1);
+    expect(end.top + 8).toBeCloseTo(axisY(svg, 1760), 1);
+    expect(start.top + 8).toBeCloseTo(axisY(svg, 1560), 1);
   });
 
   it("Classic 바디는 늘이지 않고 반복: 레인 80px에서 바디 폭 80 × 200/212 ≈ 75.47px, 세로 주기 40 × 75.47/200 ≈ 15.09px 패턴", () => {
@@ -521,12 +520,12 @@ describe("renderJudgmentCaseSvg", () => {
     expect(svg).not.toMatch(/data-failed-|jc-failed/);
   });
 
-  it("레인 옆에 노트마다 이름표 N1~N4를 달고 바디는 구간 괄호, head는 눈금으로 잇는다", () => {
+  it("레인 옆에 노트마다 이름표 N1~N4를 달고 바디는 구간 괄호, head는 짧은 선(stub)으로 잇는다", () => {
     const { svg } = render([panelFor(D4)]);
     for (const text of ["N1", "N2", "N3", "N4"]) expect(svg).toContain(`data-note-label="${text}"`);
     expect(svg).toContain("1500–1560</tspan>");
     for (const name of ["N1", "N2", "N4"]) expect(svg).toMatch(new RegExp(`data-note-span="${name}"[^>]*d="M[^"]*V`));
-    expect(svg).toContain('data-note-marker="N3"');
+    expect(svg).toContain('data-note-stub="N3"');
   });
 
   it("레인이 둘이면 시간이 겹치는 L1 바디 1000–1500과 L2 바디 1200–1800의 구간 괄호를 다른 x에 그림", () => {
@@ -627,15 +626,15 @@ describe("renderJudgmentCaseSvg", () => {
   it("trillZone 1000–1300은 게임처럼 롱노트 바디 범위: 1300 시각 선보다 노트 반 칸(8px) 위부터 1000 시각 선보다 8px 아래까지", () => {
     const { svg } = render([panelFor("노트: trill 1000 | tlong 1000-1300 | trill 1300\n입력: A 1000-1300 | B 1300-1350")]);
     const zone = trillZoneBox(svg, 1);
-    expect(zone.top).toBeCloseTo(markerY(svg, 1300) - 8, 1);
-    expect(zone.top + zone.height).toBeCloseTo(markerY(svg, 1000) + 8, 1);
+    expect(zone.top).toBeCloseTo(axisY(svg, 1300) - 8, 1);
+    expect(zone.top + zone.height).toBeCloseTo(axisY(svg, 1000) + 8, 1);
   });
 
   it("길이 0 trillZone(zone 1500-1500)도 노트 한 칸(16px) 높이로 1500 시각 선에 가운데를 맞춤", () => {
     const { svg } = render([panelFor("노트: zone 1500-1500 | trill 1500\n입력: A 1500-1550")]);
     const zone = trillZoneBox(svg, 1);
     expect(zone.height).toBeCloseTo(16, 1);
-    expect(zone.top).toBeCloseTo(markerY(svg, 1500) - 8, 1);
+    expect(zone.top).toBeCloseTo(axisY(svg, 1500) - 8, 1);
   });
 
   it("grace head는 포인트보다 먼저 pointGraceOverlay를 그리고, 길이 0 holdOnly 1500-1500은 시작 터미널 하나와 그 overlay(끝 터미널 없음)", () => {
@@ -725,7 +724,7 @@ describe("renderJudgmentCaseSvg", () => {
       { judgmentCase, run, engineLabel: "a" },
       { judgmentCase, run: { ...run, events: run.events.slice(0, 1) }, engineLabel: "b" },
     ]);
-    const ys = [...svg.matchAll(/data-marker-ms="1490" x="[\d.]+" y="([\d.]+)"/g)].map((match) => match[1]);
+    const ys = [...svg.matchAll(/data-axis-ms="1490" x="[\d.]+" y="([\d.]+)"/g)].map((match) => match[1]);
     expect(ys).toHaveLength(2);
     expect(ys[0]).toBe(ys[1]);
   });
