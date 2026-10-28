@@ -223,7 +223,7 @@ export function selectionFromBox(
   notes: readonly DocumentNoteEntity[],
   restZones: readonly RestZone[],
   box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
-): { notes: Set<number>; zones: Set<number>; restZones: Set<number> } {
+): { notes: Set<number>; zones: Set<number>; restZones: Set<number>; events: Set<number> } {
   const selectedNotes = new Set<number>();
   const selectedZones = new Set<number>();
   const selectedRestZones = new Set<number>();
@@ -250,7 +250,7 @@ export function selectionFromBox(
       for (const companion of bodyCompanionIndices(notes, index)) selectedNotes.add(companion);
     }
   }
-  return { notes: selectedNotes, zones: selectedZones, restZones: selectedRestZones };
+  return { events: new Set(), notes: selectedNotes, zones: selectedZones, restZones: selectedRestZones };
 }
 
 /** 트릴존을 레인/박자 오프셋만큼 평행 이동한 새 트릴존을 반환한다. */

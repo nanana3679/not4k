@@ -37,6 +37,10 @@ _Avoid_: 그리드
 `BpmChangeEvent`와 `TimeSignatureChangeEvent`를 기준으로 계산되는 시간 눈금이다.
 _Avoid_: 스냅
 
+**`Selection.events`**:
+이벤트 선택을 노트·구간 선택과 함께 소유하는 축이다. 공통 편집 조작·초기 설정 보호·명시 이벤트 복사는 [glossary](../../docs/context/glossary.md#차트-이벤트)를 따른다.
+_Avoid_: 시간 범위에 따른 자동 이벤트 복사
+
 **스냅**:
 노트 배치나 이동 위치를 고른 간격(`snapDivision`, 1/N박)의 격자에 맞추는 편집 보조 기능이며, 그 격자의 한 칸도 스냅이라 부른다("한 스냅씩 이동"). 격자 밖 기존 노트도 선택할 수 있다([glossary](../../docs/context/glossary.md#스냅-snap)).
 _Avoid_: 히트 테스트

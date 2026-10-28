@@ -1,0 +1,265 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { beat, beatToMs, type ChartDocument } from '../shared';
+import { EraseGesture } from './editing/EraseGesture';
+import { DeleteMode } from './modes/DeleteMode';
+import { SelectMode } from './modes/SelectMode';
+import { useEditorStore } from './stores/editorStore';
+import { emptySelection } from './stores/selectionSlice';
+import { createTimelineSpace } from './timeline/TimelineSpace';
+import { EXTRA_LANE_WIDTH, TIMELINE_WIDTH } from './timeline/constants';
+
+function chartFixture(): ChartDocument {
+  return {
+    meta: { title: '', artist: '', difficultyLabel: 'NORMAL', difficultyLevel: 1,
+      imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
+    notes: [{ type: 'single', lane: 1, beat: beat(4) }],
+    trillZones: [],
+    events: [
+      { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 },
+      { type: 'text', beat: beat(8), endBeat: beat(12), text: 'hello', editorLane: 2 },
+    ],
+  };
+}
+
+function editor() {
+  const store = () => useEditorStore.getState();
+  const space = createTimelineSpace({
+    getChart: () => store().chart,
+    getSnapDivision: () => 4,
+    getSelectedNotes: () => store().selection.notes,
+    getExtraLaneCount: () => 3,
+    yToTime: y => y,
+    getTotalTimelineMs: () => 60_000,
+  });
+  const mode = new SelectMode(store().chart, {
+    space,
+    getSelection: () => store().selection,
+    setSelection: selection => store().setSelection(selection),
+    setSelectionTransient: selection => store().setSelectionTransient(selection),
+    onChartUpdate: (chart, transaction) => {
+      store().setChart(chart, { transaction });
+      mode.setChart(store().chart);
+    },
+    getExtraLaneCount: () => 3,
+    beginTransaction: onInterrupt => store().beginEditTransaction('selectModeEdit', onInterrupt),
+    commitTransaction: token => store().commitEditTransaction(token),
+    cancelTransaction: token => store().cancelEditTransaction(token),
+  });
+  function selectEvents(...indices: number[]) {
+    store().setSelection(Object.assign(emptySelection(), { events: new Set(indices) }));
+  }
+  return { mode, space, store, selectEvents };
+}
+
+beforeEach(() => {
+  useEditorStore.getState().loadChart(chartFixture());
+});
+
+describe('이벤트와 노트의 공통 선택·편집', () => {
+  it('Ctrl+A는 노트와 비초기 이벤트 2·3을 선택해 일반 노트의 이동을 초기 설정 보호가 막지 않는다', () => {
+    const { mode, store } = editor();
+    mode.selectAll();
+    expect(store().selection.events).toEqual(new Set([2, 3]));
+    mode.moveBySnap('up');
+    expect(store().chart.notes[0].beat).toEqual(beat(5));
+    expect(store().chart.events[0].beat).toEqual(beat(0));
+    expect(store().chart.events[2].beat).toEqual(beat(5));
+  });
+
+  it('4박 BPM 이벤트를 클릭하면 events에 인덱스 2가 선택되고 박스 선택은 끝난다', () => {
+    const { mode, store } = editor();
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+    mode.onPointerDown(x, 2000, false, false);
+    mode.onPointerUp(x, 2000);
+    expect(store().selection).toMatchObject({ events: new Set([2]) });
+    expect(mode.isBoxSelecting).toBe(false);
+  });
+
+  it('8～12박 TextEvent만 선택해 위로 한 스냅 이동하면 9～13박으로 함께 이동한다', () => {
+    const { mode, store, selectEvents } = editor();
+    selectEvents(3);
+    mode.moveBySnap('up');
+    expect(store().chart.events[3]).toMatchObject({ beat: beat(9), endBeat: beat(13), text: 'hello' });
+  });
+
+  it('BPM 이벤트만 복사해 16박에 붙이면 BPM 180과 editorLane 1을 보존한다', () => {
+    const { mode, store, selectEvents } = editor();
+    selectEvents(2);
+    expect(mode.copy()).toBe(1);
+    expect(mode.paste(beat(16))).toBe(1);
+    expect(store().chart.events.at(-1)).toMatchObject({ type: 'bpm', beat: beat(16), bpm: 180, editorLane: 1 });
+    mode.cancelPaste();
+    expect(store().chart.events).toEqual(chartFixture().events);
+  });
+
+  it('4박 일반 노트만 복사하면 같은 4박의 선택하지 않은 BPM 이벤트는 붙이지 않는다', () => {
+    const { mode, store } = editor();
+    mode.selectNote(0);
+    expect(mode.copy()).toBe(1);
+    mode.paste(beat(16));
+    expect(store().chart.notes).toHaveLength(2);
+    expect(store().chart.events).toEqual(chartFixture().events);
+    mode.cancelPaste();
+  });
+
+  it('TextEvent를 선택해 Delete하면 해당 이벤트만 지우고 선택을 비운다', () => {
+    const { mode, store, selectEvents } = editor();
+    selectEvents(3);
+    mode.deleteSelected();
+    expect(store().chart.events).toHaveLength(3);
+    expect(store().chart.notes).toEqual(chartFixture().notes);
+    expect(store().selection).toMatchObject({ events: new Set() });
+  });
+
+  it('노트와 BPM 이벤트를 Shift로 함께 선택하면 위로 한 스냅 이동할 때 둘 다 4→5박이 된다', () => {
+    const { mode, store } = editor();
+    mode.selectNote(0);
+    mode.onPointerDown(TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2, 2000, true, false);
+    expect(store().selection).toMatchObject({ notes: new Set([0]), events: new Set([2]) });
+    mode.moveBySnap('up');
+    expect(store().chart.notes[0].beat).toEqual(beat(5));
+    expect(store().chart.events[2].beat).toEqual(beat(5));
+  });
+
+  it('노트와 BPM이 있는 4박을 박스로 감싸면 notes 0과 events 2를 함께 선택한다', () => {
+    const { mode, store } = editor();
+    mode.onPointerDown(1, 1750, false, false);
+    mode.onPointerMove(TIMELINE_WIDTH + EXTRA_LANE_WIDTH, 2200);
+    mode.onPointerUp(TIMELINE_WIDTH + EXTRA_LANE_WIDTH, 2200);
+    expect(store().selection).toMatchObject({ notes: new Set([0]), events: new Set([2]) });
+  });
+
+  it('editorLane 2의 TextEvent를 오른쪽으로 이동하면 lane 3이 되고 다시 오른쪽 이동은 차단한다', () => {
+    const { mode, store, selectEvents } = editor();
+    selectEvents(3);
+    mode.moveByLane('right');
+    expect(store().chart.events[3].editorLane).toBe(3);
+    mode.moveByLane('right');
+    expect(store().chart.events[3].editorLane).toBe(3);
+  });
+
+  it('BPM 이벤트를 두 번 드래그해도 down 당시 시간 해석을 써서 4→6→7박으로 이동하고 Esc로 4박을 복구한다', () => {
+    const { mode, store } = editor();
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+    mode.onPointerDown(x, 2000, false, false);
+    mode.onPointerMove(x, 2500);
+    expect(store().chart.events[2].beat).toEqual(beat(6));
+    mode.onPointerMove(x, 3000);
+    expect(store().chart.events[2].beat).toEqual(beat(7));
+    mode.cancel();
+    expect(store().chart.events).toEqual(chartFixture().events);
+    expect(mode.isMoveDragging).toBe(false);
+  });
+
+  it('TextEvent 끝을 위로 한 스냅 리사이즈하면 시작 8박과 text를 유지하고 끝만 12→13박이 된다', () => {
+    const { mode, store, selectEvents } = editor();
+    selectEvents(3);
+    mode.resizeEndBySnap('up');
+    expect(store().chart.events[3]).toMatchObject({ beat: beat(8), endBeat: beat(13), text: 'hello' });
+  });
+
+  it('초기 BPM만 선택하면 삭제·잘라내기·시간 이동은 원본을 보존하고 가로 이동은 허용한다', () => {
+    const { mode, store, selectEvents } = editor();
+    selectEvents(0);
+    mode.deleteSelected();
+    expect(store().chart).toEqual(chartFixture());
+    expect(mode.cut()).toBe(0);
+    mode.moveBySnap('up');
+    expect(store().chart).toEqual(chartFixture());
+    mode.moveByLane('right');
+    expect(store().chart.events[0]).toMatchObject({ beat: beat(0), editorLane: 2 });
+  });
+
+  it('초기 BPM과 일반 노트를 함께 선택하면 시간 이동은 차단하지만 Delete는 초기 BPM을 남기고 노트를 지운다', () => {
+    const { mode, store } = editor();
+    store().setSelection({ ...emptySelection(), notes: new Set([0]), events: new Set([0]) });
+    mode.moveBySnap('up');
+    expect(store().chart).toEqual(chartFixture());
+    mode.deleteSelected();
+    expect(store().chart.notes).toEqual([]);
+    expect(store().chart.events).toEqual(chartFixture().events);
+  });
+
+  it('초기 BPM과 노트를 함께 잘라내면 노트 1개만 지우고 붙여넣기에서도 BPM을 복제하지 않는다', () => {
+    const { mode, store } = editor();
+    store().setSelection({ ...emptySelection(), notes: new Set([0]), events: new Set([0]) });
+    expect(mode.cut()).toBe(1);
+    expect(store().chart.notes).toEqual([]);
+    expect(mode.paste(beat(16))).toBe(1);
+    expect(store().chart.events).toEqual(chartFixture().events);
+    mode.cancelPaste();
+  });
+
+  it('BPM 이벤트를 붙여넣고 확정한 뒤 undo·redo하면 이벤트 수가 5→4→5로 바뀐다', () => {
+    const { mode, store, selectEvents } = editor();
+    selectEvents(2);
+    mode.copy();
+    mode.paste(beat(16));
+    mode.confirmPlacement();
+    expect(store().chart.events).toHaveLength(5);
+    store().undo();
+    expect(store().chart.events).toEqual(chartFixture().events);
+    store().redo();
+    expect(store().chart.events.at(-1)).toMatchObject({ type: 'bpm', beat: beat(16), bpm: 180 });
+  });
+
+  it('앞의 BPM 이벤트를 삭제하면 선택된 TextEvent는 새 인덱스 2로 따라간다', () => {
+    const { store, selectEvents } = editor();
+    selectEvents(3);
+    store().setChart({ ...store().chart, events: store().chart.events.filter((_, index) => index !== 2) });
+    expect(store().selection.events).toEqual(new Set([2]));
+    expect(store().chart.events[2].type).toBe('text');
+  });
+
+  it('4박 BPM에서 10ms 떨어진 위치는 히트하지만 30ms 떨어진 위치는 스냅과 무관하게 히트하지 않는다', () => {
+    const { space } = editor();
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+    expect(space.hitTestEvent(x, 2010)).toBe(2);
+    expect(space.hitTestEvent(x, 2030)).toBeNull();
+  });
+
+  it('Delete 모드로 4박 BPM을 지우면 해당 이벤트만 삭제하고 0박 초기 BPM 삭제는 막는다', () => {
+    const { store, space } = editor();
+    const mode = new DeleteMode(store().chart, { space,
+      onChartUpdate: chart => store().setChart(chart),
+    });
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+    mode.onPointerDown(x, 2000);
+    expect(store().chart.events).toHaveLength(3);
+    mode.onPointerDown(x, 0);
+    expect(store().chart.events).toHaveLength(3);
+    expect(store().chart.events[0]).toMatchObject({ type: 'bpm', beat: beat(0), bpm: 120 });
+  });
+
+  it('이벤트 드래그 삭제를 Esc로 취소하면 4박 BPM을 복구하고 같은 제스처의 재삭제를 막는다', () => {
+    const { store } = editor();
+    const gesture = new EraseGesture({ getChart: () => store().chart,
+      getSelectedNotes: () => store().selection.notes,
+      beginTransaction: onInterrupt => store().beginEditTransaction('erase', onInterrupt),
+      commitTransaction: token => store().commitEditTransaction(token),
+      cancelTransaction: token => store().cancelEditTransaction(token),
+      onChartUpdate: (chart, transaction) => store().setChart(chart, { transaction }),
+    });
+    gesture.begin();
+    expect(gesture.erase(5, 4)).toBe(true);
+    expect(store().chart.events).toHaveLength(3);
+    gesture.cancel();
+    expect(gesture.erase(5, 4)).toBe(false);
+    gesture.finish();
+    expect(store().chart.events).toEqual(chartFixture().events);
+  });
+
+  it('TextEvent 롱프레스 이동도 공통 선택·이동을 사용하고 취소하면 8～12박으로 복구한다', () => {
+    const { mode, space, store } = editor();
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH * 1.5;
+    const y = beatToMs(beat(9), space.getBpmChanges());
+    expect(mode.beginLongPressDrag(x, y, { noteHit: null, noteEndHit: null, eventHit: 3 })).toBe(true);
+    expect(store().selection.events).toEqual(new Set([3]));
+    mode.onPointerMove(x, beatToMs(beat(10), space.getBpmChanges()));
+    expect(store().chart.events[3]).toMatchObject({ beat: beat(9), endBeat: beat(13) });
+    mode.cancel();
+    expect(store().chart.events).toEqual(chartFixture().events);
+  });
+});

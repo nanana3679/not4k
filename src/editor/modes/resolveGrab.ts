@@ -1,7 +1,7 @@
 /**
  * resolveGrab — Select 모드 down이 잡는 대상(GrabTarget)을 정하는 순수 우선순위 사다리.
  *
- * grab z-order(캡 4종 > 노트 > 존 몸통 2종 > 빈 곳)의 유일한 소유자다. 마우스
+ * grab z-order(캡 4종 > 노트 > 이벤트 > 존 몸통 2종 > 빈 곳)의 유일한 소유자다. 마우스
  * (SelectMode.onPointerDown)와 터치(scheduleFromGrabTarget)가 같은 함수를 소비하므로
  * 우선순위 변경은 여기 한 곳이고, 두 경로가 갈라질 코드 위치 자체가 없다(이슈 #143).
  *
@@ -22,9 +22,10 @@ export type GrabTarget =
   | { kind: "trillZoneEndCap"; index: number } // 사다리 3: trillZone 끝 리사이즈(선택 게이트)
   | { kind: "restZoneEndCap"; index: number } // 사다리 4: restZone 끝 리사이즈(선택 게이트)
   | { kind: "note"; index: number } // 사다리 5: 통합 노트(메인·보조)
-  | { kind: "trillZoneBody"; index: number } // 사다리 6: trillZone 몸통
-  | { kind: "restZoneBody"; index: number } // 사다리 7: restZone 몸통
-  | { kind: "empty" }; // 사다리 8: 빈 곳
+  | { kind: "event"; index: number } // 사다리 6: 차트 이벤트
+  | { kind: "trillZoneBody"; index: number } // 사다리 7: trillZone 몸통
+  | { kind: "restZoneBody"; index: number } // 사다리 8: restZone 몸통
+  | { kind: "empty" }; // 사다리 9: 빈 곳
 
 /**
  * 리사이즈 캡 게이트(사다리 1·3·4)가 읽는 down 시점 선택의 읽기 전용 뷰.
@@ -84,14 +85,17 @@ export function resolveGrab(input: {
   const noteHit = space.hitTestUnifiedNote(x, y);
   if (noteHit !== null) return { kind: "note", index: noteHit };
 
-  // 6. TrillZone 몸통.
+  const eventHit = space.hitTestEvent(x, y);
+  if (eventHit !== null) return { kind: "event", index: eventHit };
+
+  // 7. TrillZone 몸통.
   const zoneHit = space.hitTestTrillZone(x, y);
   if (zoneHit !== null) return { kind: "trillZoneBody", index: zoneHit };
 
-  // 7. RestZone 몸통(RFD 0019 — trillZone §6-6 미러).
+  // 8. RestZone 몸통(RFD 0019 — trillZone §6-6 미러).
   const restHit = space.hitTestRestZone(x, y);
   if (restHit !== null) return { kind: "restZoneBody", index: restHit };
 
-  // 8. 빈 곳.
+  // 9. 빈 곳.
   return { kind: "empty" };
 }

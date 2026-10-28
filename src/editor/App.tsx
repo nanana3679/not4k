@@ -649,6 +649,11 @@ function ChartEditorPage() {
     rendererRef.current?.setSelectedRestZones(selectedRestZones);
   }, [selectedRestZones]);
 
+  const selectedEvents = useEditorStore(s => s.selection.events);
+  useEffect(() => {
+    rendererRef.current?.setSelectedEvents(selectedEvents);
+  }, [selectedEvents]);
+
   // entityType → createMode
   const entityType = useEditorStore((s) => s.entityType);
   useEffect(() => {

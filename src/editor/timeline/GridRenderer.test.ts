@@ -47,6 +47,7 @@ function makeHost(chart: ChartDocument): GridHost {
     extraLaneCount: 3,
     selectedTrillZones: new Set(),
     selectedRestZones: new Set(),
+    selectedEvents: new Set(),
     currentTimelineWidth: TIMELINE_WIDTH + 3 * EXTRA_LANE_WIDTH,
     waveformPeaks: null,
     waveformDurationMs: 0,

@@ -1,3 +1,4 @@
+import { deleteEvents } from '../editing/eventEditing';
 /**
  * useFileOperations — 파일 저장/삭제 핸들러
  */
@@ -356,8 +357,6 @@ export function useFileOperations(
   }, [chart, activeSongId, addToast, setDeleting, setShowDeleteConfirm]);
 
   // 이벤트 편집 핸들러
-  const editingEvt = editingEvent ? chart.events[editingEvent.index] : null;
-  const isEditingInitial = editingEvt && editingEvt.beat.n === 0 && (editingEvt.type === 'bpm' || editingEvt.type === 'timeSignature');
 
   const handleEventSave = useCallback((values: Record<string, string>) => {
     if (!editingEvent) return;
@@ -427,17 +426,14 @@ export function useFileOperations(
   const handleEventDelete = useCallback(() => {
     if (!editingEvent) return;
 
-    if (isEditingInitial) {
+    const next = deleteEvents(chart, new Set([editingEvent.index]));
+    if (!next) {
       addToast('Cannot delete initial event');
       return;
     }
-
-    setChart({
-      ...chart,
-      events: chart.events.filter((_, i) => i !== editingEvent.index),
-    });
+    setChart(next);
     setEditingEvent(null);
-  }, [editingEvent, isEditingInitial, chart, setChart, setEditingEvent, addToast]);
+  }, [editingEvent, chart, setChart, setEditingEvent, addToast]);
 
   return {
     handleSaveChart,

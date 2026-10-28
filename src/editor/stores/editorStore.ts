@@ -250,6 +250,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         notes: remap(state.selection.notes, state.chart.notes, chart.notes),
         zones: remap(state.selection.zones, state.chart.trillZones, chart.trillZones),
         restZones: remap(state.selection.restZones, state.chart.restZones ?? [], chart.restZones ?? []),
+        events: remap(state.selection.events, state.chart.events, chart.events),
       }, chart);
       return {
         ...captureHistory(state, options?.separateHistory, options?.transaction),

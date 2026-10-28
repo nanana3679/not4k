@@ -1,3 +1,4 @@
+import { translateEvent, eventInBounds } from '../editing/eventEditing';
 import { reconcileMovedTicks } from '../editing/explicitEditing';
 import type { ChartDocument, ChartEvent, DocumentNoteEntity, RangeNote, BodyNote, Beat, TrillZone, RestZone } from "../../shared";
 import { beatToFloat, isVisibleLane, isMainLane, maxAuxLane, toAuxIndex } from "../../shared";
@@ -21,12 +22,9 @@ export interface NoteClipboard {
    * 내부 노트가 없어 구간 자체만 담는다.
    */
   restZones: RestZone[];
-  /**
-   * 선택 beat-span과 겹치는 이벤트 (RFD 0016 §3-4 D1).
-   * timeSignature는 제외 — 마디 경계 이동 문제를 애초에 회피한다.
-   */
+  /** 명시적으로 선택한 이벤트. 박자 변경도 포함한다(RFD 0068). */
   events: ChartEvent[];
-  /** Earliest beat among copied notes/zones (relative offset anchor) */
+  /** Earliest beat among copied notes/zones/events (relative offset anchor) */
   anchorBeat: Beat;
 }
 
@@ -45,6 +43,7 @@ export interface PasteResult {
   chart: ChartDocument;
   selectedIndices: Set<number>;
   pastedNoteIndices: Set<number>;
+  pastedEventIndices: Set<number>;
   /** 붙여넣은 restZone 인덱스 — 호출자가 이것으로 선택을 구성한다 (RFD 0019, 공존 축) */
   pastedRestZoneIndices: Set<number>;
   count: number;
@@ -96,78 +95,20 @@ export class ClipboardManager {
     selectedIndices: ReadonlySet<number>,
     trillZoneIndices: ReadonlySet<number> = new Set(),
     restZoneIndices: ReadonlySet<number> = new Set(),
+    eventIndices: ReadonlySet<number> = new Set(),
   ): number {
     if (this._isPendingPaste) return 0;
-
-    if (selectedIndices.size === 0 && trillZoneIndices.size === 0 && restZoneIndices.size === 0) {
-      return 0;
-    }
-
-    const copiedNotes: DocumentNoteEntity[] = [];
-    let anchorBeat: Beat | null = null;
-    // 선택 beat-span [min, max] — 이벤트 수집 범위(endBeat가 있으면 끝까지 반영)
-    let spanMax = -Infinity;
-
-    for (const idx of selectedIndices) {
-      const src = chart.notes[idx];
-      if (!src) continue;
-      const note = { ...src };
-      copiedNotes.push(note);
-      if (anchorBeat === null || beatToFloat(note.beat) < beatToFloat(anchorBeat)) {
-        anchorBeat = note.beat;
-      }
-      const endFloat = this._isRangeNote(note)
-        ? beatToFloat((note as RangeNote | BodyNote).endBeat)
-        : beatToFloat(note.beat);
-      if (endFloat > spanMax) spanMax = endFloat;
-    }
-
-    // trillZone도 함께 복사. 구간 시작도 anchor 후보(구간째 정렬 기준)
-    const trillZones: TrillZone[] = [];
-    for (const idx of trillZoneIndices) {
-      const zone = chart.trillZones[idx];
-      if (!zone) continue;
-      trillZones.push({ ...zone });
-      if (anchorBeat === null || beatToFloat(zone.beat) < beatToFloat(anchorBeat)) {
-        anchorBeat = zone.beat;
-      }
-      const endFloat = beatToFloat(zone.endBeat);
-      if (endFloat > spanMax) spanMax = endFloat;
-    }
-
-    // restZone도 trillZone과 동형으로 복사 — 구간 시작이 anchor 후보, 끝이 span 후보 (RFD 0019)
-    const restZones: RestZone[] = [];
-    for (const idx of restZoneIndices) {
-      const zone = (chart.restZones ?? [])[idx];
-      if (!zone) continue;
-      restZones.push({ ...zone });
-      if (anchorBeat === null || beatToFloat(zone.beat) < beatToFloat(anchorBeat)) {
-        anchorBeat = zone.beat;
-      }
-      const endFloat = beatToFloat(zone.endBeat);
-      if (endFloat > spanMax) spanMax = endFloat;
-    }
-
-    if (anchorBeat === null) return 0;
-
-    // 이벤트 수집 (RFD 0016 §3-4 D1) — span과 겹치는 이벤트를 담되 timeSignature는 제외
-    // (마디 경계 이동 문제 회피). 시점 이벤트는 beat ∈ [min,max], 구간 이벤트는
-    // [beat,endBeat]가 span과 겹침(폐구간). anchor는 notes/zones의 min 유지 — 시점 이벤트는
-    // beat ≥ anchor라 offset ≥ 0이지만, span 시작에 걸친 구간 이벤트는 beat < anchor일 수
-    // 있다(상대 기하는 보존되나 붙여넣기 시 음수 가능 — paste에서 범위 검증으로 거부).
-    const spanMin = beatToFloat(anchorBeat);
-    const events: ChartEvent[] = [];
-    for (const evt of chart.events) {
-      if (evt.type === "timeSignature") continue;
-      const startFloat = beatToFloat(evt.beat);
-      const endFloat = "endBeat" in evt ? beatToFloat(evt.endBeat) : startFloat;
-      if (startFloat <= spanMax && endFloat >= spanMin) {
-        events.push({ ...evt });
-      }
-    }
-
-    this.clipboard = { notes: copiedNotes, trillZones, restZones, events, anchorBeat };
-    return copiedNotes.length + trillZones.length + restZones.length;
+    const copyIndices = <T>(items: readonly T[], indices: ReadonlySet<number>): T[] =>
+      [...indices].flatMap(index => items[index] ? [{ ...items[index] }] : []);
+    const notes = copyIndices(chart.notes, selectedIndices);
+    const trillZones = copyIndices(chart.trillZones, trillZoneIndices);
+    const restZones = copyIndices(chart.restZones ?? [], restZoneIndices);
+    const events = copyIndices(chart.events, eventIndices);
+    const items = [...notes, ...trillZones, ...restZones, ...events];
+    if (items.length === 0) return 0;
+    const anchorBeat = items.reduce((first, item) => beatToFloat(item.beat) < beatToFloat(first) ? item.beat : first, items[0].beat);
+    this.clipboard = { notes, trillZones, restZones, events, anchorBeat };
+    return items.length;
   }
 
   /**
@@ -199,7 +140,7 @@ export class ClipboardManager {
       events: clipEvents,
       anchorBeat,
     } = this.clipboard;
-    if (clipNotes.length === 0 && clipZones.length === 0 && clipRestZones.length === 0) return null;
+    if (clipNotes.length === 0 && clipZones.length === 0 && clipRestZones.length === 0 && clipEvents.length === 0) return null;
 
     this.prePasteNotes = [...chart.notes];
     this.prePasteZones = [...chart.trillZones];
@@ -254,9 +195,7 @@ export class ClipboardManager {
         return null;
       }
     }
-    // 이벤트 범위 검증 (RFD 0016 §3-4 D1) — span 시작에 걸친 구간 이벤트는 beat < anchor라
-    // 음수로 나갈 수 있다. 노트·존과 대칭으로 범위 밖이면 붙여넣기 전체를 거부한다
-    // (원자성 — 저장 파일에 음수 beat 이벤트가 남는 것을 막는다).
+    // 이벤트도 노트·구간과 같은 범위 검사로 붙여넣기 전체의 원자성을 보장한다.
     for (const clipEvent of clipEvents) {
       const sf = beatToFloat(beatAdd(clipEvent.beat, beatOffset));
       if (sf < 0 || sf > maxFloat) {
@@ -316,7 +255,7 @@ export class ClipboardManager {
     this.pastedEventIndices.clear();
     for (const clipEvent of clipEvents) {
       const idx = newEvents.length;
-      newEvents.push(this._translateEvent(clipEvent, beatOffset));
+      newEvents.push(translateEvent(clipEvent, beatOffset));
       this.pastedEventIndices.add(idx);
     }
 
@@ -339,8 +278,9 @@ export class ClipboardManager {
       chart: newChart,
       selectedIndices: newSelectedIndices,
       pastedNoteIndices: new Set(this.pastedNoteIndices),
+      pastedEventIndices: new Set(this.pastedEventIndices),
       pastedRestZoneIndices: new Set(this.pastedRestZoneIndices),
-      count: clipNotes.length + clipZones.length + clipRestZones.length,
+      count: clipNotes.length + clipZones.length + clipRestZones.length + clipEvents.length,
     };
   }
 
@@ -355,7 +295,8 @@ export class ClipboardManager {
       const n = chart.notes[idx];
       if (n) pastedNotes.push(n);
     }
-    const needed = toAuxIndex(maxAuxLane(pastedNotes));
+    const needed = Math.max(toAuxIndex(maxAuxLane(pastedNotes)),
+      ...[...this.pastedEventIndices].map(index => chart.events[index].editorLane ?? 1));
     const cur = callbacks.getExtraLaneCount();
     if (needed > cur) {
       // 확장이 실제 일어났을 때만 이전 값을 기록 — 취소 시 이 값으로만 되돌린다(§8-6).
@@ -437,7 +378,7 @@ export class ClipboardManager {
     // restZone-only 붙여넣기(노트 0개)도 이동 가능해야 한다 (RFD 0019)
     if (
       !this._isPendingPaste ||
-      (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0)
+      (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0 && this.pastedZoneIndices.size === 0 && this.pastedEventIndices.size === 0)
     ) {
       return null;
     }
@@ -473,6 +414,7 @@ export class ClipboardManager {
         beat: beatAdd(zone.beat, offset),
         endBeat: beatAdd(zone.endBeat, offset),
       };
+      if (beatToFloat(newZones[idx].beat) < 0 || beatToFloat(newZones[idx].endBeat) > callbacks.space.getMaxBeatFloat()) return null;
     }
 
     // 붙여넣은 restZone도 함께 이동(상/하) — 범위를 벗어나면 이동 거부
@@ -491,7 +433,7 @@ export class ClipboardManager {
     // 붙여넣은 이벤트도 함께 이동(상/하) — 레인 이동과 달리 beat 축은 이벤트도 따라간다
     const newEvents = [...chart.events];
     for (const idx of this.pastedEventIndices) {
-      newEvents[idx] = this._translateEvent(newEvents[idx], offset);
+      newEvents[idx] = translateEvent(newEvents[idx], offset);
     }
     // 이벤트가 범위를 벗어나면 이동 거부(노트 :_areNotesInBounds와 대칭, 음수 beat 저장 방지)
     const maxFloat = callbacks.space.getMaxBeatFloat();
@@ -532,7 +474,7 @@ export class ClipboardManager {
     // restZone-only 붙여넣기(노트 0개)도 이동 가능해야 한다 (RFD 0019)
     if (
       !this._isPendingPaste ||
-      (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0)
+      (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0 && this.pastedZoneIndices.size === 0 && this.pastedEventIndices.size === 0)
     ) {
       return null;
     }
@@ -573,8 +515,15 @@ export class ClipboardManager {
       newRestZones[idx] = { ...zone, lane: (zone.lane + laneOffset) as RestZone["lane"] };
     }
 
+    const events = [...chart.events];
+    for (const index of this.pastedEventIndices) {
+      const event = translateEvent(events[index], { n: 0, d: 1 }, laneOffset);
+      if (!eventInBounds(event, Infinity, extraLaneCount)) return null;
+      events[index] = event;
+    }
     const newChart = {
       ...chart,
+      events,
       notes: reconcileMovedTicks(newNotes, this.pastedNoteIndices, this.pastedTickCountByNoteIndex),
       trillZones: newZones,
       ...(this.pastedRestZoneIndices.size > 0 ? { restZones: newRestZones } : {}),
@@ -630,14 +579,6 @@ export class ClipboardManager {
 
   private _isRangeNote(note: DocumentNoteEntity): note is RangeNote | BodyNote {
     return "endBeat" in note;
-  }
-
-  /** 이벤트를 beat 축으로 평행이동한다(구간 이벤트는 endBeat 동반, editorLane 등 나머지 유지) */
-  private _translateEvent(evt: ChartEvent, offset: Beat): ChartEvent {
-    if ("endBeat" in evt) {
-      return { ...evt, beat: beatAdd(evt.beat, offset), endBeat: beatAdd(evt.endBeat, offset) };
-    }
-    return { ...evt, beat: beatAdd(evt.beat, offset) };
   }
 
   private _areNotesInBounds(

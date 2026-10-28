@@ -40,7 +40,8 @@ const auxNotesFixture: DocumentNoteEntity[] = [
 ];
 const notesWithAux: DocumentNoteEntity[] = [...notes, ...auxNotesFixture];
 
-const chart: Pick<ChartDocument, 'notes' | 'trillZones'> = {
+const chart: Pick<ChartDocument, 'notes' | 'trillZones' | 'events'> = {
+  events: [],
   notes: notesWithAux,
   trillZones: [zoneA, zoneB],
 };
@@ -160,7 +161,7 @@ describe('normalizeSelection — restZones 독립 축 (RFD 0019)', () => {
     { lane: 3, beat: beat(0), endBeat: beat(2) },
     { lane: 4, beat: beat(4), endBeat: beat(6) },
   ];
-  const chartWithRest: Pick<ChartDocument, 'notes' | 'trillZones' | 'restZones'> = {
+  const chartWithRest: Pick<ChartDocument, 'notes' | 'trillZones' | 'restZones' | 'events'> = {
     ...chart,
     restZones,
   };
@@ -177,7 +178,7 @@ describe('normalizeSelection — restZones 독립 축 (RFD 0019)', () => {
 
   it('트릴 노트 모드({1})가 zones를 비워도 restZones {0}은 prune만 되고 유지된다 — 교차 동질성 규칙 없음', () => {
     const result = normalizeSelection(
-      sel({ notes: new Set([1]), zones: new Set([1]), restZones: new Set([0]) }),
+      sel({ events: new Set(), notes: new Set([1]), zones: new Set([1]), restZones: new Set([0]) }),
       chartWithRest,
     );
     expect(result.zones).toEqual(new Set()); // 개별 트릴 모드는 구간 유닛과 배타 (기존 규칙)
