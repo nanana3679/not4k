@@ -5,7 +5,7 @@
 ## 원본과 출처
 
 - PR #339 squash `e563cb5d48580db81e8bc3483d2563bee2410a56`의 `assets-lab/classic/revisions/approved-notes-20261025/` 전체 132개 파일을 Git object에서 바이트 그대로 가져왔다. 원래 manifest·README·생성기·테스트와 126개 PNG/SVG를 보존한다. 이 보관본을 수정하거나 생성기로 다시 쓰지 않는다.
-- 트릴 Point·바디 PNG 5개는 같은 커밋의 기존 Classic 이미지와 `assets-lab/classic/versions/v014/manifest.json` 및 해당 보관 파일의 SHA-256이 일치한다. 해당 `v014/files/` 파일을 직접 입력으로 읽으며 보관본을 수정하지 않는다.
+- 트릴 탭·바디 PNG 5개는 같은 커밋의 기존 Classic 이미지와 `assets-lab/classic/versions/v014/manifest.json` 및 해당 보관 파일의 SHA-256이 일치한다. 해당 `v014/files/` 파일을 직접 입력으로 읽으며 보관본을 수정하지 않는다.
 - `provenance.json`은 승인 커밋·원본 tree·PR 번호, 132개 보관 파일 해시와 크기, 기존 v014 manifest 및 트릴 PNG 5개의 기록을 고정한다. 원본에 남아 있는 `skinKey`·`proposedRuntimePath`는 당시 제안이다.
 - 실패·held 도안의 `proposed-state-treatment` 표시는 새 manifest의 `sourceApproval`에 그대로 남긴다. 파일 공급과 최종 실패색 강도의 제품 확정을 구별한다. 보관본의 미정 표시·수명 설명보다 후속 RFD 0037 §7을 우선한다.
 
@@ -36,10 +36,10 @@ pnpm build:explicit-skin --check
 | `tick.double` | `pending.left/right`, `failed.left/right` |
 | `graceOverlay.tap`, `graceOverlay.trill`, `graceOverlay.release` | `overlay` |
 
-실제 ID에서는 `/`로 요약한 방향 중 하나만 쓴다(예: `tick.double.failed.left`). 총 33개 역할이다. `tap.single.failed`, Point의 좌우 부분 실패, 트릴 릴리즈·별도 트릴 유지·바디 Grace·terminal cap 등 공급하지 않은 역할은 거부한다. 다른 역할·스킨으로 fallback하지 않으며 필수 역할 누락·중복·잘못된 좌표·방향도 view 생성 때 거부한다.
+실제 ID에서는 `/`로 요약한 방향 중 하나만 쓴다(예: `tick.double.failed.left`). 총 33개 역할이다. `tap.single.failed`, 탭의 좌우 부분 실패, 트릴 릴리즈·별도 트릴 틱·바디 Grace·terminal cap 등 공급하지 않은 역할은 거부한다. 다른 역할·스킨으로 fallback하지 않으며 필수 역할 누락·중복·잘못된 좌표·방향도 view 생성 때 거부한다.
 
-- 싱글·더블 Point는 212×40, 트릴 Point와 모든 바디·릴리즈·유지는 200×40이다. 레인 중앙·자기 beat에 전체 캔버스 anchor `(0.5, 0.5)`를 맞춘다. 바디는 200×40 타일을 세로 반복하며 Point 기준 폭 212와의 비율을 보존한다. 시작·끝 마감은 없다.
-- Grace는 본체와 별도 이미지다. Point overlay 260×88의 본체는 `(24,24,212,40)`, 릴리즈·트릴 overlay 248×88의 본체는 `(24,24,200,40)`이다. `@2x`도 동일한 논리 크기·패딩을 쓴다. `*-grace.png` 합성 참고본과 과거 terminal overlay는 export하지 않는다.
-- 유지 single은 x=100, double은 x=84·116에 놓인다. double 좌우 파일 각각의 **전체 200×40 캔버스**와 투명 여백을 유지한다. 한쪽을 숨긴 뒤 남은 쪽을 잘라 재중앙 정렬하지 않는다.
-- `partialHeld`의 side는 미충족 쪽(`sideMeaning: unmet`), `partialFailed`는 실패 쪽(`failed`), 유지 분리 레이어는 표식 쪽(`marker`)이다. 물리 키·손을 나타내지 않는다.
-- 성공 alpha 0.7과 실패 도안 합성, 유지 성공 표식만 숨김, Grace 외곽의 독립 밝기는 이 정적 view가 판단하지 않는다. `ExplicitNotePresenter`(G1)가 M1 공개 snapshot으로 적용한다.
+- 싱글·더블 탭은 212×40, 트릴 탭과 모든 바디·릴리즈·틱은 200×40이다. 레인 중앙·자기 beat에 전체 캔버스 anchor `(0.5, 0.5)`를 맞춘다. 바디는 200×40 타일을 세로 반복하며 탭 기준 폭 212와의 비율을 보존한다. 시작·끝 마감은 없다.
+- Grace는 본체와 별도 이미지다. 탭 overlay 260×88의 본체는 `(24,24,212,40)`, 릴리즈·트릴 overlay 248×88의 본체는 `(24,24,200,40)`이다. `@2x`도 동일한 논리 크기·패딩을 쓴다. `*-grace.png` 합성 참고본과 과거 terminal overlay는 export하지 않는다.
+- 틱 single은 x=100, double은 x=84·116에 놓인다. double 좌우 파일 각각의 **전체 200×40 캔버스**와 투명 여백을 유지한다. 한쪽을 숨긴 뒤 남은 쪽을 잘라 재중앙 정렬하지 않는다.
+- `partialHeld`의 side는 미충족 쪽(`sideMeaning: unmet`), `partialFailed`는 실패 쪽(`failed`), 틱 분리 레이어는 표식 쪽(`marker`)이다. 물리 키·손을 나타내지 않는다.
+- 성공 alpha 0.7과 실패 도안 합성, 성공한 틱만 숨김, Grace 외곽의 독립 밝기는 이 정적 view가 판단하지 않는다. `ExplicitNotePresenter`(G1)가 M1 공개 snapshot으로 적용한다.

@@ -39,7 +39,7 @@ React 기반 시연은 `LabRoutes.tsx`에 라우트를 연결한다. 독립 서�
 
 ## 명시 노트 표시
 
-`Gameplay` 분류의 `/lab/explicit-renderer`에서 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)의 바디·Point·릴리즈·유지 표식을 승인된 `classic-explicit` 도안으로 비교한다. 공개 상태 fixture와 실제 싱글 세션(ENJ-05 회복) 재생을 구분하며 부분 성공·실패 합성, 독립 수명, 스크롤·리프트·해상도와 초기화, 렌더러 재부착과 표시 진단을 확인한다. 구형 스킨·보관 사례를 덮어쓰지 않는다.
+`Gameplay` 분류의 `/lab/explicit-renderer`에서 [RFD 0037](../rfd/0037-explicit-score-notes-and-body.md)의 바디·탭·릴리즈·틱 노트를 승인된 `classic-explicit` 도안으로 비교한다. 공개 상태 fixture와 실제 싱글 세션(ENJ-05 회복) 재생을 구분하며 부분 성공·실패 합성, 독립 수명, 스크롤·리프트·해상도와 초기화, 렌더러 재부착과 표시 진단을 확인한다. 구형 스킨·보관 사례를 덮어쓰지 않는다.
 
 ## 명시 차트 실플레이
 
