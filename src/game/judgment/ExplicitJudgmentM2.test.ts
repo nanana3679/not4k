@@ -593,6 +593,79 @@ describe("Point 없는 2→1 감소는 바디 사이 실패를 전파하지 않�
     expect(settlements(session).filter(fact => fact.itemKind === "release")).toMatchObject([{ outcome: "graded", grade: "perfect", atMs: 3000 }]);
     expect(result.score).toMatchObject({ earnedScore: 9, finalDenominatorWeight: 9, judgmentCounts: { perfect: 3, miss: 1 } });
   });
+
+  // 감소 위치 유지 2000은 뒤 single 소속이라 앞 두 몫의 1520 실패로 정산하지 않고 single의 시작 판단을 기다린다(RFD 0037 §4·§6-1).
+  const sustainChart = [p(1000, "double"), b(1000, 2000, 2), b(2000, 3000), s(2000), r(3000)];
+  const releaseBothAt1500 = () => {
+    const session = makeSession(sustainChart);
+    session.processBatch(1000, [down("A"), down("B")]);
+    session.processBatch(1500, [up("A"), up("B")]);
+    return session;
+  };
+  const singleStarts = (session: ExplicitJudgmentSession) => session.facts.filter(fact => fact.kind === "bodyStarted" && fact.bodyUnitId === "b2:hold:0");
+  const laterItems = (session: ExplicitJudgmentSession) => settlements(session).filter(fact => fact.itemKind !== "point")
+    .map(fact => [fact.itemId, fact.outcome, fact.grade, fact.atMs]);
+  const laterItemStates = (session: ExplicitJudgmentSession) => session.snapshot.items.filter(item => item.kind !== "point")
+    .map(item => [item.id, item.state, item.waitingReason]);
+
+  it("감소 위치 유지 2000을 둔 같은 차트에서 A·B를 1500에 뗀 뒤 A를 1700에 다시 눌러 3000까지 쥐면 single이 차트 시작 시각 hold로 2000에 preheld 시작해 유지 2000·릴리즈 3000 Perfect·Miss는 두 몫 유지 실패 2·12/12점", () => {
+    const session = releaseBothAt1500();
+    session.processBatch(1700, [down("A")]);
+    session.advance(1999);
+    expect(session.snapshot.bodyUnits[2]).toMatchObject({ id: "b2:hold:0", state: "waiting", actualStartMs: null });
+    session.advance(2000);
+    expect(singleStarts(session)).toMatchObject([{ via: "preheld", actualStartMs: 2000, atMs: 2000 }]);
+    session.processBatch(3000, [up("A")]);
+    const result = session.finalize();
+    expect(failures(session)).toEqual([
+      ["b1:hold:1", 1520, "maintenance", "원인 없음", true],
+      ["b1:hold:0", 1520, "maintenance", "원인 없음", true],
+    ]);
+    expect(result.snapshot.bodyUnits[2]).toMatchObject({ state: "complete", actualStartMs: 2000, completedAtMs: 3000 });
+    expect(laterItems(session)).toEqual([
+      ["n3:sustain:0", "graded", "perfect", 2000],
+      ["n4:release:0", "graded", "perfect", 3000],
+    ]);
+    expect(result.score).toMatchObject({ earnedScore: 12, finalDenominatorWeight: 12, judgmentCounts: { perfect: 4, miss: 2 } });
+  });
+
+  it("감소 위치 유지 2000을 둔 같은 차트에서 A·B를 1500에 떼고 다시 누르지 않으면 유지는 1520에 정산되지 않고 single 시작을 기다리다 2120 single 시작 시간 초과를 원인으로 유지·릴리즈 모두 종속 0점·Miss 3·6/12점", () => {
+    const session = releaseBothAt1500();
+    session.advance(1521);
+    expect(laterItemStates(session)).toEqual([["n3:sustain:0", "pending", null], ["n4:release:0", "pending", null]]);
+    session.advance(2119);
+    expect(laterItemStates(session)).toEqual([["n3:sustain:0", "waiting", "bodyStart"], ["n4:release:0", "pending", null]]);
+    session.advance(2121);
+    expect(session.facts.map(factLine).slice(8)).toEqual([
+      "fact:8 bodyFailed b1:hold:1 maintenance cause=null miss=true",
+      "fact:9 bodyFailed b1:hold:0 maintenance cause=null miss=true",
+      "fact:10 bodyFailed b2:hold:0 startTimeout cause=null miss=true",
+      "fact:11 dependentZero n3:sustain:0 cause=fact:10",
+      "fact:12 dependentZero n4:release:0 cause=fact:10",
+    ]);
+    expect(laterItems(session)).toEqual([
+      ["n3:sustain:0", "dependentZero", null, 2120],
+      ["n4:release:0", "dependentZero", null, 2120],
+    ]);
+    expect(session.finalize().score).toMatchObject({ earnedScore: 6, finalDenominatorWeight: 12, judgmentCounts: { perfect: 2, miss: 3 } });
+  });
+
+  it("감소 위치 유지 2000을 둔 같은 차트에서 A·B를 1500에 뗀 뒤 A를 2100에 새로 눌러 3000까지 쥐면 single이 시작 창 안 새 down으로 2100에 시작해 유지 2000이 2100에 Perfect·릴리즈 3000 Perfect·12/12점", () => {
+    const session = releaseBothAt1500();
+    session.advance(2099);
+    expect(session.snapshot.bodyUnits[2]).toMatchObject({ id: "b2:hold:0", state: "waiting", actualStartMs: null });
+    session.processBatch(2100, [down("A")]);
+    expect(singleStarts(session)).toMatchObject([{ via: "down", actualStartMs: 2100, atMs: 2100 }]);
+    session.processBatch(3000, [up("A")]);
+    const result = session.finalize();
+    expect(failures(session).map(([id, atMs]) => [id, atMs])).toEqual([["b1:hold:1", 1520], ["b1:hold:0", 1520]]);
+    expect(result.snapshot.bodyUnits[2]).toMatchObject({ state: "complete", actualStartMs: 2100, completedAtMs: 3000 });
+    expect(laterItems(session)).toEqual([
+      ["n3:sustain:0", "graded", "perfect", 2100],
+      ["n4:release:0", "graded", "perfect", 3000],
+    ]);
+    expect(result.score).toMatchObject({ earnedScore: 12, finalDenominatorWeight: 12, judgmentCounts: { perfect: 4, miss: 2 } });
+  });
 });
 
 describe("이른 완료 창 E−Good 직전의 hold 부족과 유지 유예", () => {
