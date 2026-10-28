@@ -247,7 +247,6 @@ function ChartEditorPage() {
   const [showSaveAsModal, setShowSaveAsModal] = useState(false);
   const [saveAsOverwriteTarget, setSaveAsOverwriteTarget] = useState<{ difficulty: string; level: number } | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
   const [showOffsetToolbar, setShowOffsetToolbar] = useState(false);
@@ -273,6 +272,8 @@ function ChartEditorPage() {
   const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const savedChartJson = useEditorStore((s) => s.savedChartJson);
+  // 저장 진행은 store가 소유한다 — 테스트 플레이 복귀로 페이지가 다시 마운트돼도 진행 중인 저장을 잊지 않는다.
+  const saving = useEditorStore((s) => s.isSavingChart);
   const addToast = useEditorStore((s) => s.addToast);
   const editingMarker = useEditorStore((s) => s.editingMarker);
   const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
@@ -347,7 +348,7 @@ function ChartEditorPage() {
   const fileOps = useFileOperations(
     playbackRef,
     rendererRef as React.RefObject<{ setChart: (c: unknown) => void } | null>,
-    setSaving, setDeleting, setValidationErrors,
+    setDeleting, setValidationErrors,
     setShowSaveAsModal, setSaveAsOverwriteTarget, setShowDeleteConfirm, setShowPlayTestMenu,
     setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setJacketCacheBust,
     pendingPreviewRange, pendingGameplayRange, pendingJacketFile,

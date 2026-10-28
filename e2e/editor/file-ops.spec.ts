@@ -29,6 +29,55 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
+  test('차트 JSON 업로드 응답을 기다리는 동안 Save chart가 Saving chart로 비활성이고 처음부터·커서부터 시작도 저장 중 안내와 함께 비활성이며, 저장이 끝나면 둘 다 다시 활성', async ({ page }) => {
+    const editor = await openEditor(page);
+    let releaseUpload!: () => void;
+    const uploadHeld = new Promise<void>((resolve) => { releaseUpload = resolve; });
+    // 차트 JSON 업로드(POST)만 붙잡았다가 openEditor의 공통 응답으로 넘긴다.
+    await page.route((url) => url.pathname === EDITOR_TEST_CHART_UPLOAD_PATH, async (route) => {
+      if (route.request().method() === 'POST') await uploadHeld;
+      await route.fallback();
+    });
+
+    await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Saving chart', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Playback options', exact: true }).click();
+    const fromStart = page.getByRole('button', { name: '처음부터 시작', exact: true });
+    const fromCursor = page.getByRole('button', { name: '커서부터 시작', exact: true });
+    await expect(fromStart).toBeDisabled();
+    await expect(fromStart).toHaveAttribute('title', '저장 중에는 테스트 플레이를 시작할 수 없습니다');
+    await expect(fromCursor).toBeDisabled();
+
+    releaseUpload();
+    await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
+    await expect(fromStart).toBeEnabled();
+    await expect(fromCursor).toBeEnabled();
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('보조 레인 수를 2 → 3으로 바꾼 뒤 차트 JSON 업로드가 500으로 실패하면 실패 토스트를 띄우고 Save chart의 저장 안 됨 표시가 남으며 Back to Songs가 Unsaved Changes 확인을 띄운다', async ({ page }) => {
+    const editor = await openEditor(page);
+    await page.route((url) => url.pathname === EDITOR_TEST_CHART_UPLOAD_PATH, async (route) => {
+      if (route.request().method() !== 'POST') { await route.fallback(); return; }
+      await route.fulfill({ status: 500, json: { statusCode: '500', error: 'Internal Server Error', message: 'upload failed' } });
+    });
+    // 노트가 없어도 보조 레인 수가 바뀌면 보조 JSON이 달라 dirty다.
+    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+    await page.locator('select').filter({ has: page.locator('option[value="10"]') }).selectOption('3');
+    await page.mouse.click(10, 100);
+    const unsavedSave = page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true });
+
+    await unsavedSave.click();
+
+    await expect(page.getByText('저장에 실패했습니다. 잠시 후 다시 시도해주세요.', { exact: true })).toBeVisible();
+    await expect(unsavedSave).toBeEnabled();
+    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to Songs', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Unsaved Changes', exact: true })).toBeVisible();
+    // 업로드가 실패하면 charts 행은 upsert하지 않는다.
+    expect(editor.supabaseWrites.filter((write) => write.path === '/rest/v1/charts')).toEqual([]);
+  });
+
   test('Storage 차트에 노트 3개가 있으면 진입 후 Save chart로 업로드한 차트에도 같은 노트 3개가 있다', async ({ page }) => {
     const notes: ChartJsonV3['notes'] = [
       { type: 'single', lane: 1, beat: '0' },
