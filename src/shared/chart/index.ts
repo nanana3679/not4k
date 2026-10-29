@@ -453,3 +453,4 @@ export function parseExtraNotes(json: ExtraNotesJson): { extraNotes: ExtraNoteEn
 }
 
 export * from "./explicitNoteRelations";
+export * from "./legacyConversion";
