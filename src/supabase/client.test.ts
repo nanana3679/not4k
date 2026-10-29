@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// 이 파일은 실제 client.ts 자체를 검사하므로 전역 setup(blockClientInUnitTests.ts)의 차단을 푼다.
+// 네트워크 요청은 보내지 않는다: 주소 계산(url·getPublicUrl)과 인스턴스 동일성만 확인한다.
+vi.unmock("./client");
+
 const MISSING_ENV_ERROR =
   "[supabase] VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY 환경 변수가 설정되지 않았습니다.";
 const TEST_URL = "https://example.supabase.co";

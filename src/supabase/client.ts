@@ -7,6 +7,7 @@
  *
  * 클라이언트 생성과 환경 변수 검사는 import 시점이 아니라 `supabase`의 속성을 처음 읽을 때 한다.
  * 그래서 이 모듈을 import만 하고 쓰지 않는 코드(supabase와 무관한 단위 테스트 등)는 환경 변수 없이도 로드된다.
+ * 단위 테스트에서는 Vitest 전역 setup(`blockClientInUnitTests.ts`)이 이 모듈을 쓰면 던지는 객체로 바꾼다(#373).
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
