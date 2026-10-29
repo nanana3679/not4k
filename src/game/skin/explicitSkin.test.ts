@@ -9,10 +9,11 @@ const freshManifest = () => structuredClone(generatedManifest) as ExplicitSkinMa
 describe("명시적 노트 정적 스킨 view", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("33개 역할을 조회하면 tap-·body-·release-·tick-·Grace overlay 이름의 역할·좌우 파일을 반환한다", () => {
+  it("34개 역할을 조회하면 tap-·body-·release-·tick-·Grace overlay 이름의 역할·좌우 파일을 반환한다", () => {
     const view = buildExplicitSkinView("/");
     const expected = {
       "tap.single.pending": "tap-single.png",
+      "tap.single.failed": "tap-single-failed.png",
       "tap.double.pending": "tap-double.png",
       "tap.double.failed": "tap-double-failed.png",
       "tap.trill.pending": "tap-trill.png",
@@ -47,7 +48,7 @@ describe("명시적 노트 정적 스킨 view", () => {
       "graceOverlay.release.overlay": "release-grace-overlay.png",
     };
     expect(Object.keys(view.assetsById).sort()).toEqual(Object.keys(expected).sort());
-    expect(EXPLICIT_SKIN_ASSET_IDS).toHaveLength(33);
+    expect(EXPLICIT_SKIN_ASSET_IDS).toHaveLength(34);
     for (const [id, file] of Object.entries(expected)) {
       const asset = getExplicitSkinAsset(view, id);
       expect(asset.file, id).toBe(file);
@@ -114,7 +115,7 @@ describe("명시적 노트 정적 스킨 view", () => {
     expect(getExplicitSkinAsset(view, "release.double.partialFailed.right")).toMatchObject({ role: "release", side: "right", sideMeaning: "failed" });
   });
 
-  it.each(["tap.single.failed", "tap.double.partialFailed.left", "release.trill.pending", "tick.double.pending", "graceOverlay.body.overlay", "terminal.single.idle", "toString"])(
+  it.each(["tap.double.partialFailed.left", "release.trill.pending", "tick.double.pending", "graceOverlay.body.overlay", "terminal.single.idle", "toString"])(
     "%s 도안이 없을 때 조회하면 다른 역할로 fallback하지 않고 거부한다", id => {
       expect(() => getExplicitSkinAsset(buildExplicitSkinView("/"), id)).toThrow(`Unsupported explicit skin asset: ${id}`);
     },

@@ -1,6 +1,6 @@
 /** 정적 도안 가용성이다. 판정 상태 선택·성공 알파·표시 수명은 포함하지 않는다. */
 export const EXPLICIT_SKIN_ASSET_IDS = [
-  "tap.single.pending", "tap.double.pending", "tap.double.failed",
+  "tap.single.pending", "tap.single.failed", "tap.double.pending", "tap.double.failed",
   "tap.trill.pending", "tap.trill.failed",
   "body.single.idle", "body.single.held", "body.single.failed",
   "body.double.idle", "body.double.held", "body.double.failed",

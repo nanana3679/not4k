@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Application, Container, Graphics } from "pixi.js";
 import { ExplicitSkinLoader } from "../game/skin/ExplicitSkinLoader";
+import { EXPLICIT_SKIN_ASSET_IDS } from "../game/skin/explicitSkin";
 import { ExplicitNoteRenderer } from "../game/renderer/ExplicitNoteRenderer";
 import { ExplicitSessionRendererAdapter } from "../game/judgment/ExplicitSessionRendererAdapter";
 import type { ExplicitJudgmentEffect } from "../game/judgment/ExplicitJudgmentState";
@@ -81,7 +82,7 @@ export default function ExplicitRendererPage() {
         draw(latest.current);
       } };
       draw(latest.current);
-      setStatus("33개 역할 준비 완료");
+      setStatus(`${EXPLICIT_SKIN_ASSET_IDS.length}개 역할 준비 완료`);
     };
     return startPixiPreview({
       app,

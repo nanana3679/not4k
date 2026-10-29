@@ -41,12 +41,12 @@ describe("명시적 스킨의 결정적 PNG export", () => {
     for (const path of temporaryRoots.splice(0)) rmSync(path, { recursive: true, force: true });
   });
 
-  it("같은 고정 원본으로 2번 export하면 33개 역할·60개 PNG·두 manifest가 커밋 대상 바이트와 일치한다", () => {
+  it("같은 고정 원본으로 2번 export하면 34개 역할·62개 PNG·두 manifest가 커밋 대상 바이트와 일치한다", () => {
     const first = buildExplicitSkinArtifacts(root);
     const second = buildExplicitSkinArtifacts(root);
-    expect(first.verifiedSourceFiles).toBe(60);
-    expect(first.manifest.assets).toHaveLength(33);
-    expect(first.files.size).toBe(62);
+    expect(first.verifiedSourceFiles).toBe(62);
+    expect(first.manifest.assets).toHaveLength(34);
+    expect(first.files.size).toBe(64);
     expect([...first.files.keys()]).toEqual([...second.files.keys()]);
     for (const [path, bytes] of first.files) {
       expect(bytes.equals(second.files.get(path)!), path).toBe(true);
@@ -70,14 +70,14 @@ describe("명시적 스킨의 결정적 PNG export", () => {
     }
   });
 
-  it("트릴 탭·바디 5개는 v014 기록, 트릴 Grace overlay는 #339 보관본, 나머지 27개 역할은 #348 고정 사본에서 읽고 트릴 릴리즈는 없다", () => {
+  it("트릴 탭·바디 5개는 v014 기록, 트릴 Grace overlay는 #339 보관본, 나머지 28개 역할은 #348 고정 사본에서 읽고 트릴 릴리즈는 없다", () => {
     const { manifest } = buildExplicitSkinArtifacts(root);
     const historical = manifest.assets.filter(asset => asset.sourceApproval === "historical-runtime-v014");
     expect(historical.map(asset => asset.id).sort()).toEqual(["body.trill.failed", "body.trill.held", "body.trill.idle", "tap.trill.failed", "tap.trill.pending"]);
     for (const asset of historical) expect(asset.source).toMatch(/^assets-lab\/classic\/versions\/v014\/files\/public\/skins\/classic\/(?:note|body)-trill/);
     expect(manifest.assets.find(asset => asset.id === "graceOverlay.trill.overlay")?.source).toBe(`${approved.directory}/assets/trill-grace-overlay.png`);
     const selectedAssets = manifest.assets.filter(asset => asset.variant !== "trill");
-    expect(selectedAssets).toHaveLength(27);
+    expect(selectedAssets).toHaveLength(28);
     for (const asset of selectedAssets) {
       expect(asset.source, asset.id).toMatch(new RegExp(`^${snapshotDirectory}/assets/`));
       expect(asset.highResolution?.source, asset.id).toBe(asset.source.replace(/\.png$/, "@2x.png"));
@@ -86,12 +86,12 @@ describe("명시적 스킨의 결정적 PNG export", () => {
     expect(manifest.provenance.selected).toEqual({ sourceCommit: "86285403b14e8314aebb80bcaaff908a521f3613", sourcePullRequest: 348 });
   });
 
-  it("고정 사본 폴더의 파일 54개는 provenance가 고정한 파일과 같고 #348 작업 폴더의 파일을 원본으로 읽지 않는다", () => {
+  it("고정 사본 폴더의 파일 56개는 provenance가 고정한 파일과 같고 #348 작업 폴더의 파일을 원본으로 읽지 않는다", () => {
     const provenance = readProvenance();
     const snapshot = readdirSync(join(root, snapshotDirectory), { recursive: true, withFileTypes: true })
       .filter(entry => entry.isFile()).map(entry => `assets/${entry.name}`).sort();
     expect(snapshot).toEqual(provenance.selected.files.map(record => record.file));
-    expect(snapshot).toHaveLength(54);
+    expect(snapshot).toHaveLength(56);
     const roles = JSON.parse(readFileSync(join(root, rolesPath), "utf8")) as { source: string }[];
     expect(roles.some(role => role.source.startsWith(`${selected.originDirectory}/`))).toBe(false);
   });
@@ -124,11 +124,11 @@ describe("명시적 스킨의 결정적 PNG export", () => {
 
   it("역할이 읽지 않는 파일을 고정 기록에 더하면 고정 목록과 사용 목록이 어긋나 export를 거부한다", () => {
     const { temporaryRoot, provenance } = copySourcesToTemporaryRoot();
-    const unused = "assets/selected-point-single-failed.png";
+    const unused = "assets/note-single-palette-mix-025.png";
     const bytes = readFileSync(join(root, selected.originDirectory, unused));
     cpSync(join(root, selected.originDirectory, unused), join(temporaryRoot, snapshotDirectory, unused));
     provenance.selected.files.push({ file: unused, bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"),
-      width: 212, height: 40, targetSize: [212, 40], padding: [0, 0, 0, 0], approval: "proposed-state-treatment" });
+      width: 212, height: 40, targetSize: [212, 40], padding: [0, 0, 0, 0], approval: "approved-artwork" });
     writeFileSync(join(temporaryRoot, provenancePath), JSON.stringify(provenance));
     expect(() => buildExplicitSkinArtifacts(temporaryRoot)).toThrow(`Unused pinned explicit source: ${snapshotDirectory}/${unused}`);
   });
@@ -155,10 +155,10 @@ describe("명시적 스킨의 결정적 PNG export", () => {
 });
 
 describe.skipIf(!pinnedCommitsAvailable)("명시적 스킨 원본의 고정 커밋 대조(Git 필요)", () => {
-  it("#348 86285403·#339 e563cb5d의 Git object에서 다시 만든 provenance와 고정 사본 54개가 커밋된 것과 같다", () => {
+  it("#348 86285403·#339 e563cb5d의 Git object에서 다시 만든 provenance와 고정 사본 56개가 커밋된 것과 같다", () => {
     const { provenance, snapshotFiles } = deriveExplicitSkinSources(root);
     expect(provenance).toEqual(readProvenance());
-    expect(snapshotFiles.size).toBe(54);
+    expect(snapshotFiles.size).toBe(56);
     for (const [path, bytes] of snapshotFiles) expect(bytes.equals(readFileSync(join(root, path))), path).toBe(true);
   });
 
@@ -175,6 +175,7 @@ describe.skipIf(!pinnedCommitsAvailable)("명시적 스킨 원본의 고정 커�
       .find(candidate => candidate.id === group)!.states.find(candidate => candidate.id === state)!.file;
     const expected: Record<string, string> = {
       "tap.single.pending": stateFile("point-single", "pending"),
+      "tap.single.failed": stateFile("point-single", "failed"),
       "tap.double.pending": stateFile("point-double", "pending"),
       "tap.double.failed": stateFile("point-double", "failed"),
       "release.single.pending": stateFile("release-single", "pending"),
@@ -199,7 +200,7 @@ describe.skipIf(!pinnedCommitsAvailable)("명시적 스킨 원본의 고정 커�
       expected[`body.double.partialHeld.${side}`] = stateFile("body-double", `partial-held-${side}`);
       expected[`body.double.partialFailed.${side}`] = stateFile("body-double", `partial-failed-${side}`);
     }
-    expect(Object.keys(expected)).toHaveLength(27);
+    expect(Object.keys(expected)).toHaveLength(28);
     for (const [id, file] of Object.entries(expected)) {
       expect(manifest.assets.find(asset => asset.id === id)?.source, id).toBe(`${snapshotDirectory}/${file}`);
     }

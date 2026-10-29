@@ -8,6 +8,14 @@
     "output": "tap-single.png"
   },
   {
+    "id": "tap.single.failed",
+    "role": "tap",
+    "variant": "single",
+    "state": "failed",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-single-failed.png",
+    "output": "tap-single-failed.png"
+  },
+  {
     "id": "tap.double.pending",
     "role": "tap",
     "variant": "double",

@@ -110,12 +110,12 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(notes[0].layers[0].width).toBeCloseTo(200 * 62.5 / 212);
   });
 
-  it("탭 싱글 성공은 즉시 숨기고 Miss는 원래 도안·Grace 없음으로 화면 밖까지 남는다", () => {
+  it("탭 싱글 성공은 즉시 숨기고 Miss는 더블처럼 tap.single.failed 실패 도안으로 화면 밖까지 남는다", () => {
     const single = explicitRenderChart([{ type: "tap", lane: 2, beat: beat(2), kind: "single", grace: true }]);
     const present = new ExplicitNotePresenter(single, skin);
     expect(present.present(explicitRenderSnapshot(single, { items: { 0: ["success"] } }), layout)[0].layers.every(layer => !layer.visible)).toBe(true);
     expect(present.present(explicitRenderSnapshot(single, { items: { 0: ["miss"] } }), layout)[0].layers).toMatchObject([
-      { assetId: "tap.single.pending", alpha: 1, visible: true }, { visible: false },
+      { assetId: "tap.single.failed", alpha: 1, visible: true }, { visible: false },
     ]);
   });
 

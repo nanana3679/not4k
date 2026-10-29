@@ -67,6 +67,47 @@
       }
     },
     {
+      "id": "tap.single.failed",
+      "role": "tap",
+      "variant": "single",
+      "state": "failed",
+      "file": "tap-single-failed.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-single-failed.png",
+      "pixelSize": {
+        "width": 212,
+        "height": 40
+      },
+      "resolution": 1,
+      "bytes": 2728,
+      "sha256": "d18a9afb2dda26bb24d41382cc1a0a26dfba3121168f3341495fcc4e3ef621d1",
+      "logicalSize": {
+        "width": 212,
+        "height": 40
+      },
+      "contentRect": {
+        "x": 0,
+        "y": 0,
+        "width": 212,
+        "height": 40
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "tap-single-failed@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-single-failed@2x.png",
+        "pixelSize": {
+          "width": 424,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 7713,
+        "sha256": "6396ddf29743b68f7823f09c12b34b22d161226fa193a45776ddb1310b8c6f25"
+      }
+    },
+    {
       "id": "tap.double.pending",
       "role": "tap",
       "variant": "double",

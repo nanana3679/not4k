@@ -20,7 +20,7 @@ export interface ExplicitPresentedLayer {
   readonly ordinal: number | null;
   readonly layer: "body" | "release" | "tick" | "tap";
   readonly overlay: boolean;
-  /** 승인된 더블 탭의 전체 pending/failed 도안에서 필요한 절반만 합성한다. */
+  /** 더블 탭의 전체 pending/failed 도안에서 필요한 절반만 합성한다. */
   readonly crop?: "left" | "right";
   readonly visible: boolean;
   readonly inViewport: boolean;
@@ -154,8 +154,8 @@ export class ExplicitNotePresenter {
           const state = failed.length === items.length ? "failed" : failed.length ? `partialFailed.${side(failed[0].ordinal)}` : "pending";
           id = `release.${items.length === 2 ? "double" : "single"}.${state}`;
         } else {
-          // 싱글 Miss의 기존 수명은 유지하고 더블은 몫별 실패색과 성공 alpha를 독립 합성한다.
-          id = `tap.${first.tapKind}.${first.tapKind !== "single" && failed.length === items.length ? "failed" : "pending"}`;
+          // 놓친 싱글·트릴 탭과 두 몫 모두 놓친 더블 탭은 실패 도안이다(싱글은 사용자 결정, 2026-10-29). 더블 한쪽 실패는 아래 절반 합성이다.
+          id = `tap.${first.tapKind}.${failed.length === items.length ? "failed" : "pending"}`;
         }
         if (first.kind === "tap" && first.tapKind === "double" && failed.length === 1) {
           for (const item of items) {

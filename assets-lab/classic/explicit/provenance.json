@@ -348,6 +348,26 @@
         "approval": "proposed-state-treatment"
       },
       {
+        "file": "assets/selected-point-single-failed.png",
+        "bytes": 2728,
+        "sha256": "d18a9afb2dda26bb24d41382cc1a0a26dfba3121168f3341495fcc4e3ef621d1",
+        "width": 212,
+        "height": 40,
+        "targetSize": [212, 40],
+        "padding": [0, 0, 0, 0],
+        "approval": "proposed-state-treatment"
+      },
+      {
+        "file": "assets/selected-point-single-failed@2x.png",
+        "bytes": 7713,
+        "sha256": "6396ddf29743b68f7823f09c12b34b22d161226fa193a45776ddb1310b8c6f25",
+        "width": 424,
+        "height": 80,
+        "targetSize": [212, 40],
+        "padding": [0, 0, 0, 0],
+        "approval": "proposed-state-treatment"
+      },
+      {
         "file": "assets/selected-release-double-failed.png",
         "bytes": 8848,
         "sha256": "ada2160beef56994e653385458d126aa9c2cd17d0a4ceac0c175f33bebd10c82",
