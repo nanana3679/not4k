@@ -4,105 +4,128 @@
     "role": "tap",
     "variant": "single",
     "state": "pending",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-single.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/note-single-palette-mix-050.png",
+    "output": "tap-single.png"
+  },
+  {
+    "id": "tap.single.failed",
+    "role": "tap",
+    "variant": "single",
+    "state": "failed",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-single-failed.png",
+    "output": "tap-single-failed.png"
   },
   {
     "id": "tap.double.pending",
     "role": "tap",
     "variant": "double",
     "state": "pending",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-anodized-contrast-070.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/note-double-palette-mix-075.png",
+    "output": "tap-double.png"
   },
   {
     "id": "tap.double.failed",
     "role": "tap",
     "variant": "double",
     "state": "failed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-failed.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-double-failed.png",
+    "output": "tap-double-failed.png"
   },
   {
     "id": "tap.trill.pending",
     "role": "tap",
     "variant": "trill",
     "state": "pending",
-    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill.png"
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill.png",
+    "output": "tap-trill.png"
   },
   {
     "id": "tap.trill.failed",
     "role": "tap",
     "variant": "trill",
     "state": "failed",
-    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill-failed.png"
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill-failed.png",
+    "output": "tap-trill-failed.png"
   },
   {
     "id": "body.single.idle",
     "role": "body",
     "variant": "single",
     "state": "idle",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-single-palette-mix-050.png",
+    "output": "body-single.png"
   },
   {
     "id": "body.single.held",
     "role": "body",
     "variant": "single",
     "state": "held",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-held.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-held-single-palette-mix-050.png",
+    "output": "body-single-held.png"
   },
   {
     "id": "body.single.failed",
     "role": "body",
     "variant": "single",
     "state": "failed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-failed.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-single-failed.png",
+    "output": "body-single-failed.png"
   },
   {
     "id": "body.double.idle",
     "role": "body",
     "variant": "double",
     "state": "idle",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-center-dual-beam.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-double-palette-mix-075.png",
+    "output": "body-double.png"
   },
   {
     "id": "body.double.held",
     "role": "body",
     "variant": "double",
     "state": "held",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-held.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-held-double-palette-mix-075.png",
+    "output": "body-double-held.png"
   },
   {
     "id": "body.double.failed",
     "role": "body",
     "variant": "double",
     "state": "failed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-failed.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-failed.png",
+    "output": "body-double-failed.png"
   },
   {
     "id": "body.trill.idle",
     "role": "body",
     "variant": "trill",
     "state": "idle",
-    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill.png"
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill.png",
+    "output": "body-trill.png"
   },
   {
     "id": "body.trill.held",
     "role": "body",
     "variant": "trill",
     "state": "held",
-    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill-held.png"
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill-held.png",
+    "output": "body-trill-held.png"
   },
   {
     "id": "body.trill.failed",
     "role": "body",
     "variant": "trill",
     "state": "failed",
-    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill-failed.png"
+    "source": "assets-lab/classic/versions/v014/files/public/skins/classic/body-trill-failed.png",
+    "output": "body-trill-failed.png"
   },
   {
     "id": "body.double.partialHeld.left",
     "role": "body",
     "variant": "double",
     "state": "partialHeld",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-left.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-held-left.png",
+    "output": "body-double-partial-held-left.png",
     "side": "left",
     "sideMeaning": "unmet"
   },
@@ -111,7 +134,8 @@
     "role": "body",
     "variant": "double",
     "state": "partialHeld",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-right.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-held-right.png",
+    "output": "body-double-partial-held-right.png",
     "side": "right",
     "sideMeaning": "unmet"
   },
@@ -120,7 +144,8 @@
     "role": "body",
     "variant": "double",
     "state": "partialFailed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-left.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-failed-left.png",
+    "output": "body-double-partial-failed-left.png",
     "side": "left",
     "sideMeaning": "failed"
   },
@@ -129,7 +154,8 @@
     "role": "body",
     "variant": "double",
     "state": "partialFailed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-right.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-failed-right.png",
+    "output": "body-double-partial-failed-right.png",
     "side": "right",
     "sideMeaning": "failed"
   },
@@ -138,35 +164,40 @@
     "role": "release",
     "variant": "single",
     "state": "pending",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/release-single-palette-mix-050.png",
+    "output": "release-single.png"
   },
   {
     "id": "release.single.failed",
     "role": "release",
     "variant": "single",
     "state": "failed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single-failed.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-single-failed.png",
+    "output": "release-single-failed.png"
   },
   {
     "id": "release.double.pending",
     "role": "release",
     "variant": "double",
     "state": "pending",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/release-double-palette-mix-075.png",
+    "output": "release-double.png"
   },
   {
     "id": "release.double.failed",
     "role": "release",
     "variant": "double",
     "state": "failed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-failed.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-double-failed.png",
+    "output": "release-double-failed.png"
   },
   {
     "id": "release.double.partialFailed.left",
     "role": "release",
     "variant": "double",
     "state": "partialFailed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-left.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-double-partial-failed-left.png",
+    "output": "release-double-partial-failed-left.png",
     "side": "left",
     "sideMeaning": "failed"
   },
@@ -175,7 +206,8 @@
     "role": "release",
     "variant": "double",
     "state": "partialFailed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-right.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-double-partial-failed-right.png",
+    "output": "release-double-partial-failed-right.png",
     "side": "right",
     "sideMeaning": "failed"
   },
@@ -184,7 +216,8 @@
     "role": "tick",
     "variant": "single",
     "state": "pending",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/sustain-single-palette-mix-050.png",
+    "output": "tick-single.png",
     "markerCenter": {
       "x": 100,
       "y": 20
@@ -195,7 +228,8 @@
     "role": "tick",
     "variant": "double",
     "state": "pending",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-left.png",
+    "output": "tick-double-left.png",
     "side": "left",
     "sideMeaning": "marker",
     "markerCenter": {
@@ -208,7 +242,8 @@
     "role": "tick",
     "variant": "double",
     "state": "pending",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-right.png",
+    "output": "tick-double-right.png",
     "side": "right",
     "sideMeaning": "marker",
     "markerCenter": {
@@ -221,7 +256,8 @@
     "role": "tick",
     "variant": "single",
     "state": "failed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single-failed.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-single-failed.png",
+    "output": "tick-single-failed.png",
     "markerCenter": {
       "x": 100,
       "y": 20
@@ -232,7 +268,8 @@
     "role": "tick",
     "variant": "double",
     "state": "failed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left-failed.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-left-failed.png",
+    "output": "tick-double-failed-left.png",
     "side": "left",
     "sideMeaning": "marker",
     "markerCenter": {
@@ -245,7 +282,8 @@
     "role": "tick",
     "variant": "double",
     "state": "failed",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right-failed.png",
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-right-failed.png",
+    "output": "tick-double-failed-right.png",
     "side": "right",
     "sideMeaning": "marker",
     "markerCenter": {
@@ -258,20 +296,23 @@
     "role": "graceOverlay",
     "variant": "tap",
     "state": "overlay",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/point-grace-overlay.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-grace-overlay.png",
+    "output": "tap-grace-overlay.png"
   },
   {
     "id": "graceOverlay.trill.overlay",
     "role": "graceOverlay",
     "variant": "trill",
     "state": "overlay",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/trill-grace-overlay.png"
+    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/trill-grace-overlay.png",
+    "output": "trill-grace-overlay.png"
   },
   {
     "id": "graceOverlay.release.overlay",
     "role": "graceOverlay",
     "variant": "release",
     "state": "overlay",
-    "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-grace-overlay.png"
+    "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/release-grace-overlay.png",
+    "output": "release-grace-overlay.png"
   }
 ]

@@ -145,12 +145,12 @@ describe('GameRenderer 명시 seam', () => {
     expect(sprites(scene.explicitNoteRenderer!.root, 'tap')).toHaveLength(2);
   });
 
-  it('prepareForPlayback은 아직 보이지 않는 failed·Grace 포함 explicit 33개 소스를 업로드하고 dispose는 GC와 공유 원본을 보존한다', async () => {
+  it('prepareForPlayback은 아직 보이지 않는 failed·Grace 포함 explicit 34개 소스를 업로드하고 dispose는 GC와 공유 원본을 보존한다', async () => {
     const { renderer, explicitSkin, document, compiled, session, loaded, initSource } = await setup();
     for (const texture of loaded.values()) texture.source.autoGarbageCollect = true;
     renderer.setExplicitChart(compiled, explicitSkin, () => session.snapshot, document, 4000);
     renderer.prepareForPlayback(0);
-    expect(initSource).toHaveBeenCalledTimes(33);
+    expect(initSource).toHaveBeenCalledTimes(34);
     expect(new Set(initSource.mock.calls.map(call => call[0]))).toEqual(new Set([...loaded.values()].map(texture => texture.source)));
     expect([...loaded.values()].every(texture => !texture.source.autoGarbageCollect)).toBe(true);
     renderer.dispose(false);
