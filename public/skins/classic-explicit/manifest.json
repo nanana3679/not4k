@@ -3,8 +3,16 @@
   "id": "classic-explicit",
   "runtimePath": "/skins/classic-explicit",
   "provenance": {
-    "sourceCommit": "e563cb5d48580db81e8bc3483d2563bee2410a56",
-    "archiveManifestSha256": "a7a7d4abe0811f9bc0fc030cfb89993716768d175e13a36e76d3e3559a741f0b",
+    "selected": {
+      "sourceCommit": "86285403b14e8314aebb80bcaaff908a521f3613",
+      "sourcePullRequest": 348,
+      "manifestSha256": "9a56e250569c0a22ee04fe3cbdbe0e54d257a18f3c4db17e0c065fa788382a3e"
+    },
+    "approved": {
+      "sourceCommit": "e563cb5d48580db81e8bc3483d2563bee2410a56",
+      "sourcePullRequest": 339,
+      "manifestSha256": "a7a7d4abe0811f9bc0fc030cfb89993716768d175e13a36e76d3e3559a741f0b"
+    },
     "historicalManifestSha256": "3d342f3f75d4acbb21926781ef6eca3bffadb8da26089262148ffd3e29b9fdc7"
   },
   "body": {
@@ -24,15 +32,15 @@
       "role": "tap",
       "variant": "single",
       "state": "pending",
-      "file": "note-single.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-single.png",
+      "file": "tap-single.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/note-single-palette-mix-050.png",
       "pixelSize": {
         "width": 212,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 5740,
-      "sha256": "49c6b45cd6c5692b70516479d2f9a77c615d1f0c3aa274a300c0ee34b66bdf61",
+      "bytes": 5413,
+      "sha256": "34669d4dfb0dc86b83234b00aeb614212e62dcd982b1e1b942ede4a43d1d0ac4",
       "logicalSize": {
         "width": 212,
         "height": 40
@@ -47,22 +55,33 @@
         "x": 0.5,
         "y": 0.5
       },
-      "sourceApproval": "approved-artwork"
+      "sourceApproval": "approved-artwork",
+      "highResolution": {
+        "file": "tap-single@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/note-single-palette-mix-050@2x.png",
+        "pixelSize": {
+          "width": 424,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 15696,
+        "sha256": "354a8c0f164406f82c2ba6805598a455d8bcd3c5e7aaeeda9d1b8730dc3d8f67"
+      }
     },
     {
       "id": "tap.double.pending",
       "role": "tap",
       "variant": "double",
       "state": "pending",
-      "file": "note-double-anodized-contrast-070.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-anodized-contrast-070.png",
+      "file": "tap-double.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/note-double-palette-mix-075.png",
       "pixelSize": {
         "width": 212,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 11467,
-      "sha256": "ab66a0be35809110a9ea68b5326e168308eb4b49860fb87939c5d24b6682b329",
+      "bytes": 10161,
+      "sha256": "14898b7cff31aa17e3bffa2071198480e4b5599fdf7f51f2a932cb5b990164d3",
       "logicalSize": {
         "width": 212,
         "height": 40
@@ -77,22 +96,33 @@
         "x": 0.5,
         "y": 0.5
       },
-      "sourceApproval": "approved-artwork"
+      "sourceApproval": "approved-artwork",
+      "highResolution": {
+        "file": "tap-double@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/note-double-palette-mix-075@2x.png",
+        "pixelSize": {
+          "width": 424,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 32075,
+        "sha256": "100cdb552f5b648d78f154e70107bbb55e340d5ed37d70ebe6b7dadedd9e97e7"
+      }
     },
     {
       "id": "tap.double.failed",
       "role": "tap",
       "variant": "double",
       "state": "failed",
-      "file": "note-double-failed.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-failed.png",
+      "file": "tap-double-failed.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-point-double-failed.png",
       "pixelSize": {
         "width": 212,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 5246,
-      "sha256": "cecf2792f1ce69ece65bb31a0ad1869fd729d437edbfbf2186dce7d505dfe7da",
+      "bytes": 4535,
+      "sha256": "16a995513731dc527659a7ba48c6d4257ee803708b2990aabcc894fcbe471762",
       "logicalSize": {
         "width": 212,
         "height": 40
@@ -109,15 +139,15 @@
       },
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
-        "file": "note-double-failed@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/note-double-failed@2x.png",
+        "file": "tap-double-failed@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-point-double-failed@2x.png",
         "pixelSize": {
           "width": 424,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 17477,
-        "sha256": "573cb387314af3f19a400b5a9f9b3298c4a9621a27d9c27a88c0db81db4f5c36"
+        "bytes": 15058,
+        "sha256": "d8ba8146bacc20adaec7f55cae570faf031eafd9b01b4d8879647c3406e2c4d2"
       }
     },
     {
@@ -125,7 +155,7 @@
       "role": "tap",
       "variant": "trill",
       "state": "pending",
-      "file": "note-trill.png",
+      "file": "tap-trill.png",
       "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill.png",
       "pixelSize": {
         "width": 200,
@@ -155,7 +185,7 @@
       "role": "tap",
       "variant": "trill",
       "state": "failed",
-      "file": "note-trill-failed.png",
+      "file": "tap-trill-failed.png",
       "source": "assets-lab/classic/versions/v014/files/public/skins/classic/note-trill-failed.png",
       "pixelSize": {
         "width": 200,
@@ -186,14 +216,14 @@
       "variant": "single",
       "state": "idle",
       "file": "body-single.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-single-palette-mix-050.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 927,
-      "sha256": "80655da690f6612b8dca32ea3b79e1b38f58123e94cb5c127c296335d90f674e",
+      "bytes": 926,
+      "sha256": "491ce81119654f2345bb92ee66d7e8ba5fa7455a1f5d8e1893e8f4b4c4b5462d",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -208,7 +238,18 @@
         "x": 0.5,
         "y": 0.5
       },
-      "sourceApproval": "approved-artwork"
+      "sourceApproval": "approved-artwork",
+      "highResolution": {
+        "file": "body-single@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-single-palette-mix-050@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 2027,
+        "sha256": "a24706c870df854bb0c68df79ab45354b33dc20e4c5337b19a054a74da63812a"
+      }
     },
     {
       "id": "body.single.held",
@@ -216,14 +257,14 @@
       "variant": "single",
       "state": "held",
       "file": "body-single-held.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-held.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-held-single-palette-mix-050.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 3053,
-      "sha256": "09ed16ca9851dece42f69bbe004a1dfdf1706243d153c7a91844c7401600af22",
+      "bytes": 2432,
+      "sha256": "ef2d8e28644dea117a3188406671b3ca1fa17ea522de6f241646ea7a2e852ac1",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -238,17 +279,17 @@
         "x": 0.5,
         "y": 0.5
       },
-      "sourceApproval": "proposed-state-treatment",
+      "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "body-single-held@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-held@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-held-single-palette-mix-050@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 10870,
-        "sha256": "513b1150838658c7eac63d8a1dbddca5b0dda42df889cb0a424db9468382fef1"
+        "bytes": 10046,
+        "sha256": "8de10bed6bd026e3a345401703606fca405f0b4d791a61e1239a8bc38898fb48"
       }
     },
     {
@@ -257,14 +298,14 @@
       "variant": "single",
       "state": "failed",
       "file": "body-single-failed.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-failed.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-single-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 703,
-      "sha256": "84d24b864eb9f2abcb7d8cac769f4d14ff07e22efd1ea2eeb66f563c80e9b41e",
+      "bytes": 716,
+      "sha256": "a55795d201a56c635003e2d43dcc41ec11ae8e13a2769b6a5e1d43efc78f01c6",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -282,14 +323,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-single-failed@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-single-failed@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-single-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 1556,
-        "sha256": "93ceed80c77fb107b86c9f41ac51bbff6cf8ef3c4bdd72ebef57acb256d71016"
+        "bytes": 1573,
+        "sha256": "7272b3c7f6f3ed08a663afa8628554d5ac8e38d9f23525e5f9322f4041586a01"
       }
     },
     {
@@ -297,15 +338,15 @@
       "role": "body",
       "variant": "double",
       "state": "idle",
-      "file": "body-double-center-dual-beam.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-center-dual-beam.png",
+      "file": "body-double.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-double-palette-mix-075.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 810,
-      "sha256": "a625b7e95f55d3d42319d6b1699be3ceb48b51e02e657a83add44f4c056eb808",
+      "bytes": 786,
+      "sha256": "40c16fd74608f729178cba644b609cba7e7961975e15faaa478b75473bd7be94",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -320,7 +361,18 @@
         "x": 0.5,
         "y": 0.5
       },
-      "sourceApproval": "approved-artwork"
+      "sourceApproval": "approved-artwork",
+      "highResolution": {
+        "file": "body-double@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-double-palette-mix-075@2x.png",
+        "pixelSize": {
+          "width": 400,
+          "height": 80
+        },
+        "resolution": 2,
+        "bytes": 1742,
+        "sha256": "50705fcda5db605f29fc8b4b51164b0b057a4bf1b2f74515c261522ee8642a8a"
+      }
     },
     {
       "id": "body.double.held",
@@ -328,14 +380,14 @@
       "variant": "double",
       "state": "held",
       "file": "body-double-held.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-held.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-held-double-palette-mix-075.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 3968,
-      "sha256": "db9f195225d5380c4c2df2ca54f95cabb4e7c8b143bb35e99aae57fec2f75eea",
+      "bytes": 2991,
+      "sha256": "93ecba7de9cd89d867f77bcc52783156eb4e7ace3ea2d12ae5c4453052f39964",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -350,17 +402,17 @@
         "x": 0.5,
         "y": 0.5
       },
-      "sourceApproval": "proposed-state-treatment",
+      "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "body-double-held@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-held@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-held-double-palette-mix-075@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 15504,
-        "sha256": "72a8aee678d36d13600a63912c7cd1783518748a7b7ce696db85c65f708b04d7"
+        "bytes": 12441,
+        "sha256": "81c7a52404ebbc022bcbf4e04c58ce85c828900cc63f61f15bec7c2946c44739"
       }
     },
     {
@@ -369,14 +421,14 @@
       "variant": "double",
       "state": "failed",
       "file": "body-double-failed.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-failed.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 683,
-      "sha256": "7b9264f6db74e650d7768c9a12d0596e384d3ed30d6402b40ac7e3dd65fa2597",
+      "bytes": 663,
+      "sha256": "caf2c28a616af156ef8b78482df8926ad9e6ba2312d0127b6dd000fbf8bfe7d6",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -394,14 +446,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-failed@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-failed@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 1551,
-        "sha256": "527131fa04d2c1358604fe9f128f80783dc148b0681c16872ffbbbd08231ba65"
+        "bytes": 1539,
+        "sha256": "e43a3b3bb58a319914d897ad28088fa11efca6655e5be5d5e893e9832546b9e6"
       }
     },
     {
@@ -502,14 +554,14 @@
       "side": "left",
       "sideMeaning": "unmet",
       "file": "body-double-partial-held-left.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-left.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-held-left.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 825,
-      "sha256": "a2c8f6cc37bb9609b3a5fb44d9b91b708981f25739d85f81df25807bce92c0fa",
+      "bytes": 2215,
+      "sha256": "efb34e300bf7542fb5ee2d22053fa93292151ad1c3be10d804033a194074d94c",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -527,14 +579,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-partial-held-left@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-left@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-held-left@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 1815,
-        "sha256": "cb4089d4ced26b7397129be0dedc1d976990ab11d942908e9be6cf016777e990"
+        "bytes": 6197,
+        "sha256": "37617a42fc79801947cbc90793097c98f4f85f426330098a5e7b2fdf731cac86"
       }
     },
     {
@@ -545,14 +597,14 @@
       "side": "right",
       "sideMeaning": "unmet",
       "file": "body-double-partial-held-right.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-right.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-held-right.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 825,
-      "sha256": "c3f6171d87cf5a5d1a9303eb5f919aa0f905c624d7a93d9df364eac53e00ece0",
+      "bytes": 1768,
+      "sha256": "61183846859ab6c83cc1b1caa4d5228517fc1e37f07d97bf5354f98a73f60539",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -570,14 +622,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-partial-held-right@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-held-right@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-held-right@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 1815,
-        "sha256": "df30126501b7cfae50a8465dfa08d7e97e4b769c2124fb3d7e603df22355d20d"
+        "bytes": 7280,
+        "sha256": "7c527d6963855fc2f56cb3e1c542976de21c2a805d3b80ae60ac0d2c87423a1d"
       }
     },
     {
@@ -588,14 +640,14 @@
       "side": "left",
       "sideMeaning": "failed",
       "file": "body-double-partial-failed-left.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-left.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-failed-left.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 855,
-      "sha256": "073cf8e08e68cc29470939b17dea10a344ec10989021456d14e10aac23858701",
+      "bytes": 2186,
+      "sha256": "b4f49cc3b63709f60f66cb332c4592a7f016bfc53f66d636d08699644ac33ee5",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -613,14 +665,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-partial-failed-left@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-left@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-failed-left@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 1843,
-        "sha256": "319dd2c5fd2742798c413c70743b951b524e51a6a1708b34ef2313c0fb44d7e6"
+        "bytes": 6128,
+        "sha256": "0bc31ddc7e9027269c5a26f14105b64776bf33293406213607371c1835421c80"
       }
     },
     {
@@ -631,14 +683,14 @@
       "side": "right",
       "sideMeaning": "failed",
       "file": "body-double-partial-failed-right.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-right.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-failed-right.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 858,
-      "sha256": "81be63693e78f0a8b83cf80f37e027b453ee1bdda272760c5bbf62ac5cbb3583",
+      "bytes": 1747,
+      "sha256": "cab3e9e554785b714e71d7143fc19edb0419535e8149a82d2af33d44512cf87c",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -656,14 +708,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-partial-failed-right@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/body-double-partial-failed-right@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-failed-right@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 1850,
-        "sha256": "c331df566e975d2e3bd787f66f12e64213f867d02d4dd61200aa8a6a384bc963"
+        "bytes": 7203,
+        "sha256": "e2e2823e9268c6d32b0824d06d1dcfa48e6a47c1dd647d2730f274bc7e611109"
       }
     },
     {
@@ -672,14 +724,14 @@
       "variant": "single",
       "state": "pending",
       "file": "release-single.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-single-palette-mix-050.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 16511,
-      "sha256": "2092e33ad0d37e321a21336a544105ae17a5e55963a4c5f158fde48b8b14be9a",
+      "bytes": 16407,
+      "sha256": "10f2f19d47fa8bfb93f2ac3fce8a3ad755e6e16a06ed1d7b10c612743fa23017",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -697,14 +749,14 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "release-single@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-single-palette-mix-050@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 56541,
-        "sha256": "3843641128a63af97c3c5b1c11e6ac4c373ce7bb90d322d32ba0b5bc458fd448"
+        "bytes": 55490,
+        "sha256": "600cb39090736ec0c7c3c31286c5e76aaa0507e17bad9f8182427d86cce75167"
       }
     },
     {
@@ -713,14 +765,14 @@
       "variant": "single",
       "state": "failed",
       "file": "release-single-failed.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single-failed.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-single-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 8580,
-      "sha256": "86ae60d9d6cdbe91383255da1367b8d77fa973f1fd42f0ceb2494b5f1b26cde4",
+      "bytes": 8144,
+      "sha256": "f014837cf7cf4846f7f63f1c2f4cc18d674fee3d44a675fa77819819f63dc8b0",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -738,14 +790,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-single-failed@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-single-failed@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-single-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 28408,
-        "sha256": "fa9d1d138c938d0ff56cd2a572bb39b60d3667cb72c19443842787941902dc09"
+        "bytes": 26523,
+        "sha256": "8a4bc994fe72c82da0acbd3de169121724cef4c30a725a362915eda1429a58db"
       }
     },
     {
@@ -754,14 +806,14 @@
       "variant": "double",
       "state": "pending",
       "file": "release-double.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-double-palette-mix-075.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 17704,
-      "sha256": "caea0ae0028ae120998c4e3ac653a4f025ddf15068f0fb9508fa7e20c57fd8bd",
+      "bytes": 16332,
+      "sha256": "1788a0e1719eb46d52a223bdc059f9eaa30bca933308e93517b89f46ce010f07",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -779,14 +831,14 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "release-double@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-double-palette-mix-075@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 62472,
-        "sha256": "0888f108effc1c07814920e95fb6ab0e8691f46cabe3f90ff7113257367cdecc"
+        "bytes": 54748,
+        "sha256": "4ecc263945ea761781a6883f3cb741adb0b5e04d0e70a3966c0ed6f60b367526"
       }
     },
     {
@@ -795,14 +847,14 @@
       "variant": "double",
       "state": "failed",
       "file": "release-double-failed.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-failed.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 9205,
-      "sha256": "390d674af827c0f79bcb1a5b0ed12698abc9b43abd2b62c1e745d935bfa95711",
+      "bytes": 8848,
+      "sha256": "ada2160beef56994e653385458d126aa9c2cd17d0a4ceac0c175f33bebd10c82",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -820,14 +872,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-double-failed@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-failed@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 28780,
-        "sha256": "047688ca6d6e1035dd9ee6be203ed9dd7ceacb76487126a6532d7ac750e237b6"
+        "bytes": 27153,
+        "sha256": "b6b2e1f337790004cc5bf01d5174915a91c3ad8c6fb130a90b080205813d0ab8"
       }
     },
     {
@@ -838,14 +890,14 @@
       "side": "left",
       "sideMeaning": "failed",
       "file": "release-double-partial-failed-left.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-left.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-partial-failed-left.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 14342,
-      "sha256": "40a71e1e202038ba69ab16cabe67656ca4bc7cbb73589fa0af75409926c7adbf",
+      "bytes": 13650,
+      "sha256": "8eb51ea5447c6ec597977e0967e8b1162e9d42cbd23afabf267ff448298f83b2",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -863,14 +915,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-double-partial-failed-left@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-left@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-partial-failed-left@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 48393,
-        "sha256": "1b28a17954522c3d2723d3c77869db4d8a52739e66335143a839e095ffa83e8a"
+        "bytes": 43589,
+        "sha256": "6c736da3028c9411a314d72a8ace6f63ba7a232c18e2089a7ee76ea9ed637cee"
       }
     },
     {
@@ -881,14 +933,14 @@
       "side": "right",
       "sideMeaning": "failed",
       "file": "release-double-partial-failed-right.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-right.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-partial-failed-right.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 14506,
-      "sha256": "8eb78d8c69b027fb8340d1e15db4e5fbd8ad652cfa5f9591a830a73a02a3ae21",
+      "bytes": 13558,
+      "sha256": "8da74673ee8b7c8e5af288e382b1d7df3b5052f42f316750b6f7a49005648494",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -906,14 +958,14 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-double-partial-failed-right@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-double-partial-failed-right@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-partial-failed-right@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 48602,
-        "sha256": "6696135f6fc7675dc4a9e22604eb130b092e1f1e0b97a379e02658aeb53db546"
+        "bytes": 43386,
+        "sha256": "ad551f3b266724a4083b51d84c450345719fbb58750bb385156dffe624744627"
       }
     },
     {
@@ -925,15 +977,15 @@
         "x": 100,
         "y": 20
       },
-      "file": "sustain-single.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single.png",
+      "file": "tick-single.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/sustain-single-palette-mix-050.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 1510,
-      "sha256": "67bea757a4a6463b233c3721de649d64fdfa25d805d903cc1ab0c28fa36fec12",
+      "bytes": 3099,
+      "sha256": "b3037d4333ac3635ef5a747e61fb70a4a48af56da817891cf6c5a9ce9baa30b0",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -950,15 +1002,15 @@
       },
       "sourceApproval": "approved-artwork",
       "highResolution": {
-        "file": "sustain-single@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single@2x.png",
+        "file": "tick-single@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/sustain-single-palette-mix-050@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 3619,
-        "sha256": "8f92271b086a4e35d7f1c51d584bd259a8ac3d51982ff85c3901a2d9c5ba1d95"
+        "bytes": 7203,
+        "sha256": "39e01e9ea445f18e6c67a7d7c2d5500bfe7a52dee111307a8eda272cba7868b5"
       }
     },
     {
@@ -972,15 +1024,15 @@
         "x": 84,
         "y": 20
       },
-      "file": "sustain-double-unit-left.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left.png",
+      "file": "tick-double-left.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-left.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 1474,
-      "sha256": "bd50f617db9d51524f23e3eece581f5989a59f23a197f0602dbe540f5f1f6e8b",
+      "bytes": 2134,
+      "sha256": "fcbbd7b15866f206dd6459531be80cf87ec3dd431398a31f715b4be7c8bc08bb",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -997,15 +1049,15 @@
       },
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
-        "file": "sustain-double-unit-left@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left@2x.png",
+        "file": "tick-double-left@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-left@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 3651,
-        "sha256": "1512ebd64eeaef9e3899c74f963584767c8d376258ebcd0a5159db71ffc749da"
+        "bytes": 5589,
+        "sha256": "bfa6e671a3a0b708fcf1b1741bb359b8359550f319705362b5d1a9ddd6ba2b06"
       }
     },
     {
@@ -1019,15 +1071,15 @@
         "x": 116,
         "y": 20
       },
-      "file": "sustain-double-unit-right.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right.png",
+      "file": "tick-double-right.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-right.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 1517,
-      "sha256": "30f0325be661e83a8fc2332ced11ee453713d214f18f9d2c6bfe283fa1315e51",
+      "bytes": 2163,
+      "sha256": "04e6c9bcf325c6704bee022fcd22bc754d2ce7b142cb271b5e3ce7e14ed34be7",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -1044,15 +1096,15 @@
       },
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
-        "file": "sustain-double-unit-right@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right@2x.png",
+        "file": "tick-double-right@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-right@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 3638,
-        "sha256": "145728630cc978c7e48cd88e00107a6cd2943b81149144c26115fb6dc9c76173"
+        "bytes": 5578,
+        "sha256": "3003a0db31712dd2150ef9ca4d3c87d01a5e87be8f8d51a5d46a5467e45b6019"
       }
     },
     {
@@ -1064,15 +1116,15 @@
         "x": 100,
         "y": 20
       },
-      "file": "sustain-single-failed.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single-failed.png",
+      "file": "tick-single-failed.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-single-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 1375,
-      "sha256": "e448c8df244955435eb778185de27563565b865f43f6e117482c0aa0ce39a744",
+      "bytes": 2540,
+      "sha256": "5fdd67fa47b0beb68bf546804578f14efae713115117f3abb30e865afbb940ac",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -1089,15 +1141,15 @@
       },
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
-        "file": "sustain-single-failed@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-single-failed@2x.png",
+        "file": "tick-single-failed@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-single-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 3418,
-        "sha256": "999e6e4b3637deaed93e21956b3d1a7ffbf16752f45a338185295428f50ef0f2"
+        "bytes": 6273,
+        "sha256": "fc54c6a4ad3691a116a5a091c5fb8f4f1a22b9b8f60b4290c2f422c16fe7392e"
       }
     },
     {
@@ -1111,15 +1163,15 @@
         "x": 84,
         "y": 20
       },
-      "file": "sustain-double-unit-left-failed.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left-failed.png",
+      "file": "tick-double-failed-left.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-left-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 1308,
-      "sha256": "ca8d82bc79e4625f2b5aee897f3649562ac33d3402e043bb1bd1f6469be92cef",
+      "bytes": 1784,
+      "sha256": "346ea1d821ef5320918ff244be7d84ccb8502ae8e8ea8bb0f5861e1d2831108a",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -1136,15 +1188,15 @@
       },
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
-        "file": "sustain-double-unit-left-failed@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-left-failed@2x.png",
+        "file": "tick-double-failed-left@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-left-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 3322,
-        "sha256": "cee9d8900b5056db057c4ad050aea47f93850bf8ca5e79333ccd2cfe72b8c413"
+        "bytes": 4888,
+        "sha256": "ec4717c4f7ac72585daacd2c3bb1218a05b77eafbbf427aff75ba2b334436b11"
       }
     },
     {
@@ -1158,15 +1210,15 @@
         "x": 116,
         "y": 20
       },
-      "file": "sustain-double-unit-right-failed.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right-failed.png",
+      "file": "tick-double-failed-right.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-right-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
       },
       "resolution": 1,
-      "bytes": 1360,
-      "sha256": "023e1d284afece4cf4d1e53d250206f66b7dae53e871a453bbe0fd7a97c65c41",
+      "bytes": 1826,
+      "sha256": "31c8c8aa823bdd9191a73070f8c9822ae4bfdbb2afb3b1abcd7fad8166f0ca88",
       "logicalSize": {
         "width": 200,
         "height": 40
@@ -1183,15 +1235,15 @@
       },
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
-        "file": "sustain-double-unit-right-failed@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/sustain-double-unit-right-failed@2x.png",
+        "file": "tick-double-failed-right@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-right-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
         },
         "resolution": 2,
-        "bytes": 3331,
-        "sha256": "51484f495859770a71997ad435df818536176fa5a7e68623712671b00a3bc8f2"
+        "bytes": 4877,
+        "sha256": "c3e2d23f0a87ec0dc182869019e6cb627ea30e62a7c57d1283dae8fe1db08c25"
       }
     },
     {
@@ -1199,8 +1251,8 @@
       "role": "graceOverlay",
       "variant": "tap",
       "state": "overlay",
-      "file": "point-grace-overlay.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/point-grace-overlay.png",
+      "file": "tap-grace-overlay.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-point-grace-overlay.png",
       "pixelSize": {
         "width": 260,
         "height": 88
@@ -1222,7 +1274,18 @@
         "x": 0.5,
         "y": 0.5
       },
-      "sourceApproval": "approved-artwork"
+      "sourceApproval": "proposed-state-treatment",
+      "highResolution": {
+        "file": "tap-grace-overlay@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-point-grace-overlay@2x.png",
+        "pixelSize": {
+          "width": 520,
+          "height": 176
+        },
+        "resolution": 2,
+        "bytes": 11879,
+        "sha256": "b5a77bc5c92db628ea5207daef74d985aa1fffb4dfbd1244a8647c6e6554b809"
+      }
     },
     {
       "id": "graceOverlay.trill.overlay",
@@ -1260,7 +1323,7 @@
       "variant": "release",
       "state": "overlay",
       "file": "release-grace-overlay.png",
-      "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-grace-overlay.png",
+      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-grace-overlay.png",
       "pixelSize": {
         "width": 248,
         "height": 88
@@ -1285,7 +1348,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-grace-overlay@2x.png",
-        "source": "assets-lab/classic/revisions/approved-notes-20261025/assets/release-grace-overlay@2x.png",
+        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-grace-overlay@2x.png",
         "pixelSize": {
           "width": 496,
           "height": 176

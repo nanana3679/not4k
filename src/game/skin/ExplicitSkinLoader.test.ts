@@ -36,14 +36,14 @@ describe("명시 스킨 shared asset 수명", () => {
     expect(unload).toHaveBeenCalledTimes(33);
   });
 
-  it("2배 도안이 있는 역할은 @2x와 resolution 2로 읽고 33개 역할의 논리 geometry는 1배와 같다", async () => {
+  it("resolution 2로 load하면 트릴 6개를 뺀 27개 역할은 @2x를 resolution 2로 읽고 33개 역할의 논리 geometry는 1배와 같다", async () => {
     const loader = new ExplicitSkinLoader(view());
     const before = structuredClone(loader.view);
     await loader.load({ resolution: 2 });
     for (const [request] of load.mock.calls) {
       expect(request.data.resolution).toBe(request.src.includes("@2x") ? 2 : 1);
     }
-    expect(load.mock.calls.filter(([request]) => request.src.includes("@2x"))).toHaveLength(22);
+    expect(load.mock.calls.filter(([request]) => request.src.includes("@2x"))).toHaveLength(27);
     expect(loader.view).toEqual(before);
     loader.dispose(); await flush();
   });
