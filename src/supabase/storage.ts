@@ -44,10 +44,11 @@ export async function fetchChartDocument(songId: string, difficulty: string): Pr
   ]);
   const chart = deserializeChartDocument(chartText);
   const extra = parseExtraNotesDocument(extraText === null ? JSON.parse(chartText) : parseAuxJson(extraText));
-  if (extraText !== null || extra.extraNotes.length > 0 || extra.extraLaneCount > 0) {
+  if (extraText !== null || extra.extraNotes.length > 0 || extra.extraTrillZones.length > 0 || extra.extraLaneCount > 0) {
     // 메인의 보조 레인(5+) 항목만 보조 자료로 교체한다. withAuxNotes처럼 메인 레인(1～4)만 남기면
     // lane 0·비정수처럼 성립하지 않는 레인의 항목이 검증 전에 사라져, 거부해야 할 문서가 통과한다.
-    return { ...chart, notes: [...chart.notes.filter(note => !isAuxLane(note.lane)), ...extra.extraNotes.map(note => extraToNote(note))] };
+    return { ...chart, notes: [...chart.notes.filter(note => !isAuxLane(note.lane)), ...extra.extraNotes.map(note => extraToNote(note))],
+      trillZones: [...chart.trillZones.filter(zone => !isAuxLane(zone.lane)), ...extra.extraTrillZones] };
   }
   return chart;
 }

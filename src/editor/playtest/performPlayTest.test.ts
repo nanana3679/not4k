@@ -112,3 +112,15 @@ describe('에디터에서 명시 실제 테스트 플레이', () => {
     expect(useGameStore.getState().lastResult).toBeNull();
   });
 });
+
+it('구형 테스트 플레이도 main 노트·구간만 전달하고 보조 트릴 탭·바디·구간은 원본문서에 남긴다', () => {
+  const { params, game } = setup();
+  params.chart.notes = [{ type: 'single', lane: 1, beat: beat(0) },
+    { type: 'tap', kind: 'trill', lane: 5, beat: beat(1) },
+    { type: 'body', lane: 5, beat: beat(1), endBeat: beat(3), holdCount: 1, trill: true }];
+  params.chart.trillZones = [{ lane: 5, beat: beat(0), endBeat: beat(4) }];
+  const original = structuredClone(params.chart);
+  expect(performPlayTest(params)).toBe(true);
+  expect(game.setChartData).toHaveBeenCalledWith({ ...params.chart, notes: [params.chart.notes[0]], trillZones: [] });
+  expect(game.startExplicitPlayTest).not.toHaveBeenCalled(); expect(params.chart).toEqual(original);
+});

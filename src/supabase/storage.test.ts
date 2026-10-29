@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { beat, serializeChart, serializeExtraNotes, auxNotesAsExtra, ChartFormatError, validateChartDocument } from '../shared';
 import type { ChartDocument } from '../shared';
+import { compileExplicitJudgmentChart } from '../game/judgment/explicitCompiledChart';
 import { explicitPlaytestCharts } from '../lab/explicitPlaytestCharts';
 
 vi.mock('./client', () => ({ supabase: { storage: { from: () => ({ getPublicUrl: (path: string) => ({
@@ -129,5 +130,40 @@ describe('일반 곡 문서 Storage 읽기', () => {
     const result = await loadSongData('song-1', 'NORMAL', { decodeAudioData: async () => audioBuffer } as unknown as AudioContext);
     expect(result.chart.notes).toEqual(chart.notes);
     expect(fetch.mock.calls.some(([url]) => url.endsWith('.extra.json'))).toBe(false);
+  });
+});
+
+describe('일반 곡의 보조 trillZone 읽기', () => {
+  it('별도 보조 구간과 트릴 탭·바디를 합쳐 전체 검증하되 main 점수·분모는 그대로다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    const expected = compileExplicitJudgmentChart(chart);
+    const aux: ChartDocument['notes'] = [{ type: 'tap', kind: 'trill', lane: 5, beat: beat(1) },
+      { type: 'body', lane: 5, beat: beat(1), endBeat: beat(3), holdCount: 1, trill: true }];
+    const zones = [{ lane: 5, beat: beat(0), endBeat: beat(4) }];
+    serve(chart, serializeExtraNotes(auxNotesAsExtra(aux), 2, zones));
+    const loaded = await fetchChartDocument('song-1', 'normal');
+    expect(loaded.trillZones).toEqual(zones);
+    expect(validateChartDocument(loaded).canPlayExplicit).toBe(true);
+    const compiled = compileExplicitJudgmentChart(loaded);
+    expect(compiled.scoreItems).toEqual(expected.scoreItems);
+    expect(compiled.theoreticalWeight).toBe(expected.theoreticalWeight);
+  });
+  it('별도 보조 파일이 없으면 내장 extraTrillZones도 구간만 있는 lane 7로 복원한다', async () => {
+    const chart = explicitPlaytestCharts[0].chart;
+    serve(chart, missingAux, JSON.stringify({ ...JSON.parse(serializeChart(chart)),
+      extraTrillZones: [{ extraLane: 3, beat: '2', endBeat: '4' }] }));
+    expect((await fetchChartDocument('song-1', 'normal')).trillZones).toEqual([{ lane: 7, beat: beat(2), endBeat: beat(4) }]);
+  });
+  it('별도 빈 보조 파일은 메인의 lane 5 구간을 교체해 비우고 malformed lane 0 구간은 진단에 남긴다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.trillZones = [{ lane: 0, beat: beat(0), endBeat: beat(4) }, { lane: 5, beat: beat(0), endBeat: beat(4) }];
+    serve(chart, '{"extraNotes":[]}');
+    const loaded = await fetchChartDocument('song-1', 'normal');
+    expect(loaded.trillZones).toEqual([chart.trillZones[0]]);
+    expect(validateChartDocument(loaded).structural.map(error => error.rule)).toContain('laneMalformed');
+  });
+  it('손상된 extraTrillZones는 유효한 main이 있어도 파일 로딩을 거부한다', async () => {
+    serve(explicitPlaytestCharts[0].chart, '{"extraTrillZones":[{"extraLane":0,"beat":"0","endBeat":"4"}]}');
+    await expect(fetchChartDocument('song-1', 'normal')).rejects.toThrow(ChartFormatError);
   });
 });

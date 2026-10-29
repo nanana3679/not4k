@@ -11,7 +11,7 @@
  * 플레이에서 돌아와 다시 마운트될 때 저장하지 않은 편집이 비교 대상이 되어 dirty 표시·나가기 확인이 사라진다.
  */
 import type { ChartDocument } from '../shared';
-import { serializeChart, serializeExtraNotes, mainNotes, auxNotesAsExtra } from '../shared';
+import { serializeChart, serializeExtraNotes, mainNotes, mainTrillZones, auxNotesAsExtra } from '../shared';
 
 /** Save가 쓰는 메인(`{difficulty}.json`)·보조(`{difficulty}.extra.json`) JSON 문자열. */
 export interface SavedChartJson {
@@ -22,8 +22,8 @@ export interface SavedChartJson {
 /** 저장 분리(saveChartAsset)와 같게 메인/보조를 나눠 직렬화한다 (RFD 0018 ③). */
 export function toSavedChartJson(chart: ChartDocument, extraLaneCount: number): SavedChartJson {
   return {
-    chartJson: serializeChart({ ...chart, notes: mainNotes(chart.notes) }),
-    extraJson: serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount),
+    chartJson: serializeChart({ ...chart, notes: mainNotes(chart.notes), trillZones: mainTrillZones(chart.trillZones) }),
+    extraJson: serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount, chart.trillZones),
   };
 }
 

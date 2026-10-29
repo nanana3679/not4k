@@ -134,3 +134,46 @@ test('터치 double 롱프레스의 1→3박 드래그는 마우스와 같은 Gr
   ]);
   await cdp.detach();
 });
+
+test('보조 트릴 구간 생성·트릴 바디·구간 유닛 이동·Undo·저장·재로드는 같은 레인 규칙과 파일 분리를 보존한다', async ({ page }) => {
+  const editor = await openEditor(page);
+  await entitySelect(page).selectOption('trillZone');
+  await drag(page, 5, 1, 4);
+  await entitySelect(page).selectOption('single');
+  await drag(page, 5, 2, 3);
+  expect(await notes(page)).toMatchObject([
+    { type: 'tap', kind: 'trill', lane: 5 }, { type: 'body', trill: true, lane: 5 },
+  ]);
+  await page.keyboard.press('s');
+  const zone = await canvasPosition(page, 5, 1.5);
+  await page.mouse.click(zone.x, zone.y);
+  await page.keyboard.press('ArrowRight');
+  expect((await notes(page)).map(note => note.lane)).toEqual([6, 6]);
+  await page.keyboard.press('Control+z');
+  expect((await notes(page)).map(note => note.lane)).toEqual([5, 5]);
+  await page.keyboard.press('Control+Shift+z');
+  expect((await notes(page)).map(note => note.lane)).toEqual([6, 6]);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+  await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
+  const main = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
+  const extra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
+  expect(main.notes).toEqual([]); expect(main.trillZones).toEqual([]);
+  expect(extra.extraTrillZones).toEqual([{ extraLane: 2, beat: '1', endBeat: '4' }]);
+  expect(extra.extraNotes).toMatchObject([{ type: 'tap', kind: 'trill', extraLane: 2 }, { type: 'body', trill: true, extraLane: 2 }]);
+  const before = await notes(page);
+  await openEditor(page, { chart: main, extra });
+  expect(await notes(page)).toEqual(before);
+  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  expect(editor.unexpectedSupabaseRequests).toEqual([]);
+});
+
+test('기존 보조 zone 밖 trill은 자동 생성 없이 위반으로 열고 저장을 차단한다', async ({ page }) => {
+  const editor = await openEditor(page, { extra: { version: 3, extraLaneCount: 2,
+    extraNotes: [{ type: 'trill', extraLane: 1, beat: '2' }] } });
+  await expect(page.getByRole('button', { name: '배치 제약 위반 1건 목록 열기', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
+  expect(await notes(page)).toMatchObject([{ type: 'trill', lane: 5 }]);
+  expect(editor.supabaseWrites).toEqual([]);
+});

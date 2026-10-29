@@ -1058,6 +1058,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
                 validationErrors,
                 chart.notes,
                 extraLaneCount,
+                chart.trillZones,
               );
               if (hidden.length === 0) return null;
               const needed = toAuxIndex(Math.max(...hidden));

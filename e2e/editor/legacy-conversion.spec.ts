@@ -32,7 +32,7 @@ const legacyMain: ChartJsonV3 = editorTestChart([
   { type: 'doubleLong', lane: 2, beat: '4', endBeat: '6' },
   { type: 'long', lane: 2, beat: '6', endBeat: '8' },
 ]);
-const legacyExtra: ExtraNotesJson = { extraLaneCount: 2, extraNotes: [
+const legacyExtra: ExtraNotesJson = { extraLaneCount: 2, extraTrillZones: [{ extraLane: 2, beat: "2", endBeat: "3" }], extraNotes: [
   { type: 'single', extraLane: 1, beat: '1' },
   { type: 'trill', extraLane: 2, beat: '2' },
   { type: 'trillLong', extraLane: 2, beat: '2', endBeat: '3' },
@@ -134,7 +134,7 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
     { type: 'body', holdCount: 1, lane: 2, beat: '6', endBeat: '8' },
     { type: 'release', count: 1, lane: 2, beat: '8' },
   ]);
-  expect(savedExtra).toEqual({ version: 4, extraLaneCount: 2, extraNotes: [
+  expect(savedExtra).toEqual({ version: 4, extraLaneCount: 2, extraTrillZones: legacyExtra.extraTrillZones, extraNotes: [
     { type: 'tap', kind: 'single', extraLane: 1, beat: '1' },
     { type: 'tap', kind: 'trill', extraLane: 2, beat: '2' },
     { type: 'body', holdCount: 1, trill: true, extraLane: 2, beat: '2', endBeat: '3' },
@@ -237,7 +237,7 @@ test('타임라인 렌더러 초기화가 끝나기 전에 변환하면 초기�
 
 test('보조 레인 수를 3에서 2로 줄여 숨은 보조 레인 3의 검토 행을 누르면 노트를 선택하지 않고 Extra lanes 안내 토스트만 띄우며, 3으로 늘리면 그 행이 트릴 바디를 선택한다', async ({ page }) => {
   // 보조 레인 3의 트릴 롱노트. 변환하면 끝에 릴리즈를 두지 않아 검토 항목 하나(보조 레인 3, 박 3)가 남는다.
-  const extra: ExtraNotesJson = { extraLaneCount: 3, extraNotes: [
+  const extra: ExtraNotesJson = { extraLaneCount: 3, extraTrillZones: [{ extraLane: 3, beat: "2", endBeat: "3" }], extraNotes: [
     { type: 'trill', extraLane: 3, beat: '2' },
     { type: 'trillLong', extraLane: 3, beat: '2', endBeat: '3' },
   ] };

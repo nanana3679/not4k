@@ -157,7 +157,7 @@ export function validateChartDocumentSemantic(
       }
     }
 
-    if (a.type === "body" && a.trill && isMainLane(a.lane)) {
+    if (a.type === "body" && a.trill) {
       const hasTrillTap = relations.bodyByNote.get(i)?.startTapIndices.some(index => {
         const tap = notes[index];
         return tap.type === "tap" && tap.kind === "trill";
@@ -212,8 +212,8 @@ export function validateChartDocumentSemantic(
     const predecessor = relations.bodyByNote.get(connection.predecessorIndex)?.note;
     const successor = relations.bodyByNote.get(connection.successorIndex)?.note;
     if (!predecessor || !successor || Boolean(predecessor.trill) !== Boolean(successor.trill)) continue;
-    // 메인 레인 트릴 → 트릴 경계의 시작 트릴 탭 노트 누락은 trillLongInvalid가 이미 보고하므로 겹쳐 내지 않는다.
-    if (successor.trill && isMainLane(connection.lane)) continue;
+    // 트릴 → 트릴 경계의 시작 트릴 탭 노트 누락은 trillLongInvalid가 이미 보고하므로 겹쳐 내지 않는다.
+    if (successor.trill) continue;
     if (hasJointNoteAt(connection.lane, connection.beat)) continue;
     add("sameHoldCountConnectionWithoutTapOrRelease", "같은 hold 수로 맞닿은 바디 경계에는 탭 노트나 릴리즈가 필요합니다",
       connection.predecessorIndex, connection.successorIndex);

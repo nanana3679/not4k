@@ -18,7 +18,7 @@ import type {
   Beat,
   Lane,
 } from "../../shared";
-import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex, beatEq, deriveExplicitNoteRelations } from "../../shared";
+import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex, isMainLane, beatEq, deriveExplicitNoteRelations } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
@@ -88,7 +88,7 @@ export class CreateMode implements EditorMode {
   private _graceMode = false;
   private isDragging: boolean = false;
   private dragStartBeat: Beat | null = null;
-  private dragStartLane: Lane | null = null;
+  private dragStartLane: number | null = null;
   private _dragType: DragType = null;
   private _dragExtraLane: number | null = null;
   private _createEventLane: number | null = null;
@@ -147,7 +147,7 @@ export class CreateMode implements EditorMode {
   }
 
   /** The lane where the drag started (null if not dragging) */
-  get dragLane(): Lane | null {
+  get dragLane(): number | null {
     return this.dragStartLane;
   }
 
@@ -248,6 +248,14 @@ export class CreateMode implements EditorMode {
     const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
     const unifiedLane = this.callbacks.space.xToUnifiedLane(x);
+    if (unifiedLane !== null && this.selectedEntityType === "trillZone") {
+      this.isDragging = true;
+      this.dragStartBeat = beat;
+      this.dragStartLane = unifiedLane;
+      this._dragType = "trillZone";
+      return;
+    }
+
     if (unifiedLane !== null && (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease")) {
       if (this.selectedEntityType === "tick") this.createTickNote(unifiedLane, beat);
       else this.commitNotes([...this.chart.notes, { type: "release", lane: unifiedLane, beat, count: this.selectedEntityType === "doubleRelease" ? 2 : 1, ...(this._graceMode ? { grace: true } : {}) }]);
@@ -296,7 +304,7 @@ export class CreateMode implements EditorMode {
         this._dragType = "extraRangeNote";
         return;
       }
-      // trillZone/restZone not supported in extra lanes (가시 레인 1~4 전용)
+      // restZone은 메인 레인 전용이다.
       return;
     }
 
@@ -328,15 +336,6 @@ export class CreateMode implements EditorMode {
       this.dragStartBeat = beat;
       this.dragStartLane = lane;
       this._dragType = "rangeNote";
-      return;
-    }
-
-    // Trill zone (range entity)
-    if (this.selectedEntityType === "trillZone") {
-      this.isDragging = true;
-      this.dragStartBeat = beat;
-      this.dragStartLane = lane;
-      this._dragType = "trillZone";
       return;
     }
 
@@ -393,7 +392,7 @@ export class CreateMode implements EditorMode {
         this.createTrillZone(this.dragStartLane, this.dragStartBeat, endBeat);
       }
     } else if (this._dragType === "restZone") {
-      if (this.dragStartLane !== null && this.dragStartBeat !== null) {
+      if (this.dragStartLane !== null && isMainLane(this.dragStartLane) && this.dragStartBeat !== null) {
         this.createRestZone(this.dragStartLane, this.dragStartBeat, endBeat);
       }
     } else if (this._dragType === "event") {
@@ -505,7 +504,7 @@ export class CreateMode implements EditorMode {
       { type: "body", lane, beat: at, endBeat: at, holdCount: 1 }, probe]);
   }
 
-  private createTrillZone(lane: Lane, startBeat: Beat, endBeat: Beat): void {
+  private createTrillZone(lane: number, startBeat: Beat, endBeat: Beat): void {
     // Ensure startBeat <= endBeat
     const actualStartBeat = beatLt(startBeat, endBeat)
       ? startBeat

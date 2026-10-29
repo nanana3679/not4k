@@ -63,6 +63,7 @@ function makeHost(
 ): OverlayHost {
   return {
     chart,
+    extraLaneCount: 4,
     selectedNotes: new Set(),
     selectedTrillZones: new Set(),
     selectedRestZones: new Set(),
@@ -287,4 +288,11 @@ describe("OverlayRenderer.drawViolationHatchAt 해칭 기하", () => {
     expect(Math.min(...xs)).toBe(100);
     expect(Math.max(...xs)).toBe(180);
   });
+});
+
+it('숨은 lane 9의 겹친 보조 trillZone 해칭은 그리지 않는다', () => {
+  const host = makeHost(makeChart([], [{ lane: 9, beat: beat(1), endBeat: beat(3) }]), new Set(), new Set([0]));
+  const renderer = new OverlayRenderer(host); const spy = spyHatchCore(renderer);
+  renderer.renderViolationOverlay();
+  expect(spy).not.toHaveBeenCalled();
 });

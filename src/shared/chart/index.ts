@@ -30,7 +30,7 @@ import {
   type DocumentNoteJson, type LegacyNoteJson,
 } from "./noteDocument";
 import { extraToNote, noteToExtra } from "./auxAdapter";
-import { fromAuxIndex, toAuxIndex } from "./laneAxis";
+import { fromAuxIndex, toAuxIndex, auxTrillZones } from "./laneAxis";
 
 // ---------------------------------------------------------------------------
 // JSON 스키마 타입 (Beat → string)
@@ -49,7 +49,7 @@ type ExtraNoteJson<T> = T extends { lane: number } ? Omit<T, "lane"> & { extraLa
 type DocumentExtraNoteJson = ExtraNoteJson<DocumentNoteJson | LegacyRangeNoteJson>;
 
 interface TrillZoneJson {
-  lane: 1 | 2 | 3 | 4;
+  lane: number;
   beat: string;
   endBeat: string;
 }
@@ -407,27 +407,33 @@ export function deserializeChart(str: string): Chart {
 export interface ExtraNotesJson {
   version?: number;
   extraNotes?: DocumentExtraNoteJson[];
+  extraTrillZones?: { extraLane: number; beat: string; endBeat: string }[];
   extraLaneCount?: number;
 }
 
 /** 구형 보조 파일은 기존 모양 유지, 명시 항목이 있으면 version 4를 명시한다. */
-export function serializeExtraNotes(extraNotes: readonly DocumentExtraNoteEntity[], extraLaneCount: number): string {
+export function serializeExtraNotes(extraNotes: readonly DocumentExtraNoteEntity[], extraLaneCount: number, trillZones: readonly TrillZone[] = []): string {
   const notes = extraNotes.map(extraToNote);
+  const zones = auxTrillZones(trillZones);
   return JSON.stringify({
     ...(notes.some(isExplicitNote) ? { version: 4 } : {}),
     extraNotes: notes.map((note) => {
       const { type, lane, beat, ...rest } = serializeDocumentNote(note);
       return { type, extraLane: toAuxIndex(lane), beat, ...rest };
     }),
+    ...(zones.length > 0 ? { extraTrillZones: zones.map(zone => ({
+      extraLane: toAuxIndex(zone.lane), beat: beatToString(zone.beat), endBeat: beatToString(zone.endBeat),
+    })) } : {}),
     extraLaneCount,
   }, null, 2);
 }
 
 /** 공용 보조 reader. 메인 JSON에 내장된 과거 보조 자료도 받는다. */
-export function parseExtraNotesDocument(json: ExtraNotesJson): { extraNotes: DocumentExtraNoteEntity[]; extraLaneCount: number } {
+export function parseExtraNotesDocument(json: ExtraNotesJson): { extraNotes: DocumentExtraNoteEntity[]; extraTrillZones: TrillZone[]; extraLaneCount: number } {
   if (!json || typeof json !== "object" || Array.isArray(json)) throw new ChartFormatError("보조 자료가 객체가 아닙니다");
   assertSupportedChartVersion(json.version);
   if (json.extraNotes !== undefined && !Array.isArray(json.extraNotes)) throw new ChartFormatError("extraNotes 필드가 배열이 아닙니다");
+  if (json.extraTrillZones !== undefined && !Array.isArray(json.extraTrillZones)) throw new ChartFormatError("extraTrillZones 필드가 배열이 아닙니다");
   const extraLaneCount = json.extraLaneCount ?? 0;
   if (!Number.isInteger(extraLaneCount) || extraLaneCount < 0) throw new ChartFormatError("extraLaneCount는 0 이상의 정수여야 합니다");
   const extraNotes = (json.extraNotes ?? []).map((value) => {
@@ -441,15 +447,21 @@ export function parseExtraNotesDocument(json: ExtraNotesJson): { extraNotes: Doc
     // 파일의 extraLane 숫자를 읽은 뒤 실제 보조 lane으로 매핑한다.
     return noteToExtra({ ...note, lane: fromAuxIndex(note.lane) });
   });
-  return { extraNotes, extraLaneCount };
+  const extraTrillZones = (json.extraTrillZones ?? []).map((value, index) => parseEntry(`extraTrillZones[${index}]`, () => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ChartFormatError('보조 트릴 구간이 객체가 아닙니다');
+    if ('lane' in value) throw new ChartFormatError('보조 트릴 구간에는 lane 대신 extraLane을 씁니다');
+    if (!Number.isInteger(value.extraLane) || value.extraLane < 1) throw new ChartFormatError('extraLane은 1 이상의 정수여야 합니다');
+    return { lane: fromAuxIndex(value.extraLane), beat: beatFromString(value.beat), endBeat: beatFromString(value.endBeat) };
+  }));
+  return { extraNotes, extraTrillZones, extraLaneCount };
 }
 
 /** 구형 에디터 경계. 새 보조 항목을 조용히 버리지 않으며 호출자가 오류를 전달해야 한다. */
-export function parseExtraNotes(json: ExtraNotesJson): { extraNotes: ExtraNoteEntity[]; extraLaneCount: number } {
+export function parseExtraNotes(json: ExtraNotesJson): { extraNotes: ExtraNoteEntity[]; extraTrillZones: TrillZone[]; extraLaneCount: number } {
   const result = parseExtraNotesDocument(json);
   const notes = result.extraNotes.map(extraToNote);
   assertLegacyNotes(notes, "구형 보조 reader");
-  return { extraNotes: notes.map((note) => noteToExtra(note)), extraLaneCount: result.extraLaneCount };
+  return { extraNotes: notes.map((note) => noteToExtra(note)), extraTrillZones: result.extraTrillZones, extraLaneCount: result.extraLaneCount };
 }
 
 export * from "./explicitNoteRelations";

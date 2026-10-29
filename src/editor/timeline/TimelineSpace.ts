@@ -224,7 +224,7 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
   };
 
   const hitTestTrillZoneEnd = (x: number, y: number): number | null => {
-    const lane = xToLane(x);
+    const lane = xToUnifiedLane(x);
     if (lane === null) return null;
     const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
@@ -240,7 +240,7 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
   };
 
   const hitTestTrillZone = (x: number, y: number): number | null => {
-    const lane = xToLane(x);
+    const lane = xToUnifiedLane(x);
     if (lane === null) return null;
     const beat = yToBeatRaw(y);
     return hitTestTrillZoneAt(source.getChart().trillZones, lane, beat.n / beat.d);

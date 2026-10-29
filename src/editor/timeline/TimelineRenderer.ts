@@ -409,6 +409,7 @@ export class TimelineRenderer {
 
     // OverlayRenderer host
     const overlayHost: OverlayHost = {
+      get extraLaneCount() { return self.extraLaneCount; },
       get chart() { return self.chart; },
       get selectedNotes() { return self._selectedNotes; },
       get selectedTrillZones() { return self._selectedTrillZones; },
@@ -943,7 +944,7 @@ export class TimelineRenderer {
   /**
    * Show a semi-transparent ghost range (long note body + head + end).
    */
-  showGhostRange(lane: Lane, startTimeMs: number, endTimeMs: number): void {
+  showGhostRange(lane: number, startTimeMs: number, endTimeMs: number): void {
     this.overlayRenderer.showGhostRange(lane, startTimeMs, endTimeMs);
   }
 

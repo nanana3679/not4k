@@ -3564,3 +3564,33 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
     expect([...sel.restZones]).toEqual([2]);
   });
 });
+
+describe('보조 trillZone 유닛 편집', () => {
+  it('lane 4 구간 [1,4]와 내부 트릴 탭·바디를 lane 5로 옮기고 끝 4→5로 리사이즈한다', () => {
+    const chart = makeChart({
+      notes: [{ type: 'tap', kind: 'trill', lane: 4, beat: beat(2) },
+        { type: 'body', lane: 4, beat: beat(2), endBeat: beat(3), holdCount: 1, trill: true }],
+      trillZones: [{ lane: 4, beat: beat(1), endBeat: beat(4) }],
+    });
+    const cb = makeCallbacks({ yToBeat: (y: number) => beat(y), hitTestTrillZoneEnd: () => 0 }, { extraLaneCount: 1 });
+    const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0);
+    mode.moveByLane('right');
+    const moved = cb.onChartUpdate.mock.calls.at(-1)![0];
+    expect(moved.notes.map(note => note.lane)).toEqual([5, 5]);
+    expect(moved.trillZones[0].lane).toBe(5);
+    mode.onPointerDown(5, 4, false, false); mode.onPointerMove(5, 5); mode.onPointerUp(5, 5);
+    const resized = cb.onChartUpdate.mock.calls.at(-1)![0];
+    expect(resized.trillZones[0].endBeat).toEqual(beat(5));
+    expect(resized.notes).toEqual(moved.notes);
+  });
+  it('lane 5 구간과 내부 노트 유닛 삭제는 모두 제거하고 바깥 lane 6 노트는 보존한다', () => {
+    const chart = makeChart({ notes: [{ type: 'tap', kind: 'trill', lane: 5, beat: beat(2) },
+      { type: 'tap', kind: 'single', lane: 6, beat: beat(2) }],
+      trillZones: [{ lane: 5, beat: beat(1), endBeat: beat(4) }] });
+    const cb = makeCallbacks(chart, { extraLaneCount: 2 }); const mode = makeMode(chart, cb);
+    mode.selectZoneUnit(0); mode.deleteSelected();
+    const updated = cb.onChartUpdate.mock.calls.at(-1)![0];
+    expect(updated.trillZones).toEqual([]); expect(updated.notes).toEqual([chart.notes[1]]);
+  });
+});

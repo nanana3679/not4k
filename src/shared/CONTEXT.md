@@ -71,6 +71,7 @@ _Avoid_: 자동 변환, 일괄 수리
 
 **`trillZone`**:
 트릴 노트가 등장할 수 있는 차트 영역으로, 시작 박과 끝 박을 가지며 자체 입력은 요구하지 않는다. 차트의 1급 구조로 저장된다. 풀 정의는 glossary의 `trillZone` 항목을 따른다.
+메인·보조 모든 레인에 존재하며 같은 트릴 제약을 적용한다. 보조 구간의 저장 분리·게임 제외는 [glossary](../../docs/context/glossary.md#trillzone)·[RFD 0086](../../docs/rfd/0086-auxiliary-lane-trill-zones.md)를 따른다.
 _Avoid_: 트릴존, 트릴 노트
 
 **`restZone`**:
