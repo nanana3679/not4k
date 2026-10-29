@@ -13,6 +13,7 @@ import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
 import { isChartDirty } from '../savedChart';
 import { SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { color, edge } from '../../shared/theme';
 
 const styles = {
   toolbar: {
@@ -383,6 +384,16 @@ const styles = {
     color: '#888',
     padding: '0 2px 2px',
   },
+  // 변환 검토 목록 토글(RFD 0037 §8-1) — 위반 배지(빨강)와 구별되는 안내 색.
+  conversionReviewButton: {
+    color: color.neon,
+    borderColor: color.line,
+    fontWeight: 700,
+  },
+  conversionReviewButtonOpen: {
+    borderColor: color.neon,
+    boxShadow: edge.neonFocus,
+  },
 };
 
 // 리스트 항목의 심각도 색 — 캔버스 해칭·미니맵 지시자(단일 빨강)는 건드리지 않고
@@ -661,6 +672,9 @@ export function EditorToolbar({
   const hasLastValidSnapshot = useEditorStore((s) => s.lastValidSnapshot !== null);
   const revertToLastValid = useEditorStore((s) => s.revertToLastValid);
   const addToast = useEditorStore((s) => s.addToast);
+  const legacyConversionReviewCount = useEditorStore((s) => s.legacyConversionReview?.length ?? 0);
+  const legacyConversionReviewOpen = useEditorStore((s) => s.legacyConversionReviewOpen);
+  const setLegacyConversionReviewOpen = useEditorStore((s) => s.setLegacyConversionReviewOpen);
   // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함 (RFD 0018 ④).
   const selectedCount = selectedNotes.size;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
@@ -950,6 +964,27 @@ export function EditorToolbar({
     );
   };
 
+  // 변환 검토 목록(RFD 0037 §8-1) 열기·닫기. 이번 세션에 승인한 변환이 검토 항목을 남겼을 때만 보인다.
+  const renderConversionReviewButton = () => {
+    if (legacyConversionReviewCount === 0) return null;
+    return (
+      <button
+        style={{
+          ...(compact ? styles.compactButton : styles.button),
+          ...styles.conversionReviewButton,
+          ...(legacyConversionReviewOpen ? styles.conversionReviewButtonOpen : {}),
+          flexShrink: 0,
+        }}
+        onClick={() => setLegacyConversionReviewOpen(!legacyConversionReviewOpen)}
+        aria-pressed={legacyConversionReviewOpen}
+        aria-label={`변환 검토 ${legacyConversionReviewCount}건`}
+        title={legacyConversionReviewOpen ? '변환 검토 목록 닫기' : '변환 검토 목록 열기'}
+      >
+        검토 {legacyConversionReviewCount}
+      </button>
+    );
+  };
+
   if (showOffsetToolbar) {
     return renderOffsetToolbar();
   }
@@ -1038,6 +1073,7 @@ export function EditorToolbar({
             </button>
           </div>
 
+          {renderConversionReviewButton()}
           {renderViolationBadge()}
 
           <div style={styles.compactGroup}>
@@ -1336,6 +1372,7 @@ export function EditorToolbar({
 
       <div style={{ flex: 1 }} />
 
+      {renderConversionReviewButton()}
       {renderViolationBadge()}
 
       {/* Save ChartDocument (아이콘 + 변경사항 칩) */}

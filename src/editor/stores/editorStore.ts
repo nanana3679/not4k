@@ -3,8 +3,8 @@
  */
 
 import { create } from 'zustand';
-import type { ChartDocument } from '../../shared';
-import { beat, validateChartDocumentStructural } from '../../shared';
+import type { ChartDocument, LegacyConversionItem, LegacyConversionReport } from '../../shared';
+import { beat, convertLegacyChart, validateChartDocumentStructural } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
@@ -95,6 +95,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // Marker editing
   editingMarker: EditingMarker;
 
+  // 구형 차트 변환 검토(RFD 0037 §8-1) — 이번 세션에 승인한 변환의 보고 항목과 목록 열림.
+  // 테스트 플레이에서 돌아와도 남고, loadChart로 차트를 새로 열면 비운다. 변환하지 않았으면 null.
+  legacyConversionReview: readonly LegacyConversionItem[] | null;
+  legacyConversionReviewOpen: boolean;
+
   // Actions
   setActivePage: (page: EditorPage) => void;
   setActiveSongId: (songId: string | null) => void;
@@ -106,6 +111,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    * 위반 상태가 저장·전파되지는 않는다. 로드 외의 경로에서 쓰지 말 것.
    * 다른 차트를 여는 것이므로 이전 차트의 savedChartJson을 지운다. 불러온 쪽이 setSavedChartJson으로 불러온 차트의 값을 정한다.
    * 진행 중이던 저장은 이전 차트의 것이므로 chartSaveGeneration을 올려 그 결과가 새 차트에 닿지 않게 하고 isSavingChart를 끈다.
+   * 이전 차트의 변환 검토 목록(legacyConversionReview)도 비우고 닫는다.
    */
   loadChart: (chart: ChartDocument) => void;
   /** 불러온 차트의 savedChartJson을 정한다. loadChart 직후에만 부른다. 저장 결과는 finishChartSave로 정한다. */
@@ -146,6 +152,13 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   cancelEditTransaction: (transaction?: symbol) => void;
   addToast: (message: string, type?: ToastType) => void;
   setEditingMarker: (marker: EditingMarker) => void;
+  /**
+   * 사용자가 모달에서 승인한 구형 차트 1차 기계 변환(RFD 0037 §8-1)을 지금 차트에 Undo 한 단위의 편집으로 적용하고
+   * 보고 항목을 변환 검토 목록으로 남긴다(목록은 닫힌 채). 저장은 하지 않는다.
+   * 구형 노트가 없거나 구조 위반으로 setChart가 거부하면 아무것도 바꾸지 않고 null을 돌려준다.
+   */
+  applyLegacyConversion: () => LegacyConversionReport | null;
+  setLegacyConversionReviewOpen: (open: boolean) => void;
 }
 
 const createDefaultChart = (): ChartDocument => ({
@@ -235,6 +248,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isSavingChart: false,
   chartSaveGeneration: 0,
   editingMarker: null,
+  legacyConversionReview: null,
+  legacyConversionReviewOpen: false,
 
   // Actions
   setActivePage: (activePage) => set({ activePage }),
@@ -303,7 +318,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       console.error('로드된 차트에 배치 제약 위반:', errors);
       showToast(`이 차트에 배치 제약 위반 ${errors.length}건이 있습니다 — 수리 후 저장할 수 있습니다`, 'warn');
     }
-    // 다른 차트를 여는 것이므로 기존 선택은 무의미 — 전체 clear.
+    // 다른 차트를 여는 것이므로 기존 선택과 이전 차트의 변환 검토 목록은 무의미 — 전체 clear.
     // 로드 차트가 전체 valid면 막다른 탈출 씨앗(lastValidSnapshot)으로 삼는다(RFD 0017 §7).
     // invalid 로드는 씨앗이 아니다 — 이전 값(null 포함)을 그대로 유지.
     set((state) => ({
@@ -312,6 +327,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       savedChartJson: null,
       isSavingChart: false,
       chartSaveGeneration: state.chartSaveGeneration + 1,
+      legacyConversionReview: null,
+      legacyConversionReviewOpen: false,
       ...(errors.length === 0
         ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } }
         : {}),
@@ -457,4 +474,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   addToast: (message, type = 'warn') => showToast(message, type),
   setEditingMarker: (marker) => set({ editingMarker: marker }),
+  applyLegacyConversion: () => {
+    const before = get().chart;
+    const result = convertLegacyChart(before);
+    if (result.chart === before) return null;
+    // 변환 하나가 Undo 한 단위다. savedChartJson은 바꾸지 않는다 — 불러온 구형 차트의 직렬화와 비교해
+    // 변환 뒤 dirty, Undo로 구형 차트에 돌아가면 clean이 된다.
+    get().setChart(result.chart, { separateHistory: true });
+    if (get().chart !== result.chart) return null;
+    set({ legacyConversionReview: result.report.items, legacyConversionReviewOpen: false });
+    return result.report;
+  },
+  setLegacyConversionReviewOpen: (legacyConversionReviewOpen) => set({ legacyConversionReviewOpen }),
 }));

@@ -567,3 +567,130 @@ describe('editorStore 저장 진행 beginChartSave·finishChartSave', () => {
     expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(editedSecond, 2));
   });
 });
+
+// ---------------------------------------------------------------------------
+// 구형 차트 1차 기계 변환 적용과 변환 검토 목록 (RFD 0037 §8-1)
+// ---------------------------------------------------------------------------
+
+describe('editorStore applyLegacyConversion', () => {
+  const legacyChain = (): ChartDocument['notes'] => [
+    { type: 'double', lane: 2 as Lane, beat: beat(4) },
+    { type: 'doubleLong', lane: 2 as Lane, beat: beat(4), endBeat: beat(6) },
+    { type: 'long', lane: 2 as Lane, beat: beat(6), endBeat: beat(8) },
+  ];
+
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeChart(),
+      extraLaneCount: 2,
+      selection: emptySelection(),
+      historyPast: [],
+      historyFuture: [],
+      historyLastCaptureAt: 0,
+      editTransaction: null,
+      lastValidSnapshot: null,
+      savedChartJson: null,
+      isSavingChart: false,
+      chartSaveGeneration: 0,
+      legacyConversionReview: null,
+      legacyConversionReviewOpen: false,
+    });
+    useEditorStore.getState().loadChart(makeChart(legacyChain()));
+    useEditorStore.getState().resetHistory();
+  });
+
+  it('불러온 직후 구형 double·doubleLong·long 사슬을 변환하면 탭·바디 2개·릴리즈가 되고 Undo 한 번에 구형 사슬로 돌아간다', () => {
+    const legacy = useEditorStore.getState().chart;
+
+    const report = useEditorStore.getState().applyLegacyConversion();
+
+    expect(report?.counts).toMatchObject({ taps: 1, bodies: 2, releases: 1, ticks: 0 });
+    expect(useEditorStore.getState().chart.notes.map(note => note.type)).toEqual(['tap', 'body', 'body', 'release']);
+    expect(useEditorStore.getState().historyPast).toHaveLength(1);
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().chart).toEqual(legacy);
+    expect(useEditorStore.getState().historyPast).toHaveLength(0);
+  });
+
+  it('변환하면 레인 2 박 6의 2→1 감소 연결이 변환 검토 목록에 남고 목록은 닫힌 채 시작한다', () => {
+    useEditorStore.getState().applyLegacyConversion();
+
+    const review = useEditorStore.getState().legacyConversionReview;
+    expect(review).toHaveLength(1);
+    expect(review?.[0]).toMatchObject({ kind: 'holdCountChangeConnection', lane: 2, beat: beat(6) });
+    expect(useEditorStore.getState().legacyConversionReviewOpen).toBe(false);
+  });
+
+  it('변환 뒤 Undo로 구형 차트로 돌아가도 이번 세션의 변환 검토 목록은 남는다', () => {
+    useEditorStore.getState().applyLegacyConversion();
+    useEditorStore.getState().undo();
+
+    expect(useEditorStore.getState().legacyConversionReview).toHaveLength(1);
+  });
+
+  it('loadChart로 다른 차트를 열면 변환 검토 목록을 비우고 닫는다', () => {
+    useEditorStore.getState().applyLegacyConversion();
+    useEditorStore.getState().setLegacyConversionReviewOpen(true);
+
+    useEditorStore.getState().loadChart(makeChart());
+
+    expect(useEditorStore.getState().legacyConversionReview).toBeNull();
+    expect(useEditorStore.getState().legacyConversionReviewOpen).toBe(false);
+  });
+
+  it('구형 사슬을 불러와 setSavedChartJson한 뒤 변환하면 savedChartJson은 구형 사슬 값 그대로라 dirty, Undo로 구형 사슬에 돌아가면 dirty 아님', () => {
+    const legacy = useEditorStore.getState().chart;
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(legacy, 2));
+    const dirty = () => {
+      const state = useEditorStore.getState();
+      return isChartDirty(state.chart, state.extraLaneCount, state.savedChartJson);
+    };
+    expect(dirty()).toBe(false);
+
+    useEditorStore.getState().applyLegacyConversion();
+
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(legacy, 2));
+    expect(dirty()).toBe(true);
+    useEditorStore.getState().undo();
+    expect(dirty()).toBe(false);
+  });
+
+  it('변환 뒤 저장 중에 loadChart로 다른 차트를 열면 변환 검토 목록과 savedChartJson을 비우고 isSavingChart를 끄며 chartSaveGeneration을 올린다', () => {
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(useEditorStore.getState().chart, 2));
+    useEditorStore.getState().applyLegacyConversion();
+    useEditorStore.getState().setLegacyConversionReviewOpen(true);
+    const generation = useEditorStore.getState().beginChartSave()!;
+
+    useEditorStore.getState().loadChart(makeChart());
+
+    const state = useEditorStore.getState();
+    expect(state.legacyConversionReview).toBeNull();
+    expect(state.legacyConversionReviewOpen).toBe(false);
+    expect(state.savedChartJson).toBeNull();
+    expect(state.isSavingChart).toBe(false);
+    expect(state.chartSaveGeneration).toBe(generation + 1);
+  });
+
+  it('구형 노트가 없는 차트는 변환하지 않고 null을 돌려주며 history를 늘리지 않는다', () => {
+    useEditorStore.getState().loadChart(makeChart([{ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(1) }]));
+    useEditorStore.getState().resetHistory();
+
+    expect(useEditorStore.getState().applyLegacyConversion()).toBeNull();
+    expect(useEditorStore.getState().historyPast).toHaveLength(0);
+    expect(useEditorStore.getState().legacyConversionReview).toBeNull();
+  });
+
+  it('끝이 시작보다 앞선 구형 long(구조 위반)이 남는 차트는 setChart가 거부해 null을 돌려주고 차트·목록을 바꾸지 않는다', () => {
+    const inverted = makeChart([
+      { type: 'single', lane: 1 as Lane, beat: beat(0) },
+      { type: 'long', lane: 3 as Lane, beat: beat(4), endBeat: beat(2) },
+    ]);
+    useEditorStore.getState().loadChart(inverted);
+    useEditorStore.getState().resetHistory();
+
+    expect(useEditorStore.getState().applyLegacyConversion()).toBeNull();
+    expect(useEditorStore.getState().chart).toBe(inverted);
+    expect(useEditorStore.getState().historyPast).toHaveLength(0);
+    expect(useEditorStore.getState().legacyConversionReview).toBeNull();
+  });
+});

@@ -21,7 +21,7 @@
 | 현 한국어 표제어 | → 캐논 | 코드 식별자 |
 |---|---|---|
 | 저장·편집 차트 문서 | `ChartDocument` | `ChartDocument`/`DocumentNoteEntity`/`DocumentExtraNoteEntity` — 구형 `Chart`·`NoteEntity` 소비자와 구별. [정의](glossary.md#chartdocument) |
-| 구형 차트 1차 기계 변환 | `convertLegacyChart` | `convertLegacyChart`/`hasLegacyNotes`/`LegacyConversionReport`/`LegacyConversionItem` — 사용자가 에디터 모달에서 승인할 때만 실행. [정의](glossary.md#convertlegacychart) |
+| 구형 차트 1차 기계 변환 | `convertLegacyChart` | `convertLegacyChart`/`hasLegacyNotes`/`LegacyConversionReport`/`LegacyConversionItem` — 사용자가 에디터 모달에서 승인할 때만 실행. 보고 항목은 세션 동안 변환 검토 목록(`legacyConversionReview`)으로 보인다. [정의](glossary.md#convertlegacychart) |
 | 트릴 구간 | `trillZone` | `trillZone`/`TrillZone`/`trillZones` |
 | 휴지 구간 | `restZone` | `restZone`/`RestZone`/`restZones` |
 | 공릴리즈 — **폐지** (RFD 0015, 역사적 언급만) | `emptyRelease` | 없음 (도장 구현 삭제됨) |
