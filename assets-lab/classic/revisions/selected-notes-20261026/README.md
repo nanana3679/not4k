@@ -8,6 +8,7 @@
 
 - `../approved-notes-20261025/`는 #339의 `e563cb5d48580db81e8bc3483d2563bee2410a56` 당시 132개 파일을 그대로 보존한다. README·제작기·매니페스트와 원본 에셋 126개를 포함하며 #343의 해시 검증 입력이다. 이 폴더에서 최신 도안을 생성하지 않는다.
 - 이 `selected-notes-20261026/`가 현재 도안·비교안·제작기의 작업 경로다. 최신 팔레트·윤곽선·표시 규칙은 이 폴더에서 재생성한다. #339의 승인 기록과 현재 선택을 구별한다.
+- 명시 노트 스킨 `classic-explicit`은 이 폴더를 직접 읽지 않는다. #348 커밋 `86285403b14e8314aebb80bcaaff908a521f3613`에서 실제로 쓰는 PNG만 `../../explicit/sources/selected-notes-20261026/`에 고정 사본으로 두고 그 사본을 읽는다. 그래서 이 폴더를 재생성해도 게임 도안은 바뀌지 않는다. 게임에 반영하려면 재생성 결과를 커밋한 뒤 `scripts/build-explicit-skin.ts`의 고정 커밋을 바꾸고 `pnpm build:explicit-skin --freeze-sources`와 `pnpm build:explicit-skin`을 실행한다([명시 스킨 원본](../../explicit/README.md#원본과-출처)).
 - `source-archive.json`은 #339의 보존 파일 목록·바이트 수·SHA-256이며 `source-archive.test.ts`가 파일 추가·삭제와 내용 변경을 검증한다. 공개 갤러리 경로는 `/lab/images/classic-approved-states-20261025/`를 유지한다.
 
 ## 현재 선택 디자인과 파생본
@@ -90,7 +91,7 @@
 
 파랑 50%·노랑 75%를 선택했다. [바디에 붙인 선택본과 노란 유지 수정 전/후 이미지](selected-palette-preview.png)를 함께 제공한다. 현재 조합 10종의 PNG·2배 PNG·SVG 30개는 `approved-artwork`로 기록한다. `manifest.paletteMixPreview.selectedAmountByKind`에 혼합 비중을, `selectedPalettePreview.kinds`에 현재 조합의 5종 파일을 기록한다. `#selected-palette`는 파랑 선택본과 노랑 수정 전/후를 대기·활성 바디 및 게임 크기로 비교한다.
 
-직전 금색 팔레트 비교에는 확대 전 `sustain-double`이 사용됐다. 이번에는 `sustain-double-channel-outline`의 각 32px·2.4px 윤곽선을 노랑 75%로 변환한 `sustain-double-palette-mix-075-outline`을 사용한다. 광선 중심 x=84·116과 원래 D 경로를 유지하며 필터 영역을 캔버스 전체로 잡아 윤곽선을 자르지 않는다. PNG·2배 PNG·SVG 3개를 추가하고 이전 480개는 비교 기록으로 보존한다. 실패·일부 실패·Grace 파생본은 위 최신 상태 자료에 반영했고, 실제 스킨 연결은 별도다.
+직전 금색 팔레트 비교에는 확대 전 `sustain-double`이 사용됐다. 이번에는 `sustain-double-channel-outline`의 각 32px·2.4px 윤곽선을 노랑 75%로 변환한 `sustain-double-palette-mix-075-outline`을 사용한다. 광선 중심 x=84·116과 원래 D 경로를 유지하며 필터 영역을 캔버스 전체로 잡아 윤곽선을 자르지 않는다. PNG·2배 PNG·SVG 3개를 추가하고 이전 480개는 비교 기록으로 보존한다. 실패·일부 실패·Grace 파생본은 위 최신 상태 자료에 반영했다. 트릴을 뺀 선택 도안은 #360부터 고정 사본을 거쳐 `classic-explicit` 스킨의 원본이다.
 
 ### 기존/새 팔레트 25%·50%·75% 혼합
 
@@ -301,7 +302,7 @@ pnpm build:lab
 
 ## 실제 연결 담당자에게 전달할 사항
 
-- #343의 현재 `classic-explicit` 스킨은 #339 보존본을 사용한다. 최신 도안 연결은 이 revision의 `selectedPalettePreview`·`selectedStatePreview`를 별도의 출처로 등록하고 역할 매핑·출력을 함께 갱신해야 한다. 위 이전 대응표를 그대로 새 스킨 계약으로 취급하거나 #339 보존본의 해시를 덮어쓰지 않는다. 이번 PR에서는 현재 게임 파일을 바꾸지 않는다.
+- #360부터 `classic-explicit` 스킨은 트릴을 뺀 역할에 이 revision의 `selectedStatePreview` 파일을 쓴다. 쓰는 파일만 #348 커밋에서 `assets-lab/classic/explicit/sources/`로 고정 사본을 만들고, 역할 매핑과 런타임 파일 이름은 `assets-lab/classic/explicit/roles.json`이 정한다([명시 스킨 원본](../../explicit/README.md#원본과-출처)). 트릴 역할은 이전 도안을 유지한다. 위 이전 대응표를 그대로 새 스킨 계약으로 취급하거나 #339 보존본의 해시를 덮어쓰지 않는다.
 - 유지·릴리즈는 명시적인 노트 진입점에서 자기 시각의 세로 가운데에 놓는다. 바디 200×40 좌표계를 쓰고 누름의 212×40 전체 폭으로 늘리지 않는다. Grace 여백 24px도 본체 배율과 함께 줄인다.
 - 바디 시작·끝에는 별도 terminal을 그리지 않고, 바디·유지에는 Grace를 붙이지 않는다. `terminal-grace-overlay`는 과거 표현의 참고 자료다. `*-grace.png` 합성 참고본과 별도 overlay를 중복해서 겹치지 않는다.
 - 바디+Point는 가능하지만 같은 위치의 Point+릴리즈·Point+유지·릴리즈+유지는 금지다. 길이 0 유지 시연에는 바디와 표식만 둔다. 트릴 위 유지와 연결점의 허용 조건은 위 판정 계약을 따른다.

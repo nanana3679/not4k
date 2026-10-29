@@ -5,13 +5,11 @@
   "provenance": {
     "selected": {
       "sourceCommit": "86285403b14e8314aebb80bcaaff908a521f3613",
-      "sourcePullRequest": 348,
-      "manifestSha256": "9a56e250569c0a22ee04fe3cbdbe0e54d257a18f3c4db17e0c065fa788382a3e"
+      "sourcePullRequest": 348
     },
     "approved": {
       "sourceCommit": "e563cb5d48580db81e8bc3483d2563bee2410a56",
-      "sourcePullRequest": 339,
-      "manifestSha256": "a7a7d4abe0811f9bc0fc030cfb89993716768d175e13a36e76d3e3559a741f0b"
+      "sourcePullRequest": 339
     },
     "historicalManifestSha256": "3d342f3f75d4acbb21926781ef6eca3bffadb8da26089262148ffd3e29b9fdc7"
   },
@@ -33,7 +31,7 @@
       "variant": "single",
       "state": "pending",
       "file": "tap-single.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/note-single-palette-mix-050.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/note-single-palette-mix-050.png",
       "pixelSize": {
         "width": 212,
         "height": 40
@@ -58,7 +56,7 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "tap-single@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/note-single-palette-mix-050@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/note-single-palette-mix-050@2x.png",
         "pixelSize": {
           "width": 424,
           "height": 80
@@ -74,7 +72,7 @@
       "variant": "double",
       "state": "pending",
       "file": "tap-double.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/note-double-palette-mix-075.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/note-double-palette-mix-075.png",
       "pixelSize": {
         "width": 212,
         "height": 40
@@ -99,7 +97,7 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "tap-double@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/note-double-palette-mix-075@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/note-double-palette-mix-075@2x.png",
         "pixelSize": {
           "width": 424,
           "height": 80
@@ -115,7 +113,7 @@
       "variant": "double",
       "state": "failed",
       "file": "tap-double-failed.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-point-double-failed.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-double-failed.png",
       "pixelSize": {
         "width": 212,
         "height": 40
@@ -140,7 +138,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "tap-double-failed@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-point-double-failed@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-double-failed@2x.png",
         "pixelSize": {
           "width": 424,
           "height": 80
@@ -216,7 +214,7 @@
       "variant": "single",
       "state": "idle",
       "file": "body-single.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-single-palette-mix-050.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-single-palette-mix-050.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -241,7 +239,7 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "body-single@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-single-palette-mix-050@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-single-palette-mix-050@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -257,7 +255,7 @@
       "variant": "single",
       "state": "held",
       "file": "body-single-held.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-held-single-palette-mix-050.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-held-single-palette-mix-050.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -282,7 +280,7 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "body-single-held@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-held-single-palette-mix-050@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-held-single-palette-mix-050@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -298,7 +296,7 @@
       "variant": "single",
       "state": "failed",
       "file": "body-single-failed.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-single-failed.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-single-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -323,7 +321,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-single-failed@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-single-failed@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-single-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -339,7 +337,7 @@
       "variant": "double",
       "state": "idle",
       "file": "body-double.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-double-palette-mix-075.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-double-palette-mix-075.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -364,7 +362,7 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "body-double@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-double-palette-mix-075@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-double-palette-mix-075@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -380,7 +378,7 @@
       "variant": "double",
       "state": "held",
       "file": "body-double-held.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-held-double-palette-mix-075.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-held-double-palette-mix-075.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -405,7 +403,7 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "body-double-held@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/body-held-double-palette-mix-075@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/body-held-double-palette-mix-075@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -421,7 +419,7 @@
       "variant": "double",
       "state": "failed",
       "file": "body-double-failed.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-failed.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -446,7 +444,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-failed@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-failed@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -554,7 +552,7 @@
       "side": "left",
       "sideMeaning": "unmet",
       "file": "body-double-partial-held-left.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-held-left.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-held-left.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -579,7 +577,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-partial-held-left@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-held-left@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-held-left@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -597,7 +595,7 @@
       "side": "right",
       "sideMeaning": "unmet",
       "file": "body-double-partial-held-right.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-held-right.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-held-right.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -622,7 +620,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-partial-held-right@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-held-right@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-held-right@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -640,7 +638,7 @@
       "side": "left",
       "sideMeaning": "failed",
       "file": "body-double-partial-failed-left.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-failed-left.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-failed-left.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -665,7 +663,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-partial-failed-left@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-failed-left@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-failed-left@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -683,7 +681,7 @@
       "side": "right",
       "sideMeaning": "failed",
       "file": "body-double-partial-failed-right.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-failed-right.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-failed-right.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -708,7 +706,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "body-double-partial-failed-right@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-body-double-partial-failed-right@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-body-double-partial-failed-right@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -724,7 +722,7 @@
       "variant": "single",
       "state": "pending",
       "file": "release-single.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-single-palette-mix-050.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/release-single-palette-mix-050.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -749,7 +747,7 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "release-single@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-single-palette-mix-050@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/release-single-palette-mix-050@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -765,7 +763,7 @@
       "variant": "single",
       "state": "failed",
       "file": "release-single-failed.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-single-failed.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-single-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -790,7 +788,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-single-failed@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-single-failed@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-single-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -806,7 +804,7 @@
       "variant": "double",
       "state": "pending",
       "file": "release-double.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-double-palette-mix-075.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/release-double-palette-mix-075.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -831,7 +829,7 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "release-double@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-double-palette-mix-075@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/release-double-palette-mix-075@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -847,7 +845,7 @@
       "variant": "double",
       "state": "failed",
       "file": "release-double-failed.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-failed.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-double-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -872,7 +870,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-double-failed@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-failed@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-double-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -890,7 +888,7 @@
       "side": "left",
       "sideMeaning": "failed",
       "file": "release-double-partial-failed-left.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-partial-failed-left.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-double-partial-failed-left.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -915,7 +913,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-double-partial-failed-left@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-partial-failed-left@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-double-partial-failed-left@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -933,7 +931,7 @@
       "side": "right",
       "sideMeaning": "failed",
       "file": "release-double-partial-failed-right.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-partial-failed-right.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-double-partial-failed-right.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -958,7 +956,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-double-partial-failed-right@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-release-double-partial-failed-right@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-release-double-partial-failed-right@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -978,7 +976,7 @@
         "y": 20
       },
       "file": "tick-single.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/sustain-single-palette-mix-050.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/sustain-single-palette-mix-050.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -1003,7 +1001,7 @@
       "sourceApproval": "approved-artwork",
       "highResolution": {
         "file": "tick-single@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/sustain-single-palette-mix-050@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/sustain-single-palette-mix-050@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -1025,7 +1023,7 @@
         "y": 20
       },
       "file": "tick-double-left.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-left.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-left.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -1050,7 +1048,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "tick-double-left@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-left@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-left@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -1072,7 +1070,7 @@
         "y": 20
       },
       "file": "tick-double-right.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-right.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-right.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -1097,7 +1095,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "tick-double-right@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-right@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-right@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -1117,7 +1115,7 @@
         "y": 20
       },
       "file": "tick-single-failed.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-single-failed.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-single-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -1142,7 +1140,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "tick-single-failed@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-single-failed@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-single-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -1164,7 +1162,7 @@
         "y": 20
       },
       "file": "tick-double-failed-left.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-left-failed.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-left-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -1189,7 +1187,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "tick-double-failed-left@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-left-failed@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-left-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -1211,7 +1209,7 @@
         "y": 20
       },
       "file": "tick-double-failed-right.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-right-failed.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-right-failed.png",
       "pixelSize": {
         "width": 200,
         "height": 40
@@ -1236,7 +1234,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "tick-double-failed-right@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-sustain-double-unit-right-failed@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-sustain-double-unit-right-failed@2x.png",
         "pixelSize": {
           "width": 400,
           "height": 80
@@ -1252,7 +1250,7 @@
       "variant": "tap",
       "state": "overlay",
       "file": "tap-grace-overlay.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-point-grace-overlay.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-grace-overlay.png",
       "pixelSize": {
         "width": 260,
         "height": 88
@@ -1277,7 +1275,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "tap-grace-overlay@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/selected-point-grace-overlay@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/selected-point-grace-overlay@2x.png",
         "pixelSize": {
           "width": 520,
           "height": 176
@@ -1323,7 +1321,7 @@
       "variant": "release",
       "state": "overlay",
       "file": "release-grace-overlay.png",
-      "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-grace-overlay.png",
+      "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/release-grace-overlay.png",
       "pixelSize": {
         "width": 248,
         "height": 88
@@ -1348,7 +1346,7 @@
       "sourceApproval": "proposed-state-treatment",
       "highResolution": {
         "file": "release-grace-overlay@2x.png",
-        "source": "assets-lab/classic/revisions/selected-notes-20261026/assets/release-grace-overlay@2x.png",
+        "source": "assets-lab/classic/explicit/sources/selected-notes-20261026/assets/release-grace-overlay@2x.png",
         "pixelSize": {
           "width": 496,
           "height": 176

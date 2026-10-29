@@ -57,10 +57,13 @@ export interface ExplicitSkinManifest {
   schemaVersion: 1;
   id: "classic-explicit";
   runtimePath: "/skins/classic-explicit";
-  /** 트릴을 뺀 역할은 #348 선택 도안, 트릴 Grace overlay는 #339 보관본, 트릴 탭·바디는 v014 기록에서 온다. */
+  /**
+   * 트릴을 뺀 역할은 #348 선택 도안의 고정 사본, 트릴 Grace overlay는 #339 보관본, 트릴 탭·바디는 v014 기록에서 온다.
+   * 파일별 크기·SHA-256은 각 asset의 `source`·`sha256`과 `assets-lab/classic/explicit/provenance.json`에 있다.
+   */
   provenance: {
-    selected: { sourceCommit: string; sourcePullRequest: 348; manifestSha256: string };
-    approved: { sourceCommit: string; sourcePullRequest: 339; manifestSha256: string };
+    selected: { sourceCommit: string; sourcePullRequest: 348 };
+    approved: { sourceCommit: string; sourcePullRequest: 339 };
     historicalManifestSha256: string;
   };
   body: {

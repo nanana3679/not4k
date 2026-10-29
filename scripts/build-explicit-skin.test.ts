@@ -1,32 +1,38 @@
 import { createHash } from "node:crypto";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildExplicitSkinArtifacts, verifyExplicitSkinArtifacts } from "./build-explicit-skin.ts";
+import {
+  buildExplicitSkinArtifacts, deriveExplicitSkinSources, EXPLICIT_SKIN_REVISIONS, explicitSkinOutputName,
+  exportExplicitSkinArtifacts, readExplicitSkinGitObject, verifyExplicitSkinArtifacts,
+} from "./build-explicit-skin.ts";
+import type { ExplicitSkinProvenance } from "./build-explicit-skin.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const selectedDirectory = "assets-lab/classic/revisions/selected-notes-20261026";
-const approvedDirectory = "assets-lab/classic/revisions/approved-notes-20261025";
+const { selected, approved } = EXPLICIT_SKIN_REVISIONS;
+const snapshotDirectory = "assets-lab/classic/explicit/sources/selected-notes-20261026";
 const provenancePath = "assets-lab/classic/explicit/provenance.json";
+const rolesPath = "assets-lab/classic/explicit/roles.json";
+const readProvenance = () => JSON.parse(readFileSync(join(root, provenancePath), "utf8")) as ExplicitSkinProvenance;
+/** 얕은 clone처럼 고정 커밋이 없으면 Git 대조 테스트만 건너뛴다. */
+const pinnedCommitsAvailable = [selected, approved].every(revision =>
+  readExplicitSkinGitObject(root, revision.sourceCommit, `${revision.originDirectory}/manifest.json`) !== null);
 
-interface FileRecord { path: string }
-interface ProvenanceFixture {
-  selected: { manifest: FileRecord; files: FileRecord[] };
-  approved: { manifest: FileRecord; files: FileRecord[] };
-  historical: { manifest: FileRecord; files: FileRecord[] };
-}
-
-/** 빌더가 읽는 원본만 임시 저장소로 복사한다. 실제 보관본은 건드리지 않는다. */
+/** 빌더가 읽는 원본과 현재 런타임 출력만 임시 저장소로 복사한다. 실제 보관본·사본은 건드리지 않는다. */
 const temporaryRoots: string[] = [];
-function copySourcesToTemporaryRoot(): { temporaryRoot: string; provenance: ProvenanceFixture } {
+function copySourcesToTemporaryRoot(): { temporaryRoot: string; provenance: ExplicitSkinProvenance } {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "explicit-skin-"));
   temporaryRoots.push(temporaryRoot);
-  const provenance = JSON.parse(readFileSync(join(root, provenancePath), "utf8")) as ProvenanceFixture;
-  const paths = [provenancePath, "assets-lab/classic/explicit/roles.json",
-    ...[provenance.selected, provenance.approved, provenance.historical].flatMap(source => [source.manifest, ...source.files].map(record => record.path))];
+  const provenance = readProvenance();
+  const paths = [provenancePath, rolesPath,
+    ...[provenance.selected, provenance.approved].flatMap(revision => revision.files.map(record => `${revision.directory}/${record.file}`)),
+    ...[provenance.historical.manifest, ...provenance.historical.files].map(record => record.path)];
   for (const path of paths) cpSync(join(root, path), join(temporaryRoot, path));
+  for (const output of ["public/skins/classic-explicit", "src/game/skin/explicitSkinManifest.json"]) {
+    cpSync(join(root, output), join(temporaryRoot, output), { recursive: true });
+  }
   return { temporaryRoot, provenance };
 }
 
@@ -64,25 +70,101 @@ describe("명시적 스킨의 결정적 PNG export", () => {
     }
   });
 
-  it("트릴 탭·바디 5개는 v014 기록, 트릴 Grace overlay는 #339 보관본, 나머지 27개 역할은 #348 선택 도안에서 읽고 트릴 릴리즈는 없다", () => {
+  it("트릴 탭·바디 5개는 v014 기록, 트릴 Grace overlay는 #339 보관본, 나머지 27개 역할은 #348 고정 사본에서 읽고 트릴 릴리즈는 없다", () => {
     const { manifest } = buildExplicitSkinArtifacts(root);
     const historical = manifest.assets.filter(asset => asset.sourceApproval === "historical-runtime-v014");
     expect(historical.map(asset => asset.id).sort()).toEqual(["body.trill.failed", "body.trill.held", "body.trill.idle", "tap.trill.failed", "tap.trill.pending"]);
     for (const asset of historical) expect(asset.source).toMatch(/^assets-lab\/classic\/versions\/v014\/files\/public\/skins\/classic\/(?:note|body)-trill/);
-    expect(manifest.assets.find(asset => asset.id === "graceOverlay.trill.overlay")?.source).toBe(`${approvedDirectory}/assets/trill-grace-overlay.png`);
-    const selected = manifest.assets.filter(asset => asset.variant !== "trill");
-    expect(selected).toHaveLength(27);
-    for (const asset of selected) {
-      expect(asset.source, asset.id).toMatch(new RegExp(`^${selectedDirectory}/assets/`));
+    expect(manifest.assets.find(asset => asset.id === "graceOverlay.trill.overlay")?.source).toBe(`${approved.directory}/assets/trill-grace-overlay.png`);
+    const selectedAssets = manifest.assets.filter(asset => asset.variant !== "trill");
+    expect(selectedAssets).toHaveLength(27);
+    for (const asset of selectedAssets) {
+      expect(asset.source, asset.id).toMatch(new RegExp(`^${snapshotDirectory}/assets/`));
       expect(asset.highResolution?.source, asset.id).toBe(asset.source.replace(/\.png$/, "@2x.png"));
     }
     expect(manifest.assets.some(asset => asset.role === "release" && asset.variant === "trill")).toBe(false);
-    expect(manifest.provenance.selected).toMatchObject({ sourceCommit: "86285403b14e8314aebb80bcaaff908a521f3613", sourcePullRequest: 348 });
+    expect(manifest.provenance.selected).toEqual({ sourceCommit: "86285403b14e8314aebb80bcaaff908a521f3613", sourcePullRequest: 348 });
   });
 
-  it("#348 selectedStatePreview의 상태 파일을 대응하는 역할 원본으로 쓴다", () => {
+  it("고정 사본 폴더의 파일 54개는 provenance가 고정한 파일과 같고 #348 작업 폴더의 파일을 원본으로 읽지 않는다", () => {
+    const provenance = readProvenance();
+    const snapshot = readdirSync(join(root, snapshotDirectory), { recursive: true, withFileTypes: true })
+      .filter(entry => entry.isFile()).map(entry => `assets/${entry.name}`).sort();
+    expect(snapshot).toEqual(provenance.selected.files.map(record => record.file));
+    expect(snapshot).toHaveLength(54);
+    const roles = JSON.parse(readFileSync(join(root, rolesPath), "utf8")) as { source: string }[];
+    expect(roles.some(role => role.source.startsWith(`${selected.originDirectory}/`))).toBe(false);
+  });
+
+  it.each([
+    ["tap.single.pending", "tap-single.png"], ["tap.double.failed", "tap-double-failed.png"],
+    ["body.single.idle", "body-single.png"], ["body.double.partialHeld.left", "body-double-partial-held-left.png"],
+    ["release.double.partialFailed.right", "release-double-partial-failed-right.png"],
+    ["tick.double.pending.left", "tick-double-left.png"], ["tick.double.failed.right", "tick-double-failed-right.png"],
+    ["graceOverlay.tap.overlay", "tap-grace-overlay.png"],
+  ])("역할 %s의 런타임 파일 이름은 %s다 - pending·idle 생략, 상태 kebab-case, Grace는 변형-grace-overlay", (id, file) => {
+    expect(explicitSkinOutputName(id)).toBe(file);
+  });
+
+  it("roles.json의 output이 역할 ID 규칙과 다르면 export를 거부한다", () => {
+    const { temporaryRoot } = copySourcesToTemporaryRoot();
+    const roles = JSON.parse(readFileSync(join(temporaryRoot, rolesPath), "utf8")) as { id: string; output: string }[];
+    roles.find(role => role.id === "tick.single.pending")!.output = "sustain-single.png";
+    writeFileSync(join(temporaryRoot, rolesPath), JSON.stringify(roles));
+    expect(() => buildExplicitSkinArtifacts(temporaryRoot)).toThrow("Explicit skin output must be tick-single.png: tick.single.pending");
+  });
+
+  it("고정 기록에서 @2x 원본 하나를 빼면 사본 폴더의 미기록 원본으로 export를 거부한다", () => {
+    const { temporaryRoot, provenance } = copySourcesToTemporaryRoot();
+    const removed = "assets/note-single-palette-mix-050@2x.png";
+    provenance.selected.files = provenance.selected.files.filter(record => record.file !== removed);
+    writeFileSync(join(temporaryRoot, provenancePath), JSON.stringify(provenance));
+    expect(() => buildExplicitSkinArtifacts(temporaryRoot)).toThrow(`Unrecorded explicit source: ${snapshotDirectory}/${removed}`);
+  });
+
+  it("역할이 읽지 않는 파일을 고정 기록에 더하면 고정 목록과 사용 목록이 어긋나 export를 거부한다", () => {
+    const { temporaryRoot, provenance } = copySourcesToTemporaryRoot();
+    const unused = "assets/selected-point-single-failed.png";
+    const bytes = readFileSync(join(root, selected.originDirectory, unused));
+    cpSync(join(root, selected.originDirectory, unused), join(temporaryRoot, snapshotDirectory, unused));
+    provenance.selected.files.push({ file: unused, bytes: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex"),
+      width: 212, height: 40, targetSize: [212, 40], padding: [0, 0, 0, 0], approval: "proposed-state-treatment" });
+    writeFileSync(join(temporaryRoot, provenancePath), JSON.stringify(provenance));
+    expect(() => buildExplicitSkinArtifacts(temporaryRoot)).toThrow(`Unused pinned explicit source: ${snapshotDirectory}/${unused}`);
+  });
+
+  it("고정 사본 PNG가 1바이트라도 바뀌면 SHA 불일치로 export를 거부한다", () => {
+    const { temporaryRoot } = copySourcesToTemporaryRoot();
+    const changed = `${snapshotDirectory}/assets/selected-sustain-double-unit-left.png`;
+    const bytes = readFileSync(join(temporaryRoot, changed));
+    bytes[bytes.length - 1] ^= 0xff;
+    writeFileSync(join(temporaryRoot, changed), bytes);
+    expect(() => buildExplicitSkinArtifacts(temporaryRoot)).toThrow(`Source hash mismatch: ${changed}`);
+  });
+
+  it("export는 런타임 폴더에 남은 예전 이름 sustain-single.png를 지우고 --check와 같은 결과를 남긴다", () => {
+    const { temporaryRoot } = copySourcesToTemporaryRoot();
+    const stale = join(temporaryRoot, "public/skins/classic-explicit/sustain-single.png");
+    writeFileSync(stale, "stale");
+    const { files } = buildExplicitSkinArtifacts(temporaryRoot);
+    expect(() => verifyExplicitSkinArtifacts(temporaryRoot, files)).toThrow("Unexpected explicit skin export: sustain-single.png");
+    expect(exportExplicitSkinArtifacts(temporaryRoot, files)).toEqual(["sustain-single.png"]);
+    expect(existsSync(stale)).toBe(false);
+    expect(() => verifyExplicitSkinArtifacts(temporaryRoot, files)).not.toThrow();
+  });
+});
+
+describe.skipIf(!pinnedCommitsAvailable)("명시적 스킨 원본의 고정 커밋 대조(Git 필요)", () => {
+  it("#348 86285403·#339 e563cb5d의 Git object에서 다시 만든 provenance와 고정 사본 54개가 커밋된 것과 같다", () => {
+    const { provenance, snapshotFiles } = deriveExplicitSkinSources(root);
+    expect(provenance).toEqual(readProvenance());
+    expect(snapshotFiles.size).toBe(54);
+    for (const [path, bytes] of snapshotFiles) expect(bytes.equals(readFileSync(join(root, path))), path).toBe(true);
+  });
+
+  it("#348 커밋의 selectedStatePreview 상태 파일을 대응하는 역할 원본으로 쓴다", () => {
     const { manifest } = buildExplicitSkinArtifacts(root);
-    const preview = (JSON.parse(readFileSync(join(root, selectedDirectory, "manifest.json"), "utf8")) as {
+    const preview = (JSON.parse(readExplicitSkinGitObject(root, selected.sourceCommit, `${selected.originDirectory}/manifest.json`)!.toString()) as {
       selectedStatePreview: {
         groups: { id: string; states: { id: string; file: string; alpha: number }[] }[];
         layers: { id: string; states: { id: string; file: string }[] }[];
@@ -119,24 +201,7 @@ describe("명시적 스킨의 결정적 PNG export", () => {
     }
     expect(Object.keys(expected)).toHaveLength(27);
     for (const [id, file] of Object.entries(expected)) {
-      expect(manifest.assets.find(asset => asset.id === id)?.source, id).toBe(`${selectedDirectory}/${file}`);
+      expect(manifest.assets.find(asset => asset.id === id)?.source, id).toBe(`${snapshotDirectory}/${file}`);
     }
-  });
-
-  it("고정 기록에서 @2x 원본 하나를 빼면 미기록 원본으로 export를 거부한다", () => {
-    const { temporaryRoot, provenance } = copySourcesToTemporaryRoot();
-    const removed = `${selectedDirectory}/assets/note-single-palette-mix-050@2x.png`;
-    provenance.selected.files = provenance.selected.files.filter(record => record.path !== removed);
-    writeFileSync(join(temporaryRoot, provenancePath), JSON.stringify(provenance));
-    expect(() => buildExplicitSkinArtifacts(temporaryRoot)).toThrow(`Unrecorded explicit source: ${removed}`);
-  });
-
-  it("고정한 #348 원본 PNG가 1바이트라도 바뀌면 SHA 불일치로 export를 거부한다", () => {
-    const { temporaryRoot } = copySourcesToTemporaryRoot();
-    const changed = `${selectedDirectory}/assets/selected-sustain-double-unit-left.png`;
-    const bytes = readFileSync(join(temporaryRoot, changed));
-    bytes[bytes.length - 1] ^= 0xff;
-    writeFileSync(join(temporaryRoot, changed), bytes);
-    expect(() => buildExplicitSkinArtifacts(temporaryRoot)).toThrow(`Source hash mismatch: ${changed}`);
   });
 });
