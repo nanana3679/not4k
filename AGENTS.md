@@ -16,7 +16,7 @@
 - 테스트 프레임워크는 Vitest이다. 전체 단위 테스트는 `pnpm test`, 대상 테스트는 `pnpm exec vitest run <path>`로 실행한다
 - 테스트 파일은 소스 파일과 같은 디렉토리에 `*.test.ts` 패턴으로 둔다
 - 단위 테스트는 실제 Supabase에 요청하지 않는다. Vitest 전역 setup(`src/supabase/blockClientInUnitTests.ts`)이 `src/supabase/client`를 쓰는 즉시 던지게 막고, `*.supabase.co`·`*.supabase.in`·더미 호스트로 가는 `fetch`를 보내기 전에 거부한다. `vitest.config.ts`는 `.env*` 파일을 읽지 않고(`envDir: false`) `VITE_SUPABASE_URL`·`VITE_SUPABASE_PUBLISHABLE_KEY`를 더미 값으로 고정한다. 클라이언트가 필요한 테스트는 그 파일에서 `vi.mock`으로, `fetch`가 필요한 테스트는 `vi.stubGlobal`로 필요한 부분만 대체한다
-- worktree에 `.env.local`을 복사하는 것은 E2E가 실제 자격 증명을 필요로 할 때만 한다. 단위 테스트와 타입 검사에는 필요 없다
+- worktree에 `.env.local`을 복사하지 않고, 실제 데이터가 필요할 때만 복사한다. 단위 테스트·타입 검사·E2E에는 필요 없다. E2E는 `VITE_SUPABASE_URL`(index.html CSP에 맞는 `https://*.supabase.co` 형태의 가짜 주소)·`VITE_SUPABASE_PUBLISHABLE_KEY`(가짜 값)·`VITE_DEV_ADMIN=true`를 환경 변수로 넘겨 돌린다
 - 관련 테스트를 먼저 실행한다. 공유 모델이나 여러 모듈에 걸친 변경, 빌드·테스트 기반 변경, 출시 준비에서는 전체 단위 테스트를 실행한다
 - 변경 중에는 바뀐 부분 주변의 테스트만 실행한다. E2E(`pnpm test:e2e`)는 머지 전에 실행하며, 연속(stacked) PR이면 맨 위 PR에서 한 번 실행한다
 - 요청한 변경 때문에 실패한 테스트는 수정하고 다시 실행한다. 무관한 기존 실패는 작업 범위를 넓혀 수정하지 말고 결과에 명시한다
