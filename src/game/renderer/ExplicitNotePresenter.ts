@@ -166,8 +166,8 @@ export class ExplicitNotePresenter {
           }
         } else layers.push(sprite(index, first.lane, first.timeMs, id, first.kind, alpha, visible));
         if (first.grace) {
-          // 탭 Grace는 기존처럼 Miss 뒤 외곽을 숨긴다. release Grace는 실패 중에도 흰 외곽을 유지한다.
-          const overlayVisible = visible && (first.kind === "release" || failed.length === 0);
+          // 탭(트릴 탭 포함)·릴리즈 Grace의 흰 외곽은 실패를 포함해 본체가 보이는 동안 alpha 1로 남는다(탭은 사용자 결정, 2026-10-29).
+          const overlayVisible = visible;
           overlayAlpha = overlayVisible ? 1 : 0;
           const variant = first.kind === "release" ? "release" : first.tapKind === "trill" ? "trill" : "tap";
           layers.push(sprite(index, first.lane, first.timeMs, `graceOverlay.${variant}.overlay`, first.kind, 1, overlayVisible, null, true));

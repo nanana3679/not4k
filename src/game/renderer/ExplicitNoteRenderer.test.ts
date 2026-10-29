@@ -83,7 +83,7 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     parent.destroy();
   });
 
-  it("탭 더블 왼쪽 Miss는 tap.double.failed 원본 왼쪽 절반(frame x 0·폭 106)과 pending 원본 오른쪽 절반(x 106)을 합성하고 좌우가 바뀌면 각 원본의 crop을 따로 쓰며 dispose는 crop view만 해제한다", () => {
+  it("Grace 탭 더블 왼쪽 Miss는 tap.double.failed 원본 왼쪽 절반(frame x 0·폭 106)과 pending 원본 오른쪽 절반(x 106)을 합성하고 흰 외곽 sprite를 alpha 1로 따로 남기며 좌우가 바뀌면 각 원본의 crop을 따로 쓰고 dispose는 crop view만 해제한다", () => {
     const texturesById = new Map<string, Texture>();
     const getTexture = (id: string) => {
       if (!texturesById.has(id)) texturesById.set(id, new Texture({ source: new TextureSource({ width: 212, height: 40 }) }));
@@ -92,7 +92,10 @@ describe("G1 실제 Pixi Sprite·TilingSprite 표시 경로", () => {
     const renderer = new ExplicitNoteRenderer(new Container(), { view: buildExplicitSkinView("/"), getTexture }, layout);
     renderer.setChart(chart);
     renderer.render(explicitRenderSnapshot(chart, { items: { 3: ["miss", "pending"] } }), 1000);
-    const taps = children(renderer, "tap").children as Sprite[];
+    const tapLayer = children(renderer, "tap").children as Sprite[];
+    const taps = tapLayer.filter(sprite => !sprite.label.includes(":overlay:"));
+    expect(tapLayer.filter(sprite => sprite.label.includes(":overlay:")).map(sprite => [sprite.texture, sprite.alpha]))
+      .toEqual([[getTexture("graceOverlay.tap.overlay"), 1]]);
     const failedSource = getTexture("tap.double.failed").source;
     const pendingSource = getTexture("tap.double.pending").source;
     expect(taps).toHaveLength(2);
