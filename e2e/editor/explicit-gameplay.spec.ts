@@ -345,3 +345,38 @@ test('aux의 소속 없는 틱은 새 테스트 버튼과 저장을 함께 차�
   await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
   expect(editor.supabaseWrites).toEqual([]); await expect(page.getByTestId('explicit-play')).toHaveCount(0);
 });
+
+test('노트 1개를 추가한 뒤 처음부터 테스트 플레이하고 돌아오면 저장 안 됨 표시가 남고 Back to Songs가 Unsaved Changes 확인을 띄우며 Cancel이면 에디터에 남는다', async ({ page }) => {
+  const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [{ type: 'tap', kind: 'single', lane: 1, beat: '2' }],
+    events: [...editorTestChart().events, { type: 'auto', beat: '0', endBeat: '4' }] };
+  const editor = await openEditor(page, { chart, audio: true });
+  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  const position = await canvasPosition(page, 2, 3); await page.mouse.click(position.x, position.y);
+  const edited = await notes(page);
+  expect(edited).toHaveLength(2);
+  const unsavedSave = page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true });
+  await expect(unsavedSave).toBeVisible();
+
+  await startExplicit(page);
+  await expect(page.getByTestId('explicit-play-result')).toBeVisible({ timeout: 20000 });
+  await page.getByRole('button', { name: '돌아가기', exact: true }).first().click();
+  await expect(page).toHaveURL(/\/editor\?songId=e2e-editor-song&difficulty=normal$/);
+  await expect(page.locator('canvas')).toHaveCount(1);
+  // 돌아온 에디터는 음원을 다시 읽는 동안 화면 전체를 덮는 로딩 표시로 입력을 막는다.
+  await expect(page.getByRole('status').filter({ hasText: 'Loading audio...' })).toBeHidden({ timeout: 15000 });
+  expect(await notes(page)).toEqual(edited);
+  // 페이지가 다시 마운트돼도 savedChartJson은 불러온 차트의 값이다. 돌아온 차트로 다시 만들면 여기서 'Save chart'가 된다.
+  await expect(unsavedSave).toBeVisible();
+
+  await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to Songs', exact: true }).click();
+  const leaveConfirm = page.getByRole('heading', { name: 'Unsaved Changes', exact: true });
+  await expect(leaveConfirm).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(leaveConfirm).toHaveCount(0);
+  await expect(page).toHaveURL(/\/editor\?songId=e2e-editor-song&difficulty=normal$/);
+  await expect(page.locator('canvas')).toHaveCount(1);
+  expect(await notes(page)).toEqual(edited);
+  await expect(unsavedSave).toBeVisible();
+  expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);
+});

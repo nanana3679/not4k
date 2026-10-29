@@ -3,6 +3,7 @@ import { beat } from '../../shared';
 import type { ChartDocument, Lane } from '../../shared';
 import { useEditorStore } from './editorStore';
 import { emptySelection } from './selectionSlice';
+import { isChartDirty, toSavedChartJson } from '../savedChart';
 
 function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument['restZones']): ChartDocument {
   return {
@@ -397,5 +398,172 @@ describe('editorStore 편집 transaction 중단 알림', () => {
 
     expect(onInterrupt).not.toHaveBeenCalled();
     expect(useEditorStore.getState().editTransaction).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// savedChartJson — dirty 비교 대상. 페이지가 다시 마운트돼도(테스트 플레이 복귀) store가 유지한다.
+// ---------------------------------------------------------------------------
+
+describe('editorStore savedChartJson', () => {
+  const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  const dirty = () => {
+    const state = useEditorStore.getState();
+    return isChartDirty(state.chart, state.extraLaneCount, state.savedChartJson);
+  };
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeChart(), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
+      historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
+    });
+  });
+
+  it('처음 상태(불러온 차트 없음)의 savedChartJson은 null', () => {
+    // beforeEach가 넣은 값이 아니라 store를 만들 때의 초기 상태를 본다.
+    expect(useEditorStore.getInitialState().savedChartJson).toBeNull();
+  });
+
+  it('loadChart 뒤 불러온 차트로 setSavedChartJson하면 편집 전에는 dirty 아님', () => {
+    const loaded = makeChart([tap(1)]);
+    useEditorStore.getState().loadChart(loaded);
+
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(loaded, 2));
+
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(loaded, 2));
+    expect(dirty()).toBe(false);
+  });
+
+  it('노트 추가 setChart·Undo·보조 레인 수 2 → 3 변경은 savedChartJson을 바꾸지 않아 노트 추가 뒤 dirty, Undo 뒤 dirty 아님, 레인 수 변경 뒤 dirty', () => {
+    const loaded = makeChart([tap(1)]);
+    useEditorStore.getState().loadChart(loaded);
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(loaded, 2));
+
+    useEditorStore.getState().setChart(makeChart([tap(1), tap(3)]));
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(loaded, 2));
+    expect(dirty()).toBe(true);
+
+    useEditorStore.getState().undo();
+    expect(dirty()).toBe(false);
+    useEditorStore.getState().setExtraLaneCount(3);
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(loaded, 2));
+    expect(dirty()).toBe(true);
+  });
+
+  it('노트 추가 뒤 저장 결과(메인·보조 JSON)로 setSavedChartJson하면 dirty가 풀리고, Undo로 저장 전 차트에 돌아가면 다시 dirty', () => {
+    const loaded = makeChart([tap(1)]);
+    useEditorStore.getState().loadChart(loaded);
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(loaded, 2));
+    const edited = makeChart([tap(1), tap(3)]);
+    useEditorStore.getState().setChart(edited);
+
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(edited, 2));
+    expect(dirty()).toBe(false);
+
+    useEditorStore.getState().undo();
+    expect(dirty()).toBe(true);
+  });
+
+  it('loadChart로 다른 차트를 열면 이전 차트의 savedChartJson을 지워 null', () => {
+    const first = makeChart([tap(1)]);
+    useEditorStore.getState().loadChart(first);
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(first, 2));
+
+    useEditorStore.getState().loadChart(makeChart([tap(5)]));
+
+    expect(useEditorStore.getState().savedChartJson).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 저장 진행(isSavingChart·chartSaveGeneration) — 페이지가 다시 마운트돼도 store가 유지하고,
+// 늦게 끝난 저장이 그 뒤에 정한 savedChartJson을 덮지 않는다.
+// ---------------------------------------------------------------------------
+
+describe('editorStore 저장 진행 beginChartSave·finishChartSave', () => {
+  const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  const dirty = () => {
+    const state = useEditorStore.getState();
+    return isChartDirty(state.chart, state.extraLaneCount, state.savedChartJson);
+  };
+  const open = (chart: ChartDocument) => {
+    useEditorStore.getState().loadChart(chart);
+    useEditorStore.getState().setSavedChartJson(toSavedChartJson(chart, 2));
+  };
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeChart(), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
+      isSavingChart: false, chartSaveGeneration: 0,
+      historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
+    });
+  });
+
+  it('처음 상태는 저장 중이 아니다(isSavingChart false)', () => {
+    expect(useEditorStore.getInitialState().isSavingChart).toBe(false);
+  });
+
+  it('저장 중이 아니면 beginChartSave가 세대 번호를 돌려주고 isSavingChart가 true, 저장 중에 다시 부르면 null을 돌려주고 세대 번호는 그대로', () => {
+    const generation = useEditorStore.getState().beginChartSave();
+
+    expect(generation).not.toBeNull();
+    expect(useEditorStore.getState().isSavingChart).toBe(true);
+    expect(useEditorStore.getState().beginChartSave()).toBeNull();
+    expect(useEditorStore.getState().chartSaveGeneration).toBe(generation);
+  });
+
+  it('노트 1개를 더한 뒤 finishChartSave(받은 세대 번호, 업로드한 JSON)는 savedChartJson을 그 JSON으로 바꿔 dirty가 풀리고 isSavingChart가 false', () => {
+    open(makeChart([tap(1)]));
+    const edited = makeChart([tap(1), tap(3)]);
+    useEditorStore.getState().setChart(edited);
+    const generation = useEditorStore.getState().beginChartSave()!;
+
+    useEditorStore.getState().finishChartSave(generation, toSavedChartJson(edited, 2));
+
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(edited, 2));
+    expect(useEditorStore.getState().isSavingChart).toBe(false);
+    expect(dirty()).toBe(false);
+  });
+
+  it('노트 1개를 더한 뒤 finishChartSave(받은 세대 번호, null)(저장 실패)는 savedChartJson을 불러온 차트 값 그대로 두어 dirty로 남고 isSavingChart만 false', () => {
+    const loaded = makeChart([tap(1)]);
+    open(loaded);
+    useEditorStore.getState().setChart(makeChart([tap(1), tap(3)]));
+    const generation = useEditorStore.getState().beginChartSave()!;
+
+    useEditorStore.getState().finishChartSave(generation, null);
+
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(loaded, 2));
+    expect(useEditorStore.getState().isSavingChart).toBe(false);
+    expect(dirty()).toBe(true);
+  });
+
+  it('저장 A 중 loadChart로 다른 차트를 열면 isSavingChart가 false가 되고, 늦게 끝난 A의 finishChartSave는 새 차트의 savedChartJson을 바꾸지 않는다', () => {
+    open(makeChart([tap(1)]));
+    const saveA = useEditorStore.getState().beginChartSave()!;
+    const second = makeChart([tap(5)]);
+
+    open(second);
+    expect(useEditorStore.getState().isSavingChart).toBe(false);
+    useEditorStore.getState().finishChartSave(saveA, toSavedChartJson(makeChart([tap(1), tap(3)]), 2));
+
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(second, 2));
+    expect(dirty()).toBe(false);
+  });
+
+  it('loadChart 뒤 시작한 저장 B보다 이전 저장 A가 먼저 끝나도 isSavingChart는 true로 남고 savedChartJson은 그대로, B가 끝나면 savedChartJson이 B의 JSON', () => {
+    open(makeChart([tap(1)]));
+    const saveA = useEditorStore.getState().beginChartSave()!;
+    const second = makeChart([tap(5)]);
+    open(second);
+    const editedSecond = makeChart([tap(5), tap(7)]);
+    useEditorStore.getState().setChart(editedSecond);
+    const saveB = useEditorStore.getState().beginChartSave()!;
+
+    useEditorStore.getState().finishChartSave(saveA, toSavedChartJson(makeChart([tap(1), tap(3)]), 2));
+    expect(useEditorStore.getState().isSavingChart).toBe(true);
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(second, 2));
+
+    useEditorStore.getState().finishChartSave(saveB, toSavedChartJson(editedSecond, 2));
+    expect(useEditorStore.getState().isSavingChart).toBe(false);
+    expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(editedSecond, 2));
   });
 });

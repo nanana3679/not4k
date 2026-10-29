@@ -2,15 +2,17 @@
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
-import { serializeChart, serializeExtraNotes, buildViolationList, mainNotes, auxNotesAsExtra, isExplicitNote } from '../../shared';
+import { buildViolationList, mainNotes, isExplicitNote } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
+import { isChartDirty } from '../savedChart';
+import { SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 
 const styles = {
   toolbar: {
@@ -555,8 +557,6 @@ interface EditorToolbarProps {
   setShowPlayTestMenu: (v: boolean | ((prev: boolean) => boolean)) => void;
   saving: boolean;
   deleting: boolean;
-  savedChartSnapshot: string;
-  savedExtraSnapshot: string;
   pendingPreviewRange: PlaybackRange | null;
   pendingGameplayRange: PlaybackRange | null;
   onPlayTest: (fromCursor: boolean) => void;
@@ -604,8 +604,6 @@ export function EditorToolbar({
   setShowPlayTestMenu,
   saving,
   deleting,
-  savedChartSnapshot,
-  savedExtraSnapshot,
   pendingPreviewRange,
   pendingGameplayRange,
   onPlayTest,
@@ -650,6 +648,7 @@ export function EditorToolbar({
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
+  const savedChartJson = useEditorStore((s) => s.savedChartJson);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const selectedNotes = useEditorStore((s) => s.selection.notes);
@@ -666,11 +665,13 @@ export function EditorToolbar({
   const selectedCount = selectedNotes.size;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
-  // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 메인/보조 분리 후 비교한다 (RFD 0018 ③).
-  const isDirty = !!(savedChartSnapshot && (
-    serializeChart({ ...chart, notes: mainNotes(chart.notes) }) !== savedChartSnapshot ||
-    serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount) !== savedExtraSnapshot
-  )) || pendingPreviewRange != null || pendingGameplayRange != null;
+  // 현재 차트를 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 store의 savedChartJson과 비교한다 (RFD 0018 ③).
+  // 재생 중에는 페이지가 currentTimeMs를 구독해 툴바도 매 프레임 다시 렌더된다. 차트 전체 직렬화는 비교 입력이 바뀔 때만 한다.
+  const chartDirty = useMemo(
+    () => isChartDirty(chart, extraLaneCount, savedChartJson),
+    [chart, extraLaneCount, savedChartJson],
+  );
+  const isDirty = chartDirty || pendingPreviewRange != null || pendingGameplayRange != null;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
   // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.
@@ -687,9 +688,12 @@ export function EditorToolbar({
   // (안 하면 이후 새 위반 발생 시 사용자가 열지 않았는데 팝오버가 열린 채 나타남)
   // 자기 컴포넌트 대상 조건부 보정이라 다음 렌더에 조건이 풀려 무한루프 없음.
   if (violationCount === 0 && showViolationList) setShowViolationList(false);
-  const playTestDisabled = violationCount > 0;
+  // 저장 중에도 비활성이다 — 저장이 끝나기 전에 /game으로 가지 않게 한다(useFileOperations.handlePlayTest와 같은 조건).
+  const playTestDisabled = violationCount > 0 || saving;
   const hasExplicitMain = mainNotes(chart.notes).some(isExplicitNote);
-  const playTestDisabledTitle = `배치 제약 위반 ${violationCount}건을 해소한 뒤 플레이할 수 있습니다`;
+  const playTestDisabledTitle = saving
+    ? SAVE_IN_PROGRESS_COPY.playTest
+    : `배치 제약 위반 ${violationCount}건을 해소한 뒤 플레이할 수 있습니다`;
 
   const compactIconStyle = {
     ...styles.compactButton,

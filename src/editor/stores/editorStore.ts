@@ -8,6 +8,7 @@ import { beat, validateChartDocumentStructural } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
+import type { SavedChartJson } from '../savedChart';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
 import {
   createSelectionSlice,
@@ -79,6 +80,18 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // 로드가 invalid 차트도 수용하므로 "로드=valid"를 가정하지 않는다 — 씨앗도 검증 통과가 조건.
   lastValidSnapshot: HistorySnapshot | null;
 
+  // 마지막으로 불러오거나 저장한 차트를 Save가 쓰는 방식(메인·보조 JSON)으로 직렬화한 값(src/editor/savedChart.ts).
+  // dirty 표시·나가기 확인이 이것과 현재 차트를 비교한다. 차트를 새로 불러올 때와 저장(Save·Save As) 성공 때만 정한다.
+  // 편집·Undo·테스트 플레이는 바꾸지 않는다. 페이지 컴포넌트가 아니라 store가 소유해, 테스트 플레이에서 돌아와 페이지가 다시 마운트돼도 유지된다.
+  savedChartJson: SavedChartJson | null;
+
+  // 저장(Save·Save As)이 진행 중인가. 페이지 지역 상태가 아니라 store가 소유해, 페이지가 다시 마운트돼도
+  // 진행 중인 저장을 잊지 않는다. 진행 중에는 두 번째 저장과 테스트 플레이를 시작하지 않는다.
+  isSavingChart: boolean;
+  // 저장을 시작할 때와 차트를 새로 불러올 때 1씩 오른다. 저장은 시작할 때 받은 값으로 끝을 알리고,
+  // 그 사이 값이 바뀌었으면(차트를 새로 불러옴) 늦게 끝난 그 저장은 savedChartJson·isSavingChart를 바꾸지 않는다.
+  chartSaveGeneration: number;
+
   // Marker editing
   editingMarker: EditingMarker;
 
@@ -91,8 +104,23 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    * 로드 전용 통로 — 위반 차트도 수용해 열람·수리를 허용한다(경고만 표시).
    * 재저장은 저장 게이트(useFileOperations의 editorChartErrors)가 차단하므로
    * 위반 상태가 저장·전파되지는 않는다. 로드 외의 경로에서 쓰지 말 것.
+   * 다른 차트를 여는 것이므로 이전 차트의 savedChartJson을 지운다. 불러온 쪽이 setSavedChartJson으로 불러온 차트의 값을 정한다.
+   * 진행 중이던 저장은 이전 차트의 것이므로 chartSaveGeneration을 올려 그 결과가 새 차트에 닿지 않게 하고 isSavingChart를 끈다.
    */
   loadChart: (chart: ChartDocument) => void;
+  /** 불러온 차트의 savedChartJson을 정한다. loadChart 직후에만 부른다. 저장 결과는 finishChartSave로 정한다. */
+  setSavedChartJson: (saved: SavedChartJson) => void;
+  /**
+   * 저장을 시작한다. 이미 저장 중이면 null을 돌려주고 아무것도 바꾸지 않는다(저장을 겹쳐 시작하지 않는다).
+   * 시작하면 isSavingChart를 켜고 이 저장의 세대 번호(chartSaveGeneration)를 돌려준다.
+   */
+  beginChartSave: () => number | null;
+  /**
+   * beginChartSave가 준 세대 번호로 저장을 끝낸다. 성공이면 업로드한 메인·보조 JSON을, 실패면 null을 넘긴다.
+   * 세대 번호가 지금 값과 같을 때만 isSavingChart를 끄고, 성공이면 savedChartJson을 넘긴 JSON으로 바꾼다.
+   * 다르면(그 사이 차트를 새로 불러옴) 늦게 끝난 저장이므로 아무것도 바꾸지 않는다.
+   */
+  finishChartSave: (generation: number, saved: SavedChartJson | null) => void;
   setMode: (mode: EditorModeName) => void;
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
@@ -203,6 +231,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   historyLastCaptureAt: 0,
   editTransaction: null,
   lastValidSnapshot: null,
+  savedChartJson: null,
+  isSavingChart: false,
+  chartSaveGeneration: 0,
   editingMarker: null,
 
   // Actions
@@ -278,10 +309,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       chart,
       selection: emptySelection(),
+      savedChartJson: null,
+      isSavingChart: false,
+      chartSaveGeneration: state.chartSaveGeneration + 1,
       ...(errors.length === 0
         ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } }
         : {}),
     }));
+  },
+  setSavedChartJson: (savedChartJson) => set({ savedChartJson }),
+  beginChartSave: () => {
+    const { isSavingChart, chartSaveGeneration } = get();
+    if (isSavingChart) return null;
+    const generation = chartSaveGeneration + 1;
+    set({ isSavingChart: true, chartSaveGeneration: generation });
+    return generation;
+  },
+  finishChartSave: (generation, saved) => {
+    if (get().chartSaveGeneration !== generation) return;
+    set(saved === null ? { isSavingChart: false } : { isSavingChart: false, savedChartJson: saved });
   },
   setMode: (mode) => { get().commitEditTransaction(); set({ mode }); },
   setEntityType: (entityType) => { get().commitEditTransaction(); set({ entityType }); },

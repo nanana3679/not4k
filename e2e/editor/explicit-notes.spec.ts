@@ -94,7 +94,7 @@ test('숨은 aux3의 바디 밖 tick은 열람·확정이 가능하고 툴바 �
   expect(editor.supabaseWrites).toEqual([]);
 });
 
-test('혼합 main과 명시 aux의 Save As는 새 난이도·레벨만 바꾸고 노트와 독립 버전을 보존한다', async ({ page }) => {
+test('보조 레인 수 3인 혼합 main과 명시 aux는 열자마자 Save chart에 저장 안 됨 표시가 없고, Save As는 새 난이도·레벨만 바꾸고 노트와 독립 버전을 보존한다', async ({ page }) => {
   const chart = { ...editorTestChart(), version: 4 as const, notes: [
     { type: 'single' as const, lane: 4, beat: '0', grace: false },
     { type: 'release' as const, count: 2 as const, lane: 1, beat: '2', grace: true },
@@ -104,6 +104,8 @@ test('혼합 main과 명시 aux의 Save As는 새 난이도·레벨만 바꾸고
     { type: 'tick', count: 2, extraLane: 3, beat: '2' },
   ] };
   const editor = await openEditor(page, { chart, extra });
+  // 보조 레인 수 3을 정한 뒤 savedChartJson을 만들어야 편집 전 차트가 dirty가 아니다(기본 2로 만들면 'Save chart, unsaved changes').
+  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
   await page.route('**/rest/v1/charts?*', route => route.fulfill({ json: [] }));
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
   await page.getByRole('button', { name: 'Save As', exact: true }).click();
