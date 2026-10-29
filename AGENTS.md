@@ -20,6 +20,9 @@
 - 요청한 변경 때문에 실패한 테스트는 수정하고 다시 실행한다. 무관한 기존 실패는 작업 범위를 넓혀 수정하지 말고 결과에 명시한다
 - 타입 검사는 `pnpm typecheck`로 하며 앱(`src`)과 도구 코드(`scripts/`, Vite·Vitest·Playwright 설정, `e2e/`)를 함께 검사한다(`tsconfig.tooling.json`). `pnpm build`·`pnpm build:lab`도 같은 검사를 먼저 실행한다
 - `scripts/`의 실행 스크립트는 Node(22.18 이상)가 타입만 지우고 바로 실행하는 `.ts`로 쓴다. 지울 수 있는 타입 문법만 쓰고(enum·namespace 금지) 타입만 가져올 때는 `import type`을 쓴다(`tsconfig.scripts.json`이 검사). Vite 설정이 쓰는 도우미(`classicVersionPreviews.ts`·`exportLabImageGalleries.ts`)는 예외다. `assets-lab/`의 생성 코드는 JS로 둔다
+- E2E(`pnpm test:e2e`)는 Playwright가 띄우는 dev 서버(`npm run dev`)에서 돈다. `playwright.config.ts`는 이 서버에 admin 우회(`VITE_DEV_ADMIN=true`, 로그인 없이 admin 권한으로 진입)를 항상 넣고, Supabase URL·키(`VITE_SUPABASE_URL`·`VITE_SUPABASE_PUBLISHABLE_KEY`)는 process.env와 Vite가 읽는 `.env*` 파일을 합친 값에서 둘 중 하나라도 없으면(빈 값 포함) 오프라인용 더미 값 한 쌍(`https://e2e-offline.supabase.co`·`e2e-offline-publishable-key`)을 넣는다(`scripts/e2eDevServerEnv.ts`). 둘 다 있으면 실제 자격 증명을 그대로 쓴다
+- 그래서 E2E 스펙은 실제 Supabase 프로젝트의 데이터나 쓰기에 기대지 말고, 쓰는 Supabase 요청(`/rest/v1/`·`/storage/v1/`·`/auth/v1/`)을 `page.route`로 응답한다. 더미 값에서는 응답하지 않은 요청이 네트워크 오류로 끝난다
+- 이미 떠 있는 서버를 재사용하면(`reuseExistingServer`, CI가 아니면 켜짐) 위 env는 쓰이지 않고 그 서버를 띄울 때의 env가 남는다. 직접 띄운 서버로 돌릴 때는 그 서버를 `VITE_DEV_ADMIN=true`로 띄우고, 자격 증명이 없으면 `VITE_SUPABASE_URL=https://e2e-offline.supabase.co`·`VITE_SUPABASE_PUBLISHABLE_KEY=e2e-offline-publishable-key`도 함께 넣는다. 그러지 않을 거면 그 서버를 끄고 Playwright가 띄우게 한다
 
 ### 테스트명 작성 규칙
 
