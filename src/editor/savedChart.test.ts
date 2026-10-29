@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beat, saveChartAsset } from '../shared';
+import { beat, saveChartAsset, deserializeChartDocument } from '../shared';
 import type { ChartDocument, Lane, SongAssetPersistenceAdapter } from '../shared';
 import { isChartDirty, toSavedChartJson } from './savedChart';
 
@@ -49,8 +49,9 @@ describe('isChartDirty', () => {
 });
 
 describe('toSavedChartJson', () => {
-  it('메인 노트 1개·보조 노트 1개·보조 레인 수 3이면 saveChartAsset이 업로드하는 메인·보조 JSON과 같다', async () => {
+  it('메인·보조 노트와 구간을 저장한 JSON은 dirty 스냅샷과 같고 각 파일에 해당 레인만 남는다', async () => {
     const chart = makeChart([mainNote, auxNote]);
+    chart.trillZones = [{ lane: 1, beat: beat(10), endBeat: beat(12) }, { lane: 7, beat: beat(2), endBeat: beat(4) }];
     const uploads = new Map<string, string>();
     const adapter: SongAssetPersistenceAdapter = {
       uploadText: async ({ path, content }) => { uploads.set(path, content); },
@@ -63,9 +64,20 @@ describe('toSavedChartJson', () => {
 
     const written = await saveChartAsset(adapter, { songId: 'song', difficulty: 'normal', chart, extraLaneCount: 3 });
 
+    expect(deserializeChartDocument(written.chartJson).trillZones).toEqual([chart.trillZones[0]]);
+    expect(JSON.parse(written.extraJson).extraTrillZones).toEqual([{ extraLane: 3, beat: '2', endBeat: '4' }]);
+    expect(isChartDirty(chart, 3, { chartJson: written.chartJson, extraJson: written.extraJson })).toBe(false);
     expect(toSavedChartJson(chart, 3)).toEqual({
       chartJson: uploads.get(written.chartPath),
       extraJson: uploads.get(written.extraPath),
     });
   });
+});
+
+it('보조 lane 5 구간 끝을 4→5로 바꾸면 main JSON은 같아도 dirty가 된다', () => {
+  const chart = { ...makeChart(), trillZones: [{ lane: 5, beat: beat(0), endBeat: beat(4) }] };
+  const saved = toSavedChartJson(chart, 2);
+  const edited = { ...chart, trillZones: [{ ...chart.trillZones[0], endBeat: beat(5) }] };
+  expect(toSavedChartJson(edited, 2).chartJson).toBe(saved.chartJson);
+  expect(isChartDirty(edited, 2, saved)).toBe(true);
 });

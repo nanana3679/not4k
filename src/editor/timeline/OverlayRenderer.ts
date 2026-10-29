@@ -4,7 +4,7 @@
  */
 
 import { Container, Graphics } from "pixi.js";
-import { beatToMs } from "../../shared";
+import { beatToMs, isVisibleLane } from "../../shared";
 import type { ChartDocument, Beat, DocumentNoteEntity, BpmMarker, Lane } from "../../shared";
 import {
   LANE_WIDTH,
@@ -22,6 +22,7 @@ import { drawTrillZoneHandles, drawNoteResizeHandle, drawResizeCap } from "./tri
 /** OverlayRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface OverlayHost {
   readonly chart: ChartDocument | null;
+  readonly extraLaneCount: number;
   readonly selectedNotes: Set<number>;
   readonly selectedTrillZones: Set<number>;
   readonly selectedRestZones: Set<number>;
@@ -204,15 +205,15 @@ export class OverlayRenderer {
   /**
    * 일반 레인에 고스트 범위 노트 표시
    */
-  showGhostRange(lane: Lane, startTimeMs: number, endTimeMs: number): void {
+  showGhostRange(lane: number, startTimeMs: number, endTimeMs: number): void {
     destroyChildren(this.host.ghostLayer);
 
     const startY = this.host.timeToY(startTimeMs);
     const endY = this.host.timeToY(endTimeMs);
-    const x = (lane - 1) * LANE_WIDTH;
+    const x = laneToX(lane);
     const w = NOTE_HEIGHT * 5;
     const h = NOTE_HEIGHT;
-    const rectX = x + (LANE_WIDTH - w) / 2;
+    const rectX = x + (laneWidth(lane) - w) / 2;
 
     const topY = Math.min(startY, endY);
     const bottomY = Math.max(startY, endY);
@@ -339,12 +340,13 @@ export class OverlayRenderer {
     if (
       hoveredTrillZoneIndex !== null &&
       hoveredTrillZoneIndex < this.host.chart.trillZones.length &&
-      this.host.selectedTrillZones.has(hoveredTrillZoneIndex)
+      this.host.selectedTrillZones.has(hoveredTrillZoneIndex) &&
+      isVisibleLane(this.host.chart.trillZones[hoveredTrillZoneIndex].lane, this.host.extraLaneCount)
     ) {
       const zone = this.host.chart.trillZones[hoveredTrillZoneIndex];
-      const x = (zone.lane - 1) * LANE_WIDTH;
+      const x = laneToX(zone.lane);
       const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
-      drawTrillZoneHandles(this.host.hoverLayer, x, LANE_WIDTH, endY, true);
+      drawTrillZoneHandles(this.host.hoverLayer, x, laneWidth(zone.lane), endY, true);
     }
 
     // restZone 리사이즈 캡도 **선택된 restZone**에만 표시한다 — trillZone 규칙 미러 (RFD 0019).
@@ -408,6 +410,7 @@ export class OverlayRenderer {
     for (const idx of this.host.violatingTrillZoneIndices) {
       if (idx >= this.host.chart.trillZones.length) continue;
       const zone = this.host.chart.trillZones[idx];
+      if (!isVisibleLane(zone.lane, this.host.extraLaneCount)) continue;
       const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
       const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);

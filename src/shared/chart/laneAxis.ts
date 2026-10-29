@@ -11,11 +11,14 @@
  * 관할 밖: 이벤트의 `editorLane`(별도 1-기반 배치 공간)은 이 레이어가 통합하지 않는다.
  */
 
+import type { TrillZone } from '../types/chart';
+import type { Lane } from '../constants/note';
+
 /** 게임이 판정하는 메인 레인 수 — 경계 상수의 유일한 서식지 */
 export const MAIN_LANE_COUNT = 4;
 
 /** 메인 레인(1..4) 여부 — 게임 판정 대상. 비정수·범위 밖은 false */
-export function isMainLane(lane: number): boolean {
+export function isMainLane(lane: number): lane is Lane {
   return Number.isInteger(lane) && lane >= 1 && lane <= MAIN_LANE_COUNT;
 }
 
@@ -35,6 +38,16 @@ export function mainNotes<T extends { lane: number }>(notes: readonly T[]): T[] 
 /** 보조 레인 노트만 필터 — 직렬화 분리(보조 파일 쪽)가 사용 */
 export function auxNotes<T extends { lane: number }>(notes: readonly T[]): T[] {
   return notes.filter((n) => isAuxLane(n.lane));
+}
+
+/** 게임·메인 저장 파일에 전달하는 메인 레인 트릴 구간. */
+export function mainTrillZones(zones: readonly TrillZone[]): Array<TrillZone & { lane: Lane }> {
+  return zones.filter((zone): zone is TrillZone & { lane: Lane } => isMainLane(zone.lane));
+}
+
+/** 보조 파일에 분리하는 트릴 구간. 내부 lane은 5 이상을 유지한다. */
+export function auxTrillZones(zones: readonly TrillZone[]): TrillZone[] {
+  return zones.filter(zone => isAuxLane(zone.lane));
 }
 
 /** lane → 보조 인덱스(1-기반): 5→1, 6→2. 보조 파일 포맷(extraLane)·보조 영역 x 계산과의 왕복 매핑 */

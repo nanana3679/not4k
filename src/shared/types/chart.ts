@@ -172,7 +172,7 @@ export type DocumentExtraNoteEntity = WithExtraLane<DocumentNoteEntity>;
  * 자체는 입력을 요구하지 않는다.
  */
 export interface TrillZone {
-  lane: Lane;
+  lane: number;
   beat: Beat;
   endBeat: Beat;
 }

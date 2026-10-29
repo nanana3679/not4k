@@ -202,3 +202,14 @@ describe('GameRenderer 명시 seam', () => {
     renderer.updateAccuracy(99.5); expect(fields.accuracyText.text).toBe('99.50%');
   });
 });
+
+it('유효한 lane 5 트릴 구간·탭·바디가 있어도 게임 배경 구간에는 main lane 4 구간만 전달한다', async () => {
+  const { renderer, explicitSkin, document } = await setup();
+  document.trillZones = [{ lane: 4, beat: beat(0), endBeat: beat(4) }, { lane: 5, beat: beat(0), endBeat: beat(4) }];
+  document.notes.push({ type: 'tap', kind: 'trill', lane: 5, beat: beat(1) },
+    { type: 'body', lane: 5, beat: beat(1), endBeat: beat(3), holdCount: 1, trill: true });
+  const compiled = compileExplicitJudgmentChart(document); const session = new ExplicitJudgmentSession(compiled);
+  const setChart = vi.spyOn(renderer, 'setChart');
+  renderer.setExplicitChart(compiled, explicitSkin, () => session.snapshot, document, 4000);
+  expect(setChart.mock.calls[0][1]).toEqual([document.trillZones[0]]);
+});

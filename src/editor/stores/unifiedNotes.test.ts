@@ -58,3 +58,12 @@ describe("hiddenViolationLanes (§8-7 숨은 보조 위반 안내)", () => {
     expect(hiddenViolationLanes([err([0, 1, 2])], notes, 0)).toEqual([]);
   });
 });
+
+it('노트 없는 lane 8의 겹친 구간도 extraLaneCount 2이면 숨은 위반 레인 [8]로 안내한다', () => {
+  const zones = [{ lane: 8, beat: beat(0), endBeat: beat(4) }, { lane: 8, beat: beat(2), endBeat: beat(6) }];
+  const errors: ValidationError[] = [{ rule: 'trillZoneOverlap', message: 'overlap', refs: [
+    { kind: 'trillZone', index: 0 }, { kind: 'trillZone', index: 1 },
+  ] }];
+  expect(hiddenViolationLanes(errors, [], 2, zones)).toEqual([8]);
+  expect(hiddenViolationLanes(errors, [], 4, zones)).toEqual([]);
+});

@@ -4,6 +4,7 @@
  */
 
 import type { TrillZone, BpmMarker } from "../../shared/types";
+import { mainTrillZones } from "../../shared/chart/laneAxis";
 import { beatToMs } from "../../shared/timing";
 
 export interface MinimapTrillZoneRect {
@@ -35,7 +36,8 @@ export function computeMinimapTrillZoneRects(
 ): MinimapTrillZoneRect[] {
   const rects: MinimapTrillZoneRect[] = [];
 
-  for (const zone of trillZones) {
+  // 보조 노트와 마찬가지로 보조 구간도 메인 4레인 미니맵 밴드에서 제외한다.
+  for (const zone of mainTrillZones(trillZones)) {
     const startMs = beatToMs(zone.beat, bpmMarkers, offsetMs);
     const endMs = beatToMs(zone.endBeat, bpmMarkers, offsetMs);
     const startContainerY = timeToY(startMs);

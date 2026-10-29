@@ -9,6 +9,7 @@
 
 import type { Beat } from "../types/beat";
 import type { DocumentNoteEntity, NoteEntity, TrillZone, ChartEvent } from "../types/chart";
+import { mainTrillZones } from "../chart/laneAxis";
 import { assertLegacyNotes } from "../chart/noteDocument";
 import type { Lane } from "../constants/note";
 import {
@@ -32,7 +33,7 @@ export interface ChartTiming {
   readonly noteTimesMs: ReadonlyMap<number, number>;
   /** 구간 노트('endBeat' in note)만, key = notes 인덱스 */
   readonly noteEndTimesMs: ReadonlyMap<number, number>;
-  /** 레인별 trillZone 시작 ms (오름차순) */
+  /** 게임이 사용하는 메인 레인별 trillZone 시작 ms (오름차순) */
   readonly trillZoneStartTimesMs: ReadonlyMap<Lane, readonly number[]>;
   /** offsetMs를 흡수한 beat→ms 변환. BPM 마커가 없으면 throw. */
   beatToMs(target: Beat): number;
@@ -75,7 +76,7 @@ export function createChartTiming(chart: ChartTimingSource): ChartTiming {
   });
 
   const trillZoneStartTimesMs = new Map<Lane, number[]>();
-  for (const zone of chart.trillZones) {
+  for (const zone of mainTrillZones(chart.trillZones)) {
     const startMs = beatToMsHere(zone.beat);
     const laneStartTimes = trillZoneStartTimesMs.get(zone.lane) ?? [];
     laneStartTimes.push(startMs);

@@ -216,54 +216,36 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
       ({ type: "body", lane, beat: beat(start), endBeat: beat(end), holdCount: 1, trill: true });
     const trillTap = (at: number, lane = 1): DocumentNoteEntity => ({ type: "tap", kind: "trill", lane, beat: beat(at) });
 
-    it("보조 lane5의 트릴 바디 [0,2] 뒤 일반 바디 [2,4]는 이어 보이지 않으므로 탭·릴리즈 없이 유효하다", () => {
-      expect(rules([trillBody(0, 2, 5), body(2, 4, 1, 5)])).toEqual([]);
-    });
-
-    it("메인 레인1의 트릴 바디 [0,2] 뒤 일반 바디 [2,4]는 zone [0,2] 끝의 trillExclusive만 보고하고 같은 수 경계 위반은 내지 않는다", () => {
-      const chart = document([trillTap(0), trillBody(0, 2), body(2, 4)]);
-      chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(2) }];
-      expect(validateChartDocument(chart).semantic.map(e => e.rule)).toEqual(["trillExclusive"]);
-    });
-
-    it("보조 lane5의 일반 바디 [0,2] 뒤 같은 hold 수 트릴 바디 [2,4]는 모양이 달라 구별되므로 경계 2에 탭·릴리즈가 없어도 유효하다(2026-10-28 정정)", () => {
-      const result = validateChartDocument(document([body(0, 2, 1, 5), trillBody(2, 4, 5)]));
-      expect(result.semantic).toEqual([]);
-      expect(result.canSave).toBe(true);
-    });
-
-    it("메인 레인1의 일반 바디 [0,2] 뒤 트릴 바디 [2,4] 경계에 탭도 릴리즈도 없으면 시작 트릴 탭 누락인 trillLongInvalid만 보고하고 트릴 여부가 달라 같은 수 경계 위반은 내지 않는다", () => {
-      const chart = document([body(0, 2), trillBody(2, 4)]);
-      chart.trillZones = [{ lane: 1, beat: beat(2), endBeat: beat(4) }];
-      expect(validateChartDocument(chart).semantic.map(e => [e.rule, e.refs])).toEqual([
-        ["trillLongInvalid", [{ kind: "note", index: 1 }]]]);
-    });
-
-    it("보조 lane5의 트릴 바디 [0,2]·[2,4] 경계에 탭·릴리즈가 없으면 위반이다", () => {
-      expect(rules([trillBody(0, 2, 5), trillBody(2, 4, 5)])).toEqual([SAME_HOLD_COUNT_CONNECTION_RULE]);
-    });
-
-    it.each([
-      { name: "트릴 탭", note: trillTap(2, 5) },
-      { name: "릴리즈", note: mark("release", 2, 1, 5) },
-      { name: "구형 trill", note: legacyPoint("trill", 2, 5) },
-    ])("보조 lane5의 트릴 바디 [0,2]·[2,4] 경계 2의 $name은 경계의 탭·릴리즈로 인정해 유효하다", ({ note }) => {
-      expect(rules([trillBody(0, 2, 5), trillBody(2, 4, 5), note])).toEqual([]);
-    });
-
-    it("보조 lane5의 일반 [0,2]·트릴 [2,4]·트릴 [4,6] 연쇄의 경계에 탭도 릴리즈도 없으면 트릴 여부가 같은 경계 4의 두 트릴 바디를 가리키는 위반 1건만 남는다", () => {
-      expect(validateChartDocument(document([body(0, 2, 1, 5), trillBody(2, 4, 5), trillBody(4, 6, 5)])).semantic
-        .map(e => [e.rule, e.refs])).toEqual([
-        [SAME_HOLD_COUNT_CONNECTION_RULE, [{ kind: "note", index: 1 }, { kind: "note", index: 2 }]]]);
-    });
-
-    it("메인 레인1의 트릴 바디 [0,2]·[2,4] 경계에 트릴 탭이 없으면 trillLongInvalid만 보고하고 트릴 탭을 놓으면 유효하다", () => {
-      const chart = document([trillTap(0), trillBody(0, 2), trillBody(2, 4)]);
-      chart.trillZones = [{ lane: 1, beat: beat(0), endBeat: beat(4) }];
-      expect(validateChartDocument(chart).semantic.map(e => [e.rule, e.refs])).toEqual([
-        ["trillLongInvalid", [{ kind: "note", index: 2 }]]]);
-      chart.notes.push(trillTap(2));
-      expect(validateChartDocument(chart).semantic).toEqual([]);
+    describe.each([1, 5])("lane %s의 트릴 연결은 같은 규칙", lane => {
+      const inZone = (notes: DocumentNoteEntity[], start = 0, end = 4) => ({
+        ...document(notes), trillZones: [{ lane, beat: beat(start), endBeat: beat(end) }],
+      });
+      it("트릴 [0,2] 뒤 일반 [2,4]는 zone 끝의 일반 바디 배타 위반만 보고한다", () => {
+        const chart = inZone([trillTap(0, lane), trillBody(0, 2, lane), body(2, 4, 1, lane)], 0, 2);
+        expect(validateChartDocument(chart).semantic.map(e => e.rule)).toEqual(["trillExclusive"]);
+      });
+      it("일반 [0,2] 뒤 트릴 [2,4]에 시작 트릴 탭이 없으면 trillLongInvalid만 보고한다", () => {
+        const chart = inZone([body(0, 2, 1, lane), trillBody(2, 4, lane)], 2, 4);
+        expect(validateChartDocument(chart).semantic.map(e => [e.rule, e.refs])).toEqual([
+          ["trillLongInvalid", [{ kind: "note", index: 1 }]]]);
+      });
+      it("트릴 [0,2]·[2,4]의 경계 탭 누락은 trillLongInvalid이며 트릴 탭 추가 후 저장 가능하다", () => {
+        const chart = inZone([trillTap(0, lane), trillBody(0, 2, lane), trillBody(2, 4, lane)]);
+        expect(validateChartDocument(chart).semantic.map(e => [e.rule, e.refs])).toEqual([
+          ["trillLongInvalid", [{ kind: "note", index: 2 }]]]);
+        chart.notes.push(trillTap(2, lane));
+        expect(validateChartDocument(chart).canSave).toBe(true);
+      });
+      it("트릴 [0,2]·[2,4]의 경계 2에 release를 놓아도 시작 트릴 탭을 대신하지 못한다", () => {
+        const chart = inZone([trillTap(0, lane), trillBody(0, 2, lane), trillBody(2, 4, lane), mark("release", 2, 1, lane)]);
+        expect(validateChartDocument(chart).semantic.map(e => e.rule)).toEqual(["trillExclusive", "trillLongInvalid"]);
+      });
+      it("일반 [0,2]·트릴 [2,4]·트릴 [4,6]의 탭 누락은 두 트릴 바디만 가리킨다", () => {
+        const chart = inZone([body(0, 2, 1, lane), trillBody(2, 4, lane), trillBody(4, 6, lane)], 2, 6);
+        expect(validateChartDocument(chart).semantic.map(e => [e.rule, e.refs])).toEqual([
+          ["trillLongInvalid", [{ kind: "note", index: 1 }]],
+          ["trillLongInvalid", [{ kind: "note", index: 2 }]]]);
+      });
     });
 
     it("구형 long [0,2]와 명시 바디 [2,4]가 맞닿으면 어느 순서든 같은 수 경계 위반을 내지 않는다", () => {
@@ -380,9 +362,9 @@ describe("명시 문서의 구조·의미·재생 진단", () => {
       .toEqual([{ kind: "note", index: 2 }, { kind: "note", index: 3 }]);
   });
 
-  it("보조 lane5의 트릴 탭·body는 zone과 head를 요구하지 않는다", () => {
+  it("보조 lane5의 zone 밖 트릴 탭과 시작 탭 없는 body는 배타 2건·시작 탭 위반 1건이다", () => {
     expect(rules([{ type: "body", lane: 5, beat: beat(1), endBeat: beat(3), holdCount: 1, trill: true },
-      { type: "tap", kind: "trill", lane: 5, beat: beat(2) }])).toEqual([]);
+      { type: "tap", kind: "trill", lane: 5, beat: beat(2) }])).toEqual(["trillExclusive", "trillExclusive", "trillLongInvalid"]);
   });
 
   it("explicit 탭과 legacy single의 같은 위치는 duplicate이며 원본 index0·2를 가리킨다", () => {

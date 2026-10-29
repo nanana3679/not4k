@@ -37,6 +37,7 @@ function makeChart(notes: NoteEntity[], events: ChartEvent[] = []): Chart {
 function renderViolations(chart: Chart, violating: { notes?: number[]; events?: number[] }): Graphics[] {
   const host: OverlayHost = {
     chart,
+    extraLaneCount: 4,
     selectedNotes: new Set(),
     selectedTrillZones: new Set(),
     selectedRestZones: new Set(),

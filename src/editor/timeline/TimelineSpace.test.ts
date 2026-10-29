@@ -373,3 +373,15 @@ describe("TimelineSpace — 히트테스트", () => {
   });
 
 });
+
+describe('보조 trillZone 히트테스트', () => {
+  it('lane 5 구간 [1,4]의 몸통과 끝점을 잡고 레인을 숨기면 히트하지 않는다', () => {
+    const { source, state } = makeFakeSource({ chart: makeChart({ trillZones: [{ lane: 5, beat: beat(1), endBeat: beat(4) }] }) });
+    const space = createTimelineSpace(source);
+    expect(space.hitTestTrillZone(270, 1000)).toBe(0);
+    expect(space.hitTestTrillZoneEnd(270, 2000)).toBe(0);
+    state.extraLaneCount = 0;
+    expect(space.hitTestTrillZone(270, 1000)).toBeNull();
+    expect(space.hitTestTrillZoneEnd(270, 2000)).toBeNull();
+  });
+});

@@ -206,22 +206,25 @@ describe("convertLegacyChart — 구형 패턴 대응표 M1～M13", () => {
 });
 
 describe("convertLegacyChart — 규칙이 바로 정하지 않은 경우", () => {
-  it("(a) 보조 레인 6의 holdOnly trillLong [0,1]→trillLong [1,2]는 트릴 바디 [0,2] 하나로 합치되 틱 노트 없이 보고하고 끝 2에도 릴리즈 없이 보고한다", () => {
+  it("(a) 보조 레인 6의 holdOnly trillLong [0,1]→trillLong [1,2]는 트릴 바디 [0,2] 하나로 합치되 zone·head 누락을 보고하고 결과의 수리도 필요하다", () => {
     const result = convertLegacyChart(chart([range("trillLong", 0, 1, { lane: 6, holdOnly: true }), range("trillLong", 1, 2, { lane: 6 })]));
     expect(result.chart.notes).toEqual([body(0, 2, 1, { lane: 6, trill: true })]);
     expect(result.report.counts.mergedConnections).toBe(1);
-    expect(result.report.items).toEqual([item("holdOnlyConnectionNotTickable", 1, 1, [0, 1], 6),
+    expect(result.report.items).toEqual([inputViolation("trillExclusive", 0, [0], 6),
+      inputViolation("trillLongInvalid", 0, [0], 6), item("holdOnlyConnectionNotTickable", 1, 1, [0, 1], 6),
+      inputViolation("trillExclusive", 1, [1], 6), inputViolation("trillLongInvalid", 1, [1], 6),
       item("releaseOmittedTrillBodyEnd", 2, 1, [1], 6)]);
-    expect(violations(result.chart)).toEqual([]);
+    expect(violations(result.chart)).toEqual(["trillExclusive", "trillLongInvalid"]);
   });
 
-  it("(a) 보조 레인 6의 holdOnly long [0,1]→trillLong [1,2]는 바디를 합치지 않고 경계 1에 틱 노트 없이, 트릴 바디 끝 2에 릴리즈 없이 보고한다", () => {
+  it("(a) 보조 레인 6의 holdOnly long [0,1]→trillLong [1,2]는 바디를 합치지 않고 경계 처리와 zone·head 누락을 보고하며 결과의 수리도 필요하다", () => {
     const result = convertLegacyChart(chart([range("long", 0, 1, { lane: 6, holdOnly: true }), range("trillLong", 1, 2, { lane: 6 })]));
     expect(result.chart.notes).toEqual([body(0, 1, 1, { lane: 6 }), body(1, 2, 1, { lane: 6, trill: true })]);
     expect(result.report.counts.mergedConnections).toBe(0);
     expect(result.report.items).toEqual([item("holdOnlyConnectionNotTickable", 1, 1, [0, 1], 6),
+      inputViolation("trillExclusive", 1, [1], 6), inputViolation("trillLongInvalid", 1, [1], 6),
       item("releaseOmittedTrillBodyEnd", 2, 1, [1], 6)]);
-    expect(violations(result.chart)).toEqual([]);
+    expect(violations(result.chart)).toEqual(["trillExclusive", "trillLongInvalid"]);
   });
 
   it("(e) 길이 0 long 1·doubleLong 2는 단독 릴리즈 count 1·2가 되고 길이 0 holdOnly long 3·doubleLong 4는 길이 0 바디와 count 1·2 틱 노트가 된다", () => {
@@ -292,25 +295,28 @@ describe("convertLegacyChart — 규칙이 바로 정하지 않은 경우", () =
 });
 
 describe("convertLegacyChart — 보조 레인 트릴 롱노트(사용자 결정, 2026-10-28)", () => {
-  it("보조 레인 5의 head 없는 trillLong [0,2]는 메인 레인처럼 트릴 바디 [0,2]만 되고 끝 2에 릴리즈 없이 1개 손실의 releaseOmittedTrillBodyEnd로 보고한다", () => {
+  it("보조 레인 5의 head 없는 trillLong [0,2]는 바디로 옮기되 zone·head 위반을 보고하고 자동 수리하지 않는다", () => {
     const input = chart([range("trillLong", 0, 2, { lane: 5 })]);
-    expect(violations(input)).toEqual([]);
+    expect(violations(input)).toEqual(["trillExclusive", "trillLongInvalid"]);
     const result = convertLegacyChart(input);
     expect(result.chart.notes).toEqual([body(0, 2, 1, { lane: 5, trill: true })]);
-    expect(result.report.items).toEqual([item("releaseOmittedTrillBodyEnd", 2, 1, [0], 5)]);
-    expect(violations(result.chart)).toEqual([]);
+    expect(result.report.items).toEqual([inputViolation("trillExclusive", 0, [0], 5),
+      inputViolation("trillLongInvalid", 0, [0], 5), item("releaseOmittedTrillBodyEnd", 2, 1, [0], 5)]);
+    expect(violations(result.chart)).toEqual(["trillExclusive", "trillLongInvalid"]);
   });
 
   it.each([{ holdOnly: false }, { holdOnly: true }])(
-    "구형에서 합법인 보조 레인 5의 길이 0 trillLong 1(holdOnly $holdOnly)은 길이 0 트릴 바디로 옮기고 릴리즈·틱 노트 없이 1개 손실의 auxZeroLengthTrillBody로 보고한다",
+    "보조 레인 5의 금지된 길이 0 trillLong 1(holdOnly $holdOnly)은 길이 0 트릴 바디로 옮기고 릴리즈·틱 노트 없이 1개 손실의 auxZeroLengthTrillBody와 변환 전 위반으로 보고한다",
     ({ holdOnly }) => {
       const input = chart([range("trillLong", 1, 1, { lane: 5, holdOnly })]);
-      expect(violations(input)).toEqual([]);
+      expect(violations(input)).toEqual(holdOnly
+        ? ["trillExclusive", "trillLongInvalid", "trillLongInvalid"] : ["trillExclusive", "trillLongInvalid"]);
       const result = convertLegacyChart(input);
       expect(result.chart.notes).toEqual([body(1, 1, 1, { lane: 5, trill: true })]);
-      expect(result.report.items).toEqual([item("auxZeroLengthTrillBody", 1, 1, [0], 5)]);
+      expect(result.report.items).toEqual([item("auxZeroLengthTrillBody", 1, 1, [0], 5),
+        inputViolation("trillExclusive", 1, [0], 5), inputViolation("trillLongInvalid", 1, [0], 5)]);
       expect(result.report.counts).toEqual({ taps: 0, bodies: 1, releases: 0, ticks: 0, mergedConnections: 0, terminalHoldOnlyItemsDropped: 0 });
-      expect(violations(result.chart)).toEqual([]);
+      expect(violations(result.chart)).toEqual(["trillExclusive", "trillLongInvalid"]);
     });
 });
 
@@ -386,15 +392,16 @@ describe("convertLegacyChart — 변환 전 입력의 위반", () => {
     expect(result.report.counts).toEqual({ taps: 0, bodies: 1, releases: 0, ticks: 0, mergedConnections: 0, terminalHoldOnlyItemsDropped: 1 });
   });
 
-  it("보조 레인 5의 head 없는 long [0,1]→trillLong [1,2](구형 NJ-C02 위반)는 두 바디로 옮겨 연결과 변환 전 noteConstraint를 보고하며 일반→트릴 경계라 명시 검증은 막지 않는다", () => {
+  it("보조 레인 5의 head 없는 long [0,1]→trillLong [1,2](구형 NJ-C02 위반)는 두 바디로 옮겨 연결과 변환 전 noteConstraint를 보고하며 zone·시작 트릴 탭 누락은 변환 후에도 저장을 막는다", () => {
     const result = convertLegacyChart(chart([range("long", 0, 1, { lane: 5 }), range("trillLong", 1, 2, { lane: 5 })]));
     expect(result.chart.notes).toEqual([body(0, 1, 1, { lane: 5 }), body(1, 2, 1, { lane: 5, trill: true })]);
     expect(result.report.items).toEqual([
       item("sameHoldCountConnectionWithoutHeadOrHoldOnly", 1, 0, [0, 1], 5),
       inputViolation("noteConstraint", 1, [0, 1], 5),
+      inputViolation("trillExclusive", 1, [1], 5), inputViolation("trillLongInvalid", 1, [1], 5),
       item("releaseOmittedTrillBodyEnd", 2, 1, [1], 5),
     ]);
-    expect(violations(result.chart)).toEqual([]);
+    expect(violations(result.chart)).toEqual(["trillExclusive", "trillLongInvalid"]);
   });
 });
 
