@@ -32,6 +32,9 @@
 | 인게임 구간 | `gameplayRange` (UI 라벨은 화면 표시 예외로 "인게임 구간" 유지) | `gameplayRange` |
 | Good◇ → `goodTrill` | `goodTrill` (화면 표시 GOOD◇) | `goodTrillCount`, `JudgmentGrade.GOOD_TRILL` |
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
+| BPM 마커·BPM 이벤트 | `BpmChangeEvent` | `BpmChangeEvent`(type `"bpm"`), 0박 초기 설정 포함. 계산용 데이터는 `BpmChange` |
+| 박자 마커·박자 이벤트 | `TimeSignatureChangeEvent` | `TimeSignatureChangeEvent`(type `"timeSignature"`), 0박 초기 설정 포함. 마디 번호 기준 계산용 데이터는 `TimeSignatureChange` |
+| 저장·편집 차트 문서 | `ChartDocument` | `ChartDocument`/`DocumentNoteEntity`/`DocumentExtraNoteEntity` — 구형 `Chart`·`NoteEntity` 소비자와 구별. [정의](glossary.md#chartdocument) |
 | 차트 시간 뷰 | `ChartTiming` | `ChartTiming`/`createChartTiming`/`ChartTimingSource` |
 | 메시지 이벤트 | `TextEvent` (⚠️ 2026-06-30 A1을 재전환) | `TextEvent`(type `"text"`) |
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |
@@ -45,6 +48,10 @@
 표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 기존 기록에서 유지한다. 구형 끝점·`holdOnly` 표기를 새 모델의 암묵적 뗌·점수 계약으로 읽지 않는다.
 
 ## B. 기존 개념 — established 이름 유지
+
+**곡 메타데이터**와 **차트 메타데이터**는 기존 데이터 용어의 한국어 표기를 사용한다. 제목·아티스트·자켓은 곡이 소유하고 난이도명·Lv.는 개별 차트를 설명한다. 현재 `ChartMeta`의 저장 필드와 논리적 소유 범위를 구별한다([곡](glossary.md#곡-메타데이터)·[차트](glossary.md#차트-메타데이터)).
+
+**곡 타이밍**은 곡의 음악적 시간 기준을 설명하는 한국어 표현으로 사용한다. 같은 곡의 차트들이 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬 오프셋을 가리킨다. 기존 `BpmChangeEvent`·`offsetMs`의 저장 표현과 곡 단위 소유 규칙을 구별하며, 정의는 [glossary](glossary.md#곡-타이밍)를 따른다.
 
 **일시정지 후 재개**는 기존 재생 조작의 한국어 표기를 유지한다. 새 흐름의 의미는 [glossary](glossary.md#일시정지-후-재개)에 정의하며 별도 코드 식별자를 이 용어로 확정하지 않는다.
 
