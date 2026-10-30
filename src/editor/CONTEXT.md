@@ -14,11 +14,11 @@ Chart editor 컨텍스트는 차트 제작자가 차트를 만들고 수정하�
 ## Language
 
 **차트 편집기**:
-차트 제작자가 곡의 시간축 위에 노트, 마커, 이벤트를 배치하는 도구이다.
+차트 제작자가 곡의 시간축 위에 노트와 이벤트를 배치하는 도구이다. 재생 중 노트·이벤트의 생성·이동·삭제·길이 조절과 Undo·Redo, 오프셋·BPM·박자표 값 수정은 제한한다([스펙](../../docs/spec/chart-editor.md#재생)).
 _Avoid_: 맵 에디터
 
 **타임라인**:
-차트의 시간 흐름을 아래에서 위로 표현하는 편집 공간이다.
+차트의 시간 흐름을 아래에서 위로 표현하는 편집 공간이다. 곡 공통 BPM·박자표 레인과 차트별 노트·이벤트 영역을 구분하는 구성을 채택했다([스펙](../../docs/spec/chart-editor.md#곡-타이밍-공유-미구현)).
 _Avoid_: 플레이필드
 
 **노트 레인**:
@@ -33,9 +33,22 @@ _Avoid_: 노트 레인
 음원의 소리 크기 변화를 타임라인 위에 시각화한 배경 정보이다.
 _Avoid_: 그리드
 
+**곡 메타데이터**:
+제목·아티스트·자켓은 같은 곡의 모든 차트가 공유하며, 이 표시 정보만 수정하면 기존 기록과 랭킹을 유지한다([glossary](../../docs/context/glossary.md#곡-메타데이터)).
+
+**곡 저장**:
+곡의 표시 정보와 공통 타이밍을 함께 저장하며, 개별 차트 저장과 범위를 분리한다. Undo·Redo 이력은 곡 정보와 차트 편집을 시간순으로 통합한다. 왼쪽 곡 정보 드로어와 저장 분리는 채택 규칙이며 후속 구현이다([glossary](../../docs/context/glossary.md#곡-저장)).
+
+**곡 타이밍**:
+같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 곡 단위 공유는 채택 규칙이며 런타임 반영은 후속 작업이다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+
 **박자 그리드**:
-BPM과 박자 마커를 기준으로 계산되는 시간 눈금이다.
+`BpmChangeEvent`와 `TimeSignatureChangeEvent`를 기준으로 계산되는 시간 눈금이다.
 _Avoid_: 스냅
+
+**`Selection.events`**:
+이벤트 선택을 노트·구간 선택과 함께 소유하는 축이다. 공통 편집 조작·초기 설정 보호·명시 이벤트 복사는 [glossary](../../docs/context/glossary.md#차트-이벤트)를 따른다.
+_Avoid_: 시간 범위에 따른 자동 이벤트 복사
 
 **스냅**:
 노트 배치나 이동 위치를 고른 간격(`snapDivision`, 1/N박)의 격자에 맞추는 편집 보조 기능이며, 그 격자의 한 칸도 스냅이라 부른다("한 스냅씩 이동"). 격자 밖 기존 노트도 선택할 수 있다([glossary](../../docs/context/glossary.md#스냅-snap)).
@@ -54,7 +67,7 @@ _Avoid_: 전체 차트
 _Avoid_: 뷰포트 슬라이스(한국어 조어), 렌더러·컨트롤러에 뷰포트 상태 복제 저장, 렌더러에 뷰포트 setter 추가
 
 **`SelectionSlice`**:
-에디터 선택 상태(notes·zones·restZones)의 단독 소유자다. 의미 위반 항목의 선택 해제·교체를 허용하며 유효 인덱스·트릴 동질성·독립 `restZones` 정규화를 유지한다. 풀 정의는 [glossary](../../docs/context/glossary.md#selectionslice)를 따른다.
+에디터 선택 상태(notes·zones·restZones)의 단독 소유자다. 실제 선택 집합·개별 제외와 의미 위반 선택 해제를 허용하고, 유효 인덱스·트릴 동질성·독립 `restZones` 정규화는 유지한다. 풀 정의는 [glossary](../../docs/context/glossary.md#selectionslice)를 따른다.
 _Avoid_: 선택 슬라이스(한국어 조어), SelectMode·훅에 선택 사본 저장, 필드별 개별 setter
 
 **`TimelineSpace`**:
@@ -90,11 +103,11 @@ _Avoid_: 실제 노트
 _Avoid_: 렌더링 제한, 두 층의 혼동(층2 규칙을 모델 검증에 넣기)
 
 **차트 변이 게이트**:
-현재 구형 구현의 store `setChart`에 내장된 **구조 검증**(`validateChartStructural`: 구간 역전·분자 0 박자표 등 malformed/크래시). 구조 위반만 거부(차트·히스토리 무변)하고 토스트로 사유를 알린다. **의미 위반(겹침·중복·트릴 헤드 등)은 transient로 허용해 커밋**한다 — 라이브 차트는 더 이상 항상 valid가 아니며, 의미 제약은 저장 게이트(`useFileOperations`의 `validateChart`)와 플레이/프리뷰 진입 게이트가 강제한다(RFD 0017). **setChart는 선택도 같은 트랜잭션에서 보정한다** — 노트·구간 **축소** 커밋이면 남은 엔티티를 identity로 재매핑해 지워진 것만 선택에서 빼고(인덱스 밀림 방지), 개수 불변이면 재정규화한다. 선택 인덱스↔차트 범위 불변은 **변이 액션 소관**이라 호출자가 "차트 커밋→선택" 순서를 수동으로 지킬 필요가 없다. 한 조작의 여러 쓰기는 편집 transaction token으로 Undo 한 단위가 되며, 독립 명령은 열린 transaction을 먼저 확정하고 소유자에게 `onInterrupt`로 알린다(풀 정의는 [glossary](../../docs/context/glossary.md#차트-변이-게이트-chart-mutation-gate)). `loadChart`는 구조·의미 모두 열어 수리를 허용한다(경고만). 구조 검증은 setChart에 수렴하며, 새 바디 삭제·축소의 별도 편집 보호는 아래 채택 계약을 따른다.
+store `setChart`의 구조 검증과 원자적 선택 보정이다. 의미 위반은 편집 중 허용하고 저장·플레이에서 막으며 바디 삭제·축소 보호를 별도로 적용한다. 상세는 [glossary](../../docs/context/glossary.md#차트-변이-게이트-chart-mutation-gate)를 따른다.
 _Avoid_: setChart 외의 차트 쓰기 경로, 로드 외 목적의 loadChart 사용, "라이브는 항상 valid" 가정, 차트 변이 후 선택 보정을 호출자가 수동으로(변이 액션이 이미 소유)
 
-**선택 해제 게이트** _(제거됨, 대조용 기록)_:
-제거 전 `SelectionSlice.setSelection`은 선택에서 빠지는 항목이 의미 위반에 관여한 채 남으면 전이를 거부했다(RFD 0017 §3-5). 새 에디터는 이 제한을 제거해 위반 항목도 해제·교체할 수 있으며, 위반 표시·저장·플레이 검증은 유지한다. 제거 전 구현과 현재 범위는 [glossary](../../docs/context/glossary.md#선택-해제-게이트-deselect-gate)를 따른다.
+**선택 해제 게이트** _(E2에서 제거한 과거 제한)_:
+의미 위반 항목도 선택 해제·교체할 수 있다. 위반 표시·저장·플레이 검증은 유지하며 과거 제한과 새 적용 범위는 [glossary](../../docs/context/glossary.md#선택-해제-게이트-deselect-gate)를 따른다.
 _Avoid_: 하드 거부로 오해(place-then-fix 유지), 해제를 제스처로 열거(교체·부분해제가 샘), undo·삭제까지 막기
 
 **Extra 노트**:
@@ -149,7 +162,7 @@ _Avoid_: 뷰포트 제스처
 
 ## 새 에디터 계약 요약
 
-다음은 새 에디터에 구현·검증한 편집 계약의 요약이다(명시 차트 테스트 재생은 #346에서 연결). 정의는 [glossary](../../docs/context/glossary.md), 조작별 세부는 [공식 편집 스펙](../../docs/spec/chart-editor.md#새-에디터-채택-계약), 결정은 [RFD 0037 §6](../../docs/rfd/0037-explicit-score-notes-and-body.md#6-위치-관계와-편집)·[§8](../../docs/rfd/0037-explicit-score-notes-and-body.md#8-구형-차트와-과도기)을 따른다.
+다음은 채택 계약이며 E1 생성·표시·혼합 저장과 E2 선택·명령·취소를 구현·검증했다. 정의는 [glossary](../../docs/context/glossary.md), 조작별 세부는 [공식 편집 스펙](../../docs/spec/chart-editor.md#새-에디터-채택-계약), 결정은 [RFD 0037 §6](../../docs/rfd/0037-explicit-score-notes-and-body.md#6-위치-관계와-편집)·[§8](../../docs/rfd/0037-explicit-score-notes-and-body.md#8-구형-차트와-과도기)을 따른다.
 
 - 바디는 무점수 유지 구간이고 탭 노트·릴리즈 노트·틱 노트는 명시적 점수 노트다. 일반 탭 노트 드래그는 시작 탭 노트·바디·끝 릴리즈를, 트릴 드래그는 탭 노트·바디만 만든다([RFD 0038](../../docs/rfd/0038-release-notes-in-trill-zones.md)). 빈 위치 틱 노트 배치는 길이 0 싱글 바디+1몫 틱 노트를 만든다. 재클릭의 더블 변경과 몫 수 규칙은 스펙을 따른다.
 - 바디를 새로 선택하면 시작 탭 노트·소속 틱 노트·끝 릴리즈도 선택하지만 미선택 개별 노트 클릭은 해당 노트만 고른다. 이미 선택된 노트를 누르면 선택을 유지하고 끌면 선택 전체를 옮긴다(RFD 0016 §6-6). 토글 제외를 보존하고 복사·이동은 실제 선택 집합을 따르며, 관계는 같은 레인의 박 위치에서 도출한다.
