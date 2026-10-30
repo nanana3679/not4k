@@ -14,35 +14,49 @@ Shared chart model 컨텍스트는 게임 클라이언트와 차트 편집기가
 _Avoid_: 초, 프레임
 
 **마디**:
-박자 마커가 정의하는 박 묶음이며 차트 탐색과 그리드 표시의 큰 단위이다.
+`TimeSignatureChangeEvent`가 정의하는 박 묶음이며 차트 탐색과 그리드 표시의 큰 단위이다.
 _Avoid_: 섹션
 
+**곡 메타데이터**:
+제목·아티스트·자켓은 같은 곡의 모든 차트가 공유하며, 이 표시 정보만 수정하면 기존 기록과 랭킹을 유지한다([glossary](../../docs/context/glossary.md#곡-메타데이터)).
+
+**곡 타이밍**:
+같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 곡 단위 공유는 채택 규칙이며 런타임 반영은 후속 작업이다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+
 **차트 메타데이터**:
-곡 제목, 아티스트, 난이도명, Lv., 에셋 참조, 오프셋처럼 차트 전체를 설명하는 정보이다.
+난이도명·Lv. 등 개별 차트를 설명하는 정보이다. 현재 차트 문서가 곡 제목·아티스트·자켓·오프셋도 담는 저장 표현과 곡의 논리적 소유 범위를 구별한다([glossary](../../docs/context/glossary.md#차트-메타데이터)).
 _Avoid_: 곡 메타데이터
 
-**시점 마커**:
-특정 박 이후의 시간 해석을 바꾸는 BPM 또는 박자 마커이다.
+**`ChartDocument`**:
+구형/신형 항목의 의미를 함께 보존하는 저장·편집 문서 타입이다. 기존 `Chart`는 구형 소비자 입력으로 구별한다([glossary](../../docs/context/glossary.md#chartdocument), [저장 포맷](../../docs/spec/chart-format.md)).
+_Avoid_: 전체 문서 버전으로 항목 의미 자동 변경
+
+**시점 이벤트**:
+특정 박 이후의 시간 해석을 바꾸는 `BpmChangeEvent` 또는 `TimeSignatureChangeEvent`이다. 0박 초기 설정도 포함한다([glossary](../../docs/context/glossary.md#차트-이벤트)).
 _Avoid_: 구간 이벤트
 
-**BPM 마커**:
-특정 박 이후의 BPM을 정의하는 시점 마커이다.
+**`BpmChangeEvent`**:
+특정 박 이후의 BPM을 정의하는 시점 이벤트이다.
 _Avoid_: 스크롤 속도
 
-**박자 마커**:
-특정 마디 이후 한 마디가 몇 박인지 정의하는 시점 마커이다.
-_Avoid_: BPM 마커
+**`TimeSignatureChangeEvent`**:
+마디 경계의 박부터 한 마디가 몇 박인지 정의하는 시점 이벤트이다. 저장 위치는 `beat`다([glossary](../../docs/context/glossary.md#timesignaturechangeevent)).
+_Avoid_: `BpmChangeEvent`
+
+**`BpmChange`·`TimeSignatureChange`**:
+시점 이벤트에서 추출한 시간 계산용 데이터다. 각각 박 기준 BPM과 마디 번호 기준 박 수를 담는다([glossary](../../docs/context/glossary.md#bpmchangetimesignaturechange)).
+_Avoid_: 이벤트의 시각 표현
 
 **구간 이벤트**:
 시작 박과 끝 박을 가지며 일정 구간 동안 의미가 유지되는 차트 이벤트이다.
-_Avoid_: 시점 마커
+_Avoid_: 시점 이벤트
 
 **`TextEvent`**:
 특정 구간 동안 튜토리얼 설명 문구를 보여주는 구간 이벤트이다.
 _Avoid_: 메시지 이벤트, 텍스트 이벤트
 
 **`AutoEvent`**:
-특정 구간 동안 사용자 입력 없이 노트가 자동 판정되는 구간 이벤트이다.
+특정 구간 동안 사용자 입력 없이 노트가 자동 판정되는 튜토리얼 전용 구간 이벤트이며, 일반 차트의 연출용으로 사용하지 않는다([glossary](../../docs/context/glossary.md#autoevent-구-표기-auto-구간)).
 _Avoid_: 무점수 구간
 
 **`StopEvent`**:
@@ -123,7 +137,7 @@ _Avoid_: 노트 타임맵, 시간 맵
 ## Example dialogue
 
 > **Dev:** "BPM이 바뀌면 노트 낙하 속도도 바뀌나요?"
-> **Domain expert:** "아니요. **BPM 마커**는 박과 시간의 관계를 바꾸지만, 플레이의 스크롤 속도는 별도 설정입니다."
+> **Domain expert:** "아니요. **`BpmChangeEvent`**는 박과 시간의 관계를 바꾸지만, 플레이의 스크롤 속도는 별도 설정입니다."
 >
 > **Dev:** "메시지는 노트처럼 한 박에만 놓이나요?"
 > **Domain expert:** "아니요. **`TextEvent`**는 시작 박과 끝 박을 가지는 **구간 이벤트**입니다."
