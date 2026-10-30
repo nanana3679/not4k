@@ -19,6 +19,8 @@
 
 **후속 결정:** RFD 0002가 Breakthrough의 `TIME HELL mode` 참조와 회복 불가 규칙을 대체한다. RFD 0003은 입문 유저 동기 부여와 관대한 밸런싱 방향을 정했고, RFD 0005는 `Liftoff / Survival` 2종으로 재편했다. 현재 명칭·분류는 [RFD 0022](0022-flight-difficulty-names-and-visuals.md)의 `Liftoff → Infiltration → Breakthrough`와 차트 난이도명 연결 관계를 따른다. 따라서 아래의 난이도명·`flightRule` 축 분리는 당시 결정이며 현재 분류로 복원하지 않는다. Play/Observer 경계와 `Lv.`·달성률·랭크의 구분은 유지한다. 현재 `Breakthrough`의 이름만으로 이 문서의 과거 세부 규칙을 승계하지 않는다.
 
+**옵저버의 후속 결정 (2026-10-28):** [RFD 0060](0060-observer-for-understanding-and-practice.md)으로 연주 방법 이해·동작 숙련의 구간 반복 목적을 정리했고, [RFD 0061](0061-observer-input-and-judgment.md)로 옵저버 안의 직접 입력·판정 확인을 채택했다. 아래의 입력 없는 관찰과 별도 모드 대안은 당시 논의로 보존한다.
+
 ## 1. 배경
 
 not4k의 기존 스펙은 **게이지 없음, 무조건 완주, 게임 오버 없음**을 명시한다.
