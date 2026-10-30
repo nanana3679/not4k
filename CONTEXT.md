@@ -267,7 +267,7 @@ _Avoid_: Grace 노트
 바디 실패로 기회를 잃은 미처리 릴리즈·틱 노트 항목의 원래 가중치를 0점으로 한 번 정산하는 처리다. 추가 Miss 효과는 없지만 실패 표시는 남는다([glossary](docs/context/glossary.md#점수-항목과-무점수-miss)).
 _Avoid_: 새 Miss, 기회 복구
 
-전체 이론 가중치가 0인 유효한 차트도 재생을 허용하며 달성률·랭크는 표시하지 않는다. 점수 항목이 있는 차트의 획득 0점과 구별한다([glossary](docs/context/glossary.md#점수-항목과-무점수-miss), [RFD 0039](docs/rfd/0039-unscored-chart-results.md)).
+현행 [RFD 0039](docs/rfd/0039-unscored-chart-results.md) 구현은 전체 이론 가중치가 0인 유효한 차트의 재생을 허용하고 달성률·랭크를 숨긴다. 후속 [RFD 0091](docs/rfd/0091-normal-play-requires-score-note.md)은 일반 플레이 진입에 점수 노트 1개 이상을 요구하며 아직 미구현이다. 제작·테스트·튜토리얼의 무점수 재생은 유지하고, 점수 항목이 있는 차트의 획득 0점과 구별한다([glossary](docs/context/glossary.md#점수-항목과-무점수-miss)).
 
 **Good◇**:
 트릴 노트에서 키 교대에 실패했을 때 발생하는 특수 Good 판정이다.
