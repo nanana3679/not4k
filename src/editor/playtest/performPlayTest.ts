@@ -1,5 +1,5 @@
 import { editorChartErrors } from '../documentValidation';
-import { isExplicitNote, mainNotes, requireLegacyChart } from "../../shared";
+import { isExplicitNote, mainNotes, mainTrillZones, requireLegacyChart } from "../../shared";
 import type { Chart, ChartDocument } from "../../shared";
 import { compileExplicitJudgmentChart } from '../../game/judgment/explicitCompiledChart';
 import type { ExplicitPlayTestOptions } from '../../game/stores/explicitPlayRequest';
@@ -78,7 +78,7 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
   // 구형 main은 기존 경로를 보존한다. 보조 노트는 실행하지 않는다.
   let playableChart: Chart;
   try {
-    playableChart = requireLegacyChart({ ...chart, notes: mainNotes(chart.notes) }, "현재 테스트 플레이");
+    playableChart = requireLegacyChart({ ...chart, notes: mainNotes(chart.notes), trillZones: mainTrillZones(chart.trillZones) }, "현재 테스트 플레이");
   } catch {
     addToast("명시적 노트의 테스트 플레이는 새 게임 연결 후 사용할 수 있습니다", "error");
     return false;

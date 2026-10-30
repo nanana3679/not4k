@@ -12,6 +12,8 @@
 
 ---
 
+**후속 결정(2026-10-29):** 트릴 구간·제약의 보조 레인 제외는 [RFD 0086](0086-auxiliary-lane-trill-zones.md)로 대체했다. 현재는 메인·보조 모두에 같은 트릴 제약을 적용하고, 보조 구간은 기존 보조 파일에 분리한다. 아래 과거 결정 기록은 당시 범위를 설명한다.
+
 ## 1. 배경 — 현행: 전 층위 이원화
 
 Extra 노트는 "게임 플레이에 등장하지 않는 에디터 보조 노트"로, **차트 밖 별도 모델**로 설계되었다. 그 결과 모든 층위가 두 벌이다:
@@ -59,7 +61,7 @@ Extra 노트는 "게임 플레이에 등장하지 않는 에디터 보조 노트
 | --- | --- | --- |
 | `duplicate` / `longOverlap` | **전 레인** | 레인 축 검사라 자동 — 이 RFD의 발단(비대칭) 해소 지점 |
 | `rangeInverted` / `beatMalformed` (구조) | **전 레인** | malformed는 레인 무관 |
-| `trillExclusive` / `trillZoneOverlap` / `trillLong` | 메인만 | `trillZone.lane`은 `Lane` 유지 — 보조 레인에 존 배치 불가. **보조 레인의 `trill`·`trillLong` 타입 배치는 허용**(현행 계승, 표시 전용) — 존 배타·헤드 필수 규칙은 보조에 미적용(§8-1 결정) |
+| `trillExclusive` / `trillZoneOverlap` / `trillLong` | **전 레인** | `trillZone.lane`은 양의 정수. 메인·보조 동일 제약([RFD 0086](0086-auxiliary-lane-trill-zones.md)) |
 | `stopZones` / 이벤트 계열 | 메인만 | 게임 판정 전제. 이벤트·존은 보조 레인에 **배치 자체가 불가**(생성 UI 제외) |
 
 ### 3-3. 게임 경계 — "게임은 lane ≤ 4만 본다"를 어디서 강제하나 (2026-07-12 개정)

@@ -39,6 +39,7 @@ import {
   getPlaybackCursorLineEndX,
   getTimelineContentViewportRect,
   getTimelineContentOffsetX,
+  panToRevealRange,
   screenXToTimelineX as mapScreenXToTimelineX,
   shouldRenderPlaybackCursorHandle,
 } from "./timelineViewport";
@@ -51,6 +52,7 @@ import type { NoteHost } from "./NoteRenderer";
 import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 import { destroyChildren } from "./utils";
+import { laneToX, laneWidth } from "./laneGeometry";
 
 export interface TimelineRendererOptions {
   canvas: HTMLCanvasElement;
@@ -407,6 +409,7 @@ export class TimelineRenderer {
 
     // OverlayRenderer host
     const overlayHost: OverlayHost = {
+      get extraLaneCount() { return self.extraLaneCount; },
       get chart() { return self.chart; },
       get selectedNotes() { return self._selectedNotes; },
       get selectedTrillZones() { return self._selectedTrillZones; },
@@ -569,6 +572,19 @@ export class TimelineRenderer {
 
   panHorizontally(deltaX: number): void {
     this.horizontalPanX = this._horizontalPanX + deltaX;
+  }
+
+  /** 통합 레인 하나가 가로로 보이게 팬한다. 이미 보이면 그대로 둔다(변환 검토 목록의 위치 이동). */
+  revealLane(lane: number): void {
+    const left = laneToX(lane);
+    this.horizontalPanX = panToRevealRange({
+      left,
+      right: left + laneWidth(lane),
+      panX: this._horizontalPanX,
+      viewportWidth: this.options.width,
+      leftRailWidth: MEASURE_LABEL_WIDTH,
+      rightRailWidth: this.rightRailWidth,
+    });
   }
 
   /**
@@ -928,7 +944,7 @@ export class TimelineRenderer {
   /**
    * Show a semi-transparent ghost range (long note body + head + end).
    */
-  showGhostRange(lane: Lane, startTimeMs: number, endTimeMs: number): void {
+  showGhostRange(lane: number, startTimeMs: number, endTimeMs: number): void {
     this.overlayRenderer.showGhostRange(lane, startTimeMs, endTimeMs);
   }
 

@@ -4,7 +4,7 @@
  */
 
 import { Container, Graphics, Text, TextStyle } from "pixi.js";
-import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt } from "../../shared";
+import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, isVisibleLane } from "../../shared";
 import type { BpmChange, TimeSignatureChange } from "../../shared";
 import {
   LANE_COUNT,
@@ -16,7 +16,7 @@ import {
   REST_ZONE_STRIPE_WIDTH,
 } from "./constants";
 import { destroyChildren } from "./utils";
-import { eventLaneToX } from "./laneGeometry";
+import { eventLaneToX, laneToX, laneWidth } from "./laneGeometry";
 import { diagonalStripeBands } from "./restZoneHatch";
 
 /** GridRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
@@ -339,6 +339,7 @@ export class GridRenderer {
 
     for (let i = 0; i < trillZones.length; i++) {
       const zone = trillZones[i];
+      if (!isVisibleLane(zone.lane, this.host.extraLaneCount)) continue;
       const startMs = beatToMs(zone.beat, bpmChanges, meta.offsetMs);
       const endMs = beatToMs(zone.endBeat, bpmChanges, meta.offsetMs);
 
@@ -348,8 +349,8 @@ export class GridRenderer {
       const startY = this.host.timeToY(startMs);
       const endY = this.host.timeToY(endMs);
 
-      const x = (zone.lane - 1) * LANE_WIDTH;
-      const width = LANE_WIDTH;
+      const x = laneToX(zone.lane);
+      const width = laneWidth(zone.lane);
       const topY = Math.min(startY, endY);
       const rawHeight = Math.abs(endY - startY);
       const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;

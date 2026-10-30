@@ -1,5 +1,5 @@
 import type { ChartDocument } from "../types";
-import { serializeChart, serializeExtraNotes, mainNotes, auxNotes, auxNotesAsExtra } from "../chart";
+import { serializeChart, serializeExtraNotes, mainNotes, mainTrillZones, auxNotes, auxNotesAsExtra } from "../chart";
 import { songChartExtraPath, songChartPath } from "../storage";
 
 export interface TextAssetUpload {
@@ -165,10 +165,10 @@ function buildChartAsset(input: SaveChartAssetInput): ChartAssetWriteResult {
   return {
     chartPath: songChartPath(input.songId, difficulty),
     extraPath: songChartExtraPath(input.songId, difficulty),
-    // 저장 분리 (RFD 0018 §3-4): 메인 파일엔 메인 노트만, 보조 파일엔 lane 5+를 extraLane으로 환원.
+    // 저장 분리 (RFD 0018 §3-4): 메인 파일엔 메인 노트·구간만, 보조 파일엔 lane 5+를 extraLane으로 환원.
     // auxNotesAsExtra가 chart.notes 순서(=[...main, ...aux])를 보존하므로 재저장이 원본과 바이트 동일.
-    chartJson: serializeChart({ ...input.chart, notes: mainNotes(input.chart.notes) }),
-    extraJson: serializeExtraNotes(auxNotesAsExtra(input.chart.notes), input.extraLaneCount),
+    chartJson: serializeChart({ ...input.chart, notes: mainNotes(input.chart.notes), trillZones: mainTrillZones(input.chart.trillZones) }),
+    extraJson: serializeExtraNotes(auxNotesAsExtra(input.chart.notes), input.extraLaneCount, input.chart.trillZones),
     difficulty,
   };
 }

@@ -204,3 +204,21 @@ describe("ENJ17·HC81 실행 fixture의 컴파일 단계 증거", () => {
     expect(output.result).toBe("driver-only");
   });
 });
+
+describe('보조 트릴 구간의 게임 경계', () => {
+  it('lane 5 구간·트릴 탭·바디를 추가해도 main 점수·바디·분모는 같고 보조 위반은 컴파일을 막는다', () => {
+    const document = chart([{ type: 'tap', kind: 'single', lane: 1, beat: beat(0) }]);
+    const before = compileExplicitJudgmentChart(document);
+    document.trillZones = [{ lane: 5, beat: beat(0), endBeat: beat(4) }];
+    document.notes.push({ type: 'tap', kind: 'trill', lane: 5, beat: beat(1) },
+      { type: 'body', lane: 5, beat: beat(1), endBeat: beat(3), holdCount: 1, trill: true });
+    const compiled = compileExplicitJudgmentChart(document);
+    expect(compiled.scoreItems).toEqual(before.scoreItems);
+    expect(compiled.bodyUnits).toEqual(before.bodyUnits);
+    expect(compiled.totalJudgments).toBe(before.totalJudgments);
+    expect(compiled.theoreticalWeight).toBe(before.theoreticalWeight);
+    expect(createChartTiming(document).trillZoneStartTimesMs.size).toBe(0);
+    document.notes.push({ type: 'release', lane: 5, beat: beat(3), count: 1 });
+    expect(() => compileExplicitJudgmentChart(document)).toThrow(ExplicitChartCompileError);
+  });
+});

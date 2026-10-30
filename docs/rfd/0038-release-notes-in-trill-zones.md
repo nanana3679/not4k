@@ -4,6 +4,8 @@
 
 **이름 변경:** 노트 이름은 [RFD 0041](0041-explicit-score-note-names-tap-tick.md)에서 tap·tick으로 바꿨다(포인트 노트(Point)·`point`→탭 노트·`tap`, 유지 노트·유지 표식·`sustain`→틱 노트·`tick`). 이 문서의 본문은 결정 당시의 이름을 그대로 둔다.
 
+**보조 레인 확장:** [RFD 0086](0086-auxiliary-lane-trill-zones.md)에서 메인/보조의 구간 귀속·릴리즈 배타를 같은 범위로 확장했다. 이 문서의 릴리즈 미도입 원칙은 보조 구간에도 적용한다.
+
 ## 배경
 
 [RFD 0037](0037-explicit-score-notes-and-body.md)은 바디와 명시 릴리즈를 분리한다. 새 명시 릴리즈에는 별도 트릴 종류가 없으며 실제 up 하나를 소비한다. 기존 `trillZone` 배타 검증은 `trill`·`trillLong` 이외의 노트를 구간 안에서 금지하므로 이를 새 타입에 그대로 적용하면 트릴 바디 끝의 명시 릴리즈까지 막힌다.

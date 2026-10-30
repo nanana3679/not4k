@@ -1,6 +1,6 @@
 /** 정적 도안 가용성이다. 판정 상태 선택·성공 알파·표시 수명은 포함하지 않는다. */
 export const EXPLICIT_SKIN_ASSET_IDS = [
-  "tap.single.pending", "tap.double.pending", "tap.double.failed",
+  "tap.single.pending", "tap.single.failed", "tap.double.pending", "tap.double.failed",
   "tap.trill.pending", "tap.trill.failed",
   "body.single.idle", "body.single.held", "body.single.failed",
   "body.double.idle", "body.double.held", "body.double.failed",
@@ -57,7 +57,15 @@ export interface ExplicitSkinManifest {
   schemaVersion: 1;
   id: "classic-explicit";
   runtimePath: "/skins/classic-explicit";
-  provenance: { sourceCommit: string; archiveManifestSha256: string; historicalManifestSha256: string };
+  /**
+   * 트릴을 뺀 역할은 #348 선택 도안의 고정 사본, 트릴 Grace overlay는 #339 보관본, 트릴 탭·바디는 v014 기록에서 온다.
+   * 파일별 크기·SHA-256은 각 asset의 `source`·`sha256`과 `assets-lab/classic/explicit/provenance.json`에 있다.
+   */
+  provenance: {
+    selected: { sourceCommit: string; sourcePullRequest: 348 };
+    approved: { sourceCommit: string; sourcePullRequest: 339 };
+    historicalManifestSha256: string;
+  };
   body: {
     mode: "repeat";
     axis: "y";

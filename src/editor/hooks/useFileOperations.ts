@@ -24,6 +24,8 @@ import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { performPlayTest } from '../playtest/performPlayTest';
 import { editorChartErrors } from '../documentValidation';
+import type { SavedChartJson } from '../savedChart';
+import { SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 export { performPlayTest } from '../playtest/performPlayTest';
 export type { PerformPlayTestParams, PlayTestGameActions } from '../playtest/performPlayTest';
 
@@ -77,15 +79,12 @@ export function resolvePreviewRegenRange(
 export function useFileOperations(
   playbackRef: RefObject<PlaybackController | null>,
   rendererRef: RefObject<{ setChart: (c: unknown) => void } | null>,
-  setSaving: (v: boolean) => void,
   setDeleting: (v: boolean) => void,
   setValidationErrors: (errors: ValidationError[]) => void,
   setShowSaveAsModal: (v: boolean) => void,
   setSaveAsOverwriteTarget: (v: { difficulty: string; level: number } | null) => void,
   setShowDeleteConfirm: (v: boolean) => void,
   setShowPlayTestMenu: (v: boolean) => void,
-  setSavedChartSnapshot: (v: string) => void,
-  setSavedExtraSnapshot: (v: string) => void,
   setPendingPreviewRange: (v: PlaybackRange | null) => void,
   setPendingGameplayRange: (v: PlaybackRange | null) => void,
   setPendingJacketFile: (v: File | null) => void,
@@ -104,6 +103,8 @@ export function useFileOperations(
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const addToast = useEditorStore((s) => s.addToast);
+  const beginChartSave = useEditorStore((s) => s.beginChartSave);
+  const finishChartSave = useEditorStore((s) => s.finishChartSave);
   const editingEvent = useEditorStore((s) => s.editingEvent);
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
 
@@ -130,7 +131,14 @@ export function useFileOperations(
       return;
     }
 
-    setSaving(true);
+    // 저장 진행은 store가 소유한다. 테스트 플레이에서 돌아와 페이지가 다시 마운트돼도 진행 중인 저장을 알고 막는다.
+    const saveGeneration = beginChartSave();
+    if (saveGeneration === null) {
+      // Save 버튼은 저장 중 비활성이다. 다른 경로로 들어와도 저장을 겹쳐 시작하지 않는다.
+      addToast(SAVE_IN_PROGRESS_COPY.secondSave, 'error');
+      return;
+    }
+    let uploadedJson: SavedChartJson | null = null;
     try {
       let chartToSave = chart;
       let resolvedJacketPath: string | null = null;
@@ -231,16 +239,20 @@ export function useFileOperations(
         setPendingGameplayRange(null);
       }
 
-      setSavedChartSnapshot(savedAsset.chartJson);
-      setSavedExtraSnapshot(savedAsset.extraJson);
+      // 업로드한 메인·보조 JSON(저장을 시작할 때의 chartToSave)을 아래 finally에서 savedChartJson으로 정한다.
+      // 재킷·오디오 교체가 함께 있으면 위의 setChart(chartToSave)가 라이브 차트를 chartToSave로 바꾼다. 그래서 그 전까지
+      // 저장 중에 더한 편집은 화면에서 사라져 Undo 기록에만 남고 dirty로 보이지 않는다(기존 동작, 후속 #372).
+      // 교체가 없으면 저장 중 편집은 라이브 차트에 남아 savedChartJson과 달라 dirty다.
+      uploadedJson = { chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson };
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
       console.error('useFileOperations:', err);
       addToast('저장에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
     } finally {
-      setSaving(false);
+      // 실패(uploadedJson null)면 savedChartJson을 그대로 둬 dirty가 남는다. 그 사이 차트를 새로 불러왔으면 store가 무시한다.
+      finishChartSave(saveGeneration, uploadedJson);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraLaneCount, playbackRef, setChart, setSaving, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraLaneCount, playbackRef, setChart, beginChartSave, finishChartSave, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
     if (!activeSongId) {
@@ -261,9 +273,14 @@ export function useFileOperations(
       return;
     }
 
-    setSaving(true);
+    const saveGeneration = beginChartSave();
+    if (saveGeneration === null) {
+      addToast(SAVE_IN_PROGRESS_COPY.secondSave, 'error');
+      return;
+    }
     setShowSaveAsModal(false);
     setSaveAsOverwriteTarget(null);
+    let uploadedJson: SavedChartJson | null = null;
     try {
       const difficulty = targetDifficulty.toLowerCase();
 
@@ -284,8 +301,7 @@ export function useFileOperations(
       });
 
       setChart(chartToSave);
-      setSavedChartSnapshot(savedAsset.chartJson);
-      setSavedExtraSnapshot(savedAsset.extraJson);
+      uploadedJson = { chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson };
 
       window.history.replaceState(null, '', `?songId=${activeSongId}&difficulty=${difficulty}`);
 
@@ -294,11 +310,17 @@ export function useFileOperations(
       console.error('useFileOperations:', err);
       addToast('저장에 실패했습니다. 잠시 후 다시 시도해주세요.', 'error');
     } finally {
-      setSaving(false);
+      finishChartSave(saveGeneration, uploadedJson);
     }
-  }, [chart, activeSongId, addToast, extraLaneCount, setChart, setSaving, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, setSavedChartSnapshot, setSavedExtraSnapshot]);
+  }, [chart, activeSongId, addToast, extraLaneCount, setChart, beginChartSave, finishChartSave, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget]);
 
   const handlePlayTest = useCallback((fromCursor: boolean) => {
+    // 저장이 끝나기 전에 /game으로 가면 페이지가 다시 마운트되어, 진행 중인 저장이 끝날 때 하는 페이지 상태 정리
+    // (구간·재킷·오디오 대기 비우기)가 사라진 페이지에 닿는다. 툴바 버튼도 비활성이지만 다른 경로까지 여기서 막는다.
+    if (useEditorStore.getState().isSavingChart) {
+      addToast(SAVE_IN_PROGRESS_COPY.playTest, 'error');
+      return;
+    }
     const game = useGameStore.getState();
     performPlayTest({
       fromCursor,
