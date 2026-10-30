@@ -6,7 +6,7 @@
 
 현재 구현은 BPM 이벤트를 각 차트의 `events`에, 음원 정렬용 오프셋을 각 차트의 `meta.offsetMs`와 `charts.offset_ms`에 저장한다. 같은 곡의 난이도별 차트가 서로 다른 음악 시간 기준을 가질 수 있는 구조다.
 
-[RFD 0085](https://github.com/nanana3679/not4k/blob/56d6b7100682ad7bb18f597f04699499b533ba0f/docs/rfd/0085-chart-records-and-detailed-history-visibility.md)는 노트 배치 수정 시 기록을 새 버전으로 분리하도록 정했다. 사용자는 BPM·음원 정렬 오프셋 수정으로 실제 입력 타이밍이 달라질 때도 기록을 분리하는 데 동의했으며, 두 값은 차트마다 달라지지 않고 같은 곡의 모든 차트가 공유해야 한다고 확인했다(2026-10-30).
+[RFD 0085](0085-chart-records-and-detailed-history-visibility.md)는 노트 배치 수정 시 기록을 새 버전으로 분리하도록 정했다. 사용자는 BPM·음원 정렬 오프셋 수정으로 실제 입력 타이밍이 달라질 때도 기록을 분리하는 데 동의했으며, 두 값은 차트마다 달라지지 않고 같은 곡의 모든 차트가 공유해야 한다고 확인했다(2026-10-30).
 
 ## 검토한 대안과 채택안
 

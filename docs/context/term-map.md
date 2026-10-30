@@ -53,6 +53,12 @@
 
 **곡 타이밍**은 곡의 음악적 시간 기준을 설명하는 한국어 표현으로 사용한다. 같은 곡의 차트들이 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬 오프셋을 가리킨다. 기존 `BpmChangeEvent`·`offsetMs`의 저장 표현과 곡 단위 소유 규칙을 구별하며, 정의는 [glossary](glossary.md#곡-타이밍)를 따른다.
 
+**올퍼펙트(All Perfect)**는 현재 논의용 명칭으로 유지하며, 달성 조건은 [glossary](glossary.md#올퍼펙트-all-perfect)를 따른다. 최종 표시 명칭은 추후 결정한다([PRD §12](../prd.md#12-미정-사항)).
+
+**클리어 상태**는 실패·성공·풀콤보·올퍼펙트를 묶는 한국어 내부 용어로 사용한다. 정의는 [glossary](glossary.md#클리어-상태)를 따르며, 코드 식별자는 별도로 확정하지 않는다. 개별 달성의 화면 표시 명칭과 구별한다([RFD 0092](../rfd/0092-exclusive-play-outcome-and-chart-display.md)).
+
+**개인 플레이 기록**은 기존 한국어 표현을 유지한다. 차트별 최고기록·클리어 여부·풀콤보 여부와 나머지 상세 기록의 노출 범위는 [glossary](glossary.md#개인-플레이-기록)를 따르며 별도 코드 식별자는 확정하지 않는다.
+
 **일시정지 후 재개**는 기존 재생 조작의 한국어 표기를 유지한다. 새 흐름의 의미는 [glossary](glossary.md#일시정지-후-재개)에 정의하며 별도 코드 식별자를 이 용어로 확정하지 않는다.
 
 레인, 스냅, 비트 분할, 판정 윈도우, 싱글 노트(code `single`), 롱 노트(code `long`), 더블 노트(code `double`), 트릴 노트(code `trill`), Grace 노트(code `grace`), 주키/보조키, 엄지 눕히기, 인지 부하/물리 부하, 난이도 등급/난이도 축, **배드말림**(Bad Train), `BPM`, **앵커**(osu!mania established, 의미 일치), **가변 분할**, **엄검중약**(약중검엄에서 정정), 외부 인용 용어(IIDX 스크래치·볼텍스 노브·maimai Break 등 원작 표기), **유지 판정**(보편 홀드 개념 — 코드만 영어 정렬: `checkLongNoteBodyHold`/`laneHoldStates`/`longNoteBodyStates` — 대표 예시, 전체는 glossary 참조. 2026-07-06 A에서 재분류), **차트 레벨(Lv.)**(보편 개념 — 코드 `difficultyLevel`. 2026-07-06 A에서 재분류), **난이도명**(보편 개념, 차트 레벨과 쌍둥이 — 코드 `difficultyLabel`. 2026-07-06 A에서 재분류), **기어**(레인 영역을 둘러싼 테두리 스킨의 한국 리듬게임 커뮤니티 표준 이름 — 코드 `gear*` 정렬: `gearImage`·`GearLayout` 등, 전체는 [glossary](glossary.md#기어-gear) 참조. 기어 위 장식 애니메이션과 그 식별자(`GearMotionController`·설정 `gearMotion` 등)는 A의 `gearMotion` 행. 이 뜻의 "프레임"은 렌더 프레임과 헷갈려 쓰지 않는다. 2026-10-06 #231), **녹숫**(노트가 레인에 보이고 판정선에 닿기까지의 시간. IIDX 녹색 숫자의 한국 커뮤니티 표준 이름이며 not4k는 IIDX의 프레임 기반 숫자가 아니라 시간으로 다룬다. Lv.별 기준값은 추정 녹숫, [glossary](glossary.md#녹숫-green-number) 참조. 2026-10-15), **흰숫**(서든·리프트가 줄이는 레인 높이를 레인 위끝부터 리프트 0% 판정선까지 = 1000으로 놓고 잰 값. IIDX 흰색 숫자의 한국 커뮤니티 표준 이름이며 위쪽(서든)·아래쪽(리프트) 흰숫이 따로 있고 숫자 하나로 말하면 보통 합계, not4k 설정 %의 10배. [glossary](glossary.md#흰숫-white-number) 참조. 2026-10-18 #291).
