@@ -12,6 +12,7 @@ import { observerWholeSongRange, planObserverFadedSpan } from '../observer/obser
 import type { ObserverRange } from '../observer/observerRepetitionPlan';
 import type { GameRenderer } from '../renderer/GameRenderer';
 import { liftPx, suddenCoverPx } from '../renderer/constants';
+import { resolvePlayLogicalWidth } from '../renderer/gearLayout';
 import type { GameSettings } from '../stores/gameStore';
 import type { ExplicitPlayRequest } from '../stores/explicitPlayRequest';
 import type { GameClock } from '../time';
@@ -35,6 +36,8 @@ export interface ObserverPlayRuntimeOptions {
   canvas: HTMLCanvasElement;
   width: number;
   height: number;
+  /** 화면이 오른쪽 가장자리에 둔 UI(미니맵)의 CSS 폭. 키보드 표시는 그 왼쪽에 놓는다. */
+  reservedRightPx?: number;
   inputTarget: EventTarget;
   onPhase(phase: ObserverPlayPhase): void;
   /** Auto·수동 집계 변경과 조작은 즉시, 곡 시각만 바뀌면 100ms 간격으로 알린다. */
@@ -103,7 +106,10 @@ export class ObserverPlayRuntime {
       renderer.setShowFastSlow(settings.showFastSlow);
       renderer.setShowTimingDiff(settings.showTimingDiff);
       renderer.setPerfectWindow(getJudgmentWindows(settings.judgmentMode).PERFECT);
-      renderer.setupKeyboardDisplay(new Map(this.bindings.map(binding => [binding.key, binding.lane])));
+      // canvas는 CSS 폭 width에 논리 폭을 맞춰 늘린다. 미니맵이 차지한 CSS 폭을 같은 비율로 논리 폭으로 바꾼다.
+      const logicalPerCssPx = resolvePlayLogicalWidth(this.options.width, this.options.height) / this.options.width;
+      renderer.setupKeyboardDisplay(new Map(this.bindings.map(binding => [binding.key, binding.lane])),
+        (this.options.reservedRightPx ?? 0) * logicalPerCssPx);
       this.input = this.host.createInput(this.bindings, clock, {
         onLatePreparationHoldChange: () => {
           try { this.syncLateHeldKeys(); } catch (error) { this.fail(error); }

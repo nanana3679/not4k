@@ -5,7 +5,7 @@ import { isMainLane } from '../../shared';
 import { minimapNoteRect } from '../../shared/minimapNote';
 import { color, font, minimapColor, minimapSurface } from '../../shared/theme';
 import { attachObserverMinimapDrag } from '../observer/observerMinimapDrag';
-import { minimapOverlay, minimapTimeToY, OBSERVER_MINIMAP_WIDTH } from '../observer/observerMinimapGeometry';
+import { minimapOverlay, minimapTimeToY, OBSERVER_MINIMAP_EDGE_MARGIN, OBSERVER_MINIMAP_WIDTH } from '../observer/observerMinimapGeometry';
 import type { ObserverRange } from '../observer/observerRepetitionPlan';
 import type { ObserverPlayRuntime } from './ObserverPlayRuntime';
 
@@ -76,7 +76,7 @@ export function ObserverMinimap({ document, timing, durationMs, range, positionM
   return <div ref={element} className="observer-minimap" role="group" aria-label="Observer range"
     data-testid="observer-minimap" data-range-start-ms={range.startMs} data-range-end-ms={range.endMs}
     data-position-ms={positionMs} data-duration-ms={durationMs}
-    style={{ position: 'absolute', top: 16, bottom: 16, right: 16, width, zIndex: 2,
+    style={{ position: 'absolute', top: OBSERVER_MINIMAP_EDGE_MARGIN, bottom: OBSERVER_MINIMAP_EDGE_MARGIN, right: OBSERVER_MINIMAP_EDGE_MARGIN, width, zIndex: 2,
       touchAction: 'none', userSelect: 'none' }}>
     <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none"
       style={{ display: 'block', overflow: 'hidden' }}>

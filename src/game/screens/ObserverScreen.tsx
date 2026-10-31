@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { color, primitives } from '../../shared/theme';
 import { useGameStore } from '../stores';
+import { OBSERVER_MINIMAP_EDGE_MARGIN, OBSERVER_MINIMAP_WIDTH } from '../observer/observerMinimapGeometry';
 import { ObserverPlayRuntime } from './ObserverPlayRuntime';
 import type { ObserverPlayPhase, ObserverPlayState } from './ObserverPlayRuntime';
 import { ObserverMinimap } from './ObserverMinimap';
@@ -30,6 +31,8 @@ export function ObserverScreen() {
     const player = new ObserverPlayRuntime({
       request, settings, canvas: canvas.current,
       width: field.current.clientWidth, height: field.current.clientHeight, inputTarget: window,
+      // 미니맵 폭과 오른쪽 여백, 키보드 표시와의 간격만큼 비운다.
+      reservedRightPx: OBSERVER_MINIMAP_WIDTH + OBSERVER_MINIMAP_EDGE_MARGIN * 2,
       onPhase: next => {
         if (runtime.current !== player) return;
         currentPhase = next;

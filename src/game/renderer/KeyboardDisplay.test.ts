@@ -43,6 +43,10 @@ describe('placeKeyboardDisplay — 기어 오른쪽 빈 곳에 맞추거나 숨�
     expect(placeKeyboardDisplay(TKL, area(1067))).toEqual({ visible: true, scale: 1, x: 859.5, y: 524.5 });
   });
 
+  it('16:9(1067)에서 오른쪽 80을 비워 freeRight 987이면 TKL을 원래 크기로 x 779.5에 놓는다', () => {
+    expect(placeKeyboardDisplay(TKL, { ...area(1067), freeRight: 987 })).toEqual({ visible: true, scale: 1, x: 779.5, y: 524.5 });
+  });
+
   it('16:9(1067)에서 넘버패드도 원래 크기로 들어간다(x 810)', () => {
     expect(placeKeyboardDisplay(NUMPAD, area(1067))).toEqual({ visible: true, scale: 1, x: 810, y: 524.5 });
   });

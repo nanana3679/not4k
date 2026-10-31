@@ -1396,7 +1396,8 @@ export class GameRenderer {
    * 플레이 영역(높이 600) 오른쪽 아래에 키보드 배치를 직접 그린다. 레인·기어와 무관하게 화면 구석에 붙고,
    * 기어 실루엣(없으면 레인 영역) 오른쪽 빈 곳이 좁으면 줄이거나 숨긴다(KeyboardDisplay.placeKeyboardDisplay).
    */
-  setupKeyboardDisplay(laneBindings: Map<string, number>): void {
+  /** reservedRight는 오른쪽 가장자리에서 다른 UI가 쓰는 논리 폭이다(옵저버 미니맵). 키보드는 그 왼쪽에 붙는다. */
+  setupKeyboardDisplay(laneBindings: Map<string, number>, reservedRight = 0): void {
     this.keyboardDisplay?.dispose();
     const obstacleRight = this._gearLayout?.silhouetteRightX ?? this.laneAreaX + LANE_AREA_WIDTH;
     this.keyboardDisplay = new KeyboardDisplay(this.uiLayer);
@@ -1404,6 +1405,7 @@ export class GameRenderer {
       width: this.width,
       height: this.height,
       freeLeft: obstacleRight + GEAR_CLEARANCE,
+      freeRight: this.width - reservedRight,
     });
   }
 

@@ -2,6 +2,8 @@ import type { ObserverRange } from './observerRepetitionPlan';
 
 export type ObserverMinimapDragPart = 'start' | 'end' | 'move';
 export const OBSERVER_MINIMAP_WIDTH = 60;
+/** 미니맵과 화면 위·아래·오른쪽 가장자리 사이 여백(CSS px). */
+export const OBSERVER_MINIMAP_EDGE_MARGIN = 16;
 export const MINIMAP_TIME_INSET = 12;
 export const MINIMAP_HANDLE_RADIUS = 8;
 

@@ -52,6 +52,8 @@ export interface KeyboardDisplayArea {
   height: number;
   /** 키보드가 쓸 수 있는 가장 왼쪽 x(기어 실루엣 오른쪽 끝 + 여백). */
   freeLeft: number;
+  /** 키보드가 쓸 수 있는 가장 오른쪽 x. 생략하면 플레이 영역 오른쪽 끝이다(옵저버는 미니맵 왼쪽). */
+  freeRight?: number;
 }
 
 export interface KeyboardDisplayPlacement {
@@ -77,14 +79,14 @@ export function keyboardDisplaySize(hasNumpad: boolean): { width: number; height
 }
 
 /**
- * 오른쪽 아래 구석에 붙이되 freeLeft보다 왼쪽으로 넘어가지 않게 필요하면 줄인다(키우지는 않는다).
+ * 오른쪽 아래 구석(freeRight가 있으면 그 왼쪽)에 붙이되 freeLeft보다 왼쪽으로 넘어가지 않게 필요하면 줄인다(키우지는 않는다).
  * 필요한 배율이 KEYBOARD_DISPLAY_MIN_SCALE보다 작으면 숨긴다.
  */
 export function placeKeyboardDisplay(
   size: { width: number; height: number },
   area: KeyboardDisplayArea,
 ): KeyboardDisplayPlacement {
-  const right = area.width - KEYBOARD_DISPLAY_MARGIN;
+  const right = (area.freeRight ?? area.width) - KEYBOARD_DISPLAY_MARGIN;
   const bottom = area.height - KEYBOARD_DISPLAY_MARGIN;
   const available = right - area.freeLeft;
   // 빈 폭이 음수(기어가 오른쪽 여백까지 닿는 좁은 화면)면 음수 배율 대신 0으로 묶는다.
