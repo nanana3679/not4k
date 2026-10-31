@@ -72,7 +72,8 @@ export function useAuth() {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // 기존 버튼은 반환값을 무시하고, Profile은 반환된 오류를 탭 안에 표시한다.
+    return await supabase.auth.signOut();
   };
 
   return { user, isAdmin, loading, signInWithGoogle, signOut };

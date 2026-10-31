@@ -4,9 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { getGoogleRedirectTo, type useAuth } from "./useAuth";
 
 // supabase mock — useAuth를 다시 import할 때마다 실제 supabase client를 만들지 않게 한다
-vi.mock("../../supabase/client", () => ({
-  supabase: {},
-}));
+const authMock = vi.hoisted(() => ({ signOut: vi.fn(), signInWithOAuth: vi.fn() }));
+vi.mock("../../supabase/client", () => ({ supabase: { auth: authMock } }));
 
 type AuthState = ReturnType<typeof useAuth>;
 
@@ -101,5 +100,29 @@ describe("getGoogleRedirectTo", () => {
     expect(redirectTo).toBe(
       "http://localhost:3000/editor?songId=s1&difficulty=easy",
     );
+  });
+});
+
+describe('useAuth 작업 오류', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetAllMocks();
+  });
+
+  it('Supabase signOut이 Logout unavailable 오류를 반환하면 useAuth.signOut은 reject하지 않고 { error }를 그대로 resolve한다', async () => {
+    const error = new Error('Logout unavailable');
+    authMock.signOut.mockResolvedValue({ error });
+    const state = await renderFirstAuthState();
+    await expect(state!.signOut()).resolves.toEqual({ error });
+  });
+
+  it.each(['return', 'throw'])('Supabase signInWithOAuth가 %s 방식으로 Login unavailable을 알리면 호출자에게 오류를 던진다', async (mode) => {
+    vi.stubGlobal('window', { location: { origin: 'https://example.test', pathname: '/game', search: '', hash: '' } });
+    const error = new Error('Login unavailable');
+    if (mode === 'return') authMock.signInWithOAuth.mockResolvedValue({ error });
+    else authMock.signInWithOAuth.mockRejectedValue(error);
+    const state = await renderFirstAuthState();
+    await expect(state!.signInWithGoogle()).rejects.toThrow('Login unavailable');
+    expect(authMock.signInWithOAuth).toHaveBeenCalledWith({ provider: 'google', options: { redirectTo: 'https://example.test/game' } });
   });
 });

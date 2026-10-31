@@ -60,6 +60,9 @@ interface GameState {
    * 서브뷰라 별도 화면 전환이 없다. UI 상태이므로 영속화하지 않는다(새로고침 시 닫힘).
    */
   settingsOpen: boolean;
+  /** OAuth 복귀 때만 Profile로 연다. 설정을 닫으면 초기화하며 영속화하지 않는다. */
+  settingsInitialSection: 'controls' | 'profile';
+  profileAuthError: string | null;
   /**
    * 설정 모달의 Calibration 서브뷰 활성 여부. 보정 중에는 곡 선택 프리뷰 음원을
    * 페이드아웃해 멈추고(보정음과 겹치지 않게), 보정을 나가면 페이드인으로 재개한다.
@@ -173,6 +176,8 @@ export const useGameStore = create<GameState>()(
     (set, get) => ({
       screen: 'title',
       settingsOpen: false,
+      settingsInitialSection: 'controls',
+      profileAuthError: null,
       calibrationActive: false,
       settings: DEFAULT_SETTINGS,
       selectedSongId: null,
@@ -231,6 +236,7 @@ export const useGameStore = create<GameState>()(
       // 다른 화면으로 넘어간 채 열려 있으면 안 되고, 복귀 시 의도치 않게 재오픈되는 것도 막는다.
       // 명시 테스트 요청(문서·음원)은 explicitPlay 화면에서만 쓰므로 다른 화면으로 가면 항상 해제한다.
       setScreen: (screen) => set(state => ({ screen, settingsOpen: false, calibrationActive: false,
+        settingsInitialSection: 'controls', profileAuthError: null,
         ...(screen !== 'explicitPlay' ? { explicitPlay: null } : {}),
         ...(screen !== 'play' && screen !== 'result' && screen !== 'explicitPlay'
           ? { normalPlay: null, explicitPlay: null, lastResult: null, chartData: null, audioBuffer: null,
@@ -238,7 +244,10 @@ export const useGameStore = create<GameState>()(
           : {}),
       })),
 
-      setSettingsOpen: (open) => set(open ? { settingsOpen: true } : { settingsOpen: false, calibrationActive: false }),
+      setSettingsOpen: (open) => set({
+        settingsOpen: open, settingsInitialSection: 'controls', profileAuthError: null,
+        ...(!open ? { calibrationActive: false } : {}),
+      }),
       setCalibrationActive: (active) => set({ calibrationActive: active }),
 
       updateSettings: (partial) => set((state) => ({
