@@ -75,6 +75,7 @@
 
 | 용어 | 캐논(구어 이름) | 정의에 명시할 표기 |
 |---|---|---|
+| 옵저버 모드 / Observer 계열 | 옵저버 모드 / Observer 계열 | 미구현. 관찰·직접 입력·판정을 포함하는 반복 학습 도구와 그 범위 명칭([정의](glossary.md#옵저버-모드-observer-mode)) |
 | 릴리즈탭 | 릴리즈탭 | `-o` (`-` 떼며 `o` 탭). 입력방식명이며 피스 `PP-004`는 롱노트 끝 탭으로 표기([RFD 0077](../rfd/0077-long-note-end-tap-piece-name.md)) |
 | 릴리즈 노트 | 릴리즈 노트 | 롱노트와 별개로 뗌을 명시하는 노트. 바디 끝에 조합하거나 단독으로 배치. 사용자에게 내부 식별자 후보 `hasRelease`로 설명하지 않음 ([RFD 0035](../rfd/0035-release-presence-and-grace.md)·[RFD 0037](../rfd/0037-explicit-score-notes-and-body.md), 구현: 코드 `release`) |
 | 그레이스 릴리즈 | 그레이스 릴리즈 | 실제 뗌은 필수, Good 창 안이면 Perfect. `holdOnly`와 구분. 구현: 릴리즈 노트의 `grace: true`. 피스 표기법 기호는 아직 없음 |
