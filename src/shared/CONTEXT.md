@@ -59,7 +59,7 @@ _Avoid_: 시점 이벤트
 _Avoid_: 메시지 이벤트, 텍스트 이벤트
 
 **`AutoEvent`**:
-특정 구간 동안 사용자 입력 없이 노트가 자동 판정되는 구간 이벤트이다.
+특정 구간 동안 사용자 입력 없이 노트가 자동 판정되는 튜토리얼 전용 구간 이벤트이며, 일반 차트의 연출용으로 사용하지 않는다([glossary](../../docs/context/glossary.md#autoevent-구-표기-auto-구간)).
 _Avoid_: 무점수 구간
 
 **`StopEvent`**:
