@@ -13,6 +13,9 @@ import { getTutorialInputTimings } from './tutorialPreviewChart';
 import { useTutorialPassRecords } from './useTutorialPassRecords';
 import { createExplicitTutorialPreviewSessionController } from './explicitTutorialPreviewSession';
 
+vi.mock('react-dom', () => ({ createPortal: (children: ReactNode) => children }));
+vi.mock('./TutorialPatternDiagram', () => ({ TutorialPatternDiagram: () => null }));
+
 const client = vi.hoisted(() => ({ from: vi.fn(), select: vi.fn(), eq: vi.fn(), upsert: vi.fn(), rpc: vi.fn() }));
 vi.mock('../../../supabase/client', () => ({ supabase: client }));
 
@@ -778,4 +781,187 @@ it('실습 중 설정을 4키에서 2키로 줄이면 다음 차트 시작은 �
   useGameStore.setState({ settings: initialSettings });
   page = renderModal();
   expect(page.player('advanced-double-hold').inputMode).toBe('demonstration');
+});
+
+function mockMetronomeAudio(state: AudioContextState = 'running') {
+  const starts: number[] = [];
+  const stop = vi.fn();
+  const gain = { value: 1, setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() };
+  const gains: { value: number }[] = [];
+  const audio = { state, baseLatency: 0.01, outputLatency: 0.07, destination: {},
+    get currentTime() { return performance.now() / 1000; },
+    createGain: () => { const next = { ...gain }; gains.push(next); return { gain: next, connect() {}, disconnect() {} }; },
+    createOscillator: () => ({ frequency: { value: 0 }, start: (at: number) => starts.push(at), stop,
+      connect() {}, disconnect() {}, onended: null }),
+    resume: vi.fn(async () => { audio.state = 'running'; }), close: vi.fn(async () => {}),
+  };
+  const create = vi.fn(function () { return audio; });
+  vi.stubGlobal('AudioContext', create);
+  return { audio, starts, stop, create, gains };
+}
+
+function renderMetronomePlayer(props: ComponentProps<typeof TutorialPreviewPlayer>) {
+  hooks.cursor = 0;
+  const nodes = elements(TutorialPreviewPlayer(props));
+  let dataset: Record<string, string> = {};
+  for (const node of nodes) {
+    const ref = (node.props as { ref?: { current: unknown } }).ref;
+    if (ref) {
+      ref.current ??= node.type === 'canvas' ? {} : { dataset: {} };
+      if (node.type !== 'canvas') dataset = (ref.current as { dataset: typeof dataset }).dataset;
+    }
+  }
+  hooks.effects.splice(0).forEach(effect => effect());
+  return { dataset, nodes };
+}
+
+it('120 BPM의 직접 입력은 준비 4박 동안 0ms에 멈추고 E를 채점하지 않다가 2105ms 기준 입력을 Perfect로 판정한다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  const { starts } = mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  useGameStore.setState({ settings: { ...initialSettings, inputOffsetMs: 100 } });
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  const onScoreChanged = vi.fn();
+  const { dataset } = renderMetronomePlayer({ preview: ALL_TUTORIAL_PREVIEWS[1],
+    inputMode: 'directInput', metronome, onScoreChanged });
+  await vi.dynamicImportSettled();
+  const key = (type: string) => {
+    const event = new Event(type, { cancelable: true });
+    Object.defineProperties(event, { code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false } });
+    window.dispatchEvent(event);
+  };
+  vi.advanceTimersByTime(500);
+  key('keydown'); key('keyup');
+  vi.advanceTimersByTime(1500);
+  expect(dataset.tutorialElapsedMs).toBe('0');
+  expect(starts.filter(at => at + 0.08 <= 2)).toHaveLength(4);
+  expect(onScoreChanged.mock.calls.every(([score]) => score.processedNotes === 0)).toBe(true);
+  vi.advanceTimersByTime(255);
+  key('keydown');
+  vi.advanceTimersByTime(150);
+  expect(onScoreChanged).toHaveBeenCalledWith(expect.objectContaining({ judgmentCounts: expect.objectContaining({ perfect: 1 }) }), 1);
+  metronome.dispose();
+});
+
+it.each(['pointerdown', 'keydown'])('모달의 두 슬롯은 같은 메트로놈을 공유하고 첫 %s으로 suspended 출력을 재개하며 닫으면 context를 해제한다', gesture => {
+  const { audio, create } = mockMetronomeAudio('suspended');
+  const players = renderModal().nodes.filter(node => node.type === TutorialPreviewPlayer)
+    .map(node => node.props as ComponentProps<typeof TutorialPreviewPlayer>);
+  expect(players).toHaveLength(2);
+  expect(players[0].metronome).toBeDefined();
+  expect(players[0].metronome).toBe(players[1].metronome);
+  expect(players.map(player => player.metronomeActive)).toEqual([true, false]);
+  expect(create).not.toHaveBeenCalled();
+  window.dispatchEvent(new Event(gesture));
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(audio.resume).toHaveBeenCalledTimes(1);
+  hooks.cleanups.forEach(cleanup => cleanup?.());
+  hooks.cleanups = [];
+  expect(audio.close).toHaveBeenCalledTimes(1);
+  window.dispatchEvent(new Event('keydown'));
+  expect(create).toHaveBeenCalledTimes(1);
+});
+
+it('대기 슬롯을 5초 뒤 활성화하면 그때 4박을 시작하고 반복·모드 전환·2초 일시정지 재개에는 준비를 반복하지 않는다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  const { starts, create, stop } = mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  const onPatternStarted = vi.fn();
+  const props = { preview: ALL_TUTORIAL_PREVIEWS[1], metronome, onPatternStarted };
+  const { dataset } = renderMetronomePlayer({ ...props, paused: true, metronomeActive: false });
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(5000);
+  expect(create).not.toHaveBeenCalled();
+  renderMetronomePlayer({ ...props, paused: false, metronomeActive: true });
+  vi.advanceTimersByTime(2106);
+  expect(starts.slice(0, 5).map(at => Math.round(at * 1000))).toEqual([5025, 5525, 6025, 6525, 7025]);
+  vi.advanceTimersByTime(3200);
+  expect(onPatternStarted).toHaveBeenCalledTimes(3);
+  expect(dataset.tutorialCountIn).toBe('false');
+  renderMetronomePlayer({ ...props, inputMode: 'directInput' });
+  renderMetronomePlayer({ ...props, inputMode: 'demonstration' });
+  const elapsed = Number(dataset.tutorialElapsedMs);
+  renderMetronomePlayer({ ...props, paused: true });
+  const count = starts.length;
+  expect(stop).toHaveBeenCalled();
+  vi.advanceTimersByTime(2000);
+  expect(starts).toHaveLength(count);
+  renderMetronomePlayer({ ...props, paused: false });
+  vi.advanceTimersByTime(32);
+  expect(Number(dataset.tutorialElapsedMs) - elapsed).toBeLessThan(60);
+  expect(dataset.tutorialCountIn).toBe('false');
+  vi.advanceTimersByTime(600);
+  expect(starts.length).toBeGreaterThan(count);
+  // 재방문은 같은 렌더러를 재사용해도 준비를 새로 시작한다.
+  renderMetronomePlayer({ ...props, previewInstanceId: 1 });
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(1000);
+  expect(dataset.tutorialCountIn).toBe('true');
+  expect(dataset.tutorialElapsedMs).toBe('0');
+  metronome.dispose();
+});
+
+it('0박 도식은 4박 준비 뒤 소리를 멈추고 OK 뒤에는 새 준비 없이 도식 끝 1000ms에서 이어진다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  const { starts } = mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  vi.stubGlobal('document', { body: {} });
+  const props = { preview: ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!, metronome };
+  const { dataset } = renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(2200);
+  expect(starts).toHaveLength(4);
+  vi.advanceTimersByTime(5000);
+  expect(starts).toHaveLength(4);
+  // createPortal은 테스트에서 DOM 없이 React 트리만 돌려준다.
+  renderMetronomePlayer(props);
+  const { nodes } = renderMetronomePlayer(props);
+  const ok = nodes.find(node => (node.props as Record<string, unknown>)['data-tutorial-diagram-ok']);
+  expect(ok).toBeDefined();
+  ok!.props.onClick!();
+  vi.advanceTimersByTime(100);
+  expect(dataset.tutorialCountIn).toBe('false');
+  expect(Number(dataset.tutorialLoopTimeMs)).toBeGreaterThanOrEqual(1000);
+  vi.advanceTimersByTime(500);
+  expect(starts.length).toBeGreaterThan(4);
+  metronome.dispose();
+});
+
+it('suspended 자동 시작은 무음으로 진행하고 3초 뒤 제스처로 재개하면 다음 루프 박자에 합류하며 볼륨 0도 즉시 반영한다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  const { audio, starts, gains } = mockMetronomeAudio('suspended');
+  const metronome = new TutorialMetronome();
+  metronome.setMasterVolume(0.4);
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  const props = { preview: ALL_TUTORIAL_PREVIEWS[1], metronome };
+  const { dataset } = renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(3000);
+  expect(starts).toHaveLength(0);
+  expect(dataset.tutorialCountIn).toBe('false');
+  expect(Number(dataset.tutorialElapsedMs)).toBeGreaterThan(800);
+  metronome.resumeFromGesture();
+  expect(audio.resume).toHaveBeenCalledTimes(1);
+  vi.advanceTimersByTime(100);
+  expect(starts).toHaveLength(1);
+  expect(starts[0]).toBeCloseTo(3.025);
+  expect(gains[0].value).toBe(0.4);
+  metronome.setMasterVolume(0);
+  expect(gains[0].value).toBe(0);
+  metronome.dispose();
+});
+
+it('active 슬롯도 로딩 가림막이 보일 때는 멈추고 onReady로 실제 재생기가 보인 뒤에만 준비를 시작한다', () => {
+  let page = renderModal();
+  const first = page.player('hand-placement');
+  expect(first.paused).toBe(true);
+  first.onReady?.();
+  page = renderModal();
+  expect(page.player('hand-placement').paused).toBe(false);
 });

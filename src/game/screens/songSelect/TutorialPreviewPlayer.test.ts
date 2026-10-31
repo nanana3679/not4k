@@ -259,7 +259,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('document.body,');
   });
 
-  it('튜토리얼 도식이 0ms에서 시작하면 렌더러 준비를 기다리기 전에 먼저 감지해 WebGL 실패 중에도 설명 모달을 표시', () => {
+  it('무음 Lab 튜토리얼 도식이 0ms에서 시작하면 렌더러 준비를 기다리기 전에 먼저 감지해 WebGL 실패 중에도 설명 모달을 표시', () => {
     const earlyDiagramNotify = [
       'resolveDiagramPauseTime(0);',
       '    if (activeDiagramPause) {',
@@ -342,7 +342,7 @@ describe('TutorialPreviewPlayer', () => {
   });
 
   it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 렌더 사이클 0 초기화 → 준비 알림 순서로 재사용', () => {
-    const contentDeps = '  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, playbackRevision, timings, tutorialKeyboardKeys]);';
+    const contentDeps = '  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, metronome, preview, previewInstanceId, playbackRevision, timings, tutorialKeyboardKeys]);';
     expect(tutorialPreviewPlayerSource).toContain(contentDeps);
     const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {');
     expect(attachStart).toBeGreaterThan(-1);
@@ -362,7 +362,7 @@ describe('TutorialPreviewPlayer', () => {
 
   it('차트 effect 정리는 rAF만 멈추고 렌더러를 dispose하지 않음 — dispose는 렌더러 effect 정리에서만', () => {
     const contentStart = tutorialPreviewPlayerSource.indexOf('  }, [rendererKey]);');
-    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, playbackRevision, timings, tutorialKeyboardKeys]);');
+    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, metronome, preview, previewInstanceId, playbackRevision, timings, tutorialKeyboardKeys]);');
     expect(contentStart).toBeGreaterThan(-1);
     expect(contentEnd).toBeGreaterThan(contentStart);
     const contentEffect = tutorialPreviewPlayerSource.slice(contentStart, contentEnd);
@@ -432,7 +432,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     // 구형 정의는 고정 Normal이라 판정 모드 변경으로 다시 걸지 않는다.
     expect(tutorialPreviewPlayerSource).toContain("const explicitJudgmentMode = preview && isExplicitTutorialPreview(preview) ? settings.judgmentMode : 'normal';");
     expect(tutorialPreviewPlayerSource).toContain('renderer.setPerfectWindow(JUDGMENT_WINDOWS.PERFECT)');
-    expect(tutorialPreviewPlayerSource).toContain('explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, playbackRevision, timings');
+    expect(tutorialPreviewPlayerSource).toContain('explicitJudgmentMode, keyboardAreaHeight, keys, metronome, preview, previewInstanceId, playbackRevision, timings');
   });
 
   it('명시 확정 효과는 판정 글자 묶음·고도·타격을 렌더러로 보내고 타격은 구형과 같은 onBombEffect·showRendererBomb 경로를 공유', () => {
@@ -493,7 +493,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialPreviewPlayerSource).toContain([
       'explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {',
       '              loopTimeMs,',
-      '              blocked: pausedRef.current || diagramHeldBeforeFrame,',
+      '              blocked: pausedRef.current || diagramHeldBeforeFrame || countingIn(),',
     ].join('\n'));
     // 프레임에만 이전 도식 상태를 전달한다. 프레임 사이 키 이벤트는 현재 도식 상태를 읽어야 한다.
     expect(tutorialPreviewPlayerSource).toContain('blocked: pausedRef.current || activeDiagramPause !== null');
@@ -521,7 +521,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(controlEnd).toBeGreaterThan(controlStart);
     const control = tutorialPreviewPlayerSource.slice(controlStart, controlEnd);
     const order = [
-      'if (!clock.frozen) {',
+      'if (!clock.frozen && !countingIn()) {',
       'const diagramHeldBeforeFrame = activeDiagramPause !== null;',
       'const loopTimeMs = resolveDiagramPauseTime(Math.max(0, now - loopStartNow) % preview.loopMs);',
       'advanceExplicit(loopTimeMs, diagramHeldBeforeFrame);',
@@ -532,7 +532,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
 
   it('도식 OK와 차트 재연결은 loopStartNow를 다시 잡을 때 명시 차수도 0으로 초기화', () => {
     const resumeStart = tutorialPreviewPlayerSource.indexOf('resumeDiagramRef.current = () => {');
-    const resumeEnd = tutorialPreviewPlayerSource.indexOf('    resolveDiagramPauseTime(0);', resumeStart);
+    const resumeEnd = tutorialPreviewPlayerSource.indexOf('    if (!clickTrack) resolveDiagramPauseTime(0);', resumeStart);
     const resumeBody = tutorialPreviewPlayerSource.slice(resumeStart, resumeEnd);
     expect(resumeBody).toContain('loopStartNow = resumeNow - activeDiagramPause.timing.endMs;');
     expect(resumeBody).toContain('explicitInput?.rebase(resumeNow);');

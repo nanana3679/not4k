@@ -14,9 +14,11 @@ import type { DbSong } from '../screens/songSelect/types';
 export function usePreviewAudio(
   songs: DbSong[],
   focusedSongIndex: number,
-  options: { enabled?: boolean; autoPlay?: boolean } = {},
+  options: { enabled?: boolean; autoPlay?: boolean; tutorialOpen?: boolean } = {},
 ) {
-  const { enabled = true, autoPlay = true } = options;
+  const { enabled = true, autoPlay = true, tutorialOpen = false } = options;
+  const startTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const wasTutorialOpenRef = useRef(tutorialOpen);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   // 페이드아웃 진행 중에는 위치 기반(timeupdate) 볼륨 제어를 무시한다.
@@ -38,6 +40,8 @@ export function usePreviewAudio(
   }, [masterVolume]);
 
   const stopPreview = useCallback(() => {
+    clearTimeout(startTimerRef.current);
+    startTimerRef.current = undefined;
     if (fadeTimerRef.current !== null) {
       clearInterval(fadeTimerRef.current);
       fadeTimerRef.current = null;
@@ -81,7 +85,7 @@ export function usePreviewAudio(
     const FADE = 0.5; // seconds
 
     stopPreview();
-    if (!enabled || !song) return;
+    if (!enabled || tutorialOpen || !song) return;
 
     // 전용 preview_url이 있는 경우: 루프 재생
     if (song.preview_url) {
@@ -160,17 +164,27 @@ export function usePreviewAudio(
 
     seekToStart();
     void el.play().catch(() => {});
-  }, [enabled, stopPreview]);
+  }, [enabled, tutorialOpen, stopPreview]);
 
   useEffect(() => {
+    const tutorialClosed = wasTutorialOpenRef.current && !tutorialOpen;
+    wasTutorialOpenRef.current = tutorialOpen;
+    clearTimeout(startTimerRef.current);
+    if (tutorialOpen) {
+      // 클릭과 겹치는 페이드 꼬리도 남기지 않고 재생·대기를 함께 끊는다.
+      stopPreview();
+      return;
+    }
     if (!enabled) {
       // 보정 진입 등으로 비활성화되면 페이드아웃 후 정지 (재활성 시 fade-in 재생)
       fadeOutAndStop();
       return;
     }
-    if (!autoPlay) return;
-    playPreview(songs[focusedSongIndex]);
-  }, [songs, focusedSongIndex, enabled, autoPlay, playPreview, fadeOutAndStop]);
+    if (!autoPlay && !tutorialClosed) return;
+    stopPreview();
+    startTimerRef.current = setTimeout(() => playPreview(songs[focusedSongIndex]), 1000);
+    return () => clearTimeout(startTimerRef.current);
+  }, [songs, focusedSongIndex, enabled, autoPlay, tutorialOpen, playPreview, fadeOutAndStop, stopPreview]);
 
   useEffect(() => stopPreview, [stopPreview]);
 

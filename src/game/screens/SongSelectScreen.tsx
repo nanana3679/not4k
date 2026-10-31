@@ -108,6 +108,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     // 보정 중에는 프리뷰를 페이드아웃해 멈춘다(보정음과 겹치지 않게). 나가면 페이드인 재개.
     enabled: previewAllowed && !calibrationActive,
     autoPlay: previewAutoPlay,
+    tutorialOpen: showTutorialHelp,
   });
   // ref를 최신 stopPreview로 동기화
   stopPreviewRef.current = stopPreview;
