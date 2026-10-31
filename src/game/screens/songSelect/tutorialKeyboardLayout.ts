@@ -109,6 +109,75 @@ function getLaneBindingProperty(lane: number): keyof TutorialKeyBindings {
 }
 
 /**
+ * Distinct demonstration inputs per lane. `BindingN` and the preset keys of the
+ * same slot (e.g. KeyQ, or Numpad7/KeyP on lane 3) count as one input
+ * (`slot:N`); any other code counts as itself. The display supplement counts
+ * all inputs; the practice key check uses the same identities for inputs held
+ * at the same moment (Basic's sparse Binding1/Binding3 is two inputs).
+ */
+function getSourceKeysByLane(timings: readonly TutorialInputTiming[]): Map<number, Set<string>> {
+  const sourceKeysByLane = new Map<number, Set<string>>();
+  for (const { event } of timings) {
+    const slot = getBindingSlotIndex(event.keyCode) ?? getEquivalentBindingSlotIndex(event.lane, event.keyCode);
+    const sourceKeys = sourceKeysByLane.get(event.lane) ?? new Set<string>();
+    sourceKeys.add(slot === null ? event.keyCode : `slot:${slot}`);
+    sourceKeysByLane.set(event.lane, sourceKeys);
+  }
+
+  return sourceKeysByLane;
+}
+
+export interface UnmetTutorialPracticeKeyRequirement {
+  readonly lane: number;
+  /** Peak distinct demonstration inputs active at one moment on the lane (closed intervals), at least 1. */
+  readonly requiredKeyCount: number;
+  /** Distinct keys the player actually bound to the lane. */
+  readonly boundKeyCount: number;
+}
+
+/**
+ * Lanes whose real bindings lack the keys direct-input practice needs
+ * (docs/spec/keybinding.md "튜토리얼 실습 전 키 설정"). An empty result means
+ * the practice can start.
+ *
+ * A used lane needs the peak number of distinct inputs active at the same
+ * moment over closed [startMs, endMs] intervals, with a minimum of 1. An up at
+ * the same time as another input's down counts as overlapping: a key switch at
+ * one instant (release A, press B) cannot be done with a single key. Input identities use the display supplement's
+ * canonical slots (`getSourceKeysByLane`). The player chooses which bound keys
+ * to press, so only keys needed at the same moment are required, not every key
+ * shown by the demonstration. Trill alternation needs 2 keys, which the settings
+ * minimum of 2 keys per lane already guarantees.
+ *
+ * Pass the player's own settings. Keys added by `resolveTutorialKeyboardBindings`
+ * are display-only and never satisfy this requirement.
+ */
+export function findUnmetTutorialPracticeKeyRequirements(
+  timings: readonly TutorialInputTiming[],
+  bindings: TutorialKeyBindings,
+): UnmetTutorialPracticeKeyRequirement[] {
+  const requiredKeyCountByLane = new Map<number, number>();
+  // A lane's held-key count can increase only when an input starts.
+  for (const { event: { lane }, startMs } of timings) {
+    // 끝 시각도 포함한다: 한 키를 떼는 순간 다른 입력을 누르면(키 갈아타기) 같은 키로는 동시에 할 수 없어 두 키가 필요하다.
+    const activeTimings = timings.filter(timing =>
+      timing.event.lane === lane && timing.startMs <= startMs && startMs <= timing.endMs,
+    );
+    const activeKeyCount = getSourceKeysByLane(activeTimings).get(lane)?.size ?? 0;
+    requiredKeyCountByLane.set(lane, Math.max(requiredKeyCountByLane.get(lane) ?? 1, activeKeyCount));
+  }
+
+  return [...requiredKeyCountByLane]
+    .map(([lane, requiredKeyCount]) => ({
+      lane,
+      requiredKeyCount,
+      boundKeyCount: new Set(getLaneBindings(bindings, lane)).size,
+    }))
+    .filter(({ requiredKeyCount, boundKeyCount }) => boundKeyCount < requiredKeyCount)
+    .sort((a, b) => a.lane - b.lane);
+}
+
+/**
  * Tutorial-only binding completion. It copies the user's bindings and fills
  * only source slots required by the preview; it never writes to game settings.
  */
@@ -123,7 +192,7 @@ export function resolveTutorialKeyboardBindings(
   };
   const sourceSlotsByLane = new Map<number, string[]>();
   const requiredSlotsByLane = new Map<number, number>();
-  const sourceKeysByLane = new Map<number, Set<string>>();
+  const sourceKeysByLane = getSourceKeysByLane(timings);
   const mappedKeysByLane = new Map<number, Set<string>>();
   for (const { event } of resolveTutorialInputTimingsForKeyboard(timings, bindings)) {
     const keys = mappedKeysByLane.get(event.lane) ?? new Set<string>();
@@ -134,10 +203,6 @@ export function resolveTutorialKeyboardBindings(
   for (const { event } of timings) {
     const explicitSlot = getBindingSlotIndex(event.keyCode);
     const equivalentSlot = getEquivalentBindingSlotIndex(event.lane, event.keyCode);
-    const sourceKeys = sourceKeysByLane.get(event.lane) ?? new Set<string>();
-    const canonicalSlot = explicitSlot ?? equivalentSlot;
-    sourceKeys.add(canonicalSlot === null ? event.keyCode : `slot:${canonicalSlot}`);
-    sourceKeysByLane.set(event.lane, sourceKeys);
     const sourceSlots = sourceSlotsByLane.get(event.lane) ?? [];
     let slot: number;
     if (explicitSlot !== null) {
