@@ -42,7 +42,7 @@ import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
-import { LEAVE_CONFIRM_COPY } from './editorCopy';
+import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
 import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
 import { editorChartViolationIndices } from './documentValidation';
 import { isChartDirty, toSavedChartJson } from './savedChart';
@@ -358,6 +358,11 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   }, []);
 
   const handleDeleteSelected = useCallback(() => {
+    // 재생 중에는 지우지 않는다(RFD 0099). 메뉴 버튼도 비활성이지만 다른 경로까지 막는다.
+    if (useEditorStore.getState().isPlaying) {
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
     // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함된다 (RFD 0018 ④).
     const total = selectedNotes.size;
     if (total === 0) {
@@ -605,6 +610,8 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
       setExtraLaneCount: (count, transaction) => useEditorStore.getState().setExtraLaneCount(count, transaction),
       onWarn: (msg) => addToast(msg, 'warn'),
+      // 재생 중에는 선택만 하고 이동·리사이즈를 시작하지 않는다(RFD 0099).
+      isEditLocked: () => useEditorStore.getState().isPlaying,
     });
     selectModeRef.current = selectMode;
 
@@ -896,6 +903,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           chart={chart}
           isBeatZero={!!isEditingInitial}
           extraLaneCount={extraLaneCount}
+          editLocked={isPlaying}
           onSave={fileOps.handleEventSave}
           onDelete={fileOps.handleEventDelete}
           onClose={() => setEditingEvent(null)}
@@ -910,6 +918,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           initialJacketFile={pendingJacketFile}
           jacketCacheBust={jacketCacheBust}
           initialGameplayRange={songGameplayRange}
+          offsetLocked={isPlaying}
           onSave={async (meta, previewRange, jacketFile, gameplayRange, audioFile) => {
             const prevStart = chart.meta.previewStart;
             const prevEnd = chart.meta.previewEnd;

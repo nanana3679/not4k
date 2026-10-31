@@ -6,7 +6,7 @@ import { beat } from '../../shared';
 import type { ChartAssetUpsert, ChartDocument, Lane, SongAssetPersistenceAdapter } from '../../shared';
 import { showToast } from '../../shared/toast';
 import type { PlaybackController } from '../playback/PlaybackController';
-import { SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 import { isChartDirty, toSavedChartJson } from '../savedChart';
 import { useEditorStore } from '../stores/editorStore';
 import { emptySelection } from '../stores/selectionSlice';
@@ -99,7 +99,7 @@ beforeEach(() => {
   });
   useEditorStore.setState({
     chart: chart([]), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
-    isSavingChart: false, chartSaveGeneration: 0, activeSongId: 'song', currentTimeMs: 0, editingEvent: null,
+    isSavingChart: false, chartSaveGeneration: 0, activeSongId: 'song', currentTimeMs: 0, editingEvent: null, isPlaying: false,
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
   });
 });
@@ -190,5 +190,48 @@ describe('useFileOperations 저장 진행', () => {
     harness.upserts[1].resolve();
     await retry;
     expect(dirty()).toBe(false);
+  });
+});
+
+describe('재생 중 이벤트 편집과 저장(RFD 0099)', () => {
+  const withText = (): ChartDocument => ({
+    ...chart([single(1, 0)]),
+    events: [...chart([]).events, { type: 'text', beat: beat(4), endBeat: beat(6), text: '안내', editorLane: 1 }],
+  });
+
+  it('재생 중 0박 BPM 이벤트를 120에서 90으로 저장하면 BPM 120이 남고 편집 창은 열린 채 안내 토스트를 띄운다', () => {
+    open(chart([single(1, 0)]));
+    useEditorStore.setState({ editingEvent: { type: 'event', index: 0 }, isPlaying: true });
+
+    renderFileOperations().handleEventSave({ eventBpm: '90', editorLane: '1' });
+
+    expect(current().chart.events[0]).toMatchObject({ type: 'bpm', bpm: 120 });
+    expect(current().editingEvent).toEqual({ type: 'event', index: 0 });
+    expect(showToast).toHaveBeenCalledWith(PAUSE_TO_EDIT_COPY, 'warn');
+  });
+
+  it('재생 중 4박 text 이벤트를 편집 창에서 삭제하면 이벤트 3개가 그대로 남는다', () => {
+    open(withText());
+    useEditorStore.setState({ editingEvent: { type: 'event', index: 2 }, isPlaying: true });
+
+    renderFileOperations().handleEventDelete();
+
+    expect(current().chart.events).toHaveLength(3);
+    expect(showToast).toHaveBeenCalledWith(PAUSE_TO_EDIT_COPY, 'warn');
+  });
+
+  it('재생 중 Save As LIFTOFF Lv.3은 업로드가 끝나면 노트는 그대로 두고 난이도 meta만 차트에 반영한다', async () => {
+    open(chart([single(1, 0)]));
+    useEditorStore.setState({ isPlaying: true });
+    const notesBefore = current().chart.notes;
+
+    const saving = renderFileOperations().handleSaveAs('LIFTOFF', 3);
+    await flush();
+    harness.upserts[0].resolve();
+    await saving;
+
+    expect(current().chart.meta).toMatchObject({ difficultyLabel: 'LIFTOFF', difficultyLevel: 3 });
+    expect(current().chart.notes).toBe(notesBefore);
+    expect(current().isPlaying).toBe(true);
   });
 });

@@ -37,6 +37,8 @@ import {
   type HoldHits,
 } from './touchEditRouting';
 import { resolveContextMenuDelete } from './contextMenuRouting';
+import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import { SELECTION_ALLOWED_WHILE_PLAYING } from '../editing/playbackEditLock';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -76,6 +78,9 @@ function getLongPressRangeType(type: EntityType): "long" | "doubleLong" | null {
   return null;
 }
 
+/** 재생 중이라 차트 편집이 잠겼는가(RFD 0099). 이벤트가 온 순간의 store 값을 읽는다. */
+const isEditLockedByPlayback = () => useEditorStore.getState().isPlaying;
+
 export function useCanvasEvents(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   rendererRef: RefObject<TimelineRenderer | null>,
@@ -96,6 +101,7 @@ export function useCanvasEvents(
   const setChart = useEditorStore((s) => s.setChart);
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const addToast = useEditorStore((s) => s.addToast);
+  const isPlaying = useEditorStore((s) => s.isPlaying);
 
   const rightPressPendingRef = useRef(false);
   const eraseGestureRef = useRef(new EraseGesture({
@@ -185,6 +191,16 @@ export function useCanvasEvents(
         .advanceTo(performance.now())
         .find((g): g is Extract<Gesture, { kind: 'longPress' }> => g.kind === 'longPress');
       if (!fired) return;
+      // 재생 중이면(누른 뒤 재생이 시작된 경우 포함) 범위 생성·선택 드래그·드래그 삭제를 시작하지 않는다(RFD 0099).
+      // 롱프레스는 편집 의도라 이 누름에 남은 선택 후보(지연 박스·클릭 토글)도 버린다. 그래야 같은 누름을 끌어도
+      // 박스 재생이 끝 핸들 리사이즈를 다시 시도해 안내를 한 번 더 띄우지 않는다.
+      if (isEditLockedByPlayback()) {
+        suppressContextMenuUntilRef.current = Date.now() + 1200;
+        touchEmptySelectCandidateRef.current = null;
+        touchClickToggleRef.current = null;
+        addToast(PAUSE_TO_EDIT_COPY, 'warn');
+        return;
+      }
       const { x: fx, y: fy } = fired;
       const fireHits: HoldHits = {
         noteHit: space.hitTestUnifiedNote(fx, fy),
@@ -220,7 +236,7 @@ export function useCanvasEvents(
       }
     }, LONG_PRESS_MS);
   }, [
-    clearHoldTimer, deleteAtPoint, createModeRef, selectModeRef, rendererRef, space,
+    clearHoldTimer, deleteAtPoint, createModeRef, selectModeRef, rendererRef, space, addToast,
   ]);
 
   const toSample = useCallback((
@@ -296,6 +312,15 @@ export function useCanvasEvents(
       finishErase();
     };
   }, [clearHoldTimer]);
+
+  // 재생이 시작되면 그 직전에 시작한 생성 드래그·롱프레스 대기와 고스트를 걷는다(RFD 0099).
+  // Select·삭제 조작의 편집 transaction은 store의 setIsPlaying이 먼저 확정해 끝낸다.
+  useEffect(() => {
+    if (!isPlaying) return;
+    clearHoldTimer();
+    createModeRef.current?.cancelDrag();
+    rendererRef.current?.hideGhostNote();
+  }, [isPlaying, clearHoldTimer, createModeRef, rendererRef]);
 
   const routeViewportGestures = useCallback((gestures: Gesture[], rect: DOMRect) => {
     for (const g of gestures) {
@@ -387,6 +412,16 @@ export function useCanvasEvents(
       const timeMs = renderer.clampToMeasureRange(renderer.yToTime(y));
       playbackRef.current?.seekTo(timeMs);
       canvasRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    // 재생 중 편집 제한(RFD 0099): 미니맵·커서 레일 seek 뒤, 편집을 시작하기 전에 막고 누름마다 한 번 안내한다.
+    // 미정 기본값 D1: Select 모드의 좌클릭·터치는 선택을 위해 통과시킨다(이동·리사이즈 시작은 SelectMode가 막는다).
+    const selectionPress = SELECTION_ALLOWED_WHILE_PLAYING && mode === 'select' && e.button !== 2;
+    if (isEditLockedByPlayback() && !selectionPress) {
+      // 우클릭이면 이 누름이 만들 contextmenu도 삭제하지 않게 대기를 건다.
+      if (e.button === 2) rightPressPendingRef.current = true;
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
       return;
     }
 
@@ -543,9 +578,9 @@ export function useCanvasEvents(
       ? recognizerRef.current.holdState(e.pointerId)
       : null;
 
-    // 드래그 삭제: 발화한 delete hold는 이동마다 히트 지점을 삭제한다.
+    // 드래그 삭제: 발화한 delete hold는 이동마다 히트 지점을 삭제한다. 재생 중에는 발화해도 지우지 않는다(RFD 0099).
     if (mode === 'delete' && holdState?.fired) {
-      deleteAtPoint(x, y);
+      if (!isEditLockedByPlayback()) deleteAtPoint(x, y);
       return;
     }
 
@@ -693,7 +728,8 @@ export function useCanvasEvents(
     }
 
     if (mode === 'create' && createModeRef.current) {
-      if (!isTimeInBounds(y) || isHoveringEntity) {
+      // 재생 중에는 배치할 수 없으므로 고스트를 보이지 않는다(RFD 0099).
+      if (!isTimeInBounds(y) || isHoveringEntity || isEditLockedByPlayback()) {
         rendererRef.current?.hideGhostNote();
         return;
       }
@@ -818,6 +854,16 @@ export function useCanvasEvents(
 
     if (e.button === 2) {
       eraseGestureRef.current.finish();
+      return;
+    }
+
+    // 재생 중 Create·Delete 모드의 뗌은 배치·삭제를 확정하지 않는다. 재생 전에 시작한 생성 드래그도 버린다(RFD 0099).
+    // Select 모드의 뗌은 선택(클릭·박스)을 마무리하도록 통과시킨다(미정 기본값 D1).
+    if (isEditLockedByPlayback() && !(SELECTION_ALLOWED_WHILE_PLAYING && mode === 'select')) {
+      eraseGestureRef.current.finish();
+      createModeRef.current?.cancelDrag();
+      if (touchClickToggleRef.current?.pointerId === e.pointerId) touchClickToggleRef.current = null;
+      rendererRef.current?.hideGhostNote();
       return;
     }
 
@@ -967,6 +1013,10 @@ export function useCanvasEvents(
     });
     rightPressPendingRef.current = decision.rightPressPending;
     if (!decision.shouldDelete) return;
+    if (isEditLockedByPlayback()) {
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -976,7 +1026,7 @@ export function useCanvasEvents(
     const y = e.clientY - rect.top;
 
     deleteModeRef.current?.onPointerDown(x, y);
-  }, [canvasRef, rendererRef, deleteModeRef]);
+  }, [canvasRef, rendererRef, deleteModeRef, addToast]);
 
   return {
     handlePointerDown,

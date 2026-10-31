@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ChartDocument, ChartEvent } from '../../shared';
 import type { EditingEvent } from '../stores';
+import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import { modalStyles } from './modalStyles';
 
 // ---------------------------------------------------------------------------
@@ -179,12 +180,17 @@ export interface EventEditModalProps {
   chart: ChartDocument;
   isBeatZero: boolean;
   extraLaneCount: number;
+  /** 에디터가 재생 중이다. 값 입력·Save·Delete를 비활성으로 두고 Cancel만 쓴다(RFD 0099). */
+  editLocked?: boolean;
   onSave: (values: Record<string, string>) => void;
   onDelete: () => void;
   onClose: () => void;
 }
 
-export function EventEditModal({ editingEvent, chart, isBeatZero, extraLaneCount, onSave, onDelete, onClose }: EventEditModalProps) {
+/** 값 입력 묶음. 잠기면 안의 입력을 한꺼번에 비활성으로 두며 모양은 바꾸지 않는다. */
+const fieldsetStyle = { border: 0, padding: 0, margin: 0, minWidth: 0 } as const;
+
+export function EventEditModal({ editingEvent, chart, isBeatZero, extraLaneCount, editLocked = false, onSave, onDelete, onClose }: EventEditModalProps) {
   const evt = chart.events[editingEvent.index];
   const [values, setValues] = useState<Record<string, string>>(() =>
     evt ? { ...getInitialValues(evt), editorLane: String(evt.editorLane ?? 1) } : {},
@@ -203,30 +209,39 @@ export function EventEditModal({ editingEvent, chart, isBeatZero, extraLaneCount
       <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>{title}</h3>
 
-        <EventFields evt={evt} values={values} setValues={setValues} />
+        <fieldset style={fieldsetStyle} disabled={editLocked}>
+          <EventFields evt={evt} values={values} setValues={setValues} />
 
-        {isBeatZero && (
-          <label style={modalStyles.field}>
-            <span>Editor lane</span>
-            <select
-              style={modalStyles.input}
-              value={values.editorLane}
-              onChange={(event) => setValues({ ...values, editorLane: event.target.value })}
-            >
-              {Array.from({ length: extraLaneCount }, (_, index) => (
-                <option key={index + 1} value={index + 1}>{index + 1}</option>
-              ))}
-            </select>
-          </label>
-        )}
+          {isBeatZero && (
+            <label style={modalStyles.field}>
+              <span>Editor lane</span>
+              <select
+                style={modalStyles.input}
+                value={values.editorLane}
+                onChange={(event) => setValues({ ...values, editorLane: event.target.value })}
+              >
+                {Array.from({ length: extraLaneCount }, (_, index) => (
+                  <option key={index + 1} value={index + 1}>{index + 1}</option>
+                ))}
+              </select>
+            </label>
+          )}
+        </fieldset>
 
         <div style={modalStyles.buttons}>
-          <button style={modalStyles.saveBtn} onClick={() => onSave(values)}>Save</button>
           <button
-            style={{ ...modalStyles.deleteBtn, opacity: isBeatZero ? 0.4 : 1 }}
+            style={{ ...modalStyles.saveBtn, opacity: editLocked ? 0.4 : 1 }}
+            onClick={() => onSave(values)}
+            disabled={editLocked}
+            title={editLocked ? PAUSE_TO_EDIT_COPY : undefined}
+          >
+            Save
+          </button>
+          <button
+            style={{ ...modalStyles.deleteBtn, opacity: isBeatZero || editLocked ? 0.4 : 1 }}
             onClick={onDelete}
-            disabled={isBeatZero}
-            title={isBeatZero ? 'Cannot delete initial event' : 'Delete event'}
+            disabled={isBeatZero || editLocked}
+            title={isBeatZero ? 'Cannot delete initial event' : editLocked ? PAUSE_TO_EDIT_COPY : 'Delete event'}
           >
             Delete
           </button>

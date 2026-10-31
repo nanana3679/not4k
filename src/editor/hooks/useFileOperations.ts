@@ -26,7 +26,7 @@ import { useGameStore } from '../../game/stores';
 import { performPlayTest } from '../playtest/performPlayTest';
 import { editorChartErrors } from '../documentValidation';
 import type { SavedChartJson } from '../savedChart';
-import { SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 export { performPlayTest } from '../playtest/performPlayTest';
 export type { PerformPlayTestParams, PlayTestGameActions } from '../playtest/performPlayTest';
 
@@ -382,6 +382,12 @@ export function useFileOperations(
 
   const handleEventSave = useCallback((values: Record<string, string>) => {
     if (!editingEvent) return;
+    // 재생 중에는 이벤트 값(BPM·박자표 포함)을 바꾸지 않는다(RFD 0099). 편집 창의 Save도 비활성이지만 다른 경로까지 막는다.
+    // 렌더러에 직접 넘기기 전에 막아야 store가 거부한 차트가 화면에만 그려지지 않는다.
+    if (useEditorStore.getState().isPlaying) {
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
 
     const updated = { ...chart };
     updated.events = [...chart.events];
@@ -455,6 +461,10 @@ export function useFileOperations(
 
   const handleEventDelete = useCallback(() => {
     if (!editingEvent) return;
+    if (useEditorStore.getState().isPlaying) {
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
 
     const next = deleteEvents(chart, new Set([editingEvent.index]));
     if (!next) {

@@ -11,9 +11,30 @@ import { msToBeat } from '../../shared';
 import type { BpmChange } from '../../shared';
 import type { ToastType } from '../../shared/toast';
 import { selectCanRedo, selectCanUndo, useEditorStore, type EditorModeName } from '../stores';
+import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import { SELECTION_ALLOWED_WHILE_PLAYING } from '../editing/playbackEditLock';
 
-/** 단축키 처리가 읽는 키 입력 사실. 테스트는 이 필드만 채운 객체를 넘긴다. */
-export type EditorKeyEvent = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'preventDefault'>;
+/** 단축키 처리가 읽는 키 입력 사실. 테스트는 이 필드만 채운 객체를 넘긴다(repeat는 생략하면 첫 입력). */
+export type EditorKeyEvent = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'preventDefault'>
+  & Partial<Pick<KeyboardEvent, 'repeat'>>;
+
+/**
+ * 재생 중 막는 단축키인가(RFD 0099). 차트·history를 바꾸는 키만 고른다:
+ * Undo·Redo(Ctrl+Z·Ctrl+Shift+Z·Ctrl+Y), 잘라내기·붙여넣기(Ctrl+X·Ctrl+V), 삭제(Delete·Backspace),
+ * G 면제 토글, Select 모드의 화살표 이동·Shift+화살표 길이 조절·Enter 배치 확정.
+ * 재생/정지(Space)·모드 전환(C·S·D)·Esc는 막지 않는다. 선택(Ctrl+A)·복사(Ctrl+C)는 D1을 따른다.
+ */
+export function isPlaybackLockedKey(e: EditorKeyEvent, mode: EditorModeName): boolean {
+  const key = e.key.toLowerCase();
+  const command = e.ctrlKey || e.metaKey;
+  if (command && ['z', 'y', 'x', 'v'].includes(key)) return true;
+  if (command && (key === 'a' || key === 'c')) return !SELECTION_ALLOWED_WHILE_PLAYING; // 미정 기본값 D1
+  if (key === 'delete' || key === 'backspace') return true;
+  // 미정 기본값 D3(PRD §12): 노트 속성을 바꾸는 G 토글도 재생 중에는 막는다. 허용하려면 이 줄을 지우고,
+  // store의 setChart 방어선(isPlaybackLockedChange)이 노트 배열 변경을 거부하므로 G 경로를 그 판단에서 빼야 한다.
+  if (key === 'g' && !command) return true;
+  return mode === 'select' && ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter'].includes(key);
+}
 
 /** 단축키 처리가 쓰는 화면 상태와 명령. 차트·선택·history는 store에서 직접 읽는다. */
 export interface EditorKeyboardContext {
@@ -24,15 +45,24 @@ export interface EditorKeyboardContext {
   offsetMs: number;
   /** 모달·이벤트 편집처럼 포커스를 가진 UI가 열려 전역 단축키를 막는다. */
   shortcutsBlocked: boolean;
+  /** 에디터가 재생 중이다. 차트를 바꾸는 단축키를 실행하지 않고 안내한다(RFD 0099). */
+  isPlaying: boolean;
   setMode: (mode: EditorModeName) => void;
   addToast: (message: string, type?: ToastType) => void;
 }
 
 /** 에디터 전역 keydown 한 번을 처리한다. */
 export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardContext): void {
-  const { mode, selectMode, playback, bpmChanges, offsetMs, shortcutsBlocked, setMode, addToast } = context;
+  const { mode, selectMode, playback, bpmChanges, offsetMs, shortcutsBlocked, isPlaying, setMode, addToast } = context;
   // Disable shortcuts while focused editor UI is open.
   if (shortcutsBlocked) return;
+
+  // 재생 중 편집 제한(RFD 0099): 아무것도 확정·변경하지 않고 안내만 한다. 누르고 있어 반복되는 입력은 다시 안내하지 않는다.
+  if (isPlaying && isPlaybackLockedKey(e, mode)) {
+    e.preventDefault();
+    if (!e.repeat) addToast(PAUSE_TO_EDIT_COPY, 'warn');
+    return;
+  }
 
   // 누른 채 들어온 독립 명령은 삭제를 먼저 확정한다. 뒤늦은 Esc는 그 명령을 취소하지 않는다.
   const key = e.key.toLowerCase();
@@ -239,6 +269,8 @@ export function useEditorKeyboard(
       offsetMs: chart.meta.offsetMs,
       shortcutsBlocked: Boolean(editingEvent) || showMetaModal || showCustomSnapModal || showDeleteConfirm
         || showLeaveConfirm || showSaveAsModal || showOffsetToolbar || validationErrorsCount > 0 || showLegacyConversionModal,
+      // 키를 누른 순간의 재생 상태를 읽는다(렌더 사이에 Space로 재생이 시작됐을 수 있다).
+      isPlaying: useEditorStore.getState().isPlaying,
       setMode,
       addToast,
     });

@@ -11,6 +11,10 @@ import { SelectMode } from '../modes/SelectMode';
 import { CreateMode, type EntityType } from '../modes/CreateMode';
 import { DeleteMode } from '../modes/DeleteMode';
 import { createTimelineSpace } from '../timeline/TimelineSpace';
+import type { TimelineRenderer } from '../timeline/TimelineRenderer';
+import type { PlaybackController } from '../playback/PlaybackController';
+import { showToast } from '../../shared/toast';
+import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import { useCanvasEvents, type CanvasEventHandlers } from './useCanvasEvents';
 
 vi.mock('../../shared/toast', () => ({ showToast: vi.fn() }));
@@ -52,6 +56,7 @@ let unsubscribe = () => {};
 beforeEach(() => {
   vi.stubGlobal('window', globalThis);
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
+  vi.mocked(showToast).mockClear();
 });
 afterEach(() => {
   unsubscribe();
@@ -59,11 +64,14 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** 렌더러·재생 컨트롤러가 필요한 테스트(커서 레일 seek)만 넘긴다. 기본은 둘 다 없다. */
+type SetupOptions = { renderer?: TimelineRenderer; playback?: PlaybackController };
+
 /** App과 같은 콜백으로 모드를 만들고 useCanvasEvents를 한 번 렌더해 그 핸들러를 돌려준다. */
-function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityType = 'single') {
+function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityType = 'single', options: SetupOptions = {}) {
   useEditorStore.setState({
     chart: source, mode, entityType, selection: emptySelection(), extraLaneCount: 2, lastValidSnapshot: null,
-    historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null,
+    historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, isPlaying: false,
   });
   const space = createTimelineSpace({
     getChart: () => current().chart, getSnapDivision: () => 4, getSelectedNotes: () => new Set(current().selection.notes),
@@ -84,6 +92,8 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
     space,
     getExtraLaneCount: () => current().extraLaneCount,
     setExtraLaneCount: (count, transaction) => current().setExtraLaneCount(count, transaction),
+    onWarn: message => current().addToast(message, 'warn'),
+    isEditLocked: () => current().isPlaying,
   });
   const deleteMode = new DeleteMode(current().chart, {
     onChartUpdate: value => current().setChart(value), space, getSelectedNotes: () => current().selection.notes,
@@ -96,7 +106,10 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
   const ref = <T,>(value: T) => ({ current: value });
   const canvas = { style: {}, getBoundingClientRect: () => ({ left: 0, top: 0 }), setPointerCapture: () => {} } as unknown as HTMLCanvasElement;
   function CanvasEventsProbe({ onRender }: { onRender: (handlers: CanvasEventHandlers) => void }) {
-    onRender(useCanvasEvents(ref(canvas), ref(null), ref(null), ref(createMode), ref(selectMode), ref(deleteMode), ref(false), space, () => true));
+    onRender(useCanvasEvents(
+      ref(canvas), ref(options.renderer ?? null), ref(options.playback ?? null),
+      ref(createMode), ref(selectMode), ref(deleteMode), ref(false), space, () => true,
+    ));
     return null;
   }
   let handlers: CanvasEventHandlers | undefined;
@@ -229,5 +242,195 @@ describe('Create 모드 터치 롱프레스', () => {
     expect(current().mode).toBe('create');
     expect(bodyEnd()).toBe(5);
     expect(current().selection.notes.size).toBe(0);
+  });
+});
+
+describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
+  const tapAt = (at: number, lane = 1): DocumentNoteEntity => ({ type: 'tap', kind: 'single', lane, beat: beat(at) });
+  const mouse = (y: number, buttons = 1) => pointer(y, { pointerType: 'mouse', buttons });
+  const pauseToasts = () => vi.mocked(showToast).mock.calls.filter(([message]) => message === PAUSE_TO_EDIT_COPY);
+  const play = () => current().setIsPlaying(true);
+  afterEach(() => useEditorStore.setState({ isPlaying: false }));
+
+  it('재생 중 Create 모드에서 1박 자리를 마우스로 눌렀다 떼면 탭을 놓지 않고 안내 토스트 1개를 띄우며, 정지 뒤 같은 클릭은 탭을 놓는다', () => {
+    const { handlers } = setup(chart([]), 'create', 'single');
+    play();
+    handlers.handlePointerDown(mouse(500));
+    handlers.handlePointerMove(mouse(500));
+    handlers.handlePointerUp(mouse(500));
+
+    expect(notes()).toEqual([]);
+    expect(pauseToasts()).toHaveLength(1);
+
+    current().setIsPlaying(false);
+    handlers.handlePointerDown(mouse(500));
+    handlers.handlePointerUp(mouse(500));
+    expect(notes()).toHaveLength(1);
+  });
+
+  it('재생 중 Create 모드 Single 엔티티로 1박을 터치했다 떼도 탭을 놓지 않는다', () => {
+    const { handlers } = setup(chart([]), 'create', 'single');
+    play();
+    handlers.handlePointerDown(pointer(500));
+    handlers.handlePointerUp(pointer(500));
+
+    expect(notes()).toEqual([]);
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('재생 중 1박 탭을 우클릭해 끌어도 지우지 않고, 그 누름의 contextmenu도 지우지 않으며 안내 토스트는 1개다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    play();
+    handlers.handlePointerDown(rightPointer(500));
+    handlers.handlePointerMove(rightPointer(1000));
+    handlers.handlePointerUp(rightPointer(1000));
+    handlers.handleContextMenu(contextMenu(500));
+
+    expect(notes()).toHaveLength(2);
+    expect(current().editTransaction).toBeNull();
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('재생 중 키보드 메뉴 키 contextmenu는 1박 탭을 지우지 않고 안내 토스트 1개를 띄운다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'select');
+    play();
+    handlers.handleContextMenu(contextMenu(500));
+
+    expect(notes()).toHaveLength(1);
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('재생 중 Delete 모드에서 빈 trillZone 1～3박 안 2박을 터치해도 구간을 지우지 않는다', () => {
+    const { handlers } = setup(chart([], { trillZones: [{ lane: 1, beat: beat(1), endBeat: beat(3) }] }), 'delete');
+    play();
+    handlers.handlePointerDown(pointer(1000));
+    handlers.handlePointerUp(pointer(1000));
+
+    expect(current().chart.trillZones).toHaveLength(1);
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('Delete 모드 롱프레스 대기 중 재생이 시작되면 450ms 뒤 발화해 1박·2박 위로 끌어도 지우지 않는다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'delete');
+    handlers.handlePointerDown(pointer(500));
+    play();
+    vi.advanceTimersByTime(450);
+    handlers.handlePointerMove(pointer(1000));
+    handlers.handlePointerUp(pointer(1000));
+
+    expect(notes()).toHaveLength(2);
+  });
+
+  it('Create 모드 롱프레스 대기 중 재생이 시작되면 450ms 뒤 발화해도 롱노트를 시작하지 않고 3박에서 떼도 노트를 놓지 않는다', () => {
+    const { handlers, createMode } = setup(chart([]), 'create', 'single');
+    handlers.handlePointerDown(pointer(500));
+    play();
+    vi.advanceTimersByTime(450);
+
+    expect(createMode.dragging).toBe(false);
+    handlers.handlePointerMove(pointer(1500));
+    handlers.handlePointerUp(pointer(1500));
+    expect(notes()).toEqual([]);
+  });
+
+  it('Create 모드 롱프레스로 1박에서 롱노트를 시작한 뒤 재생이 시작되면 3박에서 떼도 노트를 놓지 않는다', () => {
+    const { handlers, createMode } = setup(chart([]), 'create', 'single');
+    handlers.handlePointerDown(pointer(500));
+    vi.advanceTimersByTime(450);
+    expect(createMode.dragging).toBe(true);
+
+    play();
+    handlers.handlePointerMove(pointer(1500));
+    handlers.handlePointerUp(pointer(1500));
+
+    expect(notes()).toEqual([]);
+    expect(createMode.dragging).toBe(false);
+  });
+
+  it('Select 모드에서 바디 끝 핸들 롱프레스 대기 중 재생이 시작되면 450ms 뒤 발화해도 6박까지 끌어 리사이즈하지 않고 안내 토스트 1개를 띄운다', () => {
+    const { handlers } = setup(chart(bodyWithEndRelease()), 'select');
+    handlers.handlePointerDown(pointer(2550));
+    play();
+    vi.advanceTimersByTime(450);
+    handlers.handlePointerMove(pointer(3000));
+    handlers.handlePointerUp(pointer(3000));
+
+    expect(bodyEnd()).toBe(5);
+    expect(current().editTransaction).toBeNull();
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('재생 중 선택한 1박 탭을 마우스로 2박·3박까지 끌어도 옮기지 않고 선택은 남으며 안내 토스트는 1개다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'select');
+    current().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    play();
+    handlers.handlePointerDown(mouse(500));
+    handlers.handlePointerMove(mouse(1000));
+    handlers.handlePointerMove(mouse(1500));
+    handlers.handlePointerUp(mouse(1500));
+
+    expect(notes()[0].beat).toEqual(beat(1));
+    expect(current().selection.notes).toEqual(new Set([0]));
+    expect(current().historyPast).toHaveLength(0);
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('재생 중 바디 끝 핸들(5.1박)을 마우스로 6박까지 끌어도 끝이 5박에 남는다', () => {
+    const { handlers } = setup(chart(bodyWithEndRelease()), 'select');
+    play();
+    handlers.handlePointerDown(mouse(2550));
+    handlers.handlePointerMove(mouse(3000));
+    handlers.handlePointerUp(mouse(3000));
+
+    expect(bodyEnd()).toBe(5);
+    expect(current().editTransaction).toBeNull();
+  });
+
+  it('재생 중 Select 모드에서 2박 탭을 마우스로 클릭하면 그 탭만 선택하고 차트는 그대로이며 안내 토스트가 없다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    play();
+    const before = current().chart;
+    handlers.handlePointerDown(mouse(1000));
+    handlers.handlePointerUp(mouse(1000));
+
+    expect(current().selection.notes).toEqual(new Set([1]));
+    expect(current().chart).toBe(before);
+    expect(pauseToasts()).toHaveLength(0);
+  });
+
+  it('재생 중 Select 모드에서 2박 탭을 터치로 짧게 누르면 그 탭을 선택한다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    play();
+    handlers.handlePointerDown(pointer(1000));
+    handlers.handlePointerUp(pointer(1000));
+
+    expect(current().selection.notes).toEqual(new Set([1]));
+    expect(pauseToasts()).toHaveLength(0);
+  });
+
+  it('재생 중 빈 0.4박에서 3.4박까지 박스로 끌면 1박·3박 탭을 선택한다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(3)]), 'select');
+    play();
+    handlers.handlePointerDown(mouse(200));
+    handlers.handlePointerMove(mouse(1700));
+    handlers.handlePointerUp(mouse(1700));
+
+    expect(current().selection.notes).toEqual(new Set([0, 1]));
+    expect(pauseToasts()).toHaveLength(0);
+  });
+
+  it('재생 중 레인 왼쪽 커서 레일을 누르면 y=1500 위치(1500ms)로 seek한다', () => {
+    const seekTo = vi.fn();
+    const renderer = {
+      handleMinimapPointerDown: () => false, handleMinimapPointerUp: () => {},
+      screenXToTimelineX: (x: number) => x - 100, currentTimelineWidth: 240, contentCenterShiftX: 0,
+      clampToMeasureRange: (timeMs: number) => timeMs, yToTime: (y: number) => y, hideGhostNote: () => {},
+    } as unknown as TimelineRenderer;
+    const { handlers } = setup(chart([tapAt(1)]), 'create', 'single', { renderer, playback: { seekTo } as unknown as PlaybackController });
+    play();
+    handlers.handlePointerDown(pointer(1500, { pointerType: 'mouse', x: 20 }));
+
+    expect(seekTo).toHaveBeenCalledExactlyOnceWith(1500);
+    expect(pauseToasts()).toHaveLength(0);
   });
 });
