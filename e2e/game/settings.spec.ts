@@ -76,6 +76,21 @@ function laneRow(dialog: Locator, laneNumber: number): Locator {
 }
 
 test.describe('Game Settings', () => {
+  // VITE_DEV_ADMIN=true에서는 첫 렌더부터 dev@local이다. OAuth 왕복은 단위 테스트의 가짜 인증으로 검증한다.
+  test('dev@local 로그인 상태에서 Profile을 선택하면 Signed in·Logout을 표시하고 닉네임 입력은 없다', async ({ page }) => {
+    const dialog = await openSettings(page);
+    const profile = dialog.getByRole('button', { name: 'Profile', exact: true });
+    await expect(profile).toBeVisible();
+    await profile.click();
+    await expect(profile).toHaveAttribute('aria-current', 'page');
+    const region = dialog.getByRole('region', { name: 'Profile', exact: true });
+    await expect(region.getByText('Signed in', { exact: true })).toBeVisible();
+    await expect(region.getByText('dev@local', { exact: true })).toBeVisible();
+    await expect(region.getByRole('button', { name: 'Logout', exact: true })).toBeEnabled();
+    await expect(region.getByRole('button', { name: 'Login', exact: true })).toHaveCount(0);
+    await expect(region.getByRole('textbox')).toHaveCount(0);
+  });
+
   test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 명시 탭 노트·Body와 Classic 기어·봄 PNG를 로드한다', async ({ page }, testInfo) => {
     test.setTimeout(PLAY_TEST_TIMEOUT_MS);
     const errors: string[] = [];

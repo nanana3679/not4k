@@ -4,13 +4,14 @@ import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from 'rea
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import { KB_TKL_KEYS, KB_NUMPAD_KEYS } from '../../renderer/keyboardLayout';
 import { OffsetRow } from './OffsetRow';
+import { ProfileSection } from './ProfileSection';
 
 const DevSkinVersionSelect = import.meta.env.DEV
   ? lazy(() => import('../../../lab/DevSkinVersionSelect'))
   : null;
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
-type SectionId = 'controls' | 'gameplay' | 'skin' | 'advanced';
+type SectionId = 'controls' | 'gameplay' | 'skin' | 'advanced' | 'profile';
 type ToastTone = 'info' | 'error';
 
 interface SettingsPanelProps {
@@ -26,6 +27,7 @@ const SECTIONS: { id: SectionId; label: string }[] = [
   { id: 'gameplay', label: 'Gameplay' },
   { id: 'skin', label: 'Skin' },
   { id: 'advanced', label: 'Advanced' },
+  { id: 'profile', label: 'Profile' },
 ];
 
 const LANES: Lane[] = ['lane1', 'lane2', 'lane3', 'lane4'];
@@ -39,8 +41,8 @@ const KB_W = Math.max(...KB_KEYS.map((k) => k.x + (k.w ?? 1)));
 const KB_H = Math.max(...KB_KEYS.map((k) => k.y + (k.h ?? 1)));
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
-  const { settings, updateSettings } = useGameStore();
-  const [section, setSection] = useState<SectionId>('controls');
+  const { settings, updateSettings, settingsInitialSection } = useGameStore();
+  const [section, setSection] = useState<SectionId>(settingsInitialSection);
   const [listeningLane, setListeningLane] = useState<Lane | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -157,6 +159,11 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </nav>
 
         <div className="stg-content" role="region" aria-label={SECTIONS.find((s) => s.id === section)?.label}>
+          {/* 탭 전환 중에도 진행 중인 인증 요청을 유지한다. 모달을 닫으면 함께 언마운트된다. */}
+          <div hidden={section !== 'profile'}>
+            <ProfileSection />
+          </div>
+
           {section === 'controls' && (
             <ControlsSection
               keyBindings={settings.keyBindings}
@@ -552,6 +559,10 @@ const settingsPanelCss = `
 .stg-content { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 22px; scrollbar-width: none; }
 .stg-content::-webkit-scrollbar { display: none; }
 .stg-section { display: flex; flex-direction: column; gap: 22px; }
+.stg-profile-row { flex-wrap: wrap; }
+.stg-profile-status { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.stg-profile-error { margin: 8px 0 0; color: ${color.danger}; overflow-wrap: anywhere; }
+.stg-profile-row .stg-btn:disabled { opacity: 0.5; cursor: wait; }
 .stg-group { display: flex; flex-direction: column; gap: 4px; }
 .stg-group-title {
   margin: 0 0 6px; font-family: ${font.display}; font-size: 12px; font-weight: 700;
