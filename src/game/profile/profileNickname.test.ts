@@ -194,6 +194,34 @@ it(
   },
 );
 
+it('user-1 FirstPilot 저장 중 user-2가 SecondPilot을 저장한 뒤 user-1로 돌아오면 FirstPilot 완료 전까지 연동·추가 저장을 하지 않는다', async () => {
+  const profile = setup();
+  await profile.setUser({ id: 'user-1' });
+  const firstResponse = deferred<string>();
+  const secondResponse = deferred<string>();
+  profile.save.mockReturnValueOnce(firstResponse.promise).mockReturnValueOnce(secondResponse.promise);
+  const signal = new AbortController().signal;
+  const first = profile.saveNickname('user-1', 'FirstPilot', signal);
+  await profile.setUser({ id: 'user-2' });
+  const second = profile.saveNickname('user-2', 'SecondPilot', signal);
+  profile.link.mockClear();
+  const back = profile.setUser({ id: 'user-1' });
+  expect(profile.store.getState().saving).toBe(true);
+  await Promise.resolve();
+  expect(profile.link).not.toHaveBeenCalled();
+  expect(await profile.saveNickname('user-1', 'ThirdPilot', signal)).toEqual({ status: 'ignored' });
+  expect(profile.save).toHaveBeenCalledTimes(2);
+  profile.link.mockResolvedValueOnce({ nickname: 'FirstPilot', first_link: false, first_link_guest_nickname: null });
+  firstResponse.resolve('FirstPilot');
+  await first;
+  await back;
+  expect(profile.link).toHaveBeenCalledTimes(1);
+  expect(profile.store.getState()).toEqual({ userId: 'user-1', nickname: 'FirstPilot', status: 'ready', saving: false });
+  secondResponse.resolve('SecondPilot');
+  expect(await second).toEqual({ status: 'ignored' });
+  expect(profile.store.getState().nickname).toBe('FirstPilot');
+});
+
 it('user-1이 NewPilot을 저장하면 응답 전 Pilot7을 유지하고 성공 후 서버 이름 NewPilot을 확정한다', async () => {
   const profile = setup();
   await profile.setUser({ id: 'user-1' });

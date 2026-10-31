@@ -20,24 +20,20 @@ interface NicknameDependencies {
 
 type SaveResult = { status: 'saved' } | { status: 'error'; message: string } | { status: 'ignored' };
 
-interface InFlightSave {
-  userId: string;
-  settled: Promise<string>;
-}
-
 /** 인증과 계정 닉네임의 페이지 수명. 게임 설정 persist와 독립적이다. */
 export function createProfileNickname({ guest, link, save }: NicknameDependencies) {
   const store = createStore<NicknameState>(() => ({ userId: null, nickname: null, status: 'ready', saving: false }));
   let session = 0;
   // 진행 중인 저장은 로그인 세션이 아니라 계정에 묶는다. 같은 계정의 재로그인도 이 저장이 끝나길 기다린다.
-  let inFlightSave: InFlightSave | null = null;
+  const savesByUserId = new Map<string, Promise<string>>();
   const load = async () => {
     const startedIn = session;
     const userId = store.getState().userId;
     store.setState({ status: 'loading' });
     try {
-      if (inFlightSave?.userId === userId) {
-        await inFlightSave.settled.catch(() => {});
+      const pendingSave = userId ? savesByUserId.get(userId) : undefined;
+      if (pendingSave) {
+        await pendingSave.catch(() => {});
         if (startedIn !== session) return;
       }
       const sentNickname = guest.get();
@@ -64,17 +60,16 @@ export function createProfileNickname({ guest, link, save }: NicknameDependencie
       const isCurrentUser = () => store.getState().userId === userId;
       const isCurrentForm = () => startedIn === session && isCurrentUser() && !signal.aborted;
       const state = store.getState();
-      if (!isCurrentForm() || state.status !== 'ready' || state.saving || inFlightSave?.userId === userId) {
+      if (!isCurrentForm() || state.status !== 'ready' || state.saving || savesByUserId.has(userId)) {
         return { status: 'ignored' };
       }
       const message = validateNickname(draft);
       if (message) return { status: 'error', message };
       store.setState({ saving: true });
-      let request: InFlightSave | null = null;
+      const request = (async () => save(userId, draft))();
+      savesByUserId.set(userId, request);
       try {
-        request = { userId, settled: save(userId, draft) };
-        inFlightSave = request;
-        const nickname = await request.settled;
+        const nickname = await request;
         if (!isCurrentUser()) return { status: 'ignored' };
         store.setState({ nickname });
         return { status: isCurrentForm() ? 'saved' : 'ignored' };
@@ -82,7 +77,7 @@ export function createProfileNickname({ guest, link, save }: NicknameDependencie
         if (!isCurrentForm()) return { status: 'ignored' };
         return { status: 'error', message: "Couldn't save your nickname. Please try again." };
       } finally {
-        if (inFlightSave === request) inFlightSave = null;
+        if (savesByUserId.get(userId) === request) savesByUserId.delete(userId);
         if (isCurrentUser()) store.setState({ saving: false });
       }
     },
@@ -91,7 +86,7 @@ export function createProfileNickname({ guest, link, save }: NicknameDependencie
       if (userId === store.getState().userId) return;
       session++;
       store.setState({
-        userId, nickname: null, status: userId ? 'loading' : 'ready', saving: inFlightSave?.userId === userId,
+        userId, nickname: null, status: userId ? 'loading' : 'ready', saving: userId !== null && savesByUserId.has(userId),
       });
       if (!userId) return;
       await load();
