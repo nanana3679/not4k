@@ -157,6 +157,32 @@ it('access_denied 취소 후 새 Login 마커로 pageshow persisted 복귀하면
   }
 });
 
+it('첫 실행 presetSetup 대기 중 같은 마커로 pageshow persisted 복귀해도 User lookup failed 오류를 유지해 설정 완료 후 Profile에 표시한다', async () => {
+  mockBrowser('https://example.test/game#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
+  await signInFromProfile(async () => {});
+  const initializeAuth = vi.fn(async () => ({ error: new Error('User lookup failed') }));
+  const restore = vi.fn(createProfileReturnRestorer(initializeAuth));
+  const stop = bindProfileReturnRestoration(restore, false);
+  try {
+    await restore.mock.results[0].value;
+    expect(useGameStore.getState().screen).toBe('presetSetup');
+
+    window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    await restore.mock.results[1].value;
+    expect(useGameStore.getState()).toMatchObject({ screen: 'presetSetup', settingsOpen: false });
+
+    useGameStore.getState().completeFirstLaunch();
+    useGameStore.getState().setScreen('songSelect');
+    await restore(false);
+    expect(initializeAuth).toHaveBeenCalledOnce();
+    expect(useGameStore.getState()).toMatchObject({
+      settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: 'User lookup failed',
+    });
+  } finally {
+    stop();
+  }
+});
+
 it('첫 실행 presetSetup 중 새로고침해도 원래 타임스탬프를 유지하고 완료 후 Profile을 1회만 연다', async () => {
   mockBrowser();
   await signInFromProfile(async () => {});

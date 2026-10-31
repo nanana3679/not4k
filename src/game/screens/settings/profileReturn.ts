@@ -14,8 +14,9 @@ export function createProfileReturnRestorer(
   let pending: Promise<string | null> | null = null;
   return async (mobileListOnly: boolean, { signal, persisted = false }: ProfileReturnInvocation = {}) => {
     if (signal?.aborted) return;
-    // bfcache는 새 콜백을 처리하지 않는다. 이전 복귀 결과 대신 현재 URL만 읽는다.
-    if (persisted) pending = null;
+    // bfcache는 새 콜백을 처리하지 않는다. 새 Login 마커면 이전 복귀 결과 대신 현재 URL만 읽고,
+    // 아직 소비하지 않은 같은 마커면(첫 실행 프리셋 대기 등) 그 복귀 결과를 그대로 쓴다.
+    if (persisted && readProfileReturnStartedAt() !== startedAt) pending = null;
     if (!pending) {
       startedAt = readProfileReturnStartedAt();
       if (startedAt !== null) {
