@@ -1,3 +1,4 @@
+import { deleteEvents, isInitialTimingEvent } from '../editing/eventEditing';
 /**
  * useFileOperations — 파일 저장/삭제 핸들러
  */
@@ -11,7 +12,7 @@ import {
   songJacketPath,
   songAudioPath,
   encodeWavBlob,
-  extractTimeSignatures,
+  extractTimeSignatureChanges,
   isMeasureBoundary,
 } from '../../shared';
 import type { Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
@@ -34,8 +35,8 @@ export interface FileOperationHandlers {
   handleSaveAs: (targetDifficulty: string, targetLevel: number) => Promise<void>;
   handlePlayTest: (fromCursor: boolean) => void;
   handleDeleteChart: () => Promise<void>;
-  handleMarkerSave: (values: Record<string, string>) => void;
-  handleMarkerDelete: () => void;
+  handleEventSave: (values: Record<string, string>) => void;
+  handleEventDelete: () => void;
 }
 
 /**
@@ -105,8 +106,8 @@ export function useFileOperations(
   const addToast = useEditorStore((s) => s.addToast);
   const beginChartSave = useEditorStore((s) => s.beginChartSave);
   const finishChartSave = useEditorStore((s) => s.finishChartSave);
-  const editingMarker = useEditorStore((s) => s.editingMarker);
-  const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
+  const editingEvent = useEditorStore((s) => s.editingEvent);
+  const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
 
   const handleSaveChart = useCallback(async () => {
     if (!activeSongId) {
@@ -377,16 +378,14 @@ export function useFileOperations(
     }
   }, [chart, activeSongId, addToast, setDeleting, setShowDeleteConfirm]);
 
-  // 마커 편집 핸들러
-  const editingEvt = editingMarker ? chart.events[editingMarker.index] : null;
-  const isEditingInitial = editingEvt && editingEvt.beat.n === 0 && (editingEvt.type === 'bpm' || editingEvt.type === 'timeSignature');
+  // 이벤트 편집 핸들러
 
-  const handleMarkerSave = useCallback((values: Record<string, string>) => {
-    if (!editingMarker) return;
+  const handleEventSave = useCallback((values: Record<string, string>) => {
+    if (!editingEvent) return;
 
     const updated = { ...chart };
     updated.events = [...chart.events];
-    const evt = updated.events[editingMarker.index];
+    const evt = updated.events[editingEvent.index];
     const isBeatZeroEvent = evt.beat.n === 0;
 
     // Build updated event based on its existing type
@@ -402,7 +401,7 @@ export function useFileOperations(
         addToast('박자표 분자/분모는 자연수(양의 정수)만 가능합니다'); return;
       }
       if (!isBeatZeroEvent) {
-        const currentTimeSigs = extractTimeSignatures(chart.events);
+        const currentTimeSigs = extractTimeSignatureChanges(chart.events);
         if (currentTimeSigs.length > 0 && !isMeasureBoundary(evt.beat, currentTimeSigs)) {
           addToast('박자표는 마디의 시작 위치에만 배치할 수 있습니다'); return;
         }
@@ -439,34 +438,39 @@ export function useFileOperations(
       newEvt = evt;
     }
 
-    updated.events[editingMarker.index] = newEvt;
+    if (isInitialTimingEvent(evt)) {
+      const editorLane = Number(values.editorLane ?? evt.editorLane ?? 1);
+      if (!Number.isInteger(editorLane) || editorLane < 1 || editorLane > extraLaneCount) {
+        addToast('보조 레인은 현재 보조 레인 범위 안의 정수여야 합니다');
+        return;
+      }
+      newEvt = { ...newEvt, editorLane };
+    }
+    updated.events[editingEvent.index] = newEvt;
 
     setChart(updated);
     rendererRef.current?.setChart(updated);
-    setEditingMarker(null);
-  }, [editingMarker, chart, rendererRef, setChart, setEditingMarker, addToast]);
+    setEditingEvent(null);
+  }, [editingEvent, chart, extraLaneCount, rendererRef, setChart, setEditingEvent, addToast]);
 
-  const handleMarkerDelete = useCallback(() => {
-    if (!editingMarker) return;
+  const handleEventDelete = useCallback(() => {
+    if (!editingEvent) return;
 
-    if (isEditingInitial) {
-      addToast('Cannot delete initial event marker');
+    const next = deleteEvents(chart, new Set([editingEvent.index]));
+    if (!next) {
+      addToast('Cannot delete initial event');
       return;
     }
-
-    setChart({
-      ...chart,
-      events: chart.events.filter((_, i) => i !== editingMarker.index),
-    });
-    setEditingMarker(null);
-  }, [editingMarker, isEditingInitial, chart, setChart, setEditingMarker, addToast]);
+    setChart(next);
+    setEditingEvent(null);
+  }, [editingEvent, chart, setChart, setEditingEvent, addToast]);
 
   return {
     handleSaveChart,
     handleSaveAs,
     handlePlayTest,
     handleDeleteChart,
-    handleMarkerSave,
-    handleMarkerDelete,
+    handleEventSave,
+    handleEventDelete,
   };
 }

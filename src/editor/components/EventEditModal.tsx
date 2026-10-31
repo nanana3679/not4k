@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ChartDocument, ChartEvent } from '../../shared';
-import type { EditingMarker } from '../stores';
+import type { EditingEvent } from '../stores';
 import { modalStyles } from './modalStyles';
 
 // ---------------------------------------------------------------------------
@@ -9,8 +9,8 @@ import { modalStyles } from './modalStyles';
 
 function getEventTypeLabel(evt: ChartEvent): string {
   switch (evt.type) {
-    case 'bpm': return 'BPM';
-    case 'timeSignature': return 'Time Signature';
+    case 'bpm': return 'BPM Change';
+    case 'timeSignature': return 'Time Signature Change';
     case 'text': return 'Text';
     case 'auto': return 'Auto Section';
     case 'stop': return 'Stop Zone';
@@ -171,22 +171,23 @@ function EventFields({ evt, values, setValues }: {
 }
 
 // ---------------------------------------------------------------------------
-// Marker Edit Modal
+// Event Edit Modal
 // ---------------------------------------------------------------------------
 
-export interface MarkerEditModalProps {
-  editingMarker: NonNullable<EditingMarker>;
+export interface EventEditModalProps {
+  editingEvent: NonNullable<EditingEvent>;
   chart: ChartDocument;
   isBeatZero: boolean;
+  extraLaneCount: number;
   onSave: (values: Record<string, string>) => void;
   onDelete: () => void;
   onClose: () => void;
 }
 
-export function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDelete, onClose }: MarkerEditModalProps) {
-  const evt = chart.events[editingMarker.index];
+export function EventEditModal({ editingEvent, chart, isBeatZero, extraLaneCount, onSave, onDelete, onClose }: EventEditModalProps) {
+  const evt = chart.events[editingEvent.index];
   const [values, setValues] = useState<Record<string, string>>(() =>
-    evt ? getInitialValues(evt) : {},
+    evt ? { ...getInitialValues(evt), editorLane: String(evt.editorLane ?? 1) } : {},
   );
 
   useEffect(() => {
@@ -204,13 +205,28 @@ export function MarkerEditModal({ editingMarker, chart, isBeatZero, onSave, onDe
 
         <EventFields evt={evt} values={values} setValues={setValues} />
 
+        {isBeatZero && (
+          <label style={modalStyles.field}>
+            <span>Editor lane</span>
+            <select
+              style={modalStyles.input}
+              value={values.editorLane}
+              onChange={(event) => setValues({ ...values, editorLane: event.target.value })}
+            >
+              {Array.from({ length: extraLaneCount }, (_, index) => (
+                <option key={index + 1} value={index + 1}>{index + 1}</option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <div style={modalStyles.buttons}>
           <button style={modalStyles.saveBtn} onClick={() => onSave(values)}>Save</button>
           <button
             style={{ ...modalStyles.deleteBtn, opacity: isBeatZero ? 0.4 : 1 }}
             onClick={onDelete}
             disabled={isBeatZero}
-            title={isBeatZero ? 'Cannot delete first marker' : 'Delete marker'}
+            title={isBeatZero ? 'Cannot delete initial event' : 'Delete event'}
           >
             Delete
           </button>

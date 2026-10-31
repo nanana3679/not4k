@@ -5,7 +5,7 @@
 
 import { Container, Graphics } from "pixi.js";
 import { beatToMs, isVisibleLane } from "../../shared";
-import type { ChartDocument, Beat, DocumentNoteEntity, BpmMarker, Lane } from "../../shared";
+import type { ChartDocument, Beat, DocumentNoteEntity, BpmChange, Lane } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
@@ -36,7 +36,7 @@ export interface OverlayHost {
   readonly boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null;
   readonly scrollY: number;
   readonly contentOffsetX: number;
-  readonly cachedBpmMarkers: BpmMarker[];
+  readonly cachedBpmChanges: BpmChange[];
   getVisibleTimeRange(): { minTimeMs: number; maxTimeMs: number };
   timeToY(timeMs: number): number;
 
@@ -60,7 +60,7 @@ export class OverlayRenderer {
   renderMoveOrigins(): void {
     if (!this.host.moveOrigins || !this.host.chart) return;
 
-    const bpmMarkers = this.host.cachedBpmMarkers;
+    const bpmChanges = this.host.cachedBpmChanges;
     const meta = this.host.chart.meta;
     const ORIGIN_ALPHA = 0.3;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
@@ -73,7 +73,7 @@ export class OverlayRenderer {
       const h = NOTE_HEIGHT;
 
       if (!origEndBeat) {
-        const timeMs = beatToMs(origBeat, bpmMarkers, meta.offsetMs);
+        const timeMs = beatToMs(origBeat, bpmChanges, meta.offsetMs);
         if (timeMs < minTimeMs || timeMs > maxTimeMs) continue;
         const y = this.host.timeToY(timeMs);
 
@@ -100,8 +100,8 @@ export class OverlayRenderer {
         gfx.fill({ color, alpha: ORIGIN_ALPHA });
         this.host.moveOriginLayer.addChild(gfx);
       } else {
-        const startMs = beatToMs(origBeat, bpmMarkers, meta.offsetMs);
-        const endMs = beatToMs(origEndBeat, bpmMarkers, meta.offsetMs);
+        const startMs = beatToMs(origBeat, bpmChanges, meta.offsetMs);
+        const endMs = beatToMs(origEndBeat, bpmChanges, meta.offsetMs);
         const lo = Math.min(startMs, endMs);
         const hi = Math.max(startMs, endMs);
         if (hi < minTimeMs || lo > maxTimeMs) continue;
@@ -186,9 +186,9 @@ export class OverlayRenderer {
   }
 
   /**
-   * 엑스트라 레인에 고스트 마커 표시 (이벤트용)
+   * 엑스트라 레인에 고스트 이벤트 표시 (이벤트용)
    */
-  showGhostMarker(extraLane: number, timeMs: number): void {
+  showGhostEvent(extraLane: number, timeMs: number): void {
     destroyChildren(this.host.ghostLayer);
 
     const y = this.host.timeToY(timeMs);
@@ -278,7 +278,7 @@ export class OverlayRenderer {
   }
 
   /**
-   * 고스트 노트/마커 숨기기
+   * 고스트 노트/이벤트 숨기기
    */
   hideGhostNote(): void {
     destroyChildren(this.host.ghostLayer);
@@ -298,7 +298,7 @@ export class OverlayRenderer {
     this.host.hoverLayer.x = this.host.contentOffsetX;
     this.host.hoverLayer.y = -this.host.scrollY;
 
-    const bpmMarkers = this.host.cachedBpmMarkers;
+    const bpmChanges = this.host.cachedBpmChanges;
     const meta = this.host.chart.meta;
 
     if (hoveredNoteIndex !== null && hoveredNoteIndex < this.host.chart.notes.length) {
@@ -308,11 +308,11 @@ export class OverlayRenderer {
       const laneW = laneWidth(note.lane);
       const w = NOTE_HEIGHT * 5;
       const h = NOTE_HEIGHT;
-      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+      const startMs = beatToMs(note.beat, bpmChanges, meta.offsetMs);
       const startY = this.host.timeToY(startMs);
 
       if ("endBeat" in note) {
-        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
+        const endMs = beatToMs(note.endBeat, bpmChanges, meta.offsetMs);
         const endY = this.host.timeToY(endMs);
         const topY = Math.min(startY, endY);
         const bottomY = Math.max(startY, endY);
@@ -345,7 +345,7 @@ export class OverlayRenderer {
     ) {
       const zone = this.host.chart.trillZones[hoveredTrillZoneIndex];
       const x = laneToX(zone.lane);
-      const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
+      const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmChanges, meta.offsetMs));
       drawTrillZoneHandles(this.host.hoverLayer, x, laneWidth(zone.lane), endY, true);
     }
 
@@ -359,7 +359,7 @@ export class OverlayRenderer {
     ) {
       const zone = restZones[hoveredRestZoneIndex];
       const x = (zone.lane - 1) * LANE_WIDTH;
-      const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs));
+      const endY = this.host.timeToY(beatToMs(zone.endBeat, bpmChanges, meta.offsetMs));
       drawResizeCap(this.host.hoverLayer, x, LANE_WIDTH, endY, COLORS.SELECTED_OUTLINE, TRILL_HANDLE_SELECTED_BUMP);
     }
 
@@ -372,7 +372,7 @@ export class OverlayRenderer {
       const note = notes[index];
       if (!("endBeat" in note)) return;
       const x = (note.lane - 1) * LANE_WIDTH;
-      const endY = this.host.timeToY(beatToMs(note.endBeat, bpmMarkers, meta.offsetMs));
+      const endY = this.host.timeToY(beatToMs(note.endBeat, bpmChanges, meta.offsetMs));
       drawNoteResizeHandle(this.host.hoverLayer, x, LANE_WIDTH, endY, selected);
       drawnCaps.add(index);
     };
@@ -393,7 +393,7 @@ export class OverlayRenderer {
       this.host.violatingEventIndices.size === 0
     ) return;
 
-    const bpmMarkers = this.host.cachedBpmMarkers;
+    const bpmChanges = this.host.cachedBpmChanges;
     const meta = this.host.chart.meta;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
@@ -401,8 +401,8 @@ export class OverlayRenderer {
     for (const idx of this.host.violatingNoteIndices) {
       if (idx >= this.host.chart.notes.length) continue;
       const note = this.host.chart.notes[idx];
-      const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-      const endMs = "endBeat" in note ? beatToMs(note.endBeat, bpmMarkers, meta.offsetMs) : null;
+      const startMs = beatToMs(note.beat, bpmChanges, meta.offsetMs);
+      const endMs = "endBeat" in note ? beatToMs(note.endBeat, bpmChanges, meta.offsetMs) : null;
       this.drawViolationHatch(note.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
 
@@ -411,8 +411,8 @@ export class OverlayRenderer {
       if (idx >= this.host.chart.trillZones.length) continue;
       const zone = this.host.chart.trillZones[idx];
       if (!isVisibleLane(zone.lane, this.host.extraLaneCount)) continue;
-      const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
-      const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+      const startMs = beatToMs(zone.beat, bpmChanges, meta.offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmChanges, meta.offsetMs);
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
 
@@ -421,19 +421,19 @@ export class OverlayRenderer {
     for (const idx of this.host.violatingRestZoneIndices) {
       if (idx >= restZones.length) continue;
       const zone = restZones[idx];
-      const startMs = beatToMs(zone.beat, bpmMarkers, meta.offsetMs);
-      const endMs = beatToMs(zone.endBeat, bpmMarkers, meta.offsetMs);
+      const startMs = beatToMs(zone.beat, bpmChanges, meta.offsetMs);
+      const endMs = beatToMs(zone.endBeat, bpmChanges, meta.offsetMs);
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
 
     // 이벤트: editorLane 좌표계(엑스트라 레인) — 구간 이벤트('endBeat' 보유)는 endMs까지, 시점 이벤트는 포인트 (RFD 0017 §7).
-    // 폭은 이벤트 마커(GridRenderer.renderMarkers)와 같은 칸 폭 EXTRA_LANE_WIDTH.
+    // 폭은 이벤트(GridRenderer.renderEvents)와 같은 칸 폭 EXTRA_LANE_WIDTH.
     for (const idx of this.host.violatingEventIndices) {
       if (idx >= this.host.chart.events.length) continue;
       const evt = this.host.chart.events[idx];
       const rectX = eventLaneToX(evt.editorLane ?? 1);
-      const startMs = beatToMs(evt.beat, bpmMarkers, meta.offsetMs);
-      const endMs = "endBeat" in evt ? beatToMs(evt.endBeat, bpmMarkers, meta.offsetMs) : null;
+      const startMs = beatToMs(evt.beat, bpmChanges, meta.offsetMs);
+      const endMs = "endBeat" in evt ? beatToMs(evt.endBeat, bpmChanges, meta.offsetMs) : null;
       this.drawViolationHatchAt(rectX, EXTRA_LANE_WIDTH, startMs, endMs, minTimeMs, maxTimeMs);
     }
   }

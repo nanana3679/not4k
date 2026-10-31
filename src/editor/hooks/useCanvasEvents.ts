@@ -93,9 +93,8 @@ export function useCanvasEvents(
 ): CanvasEventHandlers {
   const mode = useEditorStore((s) => s.mode);
   const entityType = useEditorStore((s) => s.entityType);
-  const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
-  const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
+  const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const addToast = useEditorStore((s) => s.addToast);
 
   const rightPressPendingRef = useRef(false);
@@ -192,6 +191,8 @@ export function useCanvasEvents(
         noteEndHit: space.hitTestNoteEnd(fx, fy),
         extraHit: space.hitTestExtraNote(fx, fy),
         zoneHit: space.hitTestTrillZone(fx, fy),
+        eventHit: space.hitTestEvent(fx, fy),
+        eventEndHit: space.hitTestEventEnd(fx, fy),
       };
       const firePlacementBlocked = mode === 'create'
         ? (createModeRef.current?.isPlacementBlocked(fx, fy) ?? false)
@@ -212,6 +213,8 @@ export function useCanvasEvents(
           noteEndHit: fireHits.noteEndHit,
           noteHit: fireHits.noteHit,
           zoneHit: fireHits.zoneHit,
+          eventHit: fireHits.eventHit,
+          eventEndHit: fireHits.eventEndHit,
         });
         rendererRef.current?.hideGhostNote();
       }
@@ -337,24 +340,10 @@ export function useCanvasEvents(
     }
   }, [rendererRef]);
 
-  // 마커 히트테스트 (extra lane — editorLane 기반)
-  const hitTestMarker = useCallback((x: number, y: number) => {
-    const extraLane = space.xToExtraLane(x);
-    if (!extraLane) return null;
-    const beat = space.yToBeat(y);
-    const testBeatFloat = beat.n / beat.d;
-    const tolerance = 1 / 8;
-    for (let i = 0; i < chart.events.length; i++) {
-      const evt = chart.events[i];
-      if ((evt.editorLane ?? 1) !== extraLane) continue;
-      const startFloat = evt.beat.n / evt.beat.d;
-      const endFloat = 'endBeat' in evt ? evt.endBeat.n / evt.endBeat.d : startFloat;
-      if (testBeatFloat >= startFloat - tolerance && testBeatFloat <= endFloat + tolerance) {
-        return { type: 'event' as const, index: i };
-      }
-    }
-    return null;
-  }, [chart.events, space]);
+  const hitTestEvent = useCallback((x: number, y: number) => {
+    const index = space.hitTestEvent(x, y);
+    return index === null ? null : { type: 'event' as const, index };
+  }, [space]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     if (e.pointerType === 'touch') {
@@ -427,12 +416,9 @@ export function useCanvasEvents(
           if (result.blockedReason) addToast(result.blockedReason);
           if (result.chart) setChart(result.chart, { transaction: eraseGestureRef.current.transaction });
         } else {
-          const hit = hitTestMarker(x, y);
-          const event = hit && current.events[hit.index];
-          if (hit && event) {
-            if (event.beat.n === 0 && (event.type === 'bpm' || event.type === 'timeSignature')) {
-              addToast('Cannot delete initial event marker');
-            } else setChart({ ...current, events: current.events.filter((_, index) => index !== hit.index) }, { transaction: eraseGestureRef.current.transaction });
+          if (lane !== null) {
+            const beat = space.yToBeatRaw(y);
+            eraseGestureRef.current.erase(lane, beat.n / beat.d);
           }
         }
       }
@@ -450,6 +436,8 @@ export function useCanvasEvents(
           noteEndHit: touchNoteEndHit,
           extraHit: touchExtraHit,
           zoneHit: space.hitTestTrillZone(x, y),
+          eventHit: space.hitTestEvent(x, y),
+          eventEndHit: space.hitTestEventEnd(x, y),
         },
         mode,
         entityType as EntityType,
@@ -493,7 +481,7 @@ export function useCanvasEvents(
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
-    selectModeRef, onNavigationInteraction, addToast, setChart, hitTestMarker,
+    selectModeRef, onNavigationInteraction, addToast, setChart, hitTestEvent,
   ]);
 
   // 모드가 반환한 EditResult를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
@@ -655,6 +643,8 @@ export function useCanvasEvents(
     if (canvasEl) {
       let cursor = '';
       if (mode === 'select') {
+        const eventHit = space.hitTestEvent(x, y);
+        if (eventHit !== null && selectModeRef.current?.selectedEvents.has(eventHit)) cursor = space.hitTestEventEnd(x, y) === eventHit ? 'ns-resize' : 'move';
         const zoneBody = space.hitTestTrillZone(x, y);
         const zoneEnd = space.hitTestTrillZoneEnd(x, y);
         // 끝 리사이즈 커서·move 커서 모두 그 구간이 **선택됐을 때만** — 미선택 구간의 끝 노트
@@ -662,7 +652,7 @@ export function useCanvasEvents(
         // restZone도 같은 게이트(선택된 것만) — trillZone이 위 레이어라 트릴 히트가 우선한다 (RFD 0019).
         const restBody = space.hitTestRestZone(x, y);
         const restEnd = space.hitTestRestZoneEnd(x, y);
-        if (zoneEnd !== null && (selectModeRef.current?.selectedZones.has(zoneEnd) ?? false)) {
+        if (cursor) { /* 이벤트 선택 커서가 우선한다. */ } else if (zoneEnd !== null && (selectModeRef.current?.selectedZones.has(zoneEnd) ?? false)) {
           cursor = 'ns-resize';
         } else if (zoneBody !== null && (selectModeRef.current?.selectedZones.has(zoneBody) ?? false)) {
           cursor = 'move';
@@ -712,18 +702,18 @@ export function useCanvasEvents(
 
       if (rendererRef.current) {
         const beat = space.yToBeat(y);
-        const bpmMarkers = space.getBpmMarkers();
+        const bpmChanges = space.getBpmChanges();
         const snapped = space.snapBeat(beat);
-        const timeMs = beatToMs(snapped, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
+        const timeMs = beatToMs(snapped, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
 
         if (createModeRef.current?.dragging && createModeRef.current.dragBeat) {
           if (createModeRef.current.dragType === 'event') {
-            rendererRef.current.showGhostMarker(createModeRef.current.dragExtraLane ?? 1, timeMs);
+            rendererRef.current.showGhostEvent(createModeRef.current.dragExtraLane ?? 1, timeMs);
           } else if (createModeRef.current.dragType === 'extraRangeNote' && createModeRef.current.dragExtraLane) {
-            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
+            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
             rendererRef.current.showGhostExtraRange(createModeRef.current.dragExtraLane, startTimeMs, timeMs);
           } else if (createModeRef.current.dragLane) {
-            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
+            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
             rendererRef.current.showGhostRange(createModeRef.current.dragLane, startTimeMs, timeMs);
           }
         } else {
@@ -731,8 +721,8 @@ export function useCanvasEvents(
           const extraLane = space.xToExtraLane(x);
           if (extraLane) {
             if (isEventEntityType(entityType as import('../modes').EntityType)) {
-              // Show ghost marker for event entity types on extra lanes
-              rendererRef.current.showGhostMarker(extraLane, timeMs);
+              // Show ghost event for event entity types on extra lanes
+              rendererRef.current.showGhostEvent(extraLane, timeMs);
             } else {
               // 보조 노트도 chart.notes(lane 5+)에 살아 통합 인덱스로 직접 히트한다 (RFD 0018 ④d)
               const existingAux = noteExistsAtSnap(useEditorStore.getState().chart.notes, fromAuxIndex(extraLane), snappedBeatFloat);
@@ -861,7 +851,7 @@ export function useCanvasEvents(
         rendererRef.current?.clearBoxSelectRect();
         const sel = useEditorStore.getState();
         const selectionSize =
-          sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size;
+          sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size + sel.selection.events.size;
         // 박스 드래그(moved)가 비어있지 않게 끝나면 래치 on — 이후 클릭이 토글이 된다 (RFD 0016 §4.4).
         // 클릭(빈 곳 클릭·핸들 클릭)은 기존 규칙 유지: 선택이 비면 off, 아니면 현 상태 유지.
         touchMultiSelectRef.current = touchEmptySelectCandidate.moved
@@ -919,7 +909,7 @@ export function useCanvasEvents(
       const sel = useEditorStore.getState();
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(
         touchMultiSelectRef.current,
-        sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size,
+        sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size + sel.selection.events.size,
       );
     }
     if (clickToggle?.pointerId === e.pointerId) {
@@ -961,11 +951,11 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    const hit = hitTestMarker(x, y);
+    const hit = hitTestEvent(x, y);
     if (hit) {
-      setEditingMarker(hit);
+      setEditingEvent(hit);
     }
-  }, [canvasRef, hitTestMarker, rendererRef, setEditingMarker]);
+  }, [canvasRef, hitTestEvent, rendererRef, setEditingEvent]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -985,36 +975,8 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    // 통합 히트테스트 — 메인·보조 노트를 chart.notes 통합 인덱스로 한 경로에서 삭제 (RFD 0018 ④d)
-    const currentChart = useEditorStore.getState().chart;
-    const result = DeleteMode.deleteNoteAtPoint(currentChart, space.hitTestUnifiedNote, x, y, useEditorStore.getState().selection.notes, addToast);
-    if (result) {
-      setChart(result);
-      return;
-    }
-
-    if (space.hitTestUnifiedNote(x, y) !== null) return;
-    const zoneIdx = space.hitTestTrillZone(x, y);
-    if (zoneIdx !== null) {
-      const zoneDelete = deleteEmptyTrillZoneAtIndex(currentChart, zoneIdx);
-      if (zoneDelete.blockedReason) addToast(zoneDelete.blockedReason);
-      if (zoneDelete.chart) setChart(zoneDelete.chart);
-      return;
-    }
-
-    const markerHit = hitTestMarker(x, y);
-    if (markerHit) {
-      const evt = currentChart.events[markerHit.index];
-      if (evt && evt.beat.n === 0 && (evt.type === 'bpm' || evt.type === 'timeSignature')) {
-        addToast('Cannot delete initial event marker');
-        return;
-      }
-      setChart({
-        ...currentChart,
-        events: currentChart.events.filter((_, i) => i !== markerHit.index),
-      });
-    }
-  }, [canvasRef, space, hitTestMarker, rendererRef, setChart, addToast]);
+    deleteModeRef.current?.onPointerDown(x, y);
+  }, [canvasRef, rendererRef, deleteModeRef]);
 
   return {
     handlePointerDown,

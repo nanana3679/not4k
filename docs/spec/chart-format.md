@@ -8,7 +8,7 @@
 
 같은 곡의 모든 차트가 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬 오프셋을 공유하는 규칙을 채택했다. 논리적 소유자는 곡이다([RFD 0095](../rfd/0095-song-shared-bpm-and-audio-offset.md), 곡 단위 공유 미구현).
 
-현재 파일 포맷은 `BpmEvent`·`TimeSignatureEvent`를 각 차트의 `events`에, 음원 정렬용 오프셋을 `meta.offsetMs`에 저장한다. 아래 필드·버전 설명은 이 현행 입출력 계약이다. 채택한 이벤트 이름 `BpmChangeEvent`·`TimeSignatureChangeEvent`로의 코드 전환은 별도 [PR #368](https://github.com/nanana3679/not4k/pull/368)에서 진행한다. 곡 공통 저장 구조로의 이행은 [PRD §12](../prd.md#12-미정-사항)에서 관리한다.
+현재 파일 포맷은 `BpmChangeEvent`·`TimeSignatureChangeEvent`를 각 차트의 `events`에, 음원 정렬용 오프셋을 `meta.offsetMs`에 저장한다. 아래 필드·버전 설명은 이 현행 입출력 계약이다. 이벤트 이름의 코드 전환은 [PR #368](https://github.com/nanana3679/not4k/pull/368)로 반영했다. 곡 공통 저장 구조로의 이행은 [PRD §12](../prd.md#12-미정-사항)에서 관리한다.
 
 기존 차트들의 타이밍이 불일치하는 곡은 관리자가 기준 차트 하나를 골라 그 BPM·박자표·음원 정렬 오프셋을 곡 공통값으로 적용하도록 정했다. 이행 시 노트·차트별 이벤트의 박 좌표는 유지하며 기존 음원 시각을 보존하기 위한 좌표 변환은 하지 않는다. 이행의 상세는 [곡 관리 스펙](song-management.md#곡의-bpm음원-정렬-오프셋-미구현)을 따른다.
 
@@ -17,6 +17,8 @@
 곡 제목·아티스트·자켓도 같은 곡의 모든 차트가 공유하는 정보다. 현행 `ChartMeta.title`·`artist`·`imageFile`의 저장 표현을 차트별 독립 정보의 소유권으로 해석하지 않는다. 이 표시 정보만 수정하면 기록용 차트 버전과 기존 기록·랭킹을 유지한다([RFD 0096](../rfd/0096-song-shared-display-metadata-and-records.md)).
 
 ## 문서와 항목
+
+`BpmChangeEvent`·`TimeSignatureChangeEvent`는 `events`에 각각 `type: "bpm"`·`type: "timeSignature"`로 저장한다. 0박 초기 설정도 같은 이벤트이며, 이름 정리로 JSON 필드나 파일 버전을 변경하지 않는다. 계산용 `BpmChange`·`TimeSignatureChange`는 저장하지 않는다([RFD 0067](../rfd/0067-chart-event-names.md)).
 
 메타데이터·`trillZones`·`restZones`·`events`는 기존 차트 구조를 보존한다. `notes: DocumentNoteEntity[]`에는 구형과 신형 항목을 섞어 저장할 수 있다. 코드의 박은 `Beat`, JSON의 박은 기존과 같은 문자열이다. 박 문자열은 안전 정수 하나(`"7"`) 또는 안전 정수 분자·분모(`"7/2"`)이며 `"1.5"`·`"1oops"`처럼 정수가 아닌 값은 앞부분을 잘라 읽지 않고 형식 오류로 거부한다. 같은 이유로 문서 검증은 정수가 아닌 분자나 양수가 아닌 분모의 `Beat`를 `beatMalformed` 구조 오류로 보고 저장을 막는다. 노트의 배열 상대 순서를 보존하며 맞닿은 바디를 병합하거나 누락된 노트를 자동 생성하지 않는다.
 

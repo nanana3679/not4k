@@ -27,7 +27,7 @@ import {
   isMeasureBoundary,
 } from "./index";
 import { beat } from "../types/beat";
-import type { NoteEntity, TrillZone, RestZone, ChartEvent, TimeSignatureMarker } from "../types/chart";
+import type { NoteEntity, TrillZone, RestZone, ChartEvent, TimeSignatureChange } from "../types/chart";
 
 // =========================================================================
 // 규칙 1: 동일 위치 중복 금지 (슬롯 기반)
@@ -526,7 +526,7 @@ describe("validateNoEventDuplicate", () => {
 });
 
 // =========================================================================
-// 규칙 6: 이벤트 마커 겹침 금지
+// 규칙 6: 이벤트 겹침 금지
 // =========================================================================
 
 describe("validateNoEventOverlap", () => {
@@ -554,29 +554,29 @@ describe("validateNoEventOverlap", () => {
     expect(validateNoEventOverlap(events).length).toBeGreaterThan(0);
   });
 
-  it("tutorialInput은 일반 구간 이벤트 겹침 검사에서 제외", () => {
+  it("서로 다른 키의 tutorialInput [0,4)·[2,6)을 보조 레인1·2에 배치하면 허용한다", () => {
     const events: ChartEvent[] = [
-      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
-      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyF" },
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD", editorLane: 1 },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyF", editorLane: 2 },
     ];
     expect(validateNoEventOverlap(events)).toEqual([]);
   });
 
-  it("tutorialDiagram은 같은 시간에 겹쳐도 일반 구간 이벤트 겹침 검사에서 제외", () => {
+  it("tutorialDiagram [0,4)·[2,6)을 보조 레인1·2에 나누면 동시 표시를 허용한다", () => {
     const events: ChartEvent[] = [
-      { type: "tutorialDiagram", beat: beat(0), endBeat: beat(4), diagramId: "connected-switch" },
-      { type: "tutorialDiagram", beat: beat(2), endBeat: beat(6), diagramId: "connected-overlap" },
+      { type: "tutorialDiagram", beat: beat(0), endBeat: beat(4), diagramId: "connected-switch", editorLane: 1 },
+      { type: "tutorialDiagram", beat: beat(2), endBeat: beat(6), diagramId: "connected-overlap", editorLane: 2 },
     ];
     expect(validateNoEventOverlap(events)).toEqual([]);
   });
 
   it("겹치는 두 이벤트의 원본 인덱스가 refs에 담긴다 — 앞에 다른 타입 이벤트가 끼어 인덱스가 밀려도 정확", () => {
     const events: ChartEvent[] = [
-      { type: "bpm", beat: beat(0), bpm: 120 },                       // 인덱스 0, 필터 대상 아님
-      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" }, // 인덱스 1, 필터 대상 아님
-      { type: "text", beat: beat(0), endBeat: beat(4), text: "A" },    // 인덱스 2
-      { type: "bpm", beat: beat(1), bpm: 140 },                       // 인덱스 3, 필터 대상 아님
-      { type: "text", beat: beat(2), endBeat: beat(6), text: "B" },    // 인덱스 4, 겹침 대상
+      { type: "bpm", beat: beat(0), bpm: 120, editorLane: 3 },       // 인덱스 0, 다른 레인
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD", editorLane: 4 }, // 인덱스 1
+      { type: "text", beat: beat(0), endBeat: beat(4), text: "A", editorLane: 2 }, // 인덱스 2
+      { type: "bpm", beat: beat(1), bpm: 140, editorLane: 3 },       // 인덱스 3, 다른 레인
+      { type: "text", beat: beat(2), endBeat: beat(6), text: "B", editorLane: 2 }, // 인덱스 4
     ];
     const errors = validateNoEventOverlap(events);
     expect(errors).toHaveLength(1);
@@ -1208,7 +1208,7 @@ describe("validateTimeSigNatural", () => {
 // =========================================================================
 
 describe("isMeasureBoundary", () => {
-  const ts4: TimeSignatureMarker[] = [
+  const ts4: TimeSignatureChange[] = [
     { measure: 0, beatPerMeasure: beat(4) },
   ];
 
@@ -1233,7 +1233,7 @@ describe("isMeasureBoundary", () => {
   });
 
   it("3/4에서 beat 3, 6, 9는 마디 경계", () => {
-    const ts3: TimeSignatureMarker[] = [
+    const ts3: TimeSignatureChange[] = [
       { measure: 0, beatPerMeasure: beat(3) },
     ];
     expect(isMeasureBoundary(beat(3), ts3)).toBe(true);
@@ -1242,14 +1242,14 @@ describe("isMeasureBoundary", () => {
   });
 
   it("3/4에서 beat 4는 마디 경계 아님", () => {
-    const ts3: TimeSignatureMarker[] = [
+    const ts3: TimeSignatureChange[] = [
       { measure: 0, beatPerMeasure: beat(3) },
     ];
     expect(isMeasureBoundary(beat(4), ts3)).toBe(false);
   });
 
   it("박자 변경 후에도 경계 판정 — 4/4→3/4 전환", () => {
-    const ts: TimeSignatureMarker[] = [
+    const ts: TimeSignatureChange[] = [
       { measure: 0, beatPerMeasure: beat(4) },  // 마디 0~1: 4박
       { measure: 2, beatPerMeasure: beat(3) },   // 마디 2~: 3박
     ];
@@ -1262,7 +1262,7 @@ describe("isMeasureBoundary", () => {
   });
 
   it("7/2 같은 분수 박자에서 마디 경계 — beat 0, 3.5, 7", () => {
-    const ts: TimeSignatureMarker[] = [
+    const ts: TimeSignatureChange[] = [
       { measure: 0, beatPerMeasure: beat(7, 2) },
     ];
     expect(isMeasureBoundary(beat(0), ts)).toBe(true);
@@ -1271,7 +1271,7 @@ describe("isMeasureBoundary", () => {
     expect(isMeasureBoundary(beat(2), ts)).toBe(false);
   });
 
-  it("빈 timeSignatures면 false", () => {
+  it("빈 timeSignatureChanges면 false", () => {
     expect(isMeasureBoundary(beat(0), [])).toBe(false);
   });
 });

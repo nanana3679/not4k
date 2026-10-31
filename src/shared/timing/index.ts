@@ -1,12 +1,12 @@
 /**
- * beat↔time 변환 — BPM 마커 기반
+ * beat↔time 변환 — BPM 변경 기반
  *
- * BPM 마커 배열에서 각 구간의 BPM을 이용해 beat→ms, ms→beat 변환을 수행한다.
- * BPM 마커는 beat 기준 오름차순 정렬되어 있어야 한다.
+ * BPM 변경 배열에서 각 구간의 BPM을 이용해 beat→ms, ms→beat 변환을 수행한다.
+ * BPM 변경은 beat 기준 오름차순 정렬되어 있어야 한다.
  */
 
 import type { Beat } from "../types/beat";
-import type { BpmMarker, TimeSignatureMarker, ChartEvent, BpmEvent, TimeSignatureEvent } from "../types/chart";
+import type { BpmChange, TimeSignatureChange, ChartEvent, BpmChangeEvent, TimeSignatureChangeEvent } from "../types/chart";
 import {
   beatToFloat,
   beatLte,
@@ -17,32 +17,32 @@ import {
 } from "../types/beat";
 
 // ---------------------------------------------------------------------------
-// ChartEvent[] → BpmMarker[] / TimeSignatureMarker[] 변환
+// ChartEvent[] → BpmChange[] / TimeSignatureChange[] 변환
 // ---------------------------------------------------------------------------
 
 /**
- * 이벤트 배열에서 BpmEvent를 BpmMarker 배열로 변환한다.
+ * 이벤트 배열에서 BpmChangeEvent를 BpmChange 배열로 변환한다.
  * beat 오름차순 정렬.
  */
-export function extractBpmMarkers(events: readonly ChartEvent[]): BpmMarker[] {
+export function extractBpmChanges(events: readonly ChartEvent[]): BpmChange[] {
   return events
-    .filter((e): e is BpmEvent => e.type === "bpm")
+    .filter((e): e is BpmChangeEvent => e.type === "bpm")
     .map((e) => ({ beat: e.beat, bpm: e.bpm }))
     .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
 }
 
 /**
- * 이벤트 배열에서 TimeSignatureEvent를 TimeSignatureMarker 배열로 변환한다.
- * beat 위치를 마디 인덱스로 변환하여 measure 기반 마커를 생성한다.
+ * 이벤트 배열에서 TimeSignatureChangeEvent를 TimeSignatureChange 배열로 변환한다.
+ * beat 위치를 마디 인덱스로 변환하여 measure 기반 변경 데이터를 생성한다.
  */
-export function extractTimeSignatures(events: readonly ChartEvent[]): TimeSignatureMarker[] {
+export function extractTimeSignatureChanges(events: readonly ChartEvent[]): TimeSignatureChange[] {
   const tsEvents = events
-    .filter((e): e is TimeSignatureEvent => e.type === "timeSignature")
+    .filter((e): e is TimeSignatureChangeEvent => e.type === "timeSignature")
     .sort((a, b) => beatToFloat(a.beat) - beatToFloat(b.beat));
 
   if (tsEvents.length === 0) return [];
 
-  const result: TimeSignatureMarker[] = [];
+  const result: TimeSignatureChange[] = [];
   let accBeatFloat = 0;
   let currentMeasure = 0;
   let prevBPM = tsEvents[0].beatPerMeasure;
@@ -81,42 +81,42 @@ function msPerBeat(bpm: number): number {
  * Beat를 절대 시간(ms)으로 변환한다.
  *
  * @param target 변환할 Beat 위치
- * @param bpmMarkers BPM 마커 배열 (beat 오름차순 정렬, 0박에 최소 1개 필수)
+ * @param bpmChanges BPM 변경 배열 (beat 오름차순 정렬, 0박에 최소 1개 필수)
  * @param offsetMs 음원 재생 시작→0박까지의 오프셋 (ms). 기본값 0.
  * @returns 절대 시간 (ms)
  */
 export function beatToMs(
   target: Beat,
-  bpmMarkers: readonly BpmMarker[],
+  bpmChanges: readonly BpmChange[],
   offsetMs: number = 0,
 ): number {
-  if (bpmMarkers.length === 0) {
-    throw new Error("beatToMs: bpmMarkers must not be empty");
+  if (bpmChanges.length === 0) {
+    throw new Error("beatToMs: bpmChanges must not be empty");
   }
 
   let timeMs = offsetMs;
   let prevBeat = BEAT_ZERO;
-  let currentBpm = bpmMarkers[0].bpm;
+  let currentBpm = bpmChanges[0].bpm;
 
-  for (let i = 0; i < bpmMarkers.length; i++) {
-    const marker = bpmMarkers[i];
+  for (let i = 0; i < bpmChanges.length; i++) {
+    const change = bpmChanges[i];
 
-    // target이 이 마커 이전에 있으면 남은 구간만 계산하고 종료
-    if (beatLte(target, marker.beat) && i > 0) {
+    // target이 이 변경 이전에 있으면 남은 구간만 계산하고 종료
+    if (beatLte(target, change.beat) && i > 0) {
       break;
     }
 
     if (i > 0) {
       // 이전 구간의 시간을 누적
-      const segmentBeats = beatToFloat(beatSub(marker.beat, prevBeat));
+      const segmentBeats = beatToFloat(beatSub(change.beat, prevBeat));
       timeMs += segmentBeats * msPerBeat(currentBpm);
     }
 
-    prevBeat = marker.beat;
-    currentBpm = marker.bpm;
+    prevBeat = change.beat;
+    currentBpm = change.bpm;
   }
 
-  // 마지막 마커 이후 남은 구간
+  // 마지막 변경 이후 남은 구간
   const remainingBeats = beatToFloat(beatSub(target, prevBeat));
   timeMs += remainingBeats * msPerBeat(currentBpm);
 
@@ -127,31 +127,31 @@ export function beatToMs(
  * 절대 시간(ms)을 Beat로 변환한다.
  *
  * @param targetMs 변환할 절대 시간 (ms)
- * @param bpmMarkers BPM 마커 배열 (beat 오름차순 정렬, 0박에 최소 1개 필수)
+ * @param bpmChanges BPM 변경 배열 (beat 오름차순 정렬, 0박에 최소 1개 필수)
  * @param offsetMs 음원 재생 시작→0박까지의 오프셋 (ms). 기본값 0.
  * @returns 가장 가까운 Beat (부동소수점 기반, 스냅은 호출자가 처리)
  */
 export function msToBeat(
   targetMs: number,
-  bpmMarkers: readonly BpmMarker[],
+  bpmChanges: readonly BpmChange[],
   offsetMs: number = 0,
 ): number {
-  if (bpmMarkers.length === 0) {
-    throw new Error("msToBeat: bpmMarkers must not be empty");
+  if (bpmChanges.length === 0) {
+    throw new Error("msToBeat: bpmChanges must not be empty");
   }
 
   let remainingMs = targetMs - offsetMs;
   let accumulatedBeats = 0;
 
-  for (let i = 0; i < bpmMarkers.length; i++) {
-    const currentBpm = bpmMarkers[i].bpm;
+  for (let i = 0; i < bpmChanges.length; i++) {
+    const currentBpm = bpmChanges[i].bpm;
     const msPB = msPerBeat(currentBpm);
 
-    // 다음 마커가 있으면 이 구간의 범위를 계산
-    if (i + 1 < bpmMarkers.length) {
-      const nextMarkerBeat = bpmMarkers[i + 1].beat;
-      const currentMarkerBeat = bpmMarkers[i].beat;
-      const segmentBeats = beatToFloat(beatSub(nextMarkerBeat, currentMarkerBeat));
+    // 다음 변경이 있으면 이 구간의 범위를 계산
+    if (i + 1 < bpmChanges.length) {
+      const nextChangeBeat = bpmChanges[i + 1].beat;
+      const currentChangeBeat = bpmChanges[i].beat;
+      const segmentBeats = beatToFloat(beatSub(nextChangeBeat, currentChangeBeat));
       const segmentMs = segmentBeats * msPB;
 
       if (remainingMs <= segmentMs) {
@@ -173,20 +173,20 @@ export function msToBeat(
 }
 
 /**
- * BPM 마커 배열에서 특정 Beat 위치의 BPM을 구한다.
+ * BPM 변경 배열에서 특정 Beat 위치의 BPM을 구한다.
  */
 export function bpmAt(
   target: Beat,
-  bpmMarkers: readonly BpmMarker[],
+  bpmChanges: readonly BpmChange[],
 ): number {
-  if (bpmMarkers.length === 0) {
-    throw new Error("bpmAt: bpmMarkers must not be empty");
+  if (bpmChanges.length === 0) {
+    throw new Error("bpmAt: bpmChanges must not be empty");
   }
 
-  let result = bpmMarkers[0].bpm;
-  for (const marker of bpmMarkers) {
-    if (beatLte(marker.beat, target)) {
-      result = marker.bpm;
+  let result = bpmChanges[0].bpm;
+  for (const change of bpmChanges) {
+    if (beatLte(change.beat, target)) {
+      result = change.bpm;
     } else {
       break;
     }
@@ -197,7 +197,7 @@ export function bpmAt(
 /**
  * 마디 인덱스 → 시작 Beat 변환.
  *
- * timeSignatures를 measure 순 정렬한 뒤, 마디 0부터 순회하며
+ * timeSignatureChanges를 measure 순 정렬한 뒤, 마디 0부터 순회하며
  * 각 구간의 beatPerMeasure를 beat로 누적한다.
  *
  * 예: [{measure:0, beatPerMeasure:4}, {measure:8, beatPerMeasure:3}]
@@ -205,14 +205,14 @@ export function bpmAt(
  */
 export function measureStartBeat(
   measure: number,
-  timeSignatures: readonly TimeSignatureMarker[],
+  timeSignatureChanges: readonly TimeSignatureChange[],
 ): Beat {
-  if (timeSignatures.length === 0) {
-    throw new Error("measureStartBeat: timeSignatures must not be empty");
+  if (timeSignatureChanges.length === 0) {
+    throw new Error("measureStartBeat: timeSignatureChanges must not be empty");
   }
 
   // measure 순 정렬 (복사)
-  const sorted = [...timeSignatures].sort((a, b) => a.measure - b.measure);
+  const sorted = [...timeSignatureChanges].sort((a, b) => a.measure - b.measure);
 
   let accBeat: Beat = BEAT_ZERO;
   let prevMeasure = 0;
@@ -254,16 +254,16 @@ export function measureStartBeat(
  */
 export function enumerateMeasureStartsMs(
   limitMs: number,
-  bpmMarkers: readonly BpmMarker[],
-  timeSignatures: readonly TimeSignatureMarker[],
+  bpmChanges: readonly BpmChange[],
+  timeSignatureChanges: readonly TimeSignatureChange[],
   offsetMs: number = 0,
 ): number[] {
   const result: number[] = [];
-  if (bpmMarkers.length === 0 || timeSignatures.length === 0) return result;
+  if (bpmChanges.length === 0 || timeSignatureChanges.length === 0) return result;
 
   let prevMs = Number.NEGATIVE_INFINITY;
   for (let m = 0; ; m++) {
-    const mStartMs = beatToMs(measureStartBeat(m, timeSignatures), bpmMarkers, offsetMs);
+    const mStartMs = beatToMs(measureStartBeat(m, timeSignatureChanges), bpmChanges, offsetMs);
     if (mStartMs > limitMs) break;
     // 마디 미전진(구조 위반: 분자 0 박자표, 예 0/4 → measureStartBeat 불변) 방어.
     // `!(mStartMs > prevMs)`는 등가·역전을 모두 종료로 처리한다(비수 NaN까지 안전).

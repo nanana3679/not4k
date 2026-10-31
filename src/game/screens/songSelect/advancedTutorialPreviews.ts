@@ -12,7 +12,7 @@ const chart = (title: string, notes: NoteEntity[], inputs: TutorialInputEvent[])
   meta: { title, artist: 'not4k', difficultyLabel: 'TUTORIAL', difficultyLevel: 1, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
   notes, trillZones: [], events: [
     { type: 'bpm', beat: beat(0), bpm: 120 },
-    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(8) },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(8), editorLane: 2 },
     ...inputs,
   ],
 });
@@ -39,7 +39,7 @@ const sameKey = chart('Advanced same key', [point(0), range(0, 1, 'long'), point
 const independent = chart('Advanced independent holdOnly', [range(0, 2, 'long', true), range(4, 6, 'long', true)], [input('KeyQ', -500, 1000, 3), input('KeyW', 2100, 3000, 4)]);
 const shortHold = chart('Advanced short holdOnly', [range(0, 3, 'long', true, 25)], [input('KeyQ', 100, 120, 3)]);
 const zeroHold = chart('Advanced zero holdOnly', [range(0, 2, 'long', true), range(5, 5, 'long', true, 2)], [input('KeyQ', 0, 1500, 3)]);
-const doubleRelease = chart('Advanced double release', [point(0, 'double'), range(0, 2, 'doubleLong')], [input('KeyQ', 0, 1000, 3), input('KeyW', 0, 2000, 4), input('KeyQ', 1020, 1045, 4)]);
+const doubleRelease = chart('Advanced double release', [point(0, 'double'), range(0, 2, 'doubleLong')], [input('KeyQ', 0, 1000, 3), input('KeyW', 0, 2000, 4), input('KeyQ', 1020, 1045, 3)]);
 
 export const ADVANCED_TUTORIAL_PREVIEWS = [
   createTutorialPreview('advanced-double-hold', '더블 연결 · 유지와 중간 탭', lines(

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { PLAYTEST_SCENARIOS, chartEndMs, metronomeClickTimesMs, noteOnsetTimesMs } from "./judgmentPlaytestScenarios";
 import { isHoldOnlyNote } from "../shared/types/chart";
-import { beatToMs, extractBpmMarkers } from "../shared/timing";
+import { beatToMs, extractBpmChanges } from "../shared/timing";
 import { compileJudgmentChart } from "../game/judgment/compiledJudgmentChart";
 import type { JudgmentCoreFactory } from "../game/judgment/JudgmentCore";
 import { NoteJudgmentSession } from "../game/judgment/NoteJudgmentSession";
@@ -21,7 +21,7 @@ describe("판정 실플레이 시나리오", () => {
 
 
     for (const s of PLAYTEST_SCENARIOS) {
-      const bpm = extractBpmMarkers(s.chart.events);
+      const bpm = extractBpmChanges(s.chart.events);
       expect(bpm[0].bpm).toBe(120);
     }
   });
@@ -39,9 +39,9 @@ describe("판정 실플레이 시나리오", () => {
   /** createCore가 없으면 실제 게임이 쓰는 기존 코어로 세션을 만든다. */
   function sessionFor(id: string, createCore?: JudgmentCoreFactory): NoteJudgmentSession {
     const scenario = byId(id);
-    const markers = extractBpmMarkers(scenario.chart.events);
-    const starts = new Map(scenario.chart.notes.map((note, index) => [index, beatToMs(note.beat, markers)] as [number, number]));
-    const ends = new Map(scenario.chart.notes.flatMap((note, index) => "endBeat" in note ? [[index, beatToMs(note.endBeat, markers)] as [number, number]] : []));
+    const bpmChanges = extractBpmChanges(scenario.chart.events);
+    const starts = new Map(scenario.chart.notes.map((note, index) => [index, beatToMs(note.beat, bpmChanges)] as [number, number]));
+    const ends = new Map(scenario.chart.notes.flatMap((note, index) => "endBeat" in note ? [[index, beatToMs(note.endBeat, bpmChanges)] as [number, number]] : []));
     return new NoteJudgmentSession(compileJudgmentChart(scenario.chart.notes, starts, ends), { createCore });
   }
 
@@ -54,8 +54,8 @@ describe("판정 실플레이 시나리오", () => {
   it("전체 카드가 4박(2000ms) 리드인과 BPM120을 공유하고 chart validation을 통과한다", async () => {
     const { validateChart } = await import("../shared/validation");
     for (const scenario of PLAYTEST_SCENARIOS) {
-      const markers = extractBpmMarkers(scenario.chart.events);
-      expect(markers[0].bpm).toBe(120);
+      const bpmChanges = extractBpmChanges(scenario.chart.events);
+      expect(bpmChanges[0].bpm).toBe(120);
       expect(Math.min(...noteOnsetTimesMs(scenario.chart))).toBe(2000);
       expect(validateChart(scenario.chart)).toEqual([]);
     }
@@ -195,16 +195,16 @@ describe("판정 실플레이 시나리오", () => {
     for (const id of ["hold-trill-chain", "hold-trill-chain-250", "hold-trill-chain-125"]) {
       const scenario = byId(id);
       const session = sessionFor(id);
-      const markers = extractBpmMarkers(scenario.chart.events);
+      const bpmChanges = extractBpmChanges(scenario.chart.events);
       const bodies = scenario.chart.notes.filter((note) => note.type === "long") as Array<{ beat: import("../shared/types/beat").Beat; endBeat: import("../shared/types/beat").Beat }>;
       const keys = ["A", "B"];
       for (let index = 0; index < bodies.length; index++) {
-        const start = beatToMs(bodies[index].beat, markers);
+        const start = beatToMs(bodies[index].beat, bpmChanges);
         const inputs: Array<{ key: string; lane: 1; type: "down" | "up" }> = [{ key: keys[index % 2], lane: 1, type: "down" }];
         if (index > 0) inputs.unshift({ key: keys[(index - 1) % 2], lane: 1 as const, type: "up" as const });
         session.processBatch(start, inputs);
       }
-      const end = beatToMs(bodies[bodies.length - 1].endBeat, markers);
+      const end = beatToMs(bodies[bodies.length - 1].endBeat, bpmChanges);
       session.processBatch(end, [{ key: keys[(bodies.length - 1) % 2], lane: 1, type: "up" }]);
       const state = session.finalize();
       expect(state.judgmentCounts.miss, id).toBe(0);
@@ -233,9 +233,9 @@ describe("판정 실플레이 시나리오", () => {
 
   it("NJ-R06 o-o-은 2500ms 교대 뒤 3000ms 마지막 release로 100%와 FC를 유지한다", () => {
     const scenario = byId("connected-single-swap");
-    const markers = extractBpmMarkers(scenario.chart.events);
-    const starts = new Map(scenario.chart.notes.map((note, index) => [index, beatToMs(note.beat, markers)] as [number, number]));
-    const ends = new Map(scenario.chart.notes.flatMap((note, index) => "endBeat" in note ? [[index, beatToMs(note.endBeat, markers)] as [number, number]] : []));
+    const bpmChanges = extractBpmChanges(scenario.chart.events);
+    const starts = new Map(scenario.chart.notes.map((note, index) => [index, beatToMs(note.beat, bpmChanges)] as [number, number]));
+    const ends = new Map(scenario.chart.notes.flatMap((note, index) => "endBeat" in note ? [[index, beatToMs(note.endBeat, bpmChanges)] as [number, number]] : []));
     const session = new NoteJudgmentSession(compileJudgmentChart(scenario.chart.notes, starts, ends));
     session.processBatch(2000, [{ key: "A", lane: 1, type: "down" }]);
     session.processBatch(2500, [{ key: "A", lane: 1, type: "up" }, { key: "B", lane: 1, type: "down" }]);
@@ -260,21 +260,21 @@ describe("판정 실플레이 시나리오", () => {
   });
 
   it("S1 인접 롱은 끝=시작으로 맞닿아 connection이고, 각 롱은 500ms(1박)", () => {
-    const markers = extractBpmMarkers(byId("hold-trill-chain").chart.events);
+    const bpmChanges = extractBpmChanges(byId("hold-trill-chain").chart.events);
     const bodies = byId("hold-trill-chain").chart.notes.filter((n) => n.type === "long") as Array<{
       beat: import("../shared/types/beat").Beat;
       endBeat: import("../shared/types/beat").Beat;
     }>;
     for (let i = 0; i < bodies.length - 1; i++) {
-      expect(beatToMs(bodies[i].endBeat, markers)).toBe(beatToMs(bodies[i + 1].beat, markers));
+      expect(beatToMs(bodies[i].endBeat, bpmChanges)).toBe(beatToMs(bodies[i + 1].beat, bpmChanges));
     }
-    expect(beatToMs(bodies[0].endBeat, markers) - beatToMs(bodies[0].beat, markers)).toBe(500);
+    expect(beatToMs(bodies[0].endBeat, bpmChanges) - beatToMs(bodies[0].beat, bpmChanges)).toBe(500);
   });
 
   it("S1b/S1c 빠른 변형은 세그먼트가 각각 250ms(8분)·125ms(16분)이고 헤드있는 롱 구조 유지", () => {
     const segMs = (id: string) => {
       const chart = byId(id).chart;
-      const markers = extractBpmMarkers(chart.events);
+      const bpmChanges = extractBpmChanges(chart.events);
       const bodies = chart.notes.filter((n) => n.type === "long") as Array<{
         beat: import("../shared/types/beat").Beat;
         endBeat: import("../shared/types/beat").Beat;
@@ -283,9 +283,9 @@ describe("판정 실플레이 시나리오", () => {
       const heads = chart.notes.filter((n) => n.type === "single");
       expect(heads).toHaveLength(bodies.length);
       for (let i = 0; i < bodies.length - 1; i++) {
-        expect(beatToMs(bodies[i].endBeat, markers)).toBe(beatToMs(bodies[i + 1].beat, markers));
+        expect(beatToMs(bodies[i].endBeat, bpmChanges)).toBe(beatToMs(bodies[i + 1].beat, bpmChanges));
       }
-      return beatToMs(bodies[0].endBeat, markers) - beatToMs(bodies[0].beat, markers);
+      return beatToMs(bodies[0].endBeat, bpmChanges) - beatToMs(bodies[0].beat, bpmChanges);
     };
     expect(segMs("hold-trill-chain-250")).toBe(250);
     expect(segMs("hold-trill-chain-125")).toBe(125);
@@ -307,9 +307,9 @@ describe("판정 실플레이 시나리오", () => {
 
   it("chartEndMs는 마지막 노트 끝 + 여유(1500ms)를 반영한다", () => {
     const s1 = byId("hold-trill-chain").chart;
-    const markers = extractBpmMarkers(s1.events);
+    const bpmChanges = extractBpmChanges(s1.events);
     // 롱 6개, 4박 시작 → 마지막 롱 끝 = 10박(=5초=5000ms) → +1500
-    const lastEnd = beatToMs({ n: 10, d: 1 }, markers);
+    const lastEnd = beatToMs({ n: 10, d: 1 }, bpmChanges);
     expect(chartEndMs(s1)).toBe(lastEnd + 1500);
   });
 

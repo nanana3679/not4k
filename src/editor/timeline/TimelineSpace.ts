@@ -1,3 +1,4 @@
+import { hitTestEventAt } from './hitTest';
 /**
  * TimelineSpace — 입력 좌표 공간(픽셀 → 도메인) deep module.
  *
@@ -33,9 +34,9 @@ import {
   beatToFloat,
   auxNotesAsExtra,
   fromAuxIndex,
-  extractBpmMarkers,
+  extractBpmChanges,
 } from "../../shared";
-import type { Beat, Lane, BpmMarker, ChartDocument, ChartEvent } from "../../shared";
+import type { Beat, Lane, BpmChange, ChartDocument, ChartEvent } from "../../shared";
 
 /**
  * TimelineSpace가 의존하는 외부 사실의 주입 통로.
@@ -61,6 +62,9 @@ export interface TimelineSpace {
   snapBeat(beat: Beat): Beat;
   getSnapStep(): Beat;
   getMaxBeatFloat(): number;
+  hitTestEvent(x: number, y: number): number | null;
+  /** 드래그 도중 BPM·전체 높이가 바뀌어도 down 시점의 좌표 해석을 유지한다. */
+  captureBeatProjection(): (y: number) => Beat;
   /**
    * 메인 레인(1..4) 한정 히트테스트 — 반환 인덱스는 chart.notes 통합 인덱스.
    * CreateMode 배치 제약(메인 배치만 관할)과 커서 z-order 체크가 소비한다.
@@ -80,24 +84,24 @@ export interface TimelineSpace {
   /** restZone 끝점(리사이즈 캡) 히트테스트 — hitTestTrillZoneEnd 미러 (RFD 0019). */
   hitTestRestZoneEnd(x: number, y: number): number | null;
   hitTestExtraNote(x: number, y: number): number | null;
-  getBpmMarkers(): BpmMarker[];
+  getBpmChanges(): BpmChange[];
 }
 
 export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace {
-  // --- bpmMarkers — events-identity 캐시 ---
+  // --- bpmChanges — events-identity 캐시 ---
   // getChart()와 같은 라이브 스냅샷에서 파생해 offsetMs·events가 한 msToBeat 안에서
   // 항상 일관되게 한다(어댑터 렌더 지연 ref 금지). 재계산은 events 배열 참조가 바뀔
   // 때만(BPM 외 이벤트만 바뀌어도 재계산되지만 결과 동일 — 무해).
 
   let cachedEvents: readonly ChartEvent[] | null = null;
-  let cachedMarkers: BpmMarker[] = [];
-  const bpmMarkers = (): BpmMarker[] => {
+  let cachedBpmChanges: BpmChange[] = [];
+  const bpmChanges = (): BpmChange[] => {
     const events = source.getChart().events;
     if (events !== cachedEvents) {
-      cachedMarkers = extractBpmMarkers(events);
+      cachedBpmChanges = extractBpmChanges(events);
       cachedEvents = events;
     }
-    return cachedMarkers;
+    return cachedBpmChanges;
   };
 
   // --- 기본 좌표 변환 ---
@@ -129,14 +133,14 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
   const yToBeat = (y: number): Beat => {
     const timeMs = source.yToTime(y);
     if (timeMs === null) return { n: 0, d: 1 };
-    const beatFloat = msToBeat(timeMs, bpmMarkers(), source.getChart().meta.offsetMs);
+    const beatFloat = msToBeat(timeMs, bpmChanges(), source.getChart().meta.offsetMs);
     return beatFloatToSnapBeat({ beatFloat, snapDivision: source.getSnapDivision() });
   };
 
   const yToBeatRaw = (y: number): Beat => {
     const timeMs = source.yToTime(y);
     if (timeMs === null) return { n: 0, d: 1 };
-    const beatFloat = msToBeat(timeMs, bpmMarkers(), source.getChart().meta.offsetMs);
+    const beatFloat = msToBeat(timeMs, bpmChanges(), source.getChart().meta.offsetMs);
     return beatFloatToRawBeat({ beatFloat });
   };
 
@@ -154,7 +158,7 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
   const getMaxBeatFloat = (): number => {
     const totalMs = source.getTotalTimelineMs();
     if (totalMs === null) return 0;
-    return msToBeat(totalMs, bpmMarkers(), source.getChart().meta.offsetMs);
+    return msToBeat(totalMs, bpmChanges(), source.getChart().meta.offsetMs);
   };
 
   // --- 히트테스트 ---
@@ -206,12 +210,27 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     return null;
   };
 
+  const hitTestEvent = (x: number, y: number): number | null => {
+    const extraLane = xToExtraLane(x);
+    if (extraLane === null) return null;
+    return hitTestEventAt(source.getChart().events, extraLane, beatToFloat(yToBeatRaw(y)));
+  };
+
+  const captureBeatProjection = (): ((y: number) => Beat) => {
+    const zeroMs = source.yToTime(0);
+    const oneMs = source.yToTime(1);
+    if (zeroMs === null || oneMs === null) return yToBeatRaw;
+    const changes = bpmChanges();
+    const offset = source.getChart().meta.offsetMs;
+    return y => beatFloatToRawBeat({ beatFloat: msToBeat(zeroMs + y * (oneMs - zeroMs), changes, offset) });
+  };
+
   const hitTestEventEnd = (x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
-    const beat = yToBeat(y);
+    const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
-    const tolerance = 1 / 8;
+    const tolerance = 1 / 16;
     const events = source.getChart().events;
     for (let i = 0; i < events.length; i++) {
       const evt = events[i];
@@ -293,11 +312,13 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     hitTestUnifiedNote,
     hitTestNoteEnd,
     hitTestEventEnd,
+    hitTestEvent,
+    captureBeatProjection,
     hitTestTrillZoneEnd,
     hitTestTrillZone,
     hitTestRestZone,
     hitTestRestZoneEnd,
     hitTestExtraNote,
-    getBpmMarkers: bpmMarkers,
+    getBpmChanges: bpmChanges,
   };
 }

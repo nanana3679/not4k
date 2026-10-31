@@ -20,10 +20,9 @@ import type {
   TrillZone,
   RestZone,
   ChartEvent,
-  RangeEvent,
   TutorialInputEvent,
-  TimeSignatureMarker,
-  TimeSignatureEvent,
+  TimeSignatureChange,
+  TimeSignatureChangeEvent,
   StopEvent,
 } from "../types/chart";
 import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat, isWellFormedBeat } from "../types/beat";
@@ -560,49 +559,52 @@ export function validateNoEventDuplicate(events: readonly ChartEvent[]): Validat
 }
 
 // ---------------------------------------------------------------------------
-// 규칙 6: 이벤트 마커 겹침 금지
+// 규칙 6: 이벤트 겹침 금지
 // ---------------------------------------------------------------------------
 
+/** 점과 양수 길이의 반열린 구간을 비교한다. 끝-시작 맞닿음은 허용한다. */
+function eventPositionsOverlap(a: ChartEvent, b: ChartEvent): boolean {
+  const aEnd = 'endBeat' in a ? a.endBeat : a.beat;
+  const bEnd = 'endBeat' in b ? b.endBeat : b.beat;
+  const aIsPoint = beatEq(a.beat, aEnd);
+  const bIsPoint = beatEq(b.beat, bEnd);
+  if (aIsPoint && bIsPoint) return beatEq(a.beat, b.beat);
+  if (aIsPoint) return beatGte(a.beat, b.beat) && beatLt(a.beat, bEnd);
+  if (bIsPoint) return beatGte(b.beat, a.beat) && beatLt(b.beat, aEnd);
+  return beatLt(a.beat, bEnd) && beatLt(b.beat, aEnd);
+}
+
 /**
- * 같은 타입의 구간 이벤트끼리 열린 구간이 겹치는지 검사한다.
- * 다른 타입 간(text + auto 등)은 독립적이므로 겹침을 허용한다.
- * 끝-시작 인접(같은 박자)은 허용.
+ * 같은 보조 레인의 배치 겹침은 종류와 관계없이 금지한다(RFD 0078).
+ * text·auto·stop의 같은 종류 시간 겹침은 레인과 관계없이 기존 의미 제약을 유지한다.
+ * BPM·박자 중복과 같은 튜토리얼 입력의 겹침은 각각의 전용 진단에 맡긴다.
  */
 export function validateNoEventOverlap(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
-
-  // 원본 인덱스를 유지한 채 구간 이벤트만 추린다 (getRangeEvents는 인덱스를 잃으므로 별도 구성)
-  const rangeEvents: { event: RangeEvent; index: number }[] = [];
   for (let i = 0; i < events.length; i++) {
-    const e = events[i];
-    if (e.type === "text" || e.type === "auto" || e.type === "stop") {
-      rangeEvents.push({ event: e, index: i });
+    for (let j = i + 1; j < events.length; j++) {
+      const a = events[i];
+      const b = events[j];
+      const sameEditorLane = (a.editorLane ?? 1) === (b.editorLane ?? 1);
+      const sameRangeMeaning = a.type === b.type && (a.type === 'text' || a.type === 'auto' || a.type === 'stop');
+      const placementOverlap = sameEditorLane && eventPositionsOverlap(a, b);
+      const meaningOverlap = sameRangeMeaning && 'endBeat' in a && 'endBeat' in b
+        && beatLt(a.beat, b.endBeat) && beatLt(b.beat, a.endBeat);
+      if (!placementOverlap && !meaningOverlap) continue;
+
+      // 같은 쌍에 기존의 더 구체적인 진단이 있으면 중복 표시하지 않는다.
+      if (a.type === b.type && (a.type === 'bpm' || a.type === 'timeSignature')) continue;
+      if (a.type === 'tutorialInput' && b.type === 'tutorialInput'
+        && a.lane === b.lane && a.keyCode === b.keyCode
+        && beatLt(a.beat, b.endBeat) && beatLt(b.beat, a.endBeat)) continue;
+
+      errors.push({
+        rule: "eventOverlap",
+        message: `Events overlap: ${a.type} and ${b.type} (events ${i}, ${j})`,
+        refs: [eventRef(i), eventRef(j)],
+      });
     }
   }
-
-  for (let i = 0; i < rangeEvents.length; i++) {
-    for (let j = i + 1; j < rangeEvents.length; j++) {
-      const a = rangeEvents[i];
-      const b = rangeEvents[j];
-
-      // 다른 타입은 겹침 허용
-      if (a.event.type !== b.event.type) continue;
-
-      const bStartInA = beatGt(b.event.beat, a.event.beat) && beatLt(b.event.beat, a.event.endBeat);
-      const bEndInA = beatGt(b.event.endBeat, a.event.beat) && beatLt(b.event.endBeat, a.event.endBeat);
-      const aStartInB = beatGt(a.event.beat, b.event.beat) && beatLt(a.event.beat, b.event.endBeat);
-      const aEndInB = beatGt(a.event.endBeat, b.event.beat) && beatLt(a.event.endBeat, b.event.endBeat);
-
-      if (bStartInA || bEndInA || aStartInB || aEndInB) {
-        errors.push({
-          rule: "eventOverlap",
-          message: `Events overlap: ${a.event.type} (${a.event.beat.n}/${a.event.beat.d}~${a.event.endBeat.n}/${a.event.endBeat.d}) and (${b.event.beat.n}/${b.event.beat.d}~${b.event.endBeat.n}/${b.event.endBeat.d})`,
-          refs: [eventRef(a.index), eventRef(b.index)],
-        });
-      }
-    }
-  }
-
   return errors;
 }
 
@@ -742,15 +744,15 @@ export function validateTimeSigNatural(events: readonly ChartEvent[]): Validatio
 
 /**
  * 주어진 beat 위치가 마디의 시작 위치인지 검사한다.
- * timeSignatures가 비어있으면 판단 불가이므로 false를 반환한다.
+ * timeSignatureChanges가 비어있으면 판단 불가이므로 false를 반환한다.
  */
 export function isMeasureBoundary(
   targetBeat: Beat,
-  timeSignatures: readonly TimeSignatureMarker[],
+  timeSignatureChanges: readonly TimeSignatureChange[],
 ): boolean {
-  if (timeSignatures.length === 0) return false;
+  if (timeSignatureChanges.length === 0) return false;
 
-  const sorted = [...timeSignatures].sort((a, b) => a.measure - b.measure);
+  const sorted = [...timeSignatureChanges].sort((a, b) => a.measure - b.measure);
   const targetFloat = beatToFloat(targetBeat);
 
   // 마디 0부터 순회하며 각 마디의 시작 beat를 계산
@@ -788,7 +790,7 @@ export function validateTimeSigAtMeasureStart(events: readonly ChartEvent[]): Va
   const errors: ValidationError[] = [];
 
   // 원본 인덱스를 유지한 채 timeSignature 이벤트만 추려 정렬한다
-  const tsEventsRaw: { event: TimeSignatureEvent; index: number }[] = [];
+  const tsEventsRaw: { event: TimeSignatureChangeEvent; index: number }[] = [];
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
     if (e.type === "timeSignature") {

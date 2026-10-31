@@ -8,7 +8,7 @@ import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { SelectMode } from '../modes';
 import { msToBeat } from '../../shared';
-import type { BpmMarker } from '../../shared';
+import type { BpmChange } from '../../shared';
 import type { ToastType } from '../../shared/toast';
 import { selectCanRedo, selectCanUndo, useEditorStore, type EditorModeName } from '../stores';
 
@@ -20,9 +20,9 @@ export interface EditorKeyboardContext {
   mode: EditorModeName;
   selectMode: SelectMode | null;
   playback: PlaybackController | null;
-  bpmMarkers: BpmMarker[];
+  bpmChanges: BpmChange[];
   offsetMs: number;
-  /** 모달·마커 편집처럼 포커스를 가진 UI가 열려 전역 단축키를 막는다. */
+  /** 모달·이벤트 편집처럼 포커스를 가진 UI가 열려 전역 단축키를 막는다. */
   shortcutsBlocked: boolean;
   setMode: (mode: EditorModeName) => void;
   addToast: (message: string, type?: ToastType) => void;
@@ -30,7 +30,7 @@ export interface EditorKeyboardContext {
 
 /** 에디터 전역 keydown 한 번을 처리한다. */
 export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardContext): void {
-  const { mode, selectMode, playback, bpmMarkers, offsetMs, shortcutsBlocked, setMode, addToast } = context;
+  const { mode, selectMode, playback, bpmChanges, offsetMs, shortcutsBlocked, setMode, addToast } = context;
   // Disable shortcuts while focused editor UI is open.
   if (shortcutsBlocked) return;
 
@@ -79,28 +79,28 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
     if (e.key === 'c' || e.key === 'C') {
       e.preventDefault();
       const count = selectMode.copy();
-      if (count > 0) addToast(`${count}개 노트 복사됨`, 'info');
-      else addToast('복사할 노트를 선택하세요', 'warn');
+      if (count > 0) addToast(`${count}개 항목 복사됨`, 'info');
+      else addToast('복사할 항목을 선택하세요', 'warn');
       return;
     }
     if (e.key === 'x' || e.key === 'X') {
       e.preventDefault();
       const count = selectMode.cut();
-      if (count > 0) addToast(`${count}개 노트 잘라냄`, 'info');
-      else addToast('잘라낼 노트를 선택하세요', 'warn');
+      if (count > 0) addToast(`${count}개 항목 잘라냄`, 'info');
+      else addToast('잘라낼 수 있는 항목이 없습니다', 'warn');
       return;
     }
     if (e.key === 'v' || e.key === 'V') {
       e.preventDefault();
       if (!selectMode.hasClipboard) return;
       const cursorTimeMs = useEditorStore.getState().currentTimeMs;
-      const beatFloat = msToBeat(cursorTimeMs, bpmMarkers, offsetMs);
+      const beatFloat = msToBeat(cursorTimeMs, bpmChanges, offsetMs);
       const sd = useEditorStore.getState().snapDivision;
       const grid = 4 / sd;
       const k = Math.round(beatFloat / grid);
       const targetBeat = { n: k * 4, d: sd };
       const count = selectMode.paste(targetBeat);
-      if (count > 0) addToast(`${count}개 노트 붙여넣기 — Enter로 확정, Esc로 취소`, 'info');
+      if (count > 0) addToast(`${count}개 항목 붙여넣기 — Enter로 확정, Esc로 취소`, 'info');
       return;
     }
   }
@@ -213,9 +213,9 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
 export function useEditorKeyboard(
   playbackRef: RefObject<PlaybackController | null>,
   selectModeRef: RefObject<SelectMode | null>,
-  bpmMarkers: BpmMarker[],
+  bpmChanges: BpmChange[],
   // Focused editor UI state (disables global shortcuts)
-  editingMarker: unknown,
+  editingEvent: unknown,
   showMetaModal: boolean,
   showCustomSnapModal: boolean,
   showDeleteConfirm: boolean,
@@ -235,9 +235,9 @@ export function useEditorKeyboard(
       mode,
       selectMode: selectModeRef.current,
       playback: playbackRef.current,
-      bpmMarkers,
+      bpmChanges,
       offsetMs: chart.meta.offsetMs,
-      shortcutsBlocked: Boolean(editingMarker) || showMetaModal || showCustomSnapModal || showDeleteConfirm
+      shortcutsBlocked: Boolean(editingEvent) || showMetaModal || showCustomSnapModal || showDeleteConfirm
         || showLeaveConfirm || showSaveAsModal || showOffsetToolbar || validationErrorsCount > 0 || showLegacyConversionModal,
       setMode,
       addToast,
@@ -247,9 +247,9 @@ export function useEditorKeyboard(
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     mode, setMode,
-    editingMarker, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar, validationErrorsCount,
+    editingEvent, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar, validationErrorsCount,
     showLegacyConversionModal,
-    addToast, bpmMarkers, chart.meta.offsetMs,
+    addToast, bpmChanges, chart.meta.offsetMs,
     playbackRef, selectModeRef,
   ]);
 }

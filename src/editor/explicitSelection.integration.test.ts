@@ -19,7 +19,7 @@ const selection = () => current().selection.notes;
 const notes = () => current().chart.notes;
 const chart = (notes: DocumentNoteEntity[]): ChartDocument => ({
   meta: { title: 'E2 선택', artist: '', difficultyLabel: 'NORMAL', difficultyLevel: 1, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
-  notes, trillZones: [], events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) }],
+  notes, trillZones: [], events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }],
 });
 const family = (lane = 1): DocumentNoteEntity[] => [
   { type: 'body', lane, beat: beat(1), endBeat: beat(5), holdCount: 1 },

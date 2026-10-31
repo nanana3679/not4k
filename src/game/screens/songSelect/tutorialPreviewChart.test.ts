@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NoteEntity, RangeNote, RestZone, TimeSignatureEvent } from '../../../shared/types';
+import type { NoteEntity, RangeNote, RestZone, TimeSignatureChangeEvent } from '../../../shared/types';
 import { beatToFloat } from '../../../shared/types';
 import { beat } from '../../../shared/types/beat';
 import { validateChart } from '../../../shared/validation';
@@ -111,7 +111,7 @@ describe('tutorialPreviewChart', () => {
 
   it('각 튜토리얼 차트의 timeSignature beatPerMeasure는 해당 프리뷰 loopBeats와 일치', () => {
     for (const preview of TUTORIAL_PREVIEWS) {
-      const timeSignature = preview.chart.events.find((event): event is TimeSignatureEvent => event.type === 'timeSignature');
+      const timeSignature = preview.chart.events.find((event): event is TimeSignatureChangeEvent => event.type === 'timeSignature');
 
       if (!timeSignature) {
         throw new Error(`${preview.id} 차트에 timeSignature 이벤트가 없음`);

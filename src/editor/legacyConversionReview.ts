@@ -11,7 +11,7 @@ import type { ChartDocument, ChartEvent, DocumentNoteEntity } from "../shared/ty
 import type { LegacyConversionItem, LegacyConversionReport } from "../shared/chart";
 import { convertLegacyChart, hasLegacyNotes } from "../shared/chart/legacyConversion";
 import { isAuxLane, isVisibleLane, toAuxIndex } from "../shared/chart/laneAxis";
-import { extractTimeSignatures, measureStartBeat } from "../shared/timing";
+import { extractTimeSignatureChanges, measureStartBeat } from "../shared/timing";
 import { validateChartDocumentStructural, violationLabel } from "../shared/validation";
 
 /** 변환 모달이 보이는 화면. 변환 전(`offer`)과 변환 뒤 결과(`result`)가 같은 모달을 쓴다. */
@@ -43,7 +43,7 @@ export function formatReviewLane(lane: number): string {
 
 /** 박이 든 마디(0부터)와 그 마디의 시작 박. 박자표가 없거나 음수 박이면 null. */
 function measureContaining(at: Beat, events: readonly ChartEvent[]): { measure: number; start: Beat } | null {
-  const signatures = extractTimeSignatures(events);
+  const signatures = extractTimeSignatureChanges(events);
   if (signatures.length === 0 || beatLt(at, BEAT_ZERO)) return null;
   let measure = 0;
   let start = measureStartBeat(0, signatures);
