@@ -5,16 +5,19 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
-import { getWaveformPeaks } from './timeline/waveform';
-import { createWaveformFeed, type WaveformFeed } from './waveformFeed';
-import { PlaybackController } from './playback/PlaybackController';
+import { cursorRangeMsOf, setChartAndReadTimelineRange, timelineRangeMsOf } from './timeline/timelineRange';
+import type { WaveformFeed } from './waveformFeed';
+import type { PlaybackController } from './playback/PlaybackController';
+import { createCursorBeatKeeper } from './playback/cursorBeatKeeper';
+import { syncTimelineRange } from './playback/syncTimelineRange';
+import { createEditorPlayback } from './playback/createEditorPlayback';
 import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
 import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
 import { normalizePlaybackRange, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
-import { beatToMs, hasLegacyNotes } from '../shared';
+import { hasLegacyNotes } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex } from '../shared';
 import { supabase } from '../supabase';
@@ -29,6 +32,7 @@ import { LegacyConversionModal } from './components/LegacyConversionModal';
 import { LegacyConversionReviewPanel } from './components/LegacyConversionReviewPanel';
 import {
   buildLegacyConversionReviewRows,
+  conversionReviewTimeMs,
   formatLegacyConversionReviewText,
   hiddenReviewLaneMessage,
   legacyConversionOfferFor,
@@ -253,6 +257,9 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const waveformFeedRef = useRef<WaveformFeed | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const playbackRef = useRef<PlaybackController | null>(null);
+  // 정지 중 타이밍·범위 수정 뒤 커서의 박 유지(RFD 0099). 기억은 store에 남겨 테스트 플레이 뒤에도 유지하고,
+  // [chart] effect가 syncToChart로 커서를 새 타이밍·범위에 맞춘다(필요하면 seek).
+  const [cursorBeatKeeper] = useState(() => createCursorBeatKeeper(useEditorStore));
   const createModeRef = useRef<CreateMode | null>(null);
   const selectModeRef = useRef<SelectMode | null>(null);
   const deleteModeRef = useRef<DeleteMode | null>(null);
@@ -299,8 +306,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const setChart = useEditorStore((s) => s.setChart);
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const setScrollY = useEditorStore((s) => s.setScrollY);
-  const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
-  const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const savedChartJson = useEditorStore((s) => s.savedChartJson);
   // 저장 진행은 store가 소유한다 — 테스트 플레이 복귀로 페이지가 다시 마운트돼도 진행 중인 저장을 잊지 않는다.
@@ -445,13 +450,13 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   // 검토 행의 위치(레인·박)로 이동한다. index는 편집하면 바뀌므로 지금 차트에서 위치로 노트를 다시 찾는다.
   const goToConversionReviewItem = useCallback((item: LegacyConversionItem) => {
     const store = useEditorStore.getState();
-    const timeMs = beatToMs(item.beat, space.getBpmChanges(), store.chart.meta.offsetMs);
-    playbackRef.current?.seekTo(timeMs);
     const renderer = rendererRef.current;
-    if (renderer) {
-      const viewportHeight = canvasContainerRef.current?.clientHeight ?? canvasSize.height;
-      store.setScrollY(renderer.timeToY(timeMs) - viewportHeight / 2);
-    }
+    if (!renderer) return;
+    const timeMs = conversionReviewTimeMs(item, space.getBpmChanges(),
+      cursorRangeMsOf(store.chart.meta.offsetMs, renderer.getTotalTimelineMs()));
+    playbackRef.current?.seekTo(timeMs);
+    const viewportHeight = canvasContainerRef.current?.clientHeight ?? canvasSize.height;
+    store.setScrollY(renderer.timeToY(timeMs) - viewportHeight / 2);
     // 지금 보조 레인 수 밖의 레인은 화면에 없다. 보이지 않는 노트를 선택하면 삭제·이동이 숨은 노트에 걸리므로
     // 박 이동만 하고 선택·모드는 그대로 둔다. 보조 레인 수는 차트 자료라 자동으로 늘리지 않고 안내만 한다.
     const hiddenMessage = hiddenReviewLaneMessage(item.lane, store.extraLaneCount);
@@ -459,7 +464,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       addToast(hiddenMessage, 'warn');
       return;
     }
-    renderer?.revealLane(item.lane);
+    renderer.revealLane(item.lane);
     // 선택은 Select 모드의 이동·삭제·속성 조작 대상이다. 진행 중인 붙여넣기·이동은 툴바 모드 버튼처럼 확정된다(Undo로 되돌림).
     store.setMode('select');
     store.setSelection({
@@ -510,24 +515,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       onScroll: (newScrollY) => setScrollY(newScrollY),
     });
 
-    // 렌더러 준비·오디오 도착 두 비동기가 순서 무관하게 합류하면 파형과 경계를 적용한다.
-    // (재-import 시 새 버퍼로 재적용된다.)
-    const applyWaveform = (buffer: AudioBuffer) => {
-      const r = rendererRef.current;
-      if (!r) return; // feed 계약상 rendererReady 이후에만 호출됨 — 방어
-      const samplesPerPeak = Math.ceil(buffer.sampleRate / 50);
-      const peaks = getWaveformPeaks(buffer, samplesPerPeak);
-      const durationMs = buffer.duration * 1000;
-      r.setWaveformData(peaks, durationMs);
-      // 파형이 전체 타임라인 길이를 바꾸므로 재생 끝 경계·스크롤 클램프 범위도 음원 길이를 따라간다
-      playbackRef.current?.setEndTimeMs(r.getTotalTimelineMs());
-      useEditorStore.getState().setTimelineRangeMs({
-        minTimeMs: Math.min(0, useEditorStore.getState().chart.meta.offsetMs),
-        totalTimelineMs: r.getTotalTimelineMs(),
-      });
-    };
-    waveformFeedRef.current = createWaveformFeed(applyWaveform);
-
     renderer.init().then(() => {
       if (!mounted) return;
 
@@ -552,9 +539,12 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       // 세로 스크롤 클램프 입력을 소유자에 입주시킨다 (setScrollY가 이후 자체 클램프).
       const store = useEditorStore.getState();
       store.setViewportHeightPx(initHeight);
-      store.setTimelineRangeMs({
-        minTimeMs: Math.min(0, currentChart.meta.offsetMs),
-        totalTimelineMs: renderer.getTotalTimelineMs(),
+      syncTimelineRange({
+        store: useEditorStore,
+        playback: playbackRef.current,
+        cursorBeatKeeper,
+        renderer,
+        timelineRange: timelineRangeMsOf(currentChart.meta.offsetMs, renderer.getTotalTimelineMs()),
       });
 
       const initScroll = Math.max(0, renderer.totalTimelineHeight - initHeight);
@@ -570,10 +560,13 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     });
 
 
-    const playback = new PlaybackController({
-      onTimeUpdate: setCurrentTimeMs,
-      onPlayStateChange: setIsPlaying,
+    const { playback, waveformFeed } = createEditorPlayback({
+      store: useEditorStore,
+      cursorBeatKeeper,
+      getRenderer: () => rendererRef.current,
+      setLoadedAudioBuffer,
     });
+    waveformFeedRef.current = waveformFeed;
     playback.volume = useGameStore.getState().settings.masterVolume ?? 1;
     playbackRef.current = playback;
 
@@ -648,12 +641,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     setAudioLoading(true);
     // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 직렬화한다 — 메인/보조 분리 후 비교.
 
-    playback.loadAudioUrl(url).then(() => {
-      const audioBuffer = playback.audioBufferData;
-      setLoadedAudioBuffer(audioBuffer ?? null);
-      // 렌더러가 아직 init 전이라도 join이 대기했다가 준비 시점에 적용한다(레이스 방지).
-      if (audioBuffer) waveformFeedRef.current?.audioArrived(audioBuffer);
-    }).catch((err: unknown) => {
+    playback.loadAudioUrl(url).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       setLoadedAudioBuffer(null);
       addToast(`Audio load failed: ${message}`, 'error');
@@ -688,31 +676,35 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
   // chart → renderer + modes — 전부 통합 차트(chart.notes 한 배열) 하나를 본다 (RFD 0018 ④d).
   useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.setChart(chart);
+    const renderer = rendererRef.current;
+    // 타임라인 범위는 setChart 뒤에 읽어야 새 차트의 마디 범위를 따른다. 아래의 재생 끝·스크롤 클램프·커서 박 유지는
+    // 모두 이 범위를 쓴다(렌더러가 아직 없으면 null).
+    const timelineRange = renderer ? setChartAndReadTimelineRange(renderer, chart) : null;
+    if (renderer) {
       const violations = editorChartViolationIndices({
         notes: chart.notes,
         trillZones: chart.trillZones,
         restZones: chart.restZones,
         events: chart.events,
       });
-      rendererRef.current.setViolations(violations.notes, violations.trillZones, violations.restZones, violations.events);
+      renderer.setViolations(violations.notes, violations.trillZones, violations.restZones, violations.events);
     }
     if (createModeRef.current) createModeRef.current.setChart(chart);
     if (selectModeRef.current) selectModeRef.current.setChart(chart);
     if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
-    // Update playback end boundary when chart changes (measure count may change)
-    if (rendererRef.current && playbackRef.current) {
-      playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
-    }
-    // 스크롤 클램프 입력(타임라인 범위)도 차트 변경을 따라간다
-    if (rendererRef.current) {
-      useEditorStore.getState().setTimelineRangeMs({
-        minTimeMs: Math.min(0, chart.meta.offsetMs),
-        totalTimelineMs: rendererRef.current.getTotalTimelineMs(),
-      });
-    }
-  }, [chart]);
+    // 정지 중 매 차트 변경에서 원래 박을 유지하고, 박자표만 바뀌어도 새 범위로 자른다(RFD 0099).
+    // 새로 불러온 차트(chartLoadGeneration 변경)와 재생 중 변경은 seek하지 않는다.
+    // store의 커서는 실제 정지 위치보다 최대 한 프레임 늦을 수 있다. PlaybackController.pause()는 onTimeUpdate를
+    // 부르지 않아 마지막 rAF가 알린 시각이 남기 때문이다. 박 유지는 화면에 그려진 이 커서를 기준으로 하며,
+    // 한 프레임(약 16ms) 차이는 받아들인다.
+    syncTimelineRange({
+      store: useEditorStore,
+      playback: playbackRef.current,
+      cursorBeatKeeper,
+      timelineRange,
+      renderer,
+    });
+  }, [chart, cursorBeatKeeper]);
 
   // extraLaneCount → renderer
   useEffect(() => {
@@ -943,13 +935,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           }}
           onClose={() => setShowMetaModal(false)}
           onLoadAudio={(file) => {
-            if (playbackRef.current) {
-              playbackRef.current.loadAudioFile(file).then(() => {
-                const audioBuffer = playbackRef.current?.audioBufferData;
-                setLoadedAudioBuffer(audioBuffer ?? null);
-                if (audioBuffer) waveformFeedRef.current?.audioArrived(audioBuffer);
-              });
-            }
+            void playbackRef.current?.loadAudioFile(file);
           }}
         />
       )}

@@ -1,5 +1,5 @@
 import { getJudgmentWindows } from '../../shared';
-import { AudioEngine } from '../audio';
+import type { AudioEngine } from '../audio';
 import { ExplicitPlayDebugLog } from '../debug/ExplicitPlayDebugLog';
 import { ExplicitAutoPlayer } from '../input/ExplicitAutoPlayer';
 import type { ExplicitAutoInput } from '../input/ExplicitAutoPlayer';
@@ -8,18 +8,16 @@ import { ExplicitJudgmentSession } from '../judgment/ExplicitJudgmentSession';
 import type { ExplicitSessionResult } from '../judgment/ExplicitJudgmentSession';
 import { ExplicitJudgmentEffectSink } from '../judgment/ExplicitJudgmentEffectSink';
 import { ExplicitSessionRendererAdapter } from '../judgment/ExplicitSessionRendererAdapter';
-import { GameRenderer } from '../renderer/GameRenderer';
-import { GAME_HEIGHT, liftPx, suddenCoverPx } from '../renderer/constants';
-import { resolvePlayLogicalWidth } from '../renderer/gearLayout';
-import { SkinManager } from '../skin';
-import { ExplicitSkinLoader } from '../skin/ExplicitSkinLoader';
+import type { GameRenderer } from '../renderer/GameRenderer';
+import { liftPx, suddenCoverPx } from '../renderer/constants';
 import type { GameSettings } from '../stores/gameStore';
 import { explicitSessionRangeStartMs } from '../stores/explicitPlayRequest';
 import type { ExplicitPlayRequest } from '../stores/explicitPlayRequest';
-import { GameClock } from '../time';
-import { keepGearMotionAssets } from './gearMotionKeepAlive';
-import { canFinishExplicitPlaySession, createExplicitPlayInput, drainExplicitPlaySessionInputs,
+import type { GameClock } from '../time';
+import { ExplicitPlaybackHost } from './ExplicitPlaybackHost';
+import { canFinishExplicitPlaySession, drainExplicitPlaySessionInputs,
   finishExplicitPlaySession, stepExplicitPlaySession } from './explicitPlaySessionInput';
+import type { createExplicitPlayInput } from './explicitPlaySessionInput';
 import { EXPLICIT_MUSIC_PREPARATION_MS, explicitPreparationPosition, explicitResumeTarget } from './explicitPlayPreparation';
 
 export type ExplicitPlayPhase = 'loading' | 'music-preparation' | 'playing' | 'paused' | 'finished' | 'error';
@@ -36,14 +34,11 @@ export interface ExplicitPlayRuntimeOptions {
   onError(error: Error): void;
 }
 
-/** 한 번의 실제 재생 자원. 재시도·반복은 새 instance/session을 만든다. */
+/** 일반·테스트 플레이 정책. 자원 수명은 host가 맡고 재시도·반복은 새 instance/session을 만든다. */
 export class ExplicitPlayRuntime {
+  private readonly host: ExplicitPlaybackHost;
   private audio: AudioEngine | null = null;
-  private skin: SkinManager | null = null;
-  private explicitSkin: ExplicitSkinLoader | null = null;
   private renderer: GameRenderer | null = null;
-  /** 진행 중인 renderer.init. 이 동안 취소하면 Pixi 앱이 아직 스킨을 읽으므로 끝난 뒤에 함께 정리한다. */
-  private rendererInit: Promise<void> | null = null;
   private input: ReturnType<typeof createExplicitPlayInput> | null = null;
   private adapter: ExplicitSessionRendererAdapter | null = null;
   private session: ExplicitJudgmentSession | null = null;
@@ -57,7 +52,6 @@ export class ExplicitPlayRuntime {
    */
   private seededFromPreparation = false;
   private targetMs = 0;
-  private frameId: number | null = null;
   private closed = false;
   private started = false;
   private playbackStarted = false;
@@ -78,40 +72,24 @@ export class ExplicitPlayRuntime {
   };
   private readonly onKeyUp = (event: Event) => { this.manualHeldKeys.delete((event as KeyboardEvent).code); };
 
-  constructor(private readonly options: ExplicitPlayRuntimeOptions) {}
+  constructor(private readonly options: ExplicitPlayRuntimeOptions) {
+    const { request, settings, canvas, width, height, inputTarget } = options;
+    this.host = new ExplicitPlaybackHost({ audioBuffer: request.audioBuffer, playbackRange: request.playbackRange,
+      difficultyLabel: request.document.meta.difficultyLabel, settings, canvas, width, height, inputTarget });
+  }
 
   async start(): Promise<void> {
     if (this.closed || this.started) return;
     this.started = true;
-    const { request, settings, canvas } = this.options;
+    const { request, settings } = this.options;
     this.options.onPhase('loading');
     try {
-      this.audio = new AudioEngine();
-      this.skin = new SkinManager();
-      this.explicitSkin = new ExplicitSkinLoader();
-      const audio = this.audio;
-      audio.masterVolume = settings.masterVolume;
-      audio.playbackRate = settings.playSpeed;
-      audio.loadBuffer(request.audioBuffer);
-      audio.setPlaybackRange(request.playbackRange ?? null);
-      // legacy skin은 기어·배경·타격용이다. 노트 도안은 항상 별도 explicit loader가 소유한다.
-      const skinId = import.meta.env.DEV
-        ? (await import('../../lab/devSkinSelection')).resolveDevSkinSelection(settings.skinId) : settings.skinId;
-      if (this.closed) return;
-      await Promise.all([this.skin.loadSkin(skinId), this.explicitSkin.load({ resolution: settings.renderHeight > GAME_HEIGHT ? 2 : 1 }),
-        keepGearMotionAssets(settings.gearMotion)?.ready, audio.prepareForPlayback()]);
-      if (this.closed) return;
-      const clock = new GameClock(audio, settings);
+      const resources = await this.host.init();
+      if (this.closed || !resources) return;
+      const { audio, clock, renderer, explicitSkin } = resources;
+      this.audio = audio;
       this.clock = clock;
-      const renderer = new GameRenderer({ canvas, width: resolvePlayLogicalWidth(this.options.width, this.options.height),
-        height: GAME_HEIGHT, resolution: settings.renderHeight / GAME_HEIGHT, skinManager: this.skin,
-        bombScale: settings.bombScale, gearMotion: settings.gearMotion, difficultyLabel: request.document.meta.difficultyLabel });
       this.renderer = renderer;
-      const rendererInit = renderer.init();
-      this.rendererInit = rendererInit;
-      try { await rendererInit; } finally { this.rendererInit = null; }
-      // 취소됐다면 dispose가 init 종료 뒤의 renderer·스킨 정리를 이미 예약했다.
-      if (this.closed) return;
       this.targetMs = request.startTimeMs;
       const session = new ExplicitJudgmentSession(request.compiled, {
         windows: getJudgmentWindows(settings.judgmentMode),
@@ -127,7 +105,7 @@ export class ExplicitPlayRuntime {
           inputOffsetMs: settings.inputOffsetMs, visualOffsetMs: settings.visualOffsetMs,
         }); });
       }
-      renderer.setExplicitChart(session.playbackChart, this.explicitSkin, () => this.session!.snapshot, request.document, audio.duration);
+      renderer.setExplicitChart(session.playbackChart, explicitSkin, () => this.session!.snapshot, request.document, audio.duration);
       renderer.setChartVisible(false);
       renderer.updateAccuracy(null);
       renderer.scrollSpeed = settings.scrollSpeed;
@@ -139,7 +117,7 @@ export class ExplicitPlayRuntime {
       const bindings: KeyBinding[] = Object.entries(settings.keyBindings).flatMap(([lane, keys]) =>
         keys.map((key: string) => ({ lane: Number(lane.slice(4)) as KeyBinding['lane'], key })));
       renderer.setupKeyboardDisplay(new Map(bindings.map(binding => [binding.key, binding.lane])));
-      const input = createExplicitPlayInput(bindings, clock, {
+      const input = this.host.createInput(bindings, clock, {
         beforeInput: timestamp => {
           try { this.activatePreparedPlayback(timestamp); } catch (error) { this.fail(error); }
         },
@@ -155,10 +133,8 @@ export class ExplicitPlayRuntime {
       const adapter = this.createAdapter(session);
       this.adapter = adapter;
       adapter.attach(null);
-      // explicit texture도 모두 GPU에 준비한 뒤 audio를 시작한다.
-      renderer.prepareForPlayback(request.purpose === 'play' ? clock.visualTimeMs()
+      this.host.prepareForPlayback(request.purpose === 'play' ? clock.visualTimeMs()
         : this.targetMs + settings.visualOffsetMs * audio.playbackRate);
-      input.attach(this.options.inputTarget);
       this.options.inputTarget.addEventListener('keydown', this.onKeyDown);
       this.options.inputTarget.addEventListener('keyup', this.onKeyUp);
       if (request.purpose === 'play') {
@@ -168,56 +144,51 @@ export class ExplicitPlayRuntime {
         renderer.setChartVisible(true);
         this.options.onPhase('playing');
       } else this.beginPreparation();
-      const frame = (timestamp: number) => {
-        this.frameId = null;
+      this.host.startFrames(timestamp => {
         if (this.closed || this.finished) return;
-        try {
-          if (!this.paused) {
-            this.activatePreparedPlayback();
-            // 재구성은 새 session/adapter를 만든다. RAF가 시작 당시 객체를 계속 사용하면 안 된다.
-            const session = this.session!;
-            const adapter = this.adapter!;
-            const songTimeMs = this.preparation ? this.targetMs : this.stepSession(timestamp);
-            for (let lane = 1; lane <= 4; lane++) renderer.setKeyBeam(lane,
-              input.inputSystem.isLaneHeld(lane as KeyBinding['lane']) || (this.autoHeldByLane.get(lane)?.size ?? 0) > 0);
-            for (const binding of bindings) renderer.setKeyState(binding.key, this.manualHeldKeys.has(binding.key)
-              || this.autoHeldByLane.get(binding.lane)?.has(`explicit-auto:${binding.key}`) === true);
-            const visualTime = this.preparation
-              ? this.targetMs + settings.visualOffsetMs * audio.playbackRate : clock.visualTimeMs();
-            if (!this.preparation) adapter.sync(visualTime);
-            const score = session.score;
-            renderer.updateCombo(session.combo);
-            renderer.updateAccuracy(score.finalDenominatorWeight > 0 ? score.achievementRate : null);
-            renderer.renderFrame(visualTime, this.lastFrame === null ? 0 : timestamp - this.lastFrame);
-            if (!this.preparation) this.recordAltitudeCheckpoint(songTimeMs);
-            this.lastFrame = timestamp;
-            if (timestamp - this.lastProgressAt >= 100) {
-              this.options.onProgress?.({ settled: score.processedNotes, combo: session.combo }, visualTime);
-              this.lastProgressAt = timestamp;
-            }
-            if (!this.preparation && canFinishExplicitPlaySession(session, clock, audio.duration, timestamp)) {
-              finishExplicitPlaySession(input.timeline, session, this.auto!);
-              const final = session.finalize();
-              this.recordDebug(timestamp);
-              this.withDebug(() => this.debugLog?.finish(final));
-              adapter.sync(clock.visualTimeMs());
-              renderer.updateCombo(final.combo);
-              renderer.updateAccuracy(final.score.finalDenominatorWeight > 0 ? final.score.achievementRate : null);
-              renderer.renderFrame(clock.visualTimeMs(), 0);
-              this.finished = true;
-              this.releaseInput();
-              audio.pause();
-              this.downloadDebugLog();
-              this.options.onPhase('finished');
-              this.options.onResult(final);
-              this.dispose();
-              return;
-            }
-          } else this.lastFrame = null;
-          this.frameId = requestAnimationFrame(frame);
-        } catch (error) { this.fail(error); }
-      };
-      this.frameId = requestAnimationFrame(frame);
+        if (!this.paused) {
+          this.activatePreparedPlayback();
+          // 재구성은 새 session/adapter를 만든다. RAF가 시작 당시 객체를 계속 사용하면 안 된다.
+          const session = this.session!;
+          const adapter = this.adapter!;
+          const songTimeMs = this.preparation ? this.targetMs : this.stepSession(timestamp);
+          for (let lane = 1; lane <= 4; lane++) renderer.setKeyBeam(lane,
+            input.inputSystem.isLaneHeld(lane as KeyBinding['lane']) || (this.autoHeldByLane.get(lane)?.size ?? 0) > 0);
+          for (const binding of bindings) renderer.setKeyState(binding.key, this.manualHeldKeys.has(binding.key)
+            || this.autoHeldByLane.get(binding.lane)?.has(`explicit-auto:${binding.key}`) === true);
+          const visualTime = this.preparation
+            ? this.targetMs + settings.visualOffsetMs * audio.playbackRate : clock.visualTimeMs();
+          if (!this.preparation) adapter.sync(visualTime);
+          const score = session.score;
+          renderer.updateCombo(session.combo);
+          renderer.updateAccuracy(score.finalDenominatorWeight > 0 ? score.achievementRate : null);
+          renderer.renderFrame(visualTime, this.lastFrame === null ? 0 : timestamp - this.lastFrame);
+          if (!this.preparation) this.recordAltitudeCheckpoint(songTimeMs);
+          this.lastFrame = timestamp;
+          if (timestamp - this.lastProgressAt >= 100) {
+            this.options.onProgress?.({ settled: score.processedNotes, combo: session.combo }, visualTime);
+            this.lastProgressAt = timestamp;
+          }
+          if (!this.preparation && canFinishExplicitPlaySession(session, clock, audio.duration, timestamp)) {
+            finishExplicitPlaySession(input.timeline, session, this.auto!);
+            const final = session.finalize();
+            this.recordDebug(timestamp);
+            this.withDebug(() => this.debugLog?.finish(final));
+            adapter.sync(clock.visualTimeMs());
+            renderer.updateCombo(final.combo);
+            renderer.updateAccuracy(final.score.finalDenominatorWeight > 0 ? final.score.achievementRate : null);
+            renderer.renderFrame(clock.visualTimeMs(), 0);
+            this.finished = true;
+            this.releaseInput();
+            audio.pause();
+            this.downloadDebugLog();
+            this.options.onPhase('finished');
+            this.options.onResult(final);
+            this.dispose();
+            return;
+          }
+        } else this.lastFrame = null;
+      }, error => this.fail(error));
     } catch (error) { if (!this.closed) this.fail(error); }
   }
 
@@ -391,18 +362,13 @@ export class ExplicitPlayRuntime {
   dispose(): void {
     if (this.closed) return;
     this.closed = true;
-    if (this.frameId !== null) cancelAnimationFrame(this.frameId);
-    this.frameId = null;
+    this.host.stopFrames();
     this.preparation = null;
     this.releaseInput();
     this.adapter?.dispose();
     this.adapter = null;
-    const renderer = this.renderer; const explicitSkin = this.explicitSkin; const skin = this.skin;
-    this.renderer = null; this.explicitSkin = null; this.skin = null;
-    const release = () => { renderer?.dispose(false); explicitSkin?.dispose(); skin?.dispose(); };
-    // init 도중에는 renderer.dispose가 아무것도 하지 않고, 먼저 해제한 스킨을 init이 읽다 실패한다.
-    if (this.rendererInit) void this.rendererInit.then(release, release); else release();
-    if (this.audio) void this.audio.dispose();
+    this.host.dispose();
+    this.renderer = null;
     this.audio = null;
     this.clock = null;
     this.session = null;
@@ -416,7 +382,7 @@ export class ExplicitPlayRuntime {
     this.options.inputTarget.removeEventListener('keydown', this.onKeyDown);
     this.options.inputTarget.removeEventListener('keyup', this.onKeyUp);
     this.manualHeldKeys.clear();
-    this.input?.dispose();
+    this.host.releaseInput();
     this.input = null;
   }
 
