@@ -119,7 +119,7 @@ export function getTutorialConditionStatus(
     default:
       return assertNever(condition);
   }
-  // 아래 두 조건은 점수 항목의 정산 결과만 보므로, 모든 점수 항목을 정산하면 더 바뀌지 않는다.
+  // 위 두 조건은 점수 항목의 정산 결과만 보므로, 모든 점수 항목을 정산하면 더 바뀌지 않는다.
   // 무점수 바디 Miss처럼 정산 뒤에도 바뀔 수 있는 값을 보는 조건은 이 공통 기준을 쓰지 말고 자기 확정 기준을 둔다.
   return remainingWeight === 0 ? 'met' : 'neutral';
 }
@@ -151,7 +151,7 @@ export interface TutorialPracticeState {
   readonly mode: TutorialPracticeMode;
   /** 직접 입력 패턴 재생 중 시연을 골랐을 때, 다음 패턴 시작부터 적용할 시연 */
   readonly pendingMode: 'demonstration' | null;
-  /** 재생 중인 패턴의 id. 재생 중이 아니면 null이다. 연주 방법을 완료한 뒤에는 시연 패턴만 재생한다 */
+  /** 재생 중인 패턴의 id. 재생 중이 아니면 null이다. 연주 방법을 완료한 뒤에는 시연으로 시작한 패턴만 받는다(도중에 직접 입력으로 바꿔도 집계하지 않는다) */
   readonly currentPatternId: number | null;
   /** 재생 중인 패턴을 처음부터 끝까지 직접 입력으로 연주해 성공 집계 대상인지 */
   readonly currentPatternCountable: boolean;
@@ -181,6 +181,9 @@ export interface TutorialFinishedPattern {
  * - 연주 방법을 완료하면 직접 입력 패턴 시작을 멈춘다(reducer도 무시한다). 다음 방법의 반복은 `nextPressed` 뒤에만 시작하고,
  *   그 전에 이전 방법의 반복을 멈춘다. reducer는 어느 반복의 시작인지 알 수 없으므로, 이를 어긴 이전 반복의 시작도
  *   id가 더 크면 현재 방법의 패턴으로 받는다.
+ * - 패턴 N의 `patternFinished`를 패턴 N+1의 `patternStarted`보다 먼저 보낸다. 순서가 바뀌면 N은 끝 통지를 놓친 것으로 버려진다.
+ * - 패턴의 자동 입력(시연) 여부는 `patternStarted`를 처리한 뒤의 `state.mode`로 정한다. 토글 표시용
+ *   `getSelectedTutorialPracticeMode`로 정하면 직접 입력 패턴 도중 예약한 시연이 그 패턴에 자동 입력을 섞는다.
  */
 export type TutorialPracticeEvent =
   /** 플레이어가 토글에서 모드를 고름 */

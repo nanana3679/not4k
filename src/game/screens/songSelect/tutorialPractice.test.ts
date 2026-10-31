@@ -322,6 +322,29 @@ describe('튜토리얼 실습 상태: 누적 성공', () => {
     expect(run(dropped, finished(demoId, SUCCESS)).lastFinishedPattern).toEqual(complete.lastFinishedPattern);
   });
 
+  it('방법을 완료하는 직접 입력 패턴 도중 시연을 예약하면 끝난 뒤 3/3이고 모드는 시연, 다음 시작은 집계하지 않는 시연 패턴이다', () => {
+    const twoDone = run(directInputState(), ...pattern(SUCCESS), ...pattern(SUCCESS));
+    const lastId = nextPatternId();
+    const complete = run(twoDone, started(lastId), select('demonstration'), finished(lastId, SUCCESS));
+    expect(getTutorialPracticeProgress(complete)).toEqual({ current: 3, required: 3 });
+    expect(complete.mode).toBe('demonstration');
+    const demoId = nextPatternId();
+    const playing = run(complete, started(demoId));
+    expect(playing.currentPatternId).toBe(demoId);
+    expect(playing.currentPatternCountable).toBe(false);
+  });
+
+  it('두 방법 항목에서 첫 방법 완료 뒤 받은 시연 패턴 재생 중 다음을 누르면 그 패턴은 버려지고 늦은 finish는 둘째 방법 0/3에 남지 않는다', () => {
+    const complete = run(directInputState(twoMethodSpec()), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
+    const demoId = nextPatternId();
+    const secondMethod = run(complete, select('demonstration'), started(demoId), nextPressed);
+    expect(secondMethod.playingMethodIndex).toBe(1);
+    expect(isTutorialPatternPlaying(secondMethod)).toBe(false);
+    const afterLateFinish = run(secondMethod, finished(demoId, SUCCESS));
+    expect(getTutorialPracticeProgress(afterLateFinish)).toEqual({ current: 0, required: 3 });
+    expect(afterLateFinish.lastFinishedPattern).toBeNull();
+  });
+
   it('patternStarted 없이 도착한 patternFinished는 조건을 만족해도 집계하지 않고 lastFinishedPattern도 남기지 않는다', () => {
     const state = run(directInputState(), finished(1, SUCCESS));
     expect(getTutorialPracticeProgress(state).current).toBe(0);
