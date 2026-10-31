@@ -79,12 +79,6 @@ export function mergeAccountSettings(local: GameSettings, server: unknown): Game
   return mergePersistedSettings({ settings: acceptedAccountSettings(server) }, { settings: local }).settings;
 }
 
-/** 첫 기동 프리셋 선택으로 정하는 두 키를 뺀다. */
-function omitPresetChoice(account: AccountSettings): Partial<AccountSettings> {
-  const { keyBindings: _keyBindings, preset: _preset, ...rest } = account;
-  return rest;
-}
-
 /** JSON 값 비교. 객체는 키 순서와 관계없이 비교한다. */
 function isSameJsonValue(a: unknown, b: unknown): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {
@@ -136,7 +130,7 @@ export type InsertAccountSettingsResult = 'inserted' | 'conflict' | 'failed';
 
 export interface AccountSettingsIO {
   load: (userId: string, signal: AbortSignal) => Promise<LoadAccountSettingsResult>;
-  insertIfAbsent: (userId: string, settings: Partial<AccountSettings>, signal: AbortSignal) => Promise<InsertAccountSettingsResult>;
+  insertIfAbsent: (userId: string, settings: AccountSettings, signal: AbortSignal) => Promise<InsertAccountSettingsResult>;
   save: (userId: string, settings: AccountSettingsUpload, signal: AbortSignal) => Promise<boolean>;
 }
 
@@ -168,6 +162,11 @@ interface SyncSession {
   ready: boolean;
   loading: boolean;
   saving: boolean;
+  /**
+   * 계정 행의 유무를 확인했는지. 행을 찾아 적용했거나 행이 없어 최초 삽입을 시작하면 true이고,
+   * 불러오는 중(충돌 뒤 재조회 포함)이나 불러오기·최초 삽입이 실패한 뒤에는 false다.
+   */
+  rowKnown: boolean;
   /** 마지막으로 불러온 서버 행. 모르는 키를 저장 때 보존하는 데만 쓴다. */
   serverSettings: Record<string, unknown>;
 }
@@ -205,7 +204,7 @@ export function createAccountSettingsSync({
    * 업로드한 값과 아직 같은 기록만 지운다. 그 사이 이 탭이나 다른 탭이 기록한 더 새 값은 남는다.
    * localStorage에는 탭 사이 잠금이 없어, 이 읽기·쓰기 사이에 다른 탭이 기록한 값은 잃을 수 있다.
    */
-  function clearUploadedUnsynced(userId: string, uploaded: Partial<AccountSettings>) {
+  function clearUploadedUnsynced(userId: string, uploaded: AccountSettings) {
     const entries = readUnsynced();
     const entry = entries[userId];
     if (!entry) return;
@@ -242,6 +241,7 @@ export function createAccountSettingsSync({
   function markReady(current: SyncSession, serverSettings: Record<string, unknown>) {
     current.loading = false;
     current.ready = true;
+    current.rowKnown = true;
     current.serverSettings = serverSettings;
     loadFailureNoticedUserId = null;
   }
@@ -286,9 +286,9 @@ export function createAccountSettingsSync({
     lastAccount = account;
     // 로그아웃 상태의 변경은 어느 계정의 것도 아니어서 기록하지 않는다.
     if (applyingLoadedSettings || !session) return;
-    // 계정 행을 아직 모를 때(불러오는 중·불러오기 실패 뒤) 최초 실행 중에 일어난 갱신(첫 기동 프리셋 선택 등)은
-    // 계정의 변경으로 기록하지 않아 다음 불러오기에서 계정의 바인딩을 덮지 않는다. 준비된 뒤의 선택은 기록한다.
-    if (!before.isFirstLaunch || session.ready) {
+    // 계정 행을 아직 모를 때(불러오는 중·불러오기 실패 뒤) 최초 실행 중에 일어난 갱신(첫 기동 프리셋 선택)은
+    // 기록하지 않아 다음 불러오기에서 계정의 바인딩을 덮지 않는다. 행을 확인한 뒤의 선택은 최초 삽입 중에도 기록한다.
+    if (!before.isFirstLaunch || session.rowKnown) {
       recordUnsynced(session.userId, Object.fromEntries(changedKeys.map(key => [key, account[key]])));
     }
     if (session.ready) schedule(account);
@@ -305,39 +305,39 @@ export function createAccountSettingsSync({
       cancelSession();
       if (!userId) return;
       const current: SyncSession = {
-        userId, controller: new AbortController(), ready: false, loading: true, saving: false, serverSettings: {},
+        userId, controller: new AbortController(), ready: false, loading: true, saving: false,
+        rowKnown: false, serverSettings: {},
       };
       session = current;
       let result = await load(userId, current.controller.signal);
       // 로그아웃·계정 전환·해제 뒤에 완료된 요청은 적용하지 않는다.
       if (session !== current) return;
       if (result.status === 'notFound') {
-        let snapshot: AccountSettings;
-        let initial: Partial<AccountSettings>;
+        let insertedAccount: AccountSettings;
         try {
-          // 기록이 있으면 로컬 위에 얹어 적용한 결과를 최초 업로드한다.
+          // 기록이 있으면 로컬 위에 얹어 적용한 결과를 최초 업로드한다. 최초 실행 중이면 아직 고르지 않은
+          // 기본 keyBindings·preset도 함께 업로드한다(알려진 동작, game-core 스펙).
           const recorded = readUnsynced()[userId];
           if (recorded) applyLoadedSettings(mergeAccountSettings(store.getSettings(), recorded));
-          snapshot = selectAccountSettings(store.getSettings());
-          // 최초 실행 중에는 고르지 않은 기본 keyBindings·preset을 계정에 싣지 않는다. 다른 새 브라우저가
-          // 그 행으로 프리셋 선택을 건너뛰지 않게 하며, 프리셋을 고른 뒤의 저장이 두 키를 채운다.
-          initial = store.getSettings().isFirstLaunch ? omitPresetChoice(snapshot) : snapshot;
+          insertedAccount = selectAccountSettings(store.getSettings());
         } catch {
           current.loading = false;
           noticeLoadFailure(userId);
           return;
         }
-        const insertResult = await insertIfAbsent(userId, initial, current.controller.signal);
+        current.rowKnown = true;
+        const insertResult = await insertIfAbsent(userId, insertedAccount, current.controller.signal);
         if (session !== current) return;
         if (insertResult === 'inserted') {
           markReady(current, {});
-          clearUploadedUnsynced(userId, initial);
-          // 삽입하는 동안 바뀐 설정(프리셋 선택 포함)만 이어서 저장한다. 뺀 두 키만으로는 저장하지 않는다.
+          clearUploadedUnsynced(userId, insertedAccount);
+          // 삽입하는 동안 바뀐 설정(프리셋 선택 포함)은 이어서 저장한다.
           const latest = selectAccountSettings(store.getSettings());
-          if (!isSameJsonValue(latest, snapshot)) schedule(latest);
+          if (!isSameJsonValue(latest, insertedAccount)) schedule(latest);
           return;
         }
-        // 읽을 때 숨겨졌던 기존 행은 덮어쓰지 않고 한 번만 다시 읽는다.
+        // 읽을 때 숨겨졌던 기존 행은 덮어쓰지 않고 한 번만 다시 읽는다. 그동안과 실패 뒤에는 행을 모르는 상태다.
+        current.rowKnown = false;
         result = insertResult === 'conflict' ? await load(userId, current.controller.signal) : { status: 'failed' };
         if (session !== current) return;
       }
