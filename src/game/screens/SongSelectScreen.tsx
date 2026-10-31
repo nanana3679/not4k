@@ -44,7 +44,7 @@ interface SongSelectScreenProps {
 }
 
 export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenProps) {
-  const { selectSong, setScreen } = useGameStore();
+  const { selectSong, setScreen, beginPlayLoad } = useGameStore();
   const settingsOpen = useGameStore((state) => state.settingsOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
   const calibrationActive = useGameStore((state) => state.calibrationActive);
@@ -76,6 +76,13 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     selectSong(songId, difficulty, audioUrl, playbackRange ?? null);
     setScreen('loading');
   }, [playAllowed, selectSong, setScreen]);
+
+  const handleObserver = useCallback((songId: string, difficulty: string, audioUrl: string, playbackRange?: PlaybackRange | null) => {
+    if (!playAllowed) return;
+    stopPreviewRef.current();
+    selectSong(songId, difficulty, audioUrl, playbackRange ?? null);
+    beginPlayLoad('observer');
+  }, [playAllowed, selectSong, beginPlayLoad]);
 
   const {
     songs,
@@ -434,6 +441,26 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
                   }}
                 >
                   Play
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.observerBtn,
+                    ...(!focusedChart || !playAllowed ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
+                  }}
+                  disabled={!focusedChart || !playAllowed}
+                  onClick={() => {
+                    if (focusedSong && focusedChart) {
+                      handleObserver(
+                        focusedSong.id,
+                        focusedChart.difficulty_label,
+                        focusedSong.audio_url,
+                        resolveGameplayRange(focusedSong),
+                      );
+                    }
+                  }}
+                >
+                  Observer
                 </button>
                 {isAdmin && focusedChart && (
                   <button

@@ -9,6 +9,20 @@ interface Preparation {
   visibleAfterMs: number | null;
 }
 
+interface FadedSpanStart {
+  positionMs: number;
+  rate: number;
+  fromMs: number;
+  toMs: number;
+}
+
+interface HudUpdate {
+  /** playFadedSpan 호출 순번. Auto 전환·일시정지·재개는 늘리지 않는다. */
+  span: number;
+  combo: number;
+  accuracy: number | null;
+}
+
 /** Observes real audio, runtime state and renderer calls without advancing the clock or scoring inputs. */
 export async function installProbe(page: Page) {
   await page.evaluate(async () => {
@@ -18,6 +32,9 @@ export async function installProbe(page: Page) {
     const { AudioEngine } = await import(/* @vite-ignore */ moduleUrl('/src/game/audio/AudioEngine.ts')) as typeof import('../src/game/audio/AudioEngine');
     const { ExplicitPlayRuntime } = await import(/* @vite-ignore */ moduleUrl('/src/game/screens/ExplicitPlayRuntime.ts')) as typeof import('../src/game/screens/ExplicitPlayRuntime');
     const probe = { explicitCharts: 0, warmups: 0, rendererDisposals: 0, audioDisposals: 0, starts: [] as number[],
+      frames: 0, audioPlaying: false, audioPositionMs: 0,
+      fadedSpans: [] as FadedSpanStart[], resumes: [] as number[], hud: [] as HudUpdate[],
+      sourceStarts: [] as { offset: number; duration: number | undefined }[],
       preparations: [] as { positionMs: number; rate: number; latencyMs: number; startedAtMs: number; visibleAfterMs: number | null }[],
       playbackStarts: [] as number[][],
       groups: [] as string[], hitCount: 0, flightCount: 0, judgmentAt: 0, webgl: false, spriteCount: 0, keyboardListeners: 0,
@@ -41,6 +58,8 @@ export async function installProbe(page: Page) {
     };
     Object.defineProperty(probe, 'session', { get: () => (currentRuntime?.session ?? lastSession)?.result() ?? null });
     Object.defineProperty(probe, 'judgmentAt', { get: () => currentAudio ? currentAudio.currentTimeMs - currentAudio.getOutputLatencyMs() * currentAudio.playbackRate : -Infinity });
+    Object.defineProperty(probe, 'audioPlaying', { get: () => currentAudio?.playing ?? false });
+    Object.defineProperty(probe, 'audioPositionMs', { get: () => currentAudio?.currentTimeMs ?? 0 });
     Object.assign(window, { explicitPlayProbe: probe });
     const keyboardListeners = new Set<EventListenerOrEventListenerObject>();
     const runtimeKeyboardListeners = new Set<EventListenerOrEventListenerObject>();
@@ -84,6 +103,7 @@ export async function installProbe(page: Page) {
     GameRenderer.prototype.prepareForPlayback = function (...args) { probe.warmups++; return warmup.apply(this, args); };
     const render = GameRenderer.prototype.renderFrame;
     GameRenderer.prototype.renderFrame = function (...args) {
+      probe.frames++;
       lastSession = currentRuntime?.session ?? lastSession;
       const fields = this as unknown as { app: { renderer: { gl?: unknown } }; explicitNoteRenderer: { spriteCount: number } | null;
         explicitSnapshotQuery?: () => import('../src/game/judgment/ExplicitJudgmentState').ExplicitJudgmentSnapshot };
@@ -103,8 +123,34 @@ export async function installProbe(page: Page) {
     GameRenderer.prototype.recordFlightJudgment = function (grade) { probe.flightCount++; return flight.call(this, grade); };
     const dispose = GameRenderer.prototype.dispose;
     GameRenderer.prototype.dispose = function (...args) { probe.rendererDisposals++; return dispose.apply(this, args); };
+    // Observer는 combo → accuracy 순서로 HUD를 갱신한다. 변경과 반복 첫 값을 보존해
+    // Node 쪽 poll 사이에 0 → 성공 → 다음 반복이 모두 지나가도 경계를 검사할 수 있다.
+    let combo = 0;
+    const updateCombo = GameRenderer.prototype.updateCombo;
+    GameRenderer.prototype.updateCombo = function (value) { combo = value; return updateCombo.call(this, value); };
+    const updateAccuracy = GameRenderer.prototype.updateAccuracy;
+    GameRenderer.prototype.updateAccuracy = function (accuracy) {
+      const next = { span: probe.fadedSpans.length, combo, accuracy };
+      const previous = probe.hud.at(-1);
+      if (!previous || previous.span !== next.span || previous.combo !== combo || previous.accuracy !== accuracy) {
+        probe.hud.push(next);
+      }
+      return updateAccuracy.call(this, accuracy);
+    };
+    const sourceStart = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (when, offset, duration) {
+      // 출력 지연 준비용 짧은 버퍼는 제외하고 실제 곡의 source 예약만 관찰한다.
+      if (this.buffer && this.buffer.duration > 1) probe.sourceStarts.push({ offset: offset ?? 0, duration });
+      return sourceStart.call(this, when, offset, duration);
+    };
     const play = AudioEngine.prototype.play;
     AudioEngine.prototype.play = function (at) { currentAudio = this; probe.starts.push(at ?? 0); return play.call(this, at); };
+    const playFadedSpan = AudioEngine.prototype.playFadedSpan;
+    AudioEngine.prototype.playFadedSpan = function (span, positionMs = span.fromMs) {
+      currentAudio = this;
+      probe.fadedSpans.push({ positionMs, rate: this.playbackRate, fromMs: span.fromMs, toMs: span.toMs });
+      return playFadedSpan.call(this, span, positionMs);
+    };
     const prepare = AudioEngine.prototype.playWithPreroll;
     AudioEngine.prototype.playWithPreroll = function (positionMs) {
       currentAudio = this;
@@ -117,6 +163,11 @@ export async function installProbe(page: Page) {
       probe.pauses.push({ positionMs: this.currentTimeMs, rate: this.playbackRate, latencyMs: this.getOutputLatencyMs() });
       return pause.call(this);
     };
+    const resume = AudioEngine.prototype.resume;
+    AudioEngine.prototype.resume = function () {
+      probe.resumes.push(this.currentTimeMs);
+      return resume.call(this);
+    };
     const audioDispose = AudioEngine.prototype.dispose;
     AudioEngine.prototype.dispose = function () { probe.audioDisposals++; return audioDispose.call(this); };
   });
@@ -124,6 +175,9 @@ export async function installProbe(page: Page) {
 export async function probe(page: Page) {
   return page.evaluate(() => (window as unknown as { explicitPlayProbe: {
     explicitCharts: number; warmups: number; rendererDisposals: number; audioDisposals: number;
+    frames: number; audioPlaying: boolean; audioPositionMs: number;
+    fadedSpans: FadedSpanStart[]; resumes: number[]; hud: HudUpdate[];
+    sourceStarts: { offset: number; duration: number | undefined }[];
     starts: number[]; groups: string[]; hitCount: number; flightCount: number; webgl: boolean; spriteCount: number; keyboardListeners: number;
     runtimeKeyboardListeners: number;
     judgmentAt: number; partialFailure: boolean; partialSuccess: boolean; chartVisible: boolean;

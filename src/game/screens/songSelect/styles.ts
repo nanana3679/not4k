@@ -250,6 +250,10 @@ export const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     letterSpacing: '0.03em',
   },
+  observerBtn: {
+    ...primitives.metalButton,
+    width: '100%',
+  },
   bottomEditBtn: {
     ...primitives.neonButton,
     minHeight: 'auto',

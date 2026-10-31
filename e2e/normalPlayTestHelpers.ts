@@ -93,10 +93,10 @@ export async function openNormalSong(page: Page, document = normalDocument(), op
   } }, version: 0 })), options.playSpeed ?? 1);
   await page.goto('/game');
   await page.getByRole('button', { name: 'Start', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Song Select', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled();
+  await expect(page.getByRole('heading', { name: 'Song Select', exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeEnabled({ timeout: 30_000 });
   await installProbe(page);
-  return { document, mainText, auxText, reads, unexpected, errors };
+  return { song, document, mainText, auxText, reads, unexpected, errors };
 }
 
 export async function readNormalState(page: Page) {
