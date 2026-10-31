@@ -10,7 +10,9 @@ const auth = vi.hoisted(() => ({
   signInWithGoogle: vi.fn(), signOut: vi.fn(),
 }));
 const profileState = vi.hoisted(() => ({ profileAuthError: null as string | null }));
-const nicknameState = { userId: 'dev-user', nickname: 'Pilot7', status: 'ready' as 'loading' | 'ready' | 'error' };
+const nicknameState = {
+  userId: 'dev-user', nickname: 'Pilot7', status: 'ready' as 'loading' | 'ready' | 'error', saving: false,
+};
 const nicknameStore = createStore(() => nicknameState);
 vi.mock('../../profile/profileNicknameStore', () => ({
   profileNickname: { get store() { return nicknameStore; }, retry: vi.fn(), saveNickname: vi.fn() },
@@ -18,7 +20,7 @@ vi.mock('../../profile/profileNicknameStore', () => ({
 vi.mock('../../profile/guestNickname', () => ({
   guestNickname: { get: () => 'Guest123456', subscribe: () => () => {} },
 }));
-vi.mock('../../../shared/hooks/useAuth', () => ({ useAuth: () => auth }));
+vi.mock('../../../shared/hooks/useAuth', () => ({ DEV_ADMIN: false, useAuth: () => auth }));
 // 서버 렌더는 Zustand의 초기 snapshot만 읽으므로 현재 오류 상태를 직접 주입한다.
 vi.mock('../../stores/gameStore', () => ({
   useGameStore: (select: (state: typeof profileState) => unknown) => select(profileState),
@@ -28,7 +30,7 @@ afterEach(() => {
   auth.user = null;
   auth.loading = false;
   profileState.profileAuthError = null;
-  Object.assign(nicknameState, { userId: 'dev-user', nickname: 'Pilot7', status: 'ready' });
+  Object.assign(nicknameState, { userId: 'dev-user', nickname: 'Pilot7', status: 'ready', saving: false });
 });
 
 it('인증 세션 확인 중에는 Checking sign-in과 비활성 Login을 표시한다', () => {
@@ -90,6 +92,14 @@ it('dev-user의 닉네임 loading 상태는 Loading nickname과 Logout을 표시
   expect(html).toContain('role="status">Loading nickname…');
   expect(html).toContain('>Logout</button>');
   expect(html).not.toContain('>Save</button>');
+});
+
+it('계정의 FirstPilot 저장 중 새 Profile 폼을 열면 Pilot7 입력과 Save가 모두 비활성화된다', () => {
+  auth.user = { id: 'dev-user' } as NonNullable<typeof auth.user>;
+  nicknameState.saving = true;
+  const html = renderToStaticMarkup(createElement(ProfileSection));
+  expect(html).toMatch(/<input[^>]*disabled=""[^>]*value="Pilot7"/);
+  expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-busy="true"[^>]*>Save<\/button>/);
 });
 
 it('dev-user의 닉네임 error 상태는 로드 실패 안내·Retry·Logout을 표시하고 입력은 숨긴다', () => {

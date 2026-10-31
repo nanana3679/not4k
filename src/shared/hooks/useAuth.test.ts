@@ -38,6 +38,7 @@ describe("useAuth 첫 렌더 상태", () => {
 
     const state = await renderFirstAuthState();
 
+    expect((await import('./useAuth')).DEV_ADMIN).toBe(true);
     expect(state).toMatchObject({
       user: { id: "dev-user", email: "dev@local" },
       isAdmin: true,
@@ -52,6 +53,7 @@ describe("useAuth 첫 렌더 상태", () => {
     const state = await renderFirstAuthState();
 
     expect(state).toMatchObject({ user: null, isAdmin: false, loading: true });
+    expect((await import('./useAuth')).DEV_ADMIN).toBe(false);
   });
 
   it("개발 환경에서 VITE_DEV_ADMIN=false면 useAuth가 user null·isAdmin false·loading true로 시작함", async () => {
@@ -61,6 +63,7 @@ describe("useAuth 첫 렌더 상태", () => {
     const state = await renderFirstAuthState();
 
     expect(state).toMatchObject({ user: null, isAdmin: false, loading: true });
+    expect((await import('./useAuth')).DEV_ADMIN).toBe(false);
   });
 });
 

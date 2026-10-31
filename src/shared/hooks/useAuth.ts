@@ -5,7 +5,7 @@ import { getAuthRedirectTo, type AuthRedirectLocation } from './authRedirect';
 
 // 개발 전용: .env.local에 VITE_DEV_ADMIN=true 설정 시 로그인 없이 admin으로 진입 (로컬 OAuth redirect 우회).
 // 배포 빌드에서는 import.meta.env.DEV가 false라 DEV_ADMIN 분기가 제거된다.
-const DEV_ADMIN = import.meta.env.DEV && import.meta.env.VITE_DEV_ADMIN === 'true';
+export const DEV_ADMIN = import.meta.env.DEV && import.meta.env.VITE_DEV_ADMIN === 'true';
 
 export function getGoogleRedirectTo(location: AuthRedirectLocation): string {
   return getAuthRedirectTo(location);

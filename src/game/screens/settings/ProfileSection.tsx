@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useStore } from 'zustand';
-import { useAuth } from '../../../shared/hooks/useAuth';
+import { DEV_ADMIN, useAuth } from '../../../shared/hooks/useAuth';
 import { useGameStore } from '../../stores/gameStore';
 import { handleProfileAuth } from './profileAuthAction';
 import { guestNickname } from '../../profile/guestNickname';
@@ -11,9 +11,8 @@ function GuestNickname() {
   return <span>{nickname}</span>;
 }
 
-function NicknameForm({ userId, nickname }: { userId: string; nickname: string }) {
+function NicknameForm({ userId, nickname, saving }: { userId: string; nickname: string; saving: boolean }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const request = useRef<AbortController | null>(null);
 
@@ -23,12 +22,10 @@ function NicknameForm({ userId, nickname }: { userId: string; nickname: string }
     if (request.current) return;
     const controller = new AbortController();
     request.current = controller;
-    setSaving(true);
     setMessage(null);
     const result = await profileNickname.saveNickname(userId, draft ?? nickname, controller.signal);
     if (controller.signal.aborted) return;
     request.current = null;
-    setSaving(false);
     if (result.status === 'ignored') return;
     if (result.status === 'saved') setDraft(null);
     setMessage(result.status === 'saved'
@@ -63,6 +60,9 @@ function NicknameForm({ userId, nickname }: { userId: string; nickname: string }
 
 function AccountNickname({ userId }: { userId: string }) {
   const account = useStore(profileNickname.store);
+  useEffect(() => {
+    if (DEV_ADMIN) void profileNickname.setUser({ id: userId });
+  }, [userId]);
   if (account.userId !== userId || account.status === 'loading') {
     return <div className="stg-row"><span role="status">Loading nickname…</span></div>;
   }
@@ -74,7 +74,8 @@ function AccountNickname({ userId }: { userId: string }) {
       </div>
     );
   }
-  return account.nickname !== null ? <NicknameForm userId={userId} nickname={account.nickname} /> : null;
+  return account.nickname !== null
+    ? <NicknameForm userId={userId} nickname={account.nickname} saving={account.saving} /> : null;
 }
 
 export function ProfileSection() {

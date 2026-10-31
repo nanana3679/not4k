@@ -14,7 +14,7 @@ import {
 } from './screens';
 import { keepGearMotionAssets } from './screens/gearMotionKeepAlive';
 import { bindProfileReturnRestoration, createProfileReturnRestorer } from './screens/settings/profileReturn';
-import { useAuth } from '../shared/hooks/useAuth';
+import { DEV_ADMIN, useAuth } from '../shared/hooks/useAuth';
 import { guestNickname } from './profile/guestNickname';
 import { profileNickname } from './profile/profileNicknameStore';
 
@@ -31,9 +31,10 @@ export default function GameApp() {
 
   useEffect(() => {
     guestNickname.get();
-    // Profile을 열지 않아도 초기 세션·로그인 직후 연동한다. DEV_ADMIN도 같은 경로다.
+    // 실제 세션은 Profile을 열지 않아도 초기 세션·로그인 직후 연동한다.
+    // 세션이 없는 DEV_ADMIN은 Profile을 열 때 연동한다.
     // 중복 auth 알림·StrictMode effect 재실행은 페이지 수명의 모듈에서 합친다.
-    if (user || !authLoading) void profileNickname.setUser(user);
+    if (!DEV_ADMIN && (user || !authLoading)) void profileNickname.setUser(user);
   }, [user, authLoading]);
 
   useEffect(() => {

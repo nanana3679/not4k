@@ -8,10 +8,15 @@ export const profileNickname = createProfileNickname({
     const { data, error } = await supabase.rpc('link_guest_nickname', { guest_nickname: nickname });
     if (error) throw error;
     const row = Array.isArray(data) && data.length === 1 ? data[0] : null;
-    if (!row || typeof row.nickname !== 'string' || typeof row.first_link !== 'boolean') {
+    if (!row || typeof row.nickname !== 'string' || typeof row.first_link !== 'boolean'
+      || (row.first_link_guest_nickname !== null && typeof row.first_link_guest_nickname !== 'string')) {
       throw new Error('Invalid nickname link response');
     }
-    return { nickname: row.nickname, first_link: row.first_link };
+    return {
+      nickname: row.nickname,
+      first_link: row.first_link,
+      first_link_guest_nickname: row.first_link_guest_nickname,
+    };
   },
   async save(userId, draft) {
     const { data, error } = await supabase.from('profiles')
