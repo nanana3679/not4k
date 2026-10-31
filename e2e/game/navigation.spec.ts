@@ -140,7 +140,7 @@ test.describe('Game Navigation', () => {
     await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
   });
 
-  test('곡 목록 요청 중 첫 기동 튜토리얼 모달에서 Advanced 탭을 고른 뒤 목록이 도착해도 모달이 다시 마운트되지 않아 Advanced가 선택된 채이고, Escape는 모달만 닫는다', async ({ page }) => {
+  test('곡 목록 요청 중 첫 기동 튜토리얼 모달에서 Advanced 탭을 고른 뒤 목록이 도착해도 같은 모달 DOM이 남아 Advanced가 선택된 채이고, Escape는 모달만 닫는다', async ({ page }) => {
     const releaseSongs = await holdSongs(page);
     await choosePresetOnFirstLaunch(page, 'TKL (Tenkeyless)');
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
@@ -148,9 +148,12 @@ test.describe('Game Navigation', () => {
     await expect(dialog).toBeVisible();
     await advancedTab.click();
     await expect(advancedTab).toHaveAttribute('aria-selected', 'true');
+    // 저장소에서 되살릴 수 없는 표식을 모달 DOM에 붙여, 다시 마운트되면 사라지게 한다.
+    await dialog.evaluate(element => { element.setAttribute('data-e2e-mount-marker', 'before-songs'); });
 
     releaseSongs();
     await expect(page.getByRole('button', { name: 'Refresh' })).toBeEnabled();
+    await expect(dialog).toHaveAttribute('data-e2e-mount-marker', 'before-songs');
     await expect(advancedTab).toHaveAttribute('aria-selected', 'true');
 
     await page.keyboard.press('Escape');
