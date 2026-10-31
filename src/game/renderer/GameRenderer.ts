@@ -8,9 +8,10 @@
 import { Application, Container, Graphics, Text, TextStyle, Sprite, AnimatedSprite, FillGradient, type Texture, type TextureSource } from "pixi.js";
 import type { NoteEntity, TrillZone, RestZone, ChartEvent, ChartTiming, ChartDocument } from "../../shared";
 import type { ExplicitCompiledChart } from "../judgment/explicitCompiledChart";
-import type { ExplicitJudgmentSnapshot, ExplicitJudgmentDisplayState } from "../judgment/ExplicitJudgmentState";
+import type { ExplicitJudgmentDisplayState } from "../judgment/ExplicitJudgmentState";
 import type { ExplicitSkinLoader } from "../skin/ExplicitSkinLoader";
 import { ExplicitNoteRenderer } from "./ExplicitNoteRenderer";
+import type { ExplicitRenderSnapshot } from "./ExplicitNotePresenter";
 import { JudgmentGrade } from "../../shared";
 import type { SkinManager } from "../skin";
 import {
@@ -271,7 +272,7 @@ export class GameRenderer {
   private judgmentUI!: JudgmentUI;
   private noteRenderer!: GameNoteRenderer;
   private explicitNoteRenderer: ExplicitNoteRenderer | null = null;
-  private explicitSnapshotQuery: (() => ExplicitJudgmentSnapshot) | null = null;
+  private explicitSnapshotQuery: (() => ExplicitRenderSnapshot) | null = null;
   private explicitTextures: readonly Texture[] = [];
 
   constructor(options: GameRendererOptions) {
@@ -1008,7 +1009,7 @@ export class GameRenderer {
   setExplicitChart(
     compiled: ExplicitCompiledChart,
     textures: ExplicitSkinLoader,
-    snapshotQuery: () => ExplicitJudgmentSnapshot,
+    snapshotQuery: () => ExplicitRenderSnapshot,
     document: Pick<ChartDocument, "trillZones" | "restZones" | "events">,
     durationMs: number,
   ): void {

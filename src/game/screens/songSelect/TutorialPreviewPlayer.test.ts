@@ -482,7 +482,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
 
   it('명시 경계는 도식 진입 전 대기 상태와 해결된 loopTimeMs로 한 번 정산하고 구형은 loopTimeMs 감소만 검사', () => {
     const order = [
-      'if (clock.frozen || waitingForResume()) {',
+      'if (clock.frozen || waitingForResume(now)) {',
       'const diagramHeldBeforeFrame = activeDiagramPause !== null;',
       'loopTimeMs = resolveDiagramPauseTime(loopTimeMs);',
       'previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);',
@@ -493,11 +493,11 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialPreviewPlayerSource).toContain([
       'explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {',
       '              loopTimeMs,',
-      '              blocked: pausedRef.current || diagramHeldBeforeFrame || countingIn() || waitingForResume(),',
+      '              blocked: pausedRef.current || diagramHeldBeforeFrame || countingIn(previousNow) || waitingForResume(previousNow),',
     ].join('\n'));
     // 프레임에만 이전 도식 상태를 전달한다. 프레임 사이 키 이벤트는 현재 도식 상태를 읽어야 한다.
     expect(tutorialPreviewPlayerSource).toContain('blocked: pausedRef.current || activeDiagramPause !== null');
-    expect(tutorialInputSource).toContain('beforeInput: () => syncJudging()');
+    expect(tutorialInputSource).toContain('beforeInput: timestamp => syncJudging(getClock(timestamp).blocked)');
     expect(tutorialInputSource).toContain('const syncJudging = (blocked = getClock().blocked) => {');
     expect(tutorialInputSource).toContain('const blocked = frame?.blocked ?? getClock().blocked;');
     expect(tutorialInputSource).toContain('elapsedMs = Math.floor(Math.max(0, elapsedMs) / loopMs) * loopMs + frame.loopTimeMs;');
@@ -521,7 +521,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(controlEnd).toBeGreaterThan(controlStart);
     const control = tutorialPreviewPlayerSource.slice(controlStart, controlEnd);
     const order = [
-      'if (!clock.frozen && !countingIn() && !waitingForResume()) {',
+      'if (!clock.frozen && !countingIn(now) && !waitingForResume(now)) {',
       'const diagramHeldBeforeFrame = activeDiagramPause !== null;',
       'const loopTimeMs = resolveDiagramPauseTime(Math.max(0, now - loopStartNow) % preview.loopMs);',
       'advanceExplicit(loopTimeMs, diagramHeldBeforeFrame);',

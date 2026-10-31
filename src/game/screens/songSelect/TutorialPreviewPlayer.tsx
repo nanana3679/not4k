@@ -603,8 +603,9 @@ export function TutorialPreviewPlayer({
      * 준비 중에는 음수 루프 시각을 사용한다. 시각 오프셋은 적용하되 입력은 채점하지 않는다.
      */
     let firstStartPending = !!clickTrack;
-    const countingIn = () => !!clickTrack && (firstStartPending || performance.now() < loopStartNow);
-    const waitingForResume = () => performance.now() < resumeAtNow;
+    let renderCountIn = !!clickTrack;
+    const countingIn = (now: number) => !!clickTrack && (firstStartPending || now < loopStartNow);
+    const waitingForResume = (now: number) => now < resumeAtNow;
     const holdForAudioResume = (now: number) => {
       const leadMs = clickTrack?.resumeDelayMs(now) ?? 0;
       loopStartNow += leadMs;
@@ -800,7 +801,7 @@ export function TutorialPreviewPlayer({
             onScoreChanged: (score, combo) => onScoreChangedRef.current?.(score, combo),
           });
           explicitInput = createExplicitTutorialInput(explicitPlayback, directBindings, preview.loopMs,
-            () => ({ loopStartNow, blocked: pausedRef.current || activeDiagramPause !== null || countingIn() || waitingForResume(), inputOffsetMs: inputOffsetMsRef.current }),
+            (now = performance.now()) => ({ loopStartNow, blocked: pausedRef.current || activeDiagramPause !== null || countingIn(now) || waitingForResume(now), inputOffsetMs: inputOffsetMsRef.current }),
             pattern => {
               setFinishedPattern(pattern);
               if (onPatternFinishedRef.current?.(pattern) === false) {
@@ -818,7 +819,7 @@ export function TutorialPreviewPlayer({
           const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) =>
             explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {
               loopTimeMs,
-              blocked: pausedRef.current || diagramHeldBeforeFrame || countingIn() || waitingForResume(),
+              blocked: pausedRef.current || diagramHeldBeforeFrame || countingIn(previousNow) || waitingForResume(previousNow),
             });
           syncExplicitControlRef.current = () => {
             const now = performance.now();
@@ -827,7 +828,7 @@ export function TutorialPreviewPlayer({
             ({ loopStartNow, pausedAtNow } = clock.next);
             if (resuming && !firstStartPending) holdForAudioResume(now);
             syncMetronome(now);
-            if (!clock.frozen && !countingIn() && !waitingForResume()) {
+            if (!clock.frozen && !countingIn(now) && !waitingForResume(now)) {
               previousNow = now;
               const diagramHeldBeforeFrame = activeDiagramPause !== null;
               const loopTimeMs = resolveDiagramPauseTime(Math.max(0, now - loopStartNow) % preview.loopMs);
@@ -855,6 +856,7 @@ export function TutorialPreviewPlayer({
             () => explicitPlayback.renderSnapshot(
               activeRenderCycle,
               (explicitInput?.sessionIteration ?? screenIteration) - renderIteration,
+              clickTrack ? renderCountIn : undefined,
             ),
             preview.renderChart,
             preview.renderDurationMs,
@@ -974,9 +976,9 @@ export function TutorialPreviewPlayer({
           ({ loopStartNow, pausedAtNow, previousNow } = clock.next);
           if (resuming && !firstStartPending) holdForAudioResume(now);
           syncMetronome(now);
-          explicitInput?.syncJudging();
-          if (clock.frozen || waitingForResume()) {
-            // 일시정지 중에는 판정·렌더를 진행하지 않고 마지막 장면을 유지한다.
+          if (clock.frozen || waitingForResume(now)) {
+            // 입력은 이벤트 시각으로 수집한다. 늦게 실행된 대기 프레임이 재개 뒤 받은 입력을 지우면 안 된다.
+            // 판정·렌더를 진행하지 않고 마지막 장면을 유지한다.
             animationFrameId = requestAnimationFrame(renderLoop);
             return;
           }
@@ -989,6 +991,7 @@ export function TutorialPreviewPlayer({
             return;
           }
           const inCountIn = !!clickTrack && now < loopStartNow;
+          renderCountIn = inCountIn;
           if (shellRef.current) shellRef.current.dataset.tutorialCountIn = String(inCountIn);
           // rAF 타임스탬프는 프레임 시작 시각이라 첫 프레임 직후 잰 loopStartNow보다 앞설 수 있다. 음수면 루프 경계로 오인하므로 0으로 막는다.
           const screenTime = getExplicitTutorialInputTime(now, loopStartNow, preview.loopMs);

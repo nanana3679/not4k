@@ -47,7 +47,7 @@ export function createExplicitTutorialInput(
   playback: ExplicitTutorialPreviewPlayback,
   bindings: readonly KeyBinding[],
   loopMs: number,
-  getClock: () => { loopStartNow: number; blocked: boolean; inputOffsetMs?: number },
+  getClock: (timestamp?: number) => { loopStartNow: number; blocked: boolean; inputOffsetMs?: number },
   // 정산 뒤 다음 UI 패턴을 알린다. 경계의 물리 세션은 이미 열렸을 수 있으며 false면 이후 진행을 멈춘다.
   onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => TutorialInputMode | false | void,
   ownsKeyboardInput: (event: KeyboardEvent) => boolean = () => true,
@@ -81,7 +81,7 @@ export function createExplicitTutorialInput(
       unownedReleases.push({ at: inputTime(timestamp), key });
       unownedReleases.sort((a, b) => a.at - b.at);
     },
-    beforeInput: () => syncJudging(),
+    beforeInput: timestamp => syncJudging(getClock(timestamp).blocked),
     onLatePreparationHoldChange: () => syncPhysicalHeld(),
   });
   source.setJudging(false);
@@ -171,7 +171,7 @@ export function createExplicitTutorialInput(
     flush((iteration + 1) * loopMs);
     // 긴 프레임 공백에도 이미 재생하던 패턴만 정산한다. 생략한 반복의 입력은 hold만 옮긴다.
     flush(nextIteration * loopMs, false);
-    const finished = playback.finishPattern(mode === 'directInput' ? [...heldByKey.values()] : undefined);
+    const finished = playback.finishPattern(mode === 'directInput' ? [...heldByKey.values()] : undefined, nextIteration);
     iteration = nextIteration;
     reportFinished(finished);
     if (boundaryStopped) return finished;
@@ -196,7 +196,7 @@ export function createExplicitTutorialInput(
   // Escape는 바인딩에 있더라도 닫기에 예약한다. 도식·paused 중에도 hold 추적은 유지한다.
   const reserveLaneKey = (event: Event) => {
     const { code } = event as KeyboardEvent;
-    if (mode !== 'directInput' || getClock().blocked || !ownsEvent(event as KeyboardEvent)
+    if (mode !== 'directInput' || getClock((event as KeyboardEvent).timeStamp).blocked || !ownsEvent(event as KeyboardEvent)
       || code === 'Escape' || !bindings.some(binding => binding.key === code)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -230,6 +230,7 @@ export function createExplicitTutorialInput(
         closingPattern.startMs -= iteration * loopMs;
         closingPattern.deadlineMs -= iteration * loopMs;
       }
+      playback.rebaseIteration();
       iteration = 0;
       lastElapsedMs = Math.max(0, resumeTimestamp - getClock().loopStartNow);
       judging = false;
@@ -276,7 +277,7 @@ export function createExplicitTutorialInput(
               startMs,
               deadlineMs: startMs + playback.latestJudgmentDeadlineMs,
               heldByKey: new Map(heldByKey),
-              session: playback.startNextPattern([...heldByKey.values()]),
+              session: playback.startNextPattern([...heldByKey.values()], loop.iteration),
             };
             iteration = loop.iteration;
             finished = advanceClosingPattern(elapsedMs) ?? finished;

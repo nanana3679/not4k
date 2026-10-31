@@ -1,6 +1,30 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import type { DbSong } from '../../src/game/screens/songSelect/types';
 
+// OK 뒤의 짧은 숨김 구간 대신, 클릭한 도식 요소의 exit 이력을 보존한다.
+async function acknowledgeDiagram(diagram: Locator): Promise<void> {
+  const probe = await diagram.evaluateHandle(modal => {
+    const state = { exited: false };
+    const observer = new MutationObserver(mutations => {
+      if (mutations.some(mutation => mutation.oldValue === 'exit')
+        || modal.getAttribute('data-tutorial-diagram-phase') === 'exit') {
+        state.exited = true;
+        observer.disconnect();
+      }
+    });
+    observer.observe(modal, { attributes: true, attributeOldValue: true,
+      attributeFilter: ['data-tutorial-diagram-phase'] });
+    return { state, disconnect: () => observer.disconnect() };
+  });
+  try {
+    await diagram.locator('[data-tutorial-diagram-ok="true"]').click();
+    await expect.poll(() => probe.evaluate(({ state }) => state.exited)).toBe(true);
+  } finally {
+    await probe.evaluate(({ disconnect }) => disconnect());
+    await probe.dispose();
+  }
+}
+
 const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
   state: {
     settings: {
@@ -210,8 +234,7 @@ test.describe('Song Select Screen', () => {
     await expect(diagramModal.locator('[data-tutorial-diagram-ok="true"]')).toBeVisible();
     await page.waitForTimeout(1200);
     await expect(diagramModal).toBeVisible();
-    await diagramModal.locator('[data-tutorial-diagram-ok="true"]').click();
-    await expect(diagramModal).toBeHidden();
+    await acknowledgeDiagram(diagramModal);
 
     // 캐러셀 트랙(`data-tutorial-carousel-track`)의 `data-tutorial-transition-phase="animating"`은
     // 260ms(TUTORIAL_PAGE_TRANSITION_MS)만 이어져 expect 폴링 간격 사이에 시작과 끝이 모두 지나갈 수 있다.
@@ -234,7 +257,8 @@ test.describe('Song Select Screen', () => {
         attributeFilter: ['data-tutorial-transition-phase'],
       });
     });
-    await dialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]').click();
+    // 다시 등장한 도식도 키보드 탐색을 막지 않는다.
+    await page.keyboard.press('ArrowRight');
     const activeOverlapSlot = dialog.locator(
       '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-long-note-overlap"]'
     );
@@ -248,10 +272,9 @@ test.describe('Song Select Screen', () => {
     await expect(overlapDiagramModal.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
     const firstOverlapInstanceId = await activeOverlapSlot.getAttribute('data-tutorial-preview-instance');
     // 도식 확인 모달은 화면 전체를 덮어 재생을 멈추는 확인 모달이다(docs/spec/tutorial.md).
-    // OK로 닫아야 그 아래 팝업의 Next 버튼을 누를 수 있다.
-    await overlapDiagramModal.locator('[data-tutorial-diagram-ok="true"]').click();
-    await expect(overlapDiagramModal).toBeHidden();
-    await page.getByRole('button', { name: 'Next tutorial' }).click();
+    // exit 이력을 검증한 뒤 도식 없는 레슨으로 이동해 안정된 숨김 상태를 확인한다.
+    await acknowledgeDiagram(overlapDiagramModal);
+    await page.keyboard.press('ArrowRight');
     await expect(dialog.locator(
       '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-trill-long"]'
     )).toBeVisible();
@@ -267,10 +290,9 @@ test.describe('Song Select Screen', () => {
     );
     const restoredDiagramModal = page.locator('[data-tutorial-diagram-modal="true"]').first();
     await expect(restoredDiagramModal.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
-    await restoredDiagramModal.locator('[data-tutorial-diagram-ok="true"]').click();
-    await expect(restoredDiagramModal).toBeHidden();
+    await acknowledgeDiagram(restoredDiagramModal);
 
-    await page.getByRole('button', { name: 'Close tutorial help' }).click();
+    await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
 
     // 시연만 본 항목에는 체크가 없다. 저장 복원·초기화는 통과 ID를 따로 준비해 확인한다.
@@ -298,7 +320,7 @@ test.describe('Song Select Screen', () => {
         '[data-tutorial-index-item="connected-long-note-overlap"] [data-tutorial-index-check="true"]'
       )
     ).toHaveCount(0);
-    await page.getByRole('button', { name: 'Close tutorial help' }).click();
+    await page.keyboard.press('Escape');
     await expect(reopenedDialog).toBeHidden();
   });
 });

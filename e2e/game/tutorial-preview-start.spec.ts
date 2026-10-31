@@ -2,8 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 
 // 튜토리얼 팝업에서 다음 레슨으로 넘기면, 들어오는 축소 재생기는 슬라이드 동안 첫 프레임에 멈춰 있다가
 // 자리 잡은(active) 뒤에 처음부터 재생한다. 예전에는 보이지 않는 동안 미리 재생을 시작해, 자리 잡은 순간
-// 이미 차트가 약 0.5초 진행돼 있었다. 재생기에는 테스트 훅이 없으므로 실제 GameRenderer.renderFrame을
-// 감싸 캔버스별 첫 렌더 시각과 마지막 렌더 시각을 기록한다(실제 WebGL이 필요해 vitest로는 확인 불가).
+// 이미 차트가 약 0.5초 진행돼 있었다. 슬라이드 중 정지는 실제 GameRenderer.renderFrame을
+// 감싸 캔버스별 첫·마지막 렌더 시각으로 확인하고, 이후 진행은 누적 data-tutorial-elapsed-ms로 확인한다.
 // 두 슬롯은 렌더러와 캔버스를 유지한 채 차트만 바꾸므로, 재생기가 새 차트를 걸며 부르는 resetTransientState에서
 // 캔버스 기록을 지워 차트마다 첫 렌더 시각을 다시 잰다.
 
@@ -68,8 +68,8 @@ async function recordRenderedChartTimes(page: Page): Promise<void> {
 }
 
 async function goToNextAndSample(page: Page, previousId: string | null): Promise<NavigationSamples> {
-  await page.getByRole('button', { name: 'Next tutorial' }).click();
-  return page.evaluate(async (prevId) => {
+  // 클릭 전에 설치해 260ms 전환이 끝나도 최초 관측값을 잃지 않는다.
+  const probe = await page.evaluateHandle((prevId) => {
     type TrackedCanvas = HTMLCanvasElement & { __firstRenderMs?: number; __lastRenderMs?: number };
     const sample = (slot: Element) => {
       const canvas = slot.querySelector('canvas') as TrackedCanvas | null;
@@ -81,21 +81,29 @@ async function goToNextAndSample(page: Page, previousId: string | null): Promise
         loopElapsedMs: elapsed === undefined ? null : Number(elapsed) };
     };
     const samples: { slideStart?: ReturnType<typeof sample>; settled?: ReturnType<typeof sample> } = {};
-    const startedAt = performance.now();
-    while (performance.now() - startedAt < 10000) {
+    const capture = () => {
       const entering = document.querySelector('[data-tutorial-preview-slot="entering"]');
       if (!samples.slideStart && entering?.getAttribute('data-tutorial-transition-phase') === 'animating') {
         samples.slideStart = sample(entering);
       }
       const active = document.querySelector('[data-tutorial-preview-slot="active"]');
-      if (active && active.getAttribute('data-tutorial-preview-id') !== prevId) {
+      if (!samples.settled && active && active.getAttribute('data-tutorial-preview-id') !== prevId) {
         samples.settled = sample(active);
-        break;
       }
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
-    return samples;
+    };
+    const observer = new MutationObserver(capture);
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true,
+      attributeFilter: ['data-tutorial-preview-slot', 'data-tutorial-transition-phase'] });
+    return { samples, disconnect: () => observer.disconnect() };
   }, previousId);
+  try {
+    await page.getByRole('button', { name: 'Next tutorial' }).click();
+    await expect.poll(() => probe.evaluate(({ samples }) => !!samples.settled)).toBe(true);
+    return await probe.evaluate(({ samples }) => samples);
+  } finally {
+    await probe.evaluate(({ disconnect }) => disconnect());
+    await probe.dispose();
+  }
 }
 
 test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레임에 멈췄다가 자리 잡은 순간 4박 동안 판정 시각 0ms를 유지한 뒤 차트를 진행', async ({ page }) => {
@@ -126,14 +134,8 @@ test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레
     const player = activeSlot.locator('[data-tutorial-engine]');
     await expect(player).toHaveAttribute('data-tutorial-loop-origin-now', /\d/);
     await expect(player).toHaveAttribute('data-tutorial-count-in', 'false', { timeout: 5000 });
-    await page.waitForTimeout(300);
-    const laterElapsedMs = await activeSlot.locator('canvas').evaluate((canvas) => {
-      const tracked = canvas as HTMLCanvasElement & { __firstRenderMs?: number; __lastRenderMs?: number };
-      return tracked.__lastRenderMs !== undefined && tracked.__firstRenderMs !== undefined
-        ? tracked.__lastRenderMs - tracked.__firstRenderMs
-        : null;
-    });
-    expect(laterElapsedMs ?? 0, `${samples.settled?.id}: 4박 준비 뒤 차트 진행`).toBeGreaterThan(100);
+    await expect.poll(async () => Number(await player.getAttribute('data-tutorial-elapsed-ms')),
+      { message: `${samples.settled?.id}: 4박 준비 뒤 누적 재생 시간`, timeout: 10000 }).toBeGreaterThan(100);
   }
 
   expect(pageErrors).toEqual([]);

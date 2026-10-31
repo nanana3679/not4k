@@ -14,6 +14,9 @@ import { useTutorialPassRecords } from './useTutorialPassRecords';
 import { createExplicitTutorialPreviewSessionController } from './explicitTutorialPreviewSession';
 import { createTutorialPassSync } from './tutorialPassSync';
 import { useAuth } from '../../../shared/hooks/useAuth';
+import { ExplicitNotePresenter, type ExplicitPresentedNote } from '../../renderer/ExplicitNotePresenter';
+import { buildExplicitSkinView } from '../../skin/explicitSkin';
+import type { ExplicitCompiledChart } from '../../judgment/explicitCompiledChart';
 import type { ExplicitJudgmentSnapshot } from '../../judgment/ExplicitJudgmentState';
 
 vi.mock('react-dom', () => ({ createPortal: (children: ReactNode) => children }));
@@ -784,7 +787,7 @@ it('방법이 2개인 항목에서 첫 방법 3/3은 통과를 알리지 않고 
   expect(onItemPassed).toHaveBeenCalledTimes(1);
 });
 
-const rendered = vi.hoisted(() => ({ frames: [] as { timeMs: number; snapshot?: ExplicitJudgmentSnapshot }[] }));
+const rendered = vi.hoisted(() => ({ frames: [] as { timeMs: number; snapshot?: ExplicitJudgmentSnapshot; notes?: readonly ExplicitPresentedNote[] }[] }));
 
 // 이 테스트 파일의 player 경로에서는 GPU·에셋 I/O만 대체하고 입력·세션·반복은 실제 구현을 쓴다.
 vi.mock('../../renderer', () => ({ GameRenderer: class {
@@ -794,12 +797,21 @@ vi.mock('../../renderer', () => ({ GameRenderer: class {
   updateAccuracy() {}
   setPerfectWindow() {}
   snapshot?: () => ExplicitJudgmentSnapshot;
-  setExplicitChart(_chart: unknown, _skin: unknown, snapshot: () => ExplicitJudgmentSnapshot) { this.snapshot = snapshot; }
+  presenter?: ExplicitNotePresenter;
+  setExplicitChart(chart: ExplicitCompiledChart, _skin: unknown, snapshot: () => ExplicitJudgmentSnapshot) {
+    this.snapshot = snapshot;
+    this.presenter = new ExplicitNotePresenter(chart, buildExplicitSkinView('/'));
+  }
   updateTutorialKeyboardKeys() {}
   setLaneKeyLabels() {}
   setKeyBeam() {}
   setKeyState() {}
-  renderFrame(timeMs: number) { rendered.frames.push({ timeMs, snapshot: this.snapshot?.() }); }
+  renderFrame(timeMs: number) {
+    const snapshot = this.snapshot?.();
+    const notes = snapshot && this.presenter?.present(snapshot,
+      { judgmentLineY: 280, scrollSpeed: 520, laneAreaX: 0, height: 360 }, timeMs);
+    rendered.frames.push({ timeMs, snapshot, notes });
+  }
   showJudgmentGroup() {}
   recordFlightJudgment() {}
   showBombEffect() {}
@@ -1081,11 +1093,35 @@ function manualFrames() {
   let callback: FrameRequestCallback;
   vi.stubGlobal('requestAnimationFrame', (next: FrameRequestCallback) => { callback = next; return 1; });
   vi.stubGlobal('cancelAnimationFrame', () => {});
-  return (ms: number) => {
+  return (ms: number, callbackDelayMs = 0) => {
     vi.advanceTimersByTime(ms);
-    callback(performance.now());
+    callback(performance.now() - callbackDelayMs);
   };
 }
+
+it('OK 뒤 재개 예정 10105ms보다 이른 rAF 10100ms가 실제 10110ms에 실행돼도 도식을 다시 열지 않는다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  vi.stubGlobal('document', { body: {} });
+  const props = { preview: ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!, metronome };
+  const { dataset } = renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  frame(200);
+  frame(2105);
+  frame(10000 - performance.now());
+  renderMetronomePlayer(props);
+  const { nodes } = renderMetronomePlayer(props);
+  nodes.find(node => (node.props as Record<string, unknown>)['data-tutorial-diagram-ok'])!.props.onClick!();
+  const frameCount = rendered.frames.length;
+
+  frame(110, 10);
+  expect(rendered.frames).toHaveLength(frameCount);
+  frame(10);
+  expect(Number(dataset.tutorialLoopTimeMs)).toBeCloseTo(1015);
+  metronome.dispose();
+});
 
 it('출력 지연 80ms에서 480ms에 멈췄다가 재개하면 105ms 동안 시계도 기다린 뒤 500ms 클릭을 들려준다', async () => {
   const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
@@ -1111,9 +1147,9 @@ it('출력 지연 80ms에서 480ms에 멈췄다가 재개하면 105ms 동안 시
   const resumeNow = performance.now();
   const renderedBeforeResume = rendered.frames.length;
   const scoresBeforeResume = onScoreChanged.mock.calls.length;
-  const key = (type: string) => {
+  const key = (type: string, timestamp = performance.now()) => {
     const event = new Event(type, { cancelable: true });
-    Object.defineProperties(event, { code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false } });
+    Object.defineProperties(event, { code: { value: 'KeyE' }, timeStamp: { value: timestamp }, repeat: { value: false } });
     window.dispatchEvent(event);
   };
   frame(80);
@@ -1125,7 +1161,14 @@ it('출력 지연 80ms에서 480ms에 멈췄다가 재개하면 105ms 동안 시
   expect(Number(dataset.tutorialElapsedMs)).toBeCloseTo(500);
   expect(starts.slice(count)).toHaveLength(1);
   expect(starts[count] * 1000 + 80).toBeCloseTo(resumeNow + 125);
+  // 콜백 시각은 재개 뒤라도 이벤트 자체가 105ms 대기 안에서 발생했으면 채점하지 않는다.
+  key('keydown', resumeNow + 100); key('keyup', resumeNow + 101);
+  frame(1);
+  expect(onScoreChanged).toHaveBeenCalledTimes(scoresBeforeResume);
   key('keydown');
+  // 재개 뒤 수집한 입력보다 늦게 실행된 이전 rAF는 수집한 입력을 지우지 않는다.
+  frame(0, 26);
+  expect(onScoreChanged).toHaveBeenCalledTimes(scoresBeforeResume);
   frame(1);
   expect(onScoreChanged).toHaveBeenCalledWith(expect.objectContaining({
     judgmentCounts: expect.objectContaining({ perfect: 1 }),
@@ -1134,9 +1177,9 @@ it('출력 지연 80ms에서 480ms에 멈췄다가 재개하면 105ms 동안 시
 });
 
 it.each([
-  { offset: 100, countInRender: 1550, elapsed: 1450, renderTime: 1550, successIndex: 0, finished: 0 },
-  { offset: -100, countInRender: 2850, elapsed: 1550, renderTime: 2950, successIndex: 2, finished: 1 },
-])('visualOffsetMs=$offset이면 준비 중 V와 반복 경계 표시를 옮기되 $elapsed ms의 세션 판정은 J를 따른다', async ({ offset, countInRender, elapsed, renderTime, successIndex, finished }) => {
+  { offset: 100, countInRender: 1550, elapsed: 1450, renderTime: 1550, successIndices: [0], finished: 0 },
+  { offset: -100, countInRender: 2850, elapsed: 1550, renderTime: 2950, successIndices: [1, 2], finished: 1 },
+])('visualOffsetMs=$offset이면 준비 중 V와 반복 경계 표시를 옮기되 $elapsed ms의 세션 판정은 J를 따른다', async ({ offset, countInRender, elapsed, renderTime, successIndices, finished }) => {
   const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
   mockMetronomeAudio();
   const metronome = new TutorialMetronome();
@@ -1160,7 +1203,7 @@ it.each([
   frame(elapsed + 50);
   expect(rendered.frames.at(-1)?.timeMs).toBeCloseTo(renderTime);
   expect(rendered.frames.at(-1)?.snapshot?.items.filter(item => item.state === 'success')
-    .map(item => item.sourceNoteIndex)).toEqual([successIndex]);
+    .map(item => item.sourceNoteIndex)).toEqual(successIndices);
   expect(onPatternFinished).toHaveBeenCalledTimes(finished);
   expect(Number(dataset.tutorialElapsedMs)).toBeCloseTo(elapsed);
   metronome.dispose();
@@ -1175,4 +1218,56 @@ it.each([-100, 100])('무음 Lab에서 visualOffsetMs=%i여도 250ms를 1750ms�
   expect(rendered.frames.at(-1)?.timeMs).toBeCloseTo(1750);
   expect(rendered.frames.at(-1)?.snapshot?.items.filter(item => item.state === 'success')
     .map(item => item.sourceNoteIndex)).toEqual([3]);
+});
+
+it.each([
+  { offset: -400, inputMode: 'demonstration' }, { offset: 400, inputMode: 'demonstration' },
+  { offset: -400, inputMode: 'directInput' }, { offset: 400, inputMode: 'directInput' },
+] as const)('single-note $inputMode에서 visualOffsetMs=$offset이면 J=1510ms 뒤에도 반복 0의 1250ms 성공 노트를 다시 표시하지 않는다', async ({ offset, inputMode }) => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: offset } });
+  renderMetronomePlayer({ preview: ALL_TUTORIAL_PREVIEWS[1], metronome, inputMode });
+  await vi.dynamicImportSettled();
+  frame(200);
+  frame(2105);
+  frame(1250);
+  if (inputMode === 'directInput') {
+    const down = new Event('keydown', { cancelable: true });
+    Object.defineProperties(down, { code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false } });
+    window.dispatchEvent(down);
+  }
+  frame(260);
+  frame(1); // 직접 입력의 경계 정산을 위한 다음 프레임
+
+  const snapshot = rendered.frames.at(-1)!.snapshot!;
+  // V=1110ms의 가운데 복사본 또는 V=1910ms의 이전 복사본이 반복 0이다.
+  const noteIndex = offset < 0 ? 5 : 2;
+  expect(snapshot.items.find(item => item.sourceNoteIndex === noteIndex)?.state).toBe('success');
+  expect(snapshot.items.find(item => item.sourceNoteIndex === noteIndex + 3)?.state).toBe('pending');
+  metronome.dispose();
+});
+
+it.each([-400, 0, 400])('single-note 준비 J=-250ms·visualOffsetMs=%i에서 첫 실제 반복만 표시하고 가짜 이전 반복은 숨긴다', async offset => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: offset } });
+  renderMetronomePlayer({ preview: ALL_TUTORIAL_PREVIEWS[1], metronome });
+  await vi.dynamicImportSettled();
+  expect(rendered.frames.at(-1)!.notes?.filter(note => note.layers.some(layer => layer.visible))
+    .map(note => note.sourceNoteIndex)).toEqual([3, 4, 5]);
+  frame(200);
+  frame(1855);
+  const last = rendered.frames.at(-1)!;
+  expect(last.notes?.filter(note => note.layers.some(layer => layer.visible)).map(note => note.sourceNoteIndex))
+    .toEqual(offset <= 0 ? [6, 7, 8] : [3, 4, 5]);
+  expect(last.snapshot?.items.every(item => item.state === 'pending')).toBe(true);
+  frame(250); // J=0ms에서도 가짜 이전 반복은 생기지 않는다.
+  expect(rendered.frames.at(-1)!.notes?.filter(note => note.layers.some(layer => layer.visible))
+    .map(note => note.sourceNoteIndex)).toEqual(offset < 0 ? [6, 7, 8] : [3, 4, 5, 6, 7, 8]);
+  metronome.dispose();
 });

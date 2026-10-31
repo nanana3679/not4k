@@ -129,12 +129,13 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
     await dialog.locator(`[data-tutorial-index-item="${id}"]`).click();
     const diagram = page.locator('[data-tutorial-diagram-modal="true"]');
     await expect(diagram).toBeVisible();
-    await diagram.locator('[data-tutorial-diagram-ok="true"]').click();
-    await expect(diagram).toHaveCount(0);
     const selector = `[data-tutorial-preview-slot="active"][data-tutorial-preview-id="${id}"] [data-tutorial-engine]`;
     const player = page.locator(selector);
-    await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
+    // 도식의 짧은 숨김 구간을 기다리지 않고 기존 버튼의 키보드 동작으로 실습에 진입한다.
+    await dialog.getByRole('button', { name: '직접 입력', exact: true }).focus();
+    await page.keyboard.press('Enter');
     await expect(player).toHaveAttribute('data-tutorial-input-mode', 'directInput');
+    await expect(diagram).toHaveCount(0);
     const progress = dialog.locator('[data-tutorial-progress]');
     const switchKeys = id === 'connected-long-note-switch';
     const firstKey = switchKeys ? 'KeyE' : 'KeyP';
