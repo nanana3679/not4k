@@ -195,6 +195,10 @@ test.describe('Song Select Screen', () => {
     await expect(dialog.locator('[data-tutorial-preview-canvas="true"]')).toHaveCount(2);
 
     const activeSlot = dialog.locator('[data-tutorial-preview-slot="active"]');
+    await expect(dialog.locator('[data-tutorial-index-item]')).toHaveCount(17);
+    await expect(dialog.locator('[data-tutorial-index-item="hold-only-long-note"]')).toContainText('릴리즈 없는 롱노트');
+    await expect(dialog.locator('[data-tutorial-index-item="zero-length-hold-only-long-note"]')).toContainText('길이가 0인 바디와 틱 노트');
+    await expect(activeSlot.locator('[data-tutorial-engine]')).toHaveAttribute('data-tutorial-engine', 'explicit');
     // 레인 키 라벨·키보드 배열은 이제 GameRenderer(PixiJS) 캔버스 안에 그려져 DOM 요소가 없다.
     await expect(activeSlot.locator('[data-tutorial-preview-canvas="true"]')).toBeVisible();
 

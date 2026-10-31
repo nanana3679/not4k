@@ -18,7 +18,7 @@ import { stepTutorialLoopClock } from './tutorialLoopClock';
 import { stepExplicitTutorialLoop } from './explicitTutorialLoop';
 import { getTutorialRenderCycleIndex, mapTutorialRenderBodyQuery } from './tutorialPreviewRenderMapping';
 import { TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
-import { createChartTiming } from '../../../shared';
+import { createChartTiming, getJudgmentWindows, JUDGMENT_WINDOWS } from '../../../shared';
 import { useGameStore } from '../../stores';
 import {
   TUTORIAL_PREVIEWS,
@@ -258,6 +258,8 @@ export function TutorialPreviewPlayer({
   const pausedRef = useRef(paused);
   const onPatternFinishedRef = useRef(onPatternFinished);
   const settings = useGameStore((state) => state.settings);
+  // 판정 모드는 명시 정의만 따른다. 구형 정의(노트 에셋 시연실)는 고정 Normal이라 모드가 바뀌어도 다시 걸지 않는다.
+  const explicitJudgmentMode = preview && isExplicitTutorialPreview(preview) ? settings.judgmentMode : 'normal';
   const [activeKeyIds, setActiveKeyIds] = useState<string[]>([]);
   const [stickyLaneKeyIdsByLane, setStickyLaneKeyIdsByLane] = useState<LaneKeyIdsByLane>({});
   const [activeDiagramTiming, setActiveDiagramTiming] = useState<TutorialDiagramTiming | null>(null);
@@ -265,6 +267,8 @@ export function TutorialPreviewPlayer({
   // 렌더러를 만들지 못한 오류는 렌더러 수명 동안, 차트를 걸지 못한 오류는 그 차트 동안 유지한다.
   const [rendererError, setRendererError] = useState<string | null>(null);
   const [contentError, setContentError] = useState<string | null>(null);
+  // 마지막으로 끝난 반복 하나만 보관한다. 경계 판정은 세션의 확정 결과로 공개한다.
+  const [finishedPattern, setFinishedPattern] = useState<ExplicitTutorialPatternResult | null>(null);
   const error = rendererError ?? contentError;
   // 구동기(렌더러)가 첫 프레임까지 준비됐는지. 준비 전에는 도식 모달에서 OK 대신 스피너를 보여
   // 로딩 중 상호작용(OK로 재개)을 막는다.
@@ -498,6 +502,7 @@ export function TutorialPreviewPlayer({
     setActiveDiagramTiming(null);
     setDiagramDisplay(null);
     setContentError(null);
+    setFinishedPattern(null);
     setRendererReady(false);
 
     let disposed = false;
@@ -640,6 +645,7 @@ export function TutorialPreviewPlayer({
 
     const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {
       detachRenderer();
+      setFinishedPattern(null);
       try {
         // 이전 차트가 남긴 봄·판정 텍스트·키 눌림을 지운 뒤 이 차트를 건다.
         renderer.resetTransientState();
@@ -650,19 +656,21 @@ export function TutorialPreviewPlayer({
         let previewJudgment: TutorialPreviewJudgment;
         if (isExplicitTutorialPreview(preview)) {
           if (!explicitSkin) throw new Error('Explicit note skin is not loaded');
-          // 명시 정의: 판정은 명시 controller가 바인딩으로 옮긴 같은 시연 timings로 진행한다. 판정 창은 구형 재생기와 같은
-          // 고정 기본값이다. 렌더러는 앞뒤 반복까지 이어 붙인 3벌 표시 compile을 프레임마다 합성 snapshot으로 그린다.
+          renderer.setPerfectWindow(getJudgmentWindows(explicitJudgmentMode).PERFECT);
+          // 명시 정의: 판정은 명시 controller가 바인딩으로 옮긴 시연 timings와 플레이어 설정의 판정 창으로 진행한다.
+          // 렌더러는 앞뒤 반복까지 이어 붙인 3벌 표시 compile을 프레임마다 합성 snapshot으로 그린다.
           const explicitPlayback = createExplicitTutorialPreviewPlayback(preview, createTutorialTimingsInputPlan(timings), {
             showJudgmentGroup: (state) => renderer.showJudgmentGroup(state),
             recordFlightJudgment: (grade) => renderer.recordFlightJudgment(grade),
             showBombEffect: showPreviewBomb,
-          });
+          }, { windows: getJudgmentWindows(explicitJudgmentMode) });
           previewJudgment = {
             advanceTo: (loopTimeMs) => explicitPlayback.advanceTo(loopTimeMs),
             // 경계 입력과 정산은 끝난 반복의 세션에서 마친 뒤 새 세션을 만든다. 노트 표시는 snapshot이 바꾸므로 구형처럼
             // 차트를 다시 걸거나 resetTransientState로 판정 글자를 지우지 않는다. 콜백이 없어도 정산은 반드시 한다.
             finishLoop: () => {
               const pattern = explicitPlayback.finishPattern();
+              setFinishedPattern(pattern);
               onPatternFinishedRef.current?.(pattern);
             },
             stop: () => explicitPlayback.stop(),
@@ -676,6 +684,7 @@ export function TutorialPreviewPlayer({
             preview.renderDurationMs,
           );
         } else {
+          renderer.setPerfectWindow(JUDGMENT_WINDOWS.PERFECT);
           // 렌더러는 renderChart의 시간 뷰를 쓴다. 판정 컨트롤러는 preview.chart로
           // 별개 인스턴스를 만든다 — 두 차트는 서로 다르므로 합치지 않는다.
           const renderTiming = createChartTiming(preview.renderChart);
@@ -853,7 +862,7 @@ export function TutorialPreviewPlayer({
       detachRenderer();
     };
     // previewInstanceId는 본문에서 읽지 않지만, 같은 레슨을 다시 방문했을 때 차트를 처음부터 다시 걸기 위한 의존성이다.
-  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);
+  }, [diagramTimings, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);
 
   // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
   // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
@@ -865,7 +874,20 @@ export function TutorialPreviewPlayer({
   }, [laneKeyLabels, diagramDisplay, rendererReady]);
 
   return (
-    <div style={styles.previewShell} data-tutorial-skin-id={skinManifest?.theme.id ?? skinId}>
+    <div
+      style={styles.previewShell}
+      data-tutorial-skin-id={skinManifest?.theme.id ?? skinId}
+      data-tutorial-engine={isExplicitTutorialPreview(preview) ? 'explicit' : 'legacy'}
+      data-tutorial-judgment-mode={explicitJudgmentMode}
+      data-tutorial-loop-ms={preview.loopMs}
+      data-tutorial-last-iteration={finishedPattern?.iteration}
+      data-tutorial-last-perfect={finishedPattern?.result.score.judgmentCounts.perfect}
+      data-tutorial-last-miss={finishedPattern?.result.score.judgmentCounts.miss}
+      data-tutorial-last-achievement={finishedPattern?.result.score.achievementRate}
+      data-tutorial-boundary-settlements={finishedPattern && JSON.stringify(
+        finishedPattern.result.facts.filter(fact => fact.kind === 'settlement' && fact.atMs === preview.loopMs),
+      )}
+    >
       <div style={{ ...styles.canvasFrame, aspectRatio: `${PREVIEW_RENDER_WIDTH} / ${PREVIEW_RENDER_HEIGHT + keyboardAreaHeight}` }}>
         <canvas
           key={rendererKey}

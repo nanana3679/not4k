@@ -339,7 +339,7 @@ describe('TutorialPreviewPlayer', () => {
   });
 
   it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 렌더 사이클 0 초기화 → 준비 알림 순서로 재사용', () => {
-    const contentDeps = '  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
+    const contentDeps = '  }, [diagramTimings, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
     expect(tutorialPreviewPlayerSource).toContain(contentDeps);
     const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {');
     expect(attachStart).toBeGreaterThan(-1);
@@ -359,7 +359,7 @@ describe('TutorialPreviewPlayer', () => {
 
   it('차트 effect 정리는 rAF만 멈추고 렌더러를 dispose하지 않음 — dispose는 렌더러 effect 정리에서만', () => {
     const contentStart = tutorialPreviewPlayerSource.indexOf('  }, [rendererKey]);');
-    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);');
+    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);');
     expect(contentStart).toBeGreaterThan(-1);
     expect(contentEnd).toBeGreaterThan(contentStart);
     const contentEffect = tutorialPreviewPlayerSource.slice(contentStart, contentEnd);
@@ -420,10 +420,14 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialPreviewPlayerSource).toContain('preview.renderDurationMs,');
   });
 
-  it('명시 판정은 바인딩으로 옮긴 같은 timings를 시연 입력 계획으로 쓰고 설정의 판정 모드(judgmentMode)를 따르지 않음', () => {
+  it('명시 판정은 바인딩 시연에 설정 judgmentMode의 창을 적용하고 모드 변경 시 차트만 다시 건다', () => {
     expect(tutorialPreviewPlayerSource).toContain('createExplicitTutorialPreviewPlayback(preview, createTutorialTimingsInputPlan(timings), {');
-    expect(tutorialPreviewPlayerSource).not.toContain('judgmentMode');
-    expect(tutorialPreviewPlayerSource).not.toContain('getJudgmentWindows');
+    expect(tutorialPreviewPlayerSource).toContain('windows: getJudgmentWindows(explicitJudgmentMode)');
+    expect(tutorialPreviewPlayerSource).toContain('renderer.setPerfectWindow(getJudgmentWindows(explicitJudgmentMode).PERFECT)');
+    // 구형 정의는 고정 Normal이라 판정 모드 변경으로 다시 걸지 않는다.
+    expect(tutorialPreviewPlayerSource).toContain("const explicitJudgmentMode = preview && isExplicitTutorialPreview(preview) ? settings.judgmentMode : 'normal';");
+    expect(tutorialPreviewPlayerSource).toContain('renderer.setPerfectWindow(JUDGMENT_WINDOWS.PERFECT)');
+    expect(tutorialPreviewPlayerSource).toContain('explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings');
   });
 
   it('명시 확정 효과는 판정 글자 묶음·고도·타격을 렌더러로 보내고 타격은 구형과 같은 onBombEffect·showRendererBomb 경로를 공유', () => {
@@ -445,6 +449,15 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialPreviewPlayerSource.indexOf('onPatternFinishedRef.current?.(pattern);', finishPattern)).toBeGreaterThan(finishPattern);
     expect(tutorialPreviewPlayerSource).not.toMatch(/\?\.\([^)]*finishPattern\(\)/);
     expect(tutorialPreviewPlayerSource).toContain('onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => void;');
+  });
+
+  it('명시 반복 결과는 DOM에 경계 정산·차수·점수를 공개하고 같은 차트를 렌더러에 다시 걸면 이전 결과를 지운다', () => {
+    const attachBody = tutorialPreviewPlayerSource.slice(attachStart, renderLoopStart);
+    expect(attachBody).toContain('setFinishedPattern(null);');
+    expect(attachBody).toContain('setFinishedPattern(pattern);');
+    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-last-iteration={finishedPattern?.iteration}');
+    expect(tutorialPreviewPlayerSource).toContain('data-tutorial-last-perfect={finishedPattern?.result.score.judgmentCounts.perfect}');
+    expect(tutorialPreviewPlayerSource).toContain("fact.kind === 'settlement' && fact.atMs === preview.loopMs");
   });
 
   it('구형 경계 정산은 그대로 loopMs까지 진행 → adapter reset → setChart로 노트 표시 캐시를 다시 만듦', () => {

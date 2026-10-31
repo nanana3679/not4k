@@ -3,7 +3,6 @@ import { ALL_TUTORIAL_PREVIEWS } from './tutorialCatalog';
 export const TUTORIAL_VIEWED_STORAGE_KEY = 'not4k-tutorial-viewed-ids';
 
 const TUTORIAL_PREVIEW_IDS = ALL_TUTORIAL_PREVIEWS.map((tutorial) => tutorial.id);
-const TUTORIAL_PREVIEW_ID_SET = new Set(TUTORIAL_PREVIEW_IDS);
 
 type TutorialViewedReadStorage = Pick<Storage, 'getItem'>;
 type TutorialViewedWriteStorage = Pick<Storage, 'setItem'>;
@@ -22,8 +21,9 @@ export function readTutorialViewedIdsFromStorage(
     const parsedViewedIds: unknown = JSON.parse(rawViewedIds);
     if (!Array.isArray(parsedViewedIds)) return viewedIds;
 
-    for (const viewedId of parsedViewedIds) {
-      if (typeof viewedId === 'string' && TUTORIAL_PREVIEW_ID_SET.has(viewedId)) {
+    const storedIds = new Set<unknown>(parsedViewedIds);
+    for (const viewedId of TUTORIAL_PREVIEW_IDS) {
+      if (storedIds.has(viewedId)) {
         viewedIds.add(viewedId);
       }
     }

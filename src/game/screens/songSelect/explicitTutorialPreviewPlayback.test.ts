@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { JUDGMENT_WINDOWS_EASY } from '../../../shared/constants/judgment';
+import { getJudgmentWindows, JUDGMENT_WINDOWS_EASY } from '../../../shared/constants/judgment';
 import { beat } from '../../../shared/types/beat';
 import type { Beat } from '../../../shared/types/beat';
 import type { ChartDocument, TutorialInputEvent } from '../../../shared/types/chart';
@@ -226,6 +226,20 @@ describe('명시 튜토리얼 재생의 판정 창과 수명', () => {
     const { playback } = createDemo(lateChart(), { windows: JUDGMENT_WINDOWS_EASY });
     playback.advanceTo(600);
     expect(playback.renderSnapshot(1).items.find(item => item.id === 'n5:tap:0')).toMatchObject({ state: 'success', grade: 'perfect' });
+    playback.stop();
+  });
+
+  it.each([
+    ['normal', 'great'], ['easy', 'perfect'],
+  ] as const)('설정 judgmentMode=%s로 45ms 늦은 탭을 2회 시연하면 매회 %s로 정산한다', (judgmentMode, grade) => {
+    const { playback } = createDemo(lateChart(), { windows: getJudgmentWindows(judgmentMode) });
+    for (const iteration of [0, 1]) {
+      playback.advanceTo(600);
+      const pattern = playback.finishPattern();
+      expect(pattern.iteration).toBe(iteration);
+      expect(pattern.result.facts.find(fact => fact.kind === 'settlement' && fact.itemId === 'n0:tap:0'))
+        .toMatchObject({ grade, atMs: 545 });
+    }
     playback.stop();
   });
 
