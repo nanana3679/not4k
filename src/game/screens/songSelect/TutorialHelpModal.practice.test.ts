@@ -55,6 +55,7 @@ vi.mock('../../stores', async original => {
 });
 
 type Props = { children?: ReactNode; onClick?: () => void; disabled?: boolean; 'aria-pressed'?: boolean;
+  'aria-label'?: string;
   'data-tutorial-index-item'?: string; 'data-tutorial-condition-status'?: string;
   'data-tutorial-progress'?: string; 'data-tutorial-pattern-id'?: number; };
 function elements(node: ReactNode): ReactElement<Props>[] {
@@ -68,15 +69,21 @@ function elements(node: ReactNode): ReactElement<Props>[] {
 const initialSettings = useGameStore.getState().settings;
 let onClose = vi.fn();
 let onItemPassed = vi.fn();
-function renderModal() {
+let valueByKey: Map<string, string>;
+function renderModal(isAdmin = false) {
   hooks.cursor = 0;
-  const nodes = elements(TutorialHelpModal({ onClose, onItemPassed }));
+  const nodes = elements(TutorialHelpModal({ onClose, onItemPassed, isAdmin }));
   hooks.effects.splice(0).forEach(effect => effect());
   return {
     nodes,
     button(label: string) { return nodes.find(node => node.type === 'button' && node.props.children === label)!; },
     click(label: string) { const button = this.button(label); expect(button, label).toBeDefined(); button.props.onClick!(); },
     select(id: string) { nodes.find(node => node.props['data-tutorial-index-item'] === id)!.props.onClick!(); },
+    get passedIds() {
+      return nodes.filter(node => node.props['data-tutorial-index-item']
+        && elements(node.props.children).some(child => child.props['aria-label'] === 'Passed tutorial'))
+        .map(node => node.props['data-tutorial-index-item']);
+    },
     player(id = 'single-note') {
       return nodes.filter(node => node.type === TutorialPreviewPlayer)
         .map(node => node.props as ComponentProps<typeof TutorialPreviewPlayer>)
@@ -115,14 +122,136 @@ beforeEach(() => {
   onClose = vi.fn(); onItemPassed = vi.fn();
   useGameStore.setState({ settings: initialSettings, settingsOpen: false });
   const target = new EventTarget();
+  valueByKey = new Map();
   vi.stubGlobal('window', Object.assign(target, {
-    localStorage: { getItem: () => null, setItem() {} },
+    localStorage: {
+      getItem: vi.fn((key: string) => valueByKey.get(key) ?? null),
+      setItem: vi.fn((key: string, value: string) => { valueByKey.set(key, value); }),
+      removeItem: vi.fn((key: string) => { valueByKey.delete(key); }),
+    },
     setTimeout, clearTimeout,
     requestAnimationFrame: (callback: FrameRequestCallback) => setTimeout(() => callback(performance.now()), 16),
     cancelAnimationFrame: clearTimeout,
   }));
 });
-afterEach(() => { hooks.cleanups.forEach(cleanup => cleanup?.()); vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => {
+  hooks.cleanups.forEach(cleanup => cleanup?.());
+  vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.useRealTimers();
+});
+
+it('single-note가 2/3에서 3/3이 되면 1회 저장하고 목록 체크가 즉시 나타나며 중복 완료는 다시 저장하지 않는다', () => {
+  openLesson().click('직접 입력');
+  let page = renderModal();
+  for (let iteration = 1; iteration <= 2; iteration++) {
+    page.player().onPatternStarted?.(iteration);
+    page.player().onPatternFinished?.(result());
+    page = renderModal();
+  }
+  expect(page.progress).toBe('2/3');
+  expect(page.passedIds).toEqual([]);
+  expect(window.localStorage.setItem).not.toHaveBeenCalled();
+  page.player().onPatternStarted?.(3);
+  page.player().onPatternFinished?.(result());
+  page = renderModal();
+  expect(page.passedIds).toEqual(['single-note']);
+  expect(window.localStorage.setItem).toHaveBeenCalledExactlyOnceWith(
+    'not4k-tutorial-passed-ids', '["single-note"]',
+  );
+  page.player().onPatternFinished?.(result());
+  renderModal();
+  expect(window.localStorage.setItem).toHaveBeenCalledTimes(1);
+  page.click('Reset Passed');
+  page = renderModal();
+  expect(page.progress).toBe('3/3');
+  expect(page.passedIds).toEqual([]);
+  page.player().onPatternFinished?.(result());
+  expect(renderModal().passedIds).toEqual([]);
+  expect(valueByKey.has('not4k-tutorial-passed-ids')).toBe(false);
+  expect(window.localStorage.setItem).toHaveBeenCalledTimes(1);
+});
+
+it('single-note·알 수 없는 ID·기존 viewed 기록으로 목록을 열면 single-note만 체크하고 시연·항목 이동은 저장하지 않는다', () => {
+  valueByKey.set('not4k-tutorial-passed-ids', '["single-note","future-lesson"]');
+  valueByKey.set('not4k-tutorial-viewed-ids', '["double-note"]');
+  expect(renderModal().passedIds).toEqual(['single-note']);
+  const page = openLesson('double-note');
+  page.player('double-note').onPatternFinished?.(result('double-note'));
+  const updated = renderModal();
+  expect(updated.passedIds).toEqual(['single-note']);
+  expect(updated.nodes.some(node => node.props['aria-label'] === 'Viewed tutorial')).toBe(false);
+  expect(updated.nodes.some(node => node.props['data-tutorial-index-item'] === 'future-lesson')).toBe(false);
+  expect(window.localStorage.getItem).not.toHaveBeenCalledWith('not4k-tutorial-viewed-ids');
+  expect(window.localStorage.setItem).not.toHaveBeenCalled();
+  expect(valueByKey.get('not4k-tutorial-viewed-ids')).toBe('["double-note"]');
+});
+
+it('single-note를 새로 통과한 뒤 실패·재방문·재개방·재통과해도 체크와 기존 알 수 없는 ID를 유지한다', () => {
+  valueByKey.set('not4k-tutorial-passed-ids', '["future-lesson"]');
+  openLesson().click('직접 입력');
+  let page = renderModal();
+  for (let iteration = 1; iteration <= 3; iteration++) {
+    page.player().onPatternStarted?.(iteration);
+    page.player().onPatternFinished?.(result());
+    page = renderModal();
+  }
+  page.select('double-note');
+  settle().select('single-note');
+  page = settle();
+  expect(page.progress).toBe('0/3');
+  expect(page.passedIds).toEqual(['single-note']);
+  page.click('직접 입력');
+  page = renderModal();
+  page.player().onPatternStarted?.(0);
+  const finished = result();
+  page.player().onPatternFinished?.({ ...finished, result: { ...finished.result,
+    score: { ...finished.result.score, earnedScore: 0 },
+  } });
+  expect(renderModal().progress).toBe('0/3');
+  expect(renderModal().passedIds).toEqual(['single-note']);
+  hooks.cleanups.forEach(cleanup => cleanup?.());
+  hooks.slots = []; hooks.cleanups = []; hooks.effects = [];
+  page = openLesson();
+  expect(page.progress).toBe('0/3');
+  expect(page.passedIds).toEqual(['single-note']);
+  page.click('직접 입력');
+  page = renderModal();
+  for (let iteration = 1; iteration <= 3; iteration++) {
+    page.player().onPatternStarted?.(iteration);
+    page.player().onPatternFinished?.(result());
+    page = renderModal();
+  }
+  expect(page.progress).toBe('3/3');
+  expect(page.passedIds).toEqual(['single-note']);
+  expect(onItemPassed).toHaveBeenCalledTimes(2);
+  expect(window.localStorage.setItem).toHaveBeenCalledExactlyOnceWith(
+    'not4k-tutorial-passed-ids', '["future-lesson","single-note"]',
+  );
+});
+
+it.each([
+  [false, false, false], [false, true, true], [true, false, true], [true, true, true],
+])('dev=%s·admin=%s에서 목록을 열면 Reset Passed 표시가 %s이다', (isDev, isAdmin, visible) => {
+  vi.stubEnv('DEV', isDev);
+  expect(!!renderModal(isAdmin).button('Reset Passed')).toBe(visible);
+});
+
+it('통과 기록과 viewed·설정이 있을 때 Reset Passed를 누르면 모든 통과 체크만 즉시 지우고 재개방해도 복원하지 않는다', () => {
+  valueByKey.set('not4k-tutorial-passed-ids', '["single-note","advanced-recovery","future-lesson"]');
+  valueByKey.set('not4k-tutorial-viewed-ids', '["double-note"]');
+  valueByKey.set('not4k-settings', '{"volume":0.5}');
+  expect(renderModal().passedIds).toEqual(['single-note']);
+  renderModal().click('Reset Passed');
+  expect(renderModal().passedIds).toEqual([]);
+  renderModal().click('Advanced');
+  expect(settle().passedIds).toEqual([]);
+  expect([...valueByKey]).toEqual([
+    ['not4k-tutorial-viewed-ids', '["double-note"]'], ['not4k-settings', '{"volume":0.5}'],
+  ]);
+  hooks.cleanups.forEach(cleanup => cleanup?.());
+  hooks.slots = []; hooks.cleanups = []; hooks.effects = [];
+  expect(renderModal().passedIds).toEqual([]);
+  expect(window.localStorage.setItem).not.toHaveBeenCalled();
+});
 
 it('손배치에는 토글이 없고 싱글 노트의 시연 중 직접 입력을 선택하면 즉시 player inputMode만 바뀌며 현재 패턴은 0/3이다', () => {
   expect(renderModal().button('직접 입력')).toBeUndefined();
@@ -280,7 +409,7 @@ it('trill-note는 달성률과 GOOD◇ 조건을 한 줄씩 표시하고 GOOD◇
 });
 
 
-it('방법이 2개인 항목에서 nextPressed를 누르면 재생을 새로 걸고 다음 방법의 pattern id는 4로 증가한다', () => {
+it('방법이 2개인 항목에서 첫 방법 3/3은 통과를 알리지 않고 다음 방법도 3/3이 되어야 통과를 1회 알린다', () => {
   const lesson = { ...ALL_TUTORIAL_PREVIEWS[1], practice: createTutorialPracticeSpec({
     conditions: [{ kind: 'targetAchievementRate', percent: 90 }], playingMethods: [{ id: 'hold' }, { id: 'swap' }],
   }) };
@@ -302,6 +431,18 @@ it('방법이 2개인 항목에서 nextPressed를 누르면 재생을 새로 걸
   expect(practice.progress).toEqual({ current: 0, required: 3 });
   practice.playerProps.onPatternStarted?.(0);
   expect(renderPractice().state?.currentPatternId).toBe(4);
+  practice.dispatch({ type: 'modeSelected', mode: 'directInput' });
+  practice = renderPractice();
+  practice.playerProps.onPatternFinished?.(result());
+  expect(onItemPassed).not.toHaveBeenCalled();
+  for (let i = 1; i <= 3; i++) {
+    practice.playerProps.onPatternStarted?.(i);
+    practice.playerProps.onPatternFinished?.(result());
+    expect(onItemPassed).toHaveBeenCalledTimes(i === 3 ? 1 : 0);
+  }
+  expect(onItemPassed).toHaveBeenCalledExactlyOnceWith('single-note');
+  practice.playerProps.onPatternFinished?.(result());
+  expect(onItemPassed).toHaveBeenCalledTimes(1);
 });
 
 // 이 테스트 파일의 player 경로에서는 GPU·에셋 I/O만 대체하고 입력·세션·반복은 실제 구현을 쓴다.

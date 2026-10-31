@@ -2,16 +2,8 @@ import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { TutorialHelpModal } from './TutorialHelpModal';
-import {
-  TUTORIAL_VIEWED_STORAGE_KEY,
-  canShowTutorialCacheInvalidationButton,
-  clearTutorialViewedIds,
-  persistTutorialViewedIds,
-  readTutorialViewedIdsFromStorage,
-} from './tutorialViewedCache';
 import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreviews';
 import tutorialHelpModalSource from './TutorialHelpModal.tsx?raw';
-import tutorialViewedCacheSource from './tutorialViewedCache.ts?raw';
 
 function countOccurrences(source: string, pattern: string): number {
   return source.split(pattern).length - 1;
@@ -27,64 +19,6 @@ describe('TutorialHelpModal', () => {
     expect(html).not.toContain('data-tutorial-index-item="advanced-double-hold"');
     expect(html).toContain('릴리즈 없는 롱노트');
     expect(html).toContain('길이가 0인 바디와 틱 노트');
-  });
-
-  it('튜토리얼 캐시 무효화 버튼은 개발환경이거나 admin이면 표시', () => {
-    expect(canShowTutorialCacheInvalidationButton({ isAdmin: false, isDev: false })).toBe(false);
-    expect(canShowTutorialCacheInvalidationButton({ isAdmin: true, isDev: false })).toBe(true);
-    expect(canShowTutorialCacheInvalidationButton({ isAdmin: false, isDev: true })).toBe(true);
-  });
-
-  it('localStorage에 저장된 본 튜토리얼 id가 있으면 첫 페이지와 저장된 페이지를 본 상태로 복원', () => {
-    const storage = {
-      getItem: (key: string) =>
-        key === TUTORIAL_VIEWED_STORAGE_KEY
-          ? JSON.stringify(['single-note', 'double-note', 'unknown-tutorial'])
-          : null,
-    };
-
-    expect([...readTutorialViewedIdsFromStorage(storage)]).toEqual([
-      'hand-placement',
-      'single-note',
-      'double-note',
-    ]);
-  });
-
-  it('localStorage 값이 깨져 있으면 첫 페이지 본 상태만 사용', () => {
-    const storage = {
-      getItem: () => '{broken',
-    };
-
-    expect([...readTutorialViewedIdsFromStorage(storage)]).toEqual(['hand-placement']);
-  });
-
-  it('본 튜토리얼 id를 localStorage에 튜토리얼 순서대로 저장', () => {
-    const writes: Record<string, string> = {};
-    const storage = {
-      setItem: (key: string, value: string) => {
-        writes[key] = value;
-      },
-    };
-
-    persistTutorialViewedIds(storage, new Set(['double-note', 'hand-placement', 'unknown-tutorial']));
-
-    expect(JSON.parse(writes[TUTORIAL_VIEWED_STORAGE_KEY])).toEqual([
-      'hand-placement',
-      'double-note',
-    ]);
-  });
-
-  it('튜토리얼 캐시 무효화는 localStorage의 본 튜토리얼 id 저장값을 제거', () => {
-    const removedKeys: string[] = [];
-    const storage = {
-      removeItem: (key: string) => {
-        removedKeys.push(key);
-      },
-    };
-
-    clearTutorialViewedIds(storage);
-
-    expect(removedKeys).toEqual([TUTORIAL_VIEWED_STORAGE_KEY]);
   });
 
   it('곡 선택 도움말 팝업은 dialog role과 닫기 버튼을 렌더링', () => {
@@ -126,7 +60,7 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('1 / 17');
   });
 
-  it('튜토리얼 팝업은 왼쪽 인덱스를 렌더링하고 이미 본 제목 옆에 체크 표시를 붙임', () => {
+  it('통과 기록 없이 팝업을 열면 Basic 17개 목록에 통과 체크와 열람 표시가 없다', () => {
     const html = renderToStaticMarkup(
       React.createElement(TutorialHelpModal, { onClose: () => {} }),
     );
@@ -135,8 +69,8 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('not4k-tutorial-index');
     expect(countOccurrences(html, 'data-tutorial-index-item=')).toBe(BASIC_TUTORIAL_EXPLICIT_PREVIEWS.length);
     expect(countOccurrences(html, 'data-tutorial-index-current="true"')).toBe(1);
-    expect(countOccurrences(html, 'data-tutorial-index-seen="true"')).toBe(1);
-    expect(countOccurrences(html, 'data-tutorial-index-check="true"')).toBe(1);
+    expect(html).not.toContain('data-tutorial-index-seen');
+    expect(countOccurrences(html, 'data-tutorial-index-check="true"')).toBe(0);
     expect(html).toContain('data-tutorial-index-item="hand-placement"');
     expect(html).toContain('data-tutorial-index-item="vertical-movement"');
     expect(html).toContain('>0</span><span');
@@ -145,27 +79,8 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('수직 이동');
     expect(html).not.toContain('0 손배치');
     expect(html).not.toContain('14 수직 이동');
-    expect(html).toContain('✓');
-  });
-
-  it('튜토리얼 팝업은 본 튜토리얼 id를 localStorage에서 읽고 변경될 때 다시 저장', () => {
-    expect(tutorialViewedCacheSource).toContain('TUTORIAL_VIEWED_STORAGE_KEY');
-    expect(tutorialHelpModalSource).toContain('readTutorialViewedIdsFromStorage(getTutorialViewedStorage())');
-    expect(tutorialHelpModalSource).toContain('persistTutorialViewedIds(getTutorialViewedStorage(), viewedTutorialIds)');
-    expect(tutorialHelpModalSource).toContain('[viewedTutorialIds]');
-  });
-
-  it('튜토리얼 팝업은 개발환경 또는 admin일 때 캐시 무효화 버튼을 렌더링하고 누르면 체크 상태를 초기화', () => {
-    const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {}, isAdmin: true }),
-    );
-
-    expect(html).toContain('data-tutorial-reset-viewed-cache="true"');
-    expect(html).toContain('Reset Viewed');
-    expect(tutorialHelpModalSource).toContain('canShowTutorialCacheInvalidationButton({');
-    expect(tutorialHelpModalSource).toContain('isDev: import.meta.env.DEV');
-    expect(tutorialHelpModalSource).toContain('clearTutorialViewedIds(getTutorialViewedStorage())');
-    expect(tutorialHelpModalSource).toContain('setViewedTutorialIds(new Set([ALL_TUTORIAL_PREVIEWS[0].id]))');
+    expect(html).not.toContain('Viewed tutorial');
+    expect(html).not.toContain('Passed tutorial');
   });
 
   it('튜토리얼 팝업은 가운데 플레이어와 오른쪽 텍스트 전용 영역을 분리해서 렌더링', () => {

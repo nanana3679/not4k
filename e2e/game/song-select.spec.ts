@@ -273,21 +273,26 @@ test.describe('Song Select Screen', () => {
     await page.getByRole('button', { name: 'Close tutorial help' }).click();
     await expect(dialog).toBeHidden();
 
+    // 시연만 본 항목에는 체크가 없다. 저장 복원·초기화는 통과 ID를 따로 준비해 확인한다.
+    expect(await page.evaluate(() => localStorage.getItem('not4k-tutorial-passed-ids'))).toBeNull();
+    await page.evaluate(() => localStorage.setItem(
+      'not4k-tutorial-passed-ids', '["connected-long-note-overlap"]',
+    ));
     await helpButton.click();
     const reopenedDialog = page.getByRole('dialog', { name: 'Tutorial' });
     await expect(reopenedDialog).toBeVisible();
     await expect(
       reopenedDialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]')
-    ).toHaveAttribute('data-tutorial-index-seen', 'true');
+    ).toHaveAttribute('data-tutorial-index-passed', 'true');
     await expect(
       reopenedDialog.locator(
         '[data-tutorial-index-item="connected-long-note-overlap"] [data-tutorial-index-check="true"]'
       )
     ).toBeVisible();
-    await reopenedDialog.locator('[data-tutorial-reset-viewed-cache="true"]').click();
+    await reopenedDialog.locator('[data-tutorial-reset-passed="true"]').click();
     await expect(
       reopenedDialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]')
-    ).toHaveAttribute('data-tutorial-index-seen', 'false');
+    ).toHaveAttribute('data-tutorial-index-passed', 'false');
     await expect(
       reopenedDialog.locator(
         '[data-tutorial-index-item="connected-long-note-overlap"] [data-tutorial-index-check="true"]'
