@@ -334,10 +334,6 @@ export function useFileOperations(
       addToast(SAVE_IN_PROGRESS_COPY.playTest, 'error');
       return;
     }
-    // 열린 편집(붙여넣기 대기·드래그)은 모드 전환 같은 독립 명령처럼 먼저 확정한다(RFD 0099). 사용자가 보고 테스트한
-    // 상태가 Undo 1개로 남아, 돌아와 재생을 시작해도 재생 시작 취소가 테스트한 노트를 지우지 않는다.
-    // 테스트 플레이는 재생기의 play()를 거치지 않으므로 여기서 정리하고, 확정한 store의 차트·커서를 넘긴다.
-    useEditorStore.getState().commitEditTransaction();
     const editor = useEditorStore.getState();
     const game = useGameStore.getState();
     performPlayTest({
@@ -359,6 +355,11 @@ export function useFileOperations(
       },
       addToast,
       closeMenu: () => setShowPlayTestMenu(false),
+      // 열린 편집(붙여넣기 대기·드래그)은 모드 전환 같은 독립 명령처럼 확정해 테스트한 상태를 Undo 1개로 남긴다(RFD 0099).
+      // 테스트 플레이는 재생기의 play()를 거치지 않으므로 여기서 정리해야, 돌아와 재생을 시작해도 테스트한 노트가 남는다.
+      // 진입이 거절되면(오디오 없음·배치 제약 위반 등) 확정하지 않아 Esc 취소·방향키 이동이 그대로 남는다.
+      // 확정은 history만 남기고 차트를 바꾸지 않으므로 게임은 위에서 넘긴 차트를 그대로 받는다.
+      beforeEnter: () => useEditorStore.getState().commitEditTransaction(),
       // 전체 페이지 리로드(window.location)를 쓰면 게임 스토어의 비영속 상태
       // (screen='play', chartData, audioBuffer 등)가 초기화돼 타이틀 화면으로 떨어진다.
       // react-router 클라이언트 네비게이션으로 같은 JS 컨텍스트를 유지한다.

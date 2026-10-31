@@ -453,6 +453,9 @@ export function useCanvasEvents(
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     activePointerIdsRef.current.add(e.pointerId);
     deferredPauseToastPointerIdsRef.current.delete(e.pointerId);
+    // 캔버스 밖에서 뗀 우클릭은 Windows에서 그 contextmenu가 뗀 자리의 다른 요소로 가 대기가 남는다.
+    // 우클릭이 아닌 새 누름 시점에는 그 메뉴가 더 오지 않으므로 대기를 풀어, 뒤의 키보드 메뉴 키 삭제를 삼키지 않는다.
+    if (e.button !== 2) rightPressPendingRef.current = false;
     if (isEditLockedByPlayback()) {
       playbackLockedPointerIdsRef.current.add(e.pointerId);
       // 재생 중 우클릭은 미니맵·커서 레일에서 눌러도 이 누름이 만들 contextmenu를 삭제·안내로 해석하지 않게 대기를 건다.

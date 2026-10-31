@@ -97,10 +97,14 @@ function renderFileOperations(files: { jacket?: File; audio?: File } = {}): File
   return mountFileOperations(files).handlers;
 }
 
-function mountFileOperations(initialFiles: { jacket?: File; audio?: File } = {}) {
+/** audioBufferData를 null로 주면 음원을 아직 불러오지 않은 재생기다. */
+function mountFileOperations(
+  initialFiles: { jacket?: File; audio?: File } = {},
+  { audioBufferData = {} as AudioBuffer }: { audioBufferData?: AudioBuffer | null } = {},
+) {
   let files = initialFiles;
   const refs: Array<{ current: unknown }> = [];
-  const playback = { audioBufferData: {} as AudioBuffer, isPlaying: false, pause: vi.fn() } as unknown as PlaybackController;
+  const playback = { audioBufferData, isPlaying: false, pause: vi.fn() } as unknown as PlaybackController;
   const playbackRef: RefObject<PlaybackController | null> = { current: playback };
   const rendererRef: RefObject<{ setChart: (c: unknown) => void } | null> = { current: null };
   const setPendingJacketFile = vi.fn((file: File | null) => { files = { ...files, jacket: file ?? undefined }; });
@@ -433,9 +437,9 @@ describe('테스트 플레이 진입과 열린 편집(RFD 0099)', () => {
     return mode;
   }
 
-  /** 레인 1의 0박 노트를 복사해 8박에 붙여넣고 배치를 확정하지 않는다. */
-  function pasteWithoutConfirmAt8(): SelectMode {
-    open(chart([single(1, 0)]));
+  /** 레인 1의 0박 노트를 복사해 8박에 붙여넣고 배치를 확정하지 않는다. notes의 첫 노트가 복사할 0박 노트다. */
+  function pasteWithoutConfirmAt8(notes = [single(1, 0)]): SelectMode {
+    open(chart(notes));
     const mode = mountSelectMode();
     mode.selectNote(0); mode.copy(); mode.paste(beat(8));
     expect(mode.isPendingPaste).toBe(true);
@@ -474,5 +478,49 @@ describe('테스트 플레이 진입과 열린 편집(RFD 0099)', () => {
     current().undo();
 
     expect(current().chart.notes.map(note => note.beat)).toEqual([beat(0)]);
+  });
+
+  it('8박 붙여넣기 대기 중 오디오가 로딩되지 않아 테스트 플레이가 거절되면 붙여넣기 대기·열린 편집이 남고 Escape(cancelPaste)로 0박 노트 1개·history 0개로 돌아간다', () => {
+    const mode = pasteWithoutConfirmAt8();
+    const page = mountFileOperations({}, { audioBufferData: null });
+
+    page.handlers.handlePlayTest(false);
+
+    expect(showToast).toHaveBeenCalledWith('오디오가 로딩되지 않았습니다', 'error');
+    expect(navigateTo).not.toHaveBeenCalled();
+    expect(mode.isPendingPaste).toBe(true);
+    expect(current().editTransaction).not.toBeNull();
+    expect(current().historyPast).toHaveLength(0);
+
+    mode.cancelPaste();
+
+    expect(current().chart.notes.map(note => note.beat)).toEqual([beat(0)]);
+    expect(current().historyPast).toHaveLength(0);
+    expect(current().editTransaction).toBeNull();
+  });
+
+  it('레인 1 8박 노트 위에 붙여넣기 대기 중 배치 제약 위반으로 테스트 플레이가 거절되면 열린 편집이 남아 방향키(movePasteByLane)로 레인 2에 옮기고, 다시 테스트 플레이하면 게임이 노트 3개를 받고 history 1개다', () => {
+    const mode = pasteWithoutConfirmAt8([single(1, 0), single(1, 8)]);
+    const page = mountFileOperations();
+
+    page.handlers.handlePlayTest(false);
+
+    expect(showToast).toHaveBeenCalledWith('배치 제약 위반 1건이 남아 있어 플레이할 수 없습니다', 'error');
+    expect(navigateTo).not.toHaveBeenCalled();
+    expect(mode.isPendingPaste).toBe(true);
+    expect(current().editTransaction).not.toBeNull();
+    expect(current().historyPast).toHaveLength(0);
+
+    mode.movePasteByLane('right');
+    page.handlers.handlePlayTest(false);
+
+    const placed = (notes: ChartDocument['notes'] | undefined) => notes?.map(note => [note.lane, note.beat]);
+    const expected = [[1, beat(0)], [1, beat(8)], [2, beat(8)]];
+    expect(navigateTo).toHaveBeenCalledExactlyOnceWith('/game');
+    expect(placed(useGameStore.getState().chartData?.notes)).toEqual(expected);
+    expect(placed(current().chart.notes)).toEqual(expected);
+    expect(current().historyPast).toHaveLength(1);
+    expect(current().editTransaction).toBeNull();
+    expect(mode.isPendingPaste).toBe(false);
   });
 });

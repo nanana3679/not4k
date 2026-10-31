@@ -586,6 +586,34 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(notes()).toEqual([]);
   });
 
+  it.each(['재생 중', '정지한 뒤'] as const)('재생 중 레일을 우클릭해 캔버스 밖 x=-40에서 떼 그 contextmenu가 캔버스에 오지 않아도, %s 레일을 왼쪽 클릭한 다음 정지 중 키보드 메뉴 키 contextmenu는 1박 탭을 지운다', leftClick => {
+    const seekTo = vi.fn();
+    const renderer = {
+      handleMinimapPointerDown: () => false, handleMinimapPointerUp: () => {},
+      screenXToTimelineX: (x: number) => x - 100, currentTimelineWidth: 240, contentCenterShiftX: 0,
+      clampToMeasureRange: (timeMs: number) => timeMs, yToTime: (y: number) => y,
+      hideGhostNote() {}, clearMoveOrigins() {}, clearBoxSelectRect() {},
+    } as unknown as TimelineRenderer;
+    const { handlers } = setup(chart([tapAt(1)]), 'select', 'single', {
+      renderer, playback: { seekTo } as unknown as PlaybackController,
+    });
+    // 레일은 화면 x=20, 1박 탭(레인 1)은 화면 x=130(타임라인 x=30)이다.
+    const keyboardMenuOnTap = { clientX: 130, clientY: 500, preventDefault: () => {} } as unknown as ReactMouseEvent<HTMLCanvasElement>;
+    play();
+    handlers.handlePointerDown(mouse(500, 2, { x: 20, button: 2 }));
+    // pointer capture로 뗌은 캔버스에 오지만, Windows는 뗀 자리의 다른 요소에 contextmenu를 보내 캔버스는 그 메뉴를 받지 않는다.
+    handlers.handlePointerUp(mouse(500, 0, { x: -40, button: 2 }));
+    if (leftClick === '정지한 뒤') current().setIsPlaying(false);
+    handlers.handlePointerDown(mouse(1000, 1, { x: 20 }));
+    handlers.handlePointerUp(mouse(1000, 0, { x: 20 }));
+    current().setIsPlaying(false);
+
+    handlers.handleContextMenu(keyboardMenuOnTap);
+
+    expect(seekTo).toHaveBeenLastCalledWith(1000);
+    expect(notes()).toEqual([]);
+  });
+
   it.each(['레일', '미니맵'] as const)('재생 중 %s에서 시작한 마우스 접촉은 정지 후 y=500→1500 이동도 탐색으로 처리하고 노트 0개를 유지한다', target => {
     const seekTo = vi.fn();
     const minimapMove = vi.fn(() => target === '미니맵');
