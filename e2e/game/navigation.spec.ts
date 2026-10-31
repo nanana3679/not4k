@@ -126,6 +126,33 @@ test.describe('Game Navigation', () => {
     await expect(dialog).toHaveCount(0);
   });
 
+  test('프리셋 설정을 마쳤지만 곡 선택에서 모달이 열리기 전에 새로고침하면 Start 뒤 곡 선택에서 모달이 한 번 열리고, 그 뒤 새로고침하면 다시 열리지 않는다', async ({ page }) => {
+    await stubEmptySongs(page);
+    await page.goto('/game');
+    // completeFirstLaunch 직후·곡 선택이 모달을 열기 전의 저장 상태: 첫 기동은 끝났고 열기 신호는 아직 켜져 있다.
+    await page.evaluate(() => {
+      localStorage.clear();
+      localStorage.setItem('not4k-settings', JSON.stringify({
+        state: { settings: { isFirstLaunch: false }, shouldOpenFirstLaunchTutorialModal: true }, version: 0,
+      }));
+    });
+    await page.reload();
+
+    await page.getByRole('button', { name: 'Start' }).click();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
+    const dialog = page.getByRole('dialog', { name: 'Tutorial' });
+    await expect(dialog).toBeVisible();
+    await expect.poll(() => page.evaluate(() =>
+      JSON.parse(localStorage.getItem('not4k-settings')!).state.shouldOpenFirstLaunchTutorialModal)).toBe(false);
+
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Song Select' }).or(page.getByRole('button', { name: 'Start' })).first())
+      .toBeVisible();
+    if (await page.getByRole('button', { name: 'Start' }).isVisible()) await page.getByRole('button', { name: 'Start' }).click();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+  });
+
   test('곡 목록 요청이 끝나지 않은 동안에도 첫 기동 튜토리얼 모달은 로딩 화면에 가리지 않아 Close를 누를 수 있고, 닫으면 Loading songs... 화면이 보인다', async ({ page }) => {
     const releaseSongs = await holdSongs(page);
     await choosePresetOnFirstLaunch(page, 'TKL (Tenkeyless)');

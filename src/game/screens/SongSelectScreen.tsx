@@ -61,7 +61,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const [deleting, setDeleting] = useState(false);
   const [mobileEditSelection, setMobileEditSelection] = useState<SelectedChartRef | null>(null);
   // 첫 기동 튜토리얼 모달(RFD 0055): 프리셋 설정 직후 처음 그리는 곡 선택은 도움말 모달을 연 채 시작한다.
-  // 신호는 연 즉시 지워, 이후 곡 선택에 다시 들어오면 `?` 버튼으로만 연다.
+  // 신호는 열기 전까지 저장돼 새로고침 뒤에도 남고, 연 즉시 지워 이후 곡 선택에 다시 들어오면 `?` 버튼으로만 연다.
   const shouldOpenFirstLaunchTutorialModal = useGameStore((state) => state.shouldOpenFirstLaunchTutorialModal);
   const markFirstLaunchTutorialModalOpened = useGameStore((state) => state.markFirstLaunchTutorialModalOpened);
   const [showTutorialHelp, setShowTutorialHelp] = useState(shouldOpenFirstLaunchTutorialModal);

@@ -183,20 +183,29 @@ describe('gameStore — 첫 기동 튜토리얼 모달(RFD 0055)', () => {
     expect(useGameStore.getState().settings.isFirstLaunch).toBe(false);
   });
 
-  it('shouldOpenFirstLaunchTutorialModal=true인 상태를 저장(partialize)하면 settings만 남아 새로고침 복원(merge) 뒤에는 false다', () => {
+  it('모달을 열기 전(shouldOpenFirstLaunchTutorialModal=true)에 저장(partialize)하면 신호도 함께 남아 새로고침 복원(merge) 뒤에도 true다', () => {
     useGameStore.getState().completeFirstLaunch();
     const saved = partializePersistedSettings(useGameStore.getState());
-    expect(Object.keys(saved)).toEqual(['settings']);
+    expect(saved).toMatchObject({ shouldOpenFirstLaunchTutorialModal: true });
 
     const restored = mergePersistedSettings(saved, useGameStore.getInitialState());
     expect(restored.settings.isFirstLaunch).toBe(false);
+    expect(restored.shouldOpenFirstLaunchTutorialModal).toBe(true);
+  });
+
+  it('곡 선택이 모달을 연 뒤(markFirstLaunchTutorialModalOpened) 저장하면 새로고침 복원(merge) 뒤에는 false다', () => {
+    useGameStore.getState().completeFirstLaunch();
+    useGameStore.getState().markFirstLaunchTutorialModalOpened();
+    const restored = mergePersistedSettings(partializePersistedSettings(useGameStore.getState()),
+      useGameStore.getInitialState());
     expect(restored.shouldOpenFirstLaunchTutorialModal).toBe(false);
   });
 
-  it('저장 데이터에 shouldOpenFirstLaunchTutorialModal=true가 섞여 있어도 복원(merge)하면 false다', () => {
-    const restored = mergePersistedSettings({ settings: { isFirstLaunch: false }, shouldOpenFirstLaunchTutorialModal: true },
-      useGameStore.getInitialState());
-    expect(restored.shouldOpenFirstLaunchTutorialModal).toBe(false);
+  it('저장 데이터에 신호가 없거나 true가 아닌 값("yes")이면 복원(merge) 뒤 false다', () => {
+    const initial = useGameStore.getInitialState();
+    expect(mergePersistedSettings({ settings: { isFirstLaunch: false } }, initial).shouldOpenFirstLaunchTutorialModal).toBe(false);
+    expect(mergePersistedSettings({ settings: { isFirstLaunch: false }, shouldOpenFirstLaunchTutorialModal: 'yes' }, initial)
+      .shouldOpenFirstLaunchTutorialModal).toBe(false);
   });
 });
 

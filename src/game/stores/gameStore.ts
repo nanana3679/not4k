@@ -68,7 +68,8 @@ interface GameState {
   /**
    * 첫 기동 튜토리얼 모달(RFD 0055)을 다음 곡 선택 화면에서 열어야 하는지. 프리셋 설정을 마치는
    * `completeFirstLaunch`가 켜고, 곡 선택이 모달을 연 채 시작하면서 `markFirstLaunchTutorialModalOpened`로 끈다.
-   * 프리셋 설정 직후 한 번만 열기 위한 일회성 신호라 영속화하지 않는다(새로고침 뒤에는 열지 않음).
+   * 모달이 실제로 열릴 때까지 설정과 함께 저장해, 그 전에 새로고침하거나 닫아도 다음 곡 선택에서 최소 1회 연다.
+   * 한 번 연 뒤에는 꺼진 값이 저장되므로 재진입·새로고침에서 다시 열지 않는다.
    */
   shouldOpenFirstLaunchTutorialModal: boolean;
   settings: GameSettings;
@@ -153,9 +154,15 @@ export function clampTimingOffsetMs(value: unknown): number {
     : 0;
 }
 
-/** @internal 테스트용으로 export. persist partialize 콜백. 설정만 저장하고 화면·모달 같은 UI 상태는 저장하지 않는다. */
+/**
+ * @internal 테스트용으로 export. persist partialize 콜백. 설정과 첫 기동 튜토리얼 모달 대기 신호만 저장하고
+ * 화면·다른 모달 같은 UI 상태는 저장하지 않는다.
+ */
 export function partializePersistedSettings(state: GameState) {
-  return { settings: state.settings };
+  return {
+    settings: state.settings,
+    shouldOpenFirstLaunchTutorialModal: state.shouldOpenFirstLaunchTutorialModal,
+  };
 }
 
 /** @internal 테스트용으로 export. persist merge 콜백. */
@@ -163,7 +170,7 @@ export function mergePersistedSettings(
   persisted: unknown,
   current: unknown,
 ) {
-  const p = persisted as { settings?: Partial<GameSettings> };
+  const p = persisted as { settings?: Partial<GameSettings>; shouldOpenFirstLaunchTutorialModal?: unknown };
   const cur = current as GameState;
   const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
   merged.inputOffsetMs = clampTimingOffsetMs(merged.inputOffsetMs);
@@ -177,6 +184,7 @@ export function mergePersistedSettings(
   return {
     ...cur,
     settings: merged as unknown as GameSettings,
+    shouldOpenFirstLaunchTutorialModal: p.shouldOpenFirstLaunchTutorialModal === true,
   };
 }
 
