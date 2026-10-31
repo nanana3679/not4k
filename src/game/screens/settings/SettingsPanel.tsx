@@ -47,12 +47,15 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
   );
   const [listeningLane, setListeningLane] = useState<Lane | null>(null);
   // Profile 복귀는 setScreen과 settingsOpen을 같은 틱에 바꾸므로, 설정이 이미 열려 있었다면 패널이 다시 마운트되지 않는다.
-  // 그때도 Profile 탭으로 옮기도록 초기 탭 요청이 'profile'로 바뀌면 탭을 바꾼다. 탭 클릭처럼 키 입력 대기도 끝낸다.
-  useEffect(() => {
-    if (settingsInitialSection !== 'profile') return;
-    setListeningLane(null);
-    setSection('profile');
-  }, [settingsInitialSection]);
+  // 그때도 Profile 탭으로 옮기도록 초기 탭 요청이 'profile'로 바뀌면 렌더 중에 탭을 바꾼다. 탭 클릭처럼 키 입력 대기도 끝낸다.
+  const [seenInitialSection, setSeenInitialSection] = useState(settingsInitialSection);
+  if (settingsInitialSection !== seenInitialSection) {
+    setSeenInitialSection(settingsInitialSection);
+    if (settingsInitialSection === 'profile') {
+      setListeningLane(null);
+      setSection('profile');
+    }
+  }
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [inputOffsetText, setInputOffsetText] = useState(String(settings.inputOffsetMs));
