@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { beat } from "../types/beat";
 import type { ChartEvent } from "../types/chart";
-import { validateChart, validateNoEventOverlap } from "./index";
+import { eventPlacementsOverlap, validateChart, validateNoEventOverlap } from "./index";
 import { validateChartDocument } from "./documentValidation";
 
 const text = (start: number, end: number, editorLane?: number): ChartEvent =>
@@ -90,5 +90,26 @@ describe("같은 보조 레인의 이벤트 배치 겹침", () => {
     expect(repaired.semantic).toEqual([]);
     expect(repaired.canSave).toBe(true);
     expect(repaired.canPlayExplicit).toBe(true);
+  });
+});
+
+describe("eventPlacementsOverlap 배치 겹침 판정", () => {
+  it.each([
+    { name: "editorLane 생략과 보조 레인1의 0박 BPM·박자는 같은 레인 같은 점이라 겹친다", a: bpm(0), b: signature(0, 1) },
+    { name: "보조 레인1의 0박 BPM 두 개는 같은 종류여도 겹친다", a: bpm(0, 1), b: bpm(0, 1) },
+    { name: "보조 레인1의 text [0,4)는 시작 0박의 BPM과 겹친다", a: text(0, 4, 1), b: bpm(0, 1) },
+    { name: "보조 레인2의 text [4,8)·auto [6,10)은 종류가 달라도 겹친다", a: text(4, 8, 2), b: auto(6, 10, 2) },
+  ])("$name", ({ a, b }) => {
+    expect(eventPlacementsOverlap(a, b)).toBe(true);
+    expect(eventPlacementsOverlap(b, a)).toBe(true);
+  });
+
+  it.each([
+    { name: "보조 레인1·2의 0박 BPM·박자는 레인이 달라 겹치지 않는다", a: bpm(0, 1), b: signature(0, 2) },
+    { name: "보조 레인1의 text [4,8) 끝 8박의 BPM은 겹치지 않는다", a: text(4, 8, 1), b: bpm(8, 1) },
+    { name: "보조 레인1·2의 text·auto [4,8)은 시간이 같아도 레인이 달라 겹치지 않는다", a: text(4, 8, 1), b: auto(4, 8, 2) },
+  ])("$name", ({ a, b }) => {
+    expect(eventPlacementsOverlap(a, b)).toBe(false);
+    expect(eventPlacementsOverlap(b, a)).toBe(false);
   });
 });

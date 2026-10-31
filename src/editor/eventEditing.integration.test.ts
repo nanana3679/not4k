@@ -114,7 +114,8 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
     expect(store().selection.events).toEqual(new Set([2]));
   });
 
-  it('editorLane 없는 초기 BPM·박자는 자동 이동 없이 열어 위반을 표시하고 선택에서는 제외한다', () => {
+  it('editorLane 없는 초기 BPM·박자가 store에서 보조 레인1에 겹쳐 있으면 선택·레인 이동이 둘 다 제외해 위반 0·1이 그대로 남는다', () => {
+    // 파일을 열 때의 자동 분리는 openEditorChart가 맡는다. 이 테스트는 모달 수정 등으로 다시 겹친 store 상태를 본다.
     const chart = chartFixture();
     chart.events = chart.events.slice(0, 2).map(({ editorLane: _editorLane, ...event }) => event);
     useEditorStore.getState().loadChart(chart);
