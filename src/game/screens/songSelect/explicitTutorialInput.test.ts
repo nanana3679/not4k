@@ -27,24 +27,46 @@ function keyboard(target: EventTarget, type: 'keydown' | 'keyup', code: string, 
   return event;
 }
 
-function setup(preview = tutorialExplicitPlayerPreviews[0].preview) {
+function setup(preview = tutorialExplicitPlayerPreviews[0].preview, key = 'KeyE', ownsKeyboardInput = () => true) {
   const effects = { showJudgmentGroup: vi.fn(), recordFlightJudgment: vi.fn(), showBombEffect: vi.fn() };
   const playback = createExplicitTutorialPreviewPlayback(preview,
     createTutorialTimingsInputPlan(getTutorialInputTimings(preview.chart)), effects);
   const clock = { loopStartNow: 1000, blocked: false };
   const onPatternFinished = vi.fn();
-  const input = createExplicitTutorialInput(playback, [{ lane: 2, key: 'KeyE' }], preview.loopMs, () => clock, onPatternFinished);
+  const input = createExplicitTutorialInput(playback, [{ lane: 2, key }], preview.loopMs,
+    () => clock, onPatternFinished, ownsKeyboardInput);
   const target = new EventTarget();
   input.attach(target);
   return { input, playback, target, effects, clock, onPatternFinished };
 }
+
+it.each([2999, 3000])('2000ms 경계 프레임 뒤 timestamp %i ms keyup이 도착하면 이전 패턴은 Perfect 2·Miss 0', at => {
+  const base = tutorialExplicitPlayerPreviews[0].preview;
+  const preview = createExplicitTutorialPreview('boundary-release', '경계 릴리즈', [], 4, { ...base.chart, notes: [
+    { type: 'tap', kind: 'single', lane: 2, beat: beat(1) },
+    { type: 'body', lane: 2, holdCount: 1, beat: beat(1), endBeat: beat(4) },
+    { type: 'release', lane: 2, count: 1, beat: beat(4) },
+  ] });
+  const { input, target, onPatternFinished } = setup(preview);
+  input.setMode('directInput');
+  keyboard(target, 'keydown', 'KeyE', 1500);
+  input.advanceTo(500);
+  input.advanceTo(2000);
+  keyboard(target, 'keyup', 'KeyE', at);
+  input.advanceTo(2016);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
+  expect(input.heldKeys).toEqual([]);
+  input.stop();
+});
 
 it('직접 입력에서 첫 프레임 전 event 3500ms를 받아도 이전 반복은 Miss 3이고 다음 반복 500ms 탭만 Perfect 1', () => {
   const { input, target, effects } = setup();
   input.setMode('directInput');
   input.advanceTo(1900);
   keyboard(target, 'keydown', 'KeyE', 3500);
-  const finished = input.advanceTo(2500);
+  expect(input.advanceTo(2500)).toBeUndefined();
+  const finished = input.advanceTo(2516);
   expect(finished?.result.score.judgmentCounts).toMatchObject({ perfect: 0, miss: 3 });
   expect(effects.recordFlightJudgment.mock.calls.filter(([grade]) => grade === 'perfect')).toHaveLength(1);
   expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
@@ -91,7 +113,8 @@ it('500ms까지 판정한 뒤 늦게 온 rAF 490ms는 같은 세션을 유지하
   keyboard(target, 'keydown', 'KeyE', 1500);
   input.advanceTo(500);
   input.advanceTo(490);
-  const finished = input.advanceTo(2000);
+  expect(input.advanceTo(2000)).toBeUndefined();
+  const finished = input.advanceTo(2016);
   expect(finished?.result.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 2 });
   input.stop();
 });
@@ -100,7 +123,7 @@ it.each([
   { elapsedMs: 2015, diagramStartMs: 0 },
   { elapsedMs: 2700, diagramStartMs: 200 },
   { elapsedMs: 6700, diagramStartMs: 200 },
-])('2000ms 경계를 넘은 $elapsedMs ms 프레임에 도식이 시작되면 이전 패턴만 Perfect 1·Miss 2로 한 번 정산하고 $diagramStartMs ms에서 멈춤', ({ elapsedMs, diagramStartMs }) => {
+])('2000ms 경계를 넘은 $elapsedMs ms 프레임에 도식이 시작되면 다음 프레임에 Perfect 1·Miss 2로 한 번 정산하고 $diagramStartMs ms에서 멈춤', ({ elapsedMs, diagramStartMs }) => {
   const { input, playback, target, clock, onPatternFinished } = setup();
   input.setMode('directInput');
   input.advanceTo(1400);
@@ -108,7 +131,8 @@ it.each([
   keyboard(target, 'keydown', 'KeyE', 2500);
   const diagramHeldBeforeFrame = clock.blocked;
   clock.blocked = true;
-  const finished = input.advanceTo(elapsedMs, { loopTimeMs: diagramStartMs, blocked: diagramHeldBeforeFrame });
+  expect(input.advanceTo(elapsedMs, { loopTimeMs: diagramStartMs, blocked: diagramHeldBeforeFrame })).toBeUndefined();
+  const finished = input.advanceTo(elapsedMs + 16, { loopTimeMs: diagramStartMs, blocked: true });
   expect(finished?.iteration).toBe(0);
   expect(finished?.result.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 2 });
   expect(onPatternFinished).toHaveBeenCalledExactlyOnceWith(finished);
@@ -118,6 +142,31 @@ it.each([
     expect(onPatternFinished).toHaveBeenCalledTimes(1);
     expect(playback.renderSnapshot(0).atMs).toBe(diagramStartMs);
   }
+  input.stop();
+});
+
+it('KeyE hold 중 설정 캡처가 소유권을 가져가면 up 1510ms로 held를 비우고 down 2000ms는 설정에만 전달', () => {
+  let ownsKeyboardInput = true;
+  const { input, target, effects } = setup(undefined, 'KeyE', () => ownsKeyboardInput);
+  input.setMode('directInput');
+  keyboard(target, 'keydown', 'KeyE', 1500);
+  input.advanceTo(500);
+  expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
+  effects.recordFlightJudgment.mockClear();
+  ownsKeyboardInput = false;
+  const capture = vi.fn();
+  target.addEventListener('keydown', capture);
+  expect(keyboard(target, 'keyup', 'KeyE', 1510).defaultPrevented).toBe(false);
+  expect(input.heldKeys).toEqual([]);
+  expect(keyboard(target, 'keydown', 'KeyE', 2000).defaultPrevented).toBe(false);
+  input.advanceTo(1000);
+  expect(capture).toHaveBeenCalledTimes(1);
+  expect(input.heldKeys).toEqual([]);
+  expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
+  ownsKeyboardInput = true;
+  keyboard(target, 'keydown', 'KeyE', 2001);
+  input.advanceTo(1001);
+  expect(effects.recordFlightJudgment).toHaveBeenCalledExactlyOnceWith('perfect');
   input.stop();
 });
 
@@ -147,12 +196,13 @@ it('경계 전 700ms 프레임에서 200ms 도식이 시작되면 시연의 500m
   input.stop();
 });
 
-it.each(['demonstration', 'directInput'] as const)('%s에서 2700ms 경계·도식 진입 뒤 즉시 OK로 400ms에 rebase하면 결과 차수는 0→1이고 다음 패턴의 500ms 탭도 판정', mode => {
+it.each(['demonstration', 'directInput'] as const)('%s에서 2700ms 경계·도식 진입 정산 뒤 OK로 400ms에 rebase하면 결과 차수는 0→1이고 다음 패턴의 500ms 탭도 판정', mode => {
   const { input, playback, target, clock, onPatternFinished } = setup();
   input.setMode(mode);
   input.advanceTo(1900);
   clock.blocked = true;
-  const finished = input.advanceTo(2700, { loopTimeMs: 200, blocked: false });
+  let finished = input.advanceTo(2700, { loopTimeMs: 200, blocked: false });
+  if (mode === 'directInput') finished = input.advanceTo(2716, { loopTimeMs: 200, blocked: true });
   expect(finished?.iteration).toBe(0);
   expect(finished?.result.score.judgmentCounts).toMatchObject({
     perfect: mode === 'demonstration' ? 3 : 0,
@@ -163,14 +213,14 @@ it.each(['demonstration', 'directInput'] as const)('%s에서 2700ms 경계·도�
   keyboard(target, 'keydown', 'KeyE', 5500);
   keyboard(target, 'keyup', 'KeyE', 5510);
   clock.loopStartNow = 6000 - 400;
-  input.rebase();
+  input.rebase(6000);
   clock.blocked = false;
   expect(input.advanceTo(400)).toBeUndefined();
   expect(playback.renderSnapshot(0).atMs).toBe(400);
   expect(onPatternFinished).toHaveBeenCalledExactlyOnceWith(finished);
   keyboard(target, 'keydown', 'KeyE', 6100);
   input.advanceTo(500);
-  const nextFinished = input.advanceTo(2000);
+  const nextFinished = input.advanceTo(2000) ?? input.advanceTo(2016);
   expect(nextFinished?.iteration).toBe(1);
   expect(nextFinished?.result.score.judgmentCounts).toMatchObject({
     perfect: mode === 'demonstration' ? 3 : 1,
@@ -194,6 +244,7 @@ it('KeyE를 1900ms부터 유지하고 다음 반복 700ms에 뗄 예정이면 �
   keyboard(target, 'keyup', 'KeyE', 3700);
   expect(input.heldKeys).toEqual([]); // 실제 키는 이미 뗐지만 아직 다음 반복 700ms의 up을 전달하면 안 된다.
   input.advanceTo(2500);
+  input.advanceTo(2516);
   expect(effects.recordFlightJudgment.mock.calls.filter(([grade]) => grade === 'perfect')).toHaveLength(1);
   input.advanceTo(2800);
   input.stop();
@@ -202,7 +253,8 @@ it('KeyE를 1900ms부터 유지하고 다음 반복 700ms에 뗄 예정이면 �
 it('직접 입력의 반복 0은 Miss 3이고 경계에서 시연으로 전환한 반복 1은 Perfect 3', () => {
   const { input } = setup();
   input.setMode('directInput');
-  expect(input.advanceTo(2000)?.result.score.judgmentCounts).toMatchObject({ perfect: 0, miss: 3 });
+  expect(input.advanceTo(2000)).toBeUndefined();
+  expect(input.advanceTo(2016)?.result.score.judgmentCounts).toMatchObject({ perfect: 0, miss: 3 });
   input.setMode('demonstration');
   expect(input.advanceTo(4000)?.result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
   input.stop();
@@ -219,6 +271,171 @@ it('400ms에 멈춘 뒤 2400ms에 재개하면 늦게 도착한 pause 중 event 
   input.advanceTo(400);
   keyboard(target, 'keydown', 'KeyE', 2399);
   input.advanceTo(500);
+  expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
+  expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
+  input.stop();
+});
+
+it.each([false, true])('도식 OK 6000ms로 400ms에 재개한 뒤 프레임 진행=%s이면 늦은 down 5999ms는 Perfect·Great·Good 0회', advanceBeforeInput => {
+  const { input, target, effects, clock } = setup();
+  input.setMode('directInput');
+  input.advanceTo(200);
+  clock.blocked = true;
+  input.syncJudging();
+  clock.loopStartNow = 5600;
+  input.rebase(6000);
+  clock.blocked = false;
+  if (advanceBeforeInput) input.advanceTo(400);
+  keyboard(target, 'keydown', 'KeyE', 5999);
+  input.advanceTo(500);
+  expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
+  expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
+  input.stop();
+});
+
+it('paused 중 KeyE down 1500ms·up 1510ms는 상위 핸들러에 2회 전달하고 held 0개·판정 0회', () => {
+  const { input, target, effects, clock } = setup();
+  input.setMode('directInput');
+  clock.blocked = true;
+  const navigate = vi.fn();
+  target.addEventListener('keydown', navigate);
+  target.addEventListener('keyup', navigate);
+  expect(keyboard(target, 'keydown', 'KeyE', 1500).defaultPrevented).toBe(false);
+  expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
+  expect(keyboard(target, 'keyup', 'KeyE', 1510).defaultPrevented).toBe(false);
+  input.advanceTo(510);
+  expect(navigate).toHaveBeenCalledTimes(2);
+  expect(input.heldKeys).toEqual([]);
+  expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
+  input.stop();
+});
+
+it.each(['INPUT', 'TEXTAREA', 'SELECT'])('%s에서 KeyE를 1500ms에 입력하면 기본 동작을 허용하고 held 0개·판정 0회', tagName => {
+  const { input, target, effects } = setup();
+  // Node EventTarget에 브라우저 이벤트 대상의 요소 속성을 부여한다.
+  Object.assign(target, { tagName });
+  input.setMode('directInput');
+  const navigate = vi.fn();
+  target.addEventListener('keydown', navigate);
+  expect(keyboard(target, 'keydown', 'KeyE', 1500).defaultPrevented).toBe(false);
+  input.advanceTo(500);
+  expect(navigate).toHaveBeenCalledTimes(1);
+  expect(input.heldKeys).toEqual([]);
+  expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
+  input.stop();
+});
+
+it.each([
+  { name: 'contenteditable 자식', code: 'KeyE', properties: { tagName: 'SPAN', isContentEditable: true } },
+  { name: 'button', code: 'Space', properties: { tagName: 'BUTTON' } },
+  { name: 'button 자식', code: 'Enter', properties: { tagName: 'SPAN', parentElement: { tagName: 'BUTTON' } } },
+  { name: 'switch', code: 'Space', properties: { tagName: 'DIV', getAttribute: () => 'switch' } },
+  { name: 'tab', code: 'ArrowRight', properties: { tagName: 'DIV', getAttribute: () => 'tab' } },
+])('$name에서 바인딩된 $code를 1500ms에 누르면 기본 동작 허용·held 0개·판정 0회', ({ code, properties }) => {
+  const { input, target, effects } = setup(undefined, code);
+  Object.assign(target, properties);
+  input.setMode('directInput');
+  expect(keyboard(target, 'keydown', code, 1500).defaultPrevented).toBe(false);
+  expect(keyboard(target, 'keyup', code, 1510).defaultPrevented).toBe(false);
+  input.advanceTo(510);
+  expect(input.heldKeys).toEqual([]);
+  expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
+  input.stop();
+});
+
+it('프레임 전 KeyE down 1500ms 뒤 input에서 up 1510ms가 오면 탭만 Perfect 1이고 1800ms 틱은 Perfect가 아님', () => {
+  const base = tutorialExplicitPlayerPreviews[0].preview;
+  const preview = createExplicitTutorialPreview('focus-release', '포커스 이동', [], 4, { ...base.chart, notes: [
+    { type: 'tap', kind: 'single', lane: 2, beat: beat(1) },
+    { type: 'body', lane: 2, holdCount: 1, beat: beat(1), endBeat: beat(2) },
+    { type: 'tick', lane: 2, count: 1, beat: beat(8, 5) },
+    { type: 'release', lane: 2, count: 1, beat: beat(2) },
+  ] });
+  const { input, target, effects } = setup(preview);
+  input.setMode('directInput');
+  keyboard(target, 'keydown', 'KeyE', 1500);
+  Object.assign(target, { tagName: 'INPUT' });
+  expect(keyboard(target, 'keyup', 'KeyE', 1510).defaultPrevented).toBe(false);
+  input.advanceTo(1000);
+  expect(input.heldKeys).toEqual([]);
+  expect(effects.recordFlightJudgment.mock.calls.filter(([grade]) => grade === 'perfect')).toHaveLength(1);
+  input.stop();
+});
+
+it('2000ms 경계 정산 대기 중 pause에서 down 3500ms가 오면 재개한 다음 패턴의 500ms 탭을 판정하지 않음', () => {
+  const { input, target, effects, clock } = setup();
+  input.setMode('directInput');
+  input.advanceTo(2000);
+  effects.recordFlightJudgment.mockClear();
+  clock.blocked = true;
+  keyboard(target, 'keydown', 'KeyE', 3500);
+  clock.loopStartNow = 2000;
+  clock.blocked = false;
+  input.advanceTo(2016);
+  input.advanceTo(2500);
+  expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
+  expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
+  input.stop();
+});
+
+it('도식 OK 6000ms로 400ms에 재개한 뒤 늦은 up 5999ms는 held만 비우고 500ms release의 성공 판정은 0회', () => {
+  const base = tutorialExplicitPlayerPreviews[0].preview;
+  const preview = createExplicitTutorialPreview('resume-release', '재개 릴리즈', [], 4, { ...base.chart, notes: [
+    { type: 'body', lane: 2, holdCount: 1, beat: beat(0), endBeat: beat(1) },
+    { type: 'release', lane: 2, count: 1, beat: beat(1) },
+  ] });
+  const { input, target, effects, clock } = setup(preview);
+  input.setMode('directInput');
+  keyboard(target, 'keydown', 'KeyE', 1000);
+  input.advanceTo(200);
+  clock.blocked = true;
+  input.syncJudging();
+  clock.loopStartNow = 5600;
+  input.rebase(6000);
+  clock.blocked = false;
+  keyboard(target, 'keyup', 'KeyE', 5999);
+  input.advanceTo(500);
+  expect(input.heldKeys).toEqual([]);
+  expect(effects.recordFlightJudgment.mock.calls.filter(([grade]) => grade !== 'miss')).toEqual([]);
+  input.stop();
+});
+
+it('Escape가 2레인에 바인딩돼도 down 1500ms·up 1510ms는 닫기로 전달하고 held 0개·판정 0회', () => {
+  const { input, target, effects } = setup(undefined, 'Escape');
+  input.setMode('directInput');
+  const close = vi.fn();
+  target.addEventListener('keydown', close);
+  expect(keyboard(target, 'keydown', 'Escape', 1500).defaultPrevented).toBe(false);
+  expect(keyboard(target, 'keyup', 'Escape', 1510).defaultPrevented).toBe(false);
+  input.advanceTo(510);
+  expect(close).toHaveBeenCalledTimes(1);
+  expect(input.heldKeys).toEqual([]);
+  expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
+  input.stop();
+});
+
+it('button에 포커스가 있어도 동작 키가 아닌 KeyE 1500ms는 레인 입력으로 받아 Perfect 1', () => {
+  const { input, target, effects } = setup();
+  Object.assign(target, { tagName: 'BUTTON' });
+  input.setMode('directInput');
+  expect(keyboard(target, 'keydown', 'KeyE', 1500).defaultPrevented).toBe(true);
+  input.advanceTo(500);
+  expect(effects.recordFlightJudgment).toHaveBeenCalledExactlyOnceWith('perfect');
+  input.stop();
+});
+
+it('2016ms에 경계 정산까지 마친 뒤 옛 timestamp 3000ms down이 오면 다음 패턴 0ms 탭은 판정하지 않음', () => {
+  const base = tutorialExplicitPlayerPreviews[0].preview;
+  const preview = createExplicitTutorialPreview('stale-boundary', '지난 경계 입력', [], 4, { ...base.chart, notes: [
+    { type: 'tap', kind: 'single', lane: 2, beat: beat(0) },
+  ] });
+  const { input, target, effects } = setup(preview);
+  input.setMode('directInput');
+  input.advanceTo(2000);
+  input.advanceTo(2016);
+  effects.recordFlightJudgment.mockClear();
+  keyboard(target, 'keydown', 'KeyE', 3000);
+  input.advanceTo(2032);
   expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
   expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
   input.stop();

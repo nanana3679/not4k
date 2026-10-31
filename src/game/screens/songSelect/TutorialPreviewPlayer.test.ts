@@ -481,11 +481,9 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialInputSource).toContain('beforeInput: () => syncJudging()');
     expect(tutorialInputSource).toContain('const syncJudging = (blocked = getClock().blocked) => {');
     expect(tutorialInputSource).toContain('const blocked = frame?.blocked ?? getClock().blocked;');
-    expect(tutorialInputSource).toContain('syncJudging(blocked);\n      if (blocked) return;');
     expect(tutorialInputSource).toContain('elapsedMs = Math.floor(Math.max(0, elapsedMs) / loopMs) * loopMs + frame.loopTimeMs;');
     expect(tutorialInputSource).toContain('stepExplicitTutorialLoop({ elapsedMs, loopMs, previousIteration: iteration');
     expect(tutorialInputSource.match(/playback\.finishPattern\(/g)).toHaveLength(1);
-    expect(tutorialInputSource).toContain('iteration = loop.iteration;');
     const inputAdvance = tutorialInputSource.slice(tutorialInputSource.indexOf('advanceTo(elapsedMs: number'));
     expect(inputAdvance).not.toMatch(/\b(for|while)\s*\(/);
     expect(renderLoopBody).not.toContain('stepExplicitTutorialLoop');
@@ -518,10 +516,10 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     const resumeEnd = tutorialPreviewPlayerSource.indexOf('    resolveDiagramPauseTime(0);', resumeStart);
     const resumeBody = tutorialPreviewPlayerSource.slice(resumeStart, resumeEnd);
     expect(resumeBody).toContain('loopStartNow = resumeNow - activeDiagramPause.timing.endMs;');
-    expect(resumeBody).toContain('explicitInput?.rebase();');
+    expect(resumeBody).toContain('explicitInput?.rebase(resumeNow);');
     const attachBody = tutorialPreviewPlayerSource.slice(attachStart, renderLoopStart);
     expect(attachBody).toContain('loopStartNow = previousNow;');
-    expect(attachBody).toContain('explicitInput?.rebase();');
+    expect(attachBody).toContain('explicitInput?.rebase(previousNow);');
   });
 
   it('명시 노트 도안은 렌더러마다 명시 정의를 처음 걸 때만 ExplicitSkinLoader로 불러오고, 정리는 렌더러 dispose 뒤에 함', () => {

@@ -12,8 +12,10 @@ export interface KeyBinding {
 }
 
 export interface InputCallbacks {
+  /** 다른 UI가 소유한 down은 수집하지 않는다. 이미 held인 키의 up은 항상 추적한다. */
+  acceptsKeyDown?: (event: KeyboardEvent) => boolean;
   onLanePress: (lane: 1 | 2 | 3 | 4, timestampMs: number, keyCode: string) => void;
-  onLaneRelease: (lane: 1 | 2 | 3 | 4, timestampMs: number, keyCode: string) => void;
+  onLaneRelease: (lane: 1 | 2 | 3 | 4, timestampMs: number, keyCode: string, event: KeyboardEvent) => void;
 }
 
 /**
@@ -150,6 +152,7 @@ export class InputSystem {
 
     const lane = this.bindings.get(e.code);
     if (!lane) return; // Key not bound to any lane
+    if (this.callbacks.acceptsKeyDown?.(e) === false) return;
 
     // If this key is already held, ignore (shouldn't happen with repeat check, but be safe)
     if (this.heldKeys.has(e.code)) return;
@@ -187,6 +190,6 @@ export class InputSystem {
     }
 
     // Fire on every key release (for per-key hold tracking)
-    this.callbacks.onLaneRelease(lane, e.timeStamp, e.code);
+    this.callbacks.onLaneRelease(lane, e.timeStamp, e.code, e);
   }
 }

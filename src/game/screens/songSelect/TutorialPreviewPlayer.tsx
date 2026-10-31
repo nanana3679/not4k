@@ -138,6 +138,8 @@ interface TutorialPreviewPlayerProps {
   /** 명시 정의 전용. 적용된 모드이며 prop 변경 즉시 전환한다. 시연 복귀를 다음 패턴까지 미루는 것은 호출자 책임이다.
    * 직접 입력 레인 키는 window capture에서 소비하므로 모달 탐색은 bubble 단계에 둔다. Escape는 항상 통과한다. */
   inputMode?: TutorialInputMode;
+  /** 설정 키 캡처 등 다른 UI가 키보드를 소유하면 false. 기존 held 키의 up은 계속 추적한다. */
+  ownsKeyboardInput?: (event: KeyboardEvent) => boolean;
   /** 최초 준비와 각 반복 시작에 0부터 알린다. 중간 모드 전환은 새 시작이 아니다. */
   onPatternStarted?: (iteration: number) => void;
   /**
@@ -258,6 +260,7 @@ export function TutorialPreviewPlayer({
   onPatternFinished,
   onPatternStarted,
   inputMode = 'demonstration',
+  ownsKeyboardInput,
 }: TutorialPreviewPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // 지금 차트를 그리고 있는(차트를 건) 렌더러. 레인 키 라벨 effect가 쓴다.
@@ -276,6 +279,7 @@ export function TutorialPreviewPlayer({
   const onPatternFinishedRef = useRef(onPatternFinished);
   const onPatternStartedRef = useRef(onPatternStarted);
   const inputModeRef = useRef(inputMode);
+  const ownsKeyboardInputRef = useRef(ownsKeyboardInput);
   const syncExplicitControlRef = useRef<(() => void) | null>(null);
   const directInput = isExplicitTutorialPreview(preview) && inputMode === 'directInput';
   const settings = useGameStore((state) => state.settings);
@@ -362,6 +366,10 @@ export function TutorialPreviewPlayer({
     inputModeRef.current = inputMode;
     syncExplicitControlRef.current?.();
   }, [inputMode]);
+
+  useEffect(() => {
+    ownsKeyboardInputRef.current = ownsKeyboardInput;
+  }, [ownsKeyboardInput]);
 
   useEffect(() => {
     showRendererBombRef.current = showRendererBomb;
@@ -648,8 +656,8 @@ export function TutorialPreviewPlayer({
 
       const resumeNow = performance.now();
       loopStartNow = resumeNow - activeDiagramPause.timing.endMs;
-      // 도식 진입 프레임에서 끝난 반복은 이미 정산했다. 현재 세션을 유지하고 시계의 경계 기준만 돌린다.
-      explicitInput?.rebase();
+      // 경계 정산 대기가 남아 있으면 마친 뒤 실제 OK 시각부터 새 입력을 받는다.
+      explicitInput?.rebase(resumeNow);
       previousNow = resumeNow;
       // 멈춘(paused) 상태에서 재개하면 멈춘 시각을 지금으로 옮겨, 나중에 일시정지가 풀릴 때 도식 끝 시점에서 그대로 잇는다.
       if (pausedAtNow !== null) pausedAtNow = resumeNow;
@@ -705,7 +713,7 @@ export function TutorialPreviewPlayer({
             pattern => {
               onPatternFinishedRef.current?.(pattern);
               onPatternStartedRef.current?.(pattern.iteration + 1);
-            });
+            }, event => ownsKeyboardInputRef.current?.(event) ?? true);
           explicitInput.attach(window);
           explicitInput.setMode(inputModeRef.current);
           const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) =>
@@ -826,7 +834,7 @@ export function TutorialPreviewPlayer({
         loopStartNow = previousNow;
         pausedAtNow = null;
         previousLoopTime = 0;
-        explicitInput?.rebase();
+        explicitInput?.rebase(previousNow);
         activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
         attachedRenderer = renderer;
         rendererRef.current = renderer;
@@ -849,7 +857,7 @@ export function TutorialPreviewPlayer({
           previousNow = now;
           // rAF 타임스탬프는 프레임 시작 시각이라 첫 프레임 직후 잰 loopStartNow보다 앞설 수 있다. 음수면 루프 경계로 오인하므로 0으로 막는다.
           let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs;
-          // 이 프레임에 새로 시작하는 도식은 경계 정산을 막지 않는다. 경계를 넘자마자 도식이 시작돼도 끝난 반복을 먼저 정산한다.
+          // 새 도식은 이미 지난 경계의 정산을 막지 않는다. 직접 입력은 늦은 이벤트를 위해 다음 프레임까지 기다린다.
           const diagramHeldBeforeFrame = activeDiagramPause !== null;
           loopTimeMs = resolveDiagramPauseTime(loopTimeMs);
           activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs + loopTimeMs, preview.loopMs);

@@ -159,3 +159,18 @@ test('직접 입력으로 전환한 싱글 탭 반복에서 기본 TKL KeyE를 5
   expect((await readProbe(page)).explicitCharts).toBe(1);
   expect(pageErrors).toEqual([]);
 });
+
+test('Space가 2레인에 바인딩돼도 포커스된 Lab 스위치에서 Space를 2회 누르면 직접 입력에서 시연으로 복귀한다', async ({ page }) => {
+  const settings = JSON.parse(SETTINGS);
+  settings.state.settings.keyBindings.lane2 = ['Space', 'KeyE'];
+  await page.addInitScript(value => localStorage.setItem('not4k-settings', value), JSON.stringify(settings));
+  await page.goto('/lab/tutorial-explicit-player');
+  const toggle = page.getByRole('switch', { name: '직접 입력 / 시연' });
+  const result = page.locator('[data-started-patterns]');
+  await toggle.focus();
+  await page.keyboard.press('Space');
+  await expect(result).toHaveAttribute('data-input-mode', 'directInput');
+  await page.keyboard.press('Space');
+  await expect(result).toHaveAttribute('data-input-mode', 'demonstration');
+  await expect(toggle).not.toBeChecked();
+});
