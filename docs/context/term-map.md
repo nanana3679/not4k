@@ -53,7 +53,7 @@
 
 **곡 타이밍**은 곡의 음악적 시간 기준을 설명하는 한국어 표현으로 사용한다. 같은 곡의 차트들이 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬 오프셋을 가리킨다. 기존 `BpmChangeEvent`·`offsetMs`의 저장 표현과 곡 단위 소유 규칙을 구별하며, 정의는 [glossary](glossary.md#곡-타이밍)를 따른다.
 
-**비행 배경**은 플레이 화면의 배경을 설명하는 한국어 표현으로 사용한다. 비행 배경의 움직임 설정과 기어 모션 설정을 구분하며 정의는 [glossary](glossary.md#비행-배경)를 따른다.
+**비행 배경**은 플레이 화면의 배경을 설명하는 한국어 표현으로 사용한다. 비행 배경의 움직임 설정(설정 라벨 `Background Motion`, 코드 `flightBackgroundMotion`)과 기어 모션 설정(`Gear Motion`, 코드 `gearMotion`)을 구분하며 정의는 [glossary](glossary.md#비행-배경)를 따른다.
 
 **마스터 볼륨**은 기존 오디오 설정의 한국어 표현을 유지한다. 전체 출력 음량과 기기별 저장 규칙은 [glossary](glossary.md#마스터-볼륨-master-volume)를 따른다.
 
@@ -130,7 +130,7 @@
 
 | 개념 | 쓸 표기 | 피할 말 | 근거/식별자 |
 |---|---|---|---|
-| 운영체제·브라우저의 모션 감소 설정 | 처음: 모션 감소 설정(`prefers-reduced-motion`, macOS·iOS '동작 줄이기', Android '애니메이션 삭제', Windows 11 '애니메이션 효과'), 이후 `prefers-reduced-motion`. 인게임 설정 `Gear Motion`과 구분 | 움직임 줄이기 | [RFD 0030](../rfd/0030-ignore-os-reduced-motion.md), `prefersReducedMotion()`(#248에서 삭제) |
+| 운영체제·브라우저의 모션 감소 설정 | 처음: 모션 감소 설정(`prefers-reduced-motion`, macOS·iOS '동작 줄이기', Android '애니메이션 삭제', Windows 11 '애니메이션 효과'), 이후 `prefers-reduced-motion`. 인게임 설정 `Gear Motion`·`Background Motion`과 구분 | 움직임 줄이기 | [RFD 0030](../rfd/0030-ignore-os-reduced-motion.md), `prefersReducedMotion()`(#248에서 삭제) |
 | reference counting | reference counting. 동작은 retain/release, 저장 값은 경로별 reference count | 참조 세기 | `retainSharedAsset`/`releaseSharedAsset`, `references`(`src/game/skin/sharedAssets.ts`) |
 | lease | lease. 얻을 때 acquire, 끝낼 때 release("lease를 release"처럼 대상을 붙인다). 곡과 재시도 사이에도 lease를 release하지 않고 두는 것은 keep-alive | 임대, 빌리다, 붙잡아 두다, 놓다 | `GearMotionAssetLease`, `acquireGearMotionAssets`, `release()`, `keepGearMotionAssets` |
 | release와 unload | 둘을 나눠 쓴다. release는 reference count를 1 줄이고, unload는 마지막 release 뒤 `Assets.unload`가 캐시에서 지우는 것이다. Pixi 객체 정리는 destroy(`destroy()`). 무엇(lease·경로·텍스처)을 다루는지 함께 쓴다 | 놓다(어느 쪽에도) | `releaseSharedAsset` → `Assets.unload` |

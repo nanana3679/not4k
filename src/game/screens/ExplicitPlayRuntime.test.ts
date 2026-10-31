@@ -39,6 +39,8 @@ class FakeAudio {
   constructor() { fixture.audio.push(this); }
 }
 class FakeRenderer {
+  /** 런타임이 넘긴 생성 옵션(비행 배경·gearMotion 설정 배선 확인용). */
+  readonly options: ConstructorParameters<typeof GameRenderer>[0];
   init = vi.fn(() => fixture.init()); dispose = vi.fn();
   setExplicitChart = vi.fn<GameRenderer['setExplicitChart']>(); scrollSpeed = 0; setLift = vi.fn(); setSudden = vi.fn();
   setChartVisible = vi.fn(); setExplicitPlaybackChart = vi.fn<GameRenderer['setExplicitPlaybackChart']>();
@@ -47,7 +49,7 @@ class FakeRenderer {
   setKeyState = vi.fn(); setKeyBeam = vi.fn(); renderFrame = vi.fn(); updateCombo = vi.fn(); updateAccuracy = vi.fn();
   showJudgmentGroup = vi.fn(); recordFlightJudgment = vi.fn(); showBombEffect = vi.fn();
   recordExplicitPlaybackPosition = vi.fn(); restoreExplicitPlaybackState = vi.fn();
-  constructor() { fixture.renderers.push(this); }
+  constructor(options: ConstructorParameters<typeof GameRenderer>[0]) { this.options = options; fixture.renderers.push(this); }
 }
 vi.mock('../audio', () => ({ AudioEngine: class extends FakeAudio {} }));
 vi.mock('../renderer/GameRenderer', () => ({ GameRenderer: class extends FakeRenderer {} }));
@@ -116,6 +118,21 @@ function key(target: Target, type: 'keydown' | 'keyup', code: string, timeStamp 
   const event = new Event(type); Object.defineProperties(event, { code: { value: code }, timeStamp: { value: timeStamp } });
   target.dispatchEvent(event);
 }
+
+describe('명시 실제 재생 runtime — 설정 Background Motion·Gear Motion 렌더러 배선(RFD 0100)', () => {
+  it.each([
+    ['일반 플레이', true, false, true],
+    ['일반 플레이', true, true, false],
+    ['명시 테스트 재생', false, false, true],
+    ['명시 테스트 재생', false, true, false],
+  ] as const)('%s에서 Background Motion=%s·Gear Motion=%s이면 렌더러를 같은 값의 showFlightBackground·gearMotion 옵션으로 만든다', async (_purpose, normal, flightBackgroundMotion, gearMotion) => {
+    const run = create(!normal, undefined, { flightBackgroundMotion, gearMotion }, undefined, 4, normal ? {} : undefined);
+    await run.player.start();
+    expect(run.onError).not.toHaveBeenCalled();
+    expect(fixture.renderers).toHaveLength(1);
+    expect(fixture.renderers[0].options).toMatchObject({ showFlightBackground: flightBackgroundMotion, gearMotion });
+  });
+});
 
 describe('명시 실제 재생 runtime', () => {
   it('일반 첫 시작과 Retry는 각각 준비 완료 즉시 play(0)·playing이며 음악 준비와 resumeAt을 호출하지 않는다', async () => {

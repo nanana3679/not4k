@@ -183,6 +183,30 @@ describe('gameStore — gearMotion(설정 Gear Motion)', () => {
   });
 });
 
+describe('gameStore — flightBackgroundMotion(설정 Background Motion, RFD 0100)', () => {
+  it('처음 실행하면 설정 Background Motion은 켜져 있다(flightBackgroundMotion true)', () => {
+    expect(useGameStore.getInitialState().settings.flightBackgroundMotion).toBe(true);
+  });
+
+  it('flightBackgroundMotion을 저장하지 않은 기존 설정을 복원하면 켬(true)으로 채운다', () => {
+    const restored = mergePersistedSettings({ settings: { renderHeight: 720, gearMotion: false } }, useGameStore.getInitialState());
+    expect(restored.settings.flightBackgroundMotion).toBe(true);
+    expect(restored.settings.renderHeight).toBe(720);
+    expect(restored.settings.gearMotion).toBe(false);
+  });
+
+  it('flightBackgroundMotion 끔(false)·gearMotion 켬(true)으로 저장한 설정을 복원하면 두 값을 서로 바꾸지 않고 그대로 둔다', () => {
+    const restored = mergePersistedSettings({ settings: { flightBackgroundMotion: false, gearMotion: true } }, useGameStore.getInitialState());
+    expect(restored.settings.flightBackgroundMotion).toBe(false);
+    expect(restored.settings.gearMotion).toBe(true);
+  });
+
+  it('updateSettings로 flightBackgroundMotion만 끄면 gearMotion은 켬(true)으로 남는다', () => {
+    useGameStore.getState().updateSettings({ flightBackgroundMotion: false });
+    expect(useGameStore.getState().settings).toMatchObject({ flightBackgroundMotion: false, gearMotion: true });
+  });
+});
+
 describe('일반 곡 로딩·결과 수명', () => {
   const request = (index = 0) => prepareNormalPlay({ document: explicitPlaytestCharts[index].chart,
     audioBuffer: { duration: 4 } as AudioBuffer });

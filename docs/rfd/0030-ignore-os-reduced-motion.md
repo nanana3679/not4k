@@ -1,6 +1,6 @@
 # RFD 0030: 운영체제의 `prefers-reduced-motion` 설정을 따르지 않는다
 
-**Status:** 채택 (2026-10-07, 사용자 결정) · 구현 대기: 게임 화면·메뉴 UI·Lab ([#236](https://github.com/nanana3679/not4k/issues/236)) · 메뉴 UI(`global.css`·설정·캘리브레이션·튜토리얼 도움말·튜토리얼 미리보기)가 `prefers-reduced-motion`을 읽지 않음 (2026-10-08, PR #241, `global.css`를 함께 쓰는 Lab 공용 전환도 포함) · 게임 화면(기어 움직임·비행 배경·고도 게이지)이 `prefers-reduced-motion`을 읽지 않음: `prefersReducedMotion`과 렌더러 옵션 `gearMotionReducedMotion`·게이지 옵션 `reducedMotion` 제거 (2026-10-09, PR #248) · Lab(`Gear` 무대·Pixi ↔ 승인 SVG 비교, 노트 에셋 시연실·키봄 CSS)이 `prefers-reduced-motion`을 읽지 않음: `usePrefersReducedMotion`·`data-motion`의 `reduced`와 Lab만 부르던 `GearMotionControls.setReducedMotion`·`GearMotion.setReducedMotion` 제거, 비교 화면은 보관 승인 SVG를 문서에 넣기 전에 그 SVG의 `@media (prefers-reduced-motion: reduce)` 규칙을 걷어 냄 (2026-10-09, PR #252) · 구현 완료: 게임 화면 #248·메뉴 UI #241·Lab #252 (남은 예외: 보관 시연을 띄우는 `/lab/flight-background-preview`는 운영체제 설정에서 멈춘 채 시작, [#253](https://github.com/nanana3679/not4k/issues/253)에서 정리, 우선순위 낮음) · 비행 배경의 별도 설정·어두운 고정 배경을 RFD 0100으로 채택 (2026-10-31, 신규 설정 런타임 미구현)
+**Status:** 채택 (2026-10-07, 사용자 결정) · 구현 대기: 게임 화면·메뉴 UI·Lab ([#236](https://github.com/nanana3679/not4k/issues/236)) · 메뉴 UI(`global.css`·설정·캘리브레이션·튜토리얼 도움말·튜토리얼 미리보기)가 `prefers-reduced-motion`을 읽지 않음 (2026-10-08, PR #241, `global.css`를 함께 쓰는 Lab 공용 전환도 포함) · 게임 화면(기어 움직임·비행 배경·고도 게이지)이 `prefers-reduced-motion`을 읽지 않음: `prefersReducedMotion`과 렌더러 옵션 `gearMotionReducedMotion`·게이지 옵션 `reducedMotion` 제거 (2026-10-09, PR #248) · Lab(`Gear` 무대·Pixi ↔ 승인 SVG 비교, 노트 에셋 시연실·키봄 CSS)이 `prefers-reduced-motion`을 읽지 않음: `usePrefersReducedMotion`·`data-motion`의 `reduced`와 Lab만 부르던 `GearMotionControls.setReducedMotion`·`GearMotion.setReducedMotion` 제거, 비교 화면은 보관 승인 SVG를 문서에 넣기 전에 그 SVG의 `@media (prefers-reduced-motion: reduce)` 규칙을 걷어 냄 (2026-10-09, PR #252) · 구현 완료: 게임 화면 #248·메뉴 UI #241·Lab #252 (남은 예외: 보관 시연을 띄우는 `/lab/flight-background-preview`는 운영체제 설정에서 멈춘 채 시작, [#253](https://github.com/nanana3679/not4k/issues/253)에서 정리, 우선순위 낮음) · 비행 배경의 별도 설정·어두운 고정 배경을 RFD 0100으로 채택 (2026-10-31, 신규 설정 런타임 미구현) · RFD 0100의 설정 `Background Motion` 구현 (2026-10-31)
 
 ## 기존 결정과 문제
 
@@ -19,9 +19,9 @@ PR #235(고도 게이지) 이해 확인 중 사용자가 운영체제 설정과 
 ## 결정
 
 1. **not4k는 `prefers-reduced-motion`을 읽지 않는다.** 앱 전체(플레이 화면, 메뉴 UI, 설정·캘리브레이션·튜토리얼 화면, 에디터)와 게임 동작을 보여 주는 Lab 페이지가 같다. 화면 효과는 인게임 설정만 따른다.
-2. **기어 움직임은 인게임 `Gear Motion`(기본 켬)만으로 정한다.** 비행 배경은 후속 [RFD 0100](0100-flight-background-motion-setting.md)에 따라 별도 설정으로 끄고 어두운 고정 배경으로 바꿀 수 있게 한다(2026-10-31 채택, 미구현). 고도 게이지 이징은 기존대로 표시한다.
+2. **기어 움직임은 인게임 `Gear Motion`(기본 켬)만으로 정한다.** 비행 배경은 후속 [RFD 0100](0100-flight-background-motion-setting.md)에 따라 별도 설정 `Background Motion`으로 끄고 어두운 고정 배경으로 바꿀 수 있다(2026-10-31 채택·구현). 고도 게이지 이징은 기존대로 표시한다.
 3. **메뉴 UI의 전환·애니메이션은 운영체제 설정과 관계없이 같다.**
-4. **움직임에 민감한 플레이어를 위한 선택지는 효과별 인게임 설정으로 둔다.** 무엇이 꺼지는지 이름에서 드러나게 하며(지금은 기어 움직임을 끄는 `Gear Motion`), 노트까지 멈추는 것처럼 읽힐 수 있는 "애니메이션 끄기" 같은 묶음 이름은 쓰지 않는다. 비행 배경 끄기는 후속 [RFD 0100](0100-flight-background-motion-setting.md)으로 채택했다(2026-10-31). 관련 [#237](https://github.com/nanana3679/not4k/issues/237)의 런타임 반영은 후속 작업이다. 남은 선택은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
+4. **움직임에 민감한 플레이어를 위한 선택지는 효과별 인게임 설정으로 둔다.** 무엇이 꺼지는지 이름에서 드러나게 하며(지금은 기어 움직임을 끄는 `Gear Motion`과 비행 배경 움직임을 끄는 `Background Motion`), 노트까지 멈추는 것처럼 읽힐 수 있는 "애니메이션 끄기" 같은 묶음 이름은 쓰지 않는다. 비행 배경 끄기는 후속 [RFD 0100](0100-flight-background-motion-setting.md)으로 채택하고 `Background Motion`으로 구현했다(2026-10-31, 관련 [#237](https://github.com/nanana3679/not4k/issues/237)). 남은 선택은 [PRD §12](../prd.md#12-미정-사항)에서 추적한다.
 5. **보관·시연 기록은 그대로 둔다.** 해시로 고정한 Classic 보관본(`assets-lab/classic/versions/*`), 이미지 갤러리(`lab/image-galleries/*`), 독립 시연(`output/prototypes/*`), 리비전 생성 스크립트, 지난 CHANGELOG는 당시 동작을 기록한 것이라 고치지 않는다. 게임 동작을 보여 주는 Lab 페이지가 이런 기록을 불러와 쓸 때는 그 페이지에서 운영체제 설정의 영향을 걷어 낸다.
 
 ## 검토한 대안
@@ -31,7 +31,7 @@ PR #235(고도 게이지) 이해 확인 중 사용자가 운영체제 설정과 
 
 ## Trade-off
 
-멀미 같은 이유로 운영체제에서 모션 감소를 켠 플레이어도 처음에는 기어 움직임과 비행 배경 움직임을 보게 된다. 기어 움직임은 `Gear Motion`으로 끌 수 있다. 비행 배경을 끄는 기능은 현재 런타임에 없으며, 후속 [RFD 0100](0100-flight-background-motion-setting.md)으로 별도 설정을 채택했다(#237). 노트가 흘러가는 화면을 견딜 수 있어야 플레이할 수 있는 게임이라 이 비용을 받아들인다. 필요가 확인되면 인게임 선택지를 더한다.
+멀미 같은 이유로 운영체제에서 모션 감소를 켠 플레이어도 처음에는 기어 움직임과 비행 배경 움직임을 보게 된다. 기어 움직임은 `Gear Motion`으로 끌 수 있다. 비행 배경 움직임은 후속 [RFD 0100](0100-flight-background-motion-setting.md)에 따라 `Background Motion`으로 끄고 어두운 고정 배경으로 바꿀 수 있다(#237). 노트가 흘러가는 화면을 견딜 수 있어야 플레이할 수 있는 게임이라 이 비용을 받아들인다. 필요가 확인되면 인게임 선택지를 더한다.
 
 ## 영향
 

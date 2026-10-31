@@ -31,6 +31,8 @@ export interface GameSettings {
   renderHeight: number;
   /** `gearMotion`(기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛). 끄면 플레이 렌더러가 `gearMotion` 객체를 만들지 않는다. 없으면 켬. */
   gearMotion: boolean;
+  /** 비행 배경의 움직임(RFD 0100). 끄면 플레이 렌더러를 `showFlightBackground: false`로 만들어 비행 배경 대신 어두운 고정 배경을 그린다. `gearMotion`과 독립이며 노트·기어·고도 게이지는 그대로다. 없으면 켬. */
+  flightBackgroundMotion: boolean;
   playSpeed: number;
   judgmentMode: JudgmentMode;
   debugMode: boolean;
@@ -131,6 +133,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   bombScale: 1,
   renderHeight: 1080,
   gearMotion: true,
+  flightBackgroundMotion: true,
   playSpeed: 1.0,
   judgmentMode: 'normal' as JudgmentMode,
   debugMode: false,
