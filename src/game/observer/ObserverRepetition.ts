@@ -22,6 +22,8 @@ export interface ObserverRepetitionOptions {
   readonly audioDurationMs: number;
   /** 앞뒤 페이드의 곡 시간 길이만 정한다. 판정 시각은 곡 시간이다. */
   readonly playbackRate: number;
+  /** 출력 지연·음수 입력 오프셋을 수용하는 판정 시작점. 기본값은 fromMs이며 이보다 늦출 수 없다. 선택 차트 범위는 그대로다. */
+  readonly sessionStartTimeMs?: number;
   /** 이 반복을 Auto로 시작하는지. */
   readonly auto: boolean;
   /** 앞 준비 구간 시작에 사람이 이미 누르고 있는 키. 수동으로 시작할 때만 preheld로 넘긴다. */
@@ -40,7 +42,7 @@ const NO_AUTO_INPUTS: readonly ExplicitAutoInput[] = Object.freeze([]);
  */
 export class ObserverRepetition implements ExplicitConfirmedEffectSink {
   readonly range: ObserverRange;
-  /** `AudioEngine.playFadedSpan`에 넘길 음원 재생 범위. 판정 세션도 fromMs부터 시작한다. */
+  /** `AudioEngine.playFadedSpan`에 넘길 음원 재생 범위. 판정 시작점은 출력 지연만큼 더 이를 수 있다. */
   readonly fadedSpan: ObserverFadedSpan;
   /** 선택 구간 밖 점수 항목을 빼고 경계에 걸친 바디를 자른 재생 범위(RFD 0063). */
   readonly playbackChart: ExplicitCompiledChart;
@@ -52,29 +54,44 @@ export class ObserverRepetition implements ExplicitConfirmedEffectSink {
   private readonly manualTally: ObserverManualTally;
   private manualStartSequence = 0;
   private autoOn: boolean;
+  private readonly autoHeldByKey = new Map<string, ExplicitHeldKey>();
 
   constructor(compiled: ExplicitCompiledChart, options: ObserverRepetitionOptions) {
     this.range = Object.freeze({ startMs: options.range.startMs, endMs: options.range.endMs });
     this.fadedSpan = planObserverFadedSpan(this.range, options.audioDurationMs, options.playbackRate);
+    const sessionStartTimeMs = options.sessionStartTimeMs ?? this.fadedSpan.fromMs;
+    if (!Number.isFinite(sessionStartTimeMs) || sessionStartTimeMs > this.fadedSpan.fromMs) {
+      throw new RangeError("판정 시작 시각은 음원 재생 시작 이하의 유한한 값이어야 합니다");
+    }
     this.playbackChart = selectExplicitRangePlaybackChart(compiled, this.range.startMs, this.range.endMs);
     const windows = options.windows ?? JUDGMENT_WINDOWS;
     this.autoOn = options.auto;
     this.bindings = options.bindings;
     this.session = new ExplicitJudgmentSession(this.playbackChart, {
-      windows, startTimeMs: this.fadedSpan.fromMs,
+      windows, startTimeMs: sessionStartTimeMs,
       ...(options.maintenanceGraceMs === undefined ? {} : { maintenanceGraceMs: options.maintenanceGraceMs }),
       preheldKeys: options.auto ? [] : options.humanHeldKeys,
     });
     // 구간 전체를 Auto로 계획해 두고 Auto가 켜진 동안만 꺼내 쓴다. 꺼진 동안의 입력은 다시 켤 때 건너뛴다.
     this.autoPlayer = new ExplicitAutoPlayer(this.playbackChart, options.bindings ? { bindings: options.bindings } : {});
     this.autoInputSource = Object.freeze({
-      eventsThrough: (timeMs: number) => this.autoOn ? this.autoPlayer.eventsThrough(timeMs) : NO_AUTO_INPUTS,
+      eventsThrough: (timeMs: number) => {
+        if (!this.autoOn) return NO_AUTO_INPUTS;
+        const events = this.autoPlayer.eventsThrough(timeMs);
+        for (const event of events) {
+          if (event.type === "down") this.autoHeldByKey.set(event.key, Object.freeze({ lane: event.lane, key: event.key }));
+          else this.autoHeldByKey.delete(event.key);
+        }
+        return events;
+      },
     });
     this.manualTally = new ObserverManualTally(this.playbackChart, windows);
-    if (!options.auto) this.manualTally.start(this.fadedSpan.fromMs);
+    if (!options.auto) this.manualTally.start(sessionStartTimeMs);
   }
 
   get autoEnabled(): boolean { return this.autoOn; }
+  /** 프레임 입력과 setAuto 내부의 hold 인계를 모두 반영한 현재 Auto 키. 수동 중에는 빈 배열이다. */
+  get autoHeldKeys(): readonly ExplicitHeldKey[] { return Object.freeze([...this.autoHeldByKey.values()]); }
   /** 런타임이 실제 키 입력을 판정 입력 큐에 넣어야 하는지. Auto 중에는 넣지 않는다. */
   get judgesHumanInput(): boolean { return !this.autoOn; }
   /** 수동 콤보·달성률. Auto 중에는 숨기므로 null이다. */
@@ -114,9 +131,13 @@ export class ObserverRepetition implements ExplicitConfirmedEffectSink {
     if (enabled) {
       this.autoPlayer = this.planRemainingAutoInputs();
       this.autoPlayer.eventsBefore(advanceAtMs);
-      this.session.syncHeldKeys(coreAtMs, this.autoPlayer.restoreCursor(this.autoPlayer.processedEventCount), songTimeMs);
+      const heldKeys = this.autoPlayer.restoreCursor(this.autoPlayer.processedEventCount);
+      this.autoHeldByKey.clear();
+      for (const key of heldKeys) this.autoHeldByKey.set(key.key, Object.freeze({ ...key }));
+      this.session.syncHeldKeys(coreAtMs, heldKeys, songTimeMs);
       this.manualTally.stop();
     } else {
+      this.autoHeldByKey.clear();
       this.manualStartSequence = this.session.effects.length;
       this.session.syncHeldKeys(coreAtMs, input.heldKeys, songTimeMs);
       this.manualTally.start(coreAtMs);

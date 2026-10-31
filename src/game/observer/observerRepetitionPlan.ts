@@ -9,7 +9,7 @@ export interface ObserverRange {
 
 /**
  * 옵저버 반복 1회의 음원 재생 범위(곡 시간 ms). fromMs～fadeInUntilMs에서 페이드 인, fadeOutFromMs～toMs에서 페이드 아웃한다.
- * `AudioEngine.playFadedSpan`이 받는 `FadedAudioSpan`과 같은 모양이다. 판정 세션도 fromMs부터 시작한다.
+ * `AudioEngine.playFadedSpan`이 받는 `FadedAudioSpan`과 같은 모양이다. 판정 세션은 출력 지연·입력 보정 때문에 fromMs보다 먼저 시작할 수 있다.
  */
 export interface ObserverFadedSpan {
   readonly fromMs: number;

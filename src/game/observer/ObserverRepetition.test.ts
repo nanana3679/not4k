@@ -63,6 +63,45 @@ const inputFacts = (repetition: ObserverRepetition) => repetition.session.facts.
 const eventSummary = (events: readonly ExplicitAutoInput[]) => events.map(event => [event.timeMs, event.type, event.key] as const);
 
 describe("옵저버 반복 1회", () => {
+  it("판정 시작 −70ms·출력 지연 30ms·입력 −40ms이면 J−20ms의 raw−60ms down을 수동 Great로 집계한다", () => {
+    const repetition = new ObserverRepetition(compile([p(0), p(2000)]), {
+      range: { startMs: 0, endMs: 1000 }, audioDurationMs: 1000, playbackRate: 1,
+      sessionStartTimeMs: -70, auto: false, humanHeldKeys: [], windows,
+    });
+    const audio = { currentTimeMs: 10, playbackRate: 1, getOutputLatencyMs: () => 30 };
+    const clock = new GameClock(audio, { inputOffsetMs: -40, visualOffsetMs: 0 }, () => 10);
+    const input = createExplicitPlayInput([W], clock);
+    input.timeline.enqueue({ ...down(), inputAt: clock.toInputTimeMs(10) });
+    stepExplicitPlaySession(input.timeline, repetition.session, repetition.autoInputSource, clock, 10);
+    repetition.applyConfirmedEffects(repetition.session.drainEffects());
+    expect(repetition.playbackChart.scoreItems.map(item => item.timeMs)).toEqual([0]);
+    expect(settlements(repetition)).toMatchObject([{ grade: "great", rawDeltaMs: -60 }]);
+    expect(repetition.manualStats).toEqual({ combo: 1, achievementRate: 2 / 3 * 100 });
+  });
+
+  it("음원 시작 0ms보다 늦은 판정 시작 1ms를 지정하면 선택 구간을 줄이지 않고 RangeError로 거부한다", () => {
+    expect(() => new ObserverRepetition(compile([p(0)]), {
+      range: { startMs: 0, endMs: 1000 }, audioDurationMs: 1000, playbackRate: 1,
+      sessionStartTimeMs: 1, auto: true, humanHeldKeys: [],
+    })).toThrow(RangeError);
+  });
+
+  it("1000ms Auto down·1800ms 수동 전환·Auto 재인계·3000ms up 뒤 autoHeldKeys는 각각 KeyW·빈 배열·KeyW·빈 배열이다", () => {
+    const repetition = startRepetition([p(1000), b(1000, 3000), r(3000)],
+      { startMs: 1000, endMs: 3000 }, { auto: true });
+    expect(repetition.autoHeldKeys).toEqual([]);
+    playTo(repetition, 1000);
+    const held = repetition.autoHeldKeys;
+    expect(held).toEqual([{ lane: 1, key: AUTO_W }]);
+    toggleAuto(repetition, false, 1800, []);
+    expect(repetition.autoHeldKeys).toEqual([]);
+    toggleAuto(repetition, true, 1800, []);
+    expect(repetition.autoHeldKeys).toEqual(held);
+    playTo(repetition, 3000);
+    expect(repetition.autoHeldKeys).toEqual([]);
+    expect(held).toEqual([{ lane: 1, key: AUTO_W }]);
+  });
+
   it("입력 오프셋 +100ms로 곡 1000ms에서 core 1100ms가 된 뒤 Auto를 켜도 곡 1016ms 프레임을 계속 처리", () => {
     const repetition = startRepetition([p(1100), p(1500)], { startMs: 1000, endMs: 2000 }, { auto: false });
     const audio = { currentTimeMs: 1000, playbackRate: 1, getOutputLatencyMs: () => 0 };
