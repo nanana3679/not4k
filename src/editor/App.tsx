@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { getWaveformPeaks } from './timeline/waveform';
+import { setChartAndReadTimelineRange } from './timeline/timelineRange';
 import { createWaveformFeed, type WaveformFeed } from './waveformFeed';
 import { PlaybackController } from './playback/PlaybackController';
 import { createCursorBeatKeeper } from './playback/cursorBeatKeeper';
@@ -254,7 +255,8 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const waveformFeedRef = useRef<WaveformFeed | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const playbackRef = useRef<PlaybackController | null>(null);
-  // 정지 중 타이밍 값 수정 뒤 커서의 박 유지(RFD 0099). 첫 차트를 기준으로 만들고 [chart] effect가 매 교체를 알린다.
+  // 정지 중 타이밍 값 수정 뒤 커서의 박 유지(RFD 0099). 첫 차트를 기준으로 만들고 [chart] effect가 매 교체마다
+  // syncToChart로 커서를 새 타이밍에 맞춘다(필요하면 seek).
   const [cursorBeatKeeper] = useState(() => createCursorBeatKeeper({
     chart,
     loadGeneration: useEditorStore.getState().chartLoadGeneration,
@@ -694,40 +696,39 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
   // chart → renderer + modes — 전부 통합 차트(chart.notes 한 배열) 하나를 본다 (RFD 0018 ④d).
   useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.setChart(chart);
+    const renderer = rendererRef.current;
+    // 타임라인 범위는 setChart 뒤에 읽어야 새 차트의 마디 범위를 따른다. 아래의 재생 끝·스크롤 클램프·커서 박 유지는
+    // 모두 이 범위를 쓴다(렌더러가 아직 없으면 null).
+    const timelineRange = renderer ? setChartAndReadTimelineRange(renderer, chart) : null;
+    if (renderer) {
       const violations = editorChartViolationIndices({
         notes: chart.notes,
         trillZones: chart.trillZones,
         restZones: chart.restZones,
         events: chart.events,
       });
-      rendererRef.current.setViolations(violations.notes, violations.trillZones, violations.restZones, violations.events);
+      renderer.setViolations(violations.notes, violations.trillZones, violations.restZones, violations.events);
     }
     if (createModeRef.current) createModeRef.current.setChart(chart);
     if (selectModeRef.current) selectModeRef.current.setChart(chart);
     if (deleteModeRef.current) deleteModeRef.current.setChart(chart);
-    // Update playback end boundary when chart changes (measure count may change)
-    if (rendererRef.current && playbackRef.current) {
-      playbackRef.current.setEndTimeMs(rendererRef.current.getTotalTimelineMs());
-    }
-    // 스크롤 클램프 입력(타임라인 범위)도 차트 변경을 따라간다
-    if (rendererRef.current) {
-      useEditorStore.getState().setTimelineRangeMs({
-        minTimeMs: Math.min(0, chart.meta.offsetMs),
-        totalTimelineMs: rendererRef.current.getTotalTimelineMs(),
-      });
+    if (timelineRange) {
+      // 재생 끝 경계와 스크롤 클램프 입력(타임라인 범위)도 차트 변경을 따라간다(마디 수가 바뀔 수 있다)
+      playbackRef.current?.setEndTimeMs(timelineRange.totalTimelineMs);
+      useEditorStore.getState().setTimelineRangeMs(timelineRange);
     }
     // 정지 중 오프셋·BPM이 바뀌었으면 커서를 수정 직전 박의 새 음원 시각으로 seek한다(RFD 0099).
-    // 위의 renderer.setChart가 타임라인 길이 캐시를 비웠으므로 clampToMeasureRange는 새 차트의 마디 범위를 쓴다.
     // 새로 불러온 차트(chartLoadGeneration 변경)와 재생 중 변경은 seek하지 않는다.
+    // store의 커서는 실제 정지 위치보다 최대 한 프레임 늦을 수 있다. PlaybackController.pause()는 onTimeUpdate를
+    // 부르지 않아 마지막 rAF가 알린 시각이 남기 때문이다. 박 유지는 화면에 그려진 이 커서를 기준으로 하며,
+    // 한 프레임(약 16ms) 차이는 받아들인다.
     const { chartLoadGeneration, currentTimeMs: cursorMs } = useEditorStore.getState();
-    cursorBeatKeeper.chartChanged({
+    cursorBeatKeeper.syncToChart({
       chart,
       loadGeneration: chartLoadGeneration,
       cursorMs,
       playback: playbackRef.current,
-      clampMs: (timeMs) => rendererRef.current?.clampToMeasureRange(timeMs) ?? timeMs,
+      timelineRange,
     });
   }, [chart, cursorBeatKeeper]);
 

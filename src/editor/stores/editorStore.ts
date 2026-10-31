@@ -93,6 +93,8 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   chartSaveGeneration: number;
   // loadChart로 차트를 새로 열 때만 1씩 오른다. 편집·Undo·Redo·저장은 바꾸지 않는다.
   // 차트 교체를 보는 쪽이 새로 불러온 차트를 편집과 구별할 때 쓴다(타이밍 값 수정 뒤 커서 박 유지, RFD 0099).
+  // 지금은 loadChart가 에디터 페이지(ChartEditorPage)가 마운트되기 전에만 불리고, 다른 차트로 바꾸면 페이지를
+  // 다시 마운트하므로 이 값이 페이지 안에서 바뀌는 일은 없다. 페이지 안에서 차트를 바꾸는 기능이 생길 때를 위한 가드다.
   chartLoadGeneration: number;
 
   // Event editing

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { beat, BEAT_ZERO } from '../../shared';
+import { beat, BEAT_ZERO, beatToMs } from '../../shared';
 import type { BpmChange, ChartDocument, Lane } from '../../shared';
+import { timelineRangeMsOf } from '../timeline/timelineRange';
 import {
   createCursorBeatKeeper,
   remapCursorMs,
@@ -74,6 +75,21 @@ describe('remapCursorMs', () => {
     expect(remapCursorMs(1000, { bpmChanges: [], offsetMs: 0 }, { bpmChanges: BPM_120, offsetMs: 100 })).toBe(1000);
     expect(remapCursorMs(1000, { bpmChanges: BPM_120, offsetMs: 0 }, { bpmChanges: [], offsetMs: 100 })).toBe(1000);
   });
+
+  it('수정 전이나 후의 첫 BPM 변경이 0박이 아니라 2박에 있으면(구조 위반 차트) 커서 1000ms를 그대로 둔다', () => {
+    const startsAtBeat2: BpmChange[] = [{ beat: beat(2), bpm: 120 }];
+    expect(remapCursorMs(1000, { bpmChanges: startsAtBeat2, offsetMs: 0 }, { bpmChanges: BPM_120, offsetMs: 100 })).toBe(1000);
+    expect(remapCursorMs(1000, { bpmChanges: BPM_120, offsetMs: 0 }, { bpmChanges: startsAtBeat2, offsetMs: 100 })).toBe(1000);
+  });
+
+  it('4박에 BPM 60·90 두 변경이 겹치면 배열 뒤의 90이 4박부터 적용돼 6박 커서 3000ms는 2000 + 2×666.67 = 3333.33ms(beatToMs와 같은 시각)', () => {
+    const overlapping: BpmChange[] = [...BPM_120, { beat: beat(4), bpm: 60 }, { beat: beat(4), bpm: 90 }];
+
+    const remapped = remapCursorMs(3000, { bpmChanges: BPM_120, offsetMs: 0 }, { bpmChanges: overlapping, offsetMs: 0 });
+
+    expect(remapped).toBeCloseTo(2000 + 2 * (60000 / 90), 9);
+    expect(remapped).toBeCloseTo(beatToMs(beat(6), overlapping, 0), 9);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -107,24 +123,34 @@ function chartWithInitialBpm(bpm: number): ChartDocument {
   return { ...chart, events: chart.events.map(event => event.type === 'bpm' ? { ...event, bpm } : event) };
 }
 
-/** PlaybackController처럼 seekTo가 store의 커서(cursorMs)도 함께 옮기는 가짜 재생기. */
+/**
+ * PlaybackController처럼 seekTo가 store의 커서(cursorMs)도 함께 옮기는 가짜 재생기.
+ * PlaybackController는 seek 위치를 초로 저장했다가 ms로 알리므로(`timeMs / 1000 * 1000`) 같은 왕복 오차를 낸다.
+ */
 function fakePlayback(cursorMs: number, isPlaying = false) {
   const playback = {
     isPlaying,
     cursorMs,
-    seekTo: vi.fn((timeMs: number) => { playback.cursorMs = timeMs; }),
+    seekTo: vi.fn((timeMs: number) => { playback.cursorMs = (timeMs / 1000) * 1000; }),
   } satisfies CursorBeatKeeperPlayback & { cursorMs: number };
   return playback;
 }
 
-const noClamp = (ms: number) => ms;
+/** 0ms부터 60000ms까지의 타임라인(offset 0). */
+const RANGE_0_TO_60000 = timelineRangeMsOf(0, 60000);
+
+function bpmEvent(at: number, bpm: number): TimingEvent {
+  return { type: 'bpm', beat: beat(at), bpm, editorLane: 1 };
+}
+
+const tapAtBeat2: ChartDocument['notes'] = [{ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(2) }];
 
 describe('createCursorBeatKeeper', () => {
   it('정지 중 offset을 0→100으로 바꾸면 커서 1000ms를 같은 2박의 1100ms로 seek한다', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(1000);
 
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
     expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(1100);
   });
@@ -133,19 +159,20 @@ describe('createCursorBeatKeeper', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(2000);
 
-    keeper.chartChanged({ chart: chartWithInitialBpm(60), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWithInitialBpm(60), loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
     expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(4000);
   });
 
-  it('새 박의 시각 4000ms가 마디 범위 끝 3000ms를 넘으면 clampMs가 돌려준 3000ms로 seek한다', () => {
+  it('새 박의 시각 4000ms가 타임라인 범위 끝 3000ms를 넘으면 3000ms로 seek한다', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(2000);
-    const clampMs = vi.fn((ms: number) => Math.min(ms, 3000));
 
-    keeper.chartChanged({ chart: chartWithInitialBpm(60), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs });
+    keeper.syncToChart({
+      chart: chartWithInitialBpm(60), loadGeneration: 1, cursorMs: playback.cursorMs, playback,
+      timelineRange: timelineRangeMsOf(0, 3000),
+    });
 
-    expect(clampMs).toHaveBeenCalledWith(4000);
     expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(3000);
   });
 
@@ -155,7 +182,7 @@ describe('createCursorBeatKeeper', () => {
     playback.seekTo(3000);
     playback.seekTo.mockClear();
 
-    keeper.chartChanged({ chart: chartWithInitialBpm(60), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWithInitialBpm(60), loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
     expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(6000);
   });
@@ -164,8 +191,8 @@ describe('createCursorBeatKeeper', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(1000);
 
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 250 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 250 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
     expect(playback.seekTo.mock.calls).toEqual([[1100], [1250]]);
     expect(playback.cursorMs).toBe(1250);
@@ -175,7 +202,7 @@ describe('createCursorBeatKeeper', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(1000, true);
 
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
     expect(playback.seekTo).not.toHaveBeenCalled();
   });
@@ -183,10 +210,10 @@ describe('createCursorBeatKeeper', () => {
   it('재생 중 offset 0→100 변경 뒤 정지해 100→200으로 바꾸면 기준은 100이라 커서 1000ms를 1100ms로 seek한다', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(1000, true);
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null });
     playback.isPlaying = false;
 
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 200 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 200 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
     expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(1100);
   });
@@ -195,7 +222,7 @@ describe('createCursorBeatKeeper', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(1000);
 
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 500 }), loadGeneration: 2, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 500 }), loadGeneration: 2, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
     expect(playback.seekTo).not.toHaveBeenCalled();
   });
@@ -203,9 +230,9 @@ describe('createCursorBeatKeeper', () => {
   it('새로 불러온 차트(offset 500)에서 offset을 600으로 바꾸면 불러온 타이밍을 기준으로 커서 1000ms를 1100ms로 seek한다', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(1000);
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 500 }), loadGeneration: 2, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 500 }), loadGeneration: 2, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 600 }), loadGeneration: 2, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 600 }), loadGeneration: 2, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
     expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(1100);
   });
@@ -214,9 +241,9 @@ describe('createCursorBeatKeeper', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(1000);
 
-    keeper.chartChanged({
+    keeper.syncToChart({
       chart: chartWith({ events: [{ type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(3), editorLane: 2 }] }),
-      loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp,
+      loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null,
     });
 
     expect(playback.seekTo).not.toHaveBeenCalled();
@@ -226,9 +253,9 @@ describe('createCursorBeatKeeper', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(1000);
 
-    keeper.chartChanged({
+    keeper.syncToChart({
       chart: chartWith({ notes: [{ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(2) }] }),
-      loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp,
+      loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null,
     });
 
     expect(playback.seekTo).not.toHaveBeenCalled();
@@ -238,9 +265,9 @@ describe('createCursorBeatKeeper', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
     const playback = fakePlayback(1000);
 
-    keeper.chartChanged({
+    keeper.syncToChart({
       chart: chartWith({ events: [{ type: 'bpm', beat: beat(8), bpm: 60, editorLane: 1 }] }),
-      loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp,
+      loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null,
     });
 
     expect(playback.seekTo).not.toHaveBeenCalled();
@@ -248,11 +275,187 @@ describe('createCursorBeatKeeper', () => {
 
   it('재생기가 아직 없으면(null) seek 없이 넘어가고, 그 뒤 offset 100→200 수정은 100을 기준으로 커서 1000ms를 1100ms로 seek한다', () => {
     const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: 1000, playback: null, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 100 }), loadGeneration: 1, cursorMs: 1000, playback: null, timelineRange: null });
     const playback = fakePlayback(1000);
 
-    keeper.chartChanged({ chart: chartWith({ offsetMs: 200 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, clampMs: noClamp });
+    keeper.syncToChart({ chart: chartWith({ offsetMs: 200 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null });
 
     expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(1100);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 범위에 묶인 커서 — 묶기 전 박을 기억했다가 타이밍이 돌아오면 그 박으로 되돌린다
+// ---------------------------------------------------------------------------
+
+describe('createCursorBeatKeeper — 범위에 묶인 뒤 되돌리기', () => {
+  it('64박 BPM 60 변경을 32박·8박으로 끄는 동안 90박 커서(58000ms)가 끝 60000ms에 묶여도, Escape로 64박에 되돌리면 다시 90박의 58000ms로 seek한다', () => {
+    const atBeat64 = chartWith({ events: [bpmEvent(64, 60)] });
+    const keeper = createCursorBeatKeeper({ chart: atBeat64, loadGeneration: 1 });
+    const playback = fakePlayback(58000);
+    const sync = (chart: ChartDocument) => keeper.syncToChart({
+      chart, loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: RANGE_0_TO_60000,
+    });
+
+    sync(chartWith({ events: [bpmEvent(32, 60)] })); // 90박 = 16000 + 58×1000 = 74000ms → 60000ms
+    sync(chartWith({ events: [bpmEvent(8, 60)] })); // 90박 = 4000 + 82×1000 = 86000ms → 60000ms(이미 그 자리)
+    sync(atBeat64);
+
+    expect(playback.seekTo.mock.calls).toEqual([[60000], [58000]]);
+  });
+
+  it('커서 40000ms(80박)가 초기 BPM 120→60 수정으로 끝 60000ms에 묶인 뒤 Undo로 120에 돌아오면 30000ms가 아니라 80박의 40000ms로 seek한다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
+    const playback = fakePlayback(40000);
+    const sync = (chart: ChartDocument) => keeper.syncToChart({
+      chart, loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: RANGE_0_TO_60000,
+    });
+
+    sync(chartWithInitialBpm(60));
+    sync(chartWith());
+
+    expect(playback.seekTo.mock.calls).toEqual([[60000], [40000]]);
+  });
+
+  it('끝 2010ms에 묶인 seek를 재생기가 2009.9999999999998ms로 알려도(초 단위 왕복 오차) Undo하면 3박의 1500ms로 돌아온다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
+    const playback = fakePlayback(1500);
+    const sync = (chart: ChartDocument) => keeper.syncToChart({
+      chart, loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: timelineRangeMsOf(0, 2010),
+    });
+
+    sync(chartWithInitialBpm(60)); // 3박 = 3000ms → 2010ms
+    expect(playback.cursorMs).toBe(2009.9999999999998);
+    sync(chartWith());
+
+    expect(playback.seekTo.mock.calls).toEqual([[2010], [1500]]);
+  });
+
+  it('끝 60000ms에 묶인 뒤 노트만 바꾼 차트 교체가 끼어도, BPM을 120으로 되돌리면 80박의 40000ms로 돌아온다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
+    const playback = fakePlayback(40000);
+    const sync = (chart: ChartDocument) => keeper.syncToChart({
+      chart, loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: RANGE_0_TO_60000,
+    });
+
+    sync(chartWithInitialBpm(60));
+    sync({ ...chartWithInitialBpm(60), notes: tapAtBeat2 });
+    sync(chartWith({ notes: tapAtBeat2 }));
+
+    expect(playback.seekTo.mock.calls).toEqual([[60000], [40000]]);
+  });
+
+  it('끝 60000ms에 묶인 뒤 사용자가 커서를 50000ms(60 BPM에서 50박)로 옮기면, Undo로 120에 돌아올 때 80박이 아니라 50박의 25000ms로 seek한다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
+    const playback = fakePlayback(40000);
+    const sync = (chart: ChartDocument) => keeper.syncToChart({
+      chart, loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: RANGE_0_TO_60000,
+    });
+
+    sync(chartWithInitialBpm(60));
+    playback.seekTo(50000); // 사용자의 레일 seek
+    sync(chartWith());
+
+    expect(playback.seekTo.mock.calls).toEqual([[60000], [50000], [25000]]);
+  });
+
+  it('끝 60000ms에 묶인 뒤 재생 중에 차트가 한 번 바뀌면 기억한 박을 버려, 정지 뒤 Undo로 120에 돌아오면 커서 60000ms의 60박인 30000ms로 seek한다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
+    const playback = fakePlayback(40000);
+    const sync = (chart: ChartDocument) => keeper.syncToChart({
+      chart, loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: RANGE_0_TO_60000,
+    });
+
+    sync(chartWithInitialBpm(60));
+    playback.isPlaying = true;
+    sync({ ...chartWithInitialBpm(60), notes: tapAtBeat2 });
+    playback.isPlaying = false;
+    sync(chartWith({ notes: tapAtBeat2 }));
+
+    expect(playback.seekTo.mock.calls).toEqual([[60000], [30000]]);
+  });
+
+  it('끝 60000ms에 묶인 뒤 60 BPM 차트를 새로 불러오면(loadGeneration 1→2) 기억한 박을 버려, 그 차트의 BPM을 120으로 바꾸면 커서 60000ms의 60박인 30000ms로 seek한다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
+    const playback = fakePlayback(40000);
+    const sync = (chart: ChartDocument, loadGeneration: number) => keeper.syncToChart({
+      chart, loadGeneration, cursorMs: playback.cursorMs, playback, timelineRange: RANGE_0_TO_60000,
+    });
+
+    sync(chartWithInitialBpm(60), 1);
+    sync(chartWithInitialBpm(60), 2);
+    sync(chartWith(), 2);
+
+    expect(playback.seekTo.mock.calls).toEqual([[60000], [30000]]);
+  });
+
+  it('6박 커서 3000ms는 4박에 BPM 60·90이 겹친 드래그 중간 차트에서 3333.33ms로 옮겨졌다가, 겹침을 되돌리면 다시 3000ms로 돌아온다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
+    const playback = fakePlayback(3000);
+    const sync = (chart: ChartDocument) => keeper.syncToChart({
+      chart, loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: RANGE_0_TO_60000,
+    });
+
+    sync(chartWith({ events: [bpmEvent(4, 60), bpmEvent(4, 90)] }));
+    sync(chartWith());
+
+    expect(playback.seekTo).toHaveBeenCalledTimes(2);
+    expect(playback.seekTo.mock.calls[0][0]).toBeCloseTo(2000 + 2 * (60000 / 90), 9);
+    expect(playback.seekTo.mock.calls[1][0]).toBe(3000);
+  });
+
+  it('첫 BPM 변경이 0박이 아니라 2박에 있는 차트(구조 위반)로 바뀌면 커서 1000ms를 seek하지 않는다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith(), loadGeneration: 1 });
+    const playback = fakePlayback(1000);
+    const startsAtBeat2 = chartWith();
+    startsAtBeat2.events = startsAtBeat2.events.map(event => event.type === 'bpm' ? { ...event, beat: beat(2), bpm: 60 } : event);
+
+    keeper.syncToChart({ chart: startsAtBeat2, loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: RANGE_0_TO_60000 });
+
+    expect(playback.seekTo).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 0박 앞(음수 박) 커서 — 타임라인 범위 아래 끝은 0박이 아니라 min(0, offset)이다
+// ---------------------------------------------------------------------------
+
+describe('createCursorBeatKeeper — 0박 앞 커서', () => {
+  it('offset 2000에서 0박 앞인 −1박 커서 1500ms는 offset 2010으로 바꾸면 0박(2010ms)이 아니라 1510ms로 seek한다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith({ offsetMs: 2000 }), loadGeneration: 1 });
+    const playback = fakePlayback(1500);
+
+    keeper.syncToChart({
+      chart: chartWith({ offsetMs: 2010 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback,
+      timelineRange: timelineRangeMsOf(2010, 60000),
+    });
+
+    expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(1510);
+  });
+
+  it('차트를 막 연 커서 0ms(offset 2000에서 −4박)는 offset 2001로 바꾸면 0박 근처로 뛰지 않고 1ms로 seek한다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith({ offsetMs: 2000 }), loadGeneration: 1 });
+    const playback = fakePlayback(0);
+
+    keeper.syncToChart({
+      chart: chartWith({ offsetMs: 2001 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback,
+      timelineRange: timelineRangeMsOf(2001, 60000),
+    });
+
+    expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(1);
+  });
+
+  it('offset 2000→100으로 −1박 커서 1500ms가 −400ms가 돼 아래 끝 0ms에 묶였다가, offset을 2000으로 되돌리면 1500ms로 돌아온다', () => {
+    const keeper = createCursorBeatKeeper({ chart: chartWith({ offsetMs: 2000 }), loadGeneration: 1 });
+    const playback = fakePlayback(1500);
+    const sync = (offsetMs: number) => keeper.syncToChart({
+      chart: chartWith({ offsetMs }), loadGeneration: 1, cursorMs: playback.cursorMs, playback,
+      timelineRange: timelineRangeMsOf(offsetMs, 60000),
+    });
+
+    sync(100);
+    sync(2000);
+
+    expect(playback.seekTo.mock.calls).toEqual([[0], [1500]]);
   });
 });
