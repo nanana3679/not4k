@@ -92,6 +92,24 @@ Normal과 Easy의 최고 점수·클리어 여부·풀콤보 여부는 판정 �
 
 로그인한 플레이의 기록 전송에 실패하면 결과 화면에 전송 실패 안내와 **전송 재시도** 버튼을 표시한다. 버튼을 누르면 해당 플레이 결과의 서버 전송을 다시 시도한다. 곡을 다시 플레이하는 Retry와 구별한다. 결과 화면을 나가도 미전송 기록을 브라우저에 보관해 나중에 재전송할 수 있게 한다. 미전송 기록은 해당 플레이를 한 계정과 연결해 보관한다. 다음 접속 때 해당 플레이를 한 계정으로 로그인되어 있으면 브라우저에 보관한 미전송 기록을 자동 재전송한다.
 
+### 프로필
+
+로그인한 플레이어의 서비스 권한과 개인 기록을 연결하는 사용자 정보다. 게임 설정의 프로필 탭에서 닉네임 변경과 로그인·로그아웃을 제공하며, 비로그인 상태에서도 탭에 접근할 수 있다([RFD 0094](../rfd/0094-settings-profile-tab.md)). 닉네임의 생성·변경·랭킹 표시 규칙은 [닉네임](#닉네임), 입력·오류·화면 이동의 상세 동작은 [게임 코어 스펙](../spec/game-core.md#설정의-프로필-탭-미구현)을 따른다.
+
+게임 설정은 로컬에 먼저 적용한 뒤 동기화 대상만 서버에 저장한다. 로그아웃 후에도 직전 설정을 유지하며, 서버 불러오기·저장 실패 시 현재 설정을 브라우저에 유지하고 실패한 작업을 안내한다. 로그인 시 서버 설정을 우선하는 정책과 실패 처리의 상세는 [계정 설정 동기화](../spec/game-core.md#계정-설정-동기화)를 따른다([RFD 0102](../rfd/0102-device-local-input-and-visual-offsets.md)).
+
+### 닉네임
+
+랭킹에 플레이어 이름으로 표시하는 이름이다. 사용자가 직접 변경하는 닉네임의 중복을 허용한다. 이름이 같아도 플레이어별 기록과 순위는 구분하며, 닉네임을 변경해도 기존 기록과 순위를 유지한다([RFD 0085](../rfd/0085-chart-records-and-detailed-history-visibility.md)).
+
+처음 로그인할 때 닉네임이 없으면 Guest 뒤에 6자리 숫자 난수를 공백 없이 붙인 이름을 기존 닉네임과 겹치지 않게 자동 생성한다. 자동 생성 시의 충돌 방지는 닉네임 전체에 전역 고유성을 요구하는 규칙이 아니며, 사용자가 이후 직접 변경하는 이름은 중복을 허용한다. 닉네임 입력을 필수로 요구하지 않는다. 생성한 이름은 계정에 유지하며 이후 로그인에서는 기존 닉네임을 사용한다.
+
+닉네임의 길이는 1～16자다. 빈 이름, 앞뒤를 포함한 공백, 특수문자와 이모지를 허용하지 않는다. 공백은 자동으로 제거하지 않고 저장을 거부한다. 지원 언어에 따른 허용 문자 범위는 [PRD §12](../prd.md#12-미정-사항)에서 관리한다.
+
+닉네임 변경은 게임 설정의 [프로필](#프로필) 탭에서 저장 버튼으로 요청하며, 서버 저장 성공 후 실제 이름의 변경을 확정한다. 실패한 입력값은 편집 초안으로 유지한다. 저장 안내·재시도·초안 폐기의 상세는 [게임 코어 스펙](../spec/game-core.md#설정의-프로필-탭-미구현)을 따른다([RFD 0094](../rfd/0094-settings-profile-tab.md)).
+
+닉네임을 변경하면 기존 랭킹에 표시되는 이름도 새 닉네임으로 바뀐다. 랭킹은 조회 시점의 현재 닉네임을 표시하며, 이미 열린 창에는 다음 조회 때 반영한다.
+
 ### 랭킹
 
 랭킹에 표시할 플레이어 이름은 현재 닉네임으로 한다.
@@ -159,6 +177,10 @@ T 앞부분의 음악만 재생하는 **실제 시간 3초의 준비 → T부터
 
 한 박자를 몇 등분하는지를 나타낸다. 4비트는 1박 1노트, 8비트는 1박 2노트, 16비트는 1박 4노트. BPM과 결합하여 초당 노트 수(노트 밀도)를 결정한다.
 
+### 비행 배경
+
+플레이 화면에서 비행 시나리오와 고도에 따른 공간 흐름을 표현하는 배경이다. 비행 배경의 움직임은 기어 모션과 별도의 게임 내 설정으로 끌 수 있게 한다. 설정의 기본값은 켬이며, 일반 플레이와 옵저버가 같은 설정을 사용한다. 끄면 어두운 고정 배경으로 바꾸고, 노트·기어·고도 게이지는 그대로 표시한다. 이 설정으로 노트 진행·입력 판정·고도 계산을 멈추지 않는다. 기어 모션은 별도 설정을 따르며, 운영체제의 모션 감소 설정을 자동으로 따르지 않는다([RFD 0100](../rfd/0100-flight-background-motion-setting.md)). 비행 배경 움직임 설정의 런타임 반영은 후속 작업이다.
+
 ### 기어 (Gear)
 
 플레이 화면에서 레인 영역을 둘러싼 요소. 장식 그림(기둥·장갑·하단 바)과 그 위의 `gearMotion`(기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛), 양옆 유리관 게이지, 레인 아래 키 덱을 함께 가리킨다. 한국 리듬게임 커뮤니티에서 레인을 둘러싼 테두리 스킨을 부르는 established 이름이라 "기어"로 쓴다([term-map](term-map.md) B).
@@ -169,6 +191,10 @@ T 앞부분의 음악만 재생하는 **실제 시간 3초의 준비 → T부터
 - **유리관 게이지(고도 게이지)**: 기어 양옆 유리관이 `altitude`(0～1)를 아래 기준 채움으로 보여 준다. 두 유리관은 같은 값이고, 비행 배경과 같은 프레임의 같은 고도를 쓴다. 기어 그림의 가득 찬 유리관 위에 빈 유리(스킨 공용 `gearGaugeEmpty`)를 위에서부터 채움 경계까지 덮으며, 경계 8행은 부드럽게 옅어진다(채움 1은 그림 그대로, 0은 전부 빈 유리). 값이 바뀌면 약 300ms ease-out 느낌으로 따라가고(렌더 프레임 간격 `deltaMs`로 나아감, 일시정지 중 멈춤, `prefers-reduced-motion`과 무관), `setChart` 때와 warm-up(`prepareForPlayback`)의 첫 프레임에는 이징 없이 바로 맞춘다. 낮은 고도에서도 색을 바꾸거나 경고하지 않는다([비행 콘셉트](../design/flight-concept.md)). `gearMotion`의 게이지 액체·기포는 채운 부분에서만 보인다. 기어를 그리지 않는 렌더러(튜토리얼·노트 에셋 재생기)에는 없다.
 - **코드 식별자**: `gearImage`(스킨 매니페스트 키·텍스처, 기어 바탕 그림), `gearGaugeEmpty`(스킨 매니페스트 키·텍스처, 고도 게이지 빈 유리 아틀라스 `public/gear/gear-gauge-empty.png`), `showGear`·`gearOffsetY`(렌더러 옵션, 기어를 그릴 때 기본 `GEAR_OFFSET_Y`), `constants.ts`의 `GEAR_OFFSET_Y`, `GameRenderer`의 `gearLayer`·`buildGear`·`buildGearGauge`, 레인 끝 `laneEndY`·`laneContentLayer`·`laneEndClip`, `gearGeometry.json`·`gearLayout.ts`의 `GearLayout`·`GearGeometry`(`silhouetteBottom`·`gauge` 등)·`GearGaugeGeometry`·`GearStage`(`offsetY`)·`layoutGear`·`clampGearOffsetY`·`GEAR_GEOMETRY`·`GEAR_TEXTURE_OPTIONS`·`GEAR_CLEARANCE`, `GameRenderer.gearLayout`·`addGearOverlay`, 고도 게이지 `gearGauge.ts`의 `GearGauge`·`gaugeEmptyRows`·`easeGaugeLevel`·`GEAR_GAUGE_EASE_TAU_MS`(`GameRenderer.gearGaugeLevel`, Lab 미리보기 고도 고정 `GameRenderer.setAltitudeOverride`), `gearMotion`의 `GearMotionController`·`GearMotionControls`(`GameRenderer.gearMotion`, 옵션 `gearMotion`), `gearMotion*.ts`의 `createGearMotion`·`acquireGearMotionAssets`·`GEAR_MOTION_*`, `gearMotionKeepAlive.ts`의 `keepGearMotionAssets`, 게임 설정 `gearMotion`. 생성기가 만드는 측정 데이터와 `gearMotion` 에셋도 같은 이름을 쓴다(`gearGeometry.json`의 `silhouetteBottom`, `gear-motion.json`의 `image: {width, height}` = `GearMotionData.image`).
 - **쓰지 않는 표현**: 이 뜻으로 "프레임"을 쓰지 않는다. 프레임은 화면 한 장(`renderFrame`, `requestAnimationFrame`, 게임 프레임, 프레임 시간)과 헷갈리기 때문이다. 옛 이름(`classicFrame*`, `FrameMotionController`, 설정 `Frame Motion`, 매니페스트 키 `gearFrame`, 렌더러 옵션 `showGearFrame`, 스킨 이름을 붙인 `classicGear*`·`/lab/classic-gear`)은 [#231](https://github.com/nanana3679/not4k/issues/231)에서 바꿨다. 보관한 Classic 버전의 매니페스트(`assets-lab/classic/versions/*`, `classicSkinVersions.ts`)는 보관 당시 키 `gearFrame`을 그대로 둔다. 결정 기록(RFD 본문·디자인 문서·CHANGELOG 지난 항목)의 "프레임"은 그때의 표기로 남긴다.
+
+### 마스터 볼륨 (Master Volume)
+
+게임 플레이·에디터 재생·곡 프리뷰 등 전체 오디오 출력의 음량을 조절하는 설정이다(코드 `masterVolume`, 범위 0～100%, 기본 100%). 기기별 브라우저에 저장하고 계정 설정 동기화에서 제외하며, 로그인해도 해당 기기의 값을 유지한다([RFD 0102](../rfd/0102-device-local-input-and-visual-offsets.md)).
 
 ### 오프셋 구분
 
@@ -633,12 +659,16 @@ Play에서 **`altitude`** 상태와 클리어/실패를 다루는 비행 규칙.
 
 입력 장치 지연과 개인 체감 타이밍을 보정하는 설정이다(설정 `Input Offset`, 코드 `inputOffsetMs`, 실제 시간 ms, 기본 0). 숫자 입력 확정과 저장 설정 병합 때 −1000～+1000ms로 제한하며, 유한한 숫자가 아닌 저장값은 0ms로 둔다. 배속 r을 곱해 입력 시간에만 더한다(`입력 = J − handlerDelay·r + inputOffsetMs·r`, `J = P − L₀·r`). 판정 시간·시각 시간에는 닿지 않는다. 늦게 눌러 SLOW가 많으면 음수, FAST가 많으면 양수다([PR #242](https://github.com/nanana3679/not4k/pull/242)의 부호 유지).
 
+입력·시각 오프셋은 해당 기기의 브라우저에 로컬 설정으로 저장하고 계정 설정 동기화에서 제외한다. 로그인 여부와 관계없이 해당 기기의 값을 유지한다([RFD 0102](../rfd/0102-device-local-input-and-visual-offsets.md)).
+
 현재는 설정 숫자 입력으로 조절한다. 입력 캘리브레이션은 [RFD 0031](../rfd/0031-audio-first-timing-model.md) PR 2에서 게임과 같은 시간 경로의 비프·탭 비교로 구현한다. 옛 설정 `judgmentOffsetMs`·`audioOffsetMs`·`offsetMs`는 읽을 때 버리고 이전하지 않는다.
 _Avoid_: 오디오 오프셋, 판정 오프셋, 이름 없는 "오프셋"
 
 ### 시각 오프셋 (Visual Offset)
 
 화면 표시 지연을 보정하는 설정이다(설정 `Visual Offset`, 코드 `visualOffsetMs`, 실제 시간 ms, 기본 0). 숫자 입력 확정과 저장 설정 병합 때 −1000～+1000ms로 제한하며, 유한한 숫자가 아닌 저장값은 0ms로 둔다. 시각 시간 `V = J + visualOffsetMs·r`로 노트·마디선·구간을 그리며 판정과 입력 시간에는 닿지 않는다. 화면이 소리보다 늦게 보이면 양수로 노트를 앞당겨 그린다. 브라우저의 출력 지연 보고가 정확하면 화면 표시 지연과 같다.
+
+입력·시각 오프셋은 해당 기기의 브라우저에 로컬 설정으로 저장하고 계정 설정 동기화에서 제외한다. 로그인 여부와 관계없이 해당 기기의 값을 유지한다([RFD 0102](../rfd/0102-device-local-input-and-visual-offsets.md)).
 
 현재는 설정 숫자 입력으로 조절한다. 비프와 함께 떨어지는 노트를 보고 맞추는 시각 캘리브레이션은 [RFD 0031](../rfd/0031-audio-first-timing-model.md) PR 3에서 구현한다. 입력 오프셋과 달리 장치가 늦을 때 양수다. 브라우저 지연 보고의 고정 오차는 두 오프셋이 함께 흡수할 수 있다.
 _Avoid_: 화면 오프셋, 디스플레이 딜레이, 이름 없는 "오프셋"
