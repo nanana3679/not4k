@@ -79,15 +79,15 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
     if (e.key === 'c' || e.key === 'C') {
       e.preventDefault();
       const count = selectMode.copy();
-      if (count > 0) addToast(`${count}개 노트 복사됨`, 'info');
-      else addToast('복사할 노트를 선택하세요', 'warn');
+      if (count > 0) addToast(`${count}개 항목 복사됨`, 'info');
+      else addToast('복사할 항목을 선택하세요', 'warn');
       return;
     }
     if (e.key === 'x' || e.key === 'X') {
       e.preventDefault();
       const count = selectMode.cut();
-      if (count > 0) addToast(`${count}개 노트 잘라냄`, 'info');
-      else addToast('잘라낼 노트를 선택하세요', 'warn');
+      if (count > 0) addToast(`${count}개 항목 잘라냄`, 'info');
+      else addToast('잘라낼 수 있는 항목이 없습니다', 'warn');
       return;
     }
     if (e.key === 'v' || e.key === 'V') {
@@ -100,7 +100,7 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
       const k = Math.round(beatFloat / grid);
       const targetBeat = { n: k * 4, d: sd };
       const count = selectMode.paste(targetBeat);
-      if (count > 0) addToast(`${count}개 노트 붙여넣기 — Enter로 확정, Esc로 취소`, 'info');
+      if (count > 0) addToast(`${count}개 항목 붙여넣기 — Enter로 확정, Esc로 취소`, 'info');
       return;
     }
   }

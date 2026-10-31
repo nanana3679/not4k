@@ -12,7 +12,7 @@ const reconstructionChart: ChartDocument = {
   meta: { title: "명시 입력 연습", artist: "Lab", difficultyLevel: 1, difficultyLabel: "Liftoff",
     imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 },
   trillZones: [],
-  events: [{ type: "bpm", beat: beat(0), bpm: 120 }, { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) }],
+  events: [{ type: "bpm", beat: beat(0), bpm: 120 }, { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }],
   notes: [
     { type: "tap", kind: "single", lane: 1, beat: beat(2) },
     { type: "body", holdCount: 1, lane: 1, beat: beat(2), endBeat: beat(4) },

@@ -665,7 +665,7 @@ Select 모드, 메인 레인(1～4) 롱노트 기준이다. 보조 레인 롱노
 
 ### 이벤트의 선택·공통 편집
 
-> 채택한 편집 계약이다. 이벤트 명칭의 코드 전환은 [PR #368](https://github.com/nanana3679/not4k/pull/368)로 반영했고, 공통 편집의 코드 변경·검증은 별도 PR [#369](https://github.com/nanana3679/not4k/pull/369)에서 진행한다.
+> 채택한 편집 계약이다. 이벤트 명칭의 코드 전환은 [PR #368](https://github.com/nanana3679/not4k/pull/368), 공통 편집·배치 겹침 검증·초기 설정 선택 제외는 [PR #369](https://github.com/nanana3679/not4k/pull/369)로 반영했다. 로드 시 초기 설정 자동 분리는 후속 구현이다.
 
 이벤트는 Select 모드에서 일반 노트와 같은 조작을 사용한다([RFD 0068](../rfd/0068-common-event-editing.md)). 저장 배열은 `events`, 선택 인덱스는 `Selection.events`다.
 

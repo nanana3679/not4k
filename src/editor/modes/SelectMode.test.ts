@@ -3385,7 +3385,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
 
   /** notes {0} + restZones {0} 혼합 선택을 게이트 경유로 커밋한다 */
   function selectMixed(cb: { setSelection: (s: Selection) => unknown }): void {
-    cb.setSelection({ notes: new Set([0]), zones: new Set(), restZones: new Set([0]) });
+    cb.setSelection({ events: new Set(), notes: new Set([0]), zones: new Set(), restZones: new Set([0]) });
   }
 
   it("박스(레인1~3, 박0~5)가 노트(lane2 beat3)와 restZone(lane3 [2,4])을 함께 감싸면 둘 다 선택된다", () => {
@@ -3495,7 +3495,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
   it("혼합 선택에서 lane4 restZone의 moveByLane('right')는 레인 밖(5)이라 노트를 포함한 전체 이동이 차단된다", () => {
     const cb = makeCallbacks();
     const mode = makeMode(makeChartC(), cb);
-    cb.setSelection({ notes: new Set([0]), zones: new Set(), restZones: new Set([1]) }); // lane4 restZone
+    cb.setSelection({ events: new Set(), notes: new Set([0]), zones: new Set(), restZones: new Set([1]) }); // lane4 restZone
 
     mode.moveByLane("right");
 
@@ -3510,7 +3510,7 @@ describe("SelectMode — restZone 공존 선택·박스 픽업·동반 이동 (R
     });
     const cb = makeCallbacks();
     const mode = makeMode(chart, cb);
-    cb.setSelection({ notes: new Set(), zones: new Set([0]), restZones: new Set([0]) });
+    cb.setSelection({ events: new Set(), notes: new Set(), zones: new Set([0]), restZones: new Set([0]) });
 
     mode.moveBySnap("up");
 

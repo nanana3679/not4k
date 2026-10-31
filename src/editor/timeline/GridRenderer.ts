@@ -27,6 +27,7 @@ export interface GridHost {
   readonly extraLaneCount: number;
   readonly selectedTrillZones: ReadonlySet<number>;
   readonly selectedRestZones: ReadonlySet<number>;
+  readonly selectedEvents: ReadonlySet<number>;
   readonly currentTimelineWidth: number;
   readonly waveformPeaks: Float32Array | null;
   readonly waveformDurationMs: number;
@@ -278,7 +279,8 @@ export class GridRenderer {
       const gfx = new Graphics();
       gfx.rect(eventRenderX, topY, eventRenderWidth, height);
       gfx.fill({ color: COLORS.EVENT_FILL, alpha: 0.5 });
-      gfx.stroke({ width: 1.5, color: 0xffbbdd, alpha: 0.6, alignment: 0 });
+      const selected = this.host.selectedEvents.has(i);
+      gfx.stroke({ width: selected ? 2 : 1.5, color: selected ? COLORS.SELECTED_OUTLINE : 0xffbbdd, alpha: selected ? 1 : 0.6, alignment: 0 });
       noteLayer.addChild(gfx);
 
       const parts: string[] = [];

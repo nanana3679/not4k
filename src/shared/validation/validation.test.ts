@@ -554,29 +554,29 @@ describe("validateNoEventOverlap", () => {
     expect(validateNoEventOverlap(events).length).toBeGreaterThan(0);
   });
 
-  it("tutorialInput은 일반 구간 이벤트 겹침 검사에서 제외", () => {
+  it("서로 다른 키의 tutorialInput [0,4)·[2,6)을 보조 레인1·2에 배치하면 허용한다", () => {
     const events: ChartEvent[] = [
-      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" },
-      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyF" },
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD", editorLane: 1 },
+      { type: "tutorialInput", beat: beat(2), endBeat: beat(6), lane: 1, keyCode: "KeyF", editorLane: 2 },
     ];
     expect(validateNoEventOverlap(events)).toEqual([]);
   });
 
-  it("tutorialDiagram은 같은 시간에 겹쳐도 일반 구간 이벤트 겹침 검사에서 제외", () => {
+  it("tutorialDiagram [0,4)·[2,6)을 보조 레인1·2에 나누면 동시 표시를 허용한다", () => {
     const events: ChartEvent[] = [
-      { type: "tutorialDiagram", beat: beat(0), endBeat: beat(4), diagramId: "connected-switch" },
-      { type: "tutorialDiagram", beat: beat(2), endBeat: beat(6), diagramId: "connected-overlap" },
+      { type: "tutorialDiagram", beat: beat(0), endBeat: beat(4), diagramId: "connected-switch", editorLane: 1 },
+      { type: "tutorialDiagram", beat: beat(2), endBeat: beat(6), diagramId: "connected-overlap", editorLane: 2 },
     ];
     expect(validateNoEventOverlap(events)).toEqual([]);
   });
 
   it("겹치는 두 이벤트의 원본 인덱스가 refs에 담긴다 — 앞에 다른 타입 이벤트가 끼어 인덱스가 밀려도 정확", () => {
     const events: ChartEvent[] = [
-      { type: "bpm", beat: beat(0), bpm: 120 },                       // 인덱스 0, 필터 대상 아님
-      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD" }, // 인덱스 1, 필터 대상 아님
-      { type: "text", beat: beat(0), endBeat: beat(4), text: "A" },    // 인덱스 2
-      { type: "bpm", beat: beat(1), bpm: 140 },                       // 인덱스 3, 필터 대상 아님
-      { type: "text", beat: beat(2), endBeat: beat(6), text: "B" },    // 인덱스 4, 겹침 대상
+      { type: "bpm", beat: beat(0), bpm: 120, editorLane: 3 },       // 인덱스 0, 다른 레인
+      { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD", editorLane: 4 }, // 인덱스 1
+      { type: "text", beat: beat(0), endBeat: beat(4), text: "A", editorLane: 2 }, // 인덱스 2
+      { type: "bpm", beat: beat(1), bpm: 140, editorLane: 3 },       // 인덱스 3, 다른 레인
+      { type: "text", beat: beat(2), endBeat: beat(6), text: "B", editorLane: 2 }, // 인덱스 4
     ];
     const errors = validateNoEventOverlap(events);
     expect(errors).toHaveLength(1);

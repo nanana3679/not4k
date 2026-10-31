@@ -20,7 +20,7 @@ async function startLocalPlay(page: Page, difficultyLabel: string, navigate = tr
       meta: { title: 'Flight background check', artist: 'Local', difficultyLabel: label, difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
       notes: [{ type: 'tap', kind: 'single', lane: 1, beat: beat(100, 1) }],
       trillZones: [],
-      events: [{ type: 'bpm', beat: beat(0, 1), bpm: 120 }, { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1) }],
+      events: [{ type: 'bpm', beat: beat(0, 1), bpm: 120, editorLane: 1 }, { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 }],
     };
 
     const fixturePath = '/e2e/normalPlayFixture.ts';

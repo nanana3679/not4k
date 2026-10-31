@@ -23,9 +23,9 @@ export function normalDocument(auto = true): ChartDocument {
       { type: 'long', lane: 5, beat: b(2), endBeat: b(4), holdOnly: true },
     ],
     trillZones: [], restZones: [],
-    events: [{ type: 'bpm', beat: b(0), bpm: 120 },
-      { type: 'timeSignature', beat: b(0), beatPerMeasure: b(4) },
-      ...(auto ? [{ type: 'auto' as const, beat: b(0), endBeat: b(12) }] : [])],
+    events: [{ type: 'bpm', beat: b(0), bpm: 120, editorLane: 1 },
+      { type: 'timeSignature', beat: b(0), beatPerMeasure: b(4), editorLane: 2 },
+      ...(auto ? [{ type: 'auto' as const, beat: b(0), endBeat: b(12), editorLane: 3 }] : [])],
   };
 }
 

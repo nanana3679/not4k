@@ -466,6 +466,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       notes: new Set(noteIndicesAtPosition(store.chart.notes, item.lane, item.beat)),
       zones: new Set(),
       restZones: new Set(),
+      events: new Set(),
     });
   }, [space, canvasSize.height, addToast]);
 
@@ -739,6 +740,11 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     rendererRef.current?.setSelectedRestZones(selectedRestZones);
   }, [selectedRestZones]);
 
+  const selectedEvents = useEditorStore(s => s.selection.events);
+  useEffect(() => {
+    rendererRef.current?.setSelectedEvents(selectedEvents);
+  }, [selectedEvents]);
+
   // entityType → createMode
   const entityType = useEditorStore((s) => s.entityType);
   useEffect(() => {
@@ -889,6 +895,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           editingEvent={editingEvent}
           chart={chart}
           isBeatZero={!!isEditingInitial}
+          extraLaneCount={extraLaneCount}
           onSave={fileOps.handleEventSave}
           onDelete={fileOps.handleEventDelete}
           onClose={() => setEditingEvent(null)}

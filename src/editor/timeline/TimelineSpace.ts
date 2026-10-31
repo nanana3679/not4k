@@ -1,3 +1,4 @@
+import { hitTestEventAt } from './hitTest';
 /**
  * TimelineSpace — 입력 좌표 공간(픽셀 → 도메인) deep module.
  *
@@ -61,6 +62,9 @@ export interface TimelineSpace {
   snapBeat(beat: Beat): Beat;
   getSnapStep(): Beat;
   getMaxBeatFloat(): number;
+  hitTestEvent(x: number, y: number): number | null;
+  /** 드래그 도중 BPM·전체 높이가 바뀌어도 down 시점의 좌표 해석을 유지한다. */
+  captureBeatProjection(): (y: number) => Beat;
   /**
    * 메인 레인(1..4) 한정 히트테스트 — 반환 인덱스는 chart.notes 통합 인덱스.
    * CreateMode 배치 제약(메인 배치만 관할)과 커서 z-order 체크가 소비한다.
@@ -206,12 +210,27 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     return null;
   };
 
+  const hitTestEvent = (x: number, y: number): number | null => {
+    const extraLane = xToExtraLane(x);
+    if (extraLane === null) return null;
+    return hitTestEventAt(source.getChart().events, extraLane, beatToFloat(yToBeatRaw(y)));
+  };
+
+  const captureBeatProjection = (): ((y: number) => Beat) => {
+    const zeroMs = source.yToTime(0);
+    const oneMs = source.yToTime(1);
+    if (zeroMs === null || oneMs === null) return yToBeatRaw;
+    const changes = bpmChanges();
+    const offset = source.getChart().meta.offsetMs;
+    return y => beatFloatToRawBeat({ beatFloat: msToBeat(zeroMs + y * (oneMs - zeroMs), changes, offset) });
+  };
+
   const hitTestEventEnd = (x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
-    const beat = yToBeat(y);
+    const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
-    const tolerance = 1 / 8;
+    const tolerance = 1 / 16;
     const events = source.getChart().events;
     for (let i = 0; i < events.length; i++) {
       const evt = events[i];
@@ -293,6 +312,8 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     hitTestUnifiedNote,
     hitTestNoteEnd,
     hitTestEventEnd,
+    hitTestEvent,
+    captureBeatProjection,
     hitTestTrillZoneEnd,
     hitTestTrillZone,
     hitTestRestZone,

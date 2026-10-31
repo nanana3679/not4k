@@ -1,3 +1,4 @@
+import { deleteEvents, isInitialTimingEvent } from '../editing/eventEditing';
 /**
  * useFileOperations — 파일 저장/삭제 핸들러
  */
@@ -378,8 +379,6 @@ export function useFileOperations(
   }, [chart, activeSongId, addToast, setDeleting, setShowDeleteConfirm]);
 
   // 이벤트 편집 핸들러
-  const editingEvt = editingEvent ? chart.events[editingEvent.index] : null;
-  const isEditingInitial = editingEvt && editingEvt.beat.n === 0 && (editingEvt.type === 'bpm' || editingEvt.type === 'timeSignature');
 
   const handleEventSave = useCallback((values: Record<string, string>) => {
     if (!editingEvent) return;
@@ -439,27 +438,32 @@ export function useFileOperations(
       newEvt = evt;
     }
 
+    if (isInitialTimingEvent(evt)) {
+      const editorLane = Number(values.editorLane ?? evt.editorLane ?? 1);
+      if (!Number.isInteger(editorLane) || editorLane < 1 || editorLane > extraLaneCount) {
+        addToast('보조 레인은 현재 보조 레인 범위 안의 정수여야 합니다');
+        return;
+      }
+      newEvt = { ...newEvt, editorLane };
+    }
     updated.events[editingEvent.index] = newEvt;
 
     setChart(updated);
     rendererRef.current?.setChart(updated);
     setEditingEvent(null);
-  }, [editingEvent, chart, rendererRef, setChart, setEditingEvent, addToast]);
+  }, [editingEvent, chart, extraLaneCount, rendererRef, setChart, setEditingEvent, addToast]);
 
   const handleEventDelete = useCallback(() => {
     if (!editingEvent) return;
 
-    if (isEditingInitial) {
+    const next = deleteEvents(chart, new Set([editingEvent.index]));
+    if (!next) {
       addToast('Cannot delete initial event');
       return;
     }
-
-    setChart({
-      ...chart,
-      events: chart.events.filter((_, i) => i !== editingEvent.index),
-    });
+    setChart(next);
     setEditingEvent(null);
-  }, [editingEvent, isEditingInitial, chart, setChart, setEditingEvent, addToast]);
+  }, [editingEvent, chart, setChart, setEditingEvent, addToast]);
 
   return {
     handleSaveChart,

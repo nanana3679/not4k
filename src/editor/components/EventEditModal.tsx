@@ -178,15 +178,16 @@ export interface EventEditModalProps {
   editingEvent: NonNullable<EditingEvent>;
   chart: ChartDocument;
   isBeatZero: boolean;
+  extraLaneCount: number;
   onSave: (values: Record<string, string>) => void;
   onDelete: () => void;
   onClose: () => void;
 }
 
-export function EventEditModal({ editingEvent, chart, isBeatZero, onSave, onDelete, onClose }: EventEditModalProps) {
+export function EventEditModal({ editingEvent, chart, isBeatZero, extraLaneCount, onSave, onDelete, onClose }: EventEditModalProps) {
   const evt = chart.events[editingEvent.index];
   const [values, setValues] = useState<Record<string, string>>(() =>
-    evt ? getInitialValues(evt) : {},
+    evt ? { ...getInitialValues(evt), editorLane: String(evt.editorLane ?? 1) } : {},
   );
 
   useEffect(() => {
@@ -203,6 +204,21 @@ export function EventEditModal({ editingEvent, chart, isBeatZero, onSave, onDele
         <h3 style={modalStyles.title}>{title}</h3>
 
         <EventFields evt={evt} values={values} setValues={setValues} />
+
+        {isBeatZero && (
+          <label style={modalStyles.field}>
+            <span>Editor lane</span>
+            <select
+              style={modalStyles.input}
+              value={values.editorLane}
+              onChange={(event) => setValues({ ...values, editorLane: event.target.value })}
+            >
+              {Array.from({ length: extraLaneCount }, (_, index) => (
+                <option key={index + 1} value={index + 1}>{index + 1}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div style={modalStyles.buttons}>
           <button style={modalStyles.saveBtn} onClick={() => onSave(values)}>Save</button>

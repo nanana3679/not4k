@@ -120,6 +120,7 @@ export class TimelineRenderer {
   private _selectedNotes: Set<number> = new Set();
   private _selectedTrillZones: Set<number> = new Set();
   private _selectedRestZones: Set<number> = new Set();
+  private _selectedEvents: Set<number> = new Set();
   private _moveOrigins: { note: DocumentNoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
   private _boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null = null;
 
@@ -361,6 +362,7 @@ export class TimelineRenderer {
 
     // GridRenderer host
     const gridHost: GridHost = {
+      get selectedEvents() { return self._selectedEvents; },
       get chart() { return self.chart; },
       get zoom() { return self._zoom; },
       get snap() { return self._snap; },
@@ -492,6 +494,11 @@ export class TimelineRenderer {
   setSelectedRestZones(indices: Set<number>): void {
     this._selectedRestZones = indices;
     this.render();
+  }
+
+  setSelectedEvents(indices: Set<number>): void {
+    this._selectedEvents = indices;
+    if (this.initialized) this.render();
   }
 
   /** Set extra lane count */

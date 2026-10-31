@@ -12,7 +12,7 @@ import type { Beat, Lane } from "../../shared";
 
 /** 테스트용 가짜 TimelineSpace. 기본값은 단순 항등/널이며 overrides로 케이스별 교체. */
 export function makeFakeSpace(overrides: Partial<TimelineSpace> = {}): TimelineSpace {
-  return {
+  const space: TimelineSpace = {
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? (x as Lane) : null),
     xToExtraLane: () => null,
     xToUnifiedLane: (x: number) => (x >= 1 && x <= 4 ? x : null),
@@ -25,6 +25,8 @@ export function makeFakeSpace(overrides: Partial<TimelineSpace> = {}): TimelineS
     hitTestUnifiedNote: () => null,
     hitTestNoteEnd: () => null,
     hitTestEventEnd: () => null,
+    hitTestEvent: () => null,
+    captureBeatProjection: () => y => space.yToBeat(y),
     hitTestTrillZoneEnd: () => null,
     hitTestTrillZone: () => null,
     hitTestRestZone: () => null,
@@ -33,4 +35,5 @@ export function makeFakeSpace(overrides: Partial<TimelineSpace> = {}): TimelineS
     getBpmChanges: () => [],
     ...overrides,
   };
+  return space;
 }

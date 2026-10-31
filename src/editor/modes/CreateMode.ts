@@ -218,6 +218,7 @@ export class CreateMode implements EditorMode {
    */
   isPlacementBlocked(x: number, y: number): boolean {
     if (!this.callbacks.isTimeInBounds(y)) return true;
+    if (isEventEntityType(this.selectedEntityType)) return this.callbacks.space.hitTestEvent(x, y) !== null;
     // 틱·릴리즈는 바디 안에도 놓는다. 중복·소속은 공용 의미 검증으로 표시한다.
     if (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
     const unifiedHit = this.callbacks.space.hitTestUnifiedNote(x, y);
