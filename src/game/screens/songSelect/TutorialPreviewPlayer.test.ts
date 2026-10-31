@@ -458,7 +458,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect([...legacyBoundary].sort((a, b) => a - b)).toEqual(legacyBoundary);
   });
 
-  it('명시 경계는 paused·도식 확인 후 경과 시간의 차수로 한 번 정산하고 구형은 loopTimeMs 감소만 검사', () => {
+  it('명시 경계는 paused·이미 걸린 도식 대기가 아니면 경과 시간의 차수로 한 번 정산하고, 이 프레임에 새로 걸린 도식은 정산을 막지 않으며 구형은 loopTimeMs 감소만 검사', () => {
     const explicitStart = renderLoopBody.indexOf('if (isExplicitTutorialPreview(preview)) {');
     const legacyStart = renderLoopBody.indexOf('} else if (loopTimeMs < previousLoopTime) {', explicitStart);
     expect(explicitStart).toBeGreaterThan(renderLoopBody.indexOf('if (clock.frozen) {'));
@@ -469,7 +469,11 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(explicitBoundary).toContain('elapsedMs: now - loopStartNow,');
     expect(explicitBoundary).toContain('loopMs: preview.loopMs,');
     expect(explicitBoundary).toContain('previousIteration: previousExplicitLoopIteration,');
-    expect(explicitBoundary).toContain('frozen: clock.frozen || activeDiagramPause !== null,');
+    expect(explicitBoundary).toContain('frozen: clock.frozen || diagramHeldBeforeFrame,');
+    // 도식 대기 여부는 resolveDiagramPauseTime이 이 프레임의 새 도식을 걸기 전에 읽는다.
+    const heldIndex = renderLoopBody.indexOf('const diagramHeldBeforeFrame = activeDiagramPause !== null;');
+    expect(heldIndex).toBeGreaterThan(-1);
+    expect(heldIndex).toBeLessThan(renderLoopBody.indexOf('loopTimeMs = resolveDiagramPauseTime(loopTimeMs);'));
     expect(explicitBoundary).toContain('previousExplicitLoopIteration = loop.iteration;');
     expect(explicitBoundary).toContain('if (loop.finished) previewJudgment.finishLoop();');
     expect(explicitBoundary.match(/previewJudgment\.finishLoop\(\)/g)).toHaveLength(1);

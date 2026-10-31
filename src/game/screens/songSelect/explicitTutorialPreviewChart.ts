@@ -51,21 +51,27 @@ function offsetZone<Zone extends TrillZone | RestZone>(zone: Zone, cycleIndex: n
 
 /**
  * 구형 renderChart와 같은 3벌 표시 문서. 복사본 k의 노트·구간은 원본보다 k × loopBeats 늦고, notes는 복사본 순서로 이어 붙여
- * 표시 note index = 복사본 × 원본 노트 수 + 원본 index다. bpm·박자 이벤트도 복사본마다 옮겨 원본 시간 맵을 반복한다
+ * 표시 note index = 복사본 × 원본 노트 수 + 원본 index다. bpm 이벤트는 복사본마다 옮겨 원본 시간 맵을 반복하고, 박자표는 원본만 둔다
  * (입력 시연·도식은 원본 문서가 담당).
  */
 export function createExplicitTutorialRenderDocument(chart: ChartDocument, loopBeats: number): ChartDocument {
   const cycleIndices = Array.from({ length: TUTORIAL_PREVIEW_RENDER_CYCLES }, (_, cycleIndex) => cycleIndex);
-  const timingEvents = chart.events.filter(event => event.type === 'bpm' || event.type === 'timeSignature');
+  const bpmEvents = chart.events.filter(event => event.type === 'bpm');
+  // 박자표는 원본만 둔다. 반복 길이가 마디로 나누어떨어지지 않으면 복사한 박자표가 마디 중간에 놓여 문서 검증에 걸린다.
+  // 박자표는 마디선 표시에만 쓰이고 노트 시간에는 영향이 없다.
+  const timeSignatureEvents = chart.events.filter(event => event.type === 'timeSignature');
   return {
     ...chart,
     notes: cycleIndices.flatMap(cycleIndex => chart.notes.map(note => offsetNote(note, cycleIndex, loopBeats))),
     trillZones: cycleIndices.flatMap(cycleIndex => chart.trillZones.map(zone => offsetZone(zone, cycleIndex, loopBeats))),
     restZones: cycleIndices.flatMap(cycleIndex => (chart.restZones ?? []).map(zone => offsetZone(zone, cycleIndex, loopBeats))),
-    events: cycleIndices.flatMap(cycleIndex => timingEvents.map(event => ({
-      ...event,
-      beat: offsetBeat(event.beat, cycleIndex, loopBeats),
-    }))),
+    events: [
+      ...cycleIndices.flatMap(cycleIndex => bpmEvents.map(event => ({
+        ...event,
+        beat: offsetBeat(event.beat, cycleIndex, loopBeats),
+      }))),
+      ...timeSignatureEvents,
+    ],
   };
 }
 

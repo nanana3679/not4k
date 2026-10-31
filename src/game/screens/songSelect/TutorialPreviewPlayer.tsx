@@ -777,6 +777,8 @@ export function TutorialPreviewPlayer({
           previousNow = now;
           // rAF 타임스탬프는 프레임 시작 시각이라 첫 프레임 직후 잰 loopStartNow보다 앞설 수 있다. 음수면 루프 경계로 오인하므로 0으로 막는다.
           let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs;
+          // 이 프레임에 새로 시작하는 도식은 경계 정산을 막지 않는다. 경계를 넘자마자 도식이 시작돼도 끝난 반복을 먼저 정산한다.
+          const diagramHeldBeforeFrame = activeDiagramPause !== null;
           loopTimeMs = resolveDiagramPauseTime(loopTimeMs);
           activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs + loopTimeMs, preview.loopMs);
           const renderTimeMs = preview.renderStartMs + loopTimeMs;
@@ -787,7 +789,7 @@ export function TutorialPreviewPlayer({
               elapsedMs: now - loopStartNow,
               loopMs: preview.loopMs,
               previousIteration: previousExplicitLoopIteration,
-              frozen: clock.frozen || activeDiagramPause !== null,
+              frozen: clock.frozen || diagramHeldBeforeFrame,
             });
             previousExplicitLoopIteration = loop.iteration;
             if (loop.finished) previewJudgment.finishLoop();

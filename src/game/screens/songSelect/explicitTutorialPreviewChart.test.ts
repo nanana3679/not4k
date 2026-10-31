@@ -64,14 +64,20 @@ describe('명시 튜토리얼 3벌 표시 문서', () => {
     expect(chart.trillZones).toHaveLength(1);
   });
 
-  it('4박 시연을 3벌로 만들면 bpm·박자는 각각 3개 남기고 tutorialInput·tutorialDiagram·text는 뺌', () => {
+  it('4박 시연을 3벌로 만들면 bpm은 복사본마다 3개, 박자표는 원본 1개만 남기고 tutorialInput·tutorialDiagram·text는 뺌', () => {
     const render = createExplicitTutorialRenderDocument(sourceChart(), 4);
-    expect(render.events.map(event => event.type)).toEqual([
-      'bpm', 'timeSignature', 'bpm', 'timeSignature', 'bpm', 'timeSignature',
-    ]);
+    expect(render.events.map(event => event.type)).toEqual(['bpm', 'bpm', 'bpm', 'timeSignature']);
   });
 
-  it('4박 중 2박에서 120→240 BPM으로 바뀌면 1박 노트는 500·2000·3500ms에 표시하고 각 복사본의 박자표도 4박씩 옮김', () => {
+  it('4/4 박자표에 3박 반복인 시연도 3벌 표시 문서가 마디 중간 박자표 없이 명시 compile을 통과', () => {
+    const render = createExplicitTutorialRenderDocument(sourceChart(), 3);
+    expect(render.events.filter(event => event.type === 'timeSignature')).toEqual([
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    ]);
+    expect(() => compileExplicitJudgmentChart(render)).not.toThrow();
+  });
+
+  it('4박 중 2박에서 120→240 BPM으로 바뀌면 1박 노트는 500·2000·3500ms에 표시하고 박자표는 원본 두 개만 둠', () => {
     const chart = sourceChart();
     chart.events.push(
       { type: 'bpm', beat: beat(2), bpm: 240 },
@@ -94,10 +100,6 @@ describe('명시 튜토리얼 3벌 표시 문서', () => {
     expect(preview.renderChart.events.filter(event => event.type === 'timeSignature')).toEqual([
       { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
       { type: 'timeSignature', beat: beat(2), beatPerMeasure: beat(2), editorLane: 2 },
-      { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(4), editorLane: 2 },
-      { type: 'timeSignature', beat: beat(6), beatPerMeasure: beat(2), editorLane: 2 },
-      { type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(4), editorLane: 2 },
-      { type: 'timeSignature', beat: beat(10), beatPerMeasure: beat(2), editorLane: 2 },
     ]);
     expect(chart.events.filter(event => event.type === 'bpm')).toHaveLength(2);
   });
