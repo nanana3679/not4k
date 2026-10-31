@@ -160,10 +160,11 @@ storage/
 │   │   └── hard.json          # HARD 차트
 │   └── ...
 └── tutorials/
-    ├── phase1.ogg             # 튜토리얼 음원
     ├── phase1.json            # 튜토리얼 차트
     └── ...
 ```
+
+튜토리얼의 시연·실습은 메트로놈을 사용하며 전용 음악 파일을 요구하지 않는다([RFD 0083](../rfd/0083-tutorial-metronome.md)). 위 파일 구조의 튜토리얼 차트와 수록곡의 음악 파일을 구별한다.
 
 ### 차트 JSON 포맷
 
