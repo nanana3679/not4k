@@ -205,6 +205,35 @@ describe('ExplicitPlaybackHost 자원 수명', () => {
     expect(fixture.audio[0].dispose).toHaveBeenCalledOnce();
   });
 
+  it('RAF 100ms 콜백 안에서 stopFrames하면 다음 RAF 예약은 0개이고 116ms 콜백은 실행 0회다', async () => {
+    const { host } = create(); await host.init();
+    const onFrame = vi.fn(() => host.stopFrames());
+    host.startFrames(onFrame, vi.fn());
+    frame(100); frame(116);
+    expect(onFrame).toHaveBeenCalledOnce(); expect(frames.size).toBe(0);
+  });
+
+  it('RAF 100ms 콜백 안에서 stopFrames 뒤 startFrames하면 예약은 새 루프 1개뿐이고 116ms에 새 콜백만 실행한다', async () => {
+    const { host } = create(); await host.init();
+    const next = vi.fn();
+    const first = vi.fn(() => { host.stopFrames(); host.startFrames(next, vi.fn()); });
+    host.startFrames(first, vi.fn());
+    frame(100);
+    expect(frames.size).toBe(1);
+    frame(116);
+    expect(first).toHaveBeenCalledOnce(); expect(next.mock.calls).toEqual([[116]]); expect(frames.size).toBe(1);
+  });
+
+  it('RAF 100ms 루프가 도는 중 startFrames를 다시 부르면 두 번째 루프를 만들지 않아 116ms에 콜백 1회만 실행한다', async () => {
+    const { host } = create(); await host.init();
+    const onFrame = vi.fn(); const second = vi.fn();
+    host.startFrames(onFrame, vi.fn());
+    frame(100);
+    host.startFrames(second, vi.fn());
+    frame(116);
+    expect(onFrame.mock.calls).toEqual([[100], [116]]); expect(second).not.toHaveBeenCalled(); expect(frames.size).toBe(1);
+  });
+
   it.each(['frame', 'schedule'] as const)('RAF 100ms의 %s 오류 1회는 onError로 전달하고 다음 RAF를 남기지 않는다', async stage => {
     const { host } = create(); await host.init(); const error = new Error(stage);
     const onError = vi.fn(() => host.dispose());

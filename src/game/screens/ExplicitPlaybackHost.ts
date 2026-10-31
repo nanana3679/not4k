@@ -41,6 +41,8 @@ export class ExplicitPlaybackHost {
   private rendererInit: Promise<void> | null = null;
   private input: ReturnType<typeof createExplicitPlayInput> | null = null;
   private frameId: number | null = null;
+  /** 지금 도는 RAF 루프의 표식. 콜백 안의 stopFrames는 예약된 id가 없으므로 이것으로 재예약을 막는다. */
+  private frameLoop: symbol | null = null;
   private closed = false;
   private started = false;
 
@@ -99,21 +101,28 @@ export class ExplicitPlaybackHost {
     this.input!.attach(this.options.inputTarget);
   }
 
+  /** 루프는 하나만 돈다. 콜백 안에서 stopFrames·startFrames를 불러도 멈춘 루프는 다시 예약하지 않는다. */
   startFrames(onFrame: (timestamp: number) => void, onError: (reason: unknown) => void): void {
-    if (this.closed || this.frameId !== null) return;
+    if (this.closed || this.frameLoop !== null) return;
+    const loop = Symbol('frameLoop');
+    this.frameLoop = loop;
     const frame = (timestamp: number) => {
       this.frameId = null;
-      if (this.closed) return;
+      if (this.closed || this.frameLoop !== loop) return;
       try {
         onFrame(timestamp);
-        if (!this.closed) this.frameId = requestAnimationFrame(frame);
-      } catch (error) { onError(error); }
+        if (!this.closed && this.frameLoop === loop) this.frameId = requestAnimationFrame(frame);
+      } catch (error) {
+        if (this.frameLoop === loop) this.frameLoop = null;
+        onError(error);
+      }
     };
     this.frameId = requestAnimationFrame(frame);
   }
 
   /** 호출자가 입력·adapter를 정리하기 전에 예약된 프레임부터 취소한다. */
   stopFrames(): void {
+    this.frameLoop = null;
     if (this.frameId !== null) cancelAnimationFrame(this.frameId);
     this.frameId = null;
   }
