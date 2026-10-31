@@ -159,6 +159,8 @@ export function mergePersistedSettings(
   const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
   merged.inputOffsetMs = clampTimingOffsetMs(merged.inputOffsetMs);
   merged.visualOffsetMs = clampTimingOffsetMs(merged.visualOffsetMs);
+  // 렌더러는 `showFlightBackground ?? true`라 null 같은 저장값이면 토글은 꺼짐으로 보이는데 배경은 움직인다. boolean이 아니면 기본 켬으로 맞춘다.
+  if (typeof merged.flightBackgroundMotion !== 'boolean') merged.flightBackgroundMotion = true;
   // RFD 0031: 미출시 설정은 이전하지 않고 옛 키를 모두 버린다(차트 offsetMs와 별개).
   delete merged.audioOffsetMs;
   delete merged.judgmentOffsetMs;

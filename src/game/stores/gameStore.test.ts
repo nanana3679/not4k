@@ -201,6 +201,11 @@ describe('gameStore — flightBackgroundMotion(설정 Background Motion, RFD 010
     expect(restored.settings.gearMotion).toBe(true);
   });
 
+  it.each([null, 0, 'false'])('저장된 flightBackgroundMotion이 boolean이 아닌 %j이면 복원할 때 켬(true)으로 바꾼다', (stored) => {
+    const restored = mergePersistedSettings({ settings: { flightBackgroundMotion: stored } }, useGameStore.getInitialState());
+    expect(restored.settings.flightBackgroundMotion).toBe(true);
+  });
+
   it('updateSettings로 flightBackgroundMotion만 끄면 gearMotion은 켬(true)으로 남는다', () => {
     useGameStore.getState().updateSettings({ flightBackgroundMotion: false });
     expect(useGameStore.getState().settings).toMatchObject({ flightBackgroundMotion: false, gearMotion: true });

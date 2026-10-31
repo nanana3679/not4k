@@ -121,11 +121,11 @@ function key(target: Target, type: 'keydown' | 'keyup', code: string, timeStamp 
 
 describe('명시 실제 재생 runtime — 설정 Background Motion·Gear Motion 렌더러 배선(RFD 0100)', () => {
   it.each([
-    ['일반 플레이', true, false, true],
-    ['일반 플레이', true, true, false],
-    ['명시 테스트 재생', false, false, true],
-    ['명시 테스트 재생', false, true, false],
-  ] as const)('%s에서 Background Motion=%s·Gear Motion=%s이면 렌더러를 같은 값의 showFlightBackground·gearMotion 옵션으로 만든다', async (_purpose, normal, flightBackgroundMotion, gearMotion) => {
+    { purpose: '일반 플레이', normal: true, flightBackgroundMotion: false, gearMotion: true },
+    { purpose: '일반 플레이', normal: true, flightBackgroundMotion: true, gearMotion: false },
+    { purpose: '명시 테스트 재생', normal: false, flightBackgroundMotion: false, gearMotion: true },
+    { purpose: '명시 테스트 재생', normal: false, flightBackgroundMotion: true, gearMotion: false },
+  ])('$purpose에서 Background Motion=$flightBackgroundMotion·Gear Motion=$gearMotion이면 렌더러를 같은 값의 showFlightBackground·gearMotion 옵션으로 만든다', async ({ normal, flightBackgroundMotion, gearMotion }) => {
     const run = create(!normal, undefined, { flightBackgroundMotion, gearMotion }, undefined, 4, normal ? {} : undefined);
     await run.player.start();
     expect(run.onError).not.toHaveBeenCalled();
