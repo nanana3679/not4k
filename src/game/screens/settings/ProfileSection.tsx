@@ -12,7 +12,7 @@ function GuestNickname() {
 }
 
 function NicknameForm({ userId, nickname }: { userId: string; nickname: string }) {
-  const [draft, setDraft] = useState(nickname);
+  const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const request = useRef<AbortController | null>(null);
@@ -25,11 +25,12 @@ function NicknameForm({ userId, nickname }: { userId: string; nickname: string }
     request.current = controller;
     setSaving(true);
     setMessage(null);
-    const result = await profileNickname.saveNickname(userId, draft, controller.signal);
+    const result = await profileNickname.saveNickname(userId, draft ?? nickname, controller.signal);
     if (controller.signal.aborted) return;
     request.current = null;
     setSaving(false);
     if (result.status === 'ignored') return;
+    if (result.status === 'saved') setDraft(null);
     setMessage(result.status === 'saved'
       ? { text: 'Nickname saved.', error: false }
       : { text: result.message, error: true });
@@ -41,7 +42,7 @@ function NicknameForm({ userId, nickname }: { userId: string; nickname: string }
         <div className="stg-profile-status">
           <label className="stg-row-label" htmlFor="profile-nickname">Nickname</label>
           <input
-            id="profile-nickname" className="stg-nickname" value={draft} disabled={saving}
+            id="profile-nickname" className="stg-nickname" value={draft ?? nickname} disabled={saving}
             autoComplete="off" autoCapitalize="off" spellCheck={false}
             aria-invalid={message?.error || undefined}
             aria-describedby={message ? 'profile-nickname-message' : undefined}

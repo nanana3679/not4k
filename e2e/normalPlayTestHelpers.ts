@@ -4,6 +4,7 @@ import { auxNotesAsExtra } from '../src/shared/chart/auxAdapter';
 import type { ChartDocument } from '../src/shared/types/chart';
 import type { DbSong } from '../src/game/screens/songSelect/types';
 import { installProbe } from './explicitPlaybackProbe';
+import { fulfillNicknameLink } from './offlineNickname';
 
 export const SONG_ID = 'normal-explicit-e2e';
 const b = (n: number) => ({ n, d: 1 });
@@ -67,6 +68,7 @@ export async function openNormalSong(page: Page, document = normalDocument(), op
     if (/^\/(rest|storage|auth)\/v1\//.test(path)) {
       reads.push(`${request.method()} ${path}`);
       if (request.method() === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
+      if (await fulfillNicknameLink(route)) return;
       if (request.method() === 'GET') {
         if (path === '/rest/v1/songs') { await route.fulfill({ json: [song] }); return; }
         if (path.endsWith(`/songs/${SONG_ID}/normal.json`)) {

@@ -166,6 +166,42 @@ test.describe('Game Settings', () => {
     expect(linkCalls).toBe(callsAfterLoad);
   });
 
+  for (const completion of ['다시 열기 전', '다시 연 뒤'] as const) {
+    test(`Profile을 닫고 ${completion} NewPilot 저장이 완료되면 재개방한 폼에 NewPilot을 표시하고 이전 저장 안내는 숨긴다`, async ({ page }) => {
+      let finishSave!: () => void;
+      let markStarted!: () => void;
+      const saveResponse = new Promise<void>(resolve => { finishSave = resolve; });
+      const saveStarted = new Promise<void>(resolve => { markStarted = resolve; });
+      await page.route(PROFILE_URL, async route => {
+        expect(route.request().postDataJSON()).toEqual({ display_name: 'NewPilot' });
+        markStarted();
+        await saveResponse;
+        await route.fulfill({ json: { display_name: 'NewPilot' } });
+      });
+      const dialog = await openSettings(page);
+      await dialog.getByRole('button', { name: 'Profile', exact: true }).click();
+      const nickname = dialog.getByRole('textbox', { name: 'Nickname', exact: true });
+      await expect(nickname).toHaveValue('RoutedPilot');
+      await nickname.fill('NewPilot');
+      const saved = page.waitForResponse(response => response.request().method() === 'PATCH'
+        && new URL(response.url()).pathname === '/rest/v1/profiles');
+      await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+      await saveStarted;
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+      if (completion === '다시 열기 전') { finishSave(); await saved; }
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Profile', exact: true }).click();
+      if (completion === '다시 연 뒤') {
+        await expect(nickname).toHaveValue('RoutedPilot');
+        finishSave();
+        await saved;
+      }
+      await expect(nickname).toHaveValue('NewPilot');
+      await expect(dialog.getByText('Nickname saved.', { exact: true })).toHaveCount(0);
+      await expect(dialog.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+    });
+  }
+
   test('Profile의 NewPilot 저장이 500이면 초안과 오류를 유지하고 같은 Save 버튼으로 재시도한다', async ({ page }) => {
     let attempts = 0;
     await page.route(PROFILE_URL, route => {

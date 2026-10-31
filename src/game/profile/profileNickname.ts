@@ -8,7 +8,7 @@ interface NicknameState {
 }
 
 interface NicknameDependencies {
-  guest: { get: () => string; rotate: (sentNickname: string) => void };
+  guest: { get: () => string; rotate: (expectedNickname: string, excludedNickname: string) => void };
   link: (guestNickname: string) => Promise<{ nickname: string; first_link: boolean }>;
   save: (userId: string, nickname: string) => Promise<string>;
 }
@@ -26,7 +26,9 @@ export function createProfileNickname({ guest, link, save }: NicknameDependencie
       const sentNickname = guest.get();
       const result = await link(sentNickname);
       // 서버가 인계한 기기 이름은 로그아웃 후 도착한 응답이라도 교체한다.
-      if (result.first_link) guest.rotate(sentNickname);
+      // 첫 연동 응답이 유실된 뒤 재시도하면 first_link가 false여도 인계한 이름이 돌아온다.
+      if (result.nickname === guest.get()) guest.rotate(result.nickname, sentNickname);
+      else if (result.first_link) guest.rotate(sentNickname, result.nickname);
       if (startedIn !== session) return;
       store.setState({ nickname: result.nickname, status: 'ready' });
     } catch {
@@ -38,17 +40,17 @@ export function createProfileNickname({ guest, link, save }: NicknameDependencie
     retry: () => store.getState().status === 'error' ? load() : Promise.resolve(),
     async saveNickname(userId: string, draft: string, signal: AbortSignal): Promise<SaveResult> {
       const startedIn = session;
-      const isCurrent = () => !signal.aborted && startedIn === session && store.getState().userId === userId;
-      if (!isCurrent() || store.getState().status !== 'ready') return { status: 'ignored' };
+      const isCurrent = () => startedIn === session && store.getState().userId === userId;
+      if (signal.aborted || !isCurrent() || store.getState().status !== 'ready') return { status: 'ignored' };
       const message = validateNickname(draft);
       if (message) return { status: 'error', message };
       try {
         const nickname = await save(userId, draft);
         if (!isCurrent()) return { status: 'ignored' };
         store.setState({ nickname });
-        return { status: 'saved' };
+        return { status: signal.aborted ? 'ignored' : 'saved' };
       } catch {
-        if (!isCurrent()) return { status: 'ignored' };
+        if (signal.aborted || !isCurrent()) return { status: 'ignored' };
         return { status: 'error', message: "Couldn't save your nickname. Please try again." };
       }
     },

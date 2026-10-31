@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import { installProbe as installExplicitProbe, probe as readExplicitProbe, preparationTarget } from '../explicitPlaybackProbe';
 import type { Chart } from '../../src/shared';
 import { STORAGE_BUCKET, songChartExtraPath, songChartPath } from '../../src/shared/storage';
+import { fulfillNicknameLink } from '../offlineNickname';
 
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
@@ -56,7 +57,8 @@ const GOOGLE_FONTS_ORIGINS = new Set(['https://fonts.googleapis.com', 'https://f
 /**
  * page.route까지 오는 페이지 요청을 모두 가로채, 연결된 Supabase 프로젝트나 자격 증명과 무관하게 같은 화면을 보게 한다.
  * - 경로가 `/rest/v1/`·`/storage/v1/`·`/auth/v1/`로 시작하는 요청(origin 무관): `GET /rest/v1/songs`는 빈 곡 목록으로 응답한다
- *   (결과 화면의 Back으로 연 곡 선택 화면이 부른다). 그 밖의 요청은 500으로 응답하고 기록한다.
+ *   (결과 화면의 Back으로 연 곡 선택 화면이 부른다). `POST /rest/v1/rpc/link_guest_nickname`은 고정 닉네임 한 행으로 응답한다.
+ *   그 밖의 요청은 500으로 응답하고 기록한다.
  *   OPTIONS 204 분기는 지금은 쓰이지 않는다. Playwright(1.58, Chromium)는 page.route로 가로채는 요청의 CORS preflight에 스스로 답해
  *   처리기에는 본 요청(여기서는 GET)만 온다. preflight 처리가 바뀌어 OPTIONS가 여기까지 와도 예상 밖 요청으로 기록되거나 곡 목록 요청이 막히지 않도록 남겨 둔다.
  * - 앱 origin의 GET은 그대로 통과시킨다.
@@ -77,6 +79,7 @@ async function guardOfflineRequests(page: Page, appOrigin: string): Promise<stri
     const requestLabel = `${method} ${url.origin}${path}`;
     if (SUPABASE_API_PATH.test(path)) {
       if (method === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
+      if (await fulfillNicknameLink(route)) return;
       if (method === 'GET' && path === '/rest/v1/songs') { await route.fulfill({ json: [] }); return; }
       unexpectedRequests.push(requestLabel);
       await route.fulfill({ status: 500, json: { error: 'Unexpected offline test request' } });

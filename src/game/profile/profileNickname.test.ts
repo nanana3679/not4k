@@ -61,7 +61,20 @@ it('user-2가 로그인한 동안 user-1의 폼이 저장을 요청해도 서버
   expect(profile.save).not.toHaveBeenCalled();
 });
 
-it.each(['unmount', 'user-switch', 'sign-out-and-back'])(
+it('Profile을 닫은 뒤 NewPilot 저장이 성공하면 계정 이름은 NewPilot으로 갱신하고 폼 안내는 무시한다', async () => {
+  const profile = setup();
+  await profile.setUser({ id: 'user-1' });
+  const response = deferred<string>();
+  profile.save.mockReturnValueOnce(response.promise);
+  const controller = new AbortController();
+  const pending = profile.saveNickname('user-1', 'NewPilot', controller.signal);
+  controller.abort();
+  response.resolve('NewPilot');
+  expect(await pending).toEqual({ status: 'ignored' });
+  expect(profile.store.getState()).toEqual({ userId: 'user-1', nickname: 'NewPilot', status: 'ready' });
+});
+
+it.each(['user-switch', 'sign-out-and-back'])(
   'NewPilot 저장 대기 중 %s가 발생하면 늦은 성공을 무시하고 현재 계정 이름을 유지한다', async change => {
     const profile = setup();
     await profile.setUser({ id: 'user-1' });
@@ -69,8 +82,7 @@ it.each(['unmount', 'user-switch', 'sign-out-and-back'])(
     profile.save.mockReturnValueOnce(response.promise);
     const controller = new AbortController();
     const pending = profile.saveNickname('user-1', 'NewPilot', controller.signal);
-    if (change === 'unmount') controller.abort();
-    else if (change === 'user-switch') await profile.setUser({ id: 'user-2' });
+    if (change === 'user-switch') await profile.setUser({ id: 'user-2' });
     else {
       await profile.setUser(null);
       await profile.setUser({ id: 'user-1' });
@@ -139,12 +151,12 @@ it('익명 user-1은 연동하지 않고 같은 id의 정식 계정 전환 때 �
   expect(profile.link).toHaveBeenCalledOnce();
 });
 
-it('첫 연동에서 충돌 대체 Guest999999를 받으면 계정은 응답 이름을 쓰고 기기는 보낸 Guest000042를 제외해 교체한다', async () => {
+it('첫 연동에서 충돌 대체 Guest999999를 받으면 계정에 적용하고 기기는 Guest000042와 Guest999999를 제외해 교체한다', async () => {
   const profile = setup();
   profile.link.mockResolvedValueOnce({ nickname: 'Guest999999', first_link: true });
   await profile.setUser({ id: 'user-1' });
   expect(profile.store.getState().nickname).toBe('Guest999999');
-  expect(profile.guest.rotate).toHaveBeenCalledExactlyOnceWith('Guest000042');
+  expect(profile.guest.rotate).toHaveBeenCalledExactlyOnceWith('Guest000042', 'Guest999999');
 });
 
 it('로그아웃 후 첫 연동 성공이 도착하면 계정은 비운 채 인계된 Guest000042만 교체한다', async () => {
@@ -156,7 +168,7 @@ it('로그아웃 후 첫 연동 성공이 도착하면 계정은 비운 채 인�
   response.resolve({ nickname: 'Guest000042', first_link: true });
   await old;
   expect(profile.store.getState()).toEqual({ userId: null, nickname: null, status: 'ready' });
-  expect(profile.guest.rotate).toHaveBeenCalledExactlyOnceWith('Guest000042');
+  expect(profile.guest.rotate).toHaveBeenCalledExactlyOnceWith('Guest000042', 'Guest000042');
 });
 
 it('연동 실패는 error로 남고 중복 SIGNED_IN 대신 Retry로 다시 요청해 Pilot7을 불러온다', async () => {
@@ -171,6 +183,32 @@ it('연동 실패는 error로 남고 중복 SIGNED_IN 대신 Retry로 다시 요
   await retry;
   expect(profile.store.getState()).toEqual({ userId: 'user-1', nickname: 'Pilot7', status: 'ready' });
   expect(profile.link).toHaveBeenCalledTimes(2);
+  expect(profile.guest.rotate).not.toHaveBeenCalled();
+});
+
+it('첫 연동 응답 유실 후 Retry가 first_link false와 기기의 Guest000042를 반환하면 기기 이름을 교체한다', async () => {
+  const profile = setup();
+  profile.link.mockRejectedValueOnce(new Error('Response lost'));
+  await profile.setUser({ id: 'user-1' });
+  expect(profile.store.getState().status).toBe('error');
+  expect(profile.guest.rotate).not.toHaveBeenCalled();
+  profile.link.mockResolvedValueOnce({ nickname: 'Guest000042', first_link: false });
+  await profile.retry();
+  expect(profile.store.getState()).toEqual({ userId: 'user-1', nickname: 'Guest000042', status: 'ready' });
+  expect(profile.guest.rotate).toHaveBeenCalledExactlyOnceWith('Guest000042', 'Guest000042');
+});
+
+it('연동 중 기기가 Guest000043으로 바뀌고 응답도 Guest000043이면 보낸 Guest000042를 제외하며 현재 기기 이름을 교체한다', async () => {
+  const profile = setup();
+  const response = deferred<{ nickname: string; first_link: boolean }>();
+  profile.link.mockReturnValueOnce(response.promise);
+  const pending = profile.setUser({ id: 'user-1' });
+  expect(profile.link).toHaveBeenCalledWith('Guest000042');
+  profile.guest.get.mockReturnValue('Guest000043');
+  response.resolve({ nickname: 'Guest000043', first_link: false });
+  await pending;
+  expect(profile.store.getState().nickname).toBe('Guest000043');
+  expect(profile.guest.rotate).toHaveBeenCalledExactlyOnceWith('Guest000043', 'Guest000042');
 });
 
 it('user-1 재로그인 뒤 이전 첫 연동 응답이 와도 현재 Pilot7은 유지하고 인계된 Guest000042는 교체한다', async () => {
@@ -183,5 +221,5 @@ it('user-1 재로그인 뒤 이전 첫 연동 응답이 와도 현재 Pilot7은 
   response.resolve({ nickname: 'OldName', first_link: true });
   await old;
   expect(profile.store.getState()).toEqual({ userId: 'user-1', nickname: 'Pilot7', status: 'ready' });
-  expect(profile.guest.rotate).toHaveBeenCalledExactlyOnceWith('Guest000042');
+  expect(profile.guest.rotate).toHaveBeenCalledExactlyOnceWith('Guest000042', 'OldName');
 });
