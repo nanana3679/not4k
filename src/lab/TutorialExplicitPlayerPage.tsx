@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TutorialPreviewPlayer } from '../game/screens/songSelect/TutorialPreviewPlayer';
 import type { ExplicitTutorialPatternResult } from '../game/screens/songSelect/explicitTutorialPreviewPlayback';
@@ -19,11 +19,12 @@ export default function TutorialExplicitPlayerPage() {
     ?? tutorialExplicitPlayerPreviews[0];
   const selectedPreviewId = selected.preview.id;
   // 시연을 바꾸는 사이 이전 시연의 반복이 끝나도 새 시연의 기록에 섞이지 않게 시연 id로 거른다.
-  const handlePatternFinished = useCallback((pattern: ExplicitTutorialPatternResult) => {
+  // 재생기는 콜백을 ref로 들고 있어 함수 identity가 바뀌어도 다시 걸지 않는다.
+  const handlePatternFinished = (pattern: ExplicitTutorialPatternResult) => {
     setStats((current) => current.previewId === selectedPreviewId
       ? { previewId: current.previewId, finished: current.finished + 1, last: pattern }
       : current);
-  }, [selectedPreviewId]);
+  };
   const select = (previewId: string) => {
     setSelectedId(previewId);
     setStats({ previewId, finished: 0, last: null });
