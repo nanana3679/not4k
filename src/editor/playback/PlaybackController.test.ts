@@ -53,6 +53,85 @@ function createPlaybackAtStoreCursor() {
   });
 }
 
+describe('PlaybackController 음원 로드 세대', () => {
+  it.each(['loadAudioUrl', 'loadAudioFile'] as const)('%s의 읽기가 늦게 끝나도 나중에 요청한 60초 파일만 디코딩하고 전달한다', async (loadMethod) => {
+    const context = setupAudioContextMock(60);
+    let finishRead!: (bytes: ArrayBuffer) => void;
+    const bytes = new Promise<ArrayBuffer>(resolve => { finishRead = resolve; });
+    const oldFile = new File([''], 'old.wav');
+    vi.spyOn(oldFile, 'arrayBuffer').mockReturnValue(bytes);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: () => bytes })));
+    const onAudioLoaded = vi.fn();
+    const controller = new PlaybackController({
+      onTimeUpdate: vi.fn(), onPlayStateChange: vi.fn(), onAudioLoaded,
+    });
+
+    const oldLoading = loadMethod === 'loadAudioUrl'
+      ? controller.loadAudioUrl('https://audio.invalid/old.wav')
+      : controller.loadAudioFile(oldFile);
+    await controller.loadAudioFile(new File([''], 'latest.wav'));
+    finishRead(new ArrayBuffer(0));
+    await oldLoading;
+
+    expect(context.decodeAudioData).toHaveBeenCalledTimes(1);
+    expect(controller.durationMs).toBe(60000);
+    expect(onAudioLoaded).toHaveBeenCalledTimes(1);
+    controller.dispose();
+  });
+
+  it('10초 디코딩 중 시작한 60초 로드가 먼저 끝나면 늦은 10초 완료는 버퍼·파형·재생 상태를 바꾸지 않는다', async () => {
+    const context = setupAudioContextMock();
+    let finishOldDecode!: (buffer: AudioBuffer) => void;
+    const oldDecoded = new Promise<AudioBuffer>(resolve => { finishOldDecode = resolve; });
+    const latestBuffer = { duration: 60 } as AudioBuffer;
+    context.decodeAudioData.mockReturnValueOnce(oldDecoded).mockResolvedValueOnce(latestBuffer);
+    const onAudioLoaded = vi.fn();
+    const controller = new PlaybackController({
+      onTimeUpdate: vi.fn(), onPlayStateChange: vi.fn(), onAudioLoaded,
+    });
+
+    const oldLoading = controller.loadAudioFile(new File([''], 'old.wav'));
+    await vi.waitFor(() => expect(context.decodeAudioData).toHaveBeenCalledTimes(1));
+    await controller.loadAudioFile(new File([''], 'latest.wav'));
+    controller.play();
+    finishOldDecode({ duration: 10 } as AudioBuffer);
+    await oldLoading;
+
+    expect(controller.audioBufferData).toBe(latestBuffer);
+    expect(controller.durationMs).toBe(60000);
+    expect(onAudioLoaded).toHaveBeenCalledExactlyOnceWith(latestBuffer);
+    expect(controller.isPlaying).toBe(true);
+    controller.dispose();
+  });
+
+  it.each(['읽기', '디코딩'] as const)('10초 음원 %s 중 dispose하면 늦은 완료가 버퍼를 복원하거나 파형을 전달하지 않는다', async (phase) => {
+    const context = setupAudioContextMock();
+    let finishRead!: (bytes: ArrayBuffer) => void;
+    const bytes = new Promise<ArrayBuffer>(resolve => { finishRead = resolve; });
+    let finishDecode!: (buffer: AudioBuffer) => void;
+    const decoded = new Promise<AudioBuffer>(resolve => { finishDecode = resolve; });
+    const file = new File([''], 'test.wav');
+    if (phase === '읽기') vi.spyOn(file, 'arrayBuffer').mockReturnValue(bytes);
+    else context.decodeAudioData.mockReturnValueOnce(decoded);
+    const onAudioLoaded = vi.fn();
+    const controller = new PlaybackController({
+      onTimeUpdate: vi.fn(), onPlayStateChange: vi.fn(), onAudioLoaded,
+    });
+
+    const loading = controller.loadAudioFile(file);
+    if (phase === '디코딩') await vi.waitFor(() => expect(context.decodeAudioData).toHaveBeenCalledTimes(1));
+    controller.dispose();
+    finishRead(new ArrayBuffer(0));
+    finishDecode({ duration: 10 } as AudioBuffer);
+    await loading;
+
+    expect(controller.audioBufferData).toBeNull();
+    expect(controller.durationMs).toBe(0);
+    expect(onAudioLoaded).not.toHaveBeenCalled();
+    expect(context.decodeAudioData).toHaveBeenCalledTimes(phase === '읽기' ? 0 : 1);
+  });
+});
+
 describe("PlaybackController 커서 초기화", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);

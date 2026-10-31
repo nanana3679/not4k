@@ -5,12 +5,12 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
-import { getWaveformPeaks } from './timeline/waveform';
 import { cursorRangeMsOf, setChartAndReadTimelineRange, timelineRangeMsOf } from './timeline/timelineRange';
-import { createWaveformFeed, type WaveformFeed } from './waveformFeed';
-import { PlaybackController } from './playback/PlaybackController';
+import type { WaveformFeed } from './waveformFeed';
+import type { PlaybackController } from './playback/PlaybackController';
 import { createCursorBeatKeeper } from './playback/cursorBeatKeeper';
 import { syncTimelineRange } from './playback/syncTimelineRange';
+import { createEditorPlayback } from './playback/createEditorPlayback';
 import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
 import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
@@ -306,8 +306,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const setChart = useEditorStore((s) => s.setChart);
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const setScrollY = useEditorStore((s) => s.setScrollY);
-  const setIsPlaying = useEditorStore((s) => s.setIsPlaying);
-  const setCurrentTimeMs = useEditorStore((s) => s.setCurrentTimeMs);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const savedChartJson = useEditorStore((s) => s.savedChartJson);
   // 저장 진행은 store가 소유한다 — 테스트 플레이 복귀로 페이지가 다시 마운트돼도 진행 중인 저장을 잊지 않는다.
@@ -517,25 +515,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       onScroll: (newScrollY) => setScrollY(newScrollY),
     });
 
-    // 렌더러 준비·오디오 도착 두 비동기가 순서 무관하게 합류하면 파형과 경계를 적용한다.
-    // (재-import 시 새 버퍼로 재적용된다.)
-    const applyWaveform = (buffer: AudioBuffer) => {
-      const r = rendererRef.current;
-      if (!r) return; // feed 계약상 rendererReady 이후에만 호출됨 — 방어
-      const samplesPerPeak = Math.ceil(buffer.sampleRate / 50);
-      const peaks = getWaveformPeaks(buffer, samplesPerPeak);
-      const durationMs = buffer.duration * 1000;
-      r.setWaveformData(peaks, durationMs);
-      // 음원 교체만으로 범위가 줄어도 커서를 자르고, 늘어나면 keeper가 기억한 박으로 되돌린다.
-      syncTimelineRange({
-        store: useEditorStore,
-        playback: playbackRef.current,
-        cursorBeatKeeper,
-        timelineRange: timelineRangeMsOf(useEditorStore.getState().chart.meta.offsetMs, r.getTotalTimelineMs()),
-      });
-    };
-    waveformFeedRef.current = createWaveformFeed(applyWaveform);
-
     renderer.init().then(() => {
       if (!mounted) return;
 
@@ -564,6 +543,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         store: useEditorStore,
         playback: playbackRef.current,
         cursorBeatKeeper,
+        renderer,
         timelineRange: timelineRangeMsOf(currentChart.meta.offsetMs, renderer.getTotalTimelineMs()),
       });
 
@@ -580,11 +560,13 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     });
 
 
-    const playback = new PlaybackController({
-      getCursorTimeMs: () => useEditorStore.getState().currentTimeMs,
-      onTimeUpdate: setCurrentTimeMs,
-      onPlayStateChange: setIsPlaying,
+    const { playback, waveformFeed } = createEditorPlayback({
+      store: useEditorStore,
+      cursorBeatKeeper,
+      getRenderer: () => rendererRef.current,
+      setLoadedAudioBuffer,
     });
+    waveformFeedRef.current = waveformFeed;
     playback.volume = useGameStore.getState().settings.masterVolume ?? 1;
     playbackRef.current = playback;
 
@@ -659,12 +641,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     setAudioLoading(true);
     // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 직렬화한다 — 메인/보조 분리 후 비교.
 
-    playback.loadAudioUrl(url).then(() => {
-      const audioBuffer = playback.audioBufferData;
-      setLoadedAudioBuffer(audioBuffer ?? null);
-      // 렌더러가 아직 init 전이라도 join이 대기했다가 준비 시점에 적용한다(레이스 방지).
-      if (audioBuffer) waveformFeedRef.current?.audioArrived(audioBuffer);
-    }).catch((err: unknown) => {
+    playback.loadAudioUrl(url).catch((err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       setLoadedAudioBuffer(null);
       addToast(`Audio load failed: ${message}`, 'error');
@@ -725,6 +702,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       playback: playbackRef.current,
       cursorBeatKeeper,
       timelineRange,
+      renderer,
     });
   }, [chart, cursorBeatKeeper]);
 
@@ -957,13 +935,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           }}
           onClose={() => setShowMetaModal(false)}
           onLoadAudio={(file) => {
-            if (playbackRef.current) {
-              playbackRef.current.loadAudioFile(file).then(() => {
-                const audioBuffer = playbackRef.current?.audioBufferData;
-                setLoadedAudioBuffer(audioBuffer ?? null);
-                if (audioBuffer) waveformFeedRef.current?.audioArrived(audioBuffer);
-              });
-            }
+            void playbackRef.current?.loadAudioFile(file);
           }}
         />
       )}
