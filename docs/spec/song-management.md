@@ -21,7 +21,7 @@
 
 같은 곡의 모든 차트는 초기 BPM·곡 중간의 BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋을 공유한다. 이 정보의 논리적 소유자는 곡이며, 차트마다 다른 값을 별도로 확정하지 않는다. 노트 배치와 난이도는 차트별로 관리한다([곡 타이밍](../context/glossary.md#곡-타이밍), [RFD 0095](../rfd/0095-song-shared-bpm-and-audio-offset.md)).
 
-에디터에서 오프셋·BPM·박자표 값을 수정할 때는 직접 일시정지한 뒤 타이밍 값을 수정하기 직전 커서의 박 좌표를 유지한다. 수정 전 타이밍에서 현재 커서의 박을 구하고, 수정 후 같은 박에 해당하는 새 음원 시각으로 커서를 갱신한다. 다시 재생하면 그 위치부터 시작한다. 일시정지 후 사용자가 seek했다면 seek한 뒤 수정 직전의 커서 박을 기준으로 한다. 정지 순간의 박을 계속 고정하거나 수정 전 음원 시각을 그대로 유지하는 규칙은 아니다. 재생 중 값 수정 차단과 커서 기준의 상세는 [RFD 0099](../rfd/0099-editor-playback-editing-boundary.
+에디터에서 오프셋·BPM·박자표 값을 수정할 때는 직접 일시정지한 뒤 타이밍 값을 수정하기 직전 커서의 박 좌표를 유지한다. 수정 전 타이밍에서 현재 커서의 박을 구하고, 수정 후 같은 박에 해당하는 새 음원 시각으로 커서를 갱신한다. 다시 재생하면 그 위치부터 시작한다. 일시정지 후 사용자가 seek했다면 seek한 뒤 수정 직전의 커서 박을 기준으로 한다. 정지 순간의 박을 계속 고정하거나 수정 전 음원 시각을 그대로 유지하는 규칙은 아니다. 재생 중 값 수정 차단과 커서 기준의 상세는 [RFD 0099](../rfd/0099-editor-playback-editing-boundary.md)를 따른다.
 
 곡의 표시 정보와 공통 타이밍은 **곡 저장**으로 함께 확정하고, 개별 차트는 **차트 저장**으로 확정한다. 각 저장이 다른 범위의 미저장 변경을 함께 확정하지 않는다. 공통 타이밍에 미저장 변경이 있으면 개별 차트 저장을 차단하고, 곡 저장이 성공해 타이밍에 미저장 변경이 없어지면 차트 저장을 허용한다([RFD 0098](../rfd/0098-song-info-drawer-and-save-scope.md)). 상세 조작은 [에디터 스펙](chart-editor.md#곡-타이밍-공유-미구현)을 따른다.
 
@@ -47,12 +47,12 @@
 
 - 차트 삭제는 **에디터에서 한 번에 하나(난이도 하나)씩만** 가능하다. 차트 일괄 삭제 경로는 없다.
 - 곡 삭제(곡 선택 화면 admin)는 차트가 0개일 때만 허용된다.
- - 차트가 남아 있으면 삭제 확인 모달에서 Delete 버튼이 비활성화되고 남은 차트 수를 안내한다.
- - 앱을 우회한 삭제(대시보드, SQL)도 DB의 FK 제약(`charts.song_id → songs.id`,
-  `on delete restrict`)이 거부한다. 마이그레이션: `20260706000000_restrict_song_delete.sql`
+  - 차트가 남아 있으면 삭제 확인 모달에서 Delete 버튼이 비활성화되고 남은 차트 수를 안내한다.
+  - 앱을 우회한 삭제(대시보드, SQL)도 DB의 FK 제약(`charts.song_id → songs.id`,
+    `on delete restrict`)이 거부한다. 마이그레이션: `20260706000000_restrict_song_delete.sql`
 - 곡 삭제 순서는 **DB 행 먼저, Storage 파일 나중**이다. 클라이언트가 아는 차트 수가
- 낡았더라도 FK가 행 삭제 단계에서 거부하므로, 거부 시점에 파일은 무손상이다.
- 구현: `src/shared/songAssets/chartAssetPersistence.ts`의 `deleteSongAsset`
+  낡았더라도 FK가 행 삭제 단계에서 거부하므로, 거부 시점에 파일은 무손상이다.
+  구현: `src/shared/songAssets/chartAssetPersistence.ts`의 `deleteSongAsset`
 
 ### 삭제 후 플레이 기록 `[미구현]`
 
@@ -67,10 +67,10 @@
 차트·곡 데이터의 유일한 사본이 Supabase에만 존재하지 않도록 백업을 이중으로 유지한다.
 
 - **수동**: `pnpm backup` → `backups/<UTC타임스탬프>/`에 `songs`·`charts` 테이블 덤프와
- Storage `songs/`, `tutorials/` 전체 파일을 저장한다. `--charts-only`를 붙이면
- DB 덤프 + 차트 JSON만 (수백 KB). `backups/`는 gitignore 대상이다.
- 구현: `scripts/backup-supabase.ts`
+  Storage `songs/`, `tutorials/` 전체 파일을 저장한다. `--charts-only`를 붙이면
+  DB 덤프 + 차트 JSON만 (수백 KB). `backups/`는 gitignore 대상이다.
+  구현: `scripts/backup-supabase.ts`
 - **자동** (`.github/workflows/backup.yml`): 매일 03:00 KST에 charts-only,
- 매주 일요일 04:00 KST에 풀 백업을 실행해 Actions 아티팩트로 90일 보관한다.
- 필요 시크릿: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`
+  매주 일요일 04:00 KST에 풀 백업을 실행해 Actions 아티팩트로 90일 보관한다.
+  필요 시크릿: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`
 - 사용자 데이터(`play_records` 등)는 RLS 때문에 publishable key로 백업할 수 없다 — 미포함.
