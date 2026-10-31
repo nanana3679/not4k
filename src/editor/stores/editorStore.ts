@@ -8,6 +8,7 @@ import { beat, convertLegacyChart, validateChartDocumentStructural } from '../..
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
+import { isPlaybackLockedChange } from '../editing/playbackEditLock';
 import type { SavedChartJson } from '../savedChart';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
 import {
@@ -130,15 +131,21 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setMode: (mode: EditorModeName) => void;
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
+  /**
+   * 재생 상태 미러(PlaybackController.onPlayStateChange). 재생을 시작하면 열린 편집 transaction을
+   * 독립 명령처럼 먼저 확정한다(RFD 0099, 미정 기본값 D2).
+   */
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
   setExtraLaneCount: (count: number, transaction?: symbol) => void;
+  /** 재생 중이면 no-op(RFD 0099). */
   undo: () => void;
+  /** 재생 중이면 no-op(RFD 0099). */
   redo: () => void;
   /**
    * 막다른 상태 탈출(RFD 0017 §7) — lastValidSnapshot으로 O(1) 점프.
    * 현재(위반) 상태를 병합창(600ms) 무시하고 historyPast에 강제 push하므로
-   * 이 복귀 자체를 undo(Ctrl+Z)로 취소할 수 있다. lastValidSnapshot이 null이면 no-op.
+   * 이 복귀 자체를 undo(Ctrl+Z)로 취소할 수 있다. lastValidSnapshot이 null이거나 재생 중이면 no-op.
    */
   revertToLastValid: () => void;
   resetHistory: () => void;
@@ -212,14 +219,20 @@ export function hasUncommittedEdit(state: Pick<EditorState, 'editTransaction' | 
     && (transaction.before.chart !== state.chart || transaction.before.extraLaneCount !== state.extraLaneCount);
 }
 
-/** Undo 가능 여부. 불러온 직후 첫 붙여넣기처럼 transaction 안에만 있는 편집도 되돌릴 수 있다. */
-export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
-  return state.historyPast.length > 0 || hasUncommittedEdit(state);
+/**
+ * Undo 가능 여부. 불러온 직후 첫 붙여넣기처럼 transaction 안에만 있는 편집도 되돌릴 수 있다.
+ * 재생 중에는 Undo하지 않는다(RFD 0099).
+ */
+export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'isPlaying'>): boolean {
+  return !state.isPlaying && (state.historyPast.length > 0 || hasUncommittedEdit(state));
 }
 
-/** Redo 가능 여부. 변경이 있는 transaction을 확정하면 Redo 기록이 사라지므로 그동안은 불가다. */
-export function selectCanRedo(state: Pick<EditorState, 'historyFuture' | 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
-  return state.historyFuture.length > 0 && !hasUncommittedEdit(state);
+/**
+ * Redo 가능 여부. 변경이 있는 transaction을 확정하면 Redo 기록이 사라지므로 그동안은 불가다.
+ * 재생 중에는 Redo하지 않는다(RFD 0099).
+ */
+export function selectCanRedo(state: Pick<EditorState, 'historyFuture' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'isPlaying'>): boolean {
+  return !state.isPlaying && state.historyFuture.length > 0 && !hasUncommittedEdit(state);
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -257,6 +270,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPendingAudioUrl: (pendingAudioUrl) => set({ pendingAudioUrl }),
   setChart: (chart, options) => {
     if (options?.transaction && get().editTransaction?.token !== options.transaction) return;
+    // 재생 중 편집 제한(RFD 0099)의 마지막 방어선. 입력 경로(캔버스·키보드·툴바·모달)가 먼저 막고 안내하므로
+    // 여기까지 온 쓰기는 조용히 버린다. 열린 transaction도 확정하지 않아 차트·history·재생 상태가 그대로다.
+    // 저장처럼 다른 meta만 바꾼 쓰기는 isPlaybackLockedChange가 통과시킨다.
+    if (get().isPlaying && isPlaybackLockedChange(get().chart, chart)) {
+      console.warn('재생 중 차트 편집 거부 (RFD 0099)');
+      return;
+    }
     if (!options?.transaction) get().commitEditTransaction();
     // 차트 변이 게이트 — 낙관적 편집(RFD 0017). 여기서는 **구조 위반만** 하드 거부한다:
     // malformed 데이터(구간 역전)·크래시 유발(분자 0 박자표)은 편집 중에도 절대 불가.
@@ -350,7 +370,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setMode: (mode) => { get().commitEditTransaction(); set({ mode }); },
   setEntityType: (entityType) => { get().commitEditTransaction(); set({ entityType }); },
   setGraceMode: (graceMode) => set({ graceMode }),
-  setIsPlaying: (isPlaying) => set({ isPlaying }),
+  setIsPlaying: (isPlaying) => {
+    // 미정 기본값 D2(RFD 0099·PRD §12): 드래그·삭제 gesture·붙여넣기 대기 중 재생을 시작하면 모드 전환처럼
+    // 열린 transaction을 확정한다. 재생 전까지 한 부분은 Undo 하나로 남고, 소유 조작은 onInterrupt로 드래그를 끝낸다.
+    if (isPlaying) get().commitEditTransaction();
+    set({ isPlaying });
+  },
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
   setExtraLaneCount: (extraLaneCount, transaction) => {
     if (transaction && get().editTransaction?.token !== transaction) return;
@@ -374,6 +399,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
   undo: () => {
+    if (get().isPlaying) return; // 재생 중 Undo 금지(RFD 0099)
     get().commitEditTransaction();
     set((state) => {
       const previous = state.historyPast.at(-1);
@@ -391,6 +417,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
   redo: () => {
+    if (get().isPlaying) return; // 재생 중 Redo 금지(RFD 0099)
     get().commitEditTransaction();
     set((state) => {
       const next = state.historyFuture[0];
@@ -411,6 +438,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // 병합창(600ms) 무시하고 past에 **강제 push**한다 — 이 복귀 자체가 undo로 취소 가능해야
   // 하는 안전망이므로 captureHistory(병합)를 쓰지 않는다.
   revertToLastValid: () => {
+    if (get().isPlaying) return; // 차트를 되돌리는 편집이라 재생 중에는 막는다(RFD 0099)
     get().commitEditTransaction();
     set((state) => {
       const target = state.lastValidSnapshot;
@@ -439,7 +467,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   beginEditTransaction: (kind, onInterrupt) => {
     const state = get();
-    if (state.editTransaction) return null;
+    // 재생 중에는 새 편집 gesture를 열지 않는다(RFD 0099). null을 받은 삭제 gesture는 아무것도 지우지 않는다.
+    if (state.editTransaction || state.isPlaying) return null;
     const token = Symbol("editor transaction");
     set({ editTransaction: {
       token, kind, before: { chart: state.chart, extraLaneCount: state.extraLaneCount },
