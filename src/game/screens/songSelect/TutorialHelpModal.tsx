@@ -3,11 +3,8 @@ import { useGameStore } from '../../stores';
 import { font, color, surface, radius, primitives } from '../../../shared/theme';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
 import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots';
-import {
-  TUTORIAL_OPPOSITE_HAND_BODY_LINE,
-  TUTORIAL_PREVIEWS,
-  type TutorialPreviewDefinition,
-} from './tutorialPreviewChart';
+import { TUTORIAL_OPPOSITE_HAND_BODY_LINE } from './tutorialPreviewChart';
+import type { ExplicitTutorialPreviewDefinition } from './explicitTutorialPreviewChart';
 import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, getTutorialSection, type TutorialSectionId } from './tutorialCatalog';
 import { getTutorialKeyboardLabel, type TutorialKeyBindings } from './tutorialKeyboardLayout';
 import {
@@ -52,7 +49,7 @@ function getTutorialViewedStorage(): Storage | null {
 
 export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModalProps) {
   const [tutorialIndex, setTutorialIndex] = useState(0);
-  const lastSectionIndexesRef = useRef<Record<TutorialSectionId, number>>({ basic: 0, advanced: TUTORIAL_PREVIEWS.length });
+  const lastSectionIndexesRef = useRef<Record<TutorialSectionId, number>>({ basic: 0, advanced: TUTORIAL_SECTIONS[1].startIndex });
   const [visiblePlayerIndex, setVisiblePlayerIndex] = useState(0);
   const [activePlayerSlot, setActivePlayerSlot] = useState<TutorialPreviewSlotId>(0);
   const [previewSlotIndexes, setPreviewSlotIndexes] = useState<readonly [number, number]>(() => [0, 0]);
@@ -180,7 +177,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
 
   const resetViewedTutorialCache = useCallback(() => {
     clearTutorialViewedIds(getTutorialViewedStorage());
-    setViewedTutorialIds(new Set([TUTORIAL_PREVIEWS[0].id]));
+    setViewedTutorialIds(new Set([ALL_TUTORIAL_PREVIEWS[0].id]));
   }, []);
 
   useEffect(() => {
@@ -640,7 +637,7 @@ function TutorialPreviewSlot({
   transition,
   onReady,
 }: {
-  preview: TutorialPreviewDefinition;
+  preview: ExplicitTutorialPreviewDefinition;
   previewInstanceId: number;
   slotState: TutorialPreviewSlotState;
   transition: TutorialPlayerTransition | null;

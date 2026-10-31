@@ -51,7 +51,7 @@ Gameplay 컨텍스트는 유저가 차트를 선택해 플레이하고, 입력�
 
 **`AutoEvent`**의 노트를 합성 입력(press/release)으로 변환하는 순수 상태머신이다. `InputSystem`(실제 키보드)과 같은 판정 엔진 입력 seam에 서는 두 번째 어댑터다(시간 주입, 엔진·렌더러 무지). 풀 정의는 glossary "게임 입력".
 
-확정 판정의 점수 정산·통계·고도·표시 효과를 구분하는 순수 데이터이다. `NoteJudgmentSession`이 정산하고 `SessionRendererAdapter`가 확정 묶음과 unit 상태를 실제 플레이·튜토리얼 렌더러에 전달한다. 풀 정의는 [glossary의 판정 효과](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
+확정 판정의 점수 정산·통계·고도·표시 효과를 구분하는 순수 데이터이다. `NoteJudgmentSession`이 정산하고 `SessionRendererAdapter`가 확정 묶음과 unit 상태를 구형 렌더러(`/lab/note-assets` 포함)에 전달한다. 풀 정의는 [glossary의 판정 효과](../../docs/context/glossary.md#판정-효과-confirmedjudgmenteffects)를 따른다.
 
 </details>
 
@@ -101,6 +101,7 @@ _Avoid_: 파일 선택
 _Avoid_: 게임 화면
 
 **튜토리얼**:
+곡 선택 팝업은 Basic 17개·Advanced 8개의 명시 정의를 `ExplicitJudgmentSession`과 설정의 `judgmentMode`로 시연한다. 직접 입력은 미구현이며 구형 재생 경로는 `/lab/note-assets`에 남긴다([glossary](../../docs/context/glossary.md#튜토리얼)).
 메트로놈에 맞춘 시연 후 직접 연주에서 항목별로 표시한 달성률·추가 조건을 모두 충족하면 1회 성공하며, 항목별 요구 횟수만큼 누적 성공으로 통과하는 선택적 학습 흐름이다. 롱노트 중 탭 한 항목에서는 기존 키 유지 방법의 목표를 먼저 달성한 뒤 `다음`으로 유지 키 교대 방법에 진입하고 두 방법을 완료해야 전체 통과한다. 재진입·재실습은 첫 방법 0회부터 시작하며, 중간 방법 완료는 저장하지 않고 과거 항목 전체 통과 기록은 유지한다. 게스트 통과 기록은 브라우저에 저장하고 계정당 1회 인계하며, 이미 인계했거나 계정에 귀속된 기록은 다른 계정에 인계하지 않는다. 같은 계정의 기기 간 통과 기록 공유는 유지한다. 마지막 선택 탭·항목은 해당 기기의 브라우저에만 저장한다. 열람과 통과를 구별하고 단계별 키 추가·손배치 발견 과정은 두지 않으며, 차트 선택의 선행 조건으로 사용하지 않는다([glossary](../../docs/context/glossary.md#튜토리얼)).
 
 **결과 화면**:
