@@ -56,7 +56,7 @@ test.describe('TutorialPreviewPlayer 명시 엔진의 반복 경계 정산', () 
         expect(settlements).toHaveLength(1);
         expect(settlements[0]).toMatchObject({
           kind: 'settlement', itemKind: 'release', outcome: 'graded',
-          grade: 'perfect', atMs: 4000, rawDeltaMs: 0,
+          grade: 'perfect', atMs: 4000, confirmedAt: 4000, rawDeltaMs: 0,
         });
         expect(settlements[0].inputId).not.toBeNull();
         await expect(player).toHaveAttribute('data-tutorial-last-perfect', '3');

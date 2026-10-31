@@ -258,6 +258,8 @@ export function TutorialPreviewPlayer({
   const pausedRef = useRef(paused);
   const onPatternFinishedRef = useRef(onPatternFinished);
   const settings = useGameStore((state) => state.settings);
+  // 판정 모드는 명시 정의만 따른다. 구형 정의(노트 에셋 시연실)는 고정 Normal이라 모드가 바뀌어도 다시 걸지 않는다.
+  const explicitJudgmentMode = preview && isExplicitTutorialPreview(preview) ? settings.judgmentMode : 'normal';
   const [activeKeyIds, setActiveKeyIds] = useState<string[]>([]);
   const [stickyLaneKeyIdsByLane, setStickyLaneKeyIdsByLane] = useState<LaneKeyIdsByLane>({});
   const [activeDiagramTiming, setActiveDiagramTiming] = useState<TutorialDiagramTiming | null>(null);
@@ -654,14 +656,14 @@ export function TutorialPreviewPlayer({
         let previewJudgment: TutorialPreviewJudgment;
         if (isExplicitTutorialPreview(preview)) {
           if (!explicitSkin) throw new Error('Explicit note skin is not loaded');
-          renderer.setPerfectWindow(getJudgmentWindows(settings.judgmentMode).PERFECT);
+          renderer.setPerfectWindow(getJudgmentWindows(explicitJudgmentMode).PERFECT);
           // 명시 정의: 판정은 명시 controller가 바인딩으로 옮긴 시연 timings와 플레이어 설정의 판정 창으로 진행한다.
           // 렌더러는 앞뒤 반복까지 이어 붙인 3벌 표시 compile을 프레임마다 합성 snapshot으로 그린다.
           const explicitPlayback = createExplicitTutorialPreviewPlayback(preview, createTutorialTimingsInputPlan(timings), {
             showJudgmentGroup: (state) => renderer.showJudgmentGroup(state),
             recordFlightJudgment: (grade) => renderer.recordFlightJudgment(grade),
             showBombEffect: showPreviewBomb,
-          }, { windows: getJudgmentWindows(settings.judgmentMode) });
+          }, { windows: getJudgmentWindows(explicitJudgmentMode) });
           previewJudgment = {
             advanceTo: (loopTimeMs) => explicitPlayback.advanceTo(loopTimeMs),
             // 경계 입력과 정산은 끝난 반복의 세션에서 마친 뒤 새 세션을 만든다. 노트 표시는 snapshot이 바꾸므로 구형처럼
@@ -860,7 +862,7 @@ export function TutorialPreviewPlayer({
       detachRenderer();
     };
     // previewInstanceId는 본문에서 읽지 않지만, 같은 레슨을 다시 방문했을 때 차트를 처음부터 다시 걸기 위한 의존성이다.
-  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, settings.judgmentMode, timings, tutorialKeyboardKeys]);
+  }, [diagramTimings, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);
 
   // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
   // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
@@ -876,7 +878,7 @@ export function TutorialPreviewPlayer({
       style={styles.previewShell}
       data-tutorial-skin-id={skinManifest?.theme.id ?? skinId}
       data-tutorial-engine={isExplicitTutorialPreview(preview) ? 'explicit' : 'legacy'}
-      data-tutorial-judgment-mode={isExplicitTutorialPreview(preview) ? settings.judgmentMode : 'normal'}
+      data-tutorial-judgment-mode={explicitJudgmentMode}
       data-tutorial-loop-ms={preview.loopMs}
       data-tutorial-last-iteration={finishedPattern?.iteration}
       data-tutorial-last-perfect={finishedPattern?.result.score.judgmentCounts.perfect}

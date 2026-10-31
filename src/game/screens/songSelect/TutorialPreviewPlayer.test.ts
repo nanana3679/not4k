@@ -339,7 +339,7 @@ describe('TutorialPreviewPlayer', () => {
   });
 
   it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 렌더 사이클 0 초기화 → 준비 알림 순서로 재사용', () => {
-    const contentDeps = '  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, settings.judgmentMode, timings, tutorialKeyboardKeys]);';
+    const contentDeps = '  }, [diagramTimings, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
     expect(tutorialPreviewPlayerSource).toContain(contentDeps);
     const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {');
     expect(attachStart).toBeGreaterThan(-1);
@@ -359,7 +359,7 @@ describe('TutorialPreviewPlayer', () => {
 
   it('차트 effect 정리는 rAF만 멈추고 렌더러를 dispose하지 않음 — dispose는 렌더러 effect 정리에서만', () => {
     const contentStart = tutorialPreviewPlayerSource.indexOf('  }, [rendererKey]);');
-    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, settings.judgmentMode, timings, tutorialKeyboardKeys]);');
+    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);');
     expect(contentStart).toBeGreaterThan(-1);
     expect(contentEnd).toBeGreaterThan(contentStart);
     const contentEffect = tutorialPreviewPlayerSource.slice(contentStart, contentEnd);
@@ -422,10 +422,12 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
 
   it('명시 판정은 바인딩 시연에 설정 judgmentMode의 창을 적용하고 모드 변경 시 차트만 다시 건다', () => {
     expect(tutorialPreviewPlayerSource).toContain('createExplicitTutorialPreviewPlayback(preview, createTutorialTimingsInputPlan(timings), {');
-    expect(tutorialPreviewPlayerSource).toContain('windows: getJudgmentWindows(settings.judgmentMode)');
-    expect(tutorialPreviewPlayerSource).toContain('renderer.setPerfectWindow(getJudgmentWindows(settings.judgmentMode).PERFECT)');
+    expect(tutorialPreviewPlayerSource).toContain('windows: getJudgmentWindows(explicitJudgmentMode)');
+    expect(tutorialPreviewPlayerSource).toContain('renderer.setPerfectWindow(getJudgmentWindows(explicitJudgmentMode).PERFECT)');
+    // 구형 정의는 고정 Normal이라 판정 모드 변경으로 다시 걸지 않는다.
+    expect(tutorialPreviewPlayerSource).toContain("const explicitJudgmentMode = preview && isExplicitTutorialPreview(preview) ? settings.judgmentMode : 'normal';");
     expect(tutorialPreviewPlayerSource).toContain('renderer.setPerfectWindow(JUDGMENT_WINDOWS.PERFECT)');
-    expect(tutorialPreviewPlayerSource).toContain('previewInstanceId, settings.judgmentMode, timings');
+    expect(tutorialPreviewPlayerSource).toContain('explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings');
   });
 
   it('명시 확정 효과는 판정 글자 묶음·고도·타격을 렌더러로 보내고 타격은 구형과 같은 onBombEffect·showRendererBomb 경로를 공유', () => {
