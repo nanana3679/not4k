@@ -5,7 +5,8 @@ import { isMainLane } from '../../shared';
 import { minimapNoteRect } from '../../shared/minimapNote';
 import { color, font, minimapColor, minimapSurface } from '../../shared/theme';
 import { attachObserverMinimapDrag } from '../observer/observerMinimapDrag';
-import { minimapOverlay, minimapTimeToY, OBSERVER_MINIMAP_EDGE_MARGIN, OBSERVER_MINIMAP_WIDTH } from '../observer/observerMinimapGeometry';
+import { minimapOverlay, minimapTimeToY, MINIMAP_HANDLE_MARKER_WIDTH,
+  OBSERVER_MINIMAP_EDGE_MARGIN, OBSERVER_MINIMAP_WIDTH } from '../observer/observerMinimapGeometry';
 import type { ObserverRange } from '../observer/observerRepetitionPlan';
 import type { ObserverPlayRuntime } from './ObserverPlayRuntime';
 
@@ -20,6 +21,10 @@ interface ObserverMinimapProps {
 
 const width = OBSERVER_MINIMAP_WIDTH;
 const cssColor = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
+const formatTime = (ms: number) => {
+  const seconds = Math.floor(Math.max(0, ms) / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+};
 
 /** 정적인 차트는 재생 위치 알림마다 다시 계산하지 않는다. 노트 수와 무관하게 색별 SVG path로 묶는다. */
 const MinimapChart = memo(function MinimapChart({ document, timing, durationMs, height }:
@@ -73,12 +78,13 @@ export function ObserverMinimap({ document, timing, durationMs, range, positionM
     return detach;
   }, [runtime, durationMs, height]);
   const overlay = minimapOverlay(range, positionMs, durationMs, height);
-  return <div ref={element} className="observer-minimap" role="group" aria-label="Observer range"
+  return <div ref={element} className="observer-minimap" role="group"
+    aria-label={`Practice range ${formatTime(range.startMs)}–${formatTime(range.endMs)}, position ${formatTime(positionMs)}`}
     data-testid="observer-minimap" data-range-start-ms={range.startMs} data-range-end-ms={range.endMs}
     data-position-ms={positionMs} data-duration-ms={durationMs}
     style={{ position: 'absolute', top: OBSERVER_MINIMAP_EDGE_MARGIN, bottom: OBSERVER_MINIMAP_EDGE_MARGIN, right: OBSERVER_MINIMAP_EDGE_MARGIN, width, zIndex: 2,
       touchAction: 'none', userSelect: 'none' }}>
-    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none"
+    <svg aria-hidden="true" width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none"
       style={{ display: 'block', overflow: 'hidden' }}>
       <title>Drag A or B to resize the range. Drag between them to move it.</title>
       <MinimapChart document={document} timing={timing} durationMs={durationMs} height={height} />
@@ -87,13 +93,13 @@ export function ObserverMinimap({ document, timing, durationMs, range, positionM
           fill={minimapSurface.selection} stroke={minimapSurface.selectionBorder} />
         <g data-testid="observer-minimap-start" transform={`translate(0 ${overlay.startY})`}>
           <path d={`M0,0h${width}`} stroke={color.inkStrong} strokeWidth={2} />
-          <rect y={-7} width={18} height={14} fill={color.inkStrong} />
-          <text x={9} y={4} textAnchor="middle" fontFamily={font.display} fontSize={11} fill={color.bg}>A</text>
+          <rect y={-7} width={MINIMAP_HANDLE_MARKER_WIDTH} height={14} fill={color.inkStrong} />
+          <text x={MINIMAP_HANDLE_MARKER_WIDTH / 2} y={4} textAnchor="middle" fontFamily={font.display} fontSize={11} fill={color.bg}>A</text>
         </g>
         <g data-testid="observer-minimap-end" transform={`translate(0 ${overlay.endY})`}>
           <path d={`M0,0h${width}`} stroke={color.inkStrong} strokeWidth={2} />
-          <rect x={width - 18} y={-7} width={18} height={14} fill={color.inkStrong} />
-          <text x={width - 9} y={4} textAnchor="middle" fontFamily={font.display} fontSize={11} fill={color.bg}>B</text>
+          <rect x={width - MINIMAP_HANDLE_MARKER_WIDTH} y={-7} width={MINIMAP_HANDLE_MARKER_WIDTH} height={14} fill={color.inkStrong} />
+          <text x={width - MINIMAP_HANDLE_MARKER_WIDTH / 2} y={4} textAnchor="middle" fontFamily={font.display} fontSize={11} fill={color.bg}>B</text>
         </g>
         <path data-testid="observer-minimap-playhead" d={`M0,${overlay.playheadY}h${width}`}
           stroke={color.neon} strokeWidth={2} />

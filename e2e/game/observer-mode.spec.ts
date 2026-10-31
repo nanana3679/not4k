@@ -323,6 +323,41 @@ async function dragMinimap(page: Page, x: number, fromY: number, toY: number) {
   } finally { await page.mouse.up(); }
 }
 
+test('30초 전곡을 6초 재생한 뒤 몸통을 3초 끌어도 구간은 그대로이고 즉시 A=0ms를 표시하며 Play는 수동 집계를 0부터 다시 시작한다', async ({ page }) => {
+  const fixture = await openObserverSong(page, {}, minimapDocument());
+  await enterObserver(page);
+  const firstManualSpan = await startManualHold(page);
+  try {
+    await waitAt(page, 6000);
+    await expect.poll(async () => (await probe(page)).hud.some(update =>
+      update.span === firstManualSpan && update.combo > 0 && (update.accuracy ?? 0) > 0)).toBe(true);
+    const before = await probe(page);
+    const point = await minimapCoordinates(page);
+    await page.mouse.move(point.x, point.y(15000));
+    await page.mouse.down();
+    try {
+      // pointermove가 없어도 A를 표시한다. 전곡 몸통 이동은 양끝 제한으로 범위가 바뀌지 않는다.
+      await expectPausedAtStart(page);
+      await page.mouse.move(point.x, point.y(18000), { steps: 5 });
+      await expectPausedAtStart(page);
+    } finally { await page.mouse.up(); }
+    await expectPausedAtStart(page);
+    expect(await readMinimap(page)).toEqual({ startMs: 0, endMs: 30000, positionMs: 0, durationMs: 30000 });
+    expect((await probe(page)).fadedSpans).toEqual(before.fadedSpans);
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await expectObserverPlaying(page);
+    const playing = await probe(page);
+    expect(playing.fadedSpans).toHaveLength(before.fadedSpans.length + 1);
+    expect(playing.fadedSpans.at(-1)).toEqual({ positionMs: 0, rate: 1, fromMs: 0, toMs: 30000 });
+    expect(playing.resumes).toEqual(before.resumes);
+    expect(playing.hud.find(update => update.span === playing.fadedSpans.length)).toEqual({
+      span: playing.fadedSpans.length, combo: 0, accuracy: 0,
+    });
+    await expect(page.getByRole('button', { name: 'Auto', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  } finally { await page.keyboard.up('KeyQ'); }
+  await exitObserver(page, fixture);
+});
+
 test('30초 곡에서 A를 40%로·B를 70%로·몸통을 3초 옮기면 정지를 유지하고 Play·Retry는 A−3000ms부터 새 수동 집계를 시작한다', async ({ page }) => {
   const fixture = await openObserverSong(page, {}, minimapDocument());
   await enterObserver(page);
@@ -335,7 +370,7 @@ test('30초 곡에서 A를 40%로·B를 70%로·몸통을 3초 옮기면 정지�
     await page.mouse.move(point.startX, point.y(0));
     await page.mouse.down();
     try {
-      await expect(page.getByTestId('observer-screen')).toHaveAttribute('data-phase', 'paused');
+      await expectPausedAtStart(page); // 핸들도 pointermove 전에 A=0ms를 표시한다.
       await page.mouse.move(point.startX, point.y(12000), { steps: 5 });
       await expect.poll(async () => Math.abs((await readMinimap(page)).startMs - 12000)).toBeLessThan(80);
       await expectPausedAtStart(page); // pointerup 전에 정지 화면과 재생선이 A를 따른다.

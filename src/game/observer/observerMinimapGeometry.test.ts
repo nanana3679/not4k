@@ -26,10 +26,27 @@ describe('Observer 미니맵 좌표와 구간', () => {
     expect(hitMinimapRange(-1, 372, range, duration, height)).toBeNull();
     expect(hitMinimapRange(61, 372, range, duration, height)).toBeNull();
   });
-  it('A=B=12000ms로 핸들이 겹쳐도 y372의 왼쪽 x9는 start·오른쪽 x51은 end를 잡는다', () => {
+  it('A=B=12000ms인 길이 0 구간은 y364～380의 왼쪽 x9로 start·오른쪽 x51로 end를 잡고 몸통은 없다', () => {
     const point = { startMs: 12000, endMs: 12000 };
-    expect(hitMinimapRange(9, 372, point, duration, height)).toBe('start');
-    expect(hitMinimapRange(51, 372, point, duration, height)).toBe('end');
+    for (const y of [364, 372, 380]) {
+      expect(hitMinimapRange(9, y, point, duration, height)).toBe('start');
+      expect(hitMinimapRange(51, y, point, duration, height)).toBe('end');
+      expect(hitMinimapRange(30, y, point, duration, height)).not.toBe('move');
+    }
+    expect(hitMinimapRange(30, 363, point, duration, height)).toBeNull();
+    expect(hitMinimapRange(30, 381, point, duration, height)).toBeNull();
+  });
+  it('180초·높이 624px의 9000～12000ms 선택은 중앙 y577을 잡으면 move이고 양끝 y582·572는 start·end다', () => {
+    const shortRange = { startMs: 9000, endMs: 12000 };
+    expect(hitMinimapRange(30, 577, shortRange, 180000, height)).toBe('move');
+    expect(hitMinimapRange(9, 577, shortRange, 180000, height)).toBe('start');
+    expect(hitMinimapRange(51, 577, shortRange, 180000, height)).toBe('end');
+    expect(hitMinimapRange(9, 582, shortRange, 180000, height)).toBe('start');
+    expect(hitMinimapRange(51, 572, shortRange, 180000, height)).toBe('end');
+    expect(hitMinimapRange(30, 590, shortRange, 180000, height)).toBe('start');
+    expect(hitMinimapRange(30, 564, shortRange, 180000, height)).toBe('end');
+    expect(hitMinimapRange(30, 591, shortRange, 180000, height)).toBeNull();
+    expect(hitMinimapRange(30, 563, shortRange, 180000, height)).toBeNull();
   });
   it('6000～18000ms 시작을 24000ms까지 끌면 A=B=18000ms에서 멈춘다', () => {
     expect(dragMinimapRange('start', range, 492, 132, duration, height)).toEqual({ startMs: 18000, endMs: 18000 });

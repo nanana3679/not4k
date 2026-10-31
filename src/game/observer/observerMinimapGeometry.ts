@@ -6,6 +6,7 @@ export const OBSERVER_MINIMAP_WIDTH = 60;
 export const OBSERVER_MINIMAP_EDGE_MARGIN = 16;
 export const MINIMAP_TIME_INSET = 12;
 export const MINIMAP_HANDLE_RADIUS = 8;
+export const MINIMAP_HANDLE_MARKER_WIDTH = 18;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -32,10 +33,17 @@ export function hitMinimapRange(
 ): ObserverMinimapDragPart | null {
   if (x < 0 || x > OBSERVER_MINIMAP_WIDTH || y < 0 || y > height) return null;
   const { startY, endY } = minimapOverlay(range, 0, durationMs, height);
-  const startHit = Math.abs(y - startY) <= MINIMAP_HANDLE_RADIUS;
-  const endHit = Math.abs(y - endY) <= MINIMAP_HANDLE_RADIUS;
-  // 겹친 핸들도 화면의 A(왼쪽)·B(오른쪽) 표식을 각각 잡을 수 있다.
-  if (startHit && endHit) return x < OBSERVER_MINIMAP_WIDTH / 2 ? 'start' : 'end';
+  const handlesOverlap = Math.abs(y - startY) <= MINIMAP_HANDLE_RADIUS
+    && Math.abs(y - endY) <= MINIMAP_HANDLE_RADIUS;
+  // 겹친 A(왼쪽)·B(오른쪽) 표식은 각각 잡는다. 길이 0에는 이동할 몸통이 없다.
+  if (handlesOverlap && (startY === endY || x <= MINIMAP_HANDLE_MARKER_WIDTH
+    || x >= OBSERVER_MINIMAP_WIDTH - MINIMAP_HANDLE_MARKER_WIDTH)) {
+    return x < OBSERVER_MINIMAP_WIDTH / 2 ? 'start' : 'end';
+  }
+  // 짧은 구간도 중앙 절반은 몸통으로 잡는다. 바깥쪽 핸들 여유는 8px 그대로 유지한다.
+  const innerRadius = Math.min(MINIMAP_HANDLE_RADIUS, (startY - endY) / 4);
+  const startHit = y >= startY - innerRadius && y <= startY + MINIMAP_HANDLE_RADIUS;
+  const endHit = y >= endY - MINIMAP_HANDLE_RADIUS && y <= endY + innerRadius;
   if (startHit) return 'start';
   if (endHit) return 'end';
   return y > endY && y < startY ? 'move' : null;

@@ -24,7 +24,7 @@ export type ObserverPlayPhase = 'loading' | 'playing' | 'paused' | 'error';
 export interface ObserverPlayState {
   readonly autoEnabled: boolean;
   readonly manualStats: ObserverManualStats | null;
-  /** 구간 변경 대기 중에는 정지 화면의 기준 위치. 그 밖에는 출력 지연을 반영한 곡 시각(첫 출력 전 음수 허용). */
+  /** 구간 편집 후 재생 대기 중에는 A 위치. 그 밖에는 출력 지연을 반영한 곡 시각(첫 출력 전 음수 허용). */
   readonly songTimeMs: number;
   readonly range: ObserverRange | null;
   /** playbackRange를 적용한 실제 재생 음원의 길이. 원본 AudioBuffer 길이와 다를 수 있다. */
@@ -138,7 +138,7 @@ export class ObserverPlayRuntime {
     } catch (error) { if (!this.closed) this.fail(error); }
   }
 
-  /** 변경한 구간은 앞 준비부터 새 시도로 시작하고, 변경 없으면 같은 반복을 잇는다. 드래그 중에는 재생하지 않는다. */
+  /** 구간 편집 후에는 앞 준비부터 새 시도로 시작한다. 일반 일시정지는 같은 반복을 잇고 드래그 중에는 재생하지 않는다. */
   togglePause(): void {
     if (this.closed || this.editingRange || !this.input || !this.audio || !this.clock || !this.repetition) return;
     try {
@@ -168,17 +168,17 @@ export class ObserverPlayRuntime {
     } catch (error) { this.fail(error); }
   }
 
-  /** 드래그 시작: 오디오와 판정을 멈추고 큐를 닫는다. 물리 hold는 계속 추적한다. phase는 paused다. */
+  /** 드래그 시작: 이전 시도의 입력을 버리고 A를 미리 본다. 물리 hold는 계속 추적하며 다음 Play는 새 시도다. */
   beginRangeEdit(): void {
     if (this.closed || this.editingRange || !this.input || !this.audio || !this.clock || !this.repetition) return;
     try {
-      if (!this.paused) {
-        // 일반 일시정지처럼 정지 직전 입력을 판정하고 효과를 보낸 뒤 큐를 닫는다. 구간을 안 바꾸면 같은 시도를 잇기 때문이다.
-        this.audio.pause();
-        this.stepSession(performance.now());
-        this.adapter!.sync(this.clock.visualTimeMs());
-      }
+      if (!this.paused) this.audio.pause();
       this.input.setJudging(false);
+      if (!this.rangePreview) {
+        this.renderer!.resetTransientState();
+        this.rangePreview = { chart: this.repetition.playbackChart,
+          songTimeMs: this.selectedRange!.startMs, autoEnabled: this.repetition.autoEnabled };
+      }
       this.paused = true;
       this.editingRange = true;
       this.lastFrame = null;
