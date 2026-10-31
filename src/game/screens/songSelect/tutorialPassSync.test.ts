@@ -109,6 +109,67 @@ it('A의 조회 응답 전에 다른 탭이 A·B·게스트 통과를 저장하�
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
+it.each(['', 'Legacy_ID', 'single-note\n', 'a'.repeat(65)])('게스트 single-note·잘못된 ID %j·double-note 중 유효한 두 ID만 인계하고 잘못된 ID는 예약 없이 보존한다', async invalidId => {
+  const storage = makeStorage(['single-note', invalidId, 'double-note']);
+  const sync = createTutorialPassSync(storage);
+
+  await sync.syncAccount('A');
+
+  expect(client.rpc).toHaveBeenCalledExactlyOnceWith('handoff_tutorial_passes', {
+    target_user_id: 'A', request_id: expect.any(String), tutorial_ids: ['single-note', 'double-note'],
+  });
+  const reopened = createTutorialPassSync(storage);
+  expect(reopened.getPassedIds('A')).toEqual(['single-note', 'double-note']);
+  expect(reopened.getPassedIds(null)).toEqual([invalidId]);
+  expect(reopened.getSnapshot().pendingHandoffs).toEqual([]);
+  await reopened.syncAccount('B');
+  expect(client.rpc).toHaveBeenCalledTimes(1);
+  expect(reopened.getPassedIds(null)).toEqual([invalidId]);
+  expect(reopened.getSnapshot().pendingHandoffs).toEqual([]);
+});
+
+it('유효한 게스트 ID 101개와 Legacy_ID가 있으면 100개만 A에 인계하고 나머지 두 ID는 게스트에 남긴다', async () => {
+  const validIds = Array.from({ length: 101 }, (_, index) => `lesson-${index}`);
+  const sync = createTutorialPassSync(makeStorage(['Legacy_ID', ...validIds]));
+
+  await sync.syncAccount('A');
+
+  expect(client.rpc).toHaveBeenCalledExactlyOnceWith('handoff_tutorial_passes', {
+    target_user_id: 'A', request_id: expect.any(String), tutorial_ids: validIds.slice(0, 100),
+  });
+  expect(sync.getPassedIds('A')).toHaveLength(100);
+  expect(sync.getPassedIds(null)).toEqual(['Legacy_ID', 'lesson-100']);
+  expect(sync.getSnapshot().pendingHandoffs).toEqual([]);
+});
+
+it.each([
+  { error: { code: '23514', message: 'limit' } },
+  { error: { code: '42501', message: 'forbidden' } },
+  { error: { code: 'PGRST301', message: 'expired token' } },
+  { error: { status: 403, message: 'forbidden' } },
+  { error: { code: '', message: 'unavailable' }, status: 503 },
+])('인계 서버 오류 $error 응답이면 single-note를 게스트로 복원하고 A는 새 영수증으로 인계할 수 있다', async response => {
+  const storage = makeStorage(['single-note']);
+  client.rpc.mockResolvedValueOnce({ data: null, ...response });
+  await createTutorialPassSync(storage).syncAccount('A');
+  const failedReceipt = client.rpc.mock.calls[0][1].request_id;
+
+  const reopened = createTutorialPassSync(storage);
+  expect(reopened.getPassedIds(null)).toEqual(['single-note']);
+  expect(reopened.getPassedIds('A')).toEqual([]);
+  expect(reopened.getSnapshot().pendingHandoffs).toEqual([]);
+  expect(client.upsert).not.toHaveBeenCalled();
+
+  await reopened.syncAccount('A');
+  expect(client.rpc).toHaveBeenCalledTimes(2);
+  expect(client.rpc.mock.calls[1][1]).toEqual({
+    target_user_id: 'A', request_id: expect.any(String), tutorial_ids: ['single-note'],
+  });
+  expect(client.rpc.mock.calls[1][1].request_id).not.toBe(failedReceipt);
+  expect(reopened.getPassedIds('A')).toEqual(['single-note']);
+  expect(reopened.getPassedIds(null)).toEqual([]);
+});
+
 it('세션 조회가 실패한 single-note는 재개방·B 로그인 뒤에도 미확정으로 남고 B나 게스트에 섞이지 않는다', async () => {
   const storage = makeStorage();
   const sync = createTutorialPassSync(storage);
@@ -321,13 +382,25 @@ it('인계 영수증의 localStorage 저장이 거부되면 single-note를 게�
   expect(sync.getPassedIds('A')).toEqual([]);
 });
 
-it('A의 인계 응답이 유실돼도 B에게 재인계하지 않고 A로 재접속하면 같은 영수증으로 확인한다', async () => {
-  client.rpc.mockRejectedValueOnce(new Error('response lost'));
+it.each([
+  { label: 'fetch 예외', thrown: new TypeError('Failed to fetch') },
+  { label: 'timeout', thrown: new DOMException('timeout', 'AbortError') },
+  { label: 'ECONNRESET', thrown: { code: 'ECONNRESET', message: 'connection reset' } },
+  { label: '알 수 없는 예외', thrown: new Error('response lost') },
+  { label: '빈 code·status 0', response: { data: null, error: { code: '', message: 'Failed to fetch' }, status: 0 } },
+  { label: 'code·status 없는 오류', response: { data: null, error: { message: 'unknown' } } },
+  { label: '결과 불명 응답', response: { data: null, error: null, status: 200 } },
+])('A의 인계가 $label 때문에 미확정이면 B에게 재인계하지 않고 A로 재접속하면 같은 영수증으로 확인한다', async failure => {
+  if ('thrown' in failure) client.rpc.mockRejectedValueOnce(failure.thrown);
+  else client.rpc.mockResolvedValueOnce(failure.response);
   const storage = makeStorage(['single-note']);
   const sync = createTutorialPassSync(storage);
   await expect(sync.syncAccount('A')).resolves.toBeUndefined();
   const receipt = client.rpc.mock.calls[0][1].request_id;
   const reopened = createTutorialPassSync(storage);
+  expect(reopened.getSnapshot().pendingHandoffs).toEqual([
+    { userId: 'A', requestId: receipt, tutorialIds: ['single-note'] },
+  ]);
   await reopened.syncAccount('B');
   expect(client.rpc).toHaveBeenCalledTimes(1);
   expect(reopened.getPassedIds('B')).toEqual([]);
@@ -335,6 +408,26 @@ it('A의 인계 응답이 유실돼도 B에게 재인계하지 않고 A로 재�
   await reopened.syncAccount('A');
   expect(client.rpc.mock.calls[1][1].request_id).toBe(receipt);
   expect(reopened.getPassedIds('A')).toEqual(['single-note']);
+  expect(reopened.getSnapshot().pendingHandoffs).toEqual([]);
+});
+
+it('A의 단일 single-note 저장이 23514로 거절돼도 계정 캐시를 게스트로 바꾸지 않고 다음 A 동기화에서만 재전송한다', async () => {
+  const storage = makeStorage();
+  client.upsert.mockResolvedValueOnce({ error: { code: '23514', message: 'limit' } });
+  await createTutorialPassSync(storage).recordPass('A', 'single-note');
+  client.upsert.mockClear();
+
+  const reopened = createTutorialPassSync(storage);
+  expect(reopened.getPassedIds('A')).toEqual(['single-note']);
+  expect(reopened.getPassedIds(null)).toEqual([]);
+  expect(reopened.getSnapshot().pendingHandoffs).toEqual([]);
+  await reopened.syncAccount('B');
+  expect(client.rpc).not.toHaveBeenCalled();
+  expect(client.upsert).not.toHaveBeenCalled();
+  await reopened.syncAccount('A');
+  expect(client.upsert).toHaveBeenCalledExactlyOnceWith(
+    { user_id: 'A', tutorial_id: 'single-note' }, expect.any(Object),
+  );
 });
 
 it('A로 로그인하면 서버 double-note와 게스트 single-note를 합치고 다시 열어 B로 로그인해도 이미 인계한 기록을 보내지 않는다', async () => {

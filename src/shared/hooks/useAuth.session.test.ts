@@ -80,12 +80,25 @@ it('admin A가 확인된 뒤 같은 A의 TOKEN_REFRESHED 이벤트가 오면 adm
   expect(render()).toMatchObject({ user: { id: 'A' }, isAdmin: true, loading: false, sessionLoading: false });
 });
 
-it('초기 세션 조회가 실패하고 세션 이벤트도 없으면 sessionLoading과 loading을 false로 끝낸다', async () => {
+it('초기 세션 조회가 실패하고 세션 이벤트도 없으면 sessionLoading은 true로 유지하고 loading만 false로 끝낸다', async () => {
   cleanup?.();
   hooks.values = []; hooks.cursor = 0;
   client.auth.getSession.mockReturnValue(Promise.reject(new Error('offline')));
   render();
   cleanup = hooks.effect?.();
 
-  await vi.waitFor(() => expect(render()).toMatchObject({ sessionLoading: false, loading: false }));
+  await vi.waitFor(() => expect(render()).toMatchObject({ user: null, sessionLoading: true, loading: false }));
+});
+
+it.each(['SIGNED_IN', 'INITIAL_SESSION'])('초기 세션 조회 실패 뒤 %s로 A를 받으면 sessionLoading은 false가 되고 user는 A이다', async event => {
+  cleanup?.();
+  hooks.values = []; hooks.cursor = 0;
+  client.auth.getSession.mockResolvedValue({ data: { session: null }, error: new Error('offline') });
+  render();
+  cleanup = hooks.effect?.();
+  await vi.waitFor(() => expect(render()).toMatchObject({ sessionLoading: true, loading: false }));
+
+  authChanged(event, { user: user('A') });
+
+  expect(render()).toMatchObject({ user: { id: 'A' }, sessionLoading: false, loading: true });
 });

@@ -1,4 +1,4 @@
-import { addTutorialPass, fetchTutorialPasses, handoffTutorialPasses } from '../../../supabase/tutorialPasses';
+import { addTutorialPass, fetchTutorialPasses, handoffTutorialPasses, isTutorialPassServerError } from '../../../supabase/tutorialPasses';
 import { readTutorialPassedIdsFromStorage } from './tutorialPassRecords';
 import { completeTutorialGuestHandoff, getVisibleTutorialPassedIds, prepareTutorialGuestHandoff, type TutorialGuestHandoff, type TutorialPassState } from './tutorialPassState';
 
@@ -153,7 +153,15 @@ export function createTutorialPassSync(storage: PassStorage | null) {
             writeState(completeTutorialGuestHandoff(state, handoff, consumed));
           }
         });
-      } catch { /* 확정 전 기록은 원래 계정의 같은 요청으로만 재확인한다. */ }
+      } catch (error) {
+        // 서버 오류 응답은 RPC가 롤백됐으므로 예약을 해제한다. 응답 유실·불명은 같은 계정만 재확인한다.
+        if (isTutorialPassServerError(error)) await withStorageLock(() => {
+          state = readState(state);
+          if (state.pendingHandoffs.some(pending => pending.userId === userId && pending.requestId === handoff.requestId)) {
+            writeState(completeTutorialGuestHandoff(state, handoff, false));
+          }
+        });
+      }
     }
     if (!isCurrent()) return;
     try {
