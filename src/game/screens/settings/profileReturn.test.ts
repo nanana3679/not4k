@@ -121,6 +121,15 @@ it('토큰 복귀에서 SDK 초기화가 User lookup failed를 반환하면 세�
   });
 });
 
+it('토큰 복귀의 SDK 초기화가 실패한 뒤 Profile을 열면 history에서 access_token·refresh_token·expires_in·token_type을 지우고 keep=1은 남긴다', async () => {
+  const history = mockBrowser('https://example.test/game?keep=1#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
+  useGameStore.getState().completeFirstLaunch();
+  await signInFromProfile(async () => {});
+  await createProfileReturnRestorer(async () => ({ error: new Error('User lookup failed') }))(false);
+  expect(useGameStore.getState().profileAuthError).toBe('User lookup failed');
+  expect(history.replaceState).toHaveBeenCalledWith({ router: 1 }, '', 'https://example.test/game?keep=1');
+});
+
 it('access_denied로 취소하면 SDK 초기화 오류 User cancelled가 있어도 Profile의 오류는 null이다', async () => {
   mockBrowser('https://example.test/game#error=access_denied');
   useGameStore.getState().completeFirstLaunch();
@@ -177,6 +186,57 @@ it('첫 실행 presetSetup 대기 중 같은 마커로 pageshow persisted 복귀
     expect(initializeAuth).toHaveBeenCalledOnce();
     expect(useGameStore.getState()).toMatchObject({
       settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: 'User lookup failed',
+    });
+  } finally {
+    stop();
+  }
+});
+
+it('SDK 초기화 대기 중 새 Login 마커로 pageshow persisted 복귀하면 이전 시도의 User lookup failed 대신 새 시도가 Profile을 1회 열고 오류는 null이다', async () => {
+  mockBrowser();
+  useGameStore.getState().completeFirstLaunch();
+  window.sessionStorage.setItem('not4k-profile-return', String(Date.now() - 60 * 1000));
+  let finish!: (result: { error: Error | null }) => void;
+  const initializeAuth = vi.fn(() => new Promise<{ error: Error | null }>(resolve => { finish = resolve; }));
+  const restore = vi.fn(createProfileReturnRestorer(initializeAuth));
+  const opened = vi.fn();
+  const unsubscribe = useGameStore.subscribe((state, previous) => {
+    if (state.settingsOpen && !previous.settingsOpen) opened();
+  });
+  const stop = bindProfileReturnRestoration(restore, false);
+  try {
+    await signInFromProfile(async () => {});
+    window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    finish({ error: new Error('User lookup failed') });
+    await Promise.all(restore.mock.results.map(result => result.value));
+    expect(initializeAuth).toHaveBeenCalledOnce();
+    expect(opened).toHaveBeenCalledOnce();
+    expect(useGameStore.getState()).toMatchObject({
+      screen: 'songSelect', settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: null,
+    });
+    expect(window.sessionStorage.getItem('not4k-profile-return')).toBeNull();
+  } finally {
+    stop();
+    unsubscribe();
+  }
+});
+
+it('복귀 의도 없이 시작한 페이지에서 Login 후 pageshow persisted로 돌아오면 페이지 로드 때의 SDK 초기화 오류 User lookup failed 없이 Profile을 연다', async () => {
+  mockBrowser('https://example.test/game#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
+  useGameStore.getState().completeFirstLaunch();
+  const initializeAuth = vi.fn(async () => ({ error: new Error('User lookup failed') }));
+  const restore = vi.fn(createProfileReturnRestorer(initializeAuth));
+  const stop = bindProfileReturnRestoration(restore, false);
+  try {
+    await restore.mock.results[0].value;
+    expect(initializeAuth).not.toHaveBeenCalled();
+
+    await signInFromProfile(async () => {});
+    window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    await restore.mock.results[1].value;
+    expect(initializeAuth).toHaveBeenCalledOnce();
+    expect(useGameStore.getState()).toMatchObject({
+      screen: 'songSelect', settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: null,
     });
   } finally {
     stop();

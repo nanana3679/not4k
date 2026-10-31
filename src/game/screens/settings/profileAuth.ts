@@ -1,3 +1,5 @@
+import { withoutOAuthResultParams } from '../../../shared/hooks/authRedirect';
+
 const PROFILE_RETURN_KEY = 'not4k-profile-return';
 const PROFILE_RETURN_MAX_AGE_MS = 10 * 60 * 1000;
 const OAUTH_ERROR_PARAMS = ['error', 'error_code', 'error_description'];
@@ -11,7 +13,6 @@ export function parseProfileRedirect(href: string): {
 } {
   const url = new URL(href);
   const hash = new URLSearchParams(url.hash.slice(1));
-  const hashHasError = OAUTH_ERROR_PARAMS.some(key => hash.has(key));
   // auth-js의 parseParametersFromURL과 동일하게 query가 hash보다 우선한다.
   const value = (key: string) => url.searchParams.get(key) ?? hash.get(key);
   // 실제 Google 취소 URL은 E2E 미검증이다. 별도 실패 코드가 없는 access_denied만 취소로 가정한다.
@@ -22,10 +23,9 @@ export function parseProfileRedirect(href: string): {
     : OAUTH_ERROR_PARAMS.some(key => value(key))
       ? { status: 'failure', message: value('error_description') || value('error_code') || value('error')! }
       : null;
-  for (const params of [url.searchParams, hash]) {
-    for (const key of OAUTH_ERROR_PARAMS) params.delete(key);
-  }
-  if (hashHasError) url.hash = hash.toString();
+  // 오류뿐 아니라 처리에 실패한 토큰도 지운다. 주소창에 남으면 다음 Login의 redirectTo에 섞인다.
+  url.search = withoutOAuthResultParams(url.search);
+  url.hash = withoutOAuthResultParams(url.hash);
   return { outcome, cleanUrl: url.href };
 }
 
@@ -35,9 +35,10 @@ export function readProfileReturnStartedAt(): number | null {
     const value = window.sessionStorage.getItem(PROFILE_RETURN_KEY);
     const startedAt = Number(value);
     const age = Date.now() - startedAt;
-    const pending = value !== null && /^\d+$/.test(value) && Number.isSafeInteger(startedAt)
+    // age < 0은 Login 뒤 기기 시계가 뒤로 바뀐 경우다. 유효 시간을 잴 수 없으므로 버린다.
+    const valid = value !== null && /^\d+$/.test(value) && Number.isSafeInteger(startedAt)
       && age >= 0 && age <= PROFILE_RETURN_MAX_AGE_MS;
-    if (pending) return startedAt;
+    if (valid) return startedAt;
     window.sessionStorage.removeItem(PROFILE_RETURN_KEY);
     return null;
   } catch {
@@ -47,9 +48,9 @@ export function readProfileReturnStartedAt(): number | null {
 
 export function consumeProfileReturn(): boolean {
   try {
-    const pending = readProfileReturnStartedAt() !== null;
+    const hasReturnIntent = readProfileReturnStartedAt() !== null;
     window.sessionStorage.removeItem(PROFILE_RETURN_KEY);
-    return pending;
+    return hasReturnIntent;
   } catch {
     return false;
   }

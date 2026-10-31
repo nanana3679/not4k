@@ -109,7 +109,7 @@ describe('useAuth 작업 오류', () => {
     vi.resetAllMocks();
   });
 
-  it('Supabase signOut의 Logout unavailable 반환값을 보존해 Profile에서 처리하고 기존 호출자는 그대로 무시할 수 있다', async () => {
+  it('Supabase signOut이 Logout unavailable 오류를 반환하면 useAuth.signOut은 reject하지 않고 { error }를 그대로 resolve한다', async () => {
     const error = new Error('Logout unavailable');
     authMock.signOut.mockResolvedValue({ error });
     const state = await renderFirstAuthState();

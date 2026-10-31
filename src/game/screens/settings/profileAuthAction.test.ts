@@ -4,13 +4,17 @@ import { signOutFromProfile } from './profileAuth';
 import { handleProfileAuth } from './profileAuthAction';
 
 const storage = vi.hoisted(() => {
-  const valueByKey = new Map<string, string>();
-  const storage = {
-    getItem: (key: string) => valueByKey.get(key) ?? null,
-    setItem: (key: string, value: string) => { valueByKey.set(key, value); },
-    removeItem: (key: string) => { valueByKey.delete(key); },
+  const createStorage = () => {
+    const valueByKey = new Map<string, string>();
+    return {
+      getItem: (key: string) => valueByKey.get(key) ?? null,
+      setItem: (key: string, value: string) => { valueByKey.set(key, value); },
+      removeItem: (key: string) => { valueByKey.delete(key); },
+    };
   };
-  vi.stubGlobal('window', { localStorage: storage });
+  const storage = createStorage();
+  // Login 실패 테스트의 복귀 마커는 sessionStorage에 쓴다.
+  vi.stubGlobal('window', { localStorage: storage, sessionStorage: createStorage() });
   return storage;
 });
 
@@ -42,7 +46,7 @@ it('Logout 완료 전에는 Profile을 유지하고 완료 후 title·설정 닫
   expect(storage.getItem('not4k-settings')).toBe(saved);
 });
 
-it('Logout에서 Session unavailable이 발생하면 title로 이동하지 않고 Profile·오류 메시지를 유지한다', async () => {
+it('Logout이 Session unavailable 예외로 실패하면 오류 메시지를 반환하고 title로 이동하지 않아 songSelect·설정·Profile을 유지한다', async () => {
   useGameStore.getState().setScreen('songSelect');
   useGameStore.getState().setSettingsOpen(true);
   useGameStore.setState({ settingsInitialSection: 'profile' });
@@ -52,10 +56,34 @@ it('Logout에서 Session unavailable이 발생하면 title로 이동하지 않�
   expect(useGameStore.getState()).toMatchObject({ screen: 'songSelect', settingsOpen: true, settingsInitialSection: 'profile' });
 });
 
-it('Logout이 반환한 오류 Returned failure도 화면 이동 없이 표시한다', async () => {
-  const onSignedOut = vi.fn();
-  expect(await signOutFromProfile(async () => ({ error: new Error('Returned failure') }), onSignedOut)).toBe('Returned failure');
-  expect(onSignedOut).not.toHaveBeenCalled();
+it('Logout이 { error: Session unavailable }을 반환하면 songSelect·설정·Profile을 유지한 채 그 오류를 표시하고 setPending을 true→false로 호출한다', async () => {
+  useGameStore.getState().setScreen('songSelect');
+  useGameStore.getState().setSettingsOpen(true);
+  useGameStore.setState({ settingsInitialSection: 'profile' });
+  const setPending = vi.fn();
+  await handleProfileAuth({
+    signedIn: true, signIn: vi.fn(),
+    signOut: async () => ({ error: new Error('Session unavailable') }),
+    isActive: () => true, setPending,
+  });
+  expect(useGameStore.getState()).toMatchObject({
+    screen: 'songSelect', settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: 'Session unavailable',
+  });
+  expect(setPending.mock.calls).toEqual([[true], [false]]);
+});
+
+it('Profile Login이 Network unavailable로 reject되면 Profile에 그 오류를 표시하고 setPending을 true→false로 호출한다', async () => {
+  useGameStore.getState().setScreen('songSelect');
+  useGameStore.getState().setSettingsOpen(true);
+  const setPending = vi.fn();
+  await handleProfileAuth({
+    signedIn: false, signIn: () => Promise.reject(new Error('Network unavailable')), signOut: vi.fn(),
+    isActive: () => true, setPending,
+  });
+  expect(useGameStore.getState()).toMatchObject({
+    screen: 'songSelect', settingsOpen: true, profileAuthError: 'Network unavailable',
+  });
+  expect(setPending.mock.calls).toEqual([[true], [false]]);
 });
 
 it('Logout 대기 중 Profile을 언마운트하고 play로 이동하면 로그아웃 완료 후에도 play를 유지한다', async () => {

@@ -12,7 +12,7 @@ interface ProfileAuthAction {
 export async function handleProfileAuth({ signedIn, signIn, signOut, isActive, setPending }: ProfileAuthAction) {
   setPending(true);
   useGameStore.setState({ profileAuthError: null });
-  const message = signedIn
+  const errorMessage = signedIn
     ? await signOutFromProfile(signOut, () => {
       if (isActive() && useGameStore.getState().settingsOpen) {
         useGameStore.getState().setScreen('title');
@@ -20,6 +20,6 @@ export async function handleProfileAuth({ signedIn, signIn, signOut, isActive, s
     })
     : await signInFromProfile(signIn);
   if (!isActive() || !useGameStore.getState().settingsOpen) return;
-  useGameStore.setState({ profileAuthError: message });
+  useGameStore.setState({ profileAuthError: errorMessage });
   setPending(false);
 }

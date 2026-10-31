@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { consumeProfileReturn, parseProfileRedirect, signInFromProfile } from './profileAuth';
+import { consumeProfileReturn, parseProfileRedirect, readProfileReturnStartedAt, signInFromProfile } from './profileAuth';
 
 function mockSessionStorage() {
   const valueByKey = new Map<string, string>();
@@ -43,6 +43,13 @@ describe('프로필 로그인 복귀 의도', () => {
     expect(storage.getItem('not4k-profile-return')).toBeNull();
   });
 
+  it('기기 시계를 되돌려 마커 시작 시각이 현재보다 1분 뒤이면 readProfileReturnStartedAt은 null이고 마커를 지운다', () => {
+    const storage = mockSessionStorage();
+    storage.setItem('not4k-profile-return', String(Date.now() + 60 * 1000));
+    expect(readProfileReturnStartedAt()).toBeNull();
+    expect(storage.getItem('not4k-profile-return')).toBeNull();
+  });
+
   it('Login을 누르면 Google 이동 전에 복귀 의도를 저장하고 두 번 읽어도 한 번만 소비한다', async () => {
     mockSessionStorage();
     const redirect = vi.fn(async () => {
@@ -63,7 +70,7 @@ describe('프로필 로그인 복귀 의도', () => {
     expect(consumeProfileReturn()).toBe(true);
   });
 
-  it.each(['getItem', 'setItem', 'removeItem'] as const)('sessionStorage.%s가 던져도 로그인과 복귀 의도 소비는 중단되지 않는다', async (method) => {
+  it.each(['getItem', 'setItem', 'removeItem'] as const)('sessionStorage.%s가 Storage blocked를 던져도 Login은 1회 실행되고 consumeProfileReturn은 예외 없이 false를 반환해 자동 복귀하지 않는다', async (method) => {
     const storage = mockSessionStorage();
     storage[method].mockImplementation(() => { throw new Error('Storage blocked'); });
     const signIn = vi.fn().mockResolvedValue(undefined);
@@ -117,10 +124,17 @@ describe('Google 복귀 URL', () => {
     expect(parseProfileRedirect(`https://example.test/game${params}`).outcome).toEqual({ status: 'failure', message });
   });
 
-  it('query의 server_error가 hash의 access_denied보다 우선하며 양쪽 오류만 지우고 code=abc·토큰은 보존한다', () => {
+  it('query의 server_error가 hash의 access_denied보다 우선하며 양쪽 오류와 access_token을 지우고 code=abc는 보존한다', () => {
     expect(parseProfileRedirect('https://example.test/game?error=server_error&error_description=Query+failure&code=abc#access_token=token&error=access_denied&error_code=denied')).toEqual({
       outcome: { status: 'failure', message: 'Query failure' },
-      cleanUrl: 'https://example.test/game?code=abc#access_token=token',
+      cleanUrl: 'https://example.test/game?code=abc',
+    });
+  });
+
+  it('SDK 초기화 실패로 #access_token·refresh_token·expires_in·token_type이 남은 ?keep=1 URL이면 결과는 null이고 cleanUrl은 토큰 hash를 지우고 keep=1을 남긴다', () => {
+    expect(parseProfileRedirect('https://example.test/game?keep=1#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer')).toEqual({
+      outcome: null,
+      cleanUrl: 'https://example.test/game?keep=1',
     });
   });
 });
