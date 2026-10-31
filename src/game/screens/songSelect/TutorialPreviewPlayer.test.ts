@@ -1,8 +1,10 @@
 import { getTutorialBombPosition } from "./TutorialPreviewPlayer";
 import { describe, expect, it } from 'vitest';
+import tutorialInputSource from './explicitTutorialInput.ts?raw';
 import tutorialPreviewPlayerSource from './TutorialPreviewPlayer.tsx?raw';
 import {
   buildTutorialKeyboardKeys,
+  getDirectTutorialKeys,
   getLaneKeyLabels,
   uniqueTutorialKeys,
   type TutorialKeyView,
@@ -152,8 +154,8 @@ describe('TutorialPreviewPlayer', () => {
 
   it('레인 키 라벨 텍스트와 표시 여부는 effect가 렌더러 setLaneKeyLabels로 push', () => {
     expect(tutorialPreviewPlayerSource).toContain('laneKeyLabels.map(({ lane, label }) => ({ lane, label }))');
-    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay,');
-    expect(tutorialPreviewPlayerSource).toContain('[laneKeyLabels, diagramDisplay, rendererReady]');
+    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay && !directInput,');
+    expect(tutorialPreviewPlayerSource).toContain('[laneKeyLabels, diagramDisplay, rendererReady, directInput]');
   });
 
   it('캔버스 프레임은 키보드까지 보이도록 최소 폭(→aspect로 최소 높이) 바닥을 가지되 화면이 좁으면 100%로 캡', () => {
@@ -219,7 +221,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain("backgroundColor: 'rgba(0, 0, 0, 0.72)'");
     expect(tutorialPreviewPlayerSource).toContain("pointerEvents: 'auto'");
     // 키 라벨 숨김은 setLaneKeyLabels의 visible 인자(!diagramDisplay)로 렌더러 레이어를 끈다.
-    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay,');
+    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay && !directInput,');
     expect(tutorialPreviewPlayerSource).not.toContain('canvasHiddenForDiagram');
   });
 
@@ -339,7 +341,7 @@ describe('TutorialPreviewPlayer', () => {
   });
 
   it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 렌더 사이클 0 초기화 → 준비 알림 순서로 재사용', () => {
-    const contentDeps = '  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
+    const contentDeps = '  }, [diagramTimings, directBindings, directKeyboardKeys, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
     expect(tutorialPreviewPlayerSource).toContain(contentDeps);
     const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {');
     expect(attachStart).toBeGreaterThan(-1);
@@ -359,7 +361,7 @@ describe('TutorialPreviewPlayer', () => {
 
   it('차트 effect 정리는 rAF만 멈추고 렌더러를 dispose하지 않음 — dispose는 렌더러 effect 정리에서만', () => {
     const contentStart = tutorialPreviewPlayerSource.indexOf('  }, [rendererKey]);');
-    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);');
+    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, directBindings, directKeyboardKeys, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);');
     expect(contentStart).toBeGreaterThan(-1);
     expect(contentEnd).toBeGreaterThan(contentStart);
     const contentEffect = tutorialPreviewPlayerSource.slice(contentStart, contentEnd);
@@ -433,16 +435,17 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialPreviewPlayerSource).toContain('onBombEffectRef.current?.(lane, getTutorialBombPosition(lane, keyboardAreaHeight));');
   });
 
-  it('반복 경계는 엔진별 finishLoop가 맡고, 렌더 루프는 resetTransientState·setExplicitChart를 다시 부르지 않으며 명시 결과는 onPatternFinished로 알림', () => {
-    expect(renderLoopBody).toContain('if (loopTimeMs < previousLoopTime) {');
+  it('구형 경계는 finishLoop·명시 경계는 explicitInput이 맡고 렌더러 재생성 없이 onPatternFinished로 알림', () => {
+    expect(renderLoopBody).toContain('if (!isExplicitTutorialPreview(preview) && loopTimeMs < previousLoopTime) {');
     expect(renderLoopBody).toContain('previewJudgment.finishLoop();');
-    expect(renderLoopBody).toContain('previewJudgment.advanceTo(loopTimeMs);');
+    expect(renderLoopBody).toContain('previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);');
     expect(renderLoopBody).not.toContain('resetTransientState');
     expect(renderLoopBody).not.toContain('setExplicitChart');
     // `callback?.(finishPattern())`처럼 쓰면 콜백이 없을 때 인자도 평가하지 않아 반복을 정산하지 않는다. 정산을 먼저 한다.
-    const finishPattern = tutorialPreviewPlayerSource.indexOf('const pattern = explicitPlayback.finishPattern();');
+    const finishPattern = tutorialInputSource.indexOf('finished = playback.finishPattern(');
     expect(finishPattern).toBeGreaterThan(-1);
-    expect(tutorialPreviewPlayerSource.indexOf('onPatternFinishedRef.current?.(pattern);', finishPattern)).toBeGreaterThan(finishPattern);
+    expect(tutorialInputSource.indexOf('onPatternFinished?.(finished);', finishPattern)).toBeGreaterThan(finishPattern);
+    expect(tutorialPreviewPlayerSource).toContain('onPatternFinishedRef.current?.(pattern);');
     expect(tutorialPreviewPlayerSource).not.toMatch(/\?\.\([^)]*finishPattern\(\)/);
     expect(tutorialPreviewPlayerSource).toContain('onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => void;');
   });
@@ -458,32 +461,54 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect([...legacyBoundary].sort((a, b) => a - b)).toEqual(legacyBoundary);
   });
 
-  it('명시 경계는 paused·이미 걸린 도식 대기가 아니면 경과 시간의 차수로 한 번 정산하고, 이 프레임에 새로 걸린 도식은 정산을 막지 않으며 구형은 loopTimeMs 감소만 검사', () => {
-    const explicitStart = renderLoopBody.indexOf('if (isExplicitTutorialPreview(preview)) {');
-    const legacyStart = renderLoopBody.indexOf('} else if (loopTimeMs < previousLoopTime) {', explicitStart);
-    expect(explicitStart).toBeGreaterThan(renderLoopBody.indexOf('if (clock.frozen) {'));
-    expect(explicitStart).toBeGreaterThan(renderLoopBody.indexOf('loopTimeMs = resolveDiagramPauseTime(loopTimeMs);'));
-    expect(legacyStart).toBeGreaterThan(explicitStart);
-    const explicitBoundary = renderLoopBody.slice(explicitStart, legacyStart);
-    expect(explicitBoundary).toContain('stepExplicitTutorialLoop({');
-    expect(explicitBoundary).toContain('elapsedMs: now - loopStartNow,');
-    expect(explicitBoundary).toContain('loopMs: preview.loopMs,');
-    expect(explicitBoundary).toContain('previousIteration: previousExplicitLoopIteration,');
-    expect(explicitBoundary).toContain('frozen: clock.frozen || diagramHeldBeforeFrame,');
-    // 도식 대기 여부는 resolveDiagramPauseTime이 이 프레임의 새 도식을 걸기 전에 읽는다.
-    const heldIndex = renderLoopBody.indexOf('const diagramHeldBeforeFrame = activeDiagramPause !== null;');
-    expect(heldIndex).toBeGreaterThan(-1);
-    expect(heldIndex).toBeLessThan(renderLoopBody.indexOf('loopTimeMs = resolveDiagramPauseTime(loopTimeMs);'));
-    expect(explicitBoundary).toContain('previousExplicitLoopIteration = loop.iteration;');
-    expect(explicitBoundary).toContain('if (loop.finished) previewJudgment.finishLoop();');
-    expect(explicitBoundary.match(/previewJudgment\.finishLoop\(\)/g)).toHaveLength(1);
-    expect(explicitBoundary).not.toMatch(/\b(for|while)\s*\(/);
-    expect(renderLoopBody.slice(legacyStart)).toContain([
-      '} else if (loopTimeMs < previousLoopTime) {',
+  it('명시 경계는 도식 진입 전 대기 상태와 해결된 loopTimeMs로 한 번 정산하고 구형은 loopTimeMs 감소만 검사', () => {
+    const order = [
+      'if (clock.frozen) {',
+      'const diagramHeldBeforeFrame = activeDiagramPause !== null;',
+      'loopTimeMs = resolveDiagramPauseTime(loopTimeMs);',
+      'previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);',
+    ].map(snippet => renderLoopBody.indexOf(snippet));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(tutorialPreviewPlayerSource).toContain('advanceTo: (loopTimeMs, diagramHeldBeforeFrame) => { advanceExplicit(loopTimeMs, diagramHeldBeforeFrame); }');
+    expect(tutorialPreviewPlayerSource).toContain([
+      'explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {',
+      '              loopTimeMs,',
+      '              blocked: pausedRef.current || diagramHeldBeforeFrame,',
+    ].join('\n'));
+    // 프레임에만 이전 도식 상태를 전달한다. 프레임 사이 키 이벤트는 현재 도식 상태를 읽어야 한다.
+    expect(tutorialPreviewPlayerSource).toContain('blocked: pausedRef.current || activeDiagramPause !== null');
+    expect(tutorialInputSource).toContain('beforeInput: () => syncJudging()');
+    expect(tutorialInputSource).toContain('const syncJudging = (blocked = getClock().blocked) => {');
+    expect(tutorialInputSource).toContain('const blocked = frame?.blocked ?? getClock().blocked;');
+    expect(tutorialInputSource).toContain('elapsedMs = Math.floor(Math.max(0, elapsedMs) / loopMs) * loopMs + frame.loopTimeMs;');
+    expect(tutorialInputSource).toContain('stepExplicitTutorialLoop({ elapsedMs, loopMs, previousIteration: iteration');
+    expect(tutorialInputSource.match(/playback\.finishPattern\(/g)).toHaveLength(1);
+    const inputAdvance = tutorialInputSource.slice(tutorialInputSource.indexOf('advanceTo(elapsedMs: number'));
+    expect(inputAdvance).not.toMatch(/\b(for|while)\s*\(/);
+    expect(renderLoopBody).not.toContain('stepExplicitTutorialLoop');
+    expect(renderLoopBody).toContain([
+      'if (!isExplicitTutorialPreview(preview) && loopTimeMs < previousLoopTime) {',
       '            previewJudgment.finishLoop();',
       '          }',
-      '          previewJudgment.advanceTo(loopTimeMs);',
+      '          previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);',
     ].join('\n'));
+  });
+
+  it('prop 제어로 진행할 때도 도식 진입 전 대기를 읽고 도식 시작점으로 제한한 뒤 명시 입력을 진행', () => {
+    const controlStart = tutorialPreviewPlayerSource.indexOf('syncExplicitControlRef.current = () => {');
+    const controlEnd = tutorialPreviewPlayerSource.indexOf('          previewJudgment = {', controlStart);
+    expect(controlStart).toBeGreaterThan(-1);
+    expect(controlEnd).toBeGreaterThan(controlStart);
+    const control = tutorialPreviewPlayerSource.slice(controlStart, controlEnd);
+    const order = [
+      'if (!clock.frozen) {',
+      'const diagramHeldBeforeFrame = activeDiagramPause !== null;',
+      'const loopTimeMs = resolveDiagramPauseTime(Math.max(0, now - loopStartNow) % preview.loopMs);',
+      'advanceExplicit(loopTimeMs, diagramHeldBeforeFrame);',
+    ].map(snippet => control.indexOf(snippet));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
   it('도식 OK와 차트 재연결은 loopStartNow를 다시 잡을 때 명시 차수도 0으로 초기화', () => {
@@ -491,10 +516,10 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     const resumeEnd = tutorialPreviewPlayerSource.indexOf('    resolveDiagramPauseTime(0);', resumeStart);
     const resumeBody = tutorialPreviewPlayerSource.slice(resumeStart, resumeEnd);
     expect(resumeBody).toContain('loopStartNow = resumeNow - activeDiagramPause.timing.endMs;');
-    expect(resumeBody).toContain('previousExplicitLoopIteration = 0;');
+    expect(resumeBody).toContain('explicitInput?.rebase(resumeNow);');
     const attachBody = tutorialPreviewPlayerSource.slice(attachStart, renderLoopStart);
     expect(attachBody).toContain('loopStartNow = previousNow;');
-    expect(attachBody).toContain('previousExplicitLoopIteration = 0;');
+    expect(attachBody).toContain('explicitInput?.rebase(previousNow);');
   });
 
   it('명시 노트 도안은 렌더러마다 명시 정의를 처음 걸 때만 ExplicitSkinLoader로 불러오고, 정리는 렌더러 dispose 뒤에 함', () => {
@@ -510,7 +535,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
 
   it('차트 effect는 명시 판정 세션을 stop으로만 놓고 렌더러·도안은 렌더러 effect가 정리', () => {
     expect(tutorialPreviewPlayerSource).toContain('attachedJudgment?.stop();');
-    expect(tutorialPreviewPlayerSource).toContain('stop: () => explicitPlayback.stop(),');
+    expect(tutorialPreviewPlayerSource).toContain('stop: () => explicitInput?.stop(),');
   });
 });
 
@@ -560,4 +585,32 @@ describe('튜토리얼 재생기 플레이필드 배율 (RFD 0029)', () => {
     expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_RESOLUTION_BOOST = 1 / PLAYFIELD_SCALE');
     expect(tutorialPreviewPlayerSource).toContain('resolution: Math.min(window.devicePixelRatio || 1, 2) * PREVIEW_RESOLUTION_BOOST');
   });
+});
+
+
+describe('명시 재생기 직접 입력 표시', () => {
+  it('실제 바인딩이 1레인 KeyQ·2레인 KeyE뿐이면 strip도 Q·E만 매핑하고 보충 키 W는 어둡게 표시', () => {
+    const keys = getDirectTutorialKeys({ lane1: ['KeyQ'], lane2: ['KeyE'], lane3: [], lane4: [] });
+    expect(keys.map(key => [key.lane, key.keyCode])).toEqual([[1, 'KeyQ'], [2, 'KeyE']]);
+    const strip = buildTutorialKeyboardKeys(getTutorialKeyboardLayout('tkl'), new Map(keys.map(key => [key.keyCode, key])));
+    expect(strip.find(key => key.code === 'KeyQ')).toMatchObject({ label: 'Q', mapped: true });
+    expect(strip.find(key => key.code === 'KeyW')?.mapped).toBe(false);
+  });
+  it('directInput prop은 명시 정의에서만 적용하고 표시 보충 안내·사전 레인 라벨을 숨김', () => {
+    expect(tutorialPreviewPlayerSource).toContain("isExplicitTutorialPreview(preview) && inputMode === 'directInput'");
+    expect(tutorialPreviewPlayerSource).toContain('!directInput && bindingNotice');
+    expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay && !directInput');
+    expect(tutorialPreviewPlayerSource).toContain('inputMode?: TutorialInputMode;');
+    expect(tutorialPreviewPlayerSource).toContain('onPatternStarted?: (iteration: number) => void;');
+  });
+});
+
+
+it('inputMode 변경은 차트 effect 의존성이 아니므로 세션·시계를 처음부터 다시 만들지 않음', () => {
+  const deps = tutorialPreviewPlayerSource.match(/\}, \[diagramTimings[^\n]+/u)?.[0];
+  expect(deps).toBeDefined();
+  expect(deps).not.toContain('inputMode');
+  expect(deps).not.toContain('directInput');
+  expect(tutorialPreviewPlayerSource).toContain('inputModeRef.current = inputMode;');
+  expect(tutorialPreviewPlayerSource).toContain('syncExplicitControlRef.current?.();');
 });

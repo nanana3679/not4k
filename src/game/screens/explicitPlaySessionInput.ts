@@ -19,6 +19,9 @@ export interface ExplicitAutoInputSource {
 }
 
 export interface ExplicitPlayInputHooks {
+  /** false인 down은 무시하고, 이미 held인 키의 up은 물리 상태만 반영한다. */
+  ownsEvent?(event: KeyboardEvent): boolean;
+  onUnownedRelease?(timestamp: number, key: string): void;
   /** 경계 뒤 첫 실제 입력보다 먼저 준비 종료를 적용해 직전 hold만 seed한다. */
   beforeInput?(eventTimestamp: number): void;
   /**
@@ -39,17 +42,19 @@ export function createExplicitPlayInput(
   let disposed = false;
   let judging = true;
   let judgingFromTimestamp = -Infinity;
-  const record = (lane: KeyBinding['lane'], at: number, key: string, type: 'down' | 'up') => {
+  const record = (lane: KeyBinding['lane'], at: number, key: string, type: 'down' | 'up', owned = true) => {
     hooks.beforeInput?.(at);
     if (disposed) return;
     if (type === 'down') heldByKey.set(key, { lane, key }); else heldByKey.delete(key);
     if (!judging) return;
-    if (at >= judgingFromTimestamp) timeline.enqueue({ lane, key, type, inputAt: clock.toInputTimeMs(at) });
-    else hooks.onLatePreparationHoldChange?.();
+    if (at < judgingFromTimestamp) { hooks.onLatePreparationHoldChange?.(); return; }
+    if (!owned) { hooks.onUnownedRelease?.(at, key); return; }
+    timeline.enqueue({ lane, key, type, inputAt: clock.toInputTimeMs(at) });
   };
   const inputSystem = new InputSystem([...bindings], {
+    acceptsKeyDown: hooks.ownsEvent,
     onLanePress: (lane, at, key) => record(lane, at, key, 'down'),
-    onLaneRelease: (lane, at, key) => record(lane, at, key, 'up'),
+    onLaneRelease: (lane, at, key, event) => record(lane, at, key, 'up', hooks.ownsEvent?.(event) ?? true),
   });
   return {
     timeline, inputSystem,
@@ -59,9 +64,9 @@ export function createExplicitPlayInput(
       judgingFromTimestamp = fromTimestamp;
       if (!enabled) timeline.clear();
     },
-    attach(nextTarget: EventTarget): void {
+    attach(nextTarget: EventTarget, capture = false): void {
       if (disposed) throw new Error("dispose된 명시 입력 소스입니다");
-      inputSystem.attach(nextTarget);
+      inputSystem.attach(nextTarget, capture);
     },
     dispose(): void {
       inputSystem.detach();
