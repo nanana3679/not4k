@@ -52,6 +52,7 @@ export class InputSystem {
   private bindings: Map<string, 1 | 2 | 3 | 4>; // key code → lane
   private callbacks: InputCallbacks;
   private target: EventTarget | null = null;
+  private capture = false;
 
   // Track held keys globally and per-lane
   private heldKeys: Set<string>; // currently held key codes
@@ -96,14 +97,15 @@ export class InputSystem {
   /**
    * Attach input listeners to a target (defaults to window)
    */
-  attach(target: EventTarget = window): void {
+  attach(target: EventTarget = window, capture = false): void {
     if (this.target) {
       this.detach();
     }
 
     this.target = target;
-    this.target.addEventListener("keydown", this.handleKeyDown);
-    this.target.addEventListener("keyup", this.handleKeyUp);
+    this.capture = capture;
+    this.target.addEventListener("keydown", this.handleKeyDown, { capture: this.capture });
+    this.target.addEventListener("keyup", this.handleKeyUp, { capture: this.capture });
   }
 
   /**
@@ -112,8 +114,8 @@ export class InputSystem {
   detach(): void {
     if (!this.target) return;
 
-    this.target.removeEventListener("keydown", this.handleKeyDown);
-    this.target.removeEventListener("keyup", this.handleKeyUp);
+    this.target.removeEventListener("keydown", this.handleKeyDown, { capture: this.capture });
+    this.target.removeEventListener("keyup", this.handleKeyUp, { capture: this.capture });
     this.target = null;
 
     // Clear all held state

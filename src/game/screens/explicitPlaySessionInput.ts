@@ -59,9 +59,9 @@ export function createExplicitPlayInput(
       judgingFromTimestamp = fromTimestamp;
       if (!enabled) timeline.clear();
     },
-    attach(nextTarget: EventTarget): void {
+    attach(nextTarget: EventTarget, capture = false): void {
       if (disposed) throw new Error("dispose된 명시 입력 소스입니다");
-      inputSystem.attach(nextTarget);
+      inputSystem.attach(nextTarget, capture);
     },
     dispose(): void {
       inputSystem.detach();

@@ -26,6 +26,9 @@ interface RendererProbe {
   legacyCharts: number;
   judgmentGroups: number;
   maxExplicitSprites: number;
+  loopTimeMs: number;
+  successfulJudgments: number;
+  lastGrade: string;
 }
 
 async function installRendererProbe(page: Page): Promise<void> {
@@ -34,7 +37,7 @@ async function installRendererProbe(page: Page): Promise<void> {
     const explicitPath = '/src/game/renderer/ExplicitNoteRenderer.ts';
     const { GameRenderer }: typeof import('../../src/game/renderer/GameRenderer') = await import(rendererPath);
     const { ExplicitNoteRenderer }: typeof import('../../src/game/renderer/ExplicitNoteRenderer') = await import(explicitPath);
-    const probe = { resets: 0, explicitCharts: 0, legacyCharts: 0, judgmentGroups: 0, maxExplicitSprites: 0 };
+    const probe = { resets: 0, explicitCharts: 0, legacyCharts: 0, judgmentGroups: 0, maxExplicitSprites: 0, loopTimeMs: 0, successfulJudgments: 0, lastGrade: '' };
     (window as unknown as { __tutorialExplicitProbe: typeof probe }).__tutorialExplicitProbe = probe;
     const proto = GameRenderer.prototype;
     const reset = proto.resetTransientState;
@@ -48,7 +51,18 @@ async function installRendererProbe(page: Page): Promise<void> {
       return setChart.apply(this, args);
     };
     const showJudgmentGroup = proto.showJudgmentGroup;
-    proto.showJudgmentGroup = function (state) { probe.judgmentGroups++; return showJudgmentGroup.call(this, state); };
+    proto.showJudgmentGroup = function (state) {
+      probe.judgmentGroups++;
+      probe.lastGrade = state.grade;
+      if (['perfect', 'great', 'good'].includes(state.grade)) probe.successfulJudgments++;
+      return showJudgmentGroup.call(this, state);
+    };
+    const renderFrame = proto.renderFrame;
+    proto.renderFrame = function (...args) {
+      // 싱글 탭 시연은 2000ms 반복이며 표시 시각도 같은 길이의 앞 복사본 뒤에서 시작한다.
+      probe.loopTimeMs = args[0] % 2000;
+      return renderFrame.apply(this, args);
+    };
     const render = ExplicitNoteRenderer.prototype.render;
     ExplicitNoteRenderer.prototype.render = function (snapshot, visualTimeMs) {
       const notes = render.call(this, snapshot, visualTimeMs);
@@ -109,5 +123,39 @@ test('명시 튜토리얼 재생기 Lab은 탭 시연을 반복마다 Perfect 3�
 
   const afterBody = await readProbe(page);
   expect(afterBody).toMatchObject({ resets: 2, explicitCharts: 2, legacyCharts: 0 });
+  expect(pageErrors).toEqual([]);
+});
+
+
+test('직접 입력으로 전환한 싱글 탭 반복에서 기본 TKL KeyE를 500ms에 누르면 탭 1개를 판정하고 나머지 2개는 Miss', async ({ page }) => {
+  test.setTimeout(60000);
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.addInitScript(settings => localStorage.setItem('not4k-settings', settings), SETTINGS);
+  await page.goto('/lab');
+  await expect(page.getByRole('heading', { name: 'Preview Archive' })).toBeVisible({ timeout: 20000 });
+  await installRendererProbe(page);
+  await page.locator('a[href="/lab/tutorial-explicit-player"]').first().click();
+  const result = page.locator('[data-started-patterns]');
+  await expect.poll(async () => Number(await result.getAttribute('data-started-patterns'))).toBeGreaterThan(0);
+  await page.getByRole('switch', { name: '직접 입력 / 시연' }).check();
+  await expect(result).toHaveAttribute('data-input-mode', 'directInput');
+  await expect(page.locator('[data-tutorial-binding-notice]')).toHaveCount(0);
+  const started = Number(await result.getAttribute('data-started-patterns'));
+  // 전환 중이던 패턴이 끝난 뒤, 처음부터 직접 입력인 패턴의 첫 탭을 친다.
+  await expect.poll(async () => Number(await result.getAttribute('data-started-patterns'))).toBeGreaterThan(started);
+  const iteration = Number(await result.getAttribute('data-started-patterns')) - 1;
+  const before = await readProbe(page);
+  await page.waitForFunction(() => {
+    const probe = (window as unknown as { __tutorialExplicitProbe: RendererProbe }).__tutorialExplicitProbe;
+    return probe.loopTimeMs >= 480 && probe.loopTimeMs <= 520;
+  }, undefined, { polling: 'raf' });
+  // KeyboardEvent를 합성하거나 세션을 직접 호출하지 않고 실제 바인딩 E로 입력한다.
+  await page.keyboard.press('e');
+  await expect.poll(async () => (await readProbe(page)).successfulJudgments).toBe(before.successfulJudgments + 1);
+  expect((await readProbe(page)).lastGrade).toMatch(/^(perfect|great|good)$/);
+  await expect(result).toHaveAttribute('data-last-iteration', String(iteration));
+  await expect(result).toHaveAttribute('data-last-miss', '2');
+  expect((await readProbe(page)).explicitCharts).toBe(1);
   expect(pageErrors).toEqual([]);
 });

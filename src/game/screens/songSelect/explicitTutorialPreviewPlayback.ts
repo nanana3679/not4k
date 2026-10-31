@@ -1,3 +1,5 @@
+import type { TimedJudgmentInput } from "../../input/InputTimeline";
+import type { ExplicitHeldKey } from "../../judgment/ExplicitJudgmentState";
 import type { JudgmentWindows } from '../../../shared/constants';
 import { JUDGMENT_WINDOWS } from '../../../shared/constants';
 import { compileExplicitJudgmentChart } from '../../judgment/explicitCompiledChart';
@@ -11,6 +13,8 @@ import { createExplicitTutorialPreviewSessionController } from './explicitTutori
 import type { ExplicitTutorialInputPlan } from './explicitTutorialPreviewSession';
 import { createExplicitTutorialRenderSnapshotQuery } from './explicitTutorialRenderSnapshot';
 import type { TutorialInputTiming } from './tutorialPreviewChart';
+
+export type TutorialInputMode = 'demonstration' | 'directInput';
 
 /** 반복 경계에서 끝난 패턴 한 차례를 controller가 정산한 결과 */
 export interface ExplicitTutorialPatternResult {
@@ -31,7 +35,10 @@ export interface ExplicitTutorialPreviewPlayback {
   /** 이번 반복의 loopTimeMs까지 입력·판정·효과를 진행한다. 더 이른 시각이면 controller가 새 반복으로 되돌린다. */
   advanceTo(loopTimeMs: number): void;
   /** 끝난 반복을 loopMs까지 진행·finalize하고 다음 반복의 새 세션을 준비한다. 경계 입력·정산 효과는 끝난 반복에 속한다. */
-  finishPattern(): ExplicitTutorialPatternResult;
+  setInputMode(mode: TutorialInputMode, heldKeys?: readonly ExplicitHeldKey[]): void;
+  enqueue(input: TimedJudgmentInput): void;
+  syncHeldKeys(heldKeys: readonly ExplicitHeldKey[]): void;
+  finishPattern(preheldKeys?: readonly ExplicitHeldKey[]): ExplicitTutorialPatternResult;
   /** 세션·효과 연결을 정리한다. 멈춘 재생은 다시 진행하지 않는다. */
   stop(): void;
 }
@@ -76,9 +83,13 @@ export function createExplicitTutorialPreviewPlayback(
     renderChart,
     renderSnapshot: activeRenderCycle => composeRenderSnapshot(controller.session.snapshot, activeRenderCycle),
     advanceTo: loopTimeMs => controller.advanceTo(loopTimeMs),
-    finishPattern: () => {
+    setInputMode: (mode, heldKeys = []) => controller.setInputPlan(
+      mode === "directInput" ? { kind: "live" } : plan, mode === "directInput" ? heldKeys : []),
+    enqueue: input => controller.enqueue(input),
+    syncHeldKeys: heldKeys => controller.syncHeldKeys(heldKeys),
+    finishPattern: preheldKeys => {
       const iteration = controller.iteration;
-      return { iteration, result: controller.repeat(preview.loopMs) };
+      return { iteration, result: controller.repeat(preview.loopMs, preheldKeys) };
     },
     stop: () => controller.dispose(),
   };
