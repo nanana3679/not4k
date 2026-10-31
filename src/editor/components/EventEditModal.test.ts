@@ -18,7 +18,7 @@ const chart: ChartDocument = {
 };
 
 const render = (editLocked: boolean) => renderToStaticMarkup(createElement(EventEditModal, {
-  editingEvent: { type: 'event', index: 2 }, chart, isBeatZero: false, extraLaneCount: 2, editLocked,
+  editingEvent: { type: 'event', index: 2 }, chart, isBeatZero: false, editLocked,
   onSave() {}, onDelete() {}, onClose() {},
 }));
 
@@ -36,12 +36,11 @@ describe('이벤트 편집 창의 재생 중 잠금', () => {
 
   it.each([0, 1])('재생 중 0박 초기 이벤트 index=%s는 입력 묶음과 삭제 버튼에 초기 이벤트 제한보다 재생 안내 title을 우선 표시한다', index => {
     const markup = renderToStaticMarkup(createElement(EventEditModal, {
-      editingEvent: { type: 'event', index }, chart, isBeatZero: true, extraLaneCount: 2, editLocked: true,
+      editingEvent: { type: 'event', index }, chart, isBeatZero: true, editLocked: true,
       onSave() {}, onDelete() {}, onClose() {},
     }));
 
     expect(markup).toMatch(new RegExp(`<fieldset[^>]*disabled=""[^>]*title="${PAUSE_TO_EDIT_COPY}"`));
-    expect(markup).toContain('Editor lane');
     expect(markup).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*title="${PAUSE_TO_EDIT_COPY}"[^>]*>Delete</button>`));
     expect(markup).not.toContain('Cannot delete initial event');
   });
@@ -51,5 +50,21 @@ describe('이벤트 편집 창의 재생 중 잠금', () => {
 
     expect(markup).not.toContain('disabled=""');
     expect(markup).not.toContain(PAUSE_TO_EDIT_COPY);
+  });
+});
+
+describe('초기 설정 편집 창의 값 편집', () => {
+  it.each([
+    { index: 0, name: '0박 BPM 120 창은 BPM 입력', fields: ['BPM'] },
+    { index: 1, name: '0박 박자 4/4 창은 Numerator·Denominator 입력', fields: ['Numerator', 'Denominator'] },
+  ])('$name만 두고 Editor lane 선택은 없다', ({ index, fields }) => {
+    const markup = renderToStaticMarkup(createElement(EventEditModal, {
+      editingEvent: { type: 'event', index }, chart, isBeatZero: true,
+      onSave() {}, onDelete() {}, onClose() {},
+    }));
+
+    for (const field of fields) expect(markup).toContain(`<span>${field}</span>`);
+    expect(markup).not.toContain('Editor lane');
+    expect(markup).not.toContain('<select');
   });
 });

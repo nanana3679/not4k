@@ -71,7 +71,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     { label: 'BPM Change', column: 5 },
     { label: 'Time Signature Change', column: 6 },
   ]) {
-    test(`0박 ${label} 이벤트를 더블클릭하면 변경 이벤트 제목과 초기 설정 삭제 보호를 표시한다`, async ({ page }) => {
+    test(`0박 ${label} 이벤트를 더블클릭하면 변경 이벤트 제목과 초기 설정 삭제 보호를 표시하고 Editor lane 선택은 없다`, async ({ page }) => {
       await openEditor(page, { chart: eventChart() });
       await page.getByRole('button', { name: 'Select', exact: true }).click();
       // 첫째·둘째 보조 칸은 화면에서 통합 레인 5·6과 같은 위치다.
@@ -87,9 +87,8 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
       const deleteButton = page.getByTitle('Cannot delete initial event', { exact: true });
       await expect(deleteButton).toBeDisabled();
       await expect(deleteButton).toHaveAttribute('title', 'Cannot delete initial event');
-      const editorLane = page.getByRole('combobox', { name: 'Editor lane', exact: true });
-      await expect(editorLane).toHaveValue(String(column - 4));
-      await editorLane.selectOption(column === 5 ? '2' : '1');
+      // 초기 BPM·박자의 보조 레인은 1·2로 고정이라(RFD 0082) 값만 편집한다.
+      await expect(page.getByRole('combobox', { name: 'Editor lane', exact: true })).toHaveCount(0);
       await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       await expect(page.getByRole('heading', { name: `Edit ${label} Event`, exact: true })).toHaveCount(0);
       await expect.poll(() => page.evaluate(async () => {
@@ -138,18 +137,17 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('editorLane 없는 0박 BPM·박자 겹침은 열 때 박자를 보조 레인2로 분리해 깨끗한 기본 상태로 열고 저장할 때만 반영한다', async ({ page }) => {
+  test('editorLane 없는 0박 BPM·박자를 열면 BPM은 보조 레인1 그대로·박자는 보조 레인2로 옮긴 깨끗한 기본 상태이고 저장할 때만 반영한다', async ({ page }) => {
     const loadViolationLogs = recordLoadViolationLogs(page);
     const editor = await openEditor(page, { chart: chartWithoutEditorLanes(), audio: true });
     await expectCleanLoadBaseline(page);
     expect(loadViolationLogs).toEqual([]);
     expect(editor.supabaseWrites).toEqual([]);
     expect(await eventLanes(page)).toEqual([undefined, 2]);
-    // 박자는 둘째 보조 칸(통합 레인 6 위치)에 있어 더블클릭하면 보조 레인2로 표시된다.
+    // 박자는 둘째 보조 칸(통합 레인 6 위치)으로 옮겨져 그 자리를 더블클릭하면 박자 편집 창이 열린다.
     await page.getByRole('button', { name: 'Select', exact: true }).click();
     await dblclickInitialEvent(page, 6);
     await expect(page.getByRole('heading', { name: 'Edit Time Signature Change Event', exact: true })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'Editor lane', exact: true })).toHaveValue('2');
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     expect(editor.supabaseWrites).toEqual([]);
 
@@ -158,6 +156,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     const upload = editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH);
     expect(upload).toBeDefined();
     const saved = readUploadedJson(upload!) as ChartJsonV3;
+    // editorLane 없는 BPM은 이미 보조 레인1이라 editorLane을 새로 쓰지 않는다. 옮긴 박자만 editorLane 2를 적는다.
     expect(saved.events).toEqual([
       { type: 'bpm', beat: '0', bpm: 120 },
       { type: 'timeSignature', beat: '0', beatPerMeasure: '4', editorLane: 2 },
@@ -173,41 +172,51 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     expect([...editor.unexpectedSupabaseRequests, ...reopened.unexpectedSupabaseRequests]).toEqual([]);
   });
 
-  test('열 때 분리된 초기 박자를 모달에서 보조 레인1로 옮기면 위반·미저장·Undo가 생기고 Undo·Redo와 모달 수리로 오간다', async ({ page }) => {
-    const editor = await openEditor(page, { chart: chartWithoutEditorLanes(), audio: true });
+  test('보조 레인3의 text [0,2)를 초기 BPM 자리인 보조 레인1로 드래그하면 위반·미저장·Undo가 생기고 Undo·Redo로 오간다', async ({ page }) => {
+    const chart = { ...editorTestChart(), extraLaneCount: 3 };
+    chart.events = [...chart.events, { type: 'text', beat: '0', endBeat: '2', text: 'hello', editorLane: 3 }];
+    const editor = await openEditor(page, { chart });
+    await expectCleanLoadBaseline(page);
+    expect(await eventLanes(page)).toEqual([1, 2, 3]);
+
+    // 초기 BPM 편집 창은 값만 고친다. 레인을 고르는 칸이 없다.
     await page.getByRole('button', { name: 'Select', exact: true }).click();
-    await dblclickInitialEvent(page, 6);
-    await expect(page.getByRole('heading', { name: 'Edit Time Signature Change Event', exact: true })).toBeVisible();
-    await page.getByRole('combobox', { name: 'Editor lane', exact: true }).selectOption('1');
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await dblclickInitialEvent(page, 5);
+    await expect(page.getByRole('heading', { name: 'Edit BPM Change Event', exact: true })).toBeVisible();
+    await expect(page.getByLabel('BPM', { exact: true })).toHaveValue('120');
+    await expect(page.getByRole('combobox', { name: 'Editor lane', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+
+    // 셋째 보조 칸(통합 레인 7)의 text 몸통을 첫째 보조 칸(통합 레인 5)으로 끌면 0박 BPM 자리와 겹친다.
+    const from = await canvasPosition(page, 7, 1);
+    const to = await canvasPosition(page, 5, 1);
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 3 });
+    await page.mouse.up();
+    await expect.poll(() => eventLanes(page)).toEqual([1, 2, 1]);
     await expect(page.getByRole('button', { name: '배치 제약 위반 1건 목록 열기', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
-    await expect.poll(() => page.evaluate(async () => {
-      const path = '/src/editor/stores/editorStore.ts';
-      return [...(await import(path)).useEditorStore.getState().selection.events];
-    })).toEqual([]);
 
     await page.keyboard.press('Control+z');
     await expectCleanLoadBaseline(page);
+    expect(await eventLanes(page)).toEqual([1, 2, 3]);
     await page.keyboard.press('Control+y');
     await expect(page.getByRole('button', { name: '배치 제약 위반 1건 목록 열기', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true })).toBeVisible();
+    expect(await eventLanes(page)).toEqual([1, 2, 1]);
 
-    // 같은 보조 레인1에 겹치면 뒤쪽 항목인 박자가 더블클릭에 잡힌다. 보조 레인2로 돌리면 기본 상태와 같아진다.
-    await dblclickInitialEvent(page, 5);
-    await expect(page.getByRole('heading', { name: 'Edit Time Signature Change Event', exact: true })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'Editor lane', exact: true })).toHaveValue('1');
-    await page.getByRole('combobox', { name: 'Editor lane', exact: true }).selectOption('2');
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page.getByRole('button', { name: /배치 제약 위반.*목록 열기/ })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
-    expect(await eventLanes(page)).toEqual([undefined, 2]);
+    // 편집 중에 만든 겹침은 자동으로 옮기지 않고 저장을 막는다.
+    await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
+    await expect(page.getByText('[eventOverlap]', { exact: true })).toBeVisible();
+    expect(await eventLanes(page)).toEqual([1, 2, 1]);
     expect(editor.supabaseWrites).toEqual([]);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('보조 레인1·2의 text·auto [0,4)와 겹친 초기 BPM·박자는 열 때 레인3·4로 옮기고 보조 레인 수 2 → 4를 기본으로 저장한다', async ({ page }) => {
+  test('초기 BPM·박자 자리인 보조 레인1·2의 text·auto [0,4)는 열 때 레인3·4로 옮기고 보조 레인 수 2 → 4를 기본으로 저장한다', async ({ page }) => {
     const chart = editorTestChart();
     chart.events = [...chart.events,
       { type: 'text', beat: '0', endBeat: '4', text: 'hello', editorLane: 1 },
@@ -217,7 +226,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     const editor = await openEditor(page, { chart, audio: true });
     await expectCleanLoadBaseline(page);
     expect(loadViolationLogs).toEqual([]);
-    expect(await eventLanes(page)).toEqual([3, 4, 1, 2]);
+    expect(await eventLanes(page)).toEqual([1, 2, 3, 4]);
     expect(await page.evaluate(async () => {
       const path = '/src/editor/stores/editorStore.ts';
       return (await import(path)).useEditorStore.getState().extraLaneCount;
@@ -227,10 +236,10 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     await page.getByRole('button', { name: 'Save chart', exact: true }).click();
     await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
     expect(readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!)).toMatchObject({ events: [
-      { type: 'bpm', beat: '0', bpm: 120, editorLane: 3 },
-      { type: 'timeSignature', beat: '0', beatPerMeasure: '4', editorLane: 4 },
-      { type: 'text', editorLane: 1 },
-      { type: 'auto', editorLane: 2 },
+      { type: 'bpm', beat: '0', bpm: 120, editorLane: 1 },
+      { type: 'timeSignature', beat: '0', beatPerMeasure: '4', editorLane: 2 },
+      { type: 'text', beat: '0', endBeat: '4', text: 'hello', editorLane: 3 },
+      { type: 'auto', beat: '0', endBeat: '4', editorLane: 4 },
     ] });
     expect(readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!))
       .toMatchObject({ extraLaneCount: 4 });

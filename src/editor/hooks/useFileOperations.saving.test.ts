@@ -341,6 +341,37 @@ describe('useFileOperations 저장 진행', () => {
   });
 });
 
+describe('초기 설정 편집 창 저장(RFD 0082)', () => {
+  const fixedLanes = (): ChartDocument => ({
+    ...chart([single(1, 0)]),
+    events: [
+      { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    ],
+  });
+
+  it('0박 BPM 창 Save에 editorLane 2가 섞여 와도 BPM만 120 → 90으로 바꾸고 보조 레인1을 유지한다', () => {
+    open(fixedLanes());
+    useEditorStore.setState({ editingEvent: { type: 'event', index: 0 } });
+
+    renderFileOperations().handleEventSave({ eventBpm: '90', editorLane: '2' });
+
+    expect(current().chart.events[0]).toEqual({ type: 'bpm', beat: beat(0), bpm: 90, editorLane: 1 });
+    expect(current().editingEvent).toBeNull();
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('0박 박자 창 Save에 보조 레인 수 2를 넘는 editorLane 9가 와도 토스트 없이 박자만 4/4 → 3/4로 바꾸고 보조 레인2를 유지한다', () => {
+    open(fixedLanes());
+    useEditorStore.setState({ editingEvent: { type: 'event', index: 1 } });
+
+    renderFileOperations().handleEventSave({ tsNumerator: '3', tsDenominator: '1', editorLane: '9' });
+
+    expect(current().chart.events[1]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(3), editorLane: 2 });
+    expect(showToast).not.toHaveBeenCalled();
+  });
+});
+
 describe('재생 중 이벤트 편집과 저장(RFD 0099)', () => {
   const withText = (): ChartDocument => ({
     ...chart([single(1, 0)]),
@@ -362,7 +393,7 @@ describe('재생 중 이벤트 편집과 저장(RFD 0099)', () => {
     }
     function ModalProbe() {
       const tree = EventEditModal({
-        editingEvent, chart: current().chart, isBeatZero: true, extraLaneCount: 2, editLocked,
+        editingEvent, chart: current().chart, isBeatZero: true, editLocked,
         onSave: handlers.handleEventSave, onDelete: handlers.handleEventDelete, onClose() {},
       });
       findSave(tree);
@@ -381,7 +412,7 @@ describe('재생 중 이벤트 편집과 저장(RFD 0099)', () => {
     open(chart([single(1, 0)]));
     useEditorStore.setState({ editingEvent: { type: 'event', index: 0 }, isPlaying: true });
 
-    renderFileOperations().handleEventSave({ eventBpm: '90', editorLane: '1' });
+    renderFileOperations().handleEventSave({ eventBpm: '90' });
 
     expect(current().chart.events[0]).toMatchObject({ type: 'bpm', bpm: 120 });
     expect(current().editingEvent).toEqual({ type: 'event', index: 0 });

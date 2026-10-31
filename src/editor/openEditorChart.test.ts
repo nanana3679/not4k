@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 describe('openEditorChart 불러온 기본 상태', () => {
-  it('레인 없는 0박 BPM·박자를 열면 박자가 보조 레인2로 옮긴 상태가 기본이라 위반 0건·dirty 아님·Undo·Redo 없음', () => {
+  it('editorLane 없는 0박 BPM·박자를 열면 BPM은 그대로·박자는 보조 레인2인 상태가 기본이라 위반 0건·dirty 아님·Undo·Redo 없음', () => {
     openEditorChart({ chart: chart([
       { type: 'bpm', beat: beat(0), bpm: 120 },
       { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
@@ -39,7 +39,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(selectCanRedo(store())).toBe(false);
   });
 
-  it('보조 레인1·2의 text·auto [0,4)와 겹친 초기 설정을 열면 보조 레인 수 2 → 4가 기본이고 lastValidSnapshot도 보조 레인 수 4로 묶인다', () => {
+  it('보조 레인1·2의 text·auto [0,4)가 초기 설정 자리와 겹친 차트를 열면 text·auto를 레인3·4로 옮긴 상태와 보조 레인 수 4가 기본이고 lastValidSnapshot도 4로 묶인다', () => {
     openEditorChart({ chart: chart([
       { type: 'text', beat: beat(0), endBeat: beat(4), text: 'hello', editorLane: 1 },
       { type: 'auto', beat: beat(0), endBeat: beat(4), editorLane: 2 },
@@ -47,7 +47,8 @@ describe('openEditorChart 불러온 기본 상태', () => {
       { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
     ]), extraLaneCount: 2, hasExtraLaneCount: true });
 
-    expect(store().chart.events.map(event => event.editorLane)).toEqual([1, 2, 3, 4]);
+    expect(store().chart.events.map(event => event.editorLane)).toEqual([3, 4, 1, 2]);
+    expect(editorChartErrors(store().chart)).toEqual([]);
     expect(store().extraLaneCount).toBe(4);
     expect(JSON.parse(store().savedChartJson!.extraJson).extraLaneCount).toBe(4);
     expect(dirty()).toBe(false);
@@ -55,7 +56,19 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(store().lastValidSnapshot).toEqual({ chart: store().chart, extraLaneCount: 4 });
   });
 
-  it('열고 4박 BPM을 추가한 뒤 Undo하면 분리 전이 아니라 박자가 보조 레인2인 기본 상태로 돌아가 dirty가 아니다', () => {
+  it('BPM이 보조 레인3·박자가 보조 레인1에 있는 차트를 열면 BPM 1·박자 2가 기본이라 dirty·Undo가 없다', () => {
+    openEditorChart({ chart: chart([
+      { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 3 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 1 },
+    ]), extraLaneCount: 3, hasExtraLaneCount: true });
+
+    expect(store().chart.events.map(event => event.editorLane)).toEqual([1, 2]);
+    expect(store().extraLaneCount).toBe(3);
+    expect(dirty()).toBe(false);
+    expect(selectCanUndo(store())).toBe(false);
+  });
+
+  it('열고 4박 BPM을 추가한 뒤 Undo하면 옮기기 전이 아니라 박자가 보조 레인2인 기본 상태로 돌아가 dirty가 아니다', () => {
     openEditorChart({ chart: chart([
       { type: 'bpm', beat: beat(0), bpm: 120 },
       { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
@@ -72,7 +85,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(selectCanUndo(store())).toBe(false);
   });
 
-  it('겹침이 없고 파일에 보조 레인 수가 없으면 store의 보조 레인 수 3을 유지한다', () => {
+  it('옮길 것이 없고 파일에 보조 레인 수가 없으면 같은 events 참조와 store의 보조 레인 수 3을 유지한다', () => {
     useEditorStore.setState({ extraLaneCount: 3 });
     const events: ChartEvent[] = [
       { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
@@ -86,7 +99,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(dirty()).toBe(false);
   });
 
-  it('겹침이 없어도 파일의 보조 레인 수 5를 적용하고 Undo가 없다', () => {
+  it('옮길 것이 없어도 파일의 보조 레인 수 5를 적용하고 Undo가 없다', () => {
     openEditorChart({ chart: chart([
       { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
       { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
