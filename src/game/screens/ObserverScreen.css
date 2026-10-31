@@ -12,11 +12,6 @@
   cursor: default;
 }
 
-.observer-screen__position {
-  font-variant-numeric: tabular-nums;
-  min-width: 4ch;
-}
-
 /* 노트 필드가 화면 전체를 쓴다. 조작 버튼은 왼쪽 위에 떠 있고 오른쪽에는 조작을 두지 않는다. */
 .observer-screen__field {
   position: relative;

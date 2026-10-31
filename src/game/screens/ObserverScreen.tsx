@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
-import { color, font, primitives } from '../../shared/theme';
+import { color, primitives } from '../../shared/theme';
 import { useGameStore } from '../stores';
 import { ObserverPlayRuntime } from './ObserverPlayRuntime';
 import type { ObserverPlayPhase, ObserverPlayState } from './ObserverPlayRuntime';
@@ -69,14 +69,11 @@ export function ObserverScreen() {
   };
   const buttonKeys = { onKeyDown: protectLaneKey, onKeyUp: protectLaneKey };
   const ready = !!request && !error && (phase === 'playing' || phase === 'paused');
-  const seconds = Math.floor(Math.max(0, playback.songTimeMs) / 1000);
-  const position = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
   return <div className="observer-screen" style={styles.screen} data-testid="observer-screen" data-phase={phase}>
     {/* 상단 바 대신 노트 필드 왼쪽 위에 떠 있는 버튼이다. 화면 위쪽과 오른쪽(미니맵 자리)을 비운다. */}
     <div className="observer-screen__controls" role="toolbar" aria-label="Observer controls"
       aria-orientation="vertical" style={styles.controls}>
-      <span className="observer-screen__label" style={styles.label}>Observer</span>
       <button type="button" {...buttonKeys} aria-label="Auto" aria-pressed={playback.autoEnabled}
         style={playback.autoEnabled ? styles.autoOn : styles.button} disabled={!ready}
         onClick={() => runtime.current?.setAuto(!playback.autoEnabled)}>
@@ -87,11 +84,6 @@ export function ObserverScreen() {
       <button type="button" {...buttonKeys} style={styles.retry} disabled={!ready}
         onClick={() => runtime.current?.retry()}>Retry</button>
       <button type="button" {...buttonKeys} style={styles.button} onClick={exit}>Exit</button>
-      <span className="observer-screen__phase" role="status" style={styles.status}>
-        {request && !error && (phase === 'loading' ? 'Preparing audio and graphics'
-          : phase === 'paused' ? 'Paused · Esc to play' : '')}
-      </span>
-      {ready && <span className="observer-screen__position" aria-label="Song position" style={styles.position}>{position}</span>}
       {(!request || error) && <p className="observer-screen__error" role="alert" style={styles.error}>
         {error ?? 'No song loaded.'} Use Exit to return to Song Select.
       </p>}
@@ -106,11 +98,8 @@ const styles = {
   screen: { ...primitives.screen, position: 'relative', '--observer-focus': color.neon } as CSSProperties,
   controls: { ...primitives.panel, position: 'absolute', top: '16px', left: '16px', zIndex: 2,
     display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px', width: '128px', padding: '10px' },
-  label: { color: color.inkDim, fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase' },
   button: { ...primitives.metalButton, minHeight: '40px' },
   autoOn: { ...primitives.neonButton, minHeight: '40px' },
   retry: { ...primitives.metalButton, minHeight: '40px', color: color.gold },
-  status: { color: color.inkDim, fontSize: '12px', minHeight: '1em' },
-  position: { color: color.ink, fontFamily: font.numeric, fontSize: '16px' },
   error: { color: color.danger, margin: 0, fontSize: '12px' },
 } satisfies Record<string, CSSProperties>;

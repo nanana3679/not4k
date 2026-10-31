@@ -124,10 +124,9 @@ describe('ObserverScreen 조작과 수명', () => {
     expect(harness.players[0].togglePause).not.toHaveBeenCalled();
     for (const name of ['Auto', 'Pause', 'Retry']) expect(page.button(name).disabled).toBe(true);
     expect(page.button('Exit').disabled).not.toBe(true);
-    expect(page.html).toContain('Preparing audio and graphics');
   });
 
-  it('playing에서 Auto를 끄면 setAuto(false)를 호출하고 onState의 Off·1:05를 표시한다', () => {
+  it('playing에서 Auto를 끄면 setAuto(false)를 호출하고 onState의 Auto Off를 표시한다', () => {
     const player = playing();
     render().click('Auto');
     expect(player.setAuto).toHaveBeenCalledExactlyOnceWith(false);
@@ -135,7 +134,6 @@ describe('ObserverScreen 조작과 수명', () => {
     const page = render();
     expect(page.button('Auto')['aria-pressed']).toBe(false);
     expect(page.html).toContain('Off');
-    expect(page.html).toContain('1:05');
     page.click('Auto');
     expect(player.setAuto).toHaveBeenLastCalledWith(true);
     expect(harness.players).toHaveLength(1);
@@ -147,7 +145,7 @@ describe('ObserverScreen 조작과 수명', () => {
     expect(player.togglePause).toHaveBeenCalledOnce();
     player.options.onPhase('paused');
     const page = render();
-    expect(page.html).toContain('Paused · Esc to play');
+    expect(page.button('Play').disabled).not.toBe(true);
     expect(page.html).toContain('observer-canvas');
     page.click('Play');
     expect(player.togglePause).toHaveBeenCalledTimes(2);
