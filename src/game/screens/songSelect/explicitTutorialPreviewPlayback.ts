@@ -1,6 +1,5 @@
 import type { JudgmentWindows } from '../../../shared/constants';
 import { JUDGMENT_WINDOWS } from '../../../shared/constants';
-import { compileExplicitJudgmentChart } from '../../judgment/explicitCompiledChart';
 import type { ExplicitCompiledChart } from '../../judgment/explicitCompiledChart';
 import { ExplicitJudgmentEffectSink } from '../../judgment/ExplicitJudgmentEffectSink';
 import type { ExplicitJudgmentEffectPort } from '../../judgment/ExplicitJudgmentEffectSink';
@@ -10,6 +9,7 @@ import type { ExplicitTutorialPreviewDefinition } from './explicitTutorialPrevie
 import { createExplicitTutorialPreviewSessionController } from './explicitTutorialPreviewSession';
 import type { ExplicitTutorialInputPlan } from './explicitTutorialPreviewSession';
 import { createExplicitTutorialRenderSnapshotQuery } from './explicitTutorialRenderSnapshot';
+import { createExplicitTutorialRenderChart } from './explicitTutorialRenderChart';
 import type { TutorialInputTiming } from './tutorialPreviewChart';
 
 /** 반복 경계에서 끝난 패턴 한 차례를 controller가 정산한 결과 */
@@ -24,7 +24,7 @@ export interface ExplicitTutorialPatternResult {
 
 /** 튜토리얼 재생기 한 번 걸기 동안의 명시 판정. 렌더러·시계·키 표시는 재생기가 소유한다. */
 export interface ExplicitTutorialPreviewPlayback {
-  /** 3벌 표시 문서(`preview.renderChart`)의 compile. 렌더러 표시 전용이며 판정에 쓰지 않는다. */
+  /** 원본 compile의 시각·참조를 옮긴 3벌 표시 데이터. 렌더러 표시 전용이며 판정에 쓰지 않는다. */
   readonly renderChart: ExplicitCompiledChart;
   /** 렌더러가 프레임마다 읽는 3벌 표시 상태. 활성 복사본만 현재 반복의 판정 상태다. */
   renderSnapshot(activeRenderCycle: number): ExplicitJudgmentSnapshot;
@@ -59,7 +59,6 @@ export function createExplicitTutorialPreviewPlayback(
   effects: ExplicitJudgmentEffectPort,
   options: ExplicitTutorialPreviewPlaybackOptions = {},
 ): ExplicitTutorialPreviewPlayback {
-  const renderChart = compileExplicitJudgmentChart(preview.renderChart);
   const controller = createExplicitTutorialPreviewSessionController(preview.chart, plan, {
     windows: options.windows ?? JUDGMENT_WINDOWS,
     // 반복마다 새 sink를 만들어 이전 반복의 효과가 다음 반복에 붙지 않게 한다. 렌더러는 snapshot 조회로 따로 그린다.
@@ -68,6 +67,8 @@ export function createExplicitTutorialPreviewPlayback(
       return { applyConfirmedEffects: confirmed => sink.applyConfirmedEffects(confirmed), dispose() {} };
     },
   });
+  // controller가 한 번 compile한 원본을 재사용한다. 표시용 3벌 문서는 하나의 판정 차트로 검증하지 않는다.
+  const renderChart = createExplicitTutorialRenderChart(controller.session.playbackChart, preview);
   // 아직 아무 입력도 진행하지 않은 첫 세션의 상태가 앞뒤 반복 복사본의 판정 전 상태다.
   const composeRenderSnapshot = createExplicitTutorialRenderSnapshotQuery(
     renderChart, preview.chart.notes.length, preview.loopMs, controller.session.snapshot);

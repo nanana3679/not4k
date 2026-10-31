@@ -69,6 +69,32 @@ describe('명시 튜토리얼 3벌 표시 문서', () => {
     expect(render.events.map(event => event.type)).toEqual(['bpm', 'bpm', 'bpm', 'timeSignature']);
   });
 
+  it('4박 반복에 BPM 이벤트가 0·2·4·6박에 있으면 4박 이상은 제외하고 1박 노트를 500·2000·3500ms에 표시', () => {
+    const chart = sourceChart();
+    chart.events.push(
+      { type: 'bpm', beat: beat(2), bpm: 240 },
+      { type: 'bpm', beat: beat(4), bpm: 60 },
+      { type: 'bpm', beat: beat(6), bpm: 90 },
+    );
+    const preview = createExplicitTutorialPreview('boundary-tempo', '경계 변속', [], 4, chart);
+
+    expect(() => compileExplicitJudgmentChart(preview.renderChart)).not.toThrow();
+    expect(preview.renderChart.events.filter(event => event.type === 'bpm')).toEqual([
+      { type: 'bpm', beat: beat(0), bpm: 120 },
+      { type: 'bpm', beat: beat(2), bpm: 240 },
+      { type: 'bpm', beat: beat(4), bpm: 120 },
+      { type: 'bpm', beat: beat(6), bpm: 240 },
+      { type: 'bpm', beat: beat(8), bpm: 120 },
+      { type: 'bpm', beat: beat(10), bpm: 240 },
+    ]);
+    const renderBpmChanges = extractBpmChanges(preview.renderChart.events);
+    expect(preview.loopMs).toBe(1500);
+    expect([0, 5, 10].map(index => beatToMs(
+      preview.renderChart.notes[index].beat, renderBpmChanges, chart.meta.offsetMs,
+    ))).toEqual([500, 2000, 3500]);
+    expect(chart.events.filter(event => event.type === 'bpm')).toHaveLength(4);
+  });
+
   it('4/4 박자표에 3박 반복인 시연도 3벌 표시 문서가 마디 중간 박자표 없이 명시 compile을 통과', () => {
     const render = createExplicitTutorialRenderDocument(sourceChart(), 3);
     expect(render.events.filter(event => event.type === 'timeSignature')).toEqual([

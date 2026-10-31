@@ -5,7 +5,8 @@ import { compileExplicitJudgmentChart } from '../../judgment/explicitCompiledCha
 import { ExplicitJudgmentSession } from '../../judgment/ExplicitJudgmentSession';
 import { ExplicitNotePresenter } from '../../renderer/ExplicitNotePresenter';
 import { buildExplicitSkinView } from '../../skin/explicitSkin';
-import { createExplicitTutorialRenderDocument } from './explicitTutorialPreviewChart';
+import { createExplicitTutorialPreview } from './explicitTutorialPreviewChart';
+import { createExplicitTutorialRenderChart } from './explicitTutorialRenderChart';
 import { createExplicitTutorialRenderSnapshotQuery } from './explicitTutorialRenderSnapshot';
 
 const LOOP_BEATS = 4;
@@ -30,7 +31,8 @@ function sourceChart(): ChartDocument {
 function setup() {
   const chart = sourceChart();
   const source = compileExplicitJudgmentChart(chart);
-  const render = compileExplicitJudgmentChart(createExplicitTutorialRenderDocument(chart, LOOP_BEATS));
+  const preview = createExplicitTutorialPreview('snapshot', '합성 snapshot', [], LOOP_BEATS, chart);
+  const render = createExplicitTutorialRenderChart(source, preview);
   const unjudged = new ExplicitJudgmentSession(source).snapshot;
   const query = createExplicitTutorialRenderSnapshotQuery(render, chart.notes.length, LOOP_MS, unjudged);
   const live = new ExplicitJudgmentSession(source);
