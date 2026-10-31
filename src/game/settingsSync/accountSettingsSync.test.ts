@@ -143,7 +143,7 @@ function setupSync({ storage = createUnsyncedStorage(), settings: initial = {} }
     .mockResolvedValue({ status: 'found', settings: { scrollSpeed: 1200 } });
   const save = vi.fn<(...args: [string, AccountSettingsUpload, AbortSignal]) => Promise<boolean>>()
     .mockResolvedValue(true);
-  const insertIfAbsent = vi.fn<(...args: [string, AccountSettings, AbortSignal]) => Promise<InsertAccountSettingsResult>>()
+  const insertIfAbsent = vi.fn<(...args: [string, Partial<AccountSettings>, AbortSignal]) => Promise<InsertAccountSettingsResult>>()
     .mockResolvedValue('inserted');
   const notice = vi.fn();
   const sync = createAccountSettingsSync({ store, load, insertIfAbsent, save, notice,
@@ -308,7 +308,7 @@ describe('계정 설정 동기화 수명', () => {
     test.sync.dispose();
   });
 
-  it('A 저장 도중 로그아웃→B 로그인하면 A 요청을 취소하고 A의 대기값 1000과 늦은 실패 안내를 버린다', async () => {
+  it('A 저장 도중 로그아웃→B 로그인하면 A 요청·대기 저장·늦은 실패 안내를 버리되 A의 1000은 A 기록으로 남겨 다음 A 접속에 업로드한다', async () => {
     const test = setupSync();
     await test.sync.setUser({ id: 'A' });
     const pending = deferred<boolean>();
@@ -320,6 +320,7 @@ describe('계정 설정 동기화 수명', () => {
     expect(test.getSettings().scrollSpeed).toBe(1000);
     await test.sync.setUser({ id: 'B' });
     expect(test.save.mock.calls[0][2].aborted).toBe(true);
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 1000 } });
     pending.resolve(false);
     await vi.advanceTimersByTimeAsync(1000);
     expect(test.getSettings().scrollSpeed).toBe(1200);
@@ -329,6 +330,7 @@ describe('계정 설정 동기화 수명', () => {
     await vi.advanceTimersByTimeAsync(500);
     expect(test.save.mock.calls[1][0]).toBe('B');
     expect(test.save.mock.calls[1][1].scrollSpeed).toBe(1300);
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 1000 } });
     test.sync.dispose();
   });
 
@@ -597,6 +599,109 @@ describe('새 브라우저의 최초 실행', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(test.getSettings()).toMatchObject({ keyBindings: accountBindings, scrollSpeed: 900 });
     expect(test.save.mock.calls.map(([id, settings]) => [id, settings])).toEqual([['A', { ...row, scrollSpeed: 900 }]]);
+    test.sync.dispose();
+  });
+});
+
+describe('최초 실행 중 삽입한 계정의 프리셋 선택', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** 삽입·저장한 값을 그대로 돌려주는 서버 행 하나. */
+  function serverRowFor(test: ReturnType<typeof setupSync>, initial: Record<string, unknown> | null = null) {
+    const server = { row: initial };
+    test.load.mockImplementation(async () => (server.row ? { status: 'found', settings: server.row } : { status: 'notFound' }));
+    test.insertIfAbsent.mockImplementation(async (_userId, settings) => {
+      if (server.row) return 'conflict';
+      server.row = { ...settings };
+      return 'inserted';
+    });
+    test.save.mockImplementation(async (_userId, settings) => {
+      server.row = { ...settings };
+      return true;
+    });
+    return server;
+  }
+
+  it('isFirstLaunch=true인 브라우저의 최초 삽입은 고르지 않은 keyBindings·preset을 빼고 나머지 계정 설정 11개만 업로드한다', async () => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
+    const server = serverRowFor(test);
+    await test.sync.setUser({ id: 'A' });
+    expect(Object.keys(server.row ?? {}).sort()).toEqual(Object.keys(selectAccountSettings(DEFAULT_SETTINGS))
+      .filter(key => key !== 'keyBindings' && key !== 'preset').sort());
+    test.sync.dispose();
+  });
+
+  it('isFirstLaunch=true로 삽입한 뒤 프리셋을 고르지 않으면 1000ms가 지나도 기본 keyBindings를 저장하지 않는다', async () => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
+    serverRowFor(test);
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(test.save).not.toHaveBeenCalled();
+    test.sync.dispose();
+  });
+
+  it('isFirstLaunch=true로 최초 삽입하는 중에 numpad를 고르면 삽입에는 keyBindings가 빠지고 삽입 성공 500ms 뒤 numpad를 저장한다', async () => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
+    test.load.mockResolvedValue({ status: 'notFound' });
+    const pending = deferred<InsertAccountSettingsResult>();
+    test.insertIfAbsent.mockReturnValueOnce(pending.promise);
+    const loading = test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(0);
+    test.pickPreset('numpad');
+    pending.resolve('inserted');
+    await loading;
+    expect(test.insertIfAbsent.mock.calls[0][1]).not.toHaveProperty('keyBindings');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.save.mock.calls.map(([, settings]) => [settings.preset, settings.keyBindings]))
+      .toEqual([['numpad', PRESET_BINDINGS.numpad]]);
+    test.sync.dispose();
+  });
+
+  it('keyBindings·preset 없이 삽입된 행을 다른 새 브라우저가 불러오면 최초 실행을 유지하고, numpad를 고르면 그 저장으로 행의 keyBindings를 채운다', async () => {
+    const first = setupSync({ settings: { isFirstLaunch: true } });
+    const server = serverRowFor(first);
+    await first.sync.setUser({ id: 'A' });
+    first.sync.dispose();
+    const second = setupSync({ settings: { isFirstLaunch: true, scrollSpeed: 1500 } });
+    serverRowFor(second, server.row);
+    await second.sync.setUser({ id: 'A' });
+    expect(second.getSettings()).toMatchObject({ isFirstLaunch: true, scrollSpeed: 800 });
+    second.pickPreset('numpad');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(second.save.mock.calls.at(-1)?.[1]).toMatchObject({ preset: 'numpad', keyBindings: PRESET_BINDINGS.numpad });
+    second.sync.dispose();
+  });
+
+  it('행 없음으로 삽입해 준비된 뒤 numpad를 고르고 저장이 실패하면 기록이 남아 다음 접속에서 numpad를 유지하고 업로드한다', async () => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
+    const server = serverRowFor(test);
+    await test.sync.setUser({ id: 'A' });
+    test.save.mockResolvedValueOnce(false);
+    test.pickPreset('numpad');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.unsynced.entries()).toEqual({ A: { preset: 'numpad', keyBindings: PRESET_BINDINGS.numpad } });
+    await test.sync.setUser(null);
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(test.getSettings()).toMatchObject({ preset: 'numpad', keyBindings: PRESET_BINDINGS.numpad });
+    expect(server.row).toMatchObject({ preset: 'numpad', keyBindings: PRESET_BINDINGS.numpad });
+    expect(test.unsynced.entries()).toEqual({});
+    test.sync.dispose();
+  });
+
+  it('행 없음으로 삽입해 준비된 뒤 numpad를 고르고 500ms 안에 로그아웃하면 기록이 남아 다음 접속에서 numpad를 업로드한다', async () => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
+    const server = serverRowFor(test);
+    await test.sync.setUser({ id: 'A' });
+    test.pickPreset('numpad');
+    await test.sync.setUser(null);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(test.save).not.toHaveBeenCalled();
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(server.row).toMatchObject({ preset: 'numpad', keyBindings: PRESET_BINDINGS.numpad });
+    expect(test.unsynced.entries()).toEqual({});
     test.sync.dispose();
   });
 });
