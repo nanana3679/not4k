@@ -583,6 +583,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       onChartUpdate: (c) => setChart(c, { separateHistory: true }),
       space,
       isTimeInBounds: (y) => isTimeInBoundsRef.current(y),
+      onWarn: (msg) => addToast(msg, 'warn'),
     });
     createModeRef.current = createMode;
 

@@ -1,5 +1,7 @@
 import { eventLaneToBoxColumn } from '../timeline/laneGeometry';
 import { deleteEvents, eventInBounds, isInitialTimingEvent, translateEvent } from '../editing/eventEditing';
+import { placeEditedInitialTiming } from '../editing/initialTimingPlacement';
+import { INITIAL_TIMING_EXISTS_COPY } from '../editorCopy';
 import { bodyCompanionIndices, bodyDeletionBlockReason, reconcileMovedTicks, resizeExplicitBodies } from '../editing/explicitEditing';
 import { editorChartErrors } from "../documentValidation";
 import type { ChartDocument, ChartEvent, DocumentNoteEntity, RangeNote, BodyNote, Beat } from "../../shared";
@@ -90,6 +92,8 @@ export class SelectMode implements EditorMode {
   // restZone 이동 시작 시점의 원본 좌표 (인덱스 → 원본, RFD 0019 — trillZone 미러)
   private originalRestZonePositions: Map<number, RestZone> = new Map();
   private originalEventsByIndex = new Map<number, ChartEvent>();
+  // 이번 이동(드래그 한 번·방향키 한 번)에서 초기 설정 중복 안내를 띄웠는지. 드래그 프레임마다 토스트를 쌓지 않는다.
+  private initialTimingExistsWarned = false;
 
   // Resize state
   private resizingEntityType: "note" | "event" | "trillZone" | "restZone" | null = null;
@@ -1556,6 +1560,7 @@ export class SelectMode implements EditorMode {
 
   private captureEventOrigins(): void {
     this.originalEventsByIndex.clear();
+    this.initialTimingExistsWarned = false;
     for (const index of this.sel.events) {
       const event = this.chart.events[index];
       if (event) this.originalEventsByIndex.set(index, event);
@@ -1574,7 +1579,13 @@ export class SelectMode implements EditorMode {
       if (!eventInBounds(event, this.callbacks.space.getMaxBeatFloat(), this.callbacks.getExtraLaneCount?.() ?? Infinity)) return null;
       events[index] = event;
     }
-    return events;
+    // 0박에 온 BPM·박자는 초기 설정 자리에 두고, 같은 종류 초기 설정이 이미 있으면 이동 전체를 거부한다(RFD 0082).
+    const placedEvents = placeEditedInitialTiming(events, this.originalEventsByIndex.keys());
+    if (!placedEvents && !this.initialTimingExistsWarned) {
+      this.initialTimingExistsWarned = true;
+      this.callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+    }
+    return placedEvents;
   }
 
   /** 이동 원본 기록(메인·구간·restZone)을 모두 폐기한다. */

@@ -99,6 +99,22 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(dirty()).toBe(false);
   });
 
+  it('옮길 것이 없어도 파일의 보조 레인 수 1은 보조 레인2가 보이게 2로 열고 savedChartJson도 2라 dirty·Undo가 없다', () => {
+    const events: ChartEvent[] = [
+      { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    ];
+
+    openEditorChart({ chart: chart(events), extraLaneCount: 1, hasExtraLaneCount: true });
+
+    expect(store().chart.events).toBe(events);
+    expect(store().extraLaneCount).toBe(2);
+    expect(JSON.parse(store().savedChartJson!.extraJson).extraLaneCount).toBe(2);
+    expect(dirty()).toBe(false);
+    expect(selectCanUndo(store())).toBe(false);
+    expect(store().lastValidSnapshot).toEqual({ chart: store().chart, extraLaneCount: 2 });
+  });
+
   it('옮길 것이 없어도 파일의 보조 레인 수 5를 적용하고 Undo가 없다', () => {
     openEditorChart({ chart: chart([
       { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },

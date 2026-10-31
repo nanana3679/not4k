@@ -4,7 +4,8 @@ import { EraseGesture } from './editing/EraseGesture';
 import { editorChartErrors, editorChartViolationIndices } from './documentValidation';
 import { DeleteMode } from './modes/DeleteMode';
 import { SelectMode } from './modes/SelectMode';
-import { useEditorStore } from './stores/editorStore';
+import { INITIAL_TIMING_EXISTS_COPY } from './editorCopy';
+import { selectCanUndo, useEditorStore } from './stores/editorStore';
 import { emptySelection } from './stores/selectionSlice';
 import { createTimelineSpace } from './timeline/TimelineSpace';
 import { EXTRA_LANE_WIDTH, TIMELINE_WIDTH } from './timeline/constants';
@@ -24,8 +25,16 @@ function chartFixture(): ChartDocument {
   };
 }
 
+/** 0박 박자 없이 4박 박자 4/4가 보조 레인3에 있는 차트. 이벤트 0=0박 BPM, 1=4박 BPM, 2=text, 3=4박 박자. */
+function chartWithoutInitialSignature(): ChartDocument {
+  const chart = chartFixture();
+  return { ...chart, events: [chart.events[0], chart.events[2], chart.events[3],
+    { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(4), editorLane: 3 }] };
+}
+
 function editor() {
   const store = () => useEditorStore.getState();
+  const warnings: string[] = [];
   const space = createTimelineSpace({
     getChart: () => store().chart,
     getSnapDivision: () => 4,
@@ -47,11 +56,12 @@ function editor() {
     beginTransaction: onInterrupt => store().beginEditTransaction('selectModeEdit', onInterrupt),
     commitTransaction: token => store().commitEditTransaction(token),
     cancelTransaction: token => store().cancelEditTransaction(token),
+    onWarn: message => warnings.push(message),
   });
   function selectEvents(...indices: number[]) {
     store().setSelection(Object.assign(emptySelection(), { events: new Set(indices) }));
   }
-  return { mode, space, store, selectEvents };
+  return { mode, space, store, selectEvents, warnings };
 }
 
 beforeEach(() => {
@@ -355,5 +365,68 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
     expect(store().chart.events[3]).toMatchObject({ beat: beat(9), endBeat: beat(13) });
     mode.cancel();
     expect(store().chart.events).toEqual(chartFixture().events);
+  });
+
+  it('4박 BPM 180을 1박을 거쳐 0박까지 드래그하면 초기 BPM이 있어 1박에 남고 INITIAL_TIMING_EXISTS_COPY 경고는 드래그 한 번에 한 번만 띄운다', () => {
+    const { mode, store, warnings } = editor();
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+    mode.onPointerDown(x, 2000, false, false);
+    mode.onPointerMove(x, 500);
+    mode.onPointerMove(x, 0);
+    mode.onPointerMove(x, 100);
+    mode.onPointerUp(x, 100);
+
+    expect(store().chart.events[2]).toEqual({ type: 'bpm', beat: beat(1), bpm: 180, editorLane: 1 });
+    expect(store().chart.events.filter(event => event.beat.n === 0)).toEqual(chartFixture().events.slice(0, 2));
+    expect(warnings).toEqual([INITIAL_TIMING_EXISTS_COPY]);
+  });
+
+  it('0박 박자가 없을 때 보조 레인3의 4박 박자를 0박으로 드래그하면 고정 자리인 보조 레인2에 두고 초기 설정이라 선택에서 빠진다', () => {
+    useEditorStore.getState().loadChart(chartWithoutInitialSignature());
+    const { mode, store, warnings } = editor();
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH * 2.5;
+    mode.onPointerDown(x, 2000, false, false);
+    expect(store().selection.events).toEqual(new Set([3]));
+    mode.onPointerMove(x, 0);
+    mode.onPointerUp(x, 0);
+
+    expect(store().chart.events[3]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 });
+    expect(editorChartErrors(store().chart)).toEqual([]);
+    expect(store().selection.events).toEqual(new Set());
+    expect(warnings).toEqual([]);
+  });
+
+  it('선택한 4박 BPM 180을 ↓로 네 번 옮기면 1박까지 가고 0박이 되는 네 번째는 초기 BPM이 있어 거부하고 경고를 한 번 띄운다', () => {
+    const { mode, store, selectEvents, warnings } = editor();
+    selectEvents(2);
+    for (let i = 0; i < 4; i++) mode.moveBySnap('down');
+
+    expect(store().chart.events[2]).toEqual({ type: 'bpm', beat: beat(1), bpm: 180, editorLane: 1 });
+    expect(store().selection.events).toEqual(new Set([2]));
+    expect(warnings).toEqual([INITIAL_TIMING_EXISTS_COPY]);
+  });
+
+  it('0박 박자가 없을 때 선택한 보조 레인3의 4박 박자를 ↓로 네 번 옮기면 0박 보조 레인2에 두고 위반이 없다', () => {
+    useEditorStore.getState().loadChart(chartWithoutInitialSignature());
+    const { mode, store, selectEvents, warnings } = editor();
+    selectEvents(3);
+    for (let i = 0; i < 4; i++) mode.moveBySnap('down');
+
+    expect(store().chart.events[3]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 });
+    expect(editorChartErrors(store().chart)).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('4박 BPM 180을 복사해 0박에 붙이면 초기 BPM이 있어 0개를 붙이고 차트·Undo가 그대로며 경고를 한 번 띄운다', () => {
+    const { mode, store, selectEvents, warnings } = editor();
+    selectEvents(2);
+    mode.copy();
+
+    expect(mode.paste(beat(0))).toBe(0);
+
+    expect(store().chart).toEqual(chartFixture());
+    expect(mode.isPendingPaste).toBe(false);
+    expect(selectCanUndo(store())).toBe(false);
+    expect(warnings).toEqual([INITIAL_TIMING_EXISTS_COPY]);
   });
 });

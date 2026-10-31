@@ -1,5 +1,7 @@
 import { translateEvent, eventInBounds } from '../editing/eventEditing';
 import { reconcileMovedTicks } from '../editing/explicitEditing';
+import { placeEditedInitialTiming } from '../editing/initialTimingPlacement';
+import { INITIAL_TIMING_EXISTS_COPY } from '../editorCopy';
 import type { ChartDocument, ChartEvent, DocumentNoteEntity, RangeNote, BodyNote, Beat, TrillZone, RestZone } from "../../shared";
 import { beatToFloat, isVisibleLane, isMainLane, maxAuxLane, toAuxIndex } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
@@ -210,6 +212,17 @@ export class ClipboardManager {
         }
       }
     }
+    // 이벤트도 함께 붙여넣는다(같은 beatOffset 평행이동, editorLane 유지 — §3-4 D4). 0박에 온 BPM·박자는 초기 설정
+    // 자리에 두고, 같은 종류 초기 설정이 이미 있으면 붙여넣기 전체를 거부한다(RFD 0082).
+    const pastedEventStart = chart.events.length;
+    const newEvents = placeEditedInitialTiming(
+      [...chart.events, ...clipEvents.map(clipEvent => translateEvent(clipEvent, beatOffset))],
+      clipEvents.map((_, offset) => pastedEventStart + offset),
+    );
+    if (!newEvents) {
+      callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+      return null;
+    }
 
     clearSelection();
 
@@ -249,15 +262,9 @@ export class ClipboardManager {
       this.pastedRestZoneIndices.add(idx);
     }
 
-    // 이벤트도 함께 붙여넣기(같은 beatOffset 평행이동, editorLane 유지 — §3-4 D4).
-    // 위반이어도 낙관 주입(place-then-fix, RFD 0017) — 커밋 게이트가 검증한다.
-    const newEvents = [...chart.events];
+    // 붙여넣은 이벤트는 위에서 만들었다. 위반이어도 낙관 주입(place-then-fix, RFD 0017) — 커밋 게이트가 검증한다.
     this.pastedEventIndices.clear();
-    for (const clipEvent of clipEvents) {
-      const idx = newEvents.length;
-      newEvents.push(translateEvent(clipEvent, beatOffset));
-      this.pastedEventIndices.add(idx);
-    }
+    for (let idx = pastedEventStart; idx < newEvents.length; idx++) this.pastedEventIndices.add(idx);
 
     const newChart = {
       ...chart,
@@ -446,12 +453,18 @@ export class ClipboardManager {
         if (ef < 0 || ef > maxFloat) return null;
       }
     }
+    // 0박에 온 BPM·박자는 초기 설정 자리에 두고, 같은 종류 초기 설정이 이미 있으면 이동을 거부한다(RFD 0082).
+    const placedEvents = placeEditedInitialTiming(newEvents, this.pastedEventIndices);
+    if (!placedEvents) {
+      callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+      return null;
+    }
 
     const newChart = {
       ...chart,
       notes: reconcileMovedTicks(newNotes, this.pastedNoteIndices, this.pastedTickCountByNoteIndex),
       trillZones: newZones,
-      events: newEvents,
+      events: placedEvents,
       ...(this.pastedRestZoneIndices.size > 0 ? { restZones: newRestZones } : {}),
     };
     callbacks.onChartUpdate(newChart);
@@ -470,7 +483,7 @@ export class ClipboardManager {
   movePasteByLane(
     chart: ChartDocument,
     direction: "left" | "right",
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getExtraLaneCount">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getExtraLaneCount" | "onWarn">,
   ): ChartDocument | null {
     // 노트 없는 구간만 붙여넣은 경우도 이동할 수 있다.
     if (
@@ -522,9 +535,15 @@ export class ClipboardManager {
       if (!eventInBounds(event, Infinity, extraLaneCount)) return null;
       events[index] = event;
     }
+    // 0박 BPM·박자는 레인을 옮겨도 초기 설정 자리에 남는다(RFD 0082). 함께 붙여넣은 다른 항목만 옮겨진다.
+    const placedEvents = placeEditedInitialTiming(events, this.pastedEventIndices);
+    if (!placedEvents) {
+      callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+      return null;
+    }
     const newChart = {
       ...chart,
-      events,
+      events: placedEvents,
       notes: reconcileMovedTicks(newNotes, this.pastedNoteIndices, this.pastedTickCountByNoteIndex),
       trillZones: newZones,
       ...(this.pastedRestZoneIndices.size > 0 ? { restZones: newRestZones } : {}),

@@ -16,3 +16,9 @@ export const SAVE_IN_PROGRESS_COPY = {
  * 재생 중 비활성으로 두는 툴바·모달 컨트롤에는 같은 문구를 title로 단다.
  */
 export const PAUSE_TO_EDIT_COPY = "Pause playback to edit";
+
+/**
+ * 같은 종류의 0박 초기 BPM·박자가 이미 있어 막은 편집의 안내(RFD 0082). 생성·이동·붙여넣기가 BPM·박자를 0박에 두려 할 때
+ * 토스트를 한 번 띄운다.
+ */
+export const INITIAL_TIMING_EXISTS_COPY = "An initial BPM/time signature already exists at beat 0";

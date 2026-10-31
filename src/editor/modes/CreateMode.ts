@@ -22,6 +22,8 @@ import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex, isMai
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
+import { placeEditedInitialTiming } from "../editing/initialTimingPlacement";
+import { INITIAL_TIMING_EXISTS_COPY } from "../editorCopy";
 
 export type EntityType =
   | "single"
@@ -79,6 +81,8 @@ export interface CreateModeCallbacks {
   space: TimelineSpace;
   /** 배치 위치가 편집 가능한 시간 범위 안인지 (배치 제약용) */
   isTimeInBounds: (y: number) => boolean;
+  /** 생성을 거부한 이유를 사용자에게 알린다(토스트). */
+  onWarn?: (message: string) => void;
 }
 
 export class CreateMode implements EditorMode {
@@ -614,10 +618,17 @@ export class CreateMode implements EditorMode {
         throw new Error(`Unexpected entity type for event creation: ${this.selectedEntityType}`);
     }
 
+    // 0박 BPM·박자는 초기 설정 자리(BPM 보조 레인1, 박자 2)에 둔다. 같은 종류 초기 설정이 이미 있으면 만들지 않는다(RFD 0082).
+    const events = placeEditedInitialTiming([...this.chart.events, newEvent], [this.chart.events.length]);
+    if (!events) {
+      this.callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+      return;
+    }
+
     // Create new chart with immutable update
     const updatedChart: ChartDocument = {
       ...this.chart,
-      events: [...this.chart.events, newEvent],
+      events,
     };
 
     this.chart = updatedChart;
