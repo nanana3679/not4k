@@ -7,13 +7,29 @@
  * - Seek to position (ms)
  * - High-precision playback time via AudioContext.currentTime
  * - Offset support for chart synchronization
+ * - Observer section playback (fade in → section → fade out, stops at section end)
  */
 import { normalizePlaybackRange, type PlaybackRange } from '../../shared';
+
+/**
+ * 옵저버 반복 1회의 재생 범위. 모두 재생 범위 기준 논리 위치(ms)다.
+ * fromMs～fadeInUntilMs에서 페이드 인, fadeOutFromMs～toMs에서 페이드 아웃하고 toMs에서 음원을 멈춘다.
+ */
+export interface AudioSection {
+  readonly fromMs: number;
+  readonly fadeInUntilMs: number;
+  readonly fadeOutFromMs: number;
+  readonly toMs: number;
+}
 
 export class AudioEngine {
   private ctx: AudioContext;
   private source: AudioBufferSourceNode | null = null;
   private sourceGain: GainNode | null = null;
+  // 구간 재생 중에만 sourceGain과 masterGain 사이에 둔다. 범위 페이드와 곱해진다.
+  private sectionGain: GainNode | null = null;
+  // pause/resume이 같은 구간을 잇도록 보관한다. play·playWithPreroll·stop이 지운다.
+  private section: AudioSection | null = null;
   private buffer: AudioBuffer | null = null;
   private masterGain: GainNode;
   private startTime: number = 0;  // AudioContext time when playback started
@@ -110,19 +126,38 @@ export class AudioEngine {
    * @param offsetMs - Starting position in milliseconds (default: 0)
    */
   play(offsetMs: number = 0): void {
-    this.startPlayback(offsetMs, false);
+    this.startPlayback(offsetMs, false, null);
   }
 
   /** 음악 준비용 P. 음수 구간은 무음으로 두고 곡 0을 AudioContext에 미리 예약한다. */
   playWithPreroll(positionMs: number): void {
     if (!Number.isFinite(positionMs)) throw new RangeError('Preparation position must be finite');
-    this.startPlayback(positionMs, true);
+    this.startPlayback(positionMs, true, null);
   }
 
-  private startPlayback(offsetMs: number, allowPreroll: boolean): void {
+  /**
+   * 옵저버 반복 1회. fromMs부터 재생해 toMs에서 음원을 멈추고 앞뒤 페이드를 구간 gain에 예약한다.
+   * 음원 범위 밖을 무음으로 채우지 않으므로 음수 위치는 받지 않는다. 시계는 toMs 뒤에도 계속 돈다.
+   */
+  playSection(section: AudioSection): void {
     if (!this.buffer) {
       throw new Error('No audio loaded');
     }
+    const { fromMs, fadeInUntilMs, fadeOutFromMs, toMs } = section;
+    const finite = [fromMs, fadeInUntilMs, fadeOutFromMs, toMs].every(Number.isFinite);
+    const ordered = 0 <= fromMs && fromMs <= fadeInUntilMs && fadeInUntilMs <= fadeOutFromMs
+      && fadeOutFromMs <= toMs && toMs <= this.duration;
+    if (!finite || !ordered) {
+      throw new RangeError('Section must satisfy 0 <= from <= fadeInUntil <= fadeOutFrom <= to <= duration');
+    }
+    this.startPlayback(fromMs, false, { fromMs, fadeInUntilMs, fadeOutFromMs, toMs });
+  }
+
+  private startPlayback(offsetMs: number, allowPreroll: boolean, section: AudioSection | null): void {
+    if (!this.buffer) {
+      throw new Error('No audio loaded');
+    }
+    this.section = section;
 
     // Resume AudioContext if suspended (autoplay policy)
     if (this.ctx.state === 'suspended') {
@@ -158,7 +193,11 @@ export class AudioEngine {
     this.source.buffer = this.buffer;
     this.sourceGain = this.ctx.createGain();
     this.source.connect(this.sourceGain);
-    this.sourceGain.connect(this.masterGain);
+    // 범위 페이드(sourceGain)와 구간 페이드(sectionGain)를 다른 노드에 두어 한 AudioParam을 두고 다투지 않게 한다.
+    const sectionGain = section ? this.ctx.createGain() : null;
+    this.sectionGain = sectionGain;
+    this.sourceGain.connect(sectionGain ?? this.masterGain);
+    sectionGain?.connect(this.masterGain);
 
     // Handle natural playback end
     this.source.onended = () => {
@@ -174,11 +213,14 @@ export class AudioEngine {
     const scheduledAt = this.startTime + delaySeconds;
     const rangeStart = this.getRangeStartSeconds();
     const actualOffsetSeconds = rangeStart + offsetSeconds;
-    const remainingSeconds = Math.max(0, this.getRangeDurationSeconds() - offsetSeconds);
+    // source.start의 길이는 버퍼 시간이라 배속과 무관하게 구간 끝 toMs에서 멈춘다.
+    const stopSeconds = section ? section.toMs / 1000 : this.getRangeDurationSeconds();
+    const remainingSeconds = Math.max(0, stopSeconds - offsetSeconds);
 
     // Apply playback rate
     this.source.playbackRate.value = this._playbackRate;
     this.scheduleRangeFade(this.sourceGain, offsetSeconds, scheduledAt);
+    if (section && sectionGain) this.scheduleSectionFade(sectionGain, section, offsetSeconds * 1000, scheduledAt);
 
     // Start playback
     this.source.start(delaySeconds > 0 ? scheduledAt : 0, actualOffsetSeconds, remainingSeconds);
@@ -214,13 +256,16 @@ export class AudioEngine {
       return;
     }
 
-    if (this.audioEnded || this.pauseTime >= this.getRangeDurationSeconds()) {
+    // 구간 재생이면 구간 끝 toMs에서 음원이 끝난다.
+    const audioEndSeconds = this.section ? this.section.toMs / 1000 : this.getRangeDurationSeconds();
+    if (this.audioEnded || this.pauseTime >= audioEndSeconds) {
       // 판정 대기 재개는 시계만 잇는다. 끝난 음원은 다시 재생하지 않는다.
       this.startOffset = this.pauseTime;
       this.startTime = this.ctx.currentTime;
       this.clockRunning = true;
     } else {
-      this.play(this.pauseTime * 1000);
+      // 구간 재생 중이었으면 같은 구간 끝과 남은 페이드를 이어서 예약한다.
+      this.startPlayback(this.pauseTime * 1000, false, this.section);
     }
   }
 
@@ -240,6 +285,7 @@ export class AudioEngine {
     }
     this.stopActiveSource();
 
+    this.section = null;
     this._playing = false;
     this.clockRunning = false;
     this.audioEnded = false;
@@ -416,6 +462,33 @@ export class AudioEngine {
     }
   }
 
+  /** 구간 페이드 값. fromMs～fadeInUntilMs는 0→1, fadeOutFromMs～toMs는 1→0이다. */
+  private getSectionGainAt(section: AudioSection, positionMs: number): number {
+    const { fromMs, fadeInUntilMs, fadeOutFromMs, toMs } = section;
+    const fadeInGain = fadeInUntilMs > fromMs
+      ? Math.min(1, Math.max(0, (positionMs - fromMs) / (fadeInUntilMs - fromMs))) : 1;
+    const fadeOutGain = toMs > fadeOutFromMs
+      ? Math.min(1, Math.max(0, (toMs - positionMs) / (toMs - fadeOutFromMs))) : 1;
+    return Math.min(fadeInGain, fadeOutGain);
+  }
+
+  private scheduleSectionFade(gainNode: GainNode, section: AudioSection, positionMs: number, scheduledAt: number): void {
+    const gain = gainNode.gain;
+    // 재생 시작 시점 배속으로 예약한다. 구간 재생 중 배속을 바꿔도 다시 예약하지 않는다.
+    const rate = this._playbackRate;
+    const realTimeAt = (logicalMs: number) => scheduledAt + (logicalMs - positionMs) / 1000 / rate;
+    gain.setValueAtTime(this.getSectionGainAt(section, positionMs), scheduledAt);
+    if (section.fadeInUntilMs > positionMs) {
+      gain.linearRampToValueAtTime(1, realTimeAt(section.fadeInUntilMs));
+    }
+    if (section.toMs > section.fadeOutFromMs) {
+      if (section.fadeOutFromMs > positionMs) {
+        gain.setValueAtTime(1, realTimeAt(section.fadeOutFromMs));
+      }
+      gain.linearRampToValueAtTime(0, realTimeAt(section.toMs));
+    }
+  }
+
   private stopActiveSource(): void {
     if (this.source) {
       this.source.disconnect();
@@ -424,6 +497,10 @@ export class AudioEngine {
     if (this.sourceGain) {
       this.sourceGain.disconnect();
       this.sourceGain = null;
+    }
+    if (this.sectionGain) {
+      this.sectionGain.disconnect();
+      this.sectionGain = null;
     }
   }
 }
