@@ -1,10 +1,9 @@
 import { Container, Rectangle, Sprite, Texture, TilingSprite } from "pixi.js";
 import type { ExplicitCompiledChart } from "../judgment/explicitCompiledChart";
-import type { ExplicitJudgmentSnapshot } from "../judgment/ExplicitJudgmentState";
 import type { ExplicitSkinTextures } from "../skin/ExplicitSkinLoader";
 import { getExplicitSkinAsset } from "../skin/explicitSkin";
 import { ExplicitNotePresenter } from "./ExplicitNotePresenter";
-import type { ExplicitPresentedNote, ExplicitRenderLayout } from "./ExplicitNotePresenter";
+import type { ExplicitPresentedNote, ExplicitRenderLayout, ExplicitRenderSnapshot } from "./ExplicitNotePresenter";
 
 /** 기본 GameRenderer를 바꾸지 않는 별도 Pixi 표시 경로. parent와 텍스처의 소유자는 호출자다. */
 export class ExplicitNoteRenderer {
@@ -36,7 +35,7 @@ export class ExplicitNoteRenderer {
     this.layout = layout;
   }
 
-  render(snapshot: ExplicitJudgmentSnapshot, visualTimeMs = snapshot.atMs): readonly ExplicitPresentedNote[] {
+  render(snapshot: ExplicitRenderSnapshot, visualTimeMs = snapshot.atMs): readonly ExplicitPresentedNote[] {
     this.assertOpen();
     if (!this.presenter) throw new Error("ExplicitNoteRenderer: no compiled chart");
     const notes = this.presenter.present(snapshot, this.layout, visualTimeMs);

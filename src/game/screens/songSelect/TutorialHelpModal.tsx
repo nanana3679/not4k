@@ -3,6 +3,7 @@ import { useGameStore } from '../../stores';
 import { font, color, surface, radius, primitives } from '../../../shared/theme';
 import { TutorialPracticePanel } from './TutorialPracticePanel';
 import { useTutorialPractice } from './useTutorialPractice';
+import { TutorialMetronome } from '../../audio/TutorialMetronome';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
 import { isTutorialControlInput } from './explicitTutorialInput';
 import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots';
@@ -63,6 +64,18 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed, pass
   const settings = useGameStore((state) => state.settings);
   const settingsOpen = useGameStore((state) => state.settingsOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
+  const [metronome] = useState(() => new TutorialMetronome());
+  useEffect(() => { metronome.setMasterVolume(settings.masterVolume); }, [metronome, settings.masterVolume]);
+  useEffect(() => {
+    const resume = () => metronome.resumeFromGesture();
+    window.addEventListener('pointerdown', resume, { capture: true });
+    window.addEventListener('keydown', resume, { capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', resume, { capture: true });
+      window.removeEventListener('keydown', resume, { capture: true });
+      metronome.dispose();
+    };
+  }, [metronome]);
   const currentSection = getTutorialSection(tutorialIndex);
   const sectionTutorialIndex = tutorialIndex - currentSection.startIndex;
   const currentTutorial = ALL_TUTORIAL_PREVIEWS[tutorialIndex] ?? ALL_TUTORIAL_PREVIEWS[0];
@@ -478,6 +491,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed, pass
                 <span className="not4k-tutorial-placeholder-spinner" />
               </div>
               <TutorialPreviewTransitionStage
+                metronome={metronome}
                 activePlayerSlot={activePlayerSlot}
                 previewSlotIndexes={previewSlotIndexes}
                 previewSlotInstanceIds={previewSlotInstanceIds}
@@ -485,7 +499,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed, pass
                 transitionProgress={playerTransitionProgress}
                 handlePreviewSlotReady={handlePreviewSlotReady}
                 practice={practice}
-                suspended={settingsOpen || isClosing}
+                suspended={settingsOpen || !isPlayerDriverVisible}
               />
             </div>
           </div>
@@ -515,6 +529,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed, pass
 }
 
 function TutorialPreviewTransitionStage({
+  metronome,
   activePlayerSlot,
   previewSlotIndexes,
   previewSlotInstanceIds,
@@ -524,6 +539,7 @@ function TutorialPreviewTransitionStage({
   practice,
   suspended,
 }: {
+  metronome: TutorialMetronome;
   practice: ReturnType<typeof useTutorialPractice>;
   suspended: boolean;
   activePlayerSlot: TutorialPreviewSlotId;
@@ -564,6 +580,7 @@ function TutorialPreviewTransitionStage({
           const slotState = getTutorialPreviewSlotState(slotId, activePlayerSlot, transition);
           return (
             <TutorialPreviewSlot
+              metronome={metronome}
               key={`preview-slot-${slotId}`}
               preview={ALL_TUTORIAL_PREVIEWS[previewIndex] ?? ALL_TUTORIAL_PREVIEWS[0]}
               previewInstanceId={previewInstanceId}
@@ -639,6 +656,7 @@ function getStandbyTutorialPreviewSlot(activePlayerSlot: TutorialPreviewSlotId):
 }
 
 function TutorialPreviewSlot({
+  metronome,
   preview,
   previewInstanceId,
   slotState,
@@ -647,6 +665,7 @@ function TutorialPreviewSlot({
   practiceProps,
   practiceStopped,
 }: {
+  metronome: TutorialMetronome;
   practiceProps?: Pick<TutorialPreviewPlayerProps, 'inputMode' | 'playbackRevision' | 'onPatternStarted' | 'onPatternFinished' | 'onScoreChanged'>;
   practiceStopped: boolean;
   preview: (typeof ALL_TUTORIAL_PREVIEWS)[number];
@@ -679,6 +698,8 @@ function TutorialPreviewSlot({
       <div className="not4k-tutorial-player-wrap" style={tutorialHelpStyles.playerWrap}>
         {/* 레슨을 넘겨도 재생기와 렌더러는 그대로 두고 차트만 바꾼다. 재방문은 previewInstanceId로 처음부터 재생한다. */}
         <TutorialPreviewPlayer
+          metronome={metronome}
+          metronomeActive={slotState === 'active'}
           preview={preview}
           previewInstanceId={previewInstanceId}
           diagramModalEnabled={diagramModalEnabled}

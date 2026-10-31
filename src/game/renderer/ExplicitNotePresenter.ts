@@ -4,6 +4,11 @@ import { getExplicitSkinAsset } from "../skin/explicitSkin";
 import type { ExplicitSkinAssetId, ExplicitSkinView } from "../skin/explicitSkin";
 import { LANE_WIDTH, NOTE_HEIGHT } from "./constants";
 
+/** 판정 snapshot에 표시 전용 제외 노트를 더한 뷰. 숨김 때문에 성공·실패 상태를 바꾸지 않는다. */
+export interface ExplicitRenderSnapshot extends ExplicitJudgmentSnapshot {
+  readonly hiddenSourceNoteIndices?: ReadonlySet<number>;
+}
+
 export interface ExplicitRenderLayout {
   readonly judgmentLineY: number;
   /** 기존 게임과 같은 논리 px/초. 배속·visual offset은 호출자가 visualTimeMs에 반영한다. */
@@ -67,7 +72,7 @@ export class ExplicitNotePresenter {
     }
   }
 
-  present(snapshot: ExplicitJudgmentSnapshot, layout: ExplicitRenderLayout, visualTimeMs = snapshot.atMs): readonly ExplicitPresentedNote[] {
+  present(snapshot: ExplicitRenderSnapshot, layout: ExplicitRenderLayout, visualTimeMs = snapshot.atMs): readonly ExplicitPresentedNote[] {
     const bodyById = new Map(snapshot.bodyUnits.map(unit => [unit.id, unit]));
     const itemById = new Map(snapshot.items.map(item => [item.id, item]));
     const laneWidth = layout.laneWidth ?? LANE_WIDTH;
@@ -84,7 +89,7 @@ export class ExplicitNotePresenter {
       const y = bodyGeometry?.y ?? timeY(at) - height * asset.anchor.y;
       const x = layout.laneAreaX + (lane - 0.5) * laneWidth - width * asset.anchor.x;
       return { key: `${index}:${overlay ? "overlay" : layer}:${ordinal ?? "whole"}`, assetId: asset.id,
-        ordinal, layer, overlay, visible, inViewport: y + height >= 0 && y <= layout.height,
+        ordinal, layer, overlay, visible: visible && !snapshot.hiddenSourceNoteIndices?.has(index), inViewport: y + height >= 0 && y <= layout.height,
         x, y, width, height, alpha, laneScaleX: scaleX, laneScaleY: scaleY };
     };
     const required = <T>(value: T | undefined, id: string): T => {
