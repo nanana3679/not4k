@@ -575,6 +575,15 @@ function eventPositionsOverlap(a: ChartEvent, b: ChartEvent): boolean {
 }
 
 /**
+ * 두 이벤트가 같은 보조 레인(`editorLane ?? 1`)에서 시간 위치가 겹치는지 판정한다(RFD 0078).
+ * 종류는 보지 않는다. 같은 종류 BPM·박자 쌍도 true이며, 검증은 그 쌍을 `eventDuplicate`에 맡긴다.
+ * 불러올 때 초기 설정 분리(RFD 0082)도 이 판정으로 빈 레인을 찾아 검증과 기준이 어긋나지 않는다.
+ */
+export function eventPlacementsOverlap(a: ChartEvent, b: ChartEvent): boolean {
+  return (a.editorLane ?? 1) === (b.editorLane ?? 1) && eventPositionsOverlap(a, b);
+}
+
+/**
  * 같은 보조 레인의 배치 겹침은 종류와 관계없이 금지한다(RFD 0078).
  * text·auto·stop의 같은 종류 시간 겹침은 레인과 관계없이 기존 의미 제약을 유지한다.
  * BPM·박자 중복과 같은 튜토리얼 입력의 겹침은 각각의 전용 진단에 맡긴다.
@@ -585,9 +594,8 @@ export function validateNoEventOverlap(events: readonly ChartEvent[]): Validatio
     for (let j = i + 1; j < events.length; j++) {
       const a = events[i];
       const b = events[j];
-      const sameEditorLane = (a.editorLane ?? 1) === (b.editorLane ?? 1);
       const sameRangeMeaning = a.type === b.type && (a.type === 'text' || a.type === 'auto' || a.type === 'stop');
-      const placementOverlap = sameEditorLane && eventPositionsOverlap(a, b);
+      const placementOverlap = eventPlacementsOverlap(a, b);
       const meaningOverlap = sameRangeMeaning && 'endBeat' in a && 'endBeat' in b
         && beatLt(a.beat, b.endBeat) && beatLt(b.beat, a.endBeat);
       if (!placementOverlap && !meaningOverlap) continue;
