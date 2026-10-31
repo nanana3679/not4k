@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { createTutorialPassSync, TUTORIAL_PASS_STATE_STORAGE_KEY } from './tutorialPassSync';
+import { readTutorialPassOwner } from '../../../supabase/tutorialPasses';
 import { TUTORIAL_PASSED_STORAGE_KEY } from './tutorialPassRecords';
 import { getVisibleTutorialPassedIds } from './tutorialPassState';
 
@@ -18,25 +19,23 @@ function createBrowserSync() {
 
 /** 곡 선택 화면 수명으로 유지해 팝업이 닫혀 있어도 로그인 인계를 시작한다. */
 export function useTutorialPassRecords(
-  userId: string | null, authLoading: boolean, modalOpen: boolean,
+  userId: string | null, sessionLoading: boolean, modalOpen: boolean,
 ): TutorialPassRecordsView {
   const [sync] = useState(createBrowserSync);
   const state = useSyncExternalStore(sync.subscribe, sync.getSnapshot, sync.getSnapshot);
-  const awaitingAuthIds = useRef(new Set<string>());
 
   useEffect(() => {
-    if (authLoading) return;
-    for (const id of awaitingAuthIds.current) void sync.recordPass(userId, id);
-    awaitingAuthIds.current.clear();
+    sync.setSessionUser(sessionLoading ? undefined : userId);
+    if (sessionLoading) return;
     sync.refresh();
     if (userId !== null) void sync.syncAccount(userId);
-  }, [authLoading, sync, userId]);
+  }, [sessionLoading, sync, userId]);
 
   useEffect(() => {
-    if (!modalOpen || authLoading) return;
+    if (!modalOpen || sessionLoading) return;
     sync.refresh();
     if (userId !== null) void sync.syncAccount(userId);
-  }, [authLoading, modalOpen, sync, userId]);
+  }, [sessionLoading, modalOpen, sync, userId]);
 
   useEffect(() => {
     const refresh = (event: StorageEvent) => {
@@ -45,19 +44,21 @@ export function useTutorialPassRecords(
       }
     };
     window.addEventListener('storage', refresh);
-    return () => window.removeEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('storage', refresh);
+      sync.setSessionUser(null);
+    };
   }, [sync]);
 
   const recordPass = useCallback((id: string) => {
-    // 세션 확인 중의 null을 게스트로 확정하지 않는다. 인증 결과가 오면 원래 완료를 저장한다.
-    if (authLoading) awaitingAuthIds.current.add(id);
-    else void sync.recordPass(userId, id);
-  }, [authLoading, sync, userId]);
-  const resetGuest = useCallback(() => { if (!authLoading && userId === null) void sync.resetGuest(); }, [authLoading, sync, userId]);
+    const owner = sessionLoading && userId === null ? readTutorialPassOwner() : userId;
+    void sync.recordPass(owner, id);
+  }, [sessionLoading, sync, userId]);
+  const resetGuest = useCallback(() => { if (!sessionLoading && userId === null) void sync.resetGuest(); }, [sessionLoading, sync, userId]);
 
   return {
-    passedIds: authLoading ? [] : getVisibleTutorialPassedIds(state, userId),
-    isGuest: !authLoading && userId === null,
+    passedIds: sessionLoading ? [] : getVisibleTutorialPassedIds(state, userId),
+    isGuest: !sessionLoading && userId === null,
     recordPass, resetGuest,
   };
 }

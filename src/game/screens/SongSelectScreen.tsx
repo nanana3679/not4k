@@ -49,7 +49,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const settingsOpen = useGameStore((state) => state.settingsOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
   const calibrationActive = useGameStore((state) => state.calibrationActive);
-  const { user, isAdmin, loading: authLoading, signInWithGoogle, signOut } = useAuth();
+  const { user, isAdmin, loading: authLoading, sessionLoading, signInWithGoogle, signOut } = useAuth();
   const gameExperience = mobileListOnly ? 'mobileSongList' : 'fullGame';
   const playAllowed = canStartGameplay(gameExperience);
   const previewAllowed = canPreviewSongs(gameExperience);
@@ -64,7 +64,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const [showTutorialHelp, setShowTutorialHelp] = useState(false);
   // 개발용 가상 admin과 Supabase 익명 세션은 실제 계정 동기화 대상이 아니다.
   const tutorialUserId = user && user.id !== 'dev-user' && !user.is_anonymous ? user.id : null;
-  const tutorialPassRecords = useTutorialPassRecords(tutorialUserId, authLoading, showTutorialHelp);
+  const tutorialPassRecords = useTutorialPassRecords(tutorialUserId, sessionLoading, showTutorialHelp);
 
   const addToast = useCallback((msg: string, type: ToastType = 'info') => {
     showToast(msg, type);

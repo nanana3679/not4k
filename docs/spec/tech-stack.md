@@ -100,7 +100,7 @@ React 19 (DOM)                    PixiJS v8 (WebGL Canvas)
 
 ### 튜토리얼 통과 기록
 
-`tutorial_passes`는 계정·항목별 통과와 최초 서버 저장 시각을, `tutorial_guest_handoffs`는 계정당 한 번의 게스트 인계와 재확인 영수증을 저장한다. 비익명 본인 행만 조회·통과 INSERT를 허용하며, 마커는 권한을 제한한 `handoff_tutorial_passes` RPC에서 통과와 같은 트랜잭션으로 만든다. `20261031000000_tutorial_pass_account_sync.sql`은 추가했지만 DB에 적용하지 않았다. 로컬 캐시·실패 처리는 [튜토리얼 스펙](tutorial.md#통과-기록과-재진입)을 따른다.
+`tutorial_passes`는 계정·항목별 통과와 최초 서버 저장 시각을, `tutorial_guest_handoffs`는 계정당 한 번의 게스트 인계와 재확인 영수증을 저장한다. 비익명 본인 행만 조회·통과 INSERT를 허용하며, 마커는 권한을 제한한 `handoff_tutorial_passes` RPC에서 통과와 같은 트랜잭션으로 만든다. ID CHECK는 소문자·숫자·하이픈 1～64자(`^[a-z0-9-]+$`)를 허용한다. RPC는 중복 포함 최대 100개 ID만 받으며 잘못된 ID·null 원소·초과 요청은 거부한다. 계정당 최대 200행은 직접 INSERT·RPC 공통 BEFORE INSERT 트리거에서 계정별 트랜잭션 advisory lock 후 검사하며 기존 ID 재시도는 허용한다. 한도 초과 시 통과·마커를 함께 롤백한다. `20261031000000_tutorial_pass_account_sync.sql`은 추가했지만 DB에 적용하지 않았다. 로컬 캐시·실패 처리는 [튜토리얼 스펙](tutorial.md#통과-기록과-재진입)을 따른다.
 
 ### Storage: 차트·음원의 로딩과 재생 준비
 
