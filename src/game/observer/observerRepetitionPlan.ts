@@ -9,9 +9,9 @@ export interface ObserverRange {
 
 /**
  * 옵저버 반복 1회의 음원 재생 범위(곡 시간 ms). fromMs～fadeInUntilMs에서 페이드 인, fadeOutFromMs～toMs에서 페이드 아웃한다.
- * `AudioEngine.playSection`이 받는 `AudioSection`과 같은 모양이다. 판정 세션도 fromMs부터 시작한다.
+ * `AudioEngine.playFadedSpan`이 받는 `FadedAudioSpan`과 같은 모양이다. 판정 세션도 fromMs부터 시작한다.
  */
-export interface ObserverAudioSection {
+export interface ObserverFadedSpan {
   readonly fromMs: number;
   readonly fadeInUntilMs: number;
   readonly fadeOutFromMs: number;
@@ -28,7 +28,7 @@ export function observerWholeSongRange(audioDurationMs: number): ObserverRange {
  * 선택 구간 앞뒤로 실제 시간 최대 3000ms씩 더 재생한다. 배속 r이면 곡 시간으로 3000r ms다.
  * 음원 밖의 부족한 시간은 무음으로 채우지 않고 0～음원 길이로 자른다. 선택 구간 자체는 줄이지 않는다(RFD 0062).
  */
-export function planObserverAudioSection(range: ObserverRange, audioDurationMs: number, playbackRate: number): ObserverAudioSection {
+export function planObserverFadedSpan(range: ObserverRange, audioDurationMs: number, playbackRate: number): ObserverFadedSpan {
   assertAudioDuration(audioDurationMs);
   if (!Number.isFinite(playbackRate) || playbackRate <= 0) throw new RangeError("재생 배속은 0보다 큰 유한한 값이어야 합니다");
   const { startMs, endMs } = range;
