@@ -11,10 +11,17 @@ interface ExplicitTutorialInputFrame {
   blocked: boolean;
 }
 
+// 글자를 입력받는 input type. checkbox·radio·button 같은 input은 아래 동작 키만 가져간다.
+const ACTION_INPUT_TYPES = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'file', 'color', 'range']);
+
 function isControlInput(event: KeyboardEvent): boolean {
   // 이벤트 대상은 포커스를 가진 요소다. button 안의 자식과 contenteditable 자식도 포함한다.
   for (let element = event.target as HTMLElement | null; element; element = element.parentElement) {
-    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName) || element.isContentEditable) return true;
+    const inputType = element.tagName === 'INPUT' ? ((element as HTMLInputElement).type || 'text').toLowerCase() : null;
+    if ((inputType !== null && !ACTION_INPUT_TYPES.has(inputType))
+      || ['TEXTAREA', 'SELECT'].includes(element.tagName) || element.isContentEditable) return true;
+    if (inputType !== null && ['Enter', 'NumpadEnter', 'Space'].includes(event.code)) return true;
+    if (inputType === 'range' && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.code)) return true;
     const role = element.getAttribute?.('role');
     if (role === 'textbox' || role === 'combobox') return true;
     if (['Enter', 'NumpadEnter', 'Space'].includes(event.code)

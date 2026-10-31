@@ -331,6 +331,8 @@ it.each([
   { name: 'button 자식', code: 'Enter', properties: { tagName: 'SPAN', parentElement: { tagName: 'BUTTON' } } },
   { name: 'switch', code: 'Space', properties: { tagName: 'DIV', getAttribute: () => 'switch' } },
   { name: 'tab', code: 'ArrowRight', properties: { tagName: 'DIV', getAttribute: () => 'tab' } },
+  { name: 'checkbox input', code: 'Space', properties: { tagName: 'INPUT', type: 'checkbox' } },
+  { name: 'text input', code: 'KeyE', properties: { tagName: 'INPUT', type: 'text' } },
 ])('$name에서 바인딩된 $code를 1500ms에 누르면 기본 동작 허용·held 0개·판정 0회', ({ code, properties }) => {
   const { input, target, effects } = setup(undefined, code);
   Object.assign(target, properties);
@@ -340,6 +342,16 @@ it.each([
   input.advanceTo(510);
   expect(input.heldKeys).toEqual([]);
   expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
+  input.stop();
+});
+
+it('직접 입력 스위치(checkbox input)에 포커스가 남아 있어도 바인딩된 KeyE를 1500ms에 누르면 예약·수집해 held 1개', () => {
+  const { input, target } = setup(undefined, 'KeyE');
+  Object.assign(target, { tagName: 'INPUT', type: 'checkbox' });
+  input.setMode('directInput');
+  expect(keyboard(target, 'keydown', 'KeyE', 1500).defaultPrevented).toBe(true);
+  input.advanceTo(500);
+  expect(input.heldKeys).toHaveLength(1);
   input.stop();
 });
 
