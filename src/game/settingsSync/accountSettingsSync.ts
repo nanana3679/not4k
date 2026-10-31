@@ -43,7 +43,8 @@ export function applyAccountSettings(local: GameSettings, server: unknown): Game
         const bindings = values[key] as GameSettings['keyBindings'];
         const lanes = Object.values(bindings);
         const codes = lanes.flat();
-        return lanes.every(lane => lane.length >= 2 && lane.length <= 16)
+        // 레인당 키 수 상한은 두지 않는다(keybinding 스펙). 크기는 전체 16KiB·키 코드 32자 제한이 막는다.
+        return lanes.every(lane => lane.length >= 2)
           && codes.every(code => code.length <= 32)
           && new Set(codes).size === codes.length;
       }

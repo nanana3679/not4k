@@ -5,11 +5,11 @@ import { applyAccountSettings, selectAccountSettings, createAccountSettingsSync,
 
 describe('계정 설정 분리', () => {
   it.each([
-    ['lane1 키 16개', Array.from({ length: 16 }, (_, i) => `Test${i}`), true],
-    ['lane1 키 17개', Array.from({ length: 17 }, (_, i) => `Test${i}`), false],
+    ['lane1 키 40개(레인당 개수 상한 없음)', Array.from({ length: 40 }, (_, i) => `Test${i}`), true],
+    ['lane1 키 1개', ['KeyA'], false],
     ['키 코드 32자', ['K'.repeat(32), 'KeyA'], true],
     ['키 코드 33자', ['K'.repeat(33), 'KeyA'], false],
-  ] as const)('서버 %s는 상한 이내일 때만 keyBindings를 적용한다', (_label, lane1, accepted) => {
+  ] as const)('서버 %s는 레인당 2개 이상·키 코드 32자 이하일 때만 keyBindings를 적용한다', (_label, lane1, accepted) => {
     const local = useGameStore.getInitialState().settings;
     const keyBindings = { ...local.keyBindings, lane1: [...lane1] };
     expect(applyAccountSettings(local, { keyBindings, scrollSpeed: 1200 }))
