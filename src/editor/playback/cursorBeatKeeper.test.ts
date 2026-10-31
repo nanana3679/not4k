@@ -95,8 +95,8 @@ describe('createCursorBeatKeeper — 박↔시각 변환', () => {
     )).toBe(3000);
   });
 
-  it('0박보다 앞(-1박)인 커서 0ms는 offset 500→700이면 200ms', () => {
-    expect(syncTimingChange(0, { bpmChanges: BPM_120, offsetMs: 500 }, { bpmChanges: BPM_120, offsetMs: 700 })).toBe(200);
+  it('렌더러 범위가 없어도 offset 500→700이면 0박 앞인 커서 0ms를 새 0박인 700ms로 자른다', () => {
+    expect(syncTimingChange(0, { bpmChanges: BPM_120, offsetMs: 500 }, { bpmChanges: BPM_120, offsetMs: 700 })).toBe(700);
   });
 
   it('offset과 BPM 목록이 값으로 같으면 배열 참조가 달라도 커서 1234.5ms를 그대로 유지한다', () => {
@@ -346,7 +346,7 @@ describe('createCursorBeatKeeper — 범위에 묶인 뒤 되돌리기', () => {
     expect(playback.cursorMs).toBe(250);
   });
 
-  it('6박을 2000ms에 묶은 뒤 loadChart로 120 BPM 차트를 열면 기억을 비우고 960 BPM 수정은 250ms로 옮긴다', () => {
+  it('6박을 2000ms에 묶은 뒤 loadChart로 offset 0 차트를 열면 기억을 비우고 960 BPM 수정에도 0박인 0ms를 유지한다', () => {
     useEditorStore.getState().loadChart(chartWithInitialBpm(960));
     const keeper = createKeeper({ chart: useEditorStore.getState().chart, loadGeneration: 1 });
     const playback = fakePlayback(375);
@@ -361,16 +361,17 @@ describe('createCursorBeatKeeper — 범위에 묶인 뒤 되돌리기', () => {
 
     useEditorStore.getState().loadChart(chartWithInitialBpm(120));
     expect(useEditorStore.getState().cursorBeatKeeperState).toBeNull();
+    expect(playback.cursorMs).toBe(0);
     playback.seekTo.mockClear();
     sync();
     expect(playback.seekTo).not.toHaveBeenCalled();
 
     useEditorStore.getState().setChart(chartWithInitialBpm(960));
     sync();
-    expect(playback.cursorMs).toBe(250);
+    expect(playback.cursorMs).toBe(0);
   });
 
-  it('6박이 375→2000ms에 묶인 뒤 keeper·재생기를 다시 만들면 Undo는 store 커서를 375ms로 되돌린다', () => {
+  it('6박이 375→2000ms에 묶인 뒤 재마운트하면 재생기도 2000ms에서 시작하고 이동 횟수 유지로 Undo는 375ms를 복원한다', () => {
     const keeper = createKeeper({ chart: chartWithInitialBpm(960), loadGeneration: 1 });
     const playback = fakePlayback(375);
     keeper.syncToChart({
@@ -378,8 +379,10 @@ describe('createCursorBeatKeeper — 범위에 묶인 뒤 되돌리기', () => {
       timelineRange: timelineRangeMsOf(0, 2000),
     });
 
+    const moveCount = useEditorStore.getState().cursorMoveCount;
     const remounted = createCursorBeatKeeper(useEditorStore);
     const newPlayback = new PlaybackController({
+      getCursorTimeMs: () => useEditorStore.getState().currentTimeMs,
       onTimeUpdate: useEditorStore.getState().setCurrentTimeMs,
       onPlayStateChange: useEditorStore.getState().setIsPlaying,
     });
@@ -389,12 +392,14 @@ describe('createCursorBeatKeeper — 범위에 묶인 뒤 되돌리기', () => {
     });
     sync(chartWithInitialBpm(120), null); // 첫 effect는 비동기 렌더러 준비보다 먼저 실행된다.
     expect(useEditorStore.getState().currentTimeMs).toBe(2000);
-    expect(newPlayback.currentTimeMs).toBe(0); // #393은 여기서 수정하지 않는다.
+    expect(newPlayback.currentTimeMs).toBe(2000);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(moveCount);
 
     sync(chartWithInitialBpm(960), timelineRangeMsOf(0, 2000));
 
     expect(useEditorStore.getState().currentTimeMs).toBe(375);
     expect(newPlayback.currentTimeMs).toBe(375);
+    newPlayback.dispose();
   });
 
   it('120 BPM에서 4/4→3/4로 끝이 2000→1500ms가 되면 4박 커서를 자르고 Undo·Redo는 2000→1500ms로 옮긴다', () => {
@@ -567,11 +572,11 @@ describe('createCursorBeatKeeper — 범위에 묶인 뒤 되돌리기', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 0박 앞(음수 박) 커서 — 타임라인 범위 아래 끝은 0박이 아니라 min(0, offset)이다
+// 0박 앞(음수 박) 커서 — 그리기 범위와 달리 커서 범위 아래 끝은 offset이다
 // ---------------------------------------------------------------------------
 
 describe('createCursorBeatKeeper — 0박 앞 커서', () => {
-  it('offset 2000에서 0박 앞인 −1박 커서 1500ms는 offset 2010으로 바꾸면 0박(2010ms)이 아니라 1510ms로 seek한다', () => {
+  it('offset 2000에서 0박 앞인 −1박 커서 1500ms는 offset 2010으로 바꾸면 새 0박인 2010ms로 자른다', () => {
     const keeper = createKeeper({ chart: chartWith({ offsetMs: 2000 }), loadGeneration: 1 });
     const playback = fakePlayback(1500);
 
@@ -580,22 +585,29 @@ describe('createCursorBeatKeeper — 0박 앞 커서', () => {
       timelineRange: timelineRangeMsOf(2010, 60000),
     });
 
-    expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(1510);
+    expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(2010);
   });
 
-  it('차트를 막 연 커서 0ms(offset 2000에서 −4박)는 offset 2001로 바꾸면 0박 근처로 뛰지 않고 1ms로 seek한다', () => {
-    const keeper = createKeeper({ chart: chartWith({ offsetMs: 2000 }), loadGeneration: 1 });
-    const playback = fakePlayback(0);
-
-    keeper.syncToChart({
-      chart: chartWith({ offsetMs: 2001 }), loadGeneration: 1, cursorMs: playback.cursorMs, playback,
-      timelineRange: timelineRangeMsOf(2001, 60000),
+  it('offset 2000 차트를 열고 2001로 바꾸면 0박 커서는 2000→2001ms로 옮겨지고 Undo하면 2000ms로 돌아온다', () => {
+    const chart = chartWith({ offsetMs: 2000 });
+    useEditorStore.getState().loadChart(chart);
+    const keeper = createKeeper({ chart, loadGeneration: 1 });
+    const playback = fakePlayback(useEditorStore.getState().currentTimeMs);
+    const sync = () => keeper.syncToChart({
+      chart: useEditorStore.getState().chart, loadGeneration: 1, cursorMs: playback.cursorMs, playback,
+      timelineRange: timelineRangeMsOf(useEditorStore.getState().chart.meta.offsetMs, 60000),
     });
 
-    expect(playback.seekTo).toHaveBeenCalledExactlyOnceWith(1);
+    expect(playback.cursorMs).toBe(2000);
+    useEditorStore.getState().setChart(chartWith({ offsetMs: 2001 }));
+    sync();
+    useEditorStore.getState().undo();
+    sync();
+
+    expect(playback.seekTo.mock.calls).toEqual([[2001], [2000]]);
   });
 
-  it('offset 2000→100으로 −1박 커서 1500ms가 −400ms가 돼 아래 끝 0ms에 묶였다가, offset을 2000으로 되돌리면 1500ms로 돌아온다', () => {
+  it('offset 2000→100으로 −1박 커서 1500ms를 새 0박인 100ms에 묶고 offset을 2000으로 되돌려도 0박인 2000ms 안에 둔다', () => {
     const keeper = createKeeper({ chart: chartWith({ offsetMs: 2000 }), loadGeneration: 1 });
     const playback = fakePlayback(1500);
     const sync = (offsetMs: number) => keeper.syncToChart({
@@ -606,6 +618,6 @@ describe('createCursorBeatKeeper — 0박 앞 커서', () => {
     sync(100);
     sync(2000);
 
-    expect(playback.seekTo.mock.calls).toEqual([[0], [1500]]);
+    expect(playback.seekTo.mock.calls).toEqual([[100], [2000]]);
   });
 });

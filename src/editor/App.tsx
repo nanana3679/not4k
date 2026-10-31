@@ -576,6 +576,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
 
     const playback = new PlaybackController({
+      getCursorTimeMs: () => useEditorStore.getState().currentTimeMs,
       onTimeUpdate: setCurrentTimeMs,
       onPlayStateChange: setIsPlaying,
     });

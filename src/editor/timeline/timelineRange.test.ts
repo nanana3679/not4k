@@ -1,7 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
 import { beat } from '../../shared';
 import type { ChartDocument } from '../../shared';
-import { clampToTimelineRange, setChartAndReadTimelineRange, timelineRangeMsOf } from './timelineRange';
+import { clampToCursorRange, clampToTimelineRange, cursorRangeMsOf, setChartAndReadTimelineRange, timelineRangeMsOf } from './timelineRange';
+
+describe('커서 범위', () => {
+  it.each([2000, -500])('offset %ims에서 커서 범위를 만들면 시작은 offset이고 끝은 60000ms다', (offsetMs) => {
+    expect(cursorRangeMsOf(offsetMs, 60000)).toEqual({ startTimeMs: offsetMs, endTimeMs: 60000 });
+  });
+
+  it.each([
+    [2000, 1500, 2000],
+    [2000, 2000, 2000],
+    [2000, 2500, 2500],
+    [2000, 70000, 60000],
+    [-500, -1000, -500],
+    [-500, -250, -250],
+  ])('offset %ims·끝 60000ms에서 커서 %ims를 자르면 %ims다', (offsetMs, cursorMs, expectedMs) => {
+    expect(clampToCursorRange(cursorMs, cursorRangeMsOf(offsetMs, 60000))).toBe(expectedMs);
+  });
+});
 
 describe('timelineRangeMsOf', () => {
   it('offset 2000이면 범위 아래 끝은 0박(2000ms)이 아니라 음원 시작 0ms', () => {

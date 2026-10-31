@@ -46,9 +46,13 @@ async function seekOnRail(page: Page, at: number): Promise<number> {
   const { y } = await canvasPosition(page, 1, at);
   await page.mouse.click(box.x + 4, y);
   const { currentTimeMs } = await cursor(page);
+  const offsetMs = await page.evaluate(async () => {
+    const path = '/src/editor/stores/editorStore.ts';
+    return (await import(path)).useEditorStore.getState().chart.meta.offsetMs as number;
+  });
   // 화소 단위로 고르므로 박 위치와 몇 ms 다를 수 있다. 이후 기대값은 이 실제 시각에서 계산한다.
-  expect(currentTimeMs).toBeGreaterThan(at * 500 - 50);
-  expect(currentTimeMs).toBeLessThan(at * 500 + 50);
+  expect(currentTimeMs).toBeGreaterThan(offsetMs + at * 500 - 50);
+  expect(currentTimeMs).toBeLessThan(offsetMs + at * 500 + 50);
   return currentTimeMs;
 }
 
@@ -62,6 +66,20 @@ async function playBriefly(page: Page): Promise<void> {
 }
 
 test.describe('정지 중 타이밍 값 수정 뒤 커서 박 유지', () => {
+  for (const offsetMs of [2000, -500]) {
+    test(`offset ${offsetMs}ms 차트를 열면 커서는 0박인 ${offsetMs}ms에 있고 첫 Space도 거기서 재생한다`, async ({ page }) => {
+      const chart = editorTestChart();
+      chart.meta.offsetMs = offsetMs;
+      await openEditor(page, { chart, audio: true });
+      await expect.poll(async () => (await cursor(page)).currentTimeMs).toBe(offsetMs);
+
+      await playBriefly(page);
+      const after = (await cursor(page)).currentTimeMs;
+      expect(after).toBeGreaterThan(offsetMs - 1);
+      expect(after).toBeLessThan(offsetMs + 1500);
+    });
+  }
+
   test('재생·일시정지 뒤 레일로 2박(약 1000ms)에 seek하고 초기 BPM을 120→60으로 바꾸면 커서가 같은 2박의 약 2000ms로 옮겨지고 Space 재생이 거기서 시작한다', async ({ page }) => {
     await openEditor(page, { audio: true });
     await playBriefly(page);

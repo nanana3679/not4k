@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PlaybackController } from "./PlaybackController";
+import { useEditorStore } from "../stores/editorStore";
+import { createCursorBeatKeeper } from "./cursorBeatKeeper";
+import { timelineRangeMsOf } from "../timeline/timelineRange";
 
 // ---------------------------------------------------------------------------
 // Mock Web Audio API & requestAnimationFrame
@@ -40,6 +43,105 @@ function setupAudioContextMock(duration: number = 10) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+function createPlaybackAtStoreCursor() {
+  return new PlaybackController({
+    getCursorTimeMs: () => useEditorStore.getState().currentTimeMs,
+    onTimeUpdate: useEditorStore.getState().setCurrentTimeMs,
+    onPlayStateChange: useEditorStore.getState().setIsPlaying,
+  });
+}
+
+describe("PlaybackController 커서 초기화", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it.each([2000, -500, 3500])("store 커서가 %ims이면 재생기를 만들 때 같은 시각으로 맞추고 cursorMoveCount는 1로 유지한다", (cursorMs) => {
+    useEditorStore.getState().setCurrentTimeMs(cursorMs);
+
+    const controller = createPlaybackAtStoreCursor();
+
+    expect(controller.currentTimeMs).toBe(cursorMs);
+    expect(useEditorStore.getState().currentTimeMs).toBe(cursorMs);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(1);
+    controller.dispose();
+  });
+
+  it.each(['loadAudioUrl', 'loadAudioFile'] as const)("%s 로드 중 커서가 2000→3500ms로 바뀌면 완료 후 3500ms에서 재생하고 재로드 후에도 이동 횟수를 늘리지 않는다", async (loadMethod) => {
+    setupAudioContextMock();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ArrayBuffer(0))));
+    useEditorStore.getState().setCurrentTimeMs(2000);
+    const controller = createPlaybackAtStoreCursor();
+    const load = () => loadMethod === 'loadAudioUrl'
+      ? controller.loadAudioUrl('https://audio.invalid/test.wav')
+      : controller.loadAudioFile(new File([''], 'test.wav'));
+
+    const loading = load();
+    useEditorStore.getState().setCurrentTimeMs(3500);
+    await loading;
+
+    expect(controller.currentTimeMs).toBe(3500);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(2);
+    controller.togglePlay();
+    expect(controller.isPlaying).toBe(true);
+    expect(controller.currentTimeMs).toBe(3500);
+
+    // 재로드는 재생을 멈추고, 음수 커서도 음원 범위로 자르지 않는다.
+    useEditorStore.getState().setCurrentTimeMs(-500);
+    await load();
+    expect(controller.isPlaying).toBe(false);
+    expect(controller.currentTimeMs).toBe(-500);
+    expect(useEditorStore.getState().currentTimeMs).toBe(-500);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(3);
+    controller.togglePlay();
+    expect(controller.currentTimeMs).toBe(-500);
+    controller.dispose();
+  });
+
+  it.each(['loadAudioUrl', 'loadAudioFile'] as const)("6박이 375→2000ms에 묶인 뒤 재마운트·%s로 초기화해도 이동 횟수가 유지되어 Undo는 375ms를 복원한다", async (loadMethod) => {
+    setupAudioContextMock();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ArrayBuffer(0))));
+    const chart = useEditorStore.getState().chart;
+    const atBpm = (bpm: number) => ({
+      ...chart,
+      events: chart.events.map(event => event.type === 'bpm' ? { ...event, bpm } : event),
+    });
+    useEditorStore.getState().loadChart(atBpm(960));
+    useEditorStore.getState().setCurrentTimeMs(375);
+    let controller = createPlaybackAtStoreCursor();
+    let keeper = createCursorBeatKeeper(useEditorStore);
+    const sync = (endMs: number) => keeper.syncToChart({
+      chart: useEditorStore.getState().chart,
+      loadGeneration: useEditorStore.getState().chartLoadGeneration,
+      cursorMs: useEditorStore.getState().currentTimeMs,
+      playback: controller,
+      timelineRange: timelineRangeMsOf(0, endMs),
+    });
+    sync(500);
+    useEditorStore.getState().setChart(atBpm(120));
+    sync(2000);
+    expect(controller.currentTimeMs).toBe(2000);
+    const moveCount = useEditorStore.getState().cursorMoveCount;
+
+    controller.dispose();
+    controller = createPlaybackAtStoreCursor();
+    keeper = createCursorBeatKeeper(useEditorStore);
+    sync(2000);
+    if (loadMethod === 'loadAudioUrl') await controller.loadAudioUrl('https://audio.invalid/test.wav');
+    else await controller.loadAudioFile(new File([''], 'test.wav'));
+    expect(controller.currentTimeMs).toBe(2000);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(moveCount);
+
+    useEditorStore.getState().undo();
+    sync(500);
+    expect(useEditorStore.getState().currentTimeMs).toBe(375);
+    controller.togglePlay();
+    expect(controller.isPlaying).toBe(true);
+    expect(controller.currentTimeMs).toBe(375);
+    controller.dispose();
+  });
 });
 
 // ---------------------------------------------------------------------------

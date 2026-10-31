@@ -343,6 +343,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isSavingChart: false,
       chartSaveGeneration: state.chartSaveGeneration + 1,
       chartLoadGeneration: state.chartLoadGeneration + 1,
+      // 새 차트의 0박에서 시작한다. keeper 기억을 비우므로 사용자 커서 이동으로 세지 않는다.
+      currentTimeMs: chart.meta.offsetMs,
       cursorBeatKeeperState: null,
       legacyConversionReview: null,
       legacyConversionReviewOpen: false,

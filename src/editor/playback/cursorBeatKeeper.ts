@@ -6,7 +6,7 @@
  * 기준은 수정 직전의 커서이므로, 일시정지 뒤 seek했다면 seek한 위치의 박을 유지한다.
  * 박자표는 박↔음원 시각 변환에 쓰지 않지만, 마디 끝이 줄면 같은 박도 타임라인 밖으로 나갈 수 있다.
  *
- * 옮긴 시각은 타임라인 범위(`timelineRange.ts`, 아래 끝 min(0, offsetMs))로 자른다. 잘리면 커서 시각으로는
+ * 옮긴 시각은 레일과 같은 커서 범위(`timelineRange.ts`, 아래 끝 offsetMs)로 자른다. 잘리면 커서 시각으로는
  * 원래 박을 다시 구할 수 없으므로, 마지막으로 옮긴 커서의 박을 기억해 두고 사용자가 커서를 옮기지 않은 채
  * 다음 타이밍 변경이 오면 그 박에서 다시 옮긴다. 드래그 중간 프레임이나 수정에서 범위 끝에 묶였던 커서가
  * Escape·Undo로 타이밍이나 범위가 돌아오면 원래 박으로 돌아온다. 이 기억은 편집 세션에 남겨 페이지 재마운트에도 유지한다.
@@ -15,7 +15,7 @@
 import type { BpmChange, ChartDocument } from '../../shared';
 import { beatEq, beatFloatToMs, beatIsZero, extractBpmChanges, msToBeat } from '../../shared';
 import type { TimelineRangeMs } from '../stores/viewportSlice';
-import { clampToTimelineRange } from '../timeline/timelineRange';
+import { clampToCursorRange, cursorRangeMsOf } from '../timeline/timelineRange';
 
 /**
  * 박↔음원 시각 변환을 정하는 값(BPM 변경 목록·음원 정렬 오프셋).
@@ -61,7 +61,7 @@ export interface CursorBeatKeeperPlayback {
 export interface CursorBeatKeeper {
   /**
    * 차트가 바뀔 때마다 부른다. 정지 중이면 기억한 박(또는 수정 직전 커서 박)을 새 타이밍으로 변환하고,
-   * 타임라인 범위로 자른 값이 현재 커서와 다를 때 seek한다. 박자표만 바뀌어도 범위는 다시 확인한다.
+   * 커서 범위로 자른 값이 현재 커서와 다를 때 seek한다. 박자표만 바뀌어도 범위는 다시 확인한다.
    * - 마지막 호출 뒤 `cursorMoveCount`가 같으면 범위로 자르기 전 박을 재사용한다.
    *   seek나 재생 tick으로 횟수가 달라졌으면, 같은 시각으로 돌아왔어도 현재 커서에서 박을 구한다.
    * - 세션 기억이 없거나 `loadGeneration`이 달라졌으면 새 차트의 비교 기준만 세우고 seek하지 않는다.
@@ -72,11 +72,11 @@ export interface CursorBeatKeeper {
     loadGeneration: number;
     /**
      * 수정 직전 커서 시각. store의 `currentTimeMs`(화면의 커서이자 테스트 플레이 '커서부터'의 시작 위치)를 넘긴다.
-     * 테스트 플레이에서 돌아오면 새 재생기는 0에서 시작하지만 store의 커서는 남아 있으므로 재생기 위치를 쓰지 않는다.
+     * 테스트 플레이에서 돌아와도 store의 커서는 남으며, 새 재생기도 이 시각으로 초기화한다.
      */
     cursorMs: number;
     playback: CursorBeatKeeperPlayback | null;
-    /** 이 차트의 타임라인 범위. 렌더러가 아직 없으면 null이고 자르지 않는다. */
+    /** 이 차트의 그리기 범위에서 끝만 사용한다. null이면 아래 끝(offsetMs)만 제한한다. */
     timelineRange: TimelineRangeMs | null;
   }): void;
 }
@@ -122,7 +122,8 @@ export function createCursorBeatKeeper(store: CursorBeatKeeperStore): CursorBeat
         ? cursorMs
         : msAtBeat(cursorBeat, timing);
       if (remapped === null) return;
-      const targetMs = timelineRange ? clampToTimelineRange(remapped, timelineRange) : remapped;
+      const cursorRange = cursorRangeMsOf(timing.offsetMs, timelineRange?.totalTimelineMs ?? Infinity);
+      const targetMs = clampToCursorRange(remapped, cursorRange);
       if (targetMs !== cursorMs) playback.seekTo(targetMs);
       store.setState({
         cursorBeatKeeperState: {

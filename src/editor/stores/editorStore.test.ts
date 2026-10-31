@@ -28,6 +28,19 @@ function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument
 }
 
 describe('editorStore 커서 이동 횟수', () => {
+  it.each([2000, -500])('커서 3500ms에서 offset %ims 차트를 열면 0박인 offset으로 이동하고 이동 횟수는 유지한다', (offsetMs) => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    useEditorStore.getState().setCurrentTimeMs(3500);
+    const chart = makeChart();
+    chart.meta.offsetMs = offsetMs;
+
+    useEditorStore.getState().loadChart(chart);
+
+    expect(useEditorStore.getState().currentTimeMs).toBe(offsetMs);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(1);
+    expect(useEditorStore.getState().cursorBeatKeeperState).toBeNull();
+  });
+
   it('setCurrentTimeMs로 2000→1000→2000→2000ms를 알리면 cursorMoveCount가 4 증가한다', () => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);
 

@@ -6,6 +6,8 @@
  */
 
 export interface PlaybackCallbacks {
+  /** 생성·음원 로드 완료 시 읽는 화면 커서. 없으면 0ms에서 시작한다. */
+  getCursorTimeMs?: () => number;
   onTimeUpdate: (currentTimeMs: number) => void;
   onPlayStateChange: (isPlaying: boolean) => void;
 }
@@ -24,7 +26,14 @@ export class PlaybackController {
 
   private animationFrameId: number | null = null;
 
-  constructor(private callbacks: PlaybackCallbacks) {}
+  constructor(private callbacks: PlaybackCallbacks) {
+    this.seedFromCursor();
+  }
+
+  private seedFromCursor(): void {
+    // store → 재생기 초기화는 커서 이동이 아니다. onTimeUpdate를 부르면 keeper의 기억이 무효화된다.
+    this.playbackOffset = (this.callbacks.getCursorTimeMs?.() ?? 0) / 1000;
+  }
 
   /** Load an audio file from File object */
   async loadAudioFile(file: File): Promise<void> {
@@ -54,7 +63,7 @@ export class PlaybackController {
 
     // Reset playback state
     this.pause();
-    this.playbackOffset = 0;
+    this.seedFromCursor();
   }
 
   /** Play/pause toggle */
