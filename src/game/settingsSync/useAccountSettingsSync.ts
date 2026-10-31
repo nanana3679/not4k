@@ -5,7 +5,24 @@ import { showToast } from '../../shared/toast';
 import { DEV_ADMIN } from '../../shared/hooks/useAuth';
 import { useGameStore } from '../stores/gameStore';
 import { createAccountSettingsAdapter } from './accountSettingsAdapter';
-import { ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE, createAccountSettingsSync } from './accountSettingsSync';
+import {
+  ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE, createAccountSettingsSync, type UnsyncedAccountSettingsMarker,
+} from './accountSettingsSync';
+
+const UNSYNCED_MARKER_KEY = 'not4k-account-settings-unsynced';
+
+/** 미동기화 표시를 localStorage 한 칸에 사용자 id로 둔다. 저장소를 쓸 수 없으면 표시 없음으로 보고 동기화는 계속한다. */
+const browserUnsyncedMarker: UnsyncedAccountSettingsMarker = {
+  owner: () => {
+    try { return localStorage.getItem(UNSYNCED_MARKER_KEY) || null; } catch { return null; }
+  },
+  set: userId => {
+    try { localStorage.setItem(UNSYNCED_MARKER_KEY, userId); } catch { /* 표시 없이 진행한다. */ }
+  },
+  clear: () => {
+    try { localStorage.removeItem(UNSYNCED_MARKER_KEY); } catch { /* 다음 성공 때 다시 지운다. */ }
+  },
+};
 
 /** 게임 루트에서 한 번 구독하며 화면 전환과 독립적으로 살아 있다. */
 export function subscribeAccountSettingsSync(): () => void {
@@ -14,10 +31,16 @@ export function subscribeAccountSettingsSync(): () => void {
     ...createAccountSettingsAdapter(supabase),
     store: {
       getSettings: () => useGameStore.getState().settings,
-      applySettings: settings => useGameStore.setState({ settings }),
+      applySettings: settings => {
+        useGameStore.setState({ settings });
+        const { screen, setScreen } = useGameStore.getState();
+        // 계정 설정으로 최초 실행이 끝나면 프리셋을 고른 뒤와 같은 곡 선택으로 간다(PresetSetupScreen).
+        if (screen === 'presetSetup' && !settings.isFirstLaunch) setScreen('songSelect');
+      },
       subscribe: listener => useGameStore.subscribe(listener),
     },
     notice: message => showToast(message, 'error'),
+    unsyncedMarker: browserUnsyncedMarker,
     timers: { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: id => clearTimeout(id) },
   });
   let active = true;

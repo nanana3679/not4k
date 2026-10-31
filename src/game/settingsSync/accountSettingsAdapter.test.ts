@@ -42,7 +42,7 @@ describe('실제 Supabase SDK의 계정 설정 응답 분류', () => {
   );
   it.each([
     [201, '[{"user_id":"A"}]', 'inserted'],
-    [200, '[]', 'ignored'],
+    [200, '[]', 'conflict'],
     [401, '{"message":"denied"}', 'failed'],
     [204, null, 'failed'],
   ] as const)('최초 업로드 HTTP %i·본문 %s는 %s이며 기존 행을 덮어쓰지 않는 요청을 보낸다', async (status, body, expected) => {

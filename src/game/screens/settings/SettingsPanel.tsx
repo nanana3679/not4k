@@ -1,4 +1,4 @@
-import { useGameStore, PRESET_BINDINGS } from '../../stores';
+import { useGameStore, PRESET_BINDINGS, RENDER_HEIGHT_OPTIONS, SETTING_SLIDER_RANGES } from '../../stores';
 import { AVAILABLE_SKINS } from '../../skin';
 import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
@@ -174,7 +174,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   label="Master Volume"
                   value={settings.masterVolume ?? 1}
                   display={`${Math.round((settings.masterVolume ?? 1) * 100)}%`}
-                  min={0} max={1} step={0.01}
+                  {...SETTING_SLIDER_RANGES.masterVolume}
                   onChange={(v) => updateSettings({ masterVolume: v })}
                 />
                 <OffsetRow
@@ -218,28 +218,28 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   label="Play Speed"
                   value={settings.playSpeed ?? 1}
                   display={`×${(settings.playSpeed ?? 1).toFixed(2)}`}
-                  min={0.5} max={2} step={0.05}
+                  {...SETTING_SLIDER_RANGES.playSpeed}
                   onChange={(v) => updateSettings({ playSpeed: v })}
                 />
                 <SliderRow
                   label="Scroll Speed"
                   value={settings.scrollSpeed}
                   display={String(settings.scrollSpeed)}
-                  min={200} max={2000} step={50}
+                  {...SETTING_SLIDER_RANGES.scrollSpeed}
                   onChange={(v) => updateSettings({ scrollSpeed: v })}
                 />
                 <SliderRow
                   label="Lift"
                   value={settings.liftPercent}
                   display={`${settings.liftPercent}%`}
-                  min={0} max={100} step={1}
+                  {...SETTING_SLIDER_RANGES.liftPercent}
                   onChange={(v) => updateSettings({ liftPercent: v })}
                 />
                 <SliderRow
                   label="Sudden"
                   value={settings.suddenPercent}
                   display={`${settings.suddenPercent}%`}
-                  min={0} max={100} step={1}
+                  {...SETTING_SLIDER_RANGES.suddenPercent}
                   disabled
                   badge="Coming soon"
                   onChange={() => {}}
@@ -250,11 +250,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                 <SelectRow
                   label="Render Resolution"
                   value={String(settings.renderHeight)}
-                  options={[
-                    { value: '720', label: '720p' },
-                    { value: '1080', label: '1080p' },
-                    { value: '1440', label: '1440p' },
-                  ]}
+                  options={RENDER_HEIGHT_OPTIONS.map(height => ({ value: String(height), label: `${height}p` }))}
                   onChange={(v) => updateSettings({ renderHeight: Number(v) })}
                 />
                 <ToggleRow
@@ -298,7 +294,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   label="Key Bomb Size"
                   value={settings.bombScale ?? 1}
                   display={`${(settings.bombScale ?? 1).toFixed(1)}×${settings.bombScale === 0 ? ' (Off)' : ''}`}
-                  min={0} max={3} step={0.1}
+                  {...SETTING_SLIDER_RANGES.bombScale}
                   onChange={(v) => updateSettings({ bombScale: v })}
                 />
               </Group>

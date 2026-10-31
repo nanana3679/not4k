@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect } from 'vitest';
 import { mergePersistedSettings, useGameStore } from './gameStore';
+import { RENDER_HEIGHT_OPTIONS, SETTING_SLIDER_RANGES } from './settingRanges';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
 import { prepareNormalPlay } from './explicitPlayRequest';
 import { ExplicitJudgmentSession } from '../judgment/ExplicitJudgmentSession';
@@ -52,6 +53,50 @@ describe('mergePersistedSettings', () => {
     const result = mergePersistedSettings({ settings: { scrollSpeed: 1000 } }, useGameStore.getInitialState());
     expect(result.settings).toMatchObject({ inputOffsetMs: 0, visualOffsetMs: 0, scrollSpeed: 1000 });
   });
+
+  it.each([
+    ['scrollSpeed', 100, 200], ['scrollSpeed', 5000, 2000], ['scrollSpeed', 1234, 1234],
+    ['liftPercent', -5, 0], ['liftPercent', 150, 100], ['suddenPercent', 101, 100],
+    ['bombScale', -1, 0], ['bombScale', 10, 3], ['masterVolume', 1.5, 1], ['masterVolume', -0.2, 0],
+  ] as const)('저장된 %s=%s 복원 → 설정 UI 범위에 맞춘 값 %s', (key, value, expected) => {
+    const result = mergePersistedSettings({ settings: { [key]: value } }, useGameStore.getInitialState());
+    expect(result.settings[key]).toBe(expected);
+  });
+
+  it.each([
+    ['playSpeed', 3, 2], ['playSpeed', 0.25, 0.25], ['playSpeed', 0, 1], ['playSpeed', -1, 1],
+    ['renderHeight', 4320, 1440], ['renderHeight', 600, 600], ['renderHeight', 0, 1080], ['renderHeight', -720, 1080],
+  ] as const)('저장된 %s=%s 복원 → UI 최댓값으로 제한하고 0 이하는 기본값으로 바꾼 값 %s', (key, value, expected) => {
+    const result = mergePersistedSettings({ settings: { [key]: value } }, useGameStore.getInitialState());
+    expect(result.settings[key]).toBe(expected);
+  });
+
+  it.each(Object.entries(SETTING_SLIDER_RANGES))(
+    '설정 UI 슬라이더 %s의 최댓값보다 1 큰 값을 복원하면 공유 범위의 최댓값이 된다', (key, { max }) => {
+      const result = mergePersistedSettings({ settings: { [key]: max + 1 } }, useGameStore.getInitialState());
+      expect(result.settings[key as keyof typeof result.settings]).toBe(max);
+    },
+  );
+
+  it.each(Object.entries(SETTING_SLIDER_RANGES).filter(([key]) => key !== 'playSpeed'))(
+    '설정 UI 슬라이더 %s의 최솟값보다 1 작은 값을 복원하면 공유 범위의 최솟값이 된다', (key, { min }) => {
+      const result = mergePersistedSettings({ settings: { [key]: min - 1 } }, useGameStore.getInitialState());
+      expect(result.settings[key as keyof typeof result.settings]).toBe(min);
+    },
+  );
+
+  it('렌더 해상도는 설정 UI 선택지의 최댓값보다 큰 값을 그 최댓값으로 복원한다', () => {
+    const max = Math.max(...RENDER_HEIGHT_OPTIONS);
+    const result = mergePersistedSettings({ settings: { renderHeight: max * 2 } }, useGameStore.getInitialState());
+    expect(result.settings.renderHeight).toBe(max);
+  });
+
+  it("숫자가 아닌 scrollSpeed='900'·liftPercent=null·bombScale=true·playSpeed='2'를 복원하면 각각 기본값 800·0·1·1이다", () => {
+    const result = mergePersistedSettings({ settings: {
+      scrollSpeed: '900', liftPercent: null, bombScale: true, playSpeed: '2',
+    } }, useGameStore.getInitialState());
+    expect(result.settings).toMatchObject({ scrollSpeed: 800, liftPercent: 0, bombScale: 1, playSpeed: 1 });
+  });
 });
 
 describe('gameStore — masterVolume', () => {
@@ -97,6 +142,18 @@ describe('gameStore — skinId', () => {
       settings: { skinId: string };
     };
     expect(restored.settings.skinId).toBe('classic');
+  });
+
+  it.each([['neon(스킨 목록에 없음)', 'neon'], ['숫자 42', 42], ['빈 문자열', '']])(
+    '저장된 skinId가 %s이면 기본 스킨 classic으로 복원한다', (_label, skinId) => {
+      const restored = mergePersistedSettings({ settings: { skinId } }, useGameStore.getInitialState());
+      expect(restored.settings.skinId).toBe('classic');
+    },
+  );
+
+  it('선택 UI에서 숨긴 crystal도 스킨 목록에 있으므로 저장된 skinId=crystal을 그대로 복원한다', () => {
+    const restored = mergePersistedSettings({ settings: { skinId: 'crystal' } }, useGameStore.getInitialState());
+    expect(restored.settings.skinId).toBe('crystal');
   });
 });
 

@@ -17,7 +17,7 @@ export function createAccountSettingsAdapter(
         if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) {
           return { status: 'failed' };
         }
-        return { status: 'found', settings };
+        return { status: 'found', settings: settings as Record<string, unknown> };
       } catch {
         return { status: 'failed' };
       }
@@ -28,7 +28,7 @@ export function createAccountSettingsAdapter(
           .upsert({ user_id: userId, settings, updated_at: now().toISOString() }, { onConflict: 'user_id', ignoreDuplicates: true })
           .select('user_id').abortSignal(signal);
         if (error || (status !== 200 && status !== 201) || !Array.isArray(data)) return 'failed';
-        if (data.length === 0) return 'ignored';
+        if (data.length === 0) return 'conflict';
         return data.length === 1 && data[0]?.user_id === userId ? 'inserted' : 'failed';
       } catch {
         return 'failed';

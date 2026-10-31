@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { Chart, PlaybackRange } from '../../shared';
 import type { JudgmentMode } from '../../shared/constants/judgment';
+import { SKIN_LIST } from '../skin/skins';
+import { RENDER_HEIGHT_OPTIONS, SETTING_SLIDER_RANGES } from './settingRanges';
 import { prepareExplicitPlayTest } from './explicitPlayRequest';
 import type { ExplicitPlayRequest, ExplicitPlayTestOptions } from './explicitPlayRequest';
 import type { ExplicitSessionResult } from '../judgment/ExplicitJudgmentSession';
@@ -146,6 +148,17 @@ export function clampTimingOffsetMs(value: unknown): number {
     : 0;
 }
 
+// 개발·E2E는 UI 최솟값보다 느린 배속 0.25와 낮은 해상도 600을 저장소로 넣어 쓴다.
+// 그래서 이 둘은 UI 최댓값으로만 제한하고, 재생·렌더링이 성립하지 않는 0 이하는 기본값으로 둔다.
+const SETTING_UI_MAXIMUMS: Partial<Record<keyof GameSettings, number>> = {
+  playSpeed: SETTING_SLIDER_RANGES.playSpeed.max,
+  renderHeight: Math.max(...RENDER_HEIGHT_OPTIONS),
+};
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
 /** @internal 테스트용으로 export. persist merge 콜백. */
 export function mergePersistedSettings(
   persisted: unknown,
@@ -156,6 +169,18 @@ export function mergePersistedSettings(
   const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
   merged.inputOffsetMs = clampTimingOffsetMs(merged.inputOffsetMs);
   merged.visualOffsetMs = clampTimingOffsetMs(merged.visualOffsetMs);
+  // 저장소·서버에서 온 값이 플레이를 깨지 않게 설정 UI 범위로 제한하고, 숫자가 아니면 기본값으로 되돌린다.
+  for (const [key, { min, max }] of Object.entries(SETTING_SLIDER_RANGES)) {
+    if (Object.hasOwn(SETTING_UI_MAXIMUMS, key)) continue;
+    const value = merged[key];
+    merged[key] = isFiniteNumber(value) ? Math.max(min, Math.min(max, value)) : DEFAULT_SETTINGS[key as keyof GameSettings];
+  }
+  for (const [key, max] of Object.entries(SETTING_UI_MAXIMUMS)) {
+    const value = merged[key];
+    merged[key] = isFiniteNumber(value) && value > 0 ? Math.min(max, value) : DEFAULT_SETTINGS[key as keyof GameSettings];
+  }
+  // 스킨 목록에 없는 id는 SkinManager가 불러오지 못하므로 기본 스킨으로 되돌린다. 선택 UI에서 숨긴 스킨도 목록에는 있다.
+  if (!SKIN_LIST.some(skin => skin.theme.id === merged.skinId)) merged.skinId = DEFAULT_SETTINGS.skinId;
   // RFD 0031: 미출시 설정은 이전하지 않고 옛 키를 모두 버린다(차트 offsetMs와 별개).
   delete merged.audioOffsetMs;
   delete merged.judgmentOffsetMs;

@@ -3,7 +3,7 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(), onAuthStateChange: vi.fn(), unsubscribe: vi.fn(),
-  from: vi.fn(), maybeSingle: vi.fn(), upsert: vi.fn(), saveResponse: vi.fn(), toast: vi.fn(),
+  from: vi.fn(), maybeSingle: vi.fn(), upsert: vi.fn(), saveResponse: vi.fn(), insertResponse: vi.fn(), toast: vi.fn(),
 }));
 vi.mock('../../supabase/client', () => ({ supabase: { from: mocks.from,
   auth: { getSession: mocks.getSession, onAuthStateChange: mocks.onAuthStateChange } } }));
@@ -49,7 +49,9 @@ beforeEach(() => {
   mocks.getSession.mockResolvedValue({ data: { session: session('A') }, error: null });
   mocks.maybeSingle.mockResolvedValue({ data: { settings: { scrollSpeed: 1200 } }, error: null, status: 200 });
   mocks.saveResponse.mockResolvedValue({ error: null, status: 200 });
-  mocks.upsert.mockReturnValue({ abortSignal: mocks.saveResponse });
+  mocks.insertResponse.mockResolvedValue({ data: [{ user_id: 'A' }], error: null, status: 201 });
+  // 일반 저장은 upsert().abortSignal(), 최초 삽입은 upsert().select().abortSignal()이다.
+  mocks.upsert.mockReturnValue({ abortSignal: mocks.saveResponse, select: () => ({ abortSignal: mocks.insertResponse }) });
   mocks.from.mockReturnValue({
     select: () => ({ eq: () => ({ abortSignal: () => ({ maybeSingle: mocks.maybeSingle }) }) }),
     upsert: mocks.upsert,
@@ -85,7 +87,7 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     );
   });
 
-  it('서버 1200의 localStorage 저장이 실패하면 안내하고 이후 900 변경은 계정에 저장하지 않는다', async () => {
+  it('서버 1200의 localStorage 저장이 실패하면 안내하고 이후 900 변경은 바로 올리지 않다가 다음 SIGNED_IN에서 서버 1200 대신 900을 저장한다', async () => {
     const write = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota exceeded'); });
     const store = await mount();
     expect(mocks.toast).toHaveBeenCalledWith(
@@ -97,7 +99,8 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     expect(mocks.upsert).not.toHaveBeenCalled();
     emit('SIGNED_IN', session('A'));
     await vi.advanceTimersByTimeAsync(0);
-    expect(store.getState().settings.scrollSpeed).toBe(1200);
+    expect(store.getState().settings.scrollSpeed).toBe(900);
+    expect(mocks.upsert.mock.calls.map(([row]) => row.settings.scrollSpeed)).toEqual([900]);
   });
   it('익명 세션으로 앱을 시작하고 로그인 이벤트를 받아도 설정 I/O·안내는 0회다', async () => {
     mocks.getSession.mockResolvedValue({ data: { session: session('guest', true) }, error: null });
@@ -109,15 +112,16 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     expect(mocks.toast).not.toHaveBeenCalled();
   });
 
-  it('최초 실행 완료는 저장하지 않고 lane1을 KeyA로 바꾸면 500ms 뒤 키 바인딩을 저장한다', async () => {
+  it('기기 전용 debugMode=true 변경은 저장하지 않고 lane1을 KeyA·KeyZ로 바꾸면 500ms 뒤 키 바인딩을 저장한다', async () => {
     const store = await mount();
-    store.getState().completeFirstLaunch();
+    store.getState().updateSettings({ debugMode: true });
     await vi.advanceTimersByTimeAsync(500);
     expect(mocks.upsert).not.toHaveBeenCalled();
-    store.getState().updateKeyBindings({ lane1: ['KeyA'] });
+    store.getState().updateKeyBindings({ lane1: ['KeyA', 'KeyZ'] });
     await vi.advanceTimersByTimeAsync(500);
-    expect(mocks.upsert.mock.calls[0][0].settings.keyBindings.lane1).toEqual(['KeyA']);
+    expect(mocks.upsert.mock.calls[0][0].settings.keyBindings.lane1).toEqual(['KeyA', 'KeyZ']);
     expect(mocks.upsert.mock.calls[0][0].settings).not.toHaveProperty('isFirstLaunch');
+    expect(mocks.upsert.mock.calls[0][0].settings).not.toHaveProperty('debugMode');
   });
 
   it('구독 해제 시 A의 대기 저장을 취소하고 이후 hidden·SIGNED_IN·설정 변경을 무시한다', async () => {
@@ -147,7 +151,7 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     expect(store.getState().settings.scrollSpeed).toBe(1300);
     expect(mocks.upsert).not.toHaveBeenCalled();
   });
-  it('불러오기 실패 뒤 TOKEN_REFRESHED는 재시도하지 않고 다음 SIGNED_IN 성공 뒤에만 900을 저장한다', async () => {
+  it('불러오기 실패 뒤 TOKEN_REFRESHED는 재시도하지 않고 다음 SIGNED_IN 성공에서 실패 중 바꾼 950을 서버 1200 대신 저장한다', async () => {
     mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'offline' } });
     const store = await mount();
     expect(mocks.toast).toHaveBeenCalledWith(
@@ -161,10 +165,10 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     expect(mocks.upsert).not.toHaveBeenCalled();
     emit('SIGNED_IN', session('A'));
     await vi.advanceTimersByTimeAsync(0);
-    expect(store.getState().settings.scrollSpeed).toBe(1200);
+    expect(store.getState().settings.scrollSpeed).toBe(950);
     store.getState().updateSettings({ scrollSpeed: 900 });
     await vi.advanceTimersByTimeAsync(500);
-    expect(mocks.upsert).toHaveBeenCalledTimes(1);
+    expect(mocks.upsert.mock.calls.map(([row]) => row.settings.scrollSpeed)).toEqual([950, 900]);
   });
   it('앱 시작의 A 세션 조회보다 B SIGNED_IN이 먼저 오면 늦은 A를 무시하고 B만 불러온다', async () => {
     let resolve!: (value: { data: { session: Session }; error: null }) => void;
@@ -211,5 +215,124 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     expect(mocks.upsert).toHaveBeenCalledWith(
       { user_id: 'A', settings: expect.objectContaining({ scrollSpeed: 900 }), updated_at: expect.any(String) }, { onConflict: 'user_id' },
     );
+  });
+});
+
+describe('새 브라우저의 프리셋 선택 화면', () => {
+  const accountBindings = { lane1: ['KeyA', 'KeyZ'], lane2: ['KeyD', 'KeyF'],
+    lane3: ['KeyJ', 'KeyK'], lane4: ['KeyL', 'Semicolon'] };
+
+  it('presetSetup 화면에서 A의 서버 행을 적용하면 isFirstLaunch=false와 서버 바인딩으로 songSelect 화면이 된다', async () => {
+    const { useGameStore } = await import('../stores/gameStore');
+    useGameStore.setState({ screen: 'presetSetup' });
+    mocks.maybeSingle.mockResolvedValue({ data: { settings: { keyBindings: accountBindings } }, error: null, status: 200 });
+    const store = await mount();
+    expect(store.getState().screen).toBe('songSelect');
+    expect(store.getState().settings).toMatchObject({ isFirstLaunch: false, keyBindings: accountBindings });
+    expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+
+  it('title 화면에서 A의 서버 행을 적용하면 title에 두고 isFirstLaunch=false만 바꿔 Start가 프리셋 선택을 건너뛰게 한다', async () => {
+    const store = await mount();
+    expect(store.getState().screen).toBe('title');
+    expect(store.getState().settings.isFirstLaunch).toBe(false);
+  });
+
+  it('presetSetup 화면에서 A의 서버 행이 없어 로컬을 삽입하면 presetSetup에 남고 isFirstLaunch=true를 유지한다', async () => {
+    const { useGameStore } = await import('../stores/gameStore');
+    useGameStore.setState({ screen: 'presetSetup' });
+    mocks.maybeSingle.mockResolvedValue({ data: null, error: null, status: 200 });
+    const store = await mount();
+    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ user_id: 'A' }),
+      { onConflict: 'user_id', ignoreDuplicates: true });
+    expect(mocks.toast).not.toHaveBeenCalled();
+    expect(store.getState().screen).toBe('presetSetup');
+    expect(store.getState().settings.isFirstLaunch).toBe(true);
+  });
+});
+
+describe('브라우저의 미동기화 표시', () => {
+  const MARKER_KEY = 'not4k-account-settings-unsynced';
+
+  it('A의 900 변경을 예약하면 localStorage 한 칸에 사용자 id A를 남기고 저장 성공 뒤 지운다', async () => {
+    const store = await mount();
+    store.getState().updateSettings({ scrollSpeed: 900 });
+    expect(browserValues.get(MARKER_KEY)).toBe('A');
+    await vi.advanceTimersByTimeAsync(500);
+    expect(mocks.upsert).toHaveBeenCalledTimes(1);
+    expect(browserValues.has(MARKER_KEY)).toBe(false);
+  });
+
+  it('localStorage 표시가 A이고 로컬 900이 있으면 앱 시작 시 서버 1200 대신 로컬 900을 upsert하고 표시를 지운다', async () => {
+    browserValues.set('not4k-settings', JSON.stringify({ state: { settings: { scrollSpeed: 900 } }, version: 0 }));
+    browserValues.set(MARKER_KEY, 'A');
+    const store = await mount();
+    expect(store.getState().settings.scrollSpeed).toBe(900);
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      { user_id: 'A', settings: expect.objectContaining({ scrollSpeed: 900 }), updated_at: expect.any(String) }, { onConflict: 'user_id' },
+    );
+    expect(browserValues.has(MARKER_KEY)).toBe(false);
+  });
+
+  it('localStorage 표시가 B이면 A 앱 시작은 서버 1200을 적용하고 B 표시를 지운다', async () => {
+    browserValues.set(MARKER_KEY, 'B');
+    const store = await mount();
+    expect(store.getState().settings.scrollSpeed).toBe(1200);
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    expect(browserValues.has(MARKER_KEY)).toBe(false);
+  });
+
+  it('A 저장 실패로 표시 A가 남은 뒤 B 로그인으로 서버 1300을 적용하고 다시 A로 로그인하면 서버 1200을 적용하고 A에 B 설정을 올리지 않는다', async () => {
+    const store = await mount();
+    mocks.saveResponse.mockResolvedValueOnce({ error: { message: 'offline' }, status: 0 });
+    store.getState().updateSettings({ scrollSpeed: 900 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(browserValues.get(MARKER_KEY)).toBe('A');
+    emit('SIGNED_OUT', null);
+    mocks.maybeSingle.mockResolvedValueOnce({ data: { settings: { scrollSpeed: 1300 } }, error: null, status: 200 });
+    emit('SIGNED_IN', session('B'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().settings.scrollSpeed).toBe(1300);
+    expect(browserValues.has(MARKER_KEY)).toBe(false);
+    emit('SIGNED_OUT', null);
+    emit('SIGNED_IN', session('A'));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(store.getState().settings.scrollSpeed).toBe(1200);
+    expect(mocks.upsert.mock.calls.map(([row]) => [row.user_id, row.settings.scrollSpeed])).toEqual([['A', 900]]);
+  });
+
+  it('미동기화 표시를 localStorage에 쓰지 못해도 A의 900 변경은 500ms 뒤 저장한다', async () => {
+    const store = await mount();
+    const write = localStorage.setItem;
+    vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+      if (key === MARKER_KEY) throw new Error('quota exceeded');
+      write(key, value);
+    });
+    store.getState().updateSettings({ scrollSpeed: 900 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(mocks.upsert.mock.calls[0][0].settings.scrollSpeed).toBe(900);
+  });
+});
+
+describe('인증 이벤트 반복', () => {
+  it('A 불러오기 성공 뒤 900 변경 대기 중 같은 A의 SIGNED_IN이 오면 다시 불러오지 않고 500ms 뒤 900을 저장한다', async () => {
+    const store = await mount();
+    store.getState().updateSettings({ scrollSpeed: 900 });
+    emit('SIGNED_IN', session('A'));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(mocks.maybeSingle).toHaveBeenCalledTimes(1);
+    expect(mocks.upsert).toHaveBeenCalledTimes(1);
+    expect(mocks.upsert.mock.calls[0][0].settings.scrollSpeed).toBe(900);
+  });
+
+  it('A 불러오기가 계속 실패하는 동안 탭 재진입의 SIGNED_IN이 3번 와도 불러오기 실패 안내는 1번이다', async () => {
+    mocks.maybeSingle.mockResolvedValue({ data: null, error: { message: 'offline' } });
+    await mount();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      emit('SIGNED_IN', session('A'));
+      await vi.advanceTimersByTimeAsync(0);
+    }
+    expect(mocks.maybeSingle).toHaveBeenCalledTimes(4);
+    expect(mocks.toast).toHaveBeenCalledTimes(1);
   });
 });
