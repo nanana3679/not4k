@@ -153,7 +153,8 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     expect(audio.playFadedSpan.mock.invocationCallOrder[0]).toBeGreaterThan(renderer.prepareForPlayback.mock.invocationCallOrder[0]);
     expect(run.onPhase.mock.calls).toEqual([['loading'], ['playing']]);
     expect(run.state()).toEqual({ autoEnabled: true, manualStats: null, songTimeMs: 0 });
-    expect(run.target.listeners.size).toBe(2); expect(frames.size).toBe(1); expect(run.onError).not.toHaveBeenCalled();
+    // InputSystem keydown·keyup 2개와 정지 중 키 표시 갱신 1개.
+    expect(run.target.listeners.size).toBe(3); expect(frames.size).toBe(1); expect(run.onError).not.toHaveBeenCalled();
   });
 
   it('출력 지연 30ms에서 첫 진입·반복·Retry 직후 P10ms의 J−20ms를 오류 없이 관측하고 0ms Auto 탭을 판정한다', async () => {
@@ -745,6 +746,24 @@ describe('ObserverPlayRuntime 선택 구간 편집', () => {
       { fromMs: 0, fadeInUntilMs: 0, fadeOutFromMs: 12000, toMs: 12000 }, 0);
     expect(snapshot().items[0].settlementFactId).toBeNull();
     expect(run.state().manualStats).toEqual({ combo: 0, achievementRate: 0 }); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('990ms 프레임 뒤 1000ms에 누른 KeyW가 큐에 남은 채 편집을 시작하고 구간을 그대로 두고 재개하면 1000ms 탭은 Perfect다', async () => {
+    const run = create([p(1000)], {}, 12); await run.player.start(); run.player.setAuto(false);
+    frame(990); at(1000); key(run.target, 'keydown');
+    run.player.beginRangeEdit(); run.player.endRangeEdit(); run.player.togglePause();
+    frame(1200);
+    expect(snapshot().items[0].settlementFactId).not.toBeNull();
+    expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
+  });
+
+  it('KeyW를 누른 채 5000～8000ms로 바꾸고 편집을 끝낸 뒤 정지 중 KeyW를 놓으면 키 표시와 레인 1 빔이 바로 꺼진다', async () => {
+    const run = create([p(1000)], {}, 12); await run.player.start(); run.player.setAuto(false);
+    frame(500); key(run.target, 'keydown');
+    select(run.player);
+    expectKeys(true);
+    key(run.target, 'keyup');
+    expectKeys(false);
   });
 
   it('로딩 전 range는 null이고 5000～8000ms 편집 중 dispose 뒤에는 늦은 편집·재생 호출이 알림이나 자원을 되살리지 않는다', async () => {

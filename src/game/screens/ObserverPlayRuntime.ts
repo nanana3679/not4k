@@ -58,6 +58,10 @@ export class ObserverPlayRuntime {
   private initialSnapshot: ExplicitJudgmentSnapshot | null = null;
   private rangePreview: { chart: ExplicitCompiledChart; songTimeMs: number; autoEnabled: boolean } | null = null;
   private lastFrame: number | null = null;
+  private readonly onPausedKey = () => {
+    if (this.closed || !this.paused || !this.repetition) return;
+    try { this.render(0); } catch (error) { this.fail(error); }
+  };
   private lastState: ObserverPlayState | null = null;
   private lastStateAt = -Infinity;
 
@@ -104,6 +108,9 @@ export class ObserverPlayRuntime {
       });
       this.input.setJudging(false);
       this.host.prepareForPlayback(clock.visualTimeMs());
+      // InputSystem 뒤에 등록해 바뀐 물리 hold를 읽는다. 정지 중에는 RAF가 그리지 않으므로 키 표시만 다시 그린다.
+      this.options.inputTarget.addEventListener('keydown', this.onPausedKey);
+      this.options.inputTarget.addEventListener('keyup', this.onPausedKey);
       this.playRepetition();
       this.host.startFrames(timestamp => {
         if (this.closed || this.paused) return;
@@ -152,11 +159,16 @@ export class ObserverPlayRuntime {
     } catch (error) { this.fail(error); }
   }
 
-  /** 드래그 시작: 오디오와 판정을 멈추고 큐를 버린다. 물리 hold는 계속 추적한다. phase는 paused다. */
+  /** 드래그 시작: 오디오와 판정을 멈추고 큐를 닫는다. 물리 hold는 계속 추적한다. phase는 paused다. */
   beginRangeEdit(): void {
-    if (this.closed || this.editingRange || !this.input || !this.audio || !this.repetition) return;
+    if (this.closed || this.editingRange || !this.input || !this.audio || !this.clock || !this.repetition) return;
     try {
-      if (!this.paused) this.audio.pause();
+      if (!this.paused) {
+        // 일반 일시정지처럼 정지 직전 입력을 판정하고 효과를 보낸 뒤 큐를 닫는다. 구간을 안 바꾸면 같은 시도를 잇기 때문이다.
+        this.audio.pause();
+        this.stepSession(performance.now());
+        this.adapter!.sync(this.clock.visualTimeMs());
+      }
       this.input.setJudging(false);
       this.paused = true;
       this.editingRange = true;
@@ -310,6 +322,8 @@ export class ObserverPlayRuntime {
   dispose(): void {
     if (this.closed) return;
     this.closed = true;
+    this.options.inputTarget.removeEventListener('keydown', this.onPausedKey);
+    this.options.inputTarget.removeEventListener('keyup', this.onPausedKey);
     this.host.stopFrames();
     this.adapter?.dispose();
     this.adapter = null;
