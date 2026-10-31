@@ -58,7 +58,7 @@ _Avoid_: 랭킹
 _Avoid_: 플레이 기록
 
 **설정 동기화**:
-입력·시각 오프셋과 마스터 볼륨을 제외한 계정 설정을 로컬에 먼저 적용한 뒤 서버와 맞추는 흐름이다. 로그아웃 후나 서버 동기화 실패 시에도 현재 설정을 브라우저에 유지하며, 동기화 실패는 안내한다([RFD 0102](../../docs/rfd/0102-device-local-input-and-visual-offsets.md)).
+입력·시각 오프셋·마스터 볼륨·최초 실행 상태(`isFirstLaunch`)·디버그 상태(`debugMode`)를 제외한 계정 설정을 로컬에 먼저 적용한 뒤 서버와 맞추는 흐름이다. 로그아웃 후나 서버 동기화 실패 시에도 현재 설정을 브라우저에 유지하며, 동기화 실패는 안내한다([RFD 0102](../../docs/rfd/0102-device-local-input-and-visual-offsets.md)).
 _Avoid_: 로컬 설정 저장
 
 ## Relationships

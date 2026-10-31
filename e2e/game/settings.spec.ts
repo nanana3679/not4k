@@ -76,6 +76,26 @@ function laneRow(dialog: Locator, laneNumber: number): Locator {
 }
 
 test.describe('Game Settings', () => {
+  test('DEV_ADMIN에서 스크롤 속도 1200은 재방문에도 유지되고 계정 설정 요청·실패 안내는 없다', async ({ page }) => {
+    const requests: string[] = [];
+    // 회귀가 생겨도 가짜 Supabase 주소로 실제 요청을 보내지 않는다.
+    await page.route('**/rest/v1/user_settings**', route => {
+      requests.push(route.request().url());
+      return route.fulfill({ status: 503, json: { message: 'sync must be disabled in DEV_ADMIN' } });
+    });
+    const dialog = await openSettings(page);
+    await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
+    await dialog.getByLabel('Scroll Speed').fill('1200');
+    // 서버 저장 지연 시간도 지나게 하여 잘못된 구독을 검출한다.
+    await page.waitForTimeout(600);
+    await expect(page.getByText("Couldn't save settings to your account. They're kept in this browser.")).toHaveCount(0);
+    await reopenSettings(page);
+    await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
+    await expect(dialog.getByLabel('Scroll Speed')).toHaveValue('1200');
+    await expect(page.getByText("Couldn't load your account settings. Using this browser's settings.")).toHaveCount(0);
+    expect(requests).toEqual([]);
+  });
+
   test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 명시 탭 노트·Body와 Classic 기어·봄 PNG를 로드한다', async ({ page }, testInfo) => {
     test.setTimeout(PLAY_TEST_TIMEOUT_MS);
     const errors: string[] = [];

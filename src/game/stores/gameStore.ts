@@ -116,7 +116,7 @@ const NUMPAD_BINDINGS: KeyBindings = {
   lane4: ['Numpad8', 'Numpad9', 'Numpad5', 'Numpad2'],
 };
 
-const DEFAULT_SETTINGS: GameSettings = {
+export const DEFAULT_SETTINGS: GameSettings = {
   keyBindings: TKL_BINDINGS,
   scrollSpeed: 800,
   liftPercent: 0,

@@ -13,8 +13,10 @@ import {
   ResultScreen,
 } from './screens';
 import { keepGearMotionAssets } from './screens/gearMotionKeepAlive';
+import { useAccountSettingsSync } from './settingsSync/useAccountSettingsSync';
 
 export default function GameApp() {
+  useAccountSettingsSync();
   const screen = useGameStore((state) => state.screen);
   const editorReturnUrl = useGameStore((state) => state.editorReturnUrl);
   const experience = useGameExperience();
