@@ -12,6 +12,7 @@ export const DEFAULT_REQUIRED_SUCCESS_COUNT = 3;
 
 /**
  * 실습 1회 성공 조건(목표 달성률과 추가 조건). 화면에는 콤보 아래 한 줄씩 표시한다.
+ * 명세에는 목표 달성률이 정확히 1개 있고, 추가 조건은 종류마다 최대 1개다.
  * 새 추가 조건은 kind를 더하고 `getTutorialConditionStatus`의 switch에 평가를 더한다.
  */
 export type TutorialSuccessCondition =
@@ -28,6 +29,7 @@ export interface TutorialPlayingMethod {
 export interface TutorialPracticeSpec {
   /** 요구 성공 횟수: 연주 방법 하나를 완료하는 누적 성공 횟수 */
   readonly requiredSuccessCount: number;
+  /** 표시 순서대로 둔 성공 조건. 목표 달성률 1개와 종류별 최대 1개의 추가 조건 */
   readonly conditions: readonly TutorialSuccessCondition[];
   /** 실습 순서대로 둔 연주 방법. 최소 1개 */
   readonly playingMethods: readonly TutorialPlayingMethod[];
@@ -46,10 +48,14 @@ export function createTutorialPracticeSpec(input: TutorialPracticeSpecInput): Tu
   if (!Number.isInteger(requiredSuccessCount) || requiredSuccessCount < 1) {
     throw new RangeError(`요구 성공 횟수는 양의 정수여야 합니다: ${requiredSuccessCount}`);
   }
-  if (input.conditions.length === 0) {
-    throw new RangeError('성공 조건이 없으면 모든 직접 입력 패턴이 성공으로 집계됩니다');
-  }
   input.conditions.forEach(assertValidCondition);
+  const conditionCountByKind = new Map<TutorialSuccessCondition['kind'], number>();
+  for (const { kind } of input.conditions) conditionCountByKind.set(kind, (conditionCountByKind.get(kind) ?? 0) + 1);
+  const targetRateCount = conditionCountByKind.get('targetAchievementRate') ?? 0;
+  if (targetRateCount !== 1) throw new RangeError(`목표 달성률 조건은 정확히 1개여야 합니다: ${targetRateCount}개`);
+  for (const [kind, count] of conditionCountByKind) {
+    if (count > 1) throw new RangeError(`같은 종류의 추가 조건은 1개만 둘 수 있습니다: ${kind} ${count}개`);
+  }
   if (input.playingMethods.length === 0) throw new RangeError('연주 방법이 최소 1개 필요합니다');
   const methodIds = new Set(input.playingMethods.map((method) => method.id));
   if (methodIds.size !== input.playingMethods.length) throw new RangeError('연주 방법 id가 겹칩니다');
@@ -79,8 +85,6 @@ function assertValidCondition(condition: TutorialSuccessCondition): void {
 
 /** 조건 한 줄의 표시 상태: 충족(초록 체크)·실패(빨강 X)·중립(흰 글씨) */
 export type TutorialConditionStatus = 'neutral' | 'met' | 'failed';
-/** 조건을 평가하는 시점: 패턴 연주 도중 또는 패턴 결과 확정 뒤 */
-export type TutorialPatternPhase = 'playing' | 'finished';
 
 /** ScoreManager는 등급마다 weight3 × 등급 점수 ÷ 3을 더한다. 가중치 1당 Perfect가 더하는 점수다. */
 const PERFECT_SCORE_PER_WEIGHT = JUDGMENT_SCORES[JudgmentGrade.PERFECT] / 3;
@@ -88,31 +92,31 @@ const PERFECT_SCORE_PER_WEIGHT = JUDGMENT_SCORES[JudgmentGrade.PERFECT] / 3;
 const RATE_COMPARISON_TOLERANCE = 1e-9;
 
 /**
- * 조건 하나의 상태. 연주 도중에는 남은 결과와 관계없이 더는 만족할 수 없을 때만 failed이고, 그 밖은 neutral이다.
- * met은 패턴 결과가 확정된 뒤에만 나온다.
+ * 연주 도중 점수와 finalize한 점수 모두에 쓰는 조건 하나의 상태.
+ * 남은 점수 항목을 전부 Perfect로 쳐도 만족할 수 없으면 바로 failed다. 패턴의 모든 점수 항목을 정산해
+ * (liveDenominatorWeight가 finalDenominatorWeight에 도달) 결과가 정해졌고 조건을 만족하면 met, 그 밖은 neutral이다.
+ * `ExplicitJudgmentSession.finalize()`는 모든 항목을 정산해야 끝나므로 finalize한 점수는 항상 met 또는 failed다.
  */
 export function getTutorialConditionStatus(
   condition: TutorialSuccessCondition,
   score: Readonly<ScoreState>,
-  phase: TutorialPatternPhase,
 ): TutorialConditionStatus {
+  const remainingWeight = Math.max(0, score.finalDenominatorWeight - score.liveDenominatorWeight);
   switch (condition.kind) {
     case 'targetAchievementRate': {
-      // 최종 달성률의 분모는 패턴 전체 점수 항목의 이론 가중치 합이다. 아직 정산하지 않은 가중치를 전부 Perfect로 채운 값이 최선이다.
-      const remainingWeight = Math.max(0, score.finalDenominatorWeight - score.liveDenominatorWeight);
-      const earnedScore = phase === 'finished'
-        ? score.earnedScore
-        : score.earnedScore + remainingWeight * PERFECT_SCORE_PER_WEIGHT;
-      const reached = reachesAchievementRate(earnedScore, score.finalDenominatorWeight, condition.percent);
-      if (!reached) return 'failed';
-      return phase === 'finished' ? 'met' : 'neutral';
+      // 최종 달성률의 분모는 패턴 전체 점수 항목의 이론 가중치 합이다. 남은 가중치를 전부 Perfect로 채운 값이 최선이며,
+      // 모두 정산했으면 남은 가중치가 0이라 최선이 곧 최종 달성률이다.
+      const bestEarnedScore = score.earnedScore + remainingWeight * PERFECT_SCORE_PER_WEIGHT;
+      if (!reachesAchievementRate(bestEarnedScore, score.finalDenominatorWeight, condition.percent)) return 'failed';
+      break;
     }
     case 'maxGoodTrillCount':
       if (score.goodTrillCount > condition.count) return 'failed';
-      return phase === 'finished' ? 'met' : 'neutral';
+      break;
     default:
       return assertNever(condition);
   }
+  return remainingWeight === 0 ? 'met' : 'neutral';
 }
 
 /** earnedScore / denominatorWeight × 100 ≥ percent를 나눗셈 없이 비교한다. 가중치 합 0은 ScoreManager처럼 0%다. */
@@ -121,12 +125,12 @@ function reachesAchievementRate(earnedScore: number, denominatorWeight: number, 
   return earnedScore * 100 >= percent * denominatorWeight - RATE_COMPARISON_TOLERANCE;
 }
 
-/** 확정된 패턴 결과가 모든 조건을 만족하면 1회 성공이다. 일반 Good은 달성률로만 반영된다. */
+/** 패턴 결과가 모든 조건을 met으로 만족하면 1회 성공이다. 정산하지 않은 항목이 남으면 성공이 아니다. 일반 Good은 달성률로만 반영된다. */
 export function isTutorialPatternSuccess(
   conditions: readonly TutorialSuccessCondition[],
-  finalScore: Readonly<ScoreState>,
+  score: Readonly<ScoreState>,
 ): boolean {
-  return conditions.every((condition) => getTutorialConditionStatus(condition, finalScore, 'finished') === 'met');
+  return conditions.every((condition) => getTutorialConditionStatus(condition, score) === 'met');
 }
 
 /** `직접 입력 / 시연` 토글의 두 선택지 */
@@ -142,18 +146,35 @@ export interface TutorialPracticeState {
   readonly mode: TutorialPracticeMode;
   /** 직접 입력 패턴 재생 중 시연을 골랐을 때, 다음 패턴 시작부터 적용할 시연 */
   readonly pendingMode: 'demonstration' | null;
-  readonly patternPlaying: boolean;
+  /** 재생 중인 패턴의 id. 재생 중이 아니면 null이며, 연주 방법을 완료하면 항상 null이다 */
+  readonly playingPatternId: number | null;
   /** 재생 중인 패턴을 처음부터 끝까지 직접 입력으로 연주해 성공 집계 대상인지 */
   readonly currentPatternCountable: boolean;
+  /** 마지막으로 받아들인 패턴 결과. 반복이 다음 패턴으로 넘어간 뒤에도 UI가 직전 결과를 보여줄 수 있게 남긴다 */
+  readonly lastFinishedPattern: TutorialFinishedPattern | null;
 }
 
+/** 끝난 패턴 한 차례의 결과. 시연·집계 제외 패턴도 남긴다 */
+export interface TutorialFinishedPattern {
+  readonly patternId: number;
+  readonly score: Readonly<ScoreState>;
+  /** 처음부터 끝까지 직접 입력으로 연주해 성공 집계 대상이었는지 */
+  readonly counted: boolean;
+  /** 모든 성공 조건을 만족했는지. counted와 함께 참일 때만 성공 횟수가 1 늘었다 */
+  readonly succeeded: boolean;
+}
+
+/**
+ * patternId는 플레이어가 붙이는 패턴 한 차례(반복 1회)의 식별자다(예: 반복 차수).
+ * 한 실습 상태 안에서 서로 다른 패턴에 같은 id를 다시 쓰지 않는다.
+ */
 export type TutorialPracticeEvent =
   /** 플레이어가 토글에서 모드를 고름 */
   | { readonly type: 'modeSelected'; readonly mode: TutorialPracticeMode }
-  /** 패턴 한 차례(반복 1회)의 재생 시작 */
-  | { readonly type: 'patternStarted' }
+  /** 패턴 한 차례의 재생 시작 */
+  | { readonly type: 'patternStarted'; readonly patternId: number }
   /** 패턴 한 차례의 결과 확정. score는 그 패턴의 최종 점수 */
-  | { readonly type: 'patternFinished'; readonly score: Readonly<ScoreState> }
+  | { readonly type: 'patternFinished'; readonly patternId: number; readonly score: Readonly<ScoreState> }
   /** `다음` 버튼 */
   | { readonly type: 'nextPressed' };
 
@@ -161,7 +182,7 @@ export type TutorialPracticeEvent =
 export function createTutorialPracticeState(spec: TutorialPracticeSpec): TutorialPracticeState {
   return {
     spec, playingMethodIndex: 0, successCount: 0, mode: 'demonstration', pendingMode: null,
-    patternPlaying: false, currentPatternCountable: false,
+    playingPatternId: null, currentPatternCountable: false, lastFinishedPattern: null,
   };
 }
 
@@ -170,17 +191,24 @@ export function reduceTutorialPractice(state: TutorialPracticeState, event: Tuto
     case 'modeSelected':
       return selectMode(state, event.mode);
     case 'patternStarted': {
+      // 방법을 완료하면 반복을 멈추므로 새 패턴을 재생하지 않는다. 재생 중인 패턴과 같은 id는 중복 통지다.
+      if (isTutorialPlayingMethodComplete(state) || event.patternId === state.playingPatternId) return state;
+      // 재생 중이던 다른 패턴은 끝 통지를 놓친 것으로 보고 결과 없이 버린다.
       const mode = state.pendingMode ?? state.mode;
-      return { ...state, mode, pendingMode: null, patternPlaying: true, currentPatternCountable: mode === 'directInput' };
+      return {
+        ...state, mode, pendingMode: null, playingPatternId: event.patternId, currentPatternCountable: mode === 'directInput',
+      };
     }
     case 'patternFinished': {
-      if (!state.patternPlaying) return state;
-      const counted = state.currentPatternCountable && !isTutorialPlayingMethodComplete(state)
-        && isTutorialPatternSuccess(state.spec.conditions, event.score);
+      // 재생 중인 패턴이 아닌 결과(늦게 온 이전 패턴, 시작을 받지 않은 패턴)는 무시한다.
+      if (event.patternId !== state.playingPatternId) return state;
+      const counted = state.currentPatternCountable;
+      const succeeded = isTutorialPatternSuccess(state.spec.conditions, event.score);
       // 재생이 끝났으므로 예약한 시연은 지금 적용해도 다음 패턴 시작부터 적용한 것과 같다.
       return {
-        ...state, mode: state.pendingMode ?? state.mode, pendingMode: null, patternPlaying: false,
-        currentPatternCountable: false, successCount: counted ? state.successCount + 1 : state.successCount,
+        ...state, mode: state.pendingMode ?? state.mode, pendingMode: null, playingPatternId: null,
+        currentPatternCountable: false, successCount: counted && succeeded ? state.successCount + 1 : state.successCount,
+        lastFinishedPattern: { patternId: event.patternId, score: event.score, counted, succeeded },
       };
     }
     case 'nextPressed':
@@ -200,8 +228,13 @@ function selectMode(state: TutorialPracticeState, mode: TutorialPracticeMode): T
   }
   if (state.mode === 'demonstration') return state;
   // 직접 입력 → 시연: 재생 중이면 그 패턴을 직접 입력으로 마치고 다음 패턴부터, 아니면 바로 적용한다.
-  if (state.patternPlaying) return { ...state, pendingMode: 'demonstration' };
+  if (isTutorialPatternPlaying(state)) return { ...state, pendingMode: 'demonstration' };
   return { ...state, mode: 'demonstration' };
+}
+
+/** 패턴이 재생 중인지. 토글 적용 시점을 정한다 */
+export function isTutorialPatternPlaying(state: TutorialPracticeState): boolean {
+  return state.playingPatternId !== null;
 }
 
 /** 토글에 표시할 선택: 예약한 시연이 있으면 그 선택을 보여준다 */
@@ -219,7 +252,11 @@ export function isTutorialPlayingMethodComplete(state: TutorialPracticeState): b
   return state.successCount >= state.spec.requiredSuccessCount;
 }
 
-/** 마지막 연주 방법까지 완료해 항목 전체를 통과했는지. 통과 기록 저장은 이 값을 읽는다 */
+/**
+ * 이 실습 세션에서 마지막 연주 방법까지 완료해 항목 전체를 통과했는지.
+ * 통과 기록 저장은 이 값이 false에서 true로 바뀔 때만 통과를 기록하고, false라는 이유로 기존 통과 기록을 지우지 않는다.
+ * 이미 통과한 항목을 다시 실습하면 새 상태는 false에서 시작하지만 과거 통과 기록은 유지한다(RFD 0081).
+ */
 export function isTutorialPracticeItemPassed(state: TutorialPracticeState): boolean {
   return state.playingMethodIndex === state.spec.playingMethods.length - 1 && isTutorialPlayingMethodComplete(state);
 }

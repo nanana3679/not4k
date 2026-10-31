@@ -10,6 +10,7 @@ import {
   getTutorialConditionStatus,
   getTutorialPracticeNextTarget,
   getTutorialPracticeProgress,
+  isTutorialPatternPlaying,
   isTutorialPatternSuccess,
   isTutorialPlayingMethodComplete,
   isTutorialPracticeItemPassed,
@@ -26,7 +27,7 @@ function scoreItems(total: number, weight3 = 3): ScoreItem[] {
   }));
 }
 
-/** 실제 ScoreManager로 앞에서부터 grades를 정산한 연주 도중 점수. */
+/** 실제 ScoreManager로 앞에서부터 grades를 정산하고 finalize하지 않은 연주 도중 점수. */
 function liveScore(total: number, grades: readonly JudgmentGrade[]): Readonly<ScoreState> {
   const manager = new ScoreManager(scoreItems(total));
   grades.forEach((grade, index) => manager.settleScoreItem(`n${index}`, grade));
@@ -42,6 +43,7 @@ function finalScore(grades: readonly JudgmentGrade[]): Readonly<ScoreState> {
 
 const rate90: TutorialSuccessCondition = { kind: 'targetAchievementRate', percent: 90 };
 const noGoodTrill: TutorialSuccessCondition = { kind: 'maxGoodTrillCount', count: 0 };
+const NINE_PERFECT = [PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT];
 
 const SUCCESS = finalScore([PERFECT, PERFECT, PERFECT, PERFECT]);
 const FAILURE = finalScore([PERFECT, MISS, MISS, MISS]);
@@ -56,11 +58,17 @@ const twoMethodSpec = () => createTutorialPracticeSpec({
 function run(state: TutorialPracticeState, ...events: TutorialPracticeEvent[]): TutorialPracticeState {
   return events.reduce(reduceTutorialPractice, state);
 }
-const started: TutorialPracticeEvent = { type: 'patternStarted' };
-const finished = (score: Readonly<ScoreState>): TutorialPracticeEvent => ({ type: 'patternFinished', score });
+const started = (patternId: number): TutorialPracticeEvent => ({ type: 'patternStarted', patternId });
+const finished = (patternId: number, score: Readonly<ScoreState>): TutorialPracticeEvent => ({ type: 'patternFinished', patternId, score });
 const select = (mode: 'demonstration' | 'directInput'): TutorialPracticeEvent => ({ type: 'modeSelected', mode });
 const nextPressed: TutorialPracticeEvent = { type: 'nextPressed' };
-const pattern = (score: Readonly<ScoreState>): TutorialPracticeEvent[] => [started, finished(score)];
+/** 자동 패턴 id는 1000부터 써서, 테스트가 직접 적는 작은 id(1, 2, 7…)와 겹치지 않는다. */
+let lastPatternId = 1000;
+/** 새 id로 시작해 끝나는 패턴 한 차례 */
+function pattern(score: Readonly<ScoreState>): TutorialPracticeEvent[] {
+  const patternId = ++lastPatternId;
+  return [started(patternId), finished(patternId, score)];
+}
 
 /** 시연에서 패턴 재생 전에 직접 입력을 고른 상태. 다음 패턴부터 집계한다. */
 function directInputState(spec = singleMethodSpec()): TutorialPracticeState {
@@ -78,119 +86,161 @@ describe('튜토리얼 실습 명세', () => {
   });
 
   it.each([0, -1, 2.5, Number.NaN, Number.POSITIVE_INFINITY])('요구 성공 횟수 %s는 양의 정수가 아니라 거부', (count) => {
-    expect(() => singleMethodSpec(count)).toThrow(RangeError);
+    expect(() => singleMethodSpec(count)).toThrow(/요구 성공 횟수/);
   });
 
   it('연주 방법이 0개면 거부', () => {
-    expect(() => createTutorialPracticeSpec({ conditions: [rate90], playingMethods: [] })).toThrow(RangeError);
+    expect(() => createTutorialPracticeSpec({ conditions: [rate90], playingMethods: [] })).toThrow(/연주 방법/);
   });
 
   it('연주 방법 id가 겹치면 거부', () => {
-    expect(() => createTutorialPracticeSpec({ conditions: [rate90], playingMethods: [{ id: 'a' }, { id: 'a' }] })).toThrow(RangeError);
+    expect(() => createTutorialPracticeSpec({ conditions: [rate90], playingMethods: [{ id: 'a' }, { id: 'a' }] })).toThrow(/연주 방법 id/);
   });
 
-  it('성공 조건이 0개면 모든 패턴이 성공으로 집계되므로 거부', () => {
-    expect(() => createTutorialPracticeSpec({ conditions: [], playingMethods: [{ id: 'tap' }] })).toThrow(RangeError);
+  it('목표 달성률 90%만 있고 추가 조건이 없는 명세는 허용', () => {
+    expect(createTutorialPracticeSpec({ conditions: [rate90], playingMethods: [{ id: 'tap' }] }).conditions).toEqual([rate90]);
+  });
+
+  it('성공 조건이 0개면 목표 달성률 조건이 없어 거부', () => {
+    expect(() => createTutorialPracticeSpec({ conditions: [], playingMethods: [{ id: 'tap' }] })).toThrow(/목표 달성률 조건은 정확히 1개/);
+  });
+
+  it('maxGoodTrillCount 0만 있고 목표 달성률 조건이 없으면 거부', () => {
+    expect(() => createTutorialPracticeSpec({ conditions: [noGoodTrill], playingMethods: [{ id: 'tap' }] }))
+      .toThrow(/목표 달성률 조건은 정확히 1개/);
+  });
+
+  it('목표 달성률 조건이 90%·80% 2개면 거부', () => {
+    expect(() => createTutorialPracticeSpec({
+      conditions: [rate90, { kind: 'targetAchievementRate', percent: 80 }], playingMethods: [{ id: 'tap' }],
+    })).toThrow(/목표 달성률 조건은 정확히 1개/);
+  });
+
+  it('maxGoodTrillCount 조건이 0회·1회 2개면 같은 종류 추가 조건이 겹쳐 거부', () => {
+    expect(() => createTutorialPracticeSpec({
+      conditions: [rate90, noGoodTrill, { kind: 'maxGoodTrillCount', count: 1 }], playingMethods: [{ id: 'tap' }],
+    })).toThrow(/maxGoodTrillCount/);
   });
 
   it.each([-1, 100.5, Number.NaN])('목표 달성률 %s%는 0～100 밖이라 거부', (percent) => {
     expect(() => createTutorialPracticeSpec({
       conditions: [{ kind: 'targetAchievementRate', percent }], playingMethods: [{ id: 'tap' }],
-    })).toThrow(RangeError);
+    })).toThrow(/목표 달성률은 0～100%/);
   });
 
-  it.each([-1, 0.5])('goodTrill 최대 횟수 %s는 0 이상의 정수가 아니라 거부', (count) => {
+  it.each([-1, 0.5])('goodTrill 허용 횟수 %s는 0 이상의 정수가 아니라 거부', (count) => {
     expect(() => createTutorialPracticeSpec({
-      conditions: [{ kind: 'maxGoodTrillCount', count }], playingMethods: [{ id: 'tap' }],
-    })).toThrow(RangeError);
+      conditions: [rate90, { kind: 'maxGoodTrillCount', count }], playingMethods: [{ id: 'tap' }],
+    })).toThrow(/goodTrill 허용 횟수/);
   });
 });
 
 describe('성공 조건의 실시간 상태', () => {
   it('10개 중 4개를 Perfect로 친 연주 도중에는 90% 조건과 goodTrill 0회 조건이 모두 neutral', () => {
     const score = liveScore(10, [PERFECT, PERFECT, PERFECT, PERFECT]);
-    expect(getTutorialConditionStatus(rate90, score, 'playing')).toBe('neutral');
-    expect(getTutorialConditionStatus(noGoodTrill, score, 'playing')).toBe('neutral');
+    expect(getTutorialConditionStatus(rate90, score)).toBe('neutral');
+    expect(getTutorialConditionStatus(noGoodTrill, score)).toBe('neutral');
   });
 
   it('연주 도중 goodTrill 1회면 maxGoodTrillCount 0 조건 즉시 failed', () => {
     const score = liveScore(10, [PERFECT, GOOD_TRILL]);
-    expect(getTutorialConditionStatus(noGoodTrill, score, 'playing')).toBe('failed');
+    expect(getTutorialConditionStatus(noGoodTrill, score)).toBe('failed');
   });
 
   it('연주 도중 goodTrill 1회는 maxGoodTrillCount 1 조건을 아직 neutral로 둔다', () => {
     const score = liveScore(10, [PERFECT, GOOD_TRILL]);
-    expect(getTutorialConditionStatus({ kind: 'maxGoodTrillCount', count: 1 }, score, 'playing')).toBe('neutral');
+    expect(getTutorialConditionStatus({ kind: 'maxGoodTrillCount', count: 1 }, score)).toBe('neutral');
   });
 
   it('10개 중 Miss 1개·Good 1개 뒤 남은 8개를 전부 Perfect로 쳐도 25/30 = 83.3%라 90% 조건 failed', () => {
     const score = liveScore(10, [MISS, GOOD]);
-    expect(getTutorialConditionStatus(rate90, score, 'playing')).toBe('failed');
+    expect(getTutorialConditionStatus(rate90, score)).toBe('failed');
   });
 
   it('10개 중 Miss 1개 뒤 남은 9개를 전부 Perfect로 치면 정확히 27/30 = 90%라 90% 조건은 아직 neutral', () => {
     const score = liveScore(10, [MISS]);
-    expect(getTutorialConditionStatus(rate90, score, 'playing')).toBe('neutral');
+    expect(getTutorialConditionStatus(rate90, score)).toBe('neutral');
   });
 
-  it('패턴 종료 시 Perfect 9개·Miss 1개로 정확히 90%면 90% 조건 met', () => {
-    const score = finalScore([MISS, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT]);
-    expect(getTutorialConditionStatus(rate90, score, 'finished')).toBe('met');
+  it('finalize 전이라도 10개를 모두 정산해 Miss 1개·Perfect 9개로 정확히 90%면 90% 조건 met', () => {
+    const score = liveScore(10, [MISS, ...NINE_PERFECT]);
+    expect(getTutorialConditionStatus(rate90, score)).toBe('met');
   });
 
-  it('패턴 종료 시 Perfect 8개·Great 1개·Miss 1개로 26/30 = 86.7%면 90% 조건 failed', () => {
+  it('finalize 전이라도 10개를 모두 정산하고 goodTrill 0회면 maxGoodTrillCount 0 조건 met', () => {
+    const score = liveScore(10, [GOOD, ...NINE_PERFECT]);
+    expect(getTutorialConditionStatus(noGoodTrill, score)).toBe('met');
+  });
+
+  it('10개 중 9개만 정산해 goodTrill 0회여도 마지막 항목이 남아 maxGoodTrillCount 0 조건은 neutral', () => {
+    const score = liveScore(10, NINE_PERFECT);
+    expect(getTutorialConditionStatus(noGoodTrill, score)).toBe('neutral');
+  });
+
+  it('finalize한 Perfect 8개·Great 1개·Miss 1개로 26/30 = 86.7%면 90% 조건 failed', () => {
     const score = finalScore([MISS, GREAT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT]);
     expect(score.achievementRate).toBeCloseTo(86.67, 1);
-    expect(getTutorialConditionStatus(rate90, score, 'finished')).toBe('failed');
+    expect(getTutorialConditionStatus(rate90, score)).toBe('failed');
   });
 
   it('weight3 1인 Great 6개·Miss 2개로 정확히 4/8 = 50%면 2/3점 누적 오차(3.9999…)가 있어도 50% 조건 met', () => {
     const manager = new ScoreManager(scoreItems(8, 1));
     [GREAT, GREAT, GREAT, GREAT, GREAT, GREAT, MISS, MISS].forEach((grade, index) => manager.settleScoreItem(`n${index}`, grade));
     const score = manager.finalize();
-    expect(getTutorialConditionStatus({ kind: 'targetAchievementRate', percent: 50 }, score, 'finished')).toBe('met');
+    expect(getTutorialConditionStatus({ kind: 'targetAchievementRate', percent: 50 }, score)).toBe('met');
   });
 
-  it('패턴 종료 시 goodTrill 0회면 maxGoodTrillCount 0 조건 met', () => {
-    expect(getTutorialConditionStatus(noGoodTrill, SUCCESS, 'finished')).toBe('met');
+  it('finalize한 패턴에서 goodTrill 0회면 maxGoodTrillCount 0 조건 met', () => {
+    expect(getTutorialConditionStatus(noGoodTrill, SUCCESS)).toBe('met');
   });
 
-  it('점수 항목 가중치 합이 0인 패턴은 달성률 0%라 90% 조건이 연주 도중에도 failed', () => {
+  it('점수 항목 가중치 합이 0인 패턴은 달성률 0%라 90% 조건이 처음부터 failed', () => {
     const empty = new ScoreManager([]);
-    expect(getTutorialConditionStatus(rate90, empty.getState(), 'playing')).toBe('failed');
-    expect(getTutorialConditionStatus(rate90, empty.finalize(), 'finished')).toBe('failed');
+    expect(getTutorialConditionStatus(rate90, empty.getState())).toBe('failed');
+    expect(getTutorialConditionStatus(rate90, empty.finalize())).toBe('failed');
   });
 });
 
 describe('패턴 1회 성공 판정', () => {
   it('Perfect 9개·일반 Good 1개로 28/30 = 93.3%면 Good이 있어도 90%·goodTrill 0회 조건을 모두 만족해 성공', () => {
-    const score = finalScore([GOOD, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT]);
+    const score = finalScore([GOOD, ...NINE_PERFECT]);
     expect(isTutorialPatternSuccess([rate90, noGoodTrill], score)).toBe(true);
   });
 
   it('Perfect 9개·goodTrill 1개로 93.3%여도 goodTrill 0회 조건을 어겨 실패', () => {
-    const score = finalScore([GOOD_TRILL, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT]);
+    const score = finalScore([GOOD_TRILL, ...NINE_PERFECT]);
     expect(isTutorialPatternSuccess([rate90, noGoodTrill], score)).toBe(false);
   });
 
   it('Perfect 1개·Miss 3개로 25%면 90% 조건을 어겨 실패', () => {
     expect(isTutorialPatternSuccess([rate90, noGoodTrill], FAILURE)).toBe(false);
   });
+
+  it('10개 중 Perfect 9개만 정산한 점수는 조건이 neutral이라 성공이 아니다', () => {
+    expect(isTutorialPatternSuccess([rate90, noGoodTrill], liveScore(10, NINE_PERFECT))).toBe(false);
+  });
 });
 
 describe('튜토리얼 실습 상태: 시작과 시연', () => {
-  it('처음 상태는 시연·첫 방법·0/3이고 직접 입력은 토글로만 선택', () => {
+  it('처음 상태는 시연·첫 방법·0/3이고 재생 중인 패턴과 마지막 패턴 결과가 없다', () => {
     const state = createTutorialPracticeState(singleMethodSpec());
     expect(state.mode).toBe('demonstration');
     expect(getSelectedTutorialPracticeMode(state)).toBe('demonstration');
     expect(state.playingMethodIndex).toBe(0);
     expect(getTutorialPracticeProgress(state)).toEqual({ current: 0, required: 3 });
+    expect(isTutorialPatternPlaying(state)).toBe(false);
+    expect(state.lastFinishedPattern).toBeNull();
   });
 
   it('시연 패턴이 조건을 만족하며 끝나도 성공 횟수 0/3이고 직접 입력으로 자동 전환하지 않음', () => {
     const state = run(createTutorialPracticeState(singleMethodSpec()), ...pattern(SUCCESS), ...pattern(SUCCESS));
     expect(getTutorialPracticeProgress(state).current).toBe(0);
     expect(state.mode).toBe('demonstration');
+  });
+
+  it('조건을 만족한 시연 패턴 3이 끝나면 lastFinishedPattern은 패턴 3·counted false·succeeded true', () => {
+    const state = run(createTutorialPracticeState(singleMethodSpec()), started(3), finished(3, SUCCESS));
+    expect(state.lastFinishedPattern).toEqual({ patternId: 3, score: SUCCESS, counted: false, succeeded: true });
   });
 });
 
@@ -207,29 +257,96 @@ describe('튜토리얼 실습 상태: 누적 성공', () => {
     expect(isTutorialPlayingMethodComplete(state)).toBe(false);
   });
 
+  it('직접 입력 패턴 1 성공 뒤 lastFinishedPattern은 counted true·succeeded true, 패턴 2 실패 뒤에는 counted true·succeeded false', () => {
+    const afterSuccess = run(directInputState(), started(1), finished(1, SUCCESS));
+    expect(afterSuccess.lastFinishedPattern).toEqual({ patternId: 1, score: SUCCESS, counted: true, succeeded: true });
+    const afterFailure = run(afterSuccess, started(2), finished(2, FAILURE));
+    expect(afterFailure.lastFinishedPattern).toEqual({ patternId: 2, score: FAILURE, counted: true, succeeded: false });
+    expect(getTutorialPracticeProgress(afterFailure).current).toBe(1);
+  });
+
   it('요구 1회 항목은 직접 입력 성공 1회로 바로 통과', () => {
     const state = run(directInputState(singleMethodSpec(1)), ...pattern(SUCCESS));
     expect(isTutorialPracticeItemPassed(state)).toBe(true);
   });
 
-  it('3/3으로 방법을 완료한 뒤 끝난 성공 패턴은 집계하지 않아 3/3에 머문다', () => {
+  it('3/3으로 방법을 완료하면 이후 patternStarted를 무시해 재생 중인 패턴 없이 3/3에 머문다', () => {
     const complete = run(directInputState(), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
-    const after = run(complete, ...pattern(SUCCESS), ...pattern(SUCCESS));
-    expect(getTutorialPracticeProgress(after)).toEqual({ current: 3, required: 3 });
+    const afterStart = run(complete, started(7));
+    expect(isTutorialPatternPlaying(afterStart)).toBe(false);
+    const afterFinish = run(afterStart, finished(7, SUCCESS));
+    expect(getTutorialPracticeProgress(afterFinish)).toEqual({ current: 3, required: 3 });
+    expect(afterFinish.lastFinishedPattern).toEqual(complete.lastFinishedPattern);
   });
 
-  it('patternStarted 없이 도착한 patternFinished는 조건을 만족해도 집계하지 않는다', () => {
-    const state = run(directInputState(), finished(SUCCESS));
+  it('3/3으로 방법을 완료한 직접 입력에서 시연을 고르면 재생 중인 패턴이 없어 바로 시연이고 횟수는 3/3', () => {
+    const complete = run(directInputState(), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
+    const state = run(complete, select('demonstration'));
+    expect(state.mode).toBe('demonstration');
+    expect(getSelectedTutorialPracticeMode(state)).toBe('demonstration');
+    expect(getTutorialPracticeProgress(state).current).toBe(3);
+  });
+
+  it('patternStarted 없이 도착한 patternFinished는 조건을 만족해도 집계하지 않고 lastFinishedPattern도 남기지 않는다', () => {
+    const state = run(directInputState(), finished(1, SUCCESS));
     expect(getTutorialPracticeProgress(state).current).toBe(0);
+    expect(state.lastFinishedPattern).toBeNull();
+  });
+});
+
+describe('튜토리얼 실습 상태: 패턴 id', () => {
+  it('시연 패턴 1 재생 중 직접 입력으로 바꾼 뒤 같은 패턴 1의 patternStarted가 다시 와도 무시해 그 패턴은 집계 제외', () => {
+    const state = run(createTutorialPracticeState(singleMethodSpec()), started(1), select('directInput'), started(1), finished(1, SUCCESS));
+    expect(getTutorialPracticeProgress(state).current).toBe(0);
+    expect(state.lastFinishedPattern?.counted).toBe(false);
+  });
+
+  it('직접 입력 패턴 1 재생 중 시연을 예약한 뒤 같은 패턴 1의 patternStarted가 다시 와도 시연을 앞당기지 않아 패턴 1을 1/3으로 집계', () => {
+    const duplicated = run(directInputState(), started(1), select('demonstration'), started(1));
+    expect(duplicated.mode).toBe('directInput');
+    expect(getSelectedTutorialPracticeMode(duplicated)).toBe('demonstration');
+    const state = run(duplicated, finished(1, SUCCESS));
+    expect(getTutorialPracticeProgress(state).current).toBe(1);
+    expect(state.mode).toBe('demonstration');
+  });
+
+  it('직접 입력 패턴 1의 끝 통지 없이 패턴 2가 시작되면 패턴 1은 결과 없이 버리고 패턴 2 성공만 1/3으로 집계', () => {
+    const dropped = run(directInputState(), started(1), started(2));
+    expect(dropped.playingPatternId).toBe(2);
+    const state = run(dropped, finished(2, SUCCESS));
+    expect(getTutorialPracticeProgress(state).current).toBe(1);
+    expect(state.lastFinishedPattern?.patternId).toBe(2);
+  });
+
+  it('패턴 2가 시작된 뒤 늦게 도착한 패턴 1의 성공 finish는 무시해 0/3이고 패턴 2는 계속 재생 중', () => {
+    const state = run(directInputState(), started(1), started(2), finished(1, SUCCESS));
+    expect(getTutorialPracticeProgress(state).current).toBe(0);
+    expect(state.playingPatternId).toBe(2);
+    expect(state.lastFinishedPattern).toBeNull();
+  });
+
+  it('직접 입력 패턴 1 재생 중 시연을 예약하고 끝 통지 없이 패턴 2가 시작되면 패턴 2부터 시연이라 성공해도 0/3', () => {
+    const switched = run(directInputState(), started(1), select('demonstration'), started(2));
+    expect(switched.mode).toBe('demonstration');
+    expect(getTutorialPracticeProgress(run(switched, finished(2, SUCCESS))).current).toBe(0);
+  });
+
+  it('첫 방법 완료 뒤 무시된 패턴 7 재생 중 다음을 누르면 늦게 온 패턴 7의 finish는 둘째 방법에 집계하지 않음', () => {
+    const firstComplete = run(directInputState(twoMethodSpec()), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
+    const state = run(firstComplete, started(7), nextPressed, select('directInput'), finished(7, SUCCESS));
+    expect(state.playingMethodIndex).toBe(1);
+    expect(getTutorialPracticeProgress(state).current).toBe(0);
+    expect(state.lastFinishedPattern).toBeNull();
   });
 });
 
 describe('튜토리얼 실습 상태: 토글 적용 시점', () => {
   it('시연 도중 직접 입력으로 바꾼 패턴은 조건을 만족해도 집계 제외하고 다음 패턴부터 1/3', () => {
-    const switched = run(createTutorialPracticeState(singleMethodSpec()), started, select('directInput'));
+    const switched = run(createTutorialPracticeState(singleMethodSpec()), started(1), select('directInput'));
     expect(switched.mode).toBe('directInput');
-    const afterSwitchedPattern = run(switched, finished(SUCCESS));
+    const afterSwitchedPattern = run(switched, finished(1, SUCCESS));
     expect(getTutorialPracticeProgress(afterSwitchedPattern).current).toBe(0);
+    expect(afterSwitchedPattern.lastFinishedPattern).toEqual({ patternId: 1, score: SUCCESS, counted: false, succeeded: true });
     expect(getTutorialPracticeProgress(run(afterSwitchedPattern, ...pattern(SUCCESS))).current).toBe(1);
   });
 
@@ -239,14 +356,14 @@ describe('튜토리얼 실습 상태: 토글 적용 시점', () => {
   });
 
   it('직접 입력에서 패턴 재생 중 시연으로 바꾸면 그 패턴은 직접 입력으로 집계되고 다음 패턴부터 시연', () => {
-    const requested = run(directInputState(), started, select('demonstration'));
+    const requested = run(directInputState(), started(1), select('demonstration'));
     expect(requested.mode).toBe('directInput');
     expect(getSelectedTutorialPracticeMode(requested)).toBe('demonstration');
-    const counted = run(requested, finished(SUCCESS));
+    const counted = run(requested, finished(1, SUCCESS));
     expect(getTutorialPracticeProgress(counted).current).toBe(1);
-    const demonstrated = run(counted, started);
+    const demonstrated = run(counted, started(2));
     expect(demonstrated.mode).toBe('demonstration');
-    expect(getTutorialPracticeProgress(run(demonstrated, finished(SUCCESS))).current).toBe(1);
+    expect(getTutorialPracticeProgress(run(demonstrated, finished(2, SUCCESS))).current).toBe(1);
   });
 
   it('직접 입력에서 패턴이 재생 중이 아닐 때 시연으로 바꾸면 바로 시연이고 다음 성공 패턴은 집계하지 않음', () => {
@@ -256,14 +373,15 @@ describe('튜토리얼 실습 상태: 토글 적용 시점', () => {
   });
 
   it('재생 중 시연 예약 뒤 패턴이 끝나기 전에 다시 직접 입력을 고르면 예약이 취소되어 그 패턴과 다음 패턴 모두 집계해 2/3', () => {
-    const state = run(directInputState(), started, select('demonstration'), select('directInput'), finished(SUCCESS), ...pattern(SUCCESS));
+    const state = run(directInputState(), started(1), select('demonstration'), select('directInput'), finished(1, SUCCESS),
+      ...pattern(SUCCESS));
     expect(state.mode).toBe('directInput');
     expect(getTutorialPracticeProgress(state).current).toBe(2);
   });
 
   it('시연 도중 직접 입력으로 바꿨다가 같은 패턴 안에서 다시 시연을 고르면 그 패턴은 집계 제외되고 다음 패턴은 시연', () => {
-    const state = run(createTutorialPracticeState(singleMethodSpec()), started, select('directInput'), select('demonstration'),
-      finished(SUCCESS), started);
+    const state = run(createTutorialPracticeState(singleMethodSpec()), started(1), select('directInput'), select('demonstration'),
+      finished(1, SUCCESS), started(2));
     expect(state.mode).toBe('demonstration');
     expect(getTutorialPracticeProgress(state).current).toBe(0);
   });
@@ -285,13 +403,14 @@ describe('튜토리얼 실습 상태: 연주 방법과 다음', () => {
     expect(getTutorialPracticeNextTarget(state)).toBe('nextPlayingMethod');
   });
 
-  it('두 방법 항목에서 첫 방법 3회 성공은 둘째 방법 횟수에 더하지 않아 다음을 누르면 둘째 방법 0/3·시연', () => {
+  it('두 방법 항목에서 첫 방법 3회 성공은 둘째 방법 횟수에 더하지 않아 다음을 누르면 둘째 방법 0/3·시연·마지막 패턴 결과 없음', () => {
     const firstComplete = run(directInputState(twoMethodSpec()), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
     const second = run(firstComplete, nextPressed);
     expect(second.playingMethodIndex).toBe(1);
     expect(getTutorialPracticeProgress(second)).toEqual({ current: 0, required: 3 });
     expect(second.mode).toBe('demonstration');
     expect(getSelectedTutorialPracticeMode(second)).toBe('demonstration');
+    expect(second.lastFinishedPattern).toBeNull();
   });
 
   it('첫 방법을 완료해도 다음을 누르기 전에는 둘째 방법으로 자동 이동하지 않음', () => {
