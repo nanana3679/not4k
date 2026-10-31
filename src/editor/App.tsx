@@ -21,7 +21,7 @@ import { supabase } from '../supabase';
 import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
 import type { LegacyConversionItem, PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
-import { MarkerEditModal } from './components/MarkerEditModal';
+import { EventEditModal } from './components/EventEditModal';
 import { MetaEditModal } from './components/MetaEditModal';
 import { CustomSnapModal } from './components/CustomSnapModal';
 import { SaveAsModal } from './components/SaveAsModal';
@@ -306,8 +306,8 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   // 저장 진행은 store가 소유한다 — 테스트 플레이 복귀로 페이지가 다시 마운트돼도 진행 중인 저장을 잊지 않는다.
   const saving = useEditorStore((s) => s.isSavingChart);
   const addToast = useEditorStore((s) => s.addToast);
-  const editingMarker = useEditorStore((s) => s.editingMarker);
-  const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
+  const editingEvent = useEditorStore((s) => s.editingEvent);
+  const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const mode = useEditorStore((s) => s.mode);
   const legacyConversionReview = useEditorStore((s) => s.legacyConversionReview);
@@ -316,7 +316,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // TimelineSpace deep module — 좌표 변환 / 히트테스트
-  const { space, bpmMarkers } = useTimelineSpace(rendererRef);
+  const { space, bpmChanges } = useTimelineSpace(rendererRef);
 
   // isTimeInBounds 헬퍼
   const isTimeInBounds = useCallback((y: number): boolean => {
@@ -412,8 +412,8 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
   // 키보드 단축키 훅
   useEditorKeyboard(
-    playbackRef, selectModeRef, bpmMarkers,
-    editingMarker, showMetaModal, showCustomSnapModal,
+    playbackRef, selectModeRef, bpmChanges,
+    editingEvent, showMetaModal, showCustomSnapModal,
     showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar,
     validationErrors.length,
     legacyConversionDialog !== null,
@@ -445,7 +445,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   // 검토 행의 위치(레인·박)로 이동한다. index는 편집하면 바뀌므로 지금 차트에서 위치로 노트를 다시 찾는다.
   const goToConversionReviewItem = useCallback((item: LegacyConversionItem) => {
     const store = useEditorStore.getState();
-    const timeMs = beatToMs(item.beat, space.getBpmMarkers(), store.chart.meta.offsetMs);
+    const timeMs = beatToMs(item.beat, space.getBpmChanges(), store.chart.meta.offsetMs);
     playbackRef.current?.seekTo(timeMs);
     const renderer = rendererRef.current;
     if (renderer) {
@@ -822,7 +822,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     return () => document.removeEventListener('wheel', preventBrowserZoom);
   }, []);
 
-  const editingEvt = editingMarker ? chart.events[editingMarker.index] : null;
+  const editingEvt = editingEvent ? chart.events[editingEvent.index] : null;
   const isEditingInitial = editingEvt && editingEvt.beat.n === 0 && (editingEvt.type === 'bpm' || editingEvt.type === 'timeSignature');
 
   return (
@@ -883,15 +883,15 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         )}
       </div>
 
-      {/* 마커 편집 모달 */}
-      {editingMarker && (
-        <MarkerEditModal
-          editingMarker={editingMarker}
+      {/* 이벤트 편집 모달 */}
+      {editingEvent && (
+        <EventEditModal
+          editingEvent={editingEvent}
           chart={chart}
           isBeatZero={!!isEditingInitial}
-          onSave={fileOps.handleMarkerSave}
-          onDelete={fileOps.handleMarkerDelete}
-          onClose={() => setEditingMarker(null)}
+          onSave={fileOps.handleEventSave}
+          onDelete={fileOps.handleEventDelete}
+          onClose={() => setEditingEvent(null)}
         />
       )}
 

@@ -27,7 +27,7 @@ import {
   isMeasureBoundary,
 } from "./index";
 import { beat } from "../types/beat";
-import type { NoteEntity, TrillZone, RestZone, ChartEvent, TimeSignatureMarker } from "../types/chart";
+import type { NoteEntity, TrillZone, RestZone, ChartEvent, TimeSignatureChange } from "../types/chart";
 
 // =========================================================================
 // 규칙 1: 동일 위치 중복 금지 (슬롯 기반)
@@ -526,7 +526,7 @@ describe("validateNoEventDuplicate", () => {
 });
 
 // =========================================================================
-// 규칙 6: 이벤트 마커 겹침 금지
+// 규칙 6: 이벤트 겹침 금지
 // =========================================================================
 
 describe("validateNoEventOverlap", () => {
@@ -1208,7 +1208,7 @@ describe("validateTimeSigNatural", () => {
 // =========================================================================
 
 describe("isMeasureBoundary", () => {
-  const ts4: TimeSignatureMarker[] = [
+  const ts4: TimeSignatureChange[] = [
     { measure: 0, beatPerMeasure: beat(4) },
   ];
 
@@ -1233,7 +1233,7 @@ describe("isMeasureBoundary", () => {
   });
 
   it("3/4에서 beat 3, 6, 9는 마디 경계", () => {
-    const ts3: TimeSignatureMarker[] = [
+    const ts3: TimeSignatureChange[] = [
       { measure: 0, beatPerMeasure: beat(3) },
     ];
     expect(isMeasureBoundary(beat(3), ts3)).toBe(true);
@@ -1242,14 +1242,14 @@ describe("isMeasureBoundary", () => {
   });
 
   it("3/4에서 beat 4는 마디 경계 아님", () => {
-    const ts3: TimeSignatureMarker[] = [
+    const ts3: TimeSignatureChange[] = [
       { measure: 0, beatPerMeasure: beat(3) },
     ];
     expect(isMeasureBoundary(beat(4), ts3)).toBe(false);
   });
 
   it("박자 변경 후에도 경계 판정 — 4/4→3/4 전환", () => {
-    const ts: TimeSignatureMarker[] = [
+    const ts: TimeSignatureChange[] = [
       { measure: 0, beatPerMeasure: beat(4) },  // 마디 0~1: 4박
       { measure: 2, beatPerMeasure: beat(3) },   // 마디 2~: 3박
     ];
@@ -1262,7 +1262,7 @@ describe("isMeasureBoundary", () => {
   });
 
   it("7/2 같은 분수 박자에서 마디 경계 — beat 0, 3.5, 7", () => {
-    const ts: TimeSignatureMarker[] = [
+    const ts: TimeSignatureChange[] = [
       { measure: 0, beatPerMeasure: beat(7, 2) },
     ];
     expect(isMeasureBoundary(beat(0), ts)).toBe(true);
@@ -1271,7 +1271,7 @@ describe("isMeasureBoundary", () => {
     expect(isMeasureBoundary(beat(2), ts)).toBe(false);
   });
 
-  it("빈 timeSignatures면 false", () => {
+  it("빈 timeSignatureChanges면 false", () => {
     expect(isMeasureBoundary(beat(0), [])).toBe(false);
   });
 });

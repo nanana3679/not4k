@@ -25,8 +25,8 @@ export interface MinimapHost {
   readonly totalTimelineHeight: number;
   readonly waveformDurationMs: number;
   readonly zoom: number;
-  readonly cachedBpmMarkers: import("../../shared").BpmMarker[];
-  readonly cachedTimeSignatures: import("../../shared").TimeSignatureMarker[];
+  readonly cachedBpmChanges: import("../../shared").BpmChange[];
+  readonly cachedTimeSignatureChanges: import("../../shared").TimeSignatureChange[];
   getTotalTimelineMs(): number;
   timeToY(timeMs: number): number;
   readonly minimapLayer: Container;
@@ -199,15 +199,15 @@ export class MinimapRenderer {
     const toMinimapY = (containerY: number): number => containerY * scale;
 
     // (3) Measure lines
-    const bpmMarkers = this.host.cachedBpmMarkers;
-    const timeSignatures = this.host.cachedTimeSignatures;
+    const bpmChanges = this.host.cachedBpmChanges;
+    const timeSignatureChanges = this.host.cachedTimeSignatureChanges;
     const meta = chart.meta;
-    if (bpmMarkers.length > 0 && timeSignatures.length > 0) {
+    if (bpmChanges.length > 0 && timeSignatureChanges.length > 0) {
       const totalTimelineMs = this.host.getTotalTimelineMs();
       let prevMStartMs = Number.NEGATIVE_INFINITY;
       for (let m = 0; ; m++) {
-        const mStartBeat = measureStartBeat(m, timeSignatures);
-        const mStartMs = beatToMs(mStartBeat, bpmMarkers, meta.offsetMs);
+        const mStartBeat = measureStartBeat(m, timeSignatureChanges);
+        const mStartMs = beatToMs(mStartBeat, bpmChanges, meta.offsetMs);
         if (mStartMs > totalTimelineMs) break;
         if (!(mStartMs > prevMStartMs)) break; // 마디 미전진(구조 위반: 분자 0 박자표) 방어 — continue보다 위
         prevMStartMs = mStartMs;
@@ -226,7 +226,7 @@ export class MinimapRenderer {
 
     // (3.5) Trill zones
     const trillRects = computeMinimapTrillZoneRects(
-      chart.trillZones, bpmMarkers, meta.offsetMs,
+      chart.trillZones, bpmChanges, meta.offsetMs,
       (ms) => this.host.timeToY(ms), toMinimapY, trackX, laneW,
     );
     for (const r of trillRects) {
@@ -239,7 +239,7 @@ export class MinimapRenderer {
     // (3.6) Rest zones (RFD 0019) — trillZone 밴드와 동일 레이어/z-order 취급.
     // 색은 타임라인 restZone 밴드와 같은 검정이고, 칸이 작아 빗금 없이 미니맵 전용 REST_ZONE_ALPHA 단색 dim으로 채운다.
     const restRects = computeMinimapRestZoneRects(
-      chart.restZones ?? [], bpmMarkers, meta.offsetMs,
+      chart.restZones ?? [], bpmChanges, meta.offsetMs,
       (ms) => this.host.timeToY(ms), toMinimapY, trackX, laneW,
     );
     for (const r of restRects) {
@@ -268,7 +268,7 @@ export class MinimapRenderer {
     for (const note of notes) {
       // 보조 레인(5+)은 미니맵에 표시하지 않는다 (chart-editor 스펙 · RFD 0018 §6-6)
       if (!isMainLane(note.lane)) continue;
-      const timeMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+      const timeMs = beatToMs(note.beat, bpmChanges, meta.offsetMs);
       const containerY = this.host.timeToY(timeMs);
       const my = toMinimapY(containerY);
 
@@ -277,7 +277,7 @@ export class MinimapRenderer {
 
       if ("endBeat" in note) {
         // Range note (long note): draw filled rect from start to end
-        const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
+        const endMs = beatToMs(note.endBeat, bpmChanges, meta.offsetMs);
         const endContainerY = this.host.timeToY(endMs);
         const endMy = toMinimapY(endContainerY);
 
@@ -356,7 +356,7 @@ export class MinimapRenderer {
       trillZones: chart.trillZones,
       restZones: chart.restZones ?? [],
       events: chart.events,
-      bpmMarkers: this.host.cachedBpmMarkers,
+      bpmChanges: this.host.cachedBpmChanges,
       offsetMs: chart.meta.offsetMs,
       timeToY: (ms) => this.host.timeToY(ms),
       toMinimapY: (containerY) => containerY * scale,

@@ -1,6 +1,6 @@
 import type { JudgmentWindows } from '../../../shared/constants';
 import { JUDGMENT_WINDOWS } from '../../../shared/constants';
-import { beatToMs, extractBpmMarkers } from '../../../shared/timing';
+import { beatToMs, extractBpmChanges } from '../../../shared/timing';
 import type { Chart } from '../../../shared/types';
 import { compileJudgmentChart } from '../../judgment/compiledJudgmentChart';
 import type { JudgmentCoreFactory } from '../../judgment/JudgmentCore';
@@ -16,9 +16,9 @@ export interface TutorialPreviewSessionController {
 }
 
 function createSession(chart: Chart, windows: JudgmentWindows, onBatchConfirmed?: (view: NoteJudgmentSessionView) => void, createCore?: JudgmentCoreFactory): NoteJudgmentSession {
-  const bpmMarkers = extractBpmMarkers(chart.events);
-  const starts = new Map(chart.notes.map((note, index) => [index, beatToMs(note.beat, bpmMarkers, chart.meta.offsetMs)] as [number, number]));
-  const ends = new Map(chart.notes.flatMap((note, index) => 'endBeat' in note ? [[index, beatToMs(note.endBeat, bpmMarkers, chart.meta.offsetMs)] as [number, number]] : []));
+  const bpmChanges = extractBpmChanges(chart.events);
+  const starts = new Map(chart.notes.map((note, index) => [index, beatToMs(note.beat, bpmChanges, chart.meta.offsetMs)] as [number, number]));
+  const ends = new Map(chart.notes.flatMap((note, index) => 'endBeat' in note ? [[index, beatToMs(note.endBeat, bpmChanges, chart.meta.offsetMs)] as [number, number]] : []));
   return new NoteJudgmentSession(compileJudgmentChart(chart.notes, starts, ends, chart.trillZones), { windows, onBatchConfirmed, createCore });
 }
 

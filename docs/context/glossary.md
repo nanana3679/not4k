@@ -947,7 +947,7 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상)
 
 ### `ChartEvent`
 
-이 절의 이벤트 명칭·공통 편집 계약은 [RFD 0067](../rfd/0067-chart-event-names.md)·[RFD 0068](../rfd/0068-common-event-editing.md)을 따른다. 코드 변경·검증은 별도 PR [#368](https://github.com/nanana3679/not4k/pull/368)·[#369](https://github.com/nanana3679/not4k/pull/369)에서 진행하며, 이 기획 문서 PR의 런타임 변경은 없다.
+이 절의 이벤트 명칭·공통 편집 계약은 [RFD 0067](../rfd/0067-chart-event-names.md)·[RFD 0068](../rfd/0068-common-event-editing.md)을 따른다. 이벤트 명칭의 코드 전환은 PR [#368](https://github.com/nanana3679/not4k/pull/368)로 반영했고, 공통 편집의 코드 변경·검증은 별도 PR [#369](https://github.com/nanana3679/not4k/pull/369)에서 진행한다.
 
 차트에 배치되는 이벤트의 통합 타입. `type` 필드로 구분되는 디스크리미네이티드 유니온이다. 시점 이벤트(`BpmChangeEvent`, `TimeSignatureChangeEvent`)와 구간 이벤트(`TextEvent`, `AutoEvent`, `StopEvent`, `TutorialInputEvent`, `TutorialDiagramEvent`)로 나뉜다. 저장 데이터와 에디터의 편집·렌더링에서 같은 이벤트를 가리키며, 화면에 그렸다는 이유로 별도 도메인 개념인 “마커”로 부르지 않는다. 명명 근거는 [RFD 0067](../rfd/0067-chart-event-names.md)를 따른다.
 

@@ -95,7 +95,7 @@ export function useCanvasEvents(
   const entityType = useEditorStore((s) => s.entityType);
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
-  const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
+  const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const addToast = useEditorStore((s) => s.addToast);
 
   const rightPressPendingRef = useRef(false);
@@ -337,8 +337,8 @@ export function useCanvasEvents(
     }
   }, [rendererRef]);
 
-  // 마커 히트테스트 (extra lane — editorLane 기반)
-  const hitTestMarker = useCallback((x: number, y: number) => {
+  // 이벤트 히트테스트 (extra lane — editorLane 기반)
+  const hitTestEvent = useCallback((x: number, y: number) => {
     const extraLane = space.xToExtraLane(x);
     if (!extraLane) return null;
     const beat = space.yToBeat(y);
@@ -427,11 +427,11 @@ export function useCanvasEvents(
           if (result.blockedReason) addToast(result.blockedReason);
           if (result.chart) setChart(result.chart, { transaction: eraseGestureRef.current.transaction });
         } else {
-          const hit = hitTestMarker(x, y);
+          const hit = hitTestEvent(x, y);
           const event = hit && current.events[hit.index];
           if (hit && event) {
             if (event.beat.n === 0 && (event.type === 'bpm' || event.type === 'timeSignature')) {
-              addToast('Cannot delete initial event marker');
+              addToast('Cannot delete initial event');
             } else setChart({ ...current, events: current.events.filter((_, index) => index !== hit.index) }, { transaction: eraseGestureRef.current.transaction });
           }
         }
@@ -493,7 +493,7 @@ export function useCanvasEvents(
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
-    selectModeRef, onNavigationInteraction, addToast, setChart, hitTestMarker,
+    selectModeRef, onNavigationInteraction, addToast, setChart, hitTestEvent,
   ]);
 
   // 모드가 반환한 EditResult를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
@@ -712,18 +712,18 @@ export function useCanvasEvents(
 
       if (rendererRef.current) {
         const beat = space.yToBeat(y);
-        const bpmMarkers = space.getBpmMarkers();
+        const bpmChanges = space.getBpmChanges();
         const snapped = space.snapBeat(beat);
-        const timeMs = beatToMs(snapped, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
+        const timeMs = beatToMs(snapped, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
 
         if (createModeRef.current?.dragging && createModeRef.current.dragBeat) {
           if (createModeRef.current.dragType === 'event') {
-            rendererRef.current.showGhostMarker(createModeRef.current.dragExtraLane ?? 1, timeMs);
+            rendererRef.current.showGhostEvent(createModeRef.current.dragExtraLane ?? 1, timeMs);
           } else if (createModeRef.current.dragType === 'extraRangeNote' && createModeRef.current.dragExtraLane) {
-            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
+            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
             rendererRef.current.showGhostExtraRange(createModeRef.current.dragExtraLane, startTimeMs, timeMs);
           } else if (createModeRef.current.dragLane) {
-            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
+            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
             rendererRef.current.showGhostRange(createModeRef.current.dragLane, startTimeMs, timeMs);
           }
         } else {
@@ -731,8 +731,8 @@ export function useCanvasEvents(
           const extraLane = space.xToExtraLane(x);
           if (extraLane) {
             if (isEventEntityType(entityType as import('../modes').EntityType)) {
-              // Show ghost marker for event entity types on extra lanes
-              rendererRef.current.showGhostMarker(extraLane, timeMs);
+              // Show ghost event for event entity types on extra lanes
+              rendererRef.current.showGhostEvent(extraLane, timeMs);
             } else {
               // 보조 노트도 chart.notes(lane 5+)에 살아 통합 인덱스로 직접 히트한다 (RFD 0018 ④d)
               const existingAux = noteExistsAtSnap(useEditorStore.getState().chart.notes, fromAuxIndex(extraLane), snappedBeatFloat);
@@ -961,11 +961,11 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    const hit = hitTestMarker(x, y);
+    const hit = hitTestEvent(x, y);
     if (hit) {
-      setEditingMarker(hit);
+      setEditingEvent(hit);
     }
-  }, [canvasRef, hitTestMarker, rendererRef, setEditingMarker]);
+  }, [canvasRef, hitTestEvent, rendererRef, setEditingEvent]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -1002,19 +1002,19 @@ export function useCanvasEvents(
       return;
     }
 
-    const markerHit = hitTestMarker(x, y);
-    if (markerHit) {
-      const evt = currentChart.events[markerHit.index];
+    const eventHit = hitTestEvent(x, y);
+    if (eventHit) {
+      const evt = currentChart.events[eventHit.index];
       if (evt && evt.beat.n === 0 && (evt.type === 'bpm' || evt.type === 'timeSignature')) {
-        addToast('Cannot delete initial event marker');
+        addToast('Cannot delete initial event');
         return;
       }
       setChart({
         ...currentChart,
-        events: currentChart.events.filter((_, i) => i !== markerHit.index),
+        events: currentChart.events.filter((_, i) => i !== eventHit.index),
       });
     }
-  }, [canvasRef, space, hitTestMarker, rendererRef, setChart, addToast]);
+  }, [canvasRef, space, hitTestEvent, rendererRef, setChart, addToast]);
 
   return {
     handlePointerDown,

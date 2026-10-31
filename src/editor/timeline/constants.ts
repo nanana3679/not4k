@@ -60,7 +60,7 @@ export const COLORS = {
 
   EVENT_BG: 0x553388,
 
-  EVENT_MARKER: 0xff66aa,
+  EVENT_FILL: 0xff66aa,
 
   EXTRA_LANE_BG_EVEN: 0x1a2e1a,
   EXTRA_LANE_BG_ODD: 0x16291a,

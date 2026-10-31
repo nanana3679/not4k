@@ -6,7 +6,7 @@ import {
 } from "./minimapViolation";
 import { beat } from "../../shared/types";
 import type {
-  BpmMarker,
+  BpmChange,
   ChartEvent,
   DocumentNoteEntity,
   RestZone,
@@ -14,7 +14,7 @@ import type {
 } from "../../shared/types";
 
 // 120 BPM, 1 beat = 500ms
-const bpmMarkers: BpmMarker[] = [{ beat: beat(0), bpm: 120 }];
+const bpmChanges: BpmChange[] = [{ beat: beat(0), bpm: 120 }];
 const offsetMs = 0;
 
 // 간단한 변환 함수: 1ms = 1px (identity)
@@ -49,7 +49,7 @@ function compute(partial: Partial<Parameters<typeof computeMinimapViolationRects
     trillZones: [],
     restZones: [],
     events: [],
-    bpmMarkers,
+    bpmChanges,
     offsetMs,
     timeToY,
     toMinimapY,

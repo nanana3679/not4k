@@ -3,4 +3,4 @@
  */
 
 export { useEditorStore, selectCanUndo, selectCanRedo } from './editorStore';
-export type { EditingMarker, EditorModeName } from './editorStore';
+export type { EditingEvent, EditorModeName } from './editorStore';

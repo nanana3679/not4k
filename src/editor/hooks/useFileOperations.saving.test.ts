@@ -99,7 +99,7 @@ beforeEach(() => {
   });
   useEditorStore.setState({
     chart: chart([]), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
-    isSavingChart: false, chartSaveGeneration: 0, activeSongId: 'song', currentTimeMs: 0, editingMarker: null,
+    isSavingChart: false, chartSaveGeneration: 0, activeSongId: 'song', currentTimeMs: 0, editingEvent: null,
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
   });
 });

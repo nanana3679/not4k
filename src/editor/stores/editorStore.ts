@@ -38,7 +38,7 @@ type HistorySnapshot = {
   extraLaneCount: number;
 };
 
-export type EditingMarker =
+export type EditingEvent =
   | { type: 'event'; index: number }
   | null;
 
@@ -92,8 +92,8 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // 그 사이 값이 바뀌었으면(차트를 새로 불러옴) 늦게 끝난 그 저장은 savedChartJson·isSavingChart를 바꾸지 않는다.
   chartSaveGeneration: number;
 
-  // Marker editing
-  editingMarker: EditingMarker;
+  // Event editing
+  editingEvent: EditingEvent;
 
   // 구형 차트 변환 검토(RFD 0037 §8-1) — 이번 세션에 승인한 변환의 보고 항목과 목록 열림.
   // 테스트 플레이에서 돌아와도 남고, loadChart로 차트를 새로 열면 비운다. 변환하지 않았으면 null.
@@ -151,7 +151,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   commitEditTransaction: (transaction?: symbol) => void;
   cancelEditTransaction: (transaction?: symbol) => void;
   addToast: (message: string, type?: ToastType) => void;
-  setEditingMarker: (marker: EditingMarker) => void;
+  setEditingEvent: (event: EditingEvent) => void;
   /**
    * 사용자가 모달에서 승인한 구형 차트 1차 기계 변환(RFD 0037 §8-1)을 지금 차트에 Undo 한 단위의 편집으로 적용하고
    * 보고 항목을 변환 검토 목록으로 남긴다(목록은 닫힌 채). 저장은 하지 않는다.
@@ -247,7 +247,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   savedChartJson: null,
   isSavingChart: false,
   chartSaveGeneration: 0,
-  editingMarker: null,
+  editingEvent: null,
   legacyConversionReview: null,
   legacyConversionReviewOpen: false,
 
@@ -473,7 +473,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!token) transaction.onInterrupt?.();
   },
   addToast: (message, type = 'warn') => showToast(message, type),
-  setEditingMarker: (marker) => set({ editingMarker: marker }),
+  setEditingEvent: (event) => set({ editingEvent: event }),
   applyLegacyConversion: () => {
     const before = get().chart;
     const result = convertLegacyChart(before);

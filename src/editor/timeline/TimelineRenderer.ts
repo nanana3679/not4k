@@ -12,10 +12,10 @@ import type {
   ChartDocument,
   Beat,
   DocumentNoteEntity,
-  BpmMarker,
-  TimeSignatureMarker,
+  BpmChange,
+  TimeSignatureChange,
 } from "../../shared";
-import { beatToMs, measureStartBeat, extractBpmMarkers, extractTimeSignatures } from "../../shared";
+import { beatToMs, measureStartBeat, extractBpmChanges, extractTimeSignatureChanges } from "../../shared";
 import {
   TIMELINE_WIDTH,
   DEFAULT_MEASURES,
@@ -162,31 +162,31 @@ export class TimelineRenderer {
   private waveformDurationMs: number = 0;
 
   // BPM/TimeSignature extraction cache
-  private _cachedBpmMarkers: BpmMarker[] | null = null;
-  private _cachedTimeSignatures: TimeSignatureMarker[] | null = null;
+  private _cachedBpmChanges: BpmChange[] | null = null;
+  private _cachedTimeSignatureChanges: TimeSignatureChange[] | null = null;
   private _cachedEventsRef: readonly import("../../shared").ChartEvent[] | null = null;
 
   // getTotalTimelineMs cache
   private _cachedTotalTimelineMs: number | null = null;
 
-  private get cachedBpmMarkers(): BpmMarker[] {
+  private get cachedBpmChanges(): BpmChange[] {
     if (!this.chart) return [];
-    if (this._cachedEventsRef !== this.chart.events || !this._cachedBpmMarkers) {
-      this._cachedBpmMarkers = extractBpmMarkers(this.chart.events);
-      this._cachedTimeSignatures = extractTimeSignatures(this.chart.events);
+    if (this._cachedEventsRef !== this.chart.events || !this._cachedBpmChanges) {
+      this._cachedBpmChanges = extractBpmChanges(this.chart.events);
+      this._cachedTimeSignatureChanges = extractTimeSignatureChanges(this.chart.events);
       this._cachedEventsRef = this.chart.events;
     }
-    return this._cachedBpmMarkers;
+    return this._cachedBpmChanges;
   }
 
-  private get cachedTimeSignatures(): TimeSignatureMarker[] {
+  private get cachedTimeSignatureChanges(): TimeSignatureChange[] {
     if (!this.chart) return [];
-    if (this._cachedEventsRef !== this.chart.events || !this._cachedTimeSignatures) {
-      this._cachedBpmMarkers = extractBpmMarkers(this.chart.events);
-      this._cachedTimeSignatures = extractTimeSignatures(this.chart.events);
+    if (this._cachedEventsRef !== this.chart.events || !this._cachedTimeSignatureChanges) {
+      this._cachedBpmChanges = extractBpmChanges(this.chart.events);
+      this._cachedTimeSignatureChanges = extractTimeSignatureChanges(this.chart.events);
       this._cachedEventsRef = this.chart.events;
     }
-    return this._cachedTimeSignatures;
+    return this._cachedTimeSignatureChanges;
   }
 
   private options: TimelineRendererOptions;
@@ -347,8 +347,8 @@ export class TimelineRenderer {
       get totalTimelineHeight() { return self.totalTimelineHeight; },
       get waveformDurationMs() { return self.waveformDurationMs; },
       get zoom() { return self._zoom; },
-      get cachedBpmMarkers() { return self.cachedBpmMarkers; },
-      get cachedTimeSignatures() { return self.cachedTimeSignatures; },
+      get cachedBpmChanges() { return self.cachedBpmChanges; },
+      get cachedTimeSignatureChanges() { return self.cachedTimeSignatureChanges; },
       getTotalTimelineMs() { return self.getTotalTimelineMs(); },
       timeToY(timeMs: number) { return self.timeToY(timeMs); },
       get minimapLayer() { return self.minimapLayer; },
@@ -370,8 +370,8 @@ export class TimelineRenderer {
       get currentTimelineWidth() { return self.currentTimelineWidth; },
       get waveformPeaks() { return self.waveformPeaks; },
       get waveformDurationMs() { return self.waveformDurationMs; },
-      get cachedBpmMarkers() { return self.cachedBpmMarkers; },
-      get cachedTimeSignatures() { return self.cachedTimeSignatures; },
+      get cachedBpmChanges() { return self.cachedBpmChanges; },
+      get cachedTimeSignatureChanges() { return self.cachedTimeSignatureChanges; },
       get measureLabelStyle() { return self._measureLabelStyle; },
       setMeasureLabelStyle(style: TextStyle) { self._measureLabelStyle = style; },
       getVisibleTimeRange() { return self.getVisibleTimeRange(); },
@@ -392,7 +392,7 @@ export class TimelineRenderer {
     const noteHost: NoteHost = {
       get chart() { return self.chart; },
       get selectedNotes() { return self._selectedNotes; },
-      get cachedBpmMarkers() { return self.cachedBpmMarkers; },
+      get cachedBpmChanges() { return self.cachedBpmChanges; },
       get bodyGradientCache() { return self.bodyGradientCache; },
       getVisibleTimeRange() { return self.getVisibleTimeRange(); },
       timeToY(timeMs: number) { return self.timeToY(timeMs); },
@@ -423,7 +423,7 @@ export class TimelineRenderer {
       get boxSelectRect() { return self._boxSelectRect; },
       get scrollY() { return self._scrollY; },
       get contentOffsetX() { return self.contentOffsetX; },
-      get cachedBpmMarkers() { return self.cachedBpmMarkers; },
+      get cachedBpmChanges() { return self.cachedBpmChanges; },
       getVisibleTimeRange() { return self.getVisibleTimeRange(); },
       timeToY(timeMs: number) { return self.timeToY(timeMs); },
       get ghostLayer() { return self.ghostLayer; },
@@ -741,18 +741,18 @@ export class TimelineRenderer {
   getTotalTimelineMs(): number {
     if (this._cachedTotalTimelineMs !== null) return this._cachedTotalTimelineMs;
     if (!this.chart) return 0;
-    const bpmMarkers = this.cachedBpmMarkers;
-    const timeSignatures = this.cachedTimeSignatures;
+    const bpmChanges = this.cachedBpmChanges;
+    const timeSignatureChanges = this.cachedTimeSignatureChanges;
     const meta = this.chart.meta;
-    if (bpmMarkers.length === 0 || timeSignatures.length === 0) return 0;
+    if (bpmChanges.length === 0 || timeSignatureChanges.length === 0) return 0;
 
     let totalMeasures = DEFAULT_MEASURES;
 
     if (this.waveformDurationMs > 0) {
       // Find the number of measures that covers the audio duration
       for (let m = 1; m <= 10000; m++) {
-        const mBeat = measureStartBeat(m, timeSignatures);
-        const mMs = beatToMs(mBeat, bpmMarkers, meta.offsetMs);
+        const mBeat = measureStartBeat(m, timeSignatureChanges);
+        const mMs = beatToMs(mBeat, bpmChanges, meta.offsetMs);
         if (mMs >= this.waveformDurationMs) {
           totalMeasures = m;
           break;
@@ -760,8 +760,8 @@ export class TimelineRenderer {
       }
     }
 
-    const endBeat = measureStartBeat(totalMeasures, timeSignatures);
-    const result = beatToMs(endBeat, bpmMarkers, meta.offsetMs);
+    const endBeat = measureStartBeat(totalMeasures, timeSignatureChanges);
+    const result = beatToMs(endBeat, bpmChanges, meta.offsetMs);
     this._cachedTotalTimelineMs = result;
     return result;
   }
@@ -853,7 +853,7 @@ export class TimelineRenderer {
     this.overlayRenderer.renderBoxSelectRect();
     this.noteRenderer.beginRender();
     this.noteRenderer.renderNotes();
-    this.gridRenderer.renderMarkers(this.noteLayer, this._eventLabelStyle, (style) => { this._eventLabelStyle = style; });
+    this.gridRenderer.renderEvents(this.noteLayer, this._eventLabelStyle, (style) => { this._eventLabelStyle = style; });
     this.overlayRenderer.renderViolationOverlay();
     this.updateHoverOverlay();
     this.updateScroll();
@@ -934,11 +934,11 @@ export class TimelineRenderer {
   }
 
   /**
-   * Show a semi-transparent ghost marker in an auxiliary lane.
+   * Show a semi-transparent ghost event in an auxiliary lane.
    * @param auxIndex 0=event
    */
-  showGhostMarker(auxIndex: number, timeMs: number): void {
-    this.overlayRenderer.showGhostMarker(auxIndex, timeMs);
+  showGhostEvent(auxIndex: number, timeMs: number): void {
+    this.overlayRenderer.showGhostEvent(auxIndex, timeMs);
   }
 
   /**
@@ -959,7 +959,7 @@ export class TimelineRenderer {
   }
 
   /**
-   * Hide the ghost note/marker preview.
+   * Hide the ghost note/event preview.
    */
   hideGhostNote(): void {
     this.overlayRenderer.hideGhostNote();

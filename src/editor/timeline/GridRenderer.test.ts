@@ -2,13 +2,13 @@ import { describe, it, expect, vi } from "vitest";
 import { Container, Graphics } from "pixi.js";
 import type { GraphicsPath, Polygon } from "pixi.js";
 import { beat } from "../../shared";
-import type { ChartDocument, ChartEvent, RestZone, BpmMarker, TimeSignatureMarker } from "../../shared";
+import type { ChartDocument, ChartEvent, RestZone, BpmChange, TimeSignatureChange } from "../../shared";
 import { NOTE_HEIGHT, LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, COLORS } from "./constants";
 import { GridRenderer } from "./GridRenderer";
 import type { GridHost } from "./GridRenderer";
 
 // Pixi Text는 node 환경에서 캔버스 텍스트 측정(DOM)을 요구하므로 Container 기반 스텁으로 대체한다.
-// 이 테스트의 관심사는 이벤트 마커 Graphics 기하뿐이다.
+// 이 테스트의 관심사는 이벤트 Graphics 기하뿐이다.
 vi.mock("pixi.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("pixi.js")>();
   class TextStub extends actual.Container {
@@ -38,8 +38,8 @@ function makeChart(events: ChartEvent[], restZones?: RestZone[]): ChartDocument 
 }
 
 function makeHost(chart: ChartDocument): GridHost {
-  const bpmMarkers: BpmMarker[] = [{ beat: beat(0), bpm: 120 }];
-  const timeSignatures: TimeSignatureMarker[] = [{ measure: 0, beatPerMeasure: beat(4) }];
+  const bpmChanges: BpmChange[] = [{ beat: beat(0), bpm: 120 }];
+  const timeSignatureChanges: TimeSignatureChange[] = [{ measure: 0, beatPerMeasure: beat(4) }];
   return {
     chart,
     zoom: 100,
@@ -50,8 +50,8 @@ function makeHost(chart: ChartDocument): GridHost {
     currentTimelineWidth: TIMELINE_WIDTH + 3 * EXTRA_LANE_WIDTH,
     waveformPeaks: null,
     waveformDurationMs: 0,
-    cachedBpmMarkers: bpmMarkers,
-    cachedTimeSignatures: timeSignatures,
+    cachedBpmChanges: bpmChanges,
+    cachedTimeSignatureChanges: timeSignatureChanges,
     measureLabelStyle: null,
     setMeasureLabelStyle: () => undefined,
     getVisibleTimeRange: () => ({ minTimeMs: -1_000_000, maxTimeMs: 1_000_000 }),
@@ -72,14 +72,14 @@ function renderEvents(events: ChartEvent[]): Container {
   const host = makeHost(makeChart(events));
   const r = new GridRenderer(host);
   const noteLayer = new Container();
-  r.renderMarkers(noteLayer, null, () => undefined);
+  r.renderEvents(noteLayer, null, () => undefined);
   return noteLayer;
 }
 
-// 마커 테두리(width 1.5, alignment 0=outer)가 사방으로 바깥 확장돼 로컬 바운즈에 포함된다.
+// 이벤트 테두리(width 1.5, alignment 0=outer)가 사방으로 바깥 확장돼 로컬 바운즈에 포함된다.
 const STROKE = 1.5;
 
-describe("GridRenderer.renderMarkers 이벤트 기하", () => {
+describe("GridRenderer.renderEvents 이벤트 기하", () => {
   it("editorLane 없는 이벤트는 기본 1로 첫 엑스트라 칸(x=TIMELINE_WIDTH)에 그려진다", () => {
     const layer = renderEvents([{ type: "bpm", beat: beat(0), bpm: 120 }]);
     const gfx = layer.children[0] as Graphics;
@@ -96,7 +96,7 @@ describe("GridRenderer.renderMarkers 이벤트 기하", () => {
     expect(b.width).toBe(EXTRA_LANE_WIDTH + 2 * STROKE);
   });
 
-  it("포인트 이벤트(BpmEvent)는 beat 위치(120 BPM에서 beat 2=1000ms→y100) 중심 NOTE_HEIGHT 높이 마커", () => {
+  it("포인트 이벤트(BpmChangeEvent)는 beat 위치(120 BPM에서 beat 2=1000ms→y100) 중심 NOTE_HEIGHT 높이 이벤트", () => {
     const layer = renderEvents([{ type: "bpm", beat: beat(2), bpm: 120 }]);
     const gfx = layer.children[0] as Graphics;
     const b = gfx.getLocalBounds();
@@ -104,7 +104,7 @@ describe("GridRenderer.renderMarkers 이벤트 기하", () => {
     expect(b.height).toBe(NOTE_HEIGHT + 2 * STROKE);
   });
 
-  it("구간 이벤트(StopEvent beat 0→4)는 y 0→200으로 구간 높이 200 마커 — 포인트와 달리 endBeat까지 늘어난다", () => {
+  it("구간 이벤트(StopEvent beat 0→4)는 y 0→200으로 구간 높이 200 이벤트 — 포인트와 달리 endBeat까지 늘어난다", () => {
     const layer = renderEvents([
       { type: "stop", beat: beat(0), endBeat: beat(4) },
     ]);
@@ -114,13 +114,13 @@ describe("GridRenderer.renderMarkers 이벤트 기하", () => {
     expect(b.height).toBe(200 + 2 * STROKE);
   });
 
-  it("가시 범위 밖 이벤트는 마커를 그리지 않는다(컬링)", () => {
+  it("가시 범위 밖 이벤트는 이벤트를 그리지 않는다(컬링)", () => {
     const host = makeHost(makeChart([{ type: "bpm", beat: beat(2), bpm: 120 }]));
     (host as { getVisibleTimeRange: GridHost["getVisibleTimeRange"] }).getVisibleTimeRange =
       () => ({ minTimeMs: 5000, maxTimeMs: 6000 });
     const r = new GridRenderer(host);
     const noteLayer = new Container();
-    r.renderMarkers(noteLayer, null, () => undefined);
+    r.renderEvents(noteLayer, null, () => undefined);
     expect(noteLayer.children.length).toBe(0);
   });
 });

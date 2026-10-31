@@ -3,7 +3,7 @@
  * minimapTrillZone.ts의 미러 — no PixiJS dependency.
  */
 
-import type { RestZone, BpmMarker } from "../../shared/types";
+import type { RestZone, BpmChange } from "../../shared/types";
 import { beatToMs } from "../../shared/timing";
 
 export interface MinimapRestZoneRect {
@@ -17,7 +17,7 @@ export interface MinimapRestZoneRect {
  * Compute minimap rectangles for rest zones.
  *
  * @param restZones  - rest zone definitions
- * @param bpmMarkers - BPM markers for beat→ms conversion
+ * @param bpmChanges - BPM changes for beat→ms conversion
  * @param offsetMs   - chart offset in ms
  * @param timeToY    - converts ms to container-local Y
  * @param toMinimapY - converts container Y to minimap Y
@@ -26,7 +26,7 @@ export interface MinimapRestZoneRect {
  */
 export function computeMinimapRestZoneRects(
   restZones: readonly RestZone[],
-  bpmMarkers: readonly BpmMarker[],
+  bpmChanges: readonly BpmChange[],
   offsetMs: number,
   timeToY: (ms: number) => number,
   toMinimapY: (containerY: number) => number,
@@ -36,8 +36,8 @@ export function computeMinimapRestZoneRects(
   const rects: MinimapRestZoneRect[] = [];
 
   for (const zone of restZones) {
-    const startMs = beatToMs(zone.beat, bpmMarkers, offsetMs);
-    const endMs = beatToMs(zone.endBeat, bpmMarkers, offsetMs);
+    const startMs = beatToMs(zone.beat, bpmChanges, offsetMs);
+    const endMs = beatToMs(zone.endBeat, bpmChanges, offsetMs);
     const startContainerY = timeToY(startMs);
     const endContainerY = timeToY(endMs);
     const startMy = toMinimapY(startContainerY);
