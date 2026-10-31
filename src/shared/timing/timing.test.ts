@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { beatToMs, msToBeat, bpmAt, measureStartBeat, enumerateMeasureStartsMs, extractBpmChanges, extractTimeSignatureChanges } from "./index";
+import { beatToMs, beatFloatToMs, msToBeat, bpmAt, measureStartBeat, enumerateMeasureStartsMs, extractBpmChanges, extractTimeSignatureChanges } from "./index";
 import { beat, beatToFloat, BEAT_ZERO } from "../types/beat";
 import type { BpmChange, TimeSignatureChange, ChartEvent } from "../types/chart";
 
@@ -111,6 +111,59 @@ describe("msToBeat", () => {
 
   it("빈 변경 배열이면 에러", () => {
     expect(() => msToBeat(0, [])).toThrow("bpmChanges must not be empty");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// beatFloatToMs — msToBeat의 역변환(부동소수점 박)
+// ---------------------------------------------------------------------------
+
+describe("beatFloatToMs", () => {
+  const TWO_BPM: BpmChange[] = [
+    { beat: BEAT_ZERO, bpm: 120 }, // 0~4박: 500ms/beat
+    { beat: beat(4), bpm: 60 },    // 4박~: 1000ms/beat
+  ];
+
+  it("120 BPM에서 2.5박 = 1250ms", () => {
+    expect(beatFloatToMs(2.5, SINGLE_BPM)).toBe(1250);
+  });
+
+  it("offset 200이면 120 BPM의 1박 = 700ms", () => {
+    expect(beatFloatToMs(1, SINGLE_BPM, 200)).toBe(700);
+  });
+
+  it("4박에서 120→60 BPM이면 6.5박 = 2000 + 2.5×1000 = 4500ms", () => {
+    expect(beatFloatToMs(6.5, TWO_BPM)).toBe(4500);
+  });
+
+  it("BPM 변경 박(4박)과 정확히 같은 박은 앞 구간 끝 시각 2000ms", () => {
+    expect(beatFloatToMs(4, TWO_BPM)).toBe(2000);
+  });
+
+  it("0박보다 앞(-1박)은 첫 BPM 120으로 계산해 offset 300에서 -200ms", () => {
+    expect(beatFloatToMs(-1, TWO_BPM, 300)).toBe(-200);
+  });
+
+  it("BPM 변경 3개·offset -450에서 음수 시각을 포함한 여러 시각의 msToBeat 결과를 원래 ms로 되돌린다", () => {
+    const bpmChanges: BpmChange[] = [
+      { beat: BEAT_ZERO, bpm: 150 },
+      { beat: beat(7, 2), bpm: 90 },
+      { beat: beat(8), bpm: 240 },
+    ];
+    for (const ms of [-1234.5, -450, 0, 333.3, 1400, 3000, 4100.25, 9876.5]) {
+      const beatFloat = msToBeat(ms, bpmChanges, -450);
+      expect(beatFloatToMs(beatFloat, bpmChanges, -450)).toBeCloseTo(ms, 9);
+    }
+  });
+
+  it("분수 박 위치의 beatToMs 결과와 같은 시각을 돌려준다(BPM 변경 2개·offset 100)", () => {
+    for (const b of [beat(0), beat(1, 3), beat(4), beat(23, 4), beat(10)]) {
+      expect(beatFloatToMs(beatToFloat(b), TWO_BPM, 100)).toBeCloseTo(beatToMs(b, TWO_BPM, 100), 9);
+    }
+  });
+
+  it("빈 변경 배열이면 에러", () => {
+    expect(() => beatFloatToMs(0, [])).toThrow("bpmChanges must not be empty");
   });
 });
 
