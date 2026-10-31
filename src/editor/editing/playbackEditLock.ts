@@ -2,8 +2,11 @@
  * 에디터 재생 중 편집 제한(RFD 0099)의 공용 판단.
  *
  * 재생 중에는 노트·이벤트의 생성·이동·삭제, 롱노트·구간 길이 조절, Undo·Redo,
- * 오프셋·BPM·박자표 값 수정을 실행하지 않는다. 저장·seek·스크롤·줌·미니맵·재생/정지는 그대로 쓴다.
- * 입력 경로(캔버스·키보드·툴바·모달)가 먼저 막고, store의 setChart가 이 판단으로 마지막에 한 번 더 막는다.
+ * 오프셋·BPM·박자표 값 수정, 선택 변경(클릭·박스·Ctrl+A·Esc)과 복사를 실행하지 않는다.
+ * 저장·seek·스크롤·줌·미니맵·재생/정지·모드 전환은 그대로 쓴다. 재생을 시작하면 진행 중이던
+ * 이동·리사이즈 드래그·붙여넣기 대기·우클릭 삭제는 Esc처럼 취소한다.
+ * 입력 경로(캔버스·키보드·툴바·모달)가 먼저 막고, store의 setChart가 이 판단으로, setSelection이 재생 여부로
+ * 마지막에 한 번 더 막는다.
  */
 import type { ChartDocument } from '../../shared';
 
@@ -19,10 +22,3 @@ export function isPlaybackLockedChange(prev: ChartDocument, next: ChartDocument)
     || prev.events !== next.events
     || prev.meta.offsetMs !== next.meta.offsetMs;
 }
-
-/**
- * 미정 기본값 D1(PRD §12): 재생 중에도 선택은 허용한다. Select 모드의 클릭·Shift/Alt·박스 선택과
- * Ctrl+A·Ctrl+C는 차트를 바꾸지 않으므로 그대로 동작하고, 이동·리사이즈 시작만 막는다.
- * false로 바꾸면 캔버스의 Select 모드 누름과 Ctrl+A·Ctrl+C도 재생 중에 막고 안내한다.
- */
-export const SELECTION_ALLOWED_WHILE_PLAYING = true;

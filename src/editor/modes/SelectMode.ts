@@ -26,7 +26,6 @@ import type { TrillZone, RestZone } from "../../shared";
 import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
-import { PAUSE_TO_EDIT_COPY } from "../editorCopy";
 
 /**
  * SelectMode 콜백 — RFD 0018 ④에서 이원 축(extraNotes)이 소멸했다.
@@ -55,11 +54,6 @@ export interface SelectModeCallbacks {
   beginTransaction?: (onInterrupt: () => void) => symbol | null;
   commitTransaction?: (transaction: symbol) => void;
   cancelTransaction?: (transaction: symbol) => void;
-  /**
-   * 편집이 잠겼는가(에디터 재생 중, RFD 0099). 잠긴 동안에도 선택은 하지만 이동·리사이즈 드래그는
-   * 시작하지 않는다. 잠긴 누름을 끌면 onWarn으로 한 번 안내한다.
-   */
-  isEditLocked?: () => boolean;
 }
 
 export class SelectMode implements EditorMode {
@@ -119,11 +113,6 @@ export class SelectMode implements EditorMode {
 
   // 포인터가 레인 밖에 있는 동안 레인 오프셋을 고정하기 위한 마지막 유효값.
   private _lastMoveLaneOffset = 0;
-
-  // 지금 누름의 시작 좌표(onPointerDown). 편집 잠금으로 거절한 드래그의 이동 판정에 쓴다.
-  private pressPoint: { x: number; y: number } | null = null;
-  // 편집 잠금(재생 중)으로 이동·리사이즈를 거절한 누름의 시작 좌표. 끌면 한 번 안내하고 비운다(RFD 0099).
-  private lockedDragFrom: { x: number; y: number } | null = null;
 
   constructor(chart: ChartDocument, callbacks: SelectModeCallbacks) {
     this.chart = chart;
@@ -450,7 +439,8 @@ export class SelectMode implements EditorMode {
     if (!note || !this.isRangeNote(note)) return false;
 
     if (!this.sel.notes.has(index) && !this.selectNote(index)) return false;
-    return this.startResize("note", index, note.beat, note.endBeat);
+    this.startResize("note", index, note.beat, note.endBeat);
+    return true;
   }
 
   /**
@@ -468,7 +458,6 @@ export class SelectMode implements EditorMode {
       eventEndHit?: number | null;
     },
   ): boolean {
-    this.pressPoint = { x, y };
     if (hits.noteHit === null && hits.noteEndHit === null) {
       const index = hits.eventEndHit ?? hits.eventHit;
       if (index !== undefined && index !== null) {
@@ -588,7 +577,6 @@ export class SelectMode implements EditorMode {
 
     // 드래그 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
     if (this.isDragging) return;
-    this.pressPoint = { x, y };
 
     // grab 우선순위 사다리는 resolveGrab이 단독 소유한다(#143). 마우스·터치가 같은 함수를
     // 소비하므로 z-order 변경은 그 한 곳이다. 여기 case 본문은 대상 확정 "후"의
@@ -810,10 +798,7 @@ export class SelectMode implements EditorMode {
 
   /** Handle pointer move (내부 적용 로직) */
   private applyPointerMove(x: number, y: number): void {
-    if (!this.isDragging) {
-      this.warnLockedDragIfMoved(x, y);
-      return;
-    }
+    if (!this.isDragging) return;
 
     if (this.dragType === "resize") {
       if (this.resizingIndex !== null && this.resizingOriginalBeat !== null) {
@@ -958,8 +943,6 @@ export class SelectMode implements EditorMode {
 
   /** Handle pointer up */
   onPointerUp(x: number, y: number): void {
-    this.pressPoint = null;
-    this.lockedDragFrom = null;
     if (!this.isDragging) return;
 
     if (this.dragType === "resize") {
@@ -1034,8 +1017,6 @@ export class SelectMode implements EditorMode {
    * 시점으로 되돌린다. 드래그 중이 아니면 아무것도 하지 않는다.
    */
   cancel(): EditResult {
-    this.pressPoint = null;
-    this.lockedDragFrom = null;
     if (!this.isDragging) return {};
 
     if (this.dragType === "resize") {
@@ -1401,25 +1382,6 @@ export class SelectMode implements EditorMode {
 
   // --- Private helpers ---
 
-  /**
-   * 편집이 잠겼으면(재생 중, RFD 0099) 드래그를 시작하지 않고 true를 돌려준다. 선택은 호출자가 이미 커밋했으므로
-   * 남는다(미정 기본값 D1). 누른 좌표를 기억해 두었다가 실제로 끌면 warnLockedDragIfMoved가 한 번 안내한다.
-   */
-  private refuseLockedDrag(): boolean {
-    if (!this.callbacks.isEditLocked?.()) return false;
-    this.lockedDragFrom = this.pressPoint;
-    return true;
-  }
-
-  /** 잠금으로 거절한 누름이 클릭 허용 거리(px)를 넘어 끌렸으면 한 번만 안내한다. 클릭 선택은 안내하지 않는다. */
-  private warnLockedDragIfMoved(x: number, y: number): void {
-    const from = this.lockedDragFrom;
-    if (!from) return;
-    if (Math.abs(x - from.x) <= TOUCH_MOVE_CANCEL_PX && Math.abs(y - from.y) <= TOUCH_MOVE_CANCEL_PX) return;
-    this.lockedDragFrom = null;
-    this.callbacks.onWarn?.(PAUSE_TO_EDIT_COPY);
-  }
-
   private startSelectionMoveDrag(x: number, y: number): void {
     const lane = this.callbacks.space.xToUnifiedLane(x);
     // 구간 유닛(빈 구간 포함)·restZone이 선택돼 있으면 노트가 없어도 이동 가능
@@ -1429,7 +1391,6 @@ export class SelectMode implements EditorMode {
     ) {
       return;
     }
-    if (this.refuseLockedDrag()) return;
 
     this.beginTransaction();
     this.isDragging = true;
@@ -1701,14 +1662,12 @@ export class SelectMode implements EditorMode {
     return true;
   }
 
-  /** 끝 리사이즈 드래그를 시작한다. 편집 잠금으로 거절하면 false. */
   private startResize(
     entityType: "note" | "event" | "trillZone" | "restZone",
     index: number,
     startBeat: Beat,
     endBeat: Beat,
-  ): boolean {
-    if (this.refuseLockedDrag()) return false;
+  ): void {
     this.beginTransaction();
     this.dragBeatAtY = null;
     this.resizeOriginalNotes = this.chart.notes;
@@ -1718,7 +1677,6 @@ export class SelectMode implements EditorMode {
     this.resizingIndex = index;
     this.resizingOriginalBeat = startBeat;
     this.resizingOriginalEndBeat = endBeat;
-    return true;
   }
 
   private rollbackResize(): void {

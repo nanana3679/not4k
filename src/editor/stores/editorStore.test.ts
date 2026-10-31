@@ -809,18 +809,59 @@ describe('editorStore 재생 중 편집 제한', () => {
     expect(state().editTransaction).toBeNull();
   });
 
-  it('1박 탭을 3박으로 옮기던 transaction이 열린 채 재생을 시작하면 3박까지를 Undo 1개로 확정하고 소유자 onInterrupt를 1번 부른다', () => {
+  it('1박 탭을 선택해 3박으로 옮기며 보조 레인 2 → 3·선택 해제까지 한 transaction이 열린 채 재생을 시작하면 1박 탭·보조 레인 2·1박 선택으로 돌아가고 history 없이 소유자 onInterrupt를 1번 부른다', () => {
+    state().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    const before = state().chart;
     const onInterrupt = vi.fn();
     const token = state().beginEditTransaction('selectModeEdit', onInterrupt)!;
     state().setChart(makeChart([tap(3)]), { transaction: token });
+    state().setExtraLaneCount(3, token);
+    state().setSelection(emptySelection());
 
     state().setIsPlaying(true);
 
     expect(onInterrupt).toHaveBeenCalledOnce();
     expect(state().editTransaction).toBeNull();
-    expect(state().chart.notes[0].beat).toEqual(beat(3));
-    expect(state().historyPast).toHaveLength(1);
+    expect(state().chart).toBe(before);
+    expect(state().extraLaneCount).toBe(2);
+    expect(state().selection.notes).toEqual(new Set([0]));
+    expect(state().historyPast).toHaveLength(0);
+    expect(state().historyFuture).toHaveLength(0);
     expect(state().isPlaying).toBe(true);
+  });
+
+  it('transaction 없이 재생을 시작하면 1박 탭·선택·history를 그대로 둔다', () => {
+    state().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    const before = state().chart;
+
+    state().setIsPlaying(true);
+
+    expect(state().chart).toBe(before);
+    expect(state().selection.notes).toEqual(new Set([0]));
+    expect(state().historyPast).toHaveLength(0);
+  });
+
+  it('재생 중 setSelection으로 1박 탭을 고르면 false를 돌려주고 선택이 빈 채로 남는다', () => {
+    state().setIsPlaying(true);
+
+    expect(state().setSelection({ ...emptySelection(), notes: new Set([0]) })).toBe(false);
+    expect(state().selection.notes.size).toBe(0);
+  });
+
+  it('재생 중 clearSelection은 1박 탭 선택을 비우지 않고 false를 돌려준다', () => {
+    state().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    state().setIsPlaying(true);
+
+    expect(state().clearSelection()).toBe(false);
+    expect(state().selection.notes).toEqual(new Set([0]));
+  });
+
+  it('재생 중에도 setSelectionTransient는 박스 취소처럼 시작 전 선택(1박 탭)을 되돌려 쓴다', () => {
+    state().setIsPlaying(true);
+
+    state().setSelectionTransient({ ...emptySelection(), notes: new Set([0]) });
+
+    expect(state().selection.notes).toEqual(new Set([0]));
   });
 
   it('재생을 멈추는 setIsPlaying(false)는 열린 transaction을 확정하지 않는다', () => {

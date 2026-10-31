@@ -133,7 +133,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setGraceMode: (graceMode: boolean) => void;
   /**
    * 재생 상태 미러(PlaybackController.onPlayStateChange). 재생을 시작하면 열린 편집 transaction을
-   * 독립 명령처럼 먼저 확정한다(RFD 0099, 미정 기본값 D2).
+   * Esc처럼 취소한다(RFD 0099): 차트·보조 레인 수·선택을 gesture 시작 전으로 되돌리고 history를 남기지 않는다.
    */
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
@@ -151,7 +151,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   resetHistory: () => void;
   /**
    * 한 gesture의 편집을 Undo 1개로 묶는다. 소유자 token 없는 편집·모드 전환·Undo 등
-   * 독립 명령이 transaction을 먼저 확정하면 onInterrupt로 소유자에게 알린다.
+   * 독립 명령이 transaction을 먼저 확정하거나 재생 시작이 취소하면 onInterrupt로 소유자에게 알린다.
    * 소유자는 그 뒤 옛 token으로 쓰지 말고 진행 중 조작을 정리해야 한다.
    */
   beginEditTransaction: (kind: EditTransactionKind, onInterrupt?: () => void) => symbol | null;
@@ -371,9 +371,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setEntityType: (entityType) => { get().commitEditTransaction(); set({ entityType }); },
   setGraceMode: (graceMode) => set({ graceMode }),
   setIsPlaying: (isPlaying) => {
-    // 미정 기본값 D2(RFD 0099·PRD §12): 드래그·삭제 gesture·붙여넣기 대기 중 재생을 시작하면 모드 전환처럼
-    // 열린 transaction을 확정한다. 재생 전까지 한 부분은 Undo 하나로 남고, 소유 조작은 onInterrupt로 드래그를 끝낸다.
-    if (isPlaying) get().commitEditTransaction();
+    // 재생을 시작하면 진행 중이던 이동·리사이즈 드래그, 붙여넣기 대기, 우클릭 삭제를 취소한다(RFD 0099).
+    // token 없는 취소라 소유 조작은 onInterrupt로 그 누름의 조작을 끝내, 같은 누름을 더 끌어도 아무것도 바꾸지 않는다.
+    if (isPlaying) get().cancelEditTransaction();
     set({ isPlaying });
   },
   setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),

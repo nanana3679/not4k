@@ -1,7 +1,8 @@
 /**
  * 에디터 재생 중 편집 제한(RFD 0099).
  *
- * 재생 중에는 생성·이동·삭제·Undo가 차트와 history를 바꾸지 않고 재생도 멈추지 않는다. 정지하면 같은 조작이 다시 동작한다.
+ * 재생 중에는 생성·이동·삭제·Undo와 선택이 차트·history·선택을 바꾸지 않고 재생도 멈추지 않는다. 정지하면 같은 조작이 다시 동작한다.
+ * 드래그 중 재생을 시작하면 그 드래그를 Esc처럼 취소한다.
  * 테스트 음원은 0.5초라 타임라인이 1마디에서 끝나고, 재생은 타임라인 끝에서 저절로 멈춘다. 120 BPM이면 2초뿐이라
  * 30 BPM 차트(1마디 = 8초)로 재생 구간을 넉넉히 둔다. 재생 커서를 따라가는 자동 스크롤은 꺼서 누를 좌표가 움직이지 않게 한다.
  */
@@ -79,7 +80,7 @@ test.beforeEach(async ({ page }) => {
 });
 test.afterEach(({ page }) => { expect(pageErrors.get(page)).toEqual([]); });
 
-test('30 BPM 곡을 재생하는 동안 1레인 탭 끌기·Delete·Ctrl+Z·Create 클릭은 차트와 history를 바꾸지 않고 재생이 이어지며, 정지 뒤 같은 Create 클릭은 3레인 1박에 탭을 놓는다', async ({ page }) => {
+test('30 BPM 곡을 재생하는 동안 Select 모드 2레인 탭 클릭·1레인 탭 끌기·Delete·Ctrl+Z·Create 클릭은 선택·차트·history를 바꾸지 않고 재생이 이어지며, 정지 뒤 같은 Create 클릭은 3레인 1박에 탭을 놓는다', async ({ page }) => {
   // 정지 중 편집 하나로 Undo할 history를 만든다(4레인 1박 탭).
   await clickAt(page, 4, 1);
   await page.keyboard.press('s');
@@ -90,6 +91,8 @@ test('30 BPM 곡을 재생하는 동안 1레인 탭 끌기·Delete·Ctrl+Z·Crea
   expect(before.past).toBe(1);
 
   await startPlayback(page);
+  await clickAt(page, 2, 1);
+  expect((await editorState(page)).selection).toEqual([0]);
   await dragAt(page, { lane: 1, beat: 1 }, { lane: 3, beat: 1 });
   await page.keyboard.press('Delete');
   await page.keyboard.press('Control+z');
@@ -106,7 +109,7 @@ test('30 BPM 곡을 재생하는 동안 1레인 탭 끌기·Delete·Ctrl+Z·Crea
   expect((await editorState(page)).noteLanes).toEqual([1, 2, 4, 3]);
 });
 
-test('선택한 1레인 탭을 2레인까지 끄는 중 Space로 재생하면 2레인까지 확정하고 4레인까지 더 끌어도 움직이지 않으며, 정지 뒤 Ctrl+Z로 1레인에 돌아온다', async ({ page }) => {
+test('선택한 1레인 탭을 2레인까지 끄는 중 Space로 재생하면 1레인으로 돌아가 Undo 기록이 늘지 않고, 4레인까지 더 끌어 떼도 움직이지 않으며 정지 뒤에도 1레인에 남는다', async ({ page }) => {
   await page.keyboard.press('s');
   await clickAt(page, 1, 1);
   const from = await at30Bpm(page, 1, 1);
@@ -118,16 +121,14 @@ test('선택한 1레인 탭을 2레인까지 끄는 중 Space로 재생하면 2�
   await page.mouse.move(mid.x, mid.y, { steps: 5 });
   await expect.poll(async () => (await editorState(page)).noteLanes).toEqual([2, 2]);
   await startPlayback(page);
+  await expect.poll(async () => (await editorState(page)).noteLanes).toEqual([1, 2]);
   await page.mouse.move(to.x, to.y, { steps: 5 });
   await page.mouse.up();
 
   const playing = await editorState(page);
-  expect(playing.noteLanes).toEqual([2, 2]);
-  expect(playing.past).toBe(1);
-  expect(playing.isPlaying).toBe(true);
+  expect(playing).toMatchObject({ noteLanes: [1, 2], selection: [0], past: 0, isPlaying: true });
 
   await page.keyboard.press('Space');
   await expect(page.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-  await page.keyboard.press('Control+z');
-  expect((await editorState(page)).noteLanes).toEqual([1, 2]);
+  expect(await editorState(page)).toMatchObject({ noteLanes: [1, 2], past: 0 });
 });

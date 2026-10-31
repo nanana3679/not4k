@@ -43,7 +43,6 @@ function setup(source: DocumentNoteEntity[] = [{ type: 'tap', kind: 'single', la
     beginTransaction: onInterrupt => current().beginEditTransaction('selectModeEdit', onInterrupt),
     commitTransaction: token => current().commitEditTransaction(token),
     cancelTransaction: token => current().cancelEditTransaction(token),
-    isEditLocked: () => current().isPlaying,
   });
   // App.tsx의 [chart] effect처럼 store 차트가 바뀌면 모드에 넘긴다.
   unsubscribe = useEditorStore.subscribe(state => mode.setChart(state.chart));
@@ -152,6 +151,9 @@ describe('재생 중 단축키(RFD 0099)', () => {
     ['Ctrl+Y', 'y', { ctrlKey: true }],
     ['Ctrl+X', 'x', { ctrlKey: true }],
     ['Ctrl+V', 'v', { ctrlKey: true }],
+    ['Ctrl+A', 'a', { ctrlKey: true }],
+    ['Ctrl+C', 'c', { ctrlKey: true }],
+    ['Esc', 'Escape', {}],
     ['G', 'g', {}],
     ['Delete', 'Delete', {}],
     ['Backspace', 'Backspace', {}],
@@ -163,7 +165,7 @@ describe('재생 중 단축키(RFD 0099)', () => {
     ['Ctrl+ArrowUp', 'ArrowUp', { ctrlKey: true }],
     ['Shift+ArrowUp', 'ArrowUp', { shiftKey: true }],
     ['Enter', 'Enter', {}],
-  ])('1박 탭을 선택·복사하고 history·Redo 기록이 1개씩 있을 때 재생 중 %s는 차트·history·재생 상태를 바꾸지 않고 안내 토스트 1개를 띄운다', (_label, key, modifiers) => {
+  ])('1박 탭을 선택·복사하고 history·Redo 기록이 1개씩 있을 때 재생 중 %s는 선택·차트·history·재생 상태를 바꾸지 않고 안내 토스트 1개를 띄운다', (_label, key, modifiers) => {
     const { mode, press, toasts } = setup([
       { type: 'tap', kind: 'single', lane: 1, beat: beat(1) },
       { type: 'body', lane: 2, beat: beat(2), endBeat: beat(4), holdCount: 1 },
@@ -175,6 +177,7 @@ describe('재생 중 단축키(RFD 0099)', () => {
 
     press(key, modifiers);
 
+    expect(current().selection.notes).toEqual(new Set([0]));
     expect(current().chart).toBe(before);
     expect(current().historyPast).toEqual(history.historyPast);
     expect(current().historyFuture).toEqual(history.historyFuture);
@@ -194,24 +197,25 @@ describe('재생 중 단축키(RFD 0099)', () => {
     expect(toasts).toEqual([PAUSE_TO_EDIT_COPY]);
   });
 
-  it('재생 중 Ctrl+A는 1박·2박 탭을 모두 선택하고 Ctrl+C는 2개를 복사하며 차트는 그대로다', () => {
+  it('재생 중 Ctrl+A·Ctrl+C는 1박·2박 탭을 고르거나 복사하지 않아 정지 뒤 Ctrl+V가 아무것도 붙여넣지 않는다', () => {
     const { mode, press, toasts } = setup([
       { type: 'tap', kind: 'single', lane: 1, beat: beat(1) },
       { type: 'tap', kind: 'single', lane: 2, beat: beat(2) },
     ]);
     useEditorStore.setState({ isPlaying: true });
-    const before = current().chart;
 
     press('a', { ctrlKey: true });
     press('c', { ctrlKey: true });
 
-    expect(current().selection.notes).toEqual(new Set([0, 1]));
-    expect(mode.hasClipboard).toBe(true);
-    expect(toasts).toEqual(['2개 항목 복사됨']);
-    expect(current().chart).toBe(before);
+    expect(current().selection.notes.size).toBe(0);
+    expect(mode.hasClipboard).toBe(false);
+    expect(toasts).toEqual([PAUSE_TO_EDIT_COPY, PAUSE_TO_EDIT_COPY]);
+    current().setIsPlaying(false);
+    press('v', { ctrlKey: true });
+    expect(notes()).toHaveLength(2);
   });
 
-  it('재생 중 C·S·D는 모드를 바꾸고 Esc는 선택을 비우며 안내 토스트를 띄우지 않는다', () => {
+  it('1박 탭을 선택하고 재생 중 C·D·S는 모드를 바꾸고 선택을 그대로 두며 안내 토스트를 띄우지 않는다', () => {
     const { mode, press, toasts } = setup();
     mode.selectNote(0);
     useEditorStore.setState({ isPlaying: true });
@@ -219,9 +223,17 @@ describe('재생 중 단축키(RFD 0099)', () => {
     press('c'); expect(current().mode).toBe('create');
     press('d'); expect(current().mode).toBe('delete');
     press('s'); expect(current().mode).toBe('select');
+
+    expect(current().selection.notes).toEqual(new Set([0]));
+    expect(toasts).toEqual([]);
+  });
+
+  it('재생 중 Create 모드의 Esc는 선택을 바꾸는 키가 아니라 안내 토스트를 띄우지 않는다', () => {
+    const { press, toasts } = setup();
+    useEditorStore.setState({ isPlaying: true, mode: 'create' });
+
     press('Escape');
 
-    expect(current().selection.notes.size).toBe(0);
     expect(toasts).toEqual([]);
   });
 
@@ -237,32 +249,38 @@ describe('재생 중 단축키(RFD 0099)', () => {
     expect(notes()).toHaveLength(0);
   });
 
-  it('1박 탭을 3박까지 끄는 중 Space로 재생하면 3박까지 확정해 드래그를 끝내고, 5박 move·up을 무시하며 정지 뒤 Undo 1번에 1박으로 돌아간다', () => {
+  it('선택한 1박 탭을 3박까지 끄는 중 Space로 재생하면 1박으로 되돌려 드래그를 끝내고 history가 없으며, 같은 누름의 5박 move·up과 정지 뒤 move도 탭을 옮기지 않는다', () => {
     const { mode, press } = setup();
     mode.selectNote(0);
     mode.onPointerDown(1, 1, false, false); mode.onPointerMove(1, 3);
+    expect(notes()[0].beat).toEqual(beat(3));
 
     press(' ');
     expect(current().isPlaying).toBe(true);
     expect(mode.isMoveDragging).toBe(false);
-    expect(notes()[0].beat).toEqual(beat(3));
-    mode.onPointerMove(1, 5); mode.onPointerUp(1, 5);
-    expect(notes()[0].beat).toEqual(beat(3));
+    expect(notes()[0].beat).toEqual(beat(1));
+    expect(current().selection.notes).toEqual(new Set([0]));
+    expect(current().historyPast).toHaveLength(0);
+    expect(current().editTransaction).toBeNull();
+    mode.onPointerMove(1, 5);
 
     press(' ');
-    press('z', { ctrlKey: true });
+    mode.onPointerMove(1, 6); mode.onPointerUp(1, 6);
     expect(notes()[0].beat).toEqual(beat(1));
+    expect(current().historyPast).toHaveLength(0);
   });
 
-  it('8박 붙여넣기 대기 중 Space로 재생하면 붙여넣기를 확정해 정지 뒤 Esc에도 2개가 남는다', () => {
+  it('8박 붙여넣기 대기 중 Space로 재생하면 붙여넣은 탭이 사라져 1박 탭 1개만 남고 대기가 끝나며 history가 없다', () => {
     const { mode, press, pasteCopyOfFirstNoteAt8 } = setup();
     pasteCopyOfFirstNoteAt8();
-
-    press(' ');
-    expect(mode.isPendingPaste).toBe(false);
-    press(' ');
-    press('Escape');
-
     expect(notes()).toHaveLength(2);
+
+    press(' ');
+
+    expect(mode.isPendingPaste).toBe(false);
+    expect(notes()).toEqual([{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }]);
+    expect(current().selection.notes).toEqual(new Set([0]));
+    expect(current().historyPast).toHaveLength(0);
+    expect(current().editTransaction).toBeNull();
   });
 });

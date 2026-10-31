@@ -12,28 +12,25 @@ import type { BpmChange } from '../../shared';
 import type { ToastType } from '../../shared/toast';
 import { selectCanRedo, selectCanUndo, useEditorStore, type EditorModeName } from '../stores';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
-import { SELECTION_ALLOWED_WHILE_PLAYING } from '../editing/playbackEditLock';
 
 /** 단축키 처리가 읽는 키 입력 사실. 테스트는 이 필드만 채운 객체를 넘긴다(repeat는 생략하면 첫 입력). */
 export type EditorKeyEvent = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'preventDefault'>
   & Partial<Pick<KeyboardEvent, 'repeat'>>;
 
 /**
- * 재생 중 막는 단축키인가(RFD 0099). 차트·history를 바꾸는 키만 고른다:
- * Undo·Redo(Ctrl+Z·Ctrl+Shift+Z·Ctrl+Y), 잘라내기·붙여넣기(Ctrl+X·Ctrl+V), 삭제(Delete·Backspace),
- * G 면제 토글, Select 모드의 화살표 이동·Shift+화살표 길이 조절·Enter 배치 확정.
- * 재생/정지(Space)·모드 전환(C·S·D)·Esc는 막지 않는다. 선택(Ctrl+A)·복사(Ctrl+C)는 D1을 따른다.
+ * 재생 중 막는 단축키인가(RFD 0099). 차트·history·선택을 바꾸거나 복사하는 키를 고른다:
+ * Undo·Redo(Ctrl+Z·Ctrl+Shift+Z·Ctrl+Y), 잘라내기·붙여넣기(Ctrl+X·Ctrl+V), 전체 선택·복사(Ctrl+A·Ctrl+C),
+ * 삭제(Delete·Backspace), 노트 속성을 바꾸는 G 면제 토글,
+ * Select 모드의 화살표 이동·Shift+화살표 길이 조절·Enter 배치 확정·Esc 선택 해제.
+ * 재생/정지(Space)와 모드 전환(C·S·D)은 막지 않는다.
  */
 export function isPlaybackLockedKey(e: EditorKeyEvent, mode: EditorModeName): boolean {
   const key = e.key.toLowerCase();
   const command = e.ctrlKey || e.metaKey;
-  if (command && ['z', 'y', 'x', 'v'].includes(key)) return true;
-  if (command && (key === 'a' || key === 'c')) return !SELECTION_ALLOWED_WHILE_PLAYING; // 미정 기본값 D1
+  if (command && ['z', 'y', 'x', 'v', 'a', 'c'].includes(key)) return true;
   if (key === 'delete' || key === 'backspace') return true;
-  // 미정 기본값 D3(PRD §12): 노트 속성을 바꾸는 G 토글도 재생 중에는 막는다. 허용하려면 이 줄을 지우고,
-  // store의 setChart 방어선(isPlaybackLockedChange)이 노트 배열 변경을 거부하므로 G 경로를 그 판단에서 빼야 한다.
   if (key === 'g' && !command) return true;
-  return mode === 'select' && ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter'].includes(key);
+  return mode === 'select' && ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'escape'].includes(key);
 }
 
 /** 단축키 처리가 쓰는 화면 상태와 명령. 차트·선택·history는 store에서 직접 읽는다. */

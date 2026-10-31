@@ -44,10 +44,14 @@ const bodyWithEndRelease = (): DocumentNoteEntity[] => [
 ];
 const bodyEnd = () => beatToFloat((notes()[0] as Extract<DocumentNoteEntity, { type: 'body' }>).endBeat);
 
-type PointerInit = { pointerType?: 'touch' | 'mouse'; button?: number; buttons?: number; pointerId?: number; x?: number };
+type PointerInit = {
+  pointerType?: 'touch' | 'mouse'; button?: number; buttons?: number; pointerId?: number; x?: number;
+  shiftKey?: boolean; altKey?: boolean;
+};
 const pointer = (y: number, init: PointerInit = {}) => ({
   pointerType: init.pointerType ?? 'touch', pointerId: init.pointerId ?? 1, clientX: init.x ?? 30, clientY: y,
-  button: init.button ?? 0, buttons: init.buttons ?? 1, shiftKey: false, altKey: false, preventDefault: () => {},
+  button: init.button ?? 0, buttons: init.buttons ?? 1, shiftKey: init.shiftKey ?? false, altKey: init.altKey ?? false,
+  preventDefault: () => {},
 }) as unknown as ReactPointerEvent<HTMLCanvasElement>;
 const rightPointer = (y: number) => pointer(y, { pointerType: 'mouse', button: 2, buttons: 2 });
 const contextMenu = (y: number) => ({ clientX: 30, clientY: y, preventDefault: () => {} }) as unknown as ReactMouseEvent<HTMLCanvasElement>;
@@ -93,7 +97,6 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
     getExtraLaneCount: () => current().extraLaneCount,
     setExtraLaneCount: (count, transaction) => current().setExtraLaneCount(count, transaction),
     onWarn: message => current().addToast(message, 'warn'),
-    isEditLocked: () => current().isPlaying,
   });
   const deleteMode = new DeleteMode(current().chart, {
     onChartUpdate: value => current().setChart(value), space, getSelectedNotes: () => current().selection.notes,
@@ -247,7 +250,8 @@ describe('Create 모드 터치 롱프레스', () => {
 
 describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
   const tapAt = (at: number, lane = 1): DocumentNoteEntity => ({ type: 'tap', kind: 'single', lane, beat: beat(at) });
-  const mouse = (y: number, buttons = 1) => pointer(y, { pointerType: 'mouse', buttons });
+  const mouse = (y: number, buttons = 1, init: PointerInit = {}) => pointer(y, { pointerType: 'mouse', buttons, ...init });
+  const selectFirst = () => current().setSelection({ ...emptySelection(), notes: new Set([0]) });
   const pauseToasts = () => vi.mocked(showToast).mock.calls.filter(([message]) => message === PAUSE_TO_EDIT_COPY);
   const play = () => current().setIsPlaying(true);
   afterEach(() => useEditorStore.setState({ isPlaying: false }));
@@ -386,36 +390,123 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(current().editTransaction).toBeNull();
   });
 
-  it('재생 중 Select 모드에서 2박 탭을 마우스로 클릭하면 그 탭만 선택하고 차트는 그대로이며 안내 토스트가 없다', () => {
+  it.each<[string, number, PointerInit]>([
+    ['2박 탭 클릭', 1000, {}],
+    ['2박 탭 Shift+클릭', 1000, { shiftKey: true }],
+    ['1박 탭 Alt+클릭', 500, { altKey: true }],
+  ])('1박 탭을 선택하고 재생 중 Select 모드에서 마우스로 %s을 해도 선택이 1박 탭에 남고 차트는 그대로이며 안내 토스트 1개를 띄운다', (_label, y, init) => {
     const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    selectFirst();
     play();
     const before = current().chart;
-    handlers.handlePointerDown(mouse(1000));
-    handlers.handlePointerUp(mouse(1000));
+    handlers.handlePointerDown(mouse(y, 1, init));
+    handlers.handlePointerUp(mouse(y, 1, init));
 
-    expect(current().selection.notes).toEqual(new Set([1]));
+    expect(current().selection.notes).toEqual(new Set([0]));
     expect(current().chart).toBe(before);
-    expect(pauseToasts()).toHaveLength(0);
+    expect(pauseToasts()).toHaveLength(1);
   });
 
-  it('재생 중 Select 모드에서 2박 탭을 터치로 짧게 누르면 그 탭을 선택한다', () => {
+  it('1박 탭을 선택하고 재생 중 Select 모드에서 2박 탭을 터치로 짧게 누르면 선택이 1박 탭에 남고 안내 토스트 1개를 띄운다', () => {
     const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    selectFirst();
     play();
     handlers.handlePointerDown(pointer(1000));
     handlers.handlePointerUp(pointer(1000));
 
-    expect(current().selection.notes).toEqual(new Set([1]));
+    expect(current().selection.notes).toEqual(new Set([0]));
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it.each(['mouse', 'touch'] as const)('1박 탭을 선택하고 재생 중 빈 0.4박에서 3.4박까지 %s 박스로 끌어도 선택이 1박 탭에 남고 안내 토스트는 1개다', pointerType => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(3)]), 'select');
+    selectFirst();
+    play();
+    handlers.handlePointerDown(pointer(200, { pointerType }));
+    handlers.handlePointerMove(pointer(1700, { pointerType }));
+    handlers.handlePointerUp(pointer(1700, { pointerType }));
+
+    expect(current().selection.notes).toEqual(new Set([0]));
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it.each(['mouse', 'touch'] as const)('1박 탭을 선택한 채 빈 0.4박에서 3.4박까지 %s 박스로 끄는 중 재생이 시작되면 다음 이동에서 선택이 1박 탭으로 돌아오고 떼도 3박 탭을 고르지 않는다', pointerType => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(3)]), 'select');
+    selectFirst();
+    handlers.handlePointerDown(pointer(200, { pointerType }));
+    handlers.handlePointerMove(pointer(1700, { pointerType }));
+    expect(current().selection.notes).toEqual(new Set([0, 1]));
+
+    play();
+    handlers.handlePointerMove(pointer(1800, { pointerType }));
+    expect(current().selection.notes).toEqual(new Set([0]));
+    handlers.handlePointerUp(pointer(1800, { pointerType }));
+
+    expect(current().selection.notes).toEqual(new Set([0]));
     expect(pauseToasts()).toHaveLength(0);
   });
 
-  it('재생 중 빈 0.4박에서 3.4박까지 박스로 끌면 1박·3박 탭을 선택한다', () => {
-    const { handlers } = setup(chart([tapAt(1), tapAt(3)]), 'select');
+  it('Select 모드에서 2박 탭 롱프레스 대기 중 재생이 시작되면 450ms 뒤 발화해도 그 탭을 선택하지 않고 떼도 선택이 비어 있으며 안내 토스트는 1개다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    handlers.handlePointerDown(pointer(1000));
     play();
-    handlers.handlePointerDown(mouse(200));
-    handlers.handlePointerMove(mouse(1700));
-    handlers.handlePointerUp(mouse(1700));
+    vi.advanceTimersByTime(450);
+    handlers.handlePointerUp(pointer(1000));
 
-    expect(current().selection.notes).toEqual(new Set([0, 1]));
+    expect(current().selection.notes.size).toBe(0);
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('선택한 1박 탭을 마우스로 2박까지 끄는 중 재생이 시작되면 1박으로 돌아오고, 3박까지 더 끌어 떼도 움직이지 않으며 history·안내 토스트가 없다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'select');
+    selectFirst();
+    handlers.handlePointerDown(mouse(500));
+    handlers.handlePointerMove(mouse(1000));
+    expect(notes()[0].beat).toEqual(beat(2));
+
+    play();
+    expect(notes()[0].beat).toEqual(beat(1));
+    handlers.handlePointerMove(mouse(1500));
+    handlers.handlePointerUp(mouse(1500));
+
+    expect(notes()[0].beat).toEqual(beat(1));
+    expect(current().selection.notes).toEqual(new Set([0]));
+    expect(current().historyPast).toHaveLength(0);
+    expect(current().editTransaction).toBeNull();
+    expect(pauseToasts()).toHaveLength(0);
+  });
+
+  it('Select 모드에서 1박 탭을 롱프레스로 2박까지 옮기는 중 재생이 시작되면 1박으로 돌아오고, 정지한 뒤 같은 손가락을 3박으로 끌어 떼도 움직이지 않는다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'select');
+    handlers.handlePointerDown(pointer(500));
+    vi.advanceTimersByTime(450);
+    handlers.handlePointerMove(pointer(1000));
+    expect(notes()[0].beat).toEqual(beat(2));
+
+    play();
+    expect(notes()[0].beat).toEqual(beat(1));
+    current().setIsPlaying(false);
+    handlers.handlePointerMove(pointer(1500));
+    handlers.handlePointerUp(pointer(1500));
+
+    expect(notes()[0].beat).toEqual(beat(1));
+    expect(current().historyPast).toHaveLength(0);
+  });
+
+  it('1박·2박 탭 중 1박을 우클릭으로 지우고 끄는 중 재생이 시작되면 1박 탭이 돌아오고, 2박 위로 끌고 떼도 지우지 않으며 history가 없다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    handlers.handlePointerDown(rightPointer(500));
+    expect(notes()).toHaveLength(1);
+
+    play();
+    expect(notes()).toHaveLength(2);
+    handlers.handlePointerMove(rightPointer(1000));
+    handlers.handlePointerUp(rightPointer(1000));
+    handlers.handleContextMenu(contextMenu(1000));
+
+    expect(notes()).toHaveLength(2);
+    expect(current().historyPast).toHaveLength(0);
+    expect(current().editTransaction).toBeNull();
     expect(pauseToasts()).toHaveLength(0);
   });
 

@@ -38,7 +38,6 @@ import {
 } from './touchEditRouting';
 import { resolveContextMenuDelete } from './contextMenuRouting';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
-import { SELECTION_ALLOWED_WHILE_PLAYING } from '../editing/playbackEditLock';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -191,13 +190,10 @@ export function useCanvasEvents(
         .advanceTo(performance.now())
         .find((g): g is Extract<Gesture, { kind: 'longPress' }> => g.kind === 'longPress');
       if (!fired) return;
-      // 재생 중이면(누른 뒤 재생이 시작된 경우 포함) 범위 생성·선택 드래그·드래그 삭제를 시작하지 않는다(RFD 0099).
-      // 롱프레스는 편집 의도라 이 누름에 남은 선택 후보(지연 박스·클릭 토글)도 버린다. 그래야 같은 누름을 끌어도
-      // 박스 재생이 끝 핸들 리사이즈를 다시 시도해 안내를 한 번 더 띄우지 않는다.
+      // 재생 중이면(누른 뒤 재생이 시작된 경우 포함) 범위 생성·선택 드래그·드래그 삭제를 시작하지 않고 한 번 안내한다(RFD 0099).
+      // 이 누름에 남은 선택 후보(지연 박스·클릭 토글)는 재생 중 이동·뗌이 버린다.
       if (isEditLockedByPlayback()) {
         suppressContextMenuUntilRef.current = Date.now() + 1200;
-        touchEmptySelectCandidateRef.current = null;
-        touchClickToggleRef.current = null;
         addToast(PAUSE_TO_EDIT_COPY, 'warn');
         return;
       }
@@ -313,14 +309,25 @@ export function useCanvasEvents(
     };
   }, [clearHoldTimer]);
 
-  // 재생이 시작되면 그 직전에 시작한 생성 드래그·롱프레스 대기와 고스트를 걷는다(RFD 0099).
-  // Select·삭제 조작의 편집 transaction은 store의 setIsPlaying이 먼저 확정해 끝낸다.
-  useEffect(() => {
-    if (!isPlaying) return;
+  // 재생 중 편집 제한(RFD 0099): 누름에 남은 편집·선택 조작을 버리고 미리보기를 걷는다.
+  // 이동·리사이즈 드래그·붙여넣기 대기·우클릭 삭제는 store의 setIsPlaying이 이미 취소했다. 여기서는 편집
+  // transaction이 없는 조작 — 생성 드래그, 박스 선택(시작 전 선택으로 되돌린다), 롱프레스 대기, 터치 선택 후보 — 를 버린다.
+  // 재생이 시작될 때와 재생 중 캔버스 이동·뗌마다 부른다. 버릴 조작이 없으면 아무것도 바꾸지 않는다.
+  const abandonInteractionForPlayback = useCallback(() => {
     clearHoldTimer();
+    eraseGestureRef.current.finish();
     createModeRef.current?.cancelDrag();
+    selectModeRef.current?.cancel();
+    touchEmptySelectCandidateRef.current = null;
+    touchClickToggleRef.current = null;
+    rendererRef.current?.clearMoveOrigins();
+    rendererRef.current?.clearBoxSelectRect();
     rendererRef.current?.hideGhostNote();
-  }, [isPlaying, clearHoldTimer, createModeRef, rendererRef]);
+  }, [clearHoldTimer, createModeRef, selectModeRef, rendererRef]);
+
+  useEffect(() => {
+    if (isPlaying) abandonInteractionForPlayback();
+  }, [isPlaying, abandonInteractionForPlayback]);
 
   const routeViewportGestures = useCallback((gestures: Gesture[], rect: DOMRect) => {
     for (const g of gestures) {
@@ -415,10 +422,9 @@ export function useCanvasEvents(
       return;
     }
 
-    // 재생 중 편집 제한(RFD 0099): 미니맵·커서 레일 seek 뒤, 편집을 시작하기 전에 막고 누름마다 한 번 안내한다.
-    // 미정 기본값 D1: Select 모드의 좌클릭·터치는 선택을 위해 통과시킨다(이동·리사이즈 시작은 SelectMode가 막는다).
-    const selectionPress = SELECTION_ALLOWED_WHILE_PLAYING && mode === 'select' && e.button !== 2;
-    if (isEditLockedByPlayback() && !selectionPress) {
+    // 재생 중 편집 제한(RFD 0099): 미니맵·커서 레일 seek 뒤, 편집·선택을 시작하기 전에 막고 누름마다 한 번 안내한다.
+    // Select 모드의 클릭·Shift/Alt 클릭·박스 선택·터치 토글도 선택을 바꾸므로 함께 막는다.
+    if (isEditLockedByPlayback()) {
       // 우클릭이면 이 누름이 만들 contextmenu도 삭제하지 않게 대기를 건다.
       if (e.button === 2) rightPressPendingRef.current = true;
       addToast(PAUSE_TO_EDIT_COPY, 'warn');
@@ -573,14 +579,18 @@ export function useCanvasEvents(
 
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
 
+    // 재생 중(RFD 0099)에는 이 누름에 남은 편집·선택 조작을 버리고, hover 표시와 커서 레일 seek 드래그만 이어 간다.
+    const editLocked = isEditLockedByPlayback();
+    if (editLocked) abandonInteractionForPlayback();
+
     // hold 생명주기는 recognizer가 소유 — 이 pointer의 발화/이동 상태를 조회해 연속 처리를 가른다.
     const holdState = e.pointerType === 'touch'
       ? recognizerRef.current.holdState(e.pointerId)
       : null;
 
-    // 드래그 삭제: 발화한 delete hold는 이동마다 히트 지점을 삭제한다. 재생 중에는 발화해도 지우지 않는다(RFD 0099).
+    // 드래그 삭제: 발화한 delete hold는 이동마다 히트 지점을 삭제한다. 재생 중에는 발화해도 지우지 않는다.
     if (mode === 'delete' && holdState?.fired) {
-      if (!isEditLockedByPlayback()) deleteAtPoint(x, y);
+      if (!editLocked) deleteAtPoint(x, y);
       return;
     }
 
@@ -710,6 +720,8 @@ export function useCanvasEvents(
       return;
     }
 
+    if (editLocked) return;
+
     // 선택 드래그: 발화한 select hold(롱프레스 이동/리사이즈)는 이동을 모드로 흘려보낸다.
     if (mode === 'select' && holdState?.fired && selectModeRef.current) {
       const longPressResult = selectModeRef.current.onPointerMove(x, y);
@@ -728,8 +740,7 @@ export function useCanvasEvents(
     }
 
     if (mode === 'create' && createModeRef.current) {
-      // 재생 중에는 배치할 수 없으므로 고스트를 보이지 않는다(RFD 0099).
-      if (!isTimeInBounds(y) || isHoveringEntity || isEditLockedByPlayback()) {
+      if (!isTimeInBounds(y) || isHoveringEntity) {
         rendererRef.current?.hideGhostNote();
         return;
       }
@@ -796,7 +807,7 @@ export function useCanvasEvents(
     routeViewportGestures, canvasRef, createModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, deleteAtPoint, clearHoldTimer, isTouchContactInterrupted,
-    onNavigationInteraction, applyEditResult,
+    onNavigationInteraction, applyEditResult, abandonInteractionForPlayback,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -857,13 +868,9 @@ export function useCanvasEvents(
       return;
     }
 
-    // 재생 중 Create·Delete 모드의 뗌은 배치·삭제를 확정하지 않는다. 재생 전에 시작한 생성 드래그도 버린다(RFD 0099).
-    // Select 모드의 뗌은 선택(클릭·박스)을 마무리하도록 통과시킨다(미정 기본값 D1).
-    if (isEditLockedByPlayback() && !(SELECTION_ALLOWED_WHILE_PLAYING && mode === 'select')) {
-      eraseGestureRef.current.finish();
-      createModeRef.current?.cancelDrag();
-      if (touchClickToggleRef.current?.pointerId === e.pointerId) touchClickToggleRef.current = null;
-      rendererRef.current?.hideGhostNote();
+    // 재생 중(RFD 0099)의 뗌은 배치·삭제·선택을 확정하지 않고, 재생 전에 시작한 생성 드래그·박스 선택도 버린다.
+    if (isEditLockedByPlayback()) {
+      abandonInteractionForPlayback();
       return;
     }
 
@@ -965,6 +972,7 @@ export function useCanvasEvents(
     mode, entityType, isTimeInBounds, toSample, clearHoldTimer,
     updateTouchMovement, canvasRef, createModeRef, deleteModeRef, isDraggingCursorRef,
     deleteAtPoint, rendererRef, selectModeRef, applyEditResult, isTouchContactInterrupted,
+    abandonInteractionForPlayback,
   ]);
 
   const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
