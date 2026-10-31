@@ -10,7 +10,7 @@ import { font, color, primitives } from '../../shared/theme';
 
 export function LoadingScreen() {
   const { selectedSongId, selectedDifficulty, selectedAudioUrl, selectedPlaybackRange, setScreen,
-    beginNormalPlayLoad, completeNormalPlayLoad, cancelNormalPlayLoad } = useGameStore();
+    playLoadTarget, beginPlayLoad, completePlayLoad, cancelPlayLoad } = useGameStore();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -21,14 +21,16 @@ export function LoadingScreen() {
       audioCtx = null;
       return context?.close().catch(() => undefined);
     };
-    const loadId = beginNormalPlayLoad();
+    const loadId = beginPlayLoad(playLoadTarget);
+    const isCurrentLoad = () => isMounted && useGameStore.getState().playLoadId === loadId
+      && useGameStore.getState().screen === 'loading';
 
     const load = async () => {
       await Promise.resolve();
-      if (!isMounted) return;
+      if (!isCurrentLoad()) return;
       setError(null);
       if (!selectedSongId || !selectedDifficulty) {
-        cancelNormalPlayLoad(loadId);
+        cancelPlayLoad(loadId);
         setError('No song selected. Go back and select a song.');
         return;
       }
@@ -37,13 +39,13 @@ export function LoadingScreen() {
         audioCtx = new AudioContext();
         const { chart, audioBuffer } = await loadSongDocumentData(selectedSongId, selectedDifficulty, audioCtx, selectedAudioUrl ?? undefined);
 
-        if (isMounted) {
+        if (isCurrentLoad()) {
           const request = prepareNormalPlay({ document: chart, audioBuffer, playbackRange: selectedPlaybackRange });
-          completeNormalPlayLoad(loadId, request);
+          completePlayLoad(loadId, request);
         }
       } catch (err) {
-        if (isMounted) {
-          cancelNormalPlayLoad(loadId);
+        if (isCurrentLoad()) {
+          cancelPlayLoad(loadId);
           if (err instanceof ExplicitChartCompileError || err instanceof ChartFormatError) {
             const reason = err instanceof ExplicitChartCompileError && err.validation.runtimeIncompatible.length > 0
               ? 'This chart uses an older note format.' : 'This chart contains invalid notes or chart data.';
@@ -61,11 +63,11 @@ export function LoadingScreen() {
 
     return () => {
       isMounted = false;
-      cancelNormalPlayLoad(loadId);
+      cancelPlayLoad(loadId);
       void closeAudioContext();
     };
   }, [selectedSongId, selectedDifficulty, selectedAudioUrl, selectedPlaybackRange,
-    beginNormalPlayLoad, completeNormalPlayLoad, cancelNormalPlayLoad]);
+    playLoadTarget, beginPlayLoad, completePlayLoad, cancelPlayLoad]);
 
   if (error) {
     return (

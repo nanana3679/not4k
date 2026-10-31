@@ -31,6 +31,9 @@ export interface NormalPlayOptions {
   playbackRange?: PlaybackRange | null;
 }
 
+/** Observer는 일반 재생과 같은 검증 자료만 받고 결과·에디터 복귀 옵션은 사용하지 않는다. */
+export type ObserverPlayRequest = Pick<ExplicitPlayRequest, 'document' | 'compiled' | 'audioBuffer' | 'playbackRange'>;
+
 /** 일반 곡도 전체 문서 검증을 통과해야 하며 시작 범위는 곡 시각 0이다. */
 export function prepareNormalPlay(options: NormalPlayOptions): ExplicitPlayRequest {
   const document = structuredClone(options.document);

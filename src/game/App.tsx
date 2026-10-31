@@ -10,6 +10,7 @@ import {
   PlayScreen,
   NormalPlayScreen,
   ExplicitPlayScreen,
+  ObserverScreen,
   ResultScreen,
 } from './screens';
 import { keepGearMotionAssets } from './screens/gearMotionKeepAlive';
@@ -43,6 +44,8 @@ export default function GameApp() {
       return editorReturnUrl ? <PlayScreen /> : <NormalPlayScreen />;
     case 'explicitPlay':
       return <ExplicitPlayScreen />;
+    case 'observer':
+      return <ObserverScreen />;
     case 'result':
       return <ResultScreen />;
     default:

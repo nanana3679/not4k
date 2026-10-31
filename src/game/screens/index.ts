@@ -5,6 +5,7 @@ export { LoadingScreen } from './LoadingScreen';
 export { PlayScreen } from './PlayScreen';
 export { NormalPlayScreen } from './NormalPlayScreen';
 export { ExplicitPlayScreen } from './ExplicitPlayScreen';
+export { ObserverScreen } from './ObserverScreen';
 export { ResultScreen } from './ResultScreen';
 export { SettingsModal } from './settings/SettingsModal';
 export { SettingsPanel } from './settings/SettingsPanel';

@@ -3,10 +3,11 @@ import { persist } from 'zustand/middleware';
 import type { Chart, PlaybackRange } from '../../shared';
 import type { JudgmentMode } from '../../shared/constants/judgment';
 import { prepareExplicitPlayTest } from './explicitPlayRequest';
-import type { ExplicitPlayRequest, ExplicitPlayTestOptions } from './explicitPlayRequest';
+import type { ExplicitPlayRequest, ExplicitPlayTestOptions, ObserverPlayRequest } from './explicitPlayRequest';
 import type { ExplicitSessionResult } from '../judgment/ExplicitJudgmentSession';
 
-type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'explicitPlay';
+type Screen = 'title' | 'presetSetup' | 'songSelect' | 'loading' | 'play' | 'result' | 'explicitPlay' | 'observer';
+type PlayLoadTarget = 'play' | 'observer';
 
 interface KeyBindings {
   lane1: string[];
@@ -75,12 +76,16 @@ interface GameState {
   audioBuffer: AudioBuffer | null;
   explicitPlay: ExplicitPlayRequest | null;
   normalPlay: ExplicitPlayRequest | null;
-  normalLoadId: number;
-  beginNormalPlayLoad: () => number;
-  completeNormalPlayLoad: (loadId: number, request: ExplicitPlayRequest) => boolean;
-  cancelNormalPlayLoad: (loadId: number) => void;
+  observerPlay: ObserverPlayRequest | null;
+  /** 같은 LoadingScreen이 검증한 문서·음원을 전달할 목적지. 영속화하지 않는다. */
+  playLoadTarget: PlayLoadTarget;
+  playLoadId: number;
+  beginPlayLoad: (target?: PlayLoadTarget) => number;
+  completePlayLoad: (loadId: number, request: ExplicitPlayRequest) => boolean;
+  cancelPlayLoad: (loadId: number) => void;
   completeNormalPlay: (request: ExplicitPlayRequest, result: ExplicitSessionResult) => void;
   clearNormalPlay: (request: ExplicitPlayRequest) => void;
+  clearObserverPlay: (request: ObserverPlayRequest) => void;
   startExplicitPlayTest: (options: ExplicitPlayTestOptions) => void;
   clearExplicitPlayTest: () => void;
 
@@ -184,22 +189,30 @@ export const useGameStore = create<GameState>()(
       audioBuffer: null,
       explicitPlay: null,
       normalPlay: null,
-      normalLoadId: 0,
-      beginNormalPlayLoad: () => {
-        const normalLoadId = get().normalLoadId + 1;
-        set({ normalLoadId, normalPlay: null, explicitPlay: null, lastResult: null,
+      observerPlay: null,
+      playLoadTarget: 'play',
+      playLoadId: 0,
+      beginPlayLoad: (playLoadTarget = 'play') => {
+        const playLoadId = get().playLoadId + 1;
+        set({ playLoadId, playLoadTarget, normalPlay: null, observerPlay: null, explicitPlay: null, lastResult: null,
           chartData: null, audioBuffer: null, startTimeMs: 0, editorReturnUrl: null,
           screen: 'loading', settingsOpen: false, calibrationActive: false });
-        return normalLoadId;
+        return playLoadId;
       },
-      completeNormalPlayLoad: (loadId, request) => {
-        if (get().normalLoadId !== loadId || get().screen !== 'loading' || request.purpose !== 'play') return false;
-        set({ normalPlay: request, lastResult: null, screen: 'play' });
+      completePlayLoad: (loadId, request) => {
+        if (get().playLoadId !== loadId || get().screen !== 'loading' || request.purpose !== 'play') return false;
+        if (get().playLoadTarget === 'observer') {
+          const { document, compiled, audioBuffer, playbackRange } = request;
+          set({ observerPlay: { document, compiled, audioBuffer, playbackRange }, normalPlay: null,
+            lastResult: null, screen: 'observer' });
+        } else {
+          set({ normalPlay: request, observerPlay: null, lastResult: null, screen: 'play' });
+        }
         return true;
       },
-      cancelNormalPlayLoad: loadId => {
-        if (get().normalLoadId !== loadId || get().screen !== 'loading') return;
-        set({ normalLoadId: loadId + 1, normalPlay: null, lastResult: null, chartData: null, audioBuffer: null });
+      cancelPlayLoad: loadId => {
+        if (get().playLoadId !== loadId || get().screen !== 'loading') return;
+        set({ playLoadId: loadId + 1, normalPlay: null, observerPlay: null, lastResult: null, chartData: null, audioBuffer: null });
       },
       completeNormalPlay: (request, result) => {
         const state = get();
@@ -218,9 +231,13 @@ export const useGameStore = create<GameState>()(
         if (get().normalPlay !== request) return;
         set({ normalPlay: null, lastResult: null, screen: 'songSelect' });
       },
+      clearObserverPlay: request => {
+        if (get().observerPlay !== request) return;
+        get().setScreen('songSelect');
+      },
       startExplicitPlayTest: (options) => {
         const explicitPlay = prepareExplicitPlayTest(options);
-        set({ explicitPlay, normalPlay: null, normalLoadId: get().normalLoadId + 1,
+        set({ explicitPlay, normalPlay: null, observerPlay: null, playLoadTarget: 'play', playLoadId: get().playLoadId + 1,
           lastResult: null, screen: 'explicitPlay', settingsOpen: false, calibrationActive: false });
       },
       clearExplicitPlayTest: () => set({ explicitPlay: null, screen: 'songSelect' }),
@@ -232,9 +249,10 @@ export const useGameStore = create<GameState>()(
       // 명시 테스트 요청(문서·음원)은 explicitPlay 화면에서만 쓰므로 다른 화면으로 가면 항상 해제한다.
       setScreen: (screen) => set(state => ({ screen, settingsOpen: false, calibrationActive: false,
         ...(screen !== 'explicitPlay' ? { explicitPlay: null } : {}),
-        ...(screen !== 'play' && screen !== 'result' && screen !== 'explicitPlay'
+        ...(screen !== 'observer' ? { observerPlay: null, playLoadTarget: 'play' as const } : {}),
+        ...(screen !== 'play' && screen !== 'result' && screen !== 'explicitPlay' && screen !== 'observer'
           ? { normalPlay: null, explicitPlay: null, lastResult: null, chartData: null, audioBuffer: null,
-            normalLoadId: state.normalLoadId + 1, startTimeMs: 0, editorReturnUrl: null }
+            playLoadId: state.playLoadId + 1, startTimeMs: 0, editorReturnUrl: null }
           : {}),
       })),
 
@@ -257,7 +275,8 @@ export const useGameStore = create<GameState>()(
         selectedDifficulty: difficulty,
         selectedAudioUrl: audioUrl,
         selectedPlaybackRange: playbackRange ? { ...playbackRange } : null,
-        normalLoadId: state.normalLoadId + 1, normalPlay: null, explicitPlay: null, lastResult: null,
+        playLoadId: state.playLoadId + 1, playLoadTarget: 'play', observerPlay: null,
+        normalPlay: null, explicitPlay: null, lastResult: null,
         chartData: null, audioBuffer: null, startTimeMs: 0, editorReturnUrl: null,
       })),
 

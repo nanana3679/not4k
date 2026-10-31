@@ -12,7 +12,7 @@ vi.mock('react', async importOriginal => ({ ...await importOriginal<typeof impor
   useEffect: (effect: () => () => void) => { fixture.effect = effect; },
   useState: () => [fixture.error, (value: string | null) => { fixture.error = value; }],
 }));
-vi.mock('../stores', () => ({ useGameStore: () => useGameStore.getState() }));
+vi.mock('../stores', () => ({ useGameStore: Object.assign(() => useGameStore.getState(), { getState: useGameStore.getState }) }));
 vi.mock('../../supabase', () => ({ loadSongDocumentData: fixture.load }));
 const { LoadingScreen } = await import('./LoadingScreen');
 
@@ -121,5 +121,74 @@ describe('일반 곡 LoadingScreen', () => {
     expect(fixture.load).not.toHaveBeenCalled();
     expect(fixture.close).not.toHaveBeenCalled();
     expect(useGameStore.getState().normalPlay).toBeNull();
+  });
+});
+
+describe('Observer 공유 LoadingScreen', () => {
+  beforeEach(() => useGameStore.getState().beginPlayLoad('observer'));
+
+  it('Observer는 custom.mp3를 1회 읽고 검증한 4개 점수 항목·음원 구간을 observer 화면에 전달한다', async () => {
+    fixture.load.mockResolvedValue({ chart: explicitPlaytestCharts[0].chart, audioBuffer });
+    mount();
+    await vi.waitFor(() => expect(useGameStore.getState().screen).toBe('observer'));
+    expect(fixture.load).toHaveBeenCalledExactlyOnceWith('song-1', 'NORMAL', expect.anything(), 'songs/song-1/custom.mp3');
+    expect(useGameStore.getState().observerPlay).toMatchObject({ compiled: { totalJudgments: 4 }, audioBuffer,
+      playbackRange: { startTime: 1, endTime: 3, fadeInTime: .2, fadeOutTime: .3 } });
+    expect(useGameStore.getState()).toMatchObject({ normalPlay: null, lastResult: null });
+    expect(fixture.close).toHaveBeenCalledOnce();
+  });
+
+  it('Observer의 lane 5 바디 밖 tick 검증 실패는 화면 진입을 막고 곡 선택 복귀를 제공한다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.notes.push({ type: 'tick', lane: 5, beat: beat(0), count: 1 });
+    fixture.load.mockResolvedValue({ chart, audioBuffer });
+    mount();
+    await vi.waitFor(() => expect(fixture.error).toContain('correct it in the editor'));
+    expect(useGameStore.getState()).toMatchObject({ screen: 'loading', observerPlay: null, normalPlay: null, lastResult: null });
+    expect(renderToStaticMarkup(createElement(LoadingScreen))).toContain('Back to Song Select');
+    expect(fixture.close).toHaveBeenCalledOnce();
+  });
+
+  it('Observer의 음원 길이 0초는 검증 실패로 처리하고 요청을 남기지 않는다', async () => {
+    fixture.load.mockResolvedValue({ chart: explicitPlaytestCharts[0].chart, audioBuffer: { duration: 0 } });
+    mount();
+    await vi.waitFor(() => expect(fixture.error).toContain('Unable to load this song'));
+    expect(useGameStore.getState()).toMatchObject({ screen: 'loading', observerPlay: null, normalPlay: null, lastResult: null });
+  });
+
+  it('Observer 응답 전에 일반 로딩을 시작하면 늦은 Observer 성공이 play 요청을 만들지 못한다', async () => {
+    const resolve = delayedLoad();
+    mount();
+    await vi.waitFor(() => expect(fixture.load).toHaveBeenCalledOnce());
+    useGameStore.getState().beginPlayLoad();
+    resolve();
+    await vi.waitFor(() => expect(fixture.close).toHaveBeenCalledOnce());
+    expect(useGameStore.getState()).toMatchObject({ screen: 'loading', playLoadTarget: 'play', observerPlay: null, normalPlay: null });
+    expect(fixture.error).toBeNull();
+  });
+
+  it('Observer 응답 전에 song-2를 선택하면 늦은 차트 검증 실패가 새 로딩에 오류를 표시하지 않는다', async () => {
+    const resolve = delayedLoad();
+    mount();
+    await vi.waitFor(() => expect(fixture.load).toHaveBeenCalledOnce());
+    useGameStore.getState().selectSong('song-2', 'HARD', 'next.mp3');
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    chart.notes.push({ type: 'single', lane: 1, beat: beat(0) });
+    resolve(chart);
+    await vi.waitFor(() => expect(fixture.close).toHaveBeenCalledOnce());
+    expect(fixture.error).toBeNull();
+    expect(useGameStore.getState()).toMatchObject({ selectedSongId: 'song-2', observerPlay: null, lastResult: null });
+  });
+
+  it('Observer 음원 로딩 중 Esc를 눌러도 loading을 유지하고 완료 뒤 observer로 진입한다', async () => {
+    const target = new EventTarget();
+    vi.stubGlobal('window', target);
+    const resolve = delayedLoad();
+    mount();
+    await vi.waitFor(() => expect(fixture.load).toHaveBeenCalledOnce());
+    target.dispatchEvent(Object.assign(new Event('keydown'), { code: 'Escape', repeat: false }));
+    expect(useGameStore.getState()).toMatchObject({ screen: 'loading', observerPlay: null });
+    resolve();
+    await vi.waitFor(() => expect(useGameStore.getState().screen).toBe('observer'));
   });
 });

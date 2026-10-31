@@ -189,9 +189,9 @@ describe('일반 곡 로딩·결과 수명', () => {
   const start = (index = 0) => {
     const state = useGameStore.getState();
     state.selectSong('song-1', 'Liftoff', 'songs/song-1/selected.mp3');
-    const id = state.beginNormalPlayLoad();
+    const id = state.beginPlayLoad();
     const play = request(index);
-    state.completeNormalPlayLoad(id, play);
+    state.completePlayLoad(id, play);
     return play;
   };
 
@@ -199,8 +199,8 @@ describe('일반 곡 로딩·결과 수명', () => {
     const state = useGameStore.getState();
     const playbackRange = { startTime: 1, endTime: 3, fadeInTime: .1, fadeOutTime: .2 };
     state.selectSong('song-1', 'NORMAL', 'selected.mp3', playbackRange);
-    const id = state.beginNormalPlayLoad();
-    state.completeNormalPlayLoad(id, prepareNormalPlay({ document: explicitPlaytestCharts[0].chart,
+    const id = state.beginPlayLoad();
+    state.completePlayLoad(id, prepareNormalPlay({ document: explicitPlaytestCharts[0].chart,
       audioBuffer: { duration: 4 } as AudioBuffer, playbackRange: useGameStore.getState().selectedPlaybackRange }));
     expect(useGameStore.getState()).toMatchObject({ screen: 'play', selectedSongId: 'song-1', selectedAudioUrl: 'selected.mp3',
       normalPlay: { purpose: 'play', startTimeMs: 0, auto: false, playbackRange }, lastResult: null, explicitPlay: null });
@@ -209,13 +209,13 @@ describe('일반 곡 로딩·결과 수명', () => {
   it('새 로딩은 이전 결과·요청·구형 음원을 지우고 완성된 요청과 play 화면을 한 번에 공개한다', () => {
     const old = start();
     useGameStore.getState().completeNormalPlay(old, new ExplicitJudgmentSession(old.compiled).finalize());
-    const id = useGameStore.getState().beginNormalPlayLoad();
+    const id = useGameStore.getState().beginPlayLoad();
     expect(useGameStore.getState()).toMatchObject({ screen: 'loading', normalPlay: null, explicitPlay: null,
       lastResult: null, chartData: null, audioBuffer: null, startTimeMs: 0, editorReturnUrl: null });
     const next = request();
     const observed: unknown[] = [];
     const unsubscribe = useGameStore.subscribe(state => observed.push({ screen: state.screen, request: state.normalPlay }));
-    expect(useGameStore.getState().completeNormalPlayLoad(id, next)).toBe(true);
+    expect(useGameStore.getState().completePlayLoad(id, next)).toBe(true);
     unsubscribe();
     expect(observed).toEqual([{ screen: 'play', request: next }]);
     expect(useGameStore.getState().selectedAudioUrl).toBe('songs/song-1/selected.mp3');
@@ -223,13 +223,13 @@ describe('일반 곡 로딩·결과 수명', () => {
 
   it.each(['cancel', 'next', 'back', 'newLoad'] as const)('%s 뒤 이전 로딩이 도착해도 요청·play·결과를 되살리지 않는다', action => {
     const state = useGameStore.getState();
-    const id = state.beginNormalPlayLoad();
-    if (action === 'cancel') state.cancelNormalPlayLoad(id);
+    const id = state.beginPlayLoad();
+    if (action === 'cancel') state.cancelPlayLoad(id);
     if (action === 'next') state.selectSong('song-2', 'HARD', 'other.mp3');
     if (action === 'back') state.setScreen('songSelect');
-    if (action === 'newLoad') state.beginNormalPlayLoad();
+    if (action === 'newLoad') state.beginPlayLoad();
     const before = useGameStore.getState();
-    expect(state.completeNormalPlayLoad(id, request())).toBe(false);
+    expect(state.completePlayLoad(id, request())).toBe(false);
     expect(useGameStore.getState()).toBe(before);
     expect(before.normalPlay).toBeNull();
     expect(before.lastResult).toBeNull();
@@ -282,11 +282,99 @@ describe('일반 곡 로딩·결과 수명', () => {
 
   it('정상 로딩 완료 뒤 LoadingScreen cleanup은 새 play 요청을 취소하지 않는다', () => {
     const state = useGameStore.getState();
-    const id = state.beginNormalPlayLoad();
+    const id = state.beginPlayLoad();
     const play = request();
-    state.completeNormalPlayLoad(id, play);
-    state.cancelNormalPlayLoad(id);
+    state.completePlayLoad(id, play);
+    state.cancelPlayLoad(id);
     expect(useGameStore.getState()).toMatchObject({ screen: 'play', normalPlay: play });
+  });
+});
+
+describe('Observer 로딩·요청 수명', () => {
+  const request = () => prepareNormalPlay({ document: explicitPlaytestCharts[0].chart,
+    audioBuffer: { duration: 4 } as AudioBuffer });
+  const openObserver = () => {
+    const state = useGameStore.getState();
+    state.completePlayLoad(state.beginPlayLoad('observer'), request());
+    return useGameStore.getState().observerPlay!;
+  };
+
+  it('song-1·HARD에서 Observer 로딩을 시작하면 선택을 유지하고 이전 결과·에디터 복귀 경로를 지운다', () => {
+    const state = useGameStore.getState();
+    state.selectSong('song-1', 'HARD', 'selected.mp3');
+    const previous = request();
+    state.completePlayLoad(state.beginPlayLoad(), previous);
+    state.completeNormalPlay(previous, new ExplicitJudgmentSession(previous.compiled).finalize());
+    state.setEditorReturnUrl('/editor');
+    state.beginPlayLoad('observer');
+    expect(useGameStore.getState()).toMatchObject({ screen: 'loading', playLoadTarget: 'observer',
+      selectedSongId: 'song-1', selectedDifficulty: 'HARD', selectedAudioUrl: 'selected.mp3',
+      observerPlay: null, normalPlay: null, explicitPlay: null, lastResult: null, editorReturnUrl: null });
+  });
+
+  it('Observer 로딩 완료는 요청과 observer 화면을 1회 공개하고 로더 cleanup 뒤에도 유지한다', () => {
+    const state = useGameStore.getState();
+    const id = state.beginPlayLoad('observer');
+    const validated = request();
+    const changes: string[] = [];
+    const unsubscribe = useGameStore.subscribe(next => changes.push(next.screen));
+    expect(state.completePlayLoad(id, validated)).toBe(true);
+    state.cancelPlayLoad(id);
+    expect(state.completePlayLoad(id, validated)).toBe(false);
+    unsubscribe();
+    expect(changes).toEqual(['observer']);
+    expect(useGameStore.getState()).toMatchObject({ screen: 'observer', normalPlay: null, lastResult: null });
+    expect(useGameStore.getState().observerPlay?.compiled).toBe(validated.compiled);
+    expect(useGameStore.getState().observerPlay?.audioBuffer).toBe(validated.audioBuffer);
+  });
+
+  it('Observer 로딩 1 뒤 일반 로딩 2를 시작하면 1의 완료·취소가 2의 play 진입을 바꾸지 못한다', () => {
+    const state = useGameStore.getState();
+    const observerId = state.beginPlayLoad('observer');
+    const normalId = state.beginPlayLoad();
+    state.cancelPlayLoad(observerId);
+    expect(state.completePlayLoad(observerId, request())).toBe(false);
+    expect(state.completePlayLoad(normalId, request())).toBe(true);
+    expect(useGameStore.getState()).toMatchObject({ screen: 'play', observerPlay: null, lastResult: null });
+  });
+
+  it('일반 로딩 1 뒤 Observer 로딩 2를 시작하면 1의 완료가 observer 목적지를 덮지 못한다', () => {
+    const state = useGameStore.getState();
+    const normalId = state.beginPlayLoad();
+    const observerId = state.beginPlayLoad('observer');
+    expect(state.completePlayLoad(normalId, request())).toBe(false);
+    expect(state.completePlayLoad(observerId, request())).toBe(true);
+    expect(useGameStore.getState()).toMatchObject({ screen: 'observer', normalPlay: null, lastResult: null });
+  });
+
+  it('Observer 요청 1을 종료한 뒤 요청 2가 열리면 늦은 요청 1 cleanup은 요청 2를 유지한다', () => {
+    const first = openObserver();
+    useGameStore.getState().clearObserverPlay(first);
+    const second = openObserver();
+    useGameStore.getState().clearObserverPlay(first);
+    expect(useGameStore.getState().observerPlay).toBe(second);
+    expect(useGameStore.getState().screen).toBe('observer');
+  });
+
+  it('song-1·HARD의 Observer 종료 뒤 일반 로딩은 결과 없이 같은 선택을 유지하고 play로 진입한다', () => {
+    const state = useGameStore.getState();
+    state.selectSong('song-1', 'HARD', 'selected.mp3');
+    const observer = openObserver();
+    state.clearObserverPlay(observer);
+    expect(useGameStore.getState()).toMatchObject({ screen: 'songSelect', observerPlay: null, lastResult: null,
+      selectedSongId: 'song-1', selectedDifficulty: 'HARD', selectedAudioUrl: 'selected.mp3' });
+    state.setScreen('loading');
+    state.completePlayLoad(state.beginPlayLoad(), request());
+    expect(useGameStore.getState()).toMatchObject({ screen: 'play', playLoadTarget: 'play', observerPlay: null });
+  });
+
+  it('Observer에서 song-2를 선택하면 요청·음원 참조를 해제하고 이전 cleanup이 새 선택을 바꾸지 못한다', () => {
+    const previous = openObserver();
+    useGameStore.getState().selectSong('song-2', 'NORMAL', 'next.mp3');
+    const next = useGameStore.getState();
+    next.clearObserverPlay(previous);
+    expect(useGameStore.getState()).toBe(next);
+    expect(next).toMatchObject({ selectedSongId: 'song-2', observerPlay: null, lastResult: null, playLoadTarget: 'play' });
   });
 });
 

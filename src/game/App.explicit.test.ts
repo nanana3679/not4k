@@ -10,7 +10,7 @@ vi.mock('./hooks/useGameExperience', () => ({ useGameExperience: () => fixture.e
 vi.mock('./screens', () => ({
   TitleScreen: () => 'title', PresetSetupScreen: () => 'setup', LoadingScreen: () => 'normal-loading',
   PlayScreen: () => 'legacy-play', NormalPlayScreen: () => 'normal-play', ResultScreen: () => 'official-result',
-  ExplicitPlayScreen: () => 'explicit-play', SongSelectScreen: () => 'song-list',
+  ExplicitPlayScreen: () => 'explicit-play', ObserverScreen: () => 'observer-play', SongSelectScreen: () => 'song-list',
 }));
 const { default: GameApp } = await import('./App');
 
@@ -29,6 +29,14 @@ describe('GameApp 명시 화면 분기', () => {
   });
   it('모바일 일반 play는 normal-play를 열지 않고 곡 목록을 유지한다', () => {
     fixture.screen = 'play'; fixture.experience = 'mobileSongList'; fixture.editorReturnUrl = null;
+    expect(renderToStaticMarkup(createElement(GameApp))).toBe('song-list');
+  });
+  it('fullGame에서 observer 화면을 요청하면 ObserverScreen을 연다', () => {
+    fixture.screen = 'observer'; fixture.experience = 'fullGame'; fixture.editorReturnUrl = null;
+    expect(renderToStaticMarkup(createElement(GameApp))).toBe('observer-play');
+  });
+  it('mobileSongList에서 observer 화면을 요청하면 곡 목록을 유지한다', () => {
+    fixture.screen = 'observer'; fixture.experience = 'mobileSongList'; fixture.editorReturnUrl = null;
     expect(renderToStaticMarkup(createElement(GameApp))).toBe('song-list');
   });
 });
