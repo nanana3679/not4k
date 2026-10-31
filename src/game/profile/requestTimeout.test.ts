@@ -56,3 +56,17 @@ it('AbortSignal.timeout이 없어도 끝나지 않는 요청은 14999ms까지 �
   expect(outcome).toMatchObject({ name: 'TimeoutError' });
   expect(send.mock.calls[0][0].aborted).toBe(true);
 });
+
+it('AbortSignal.timeout이 없을 때 15000ms 전에 응답한 요청은 대체 타이머를 풀어 남은 타이머가 0개다', async () => {
+  removeNativeTimeout();
+  vi.useFakeTimers();
+  await expect(withRequestTimeout(15000, async () => 'Pilot7')).resolves.toBe('Pilot7');
+  expect(vi.getTimerCount()).toBe(0);
+});
+
+it('AbortSignal.timeout이 없을 때 send가 Builder failed를 바로 던지면 그 오류로 reject하고 남은 타이머가 0개다', async () => {
+  removeNativeTimeout();
+  vi.useFakeTimers();
+  await expect(withRequestTimeout(15000, () => { throw new Error('Builder failed'); })).rejects.toThrow('Builder failed');
+  expect(vi.getTimerCount()).toBe(0);
+});
