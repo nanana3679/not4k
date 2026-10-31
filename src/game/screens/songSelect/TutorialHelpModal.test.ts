@@ -67,6 +67,14 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('data-tutorial-transition-phase="idle"');
   });
 
+  it('본 항목 기록 없이 마지막 선택 advanced-recovery만 있으면 팝업을 열 때 복원한 그 항목에도 본 항목 체크를 붙인다', () => {
+    stubBrowserLocalStorage({ [TUTORIAL_LAST_SELECTED_STORAGE_KEY]: 'advanced-recovery' });
+
+    const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, { onClose: () => {} }));
+
+    expect(html).toMatch(/data-tutorial-index-item="advanced-recovery"[^>]*data-tutorial-index-seen="true"/);
+  });
+
   it('localStorage에 마지막 선택이 없으면 팝업을 열 때 Basic 탭의 1 / 17 첫 항목 hand-placement로 시작한다', () => {
     stubBrowserLocalStorage({});
 

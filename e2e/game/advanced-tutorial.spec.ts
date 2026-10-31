@@ -231,6 +231,9 @@ test.describe('Tutorial level tabs', () => {
     await expect(tab(reopened, 'Advanced')).toHaveAttribute('aria-selected', 'true');
     await expect(indexItems(reopened)).toHaveCount(ADVANCED_IDS.length);
     await expectActive(reopened, ADVANCED_IDS[6]);
+    // 복원 항목에서도 재생기가 준비를 마치고 보인다(준비 키가 어긋나면 opacity 0으로 숨은 채 남는다).
+    await expect(reopened.locator('[data-tutorial-driver-visible="true"]')).toBeVisible();
+    await expect(reopened.locator('[data-tutorial-index-item="' + ADVANCED_IDS[6] + '"]')).toHaveAttribute('data-tutorial-index-seen', 'true');
     await expect(reopened.locator('header p')).not.toBeEmpty();
     await expect(reopened.locator('.not4k-tutorial-text-panel')).not.toBeEmpty();
     // 복원한 항목은 그 탭의 위치로도 기억해, 다른 탭에 다녀와도 같은 항목으로 돌아온다.
@@ -246,6 +249,7 @@ test.describe('Tutorial level tabs', () => {
     await expect(tab(afterReload, 'Basic')).toHaveAttribute('aria-selected', 'true');
     await expect(indexItems(afterReload)).toHaveCount(BASIC_IDS.length);
     await expectActive(afterReload, BASIC_IDS[4]);
+    await expect(afterReload.locator('[data-tutorial-driver-visible="true"]')).toBeVisible();
   });
 
   test('Advanced 항목을 모두 보면 29개 viewed를 저장하고 Reset Viewed는 Basic 첫 항목만 남긴다', async ({ page }) => {

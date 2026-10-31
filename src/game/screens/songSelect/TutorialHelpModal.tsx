@@ -79,8 +79,12 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
   const nextPreviewSlotInstanceIdRef = useRef(1);
   const [textTransitionDirection, setTextTransitionDirection] =
     useState<TutorialPageTransitionDirection>('forward');
+  // 복원해 연 항목도 지금 보고 있으므로 본 항목에 넣는다(처음 연 항목에 항상 체크가 붙던 기존 동작 유지).
   const [viewedTutorialIds, setViewedTutorialIds] = useState<ReadonlySet<string>>(
-    () => readTutorialViewedIdsFromStorage(getBrowserLocalStorage()),
+    () => new Set([
+      ...readTutorialViewedIdsFromStorage(getBrowserLocalStorage()),
+      ALL_TUTORIAL_PREVIEWS[initialTutorialIndex].id,
+    ]),
   );
   const settings = useGameStore((state) => state.settings);
   const currentSection = getTutorialSection(tutorialIndex);
