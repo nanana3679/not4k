@@ -129,7 +129,7 @@ function getSourceKeysByLane(timings: readonly TutorialInputTiming[]): Map<numbe
 
 export interface UnmetTutorialPracticeKeyRequirement {
   readonly lane: number;
-  /** Peak simultaneous distinct demonstration inputs on the lane, at least 1. */
+  /** Peak distinct demonstration inputs active at one moment on the lane (closed intervals), at least 1. */
   readonly requiredKeyCount: number;
   /** Distinct keys the player actually bound to the lane. */
   readonly boundKeyCount: number;
@@ -140,9 +140,10 @@ export interface UnmetTutorialPracticeKeyRequirement {
  * (docs/spec/keybinding.md "튜토리얼 실습 전 키 설정"). An empty result means
  * the practice can start.
  *
- * A used lane needs the peak number of distinct inputs held during overlapping
- * [startMs, endMs) intervals, with a minimum of 1. An up at the same time as
- * another down does not overlap it. Input identities use the display supplement's
+ * A used lane needs the peak number of distinct inputs active at the same
+ * moment over closed [startMs, endMs] intervals, with a minimum of 1. An up at
+ * the same time as another input's down counts as overlapping: a key switch at
+ * one instant (release A, press B) cannot be done with a single key. Input identities use the display supplement's
  * canonical slots (`getSourceKeysByLane`). The player chooses which bound keys
  * to press, so only keys needed at the same moment are required, not every key
  * shown by the demonstration. Trill alternation needs 2 keys, which the settings
@@ -158,8 +159,9 @@ export function findUnmetTutorialPracticeKeyRequirements(
   const requiredKeyCountByLane = new Map<number, number>();
   // A lane's held-key count can increase only when an input starts.
   for (const { event: { lane }, startMs } of timings) {
+    // 끝 시각도 포함한다: 한 키를 떼는 순간 다른 입력을 누르면(키 갈아타기) 같은 키로는 동시에 할 수 없어 두 키가 필요하다.
     const activeTimings = timings.filter(timing =>
-      timing.event.lane === lane && timing.startMs <= startMs && startMs < timing.endMs,
+      timing.event.lane === lane && timing.startMs <= startMs && startMs <= timing.endMs,
     );
     const activeKeyCount = getSourceKeysByLane(activeTimings).get(lane)?.size ?? 0;
     requiredKeyCountByLane.set(lane, Math.max(requiredKeyCountByLane.get(lane) ?? 1, activeKeyCount));
