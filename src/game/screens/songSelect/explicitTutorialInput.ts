@@ -180,6 +180,8 @@ export function createExplicitTutorialInput(
   };
   return {
     get heldKeys() { return source.heldKeys; },
+    /** 현재 loopStartNow 기준 세션의 반복 차수. 음수 오프셋·경계 대기 중에는 화면보다 늦고 rebase 때 0으로 돌아간다. */
+    get sessionIteration() { return iteration; },
     syncJudging,
     rebase(resumeTimestamp: number) {
       finishPendingBoundary();

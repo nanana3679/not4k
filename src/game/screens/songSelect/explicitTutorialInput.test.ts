@@ -5,6 +5,7 @@ import { getTutorialInputTimings } from './tutorialPreviewChart';
 
 import { beat } from '../../../shared/types/beat';
 import { createExplicitTutorialPreview } from './explicitTutorialPreviewChart';
+import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreviews';
 import { describe, expect, it, vi } from 'vitest';
 import { getExplicitTutorialInputTime } from './explicitTutorialInput';
 
@@ -119,6 +120,90 @@ it('500ms까지 판정한 뒤 늦게 온 rAF 490ms는 같은 세션을 유지하
   input.stop();
 });
 
+it('single-note offset -200ms에서 화면은 1500ms에 반복 1로 가지만 세션 0은 1700ms 정산 대기까지 이전 복사본에만 적용한다', () => {
+  const preview = BASIC_TUTORIAL_EXPLICIT_PREVIEWS.find(preview => preview.id === 'single-note')!;
+  const { input, playback, target, clock, onPatternFinished } = setup(preview);
+  Object.assign(clock, { inputOffsetMs: -200 });
+  input.setMode('directInput');
+  expect(preview.loopMs).toBe(1500);
+
+  for (const iteration of [0, 1]) {
+    const startMs = iteration * 1500;
+    for (const pressMs of [450, 950, 1450]) {
+      keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + startMs + pressMs);
+      keyboard(target, 'keyup', 'KeyE', clock.loopStartNow + startMs + pressMs + 20);
+      input.advanceTo(startMs + pressMs + 20);
+    }
+    // 경계 전에는 화면과 세션이 같아 현재 복사본 1의 세 탭이 모두 숨겨진다.
+    expect(playback.renderSnapshot(1).items.slice(3, 6).map(item => item.state))
+      .toEqual(['success', 'success', 'success']);
+    for (const elapsedMs of [1500, 1600, 1700]) {
+      input.advanceTo(startMs + elapsedMs);
+      const screen = getExplicitTutorialInputTime(clock.loopStartNow + startMs + elapsedMs, clock.loopStartNow, preview.loopMs);
+      expect(screen.iteration).toBe(iteration + 1);
+      expect(input.sessionIteration).toBe(iteration);
+      const snapshot = playback.renderSnapshot(1, input.sessionIteration - screen.iteration);
+      expect(snapshot.items.map(item => item.state)).toEqual([
+        'success', 'success', 'success',
+        'pending', 'pending', 'pending',
+        'pending', 'pending', 'pending',
+      ]);
+      expect(onPatternFinished).toHaveBeenCalledTimes(iteration);
+    }
+    input.advanceTo(startMs + 1716);
+    expect(input.sessionIteration).toBe(iteration + 1);
+    const settled = playback.renderSnapshot(1, input.sessionIteration - (iteration + 1));
+    expect(settled.items.every(item => item.state === 'pending')).toBe(true);
+    expect(settled.atMs).toBe(1516);
+    expect(onPatternFinished).toHaveBeenCalledTimes(iteration + 1);
+    expect(onPatternFinished.mock.calls[iteration][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  }
+  input.stop();
+});
+
+it.each([
+  { mode: 'directInput', inputOffsetMs: 0 },
+  { mode: 'directInput', inputOffsetMs: 200 },
+  { mode: 'demonstration', inputOffsetMs: -200 },
+  { mode: 'demonstration', inputOffsetMs: 0 },
+  { mode: 'demonstration', inputOffsetMs: 200 },
+] as const)('$mode offset $inputOffsetMs ms에서 1500ms 경계를 정산하면 세션 1은 현재 복사본에만 적용한다', ({ mode, inputOffsetMs }) => {
+  const preview = BASIC_TUTORIAL_EXPLICIT_PREVIEWS.find(preview => preview.id === 'single-note')!;
+  const { input, playback, target, clock, onPatternFinished } = setup(preview);
+  Object.assign(clock, { inputOffsetMs });
+  input.setMode(mode);
+  if (mode === 'directInput') {
+    for (const noteMs of [250, 750, 1250]) {
+      keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + noteMs - inputOffsetMs);
+      keyboard(target, 'keyup', 'KeyE', clock.loopStartNow + noteMs - inputOffsetMs + 20);
+    }
+  }
+  input.advanceTo(1400);
+  expect(input.sessionIteration).toBe(0);
+  expect(playback.renderSnapshot(1, 0).items.map(item => item.state)).toEqual([
+    'pending', 'pending', 'pending',
+    'success', 'success', 'success',
+    'pending', 'pending', 'pending',
+  ]);
+  input.advanceTo(1500);
+  // 시연은 경계에서 즉시, 직접 입력은 기존대로 다음 프레임에 정산한다.
+  expect(onPatternFinished).toHaveBeenCalledTimes(mode === 'demonstration' ? 1 : 0);
+  input.advanceTo(1516);
+  expect(input.sessionIteration).toBe(1);
+  expect(playback.renderSnapshot(1, 0).items.every(item => item.state === 'pending')).toBe(true);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+
+  if (mode === 'directInput') keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + 1750 - inputOffsetMs);
+  input.advanceTo(1750);
+  expect(playback.renderSnapshot(1, input.sessionIteration - 1).items.map(item => item.state)).toEqual([
+    'pending', 'pending', 'pending',
+    'success', 'pending', 'pending',
+    'pending', 'pending', 'pending',
+  ]);
+  input.stop();
+});
+
 it.each([
   { elapsedMs: 2015, diagramStartMs: 0 },
   { elapsedMs: 2700, diagramStartMs: 200 },
@@ -213,7 +298,9 @@ it.each(['demonstration', 'directInput'] as const)('%s에서 2700ms 경계·도�
   keyboard(target, 'keydown', 'KeyE', 5500);
   keyboard(target, 'keyup', 'KeyE', 5510);
   clock.loopStartNow = 6000 - 400;
+  expect(input.sessionIteration).toBe(1);
   input.rebase(6000);
+  expect(input.sessionIteration).toBe(0);
   clock.blocked = false;
   expect(input.advanceTo(400)).toBeUndefined();
   expect(playback.renderSnapshot(0).atMs).toBe(400);

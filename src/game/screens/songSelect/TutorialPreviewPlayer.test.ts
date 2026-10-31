@@ -193,7 +193,8 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('preview.renderChart');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderDurationMs');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderStartMs');
-    expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs');
+    expect(tutorialPreviewPlayerSource).toContain('getExplicitTutorialInputTime(now, loopStartNow, preview.loopMs)');
+    expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = screenTime.loopTimeMs');
     expect(tutorialPreviewPlayerSource).toContain('const renderTimeMs = preview.renderStartMs + loopTimeMs');
     expect(tutorialPreviewPlayerSource).toContain('getActiveTutorialInputTimings(loopTimeMs, timings)');
     expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(renderTimeMs, deltaMs)');
@@ -418,7 +419,9 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(order.every((index) => index > attachStart)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(tutorialPreviewPlayerSource.split('renderer.setExplicitChart(').length - 1).toBe(1);
-    expect(tutorialPreviewPlayerSource).toContain('() => explicitPlayback.renderSnapshot(activeRenderCycle)');
+    expect(tutorialPreviewPlayerSource).toContain('() => explicitPlayback.renderSnapshot(');
+    expect(tutorialPreviewPlayerSource).toContain('(explicitInput?.sessionIteration ?? screenIteration) - screenIteration');
+    expect(tutorialPreviewPlayerSource).toContain('screenIteration = screenTime.iteration;');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderDurationMs,');
   });
 

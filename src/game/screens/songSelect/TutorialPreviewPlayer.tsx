@@ -17,7 +17,7 @@ import {
   type TutorialInputMode,
 } from './explicitTutorialPreviewPlayback';
 import { stepTutorialLoopClock } from './tutorialLoopClock';
-import { createExplicitTutorialInput } from './explicitTutorialInput';
+import { createExplicitTutorialInput, getExplicitTutorialInputTime } from './explicitTutorialInput';
 import type { KeyBinding } from '../../input/InputSystem';
 import { getTutorialRenderCycleIndex, mapTutorialRenderBodyQuery } from './tutorialPreviewRenderMapping';
 import { TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
@@ -575,6 +575,7 @@ export function TutorialPreviewPlayer({
     let pausedAtNow: number | null = null;
     let activeDiagramPause: TutorialDiagramPause | null = null;
     let activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
+    let screenIteration = 0;
 
     const notifyReady = () => {
       if (!readyNotifiedRef.current) {
@@ -677,6 +678,7 @@ export function TutorialPreviewPlayer({
       loopStartNow = resumeNow - activeDiagramPause.timing.endMs;
       // 경계 정산 대기가 남아 있으면 마친 뒤 실제 OK 시각부터 새 입력을 받는다.
       explicitInput?.rebase(resumeNow);
+      screenIteration = 0;
       previousNow = resumeNow;
       // 멈춘(paused) 상태에서 재개하면 멈춘 시각을 지금으로 옮겨, 나중에 일시정지가 풀릴 때 도식 끝 시점에서 그대로 잇는다.
       if (pausedAtNow !== null) pausedAtNow = resumeNow;
@@ -712,6 +714,7 @@ export function TutorialPreviewPlayer({
       detachRenderer();
       setFinishedPattern(null);
       pendingPatternStart = null;
+      screenIteration = 0;
       try {
         // 이전 차트가 남긴 봄·판정 텍스트·키 눌림을 지운 뒤 이 차트를 건다.
         renderer.resetTransientState();
@@ -781,7 +784,10 @@ export function TutorialPreviewPlayer({
           renderer.setExplicitChart(
             explicitPlayback.renderChart,
             explicitSkin,
-            () => explicitPlayback.renderSnapshot(activeRenderCycle),
+            () => explicitPlayback.renderSnapshot(
+              activeRenderCycle,
+              (explicitInput?.sessionIteration ?? screenIteration) - screenIteration,
+            ),
             preview.renderChart,
             preview.renderDurationMs,
           );
@@ -903,7 +909,9 @@ export function TutorialPreviewPlayer({
           const deltaMs = Math.min(48, now - previousNow);
           previousNow = now;
           // rAF 타임스탬프는 프레임 시작 시각이라 첫 프레임 직후 잰 loopStartNow보다 앞설 수 있다. 음수면 루프 경계로 오인하므로 0으로 막는다.
-          let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs;
+          const screenTime = getExplicitTutorialInputTime(now, loopStartNow, preview.loopMs);
+          screenIteration = screenTime.iteration;
+          let loopTimeMs = screenTime.loopTimeMs;
           // 새 도식은 이미 지난 경계의 정산을 막지 않는다. 직접 입력은 늦은 이벤트를 위해 다음 프레임까지 기다린다.
           const diagramHeldBeforeFrame = activeDiagramPause !== null;
           loopTimeMs = resolveDiagramPauseTime(loopTimeMs);

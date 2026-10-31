@@ -7,12 +7,12 @@ const KEY_BINDINGS = {
   lane4: ['BracketLeft', 'BracketRight', 'Semicolon', 'Period'],
 };
 
-async function openTutorial(page: Page, shortage = false, keyBindings = KEY_BINDINGS) {
-  await page.addInitScript(({ keyBindings }) => {
+async function openTutorial(page: Page, shortage = false, keyBindings = KEY_BINDINGS, inputOffsetMs = 0) {
+  await page.addInitScript(({ keyBindings, inputOffsetMs }) => {
     localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: {
-      keyBindings, preset: 'tkl', isFirstLaunch: false, judgmentMode: 'normal', inputOffsetMs: 0,
+      keyBindings, preset: 'tkl', isFirstLaunch: false, judgmentMode: 'normal', inputOffsetMs,
     } }, version: 0 }));
-  }, { keyBindings: { ...keyBindings, lane1: shortage ? ['KeyQ', 'KeyW'] : keyBindings.lane1 } });
+  }, { keyBindings: { ...keyBindings, lane1: shortage ? ['KeyQ', 'KeyW'] : keyBindings.lane1 }, inputOffsetMs });
   await page.goto('/game');
   const start = page.getByRole('button', { name: 'Start', exact: true });
   const help = page.getByRole('button', { name: 'Open tutorial help' });
@@ -32,52 +32,54 @@ async function waitForElapsed(page: Page, target: number, selector = ACTIVE_PLAY
   }, { selector, target }, { polling: 'raf', timeout: 10_000 });
 }
 
-test('Basic single-note를 실제 바인딩 키로 누적 3회 성공하면 초록 체크·3/3·다음을 표시하고 실습을 멈춘다', async ({ page }) => {
-  test.setTimeout(60_000);
-  const errors: string[] = [];
-  page.on('pageerror', error => errors.push(error.message));
-  const dialog = await openTutorial(page);
-  await dialog.locator('[data-tutorial-index-item="single-note"]').click();
-  const player = page.locator(ACTIVE_PLAYER);
-  await expect(player).toHaveAttribute('data-tutorial-paused', 'false');
-  await expect(player).toHaveAttribute('data-tutorial-elapsed-ms', /\d/);
-  const loopMs = Number(await player.getAttribute('data-tutorial-loop-ms'));
-  expect(loopMs).toBe(1500);
-  await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
-  await expect(player).toHaveAttribute('data-tutorial-input-mode', 'directInput');
-  const progress = dialog.locator('[data-tutorial-progress]');
-  await expect(progress).toHaveText('0/3');
-  await expect(dialog.getByRole('button', { name: '다음', exact: true })).toHaveCount(0);
+for (const inputOffsetMs of [0, -200, 200]) {
+  test(`Basic single-note offset ${inputOffsetMs}ms에서 실제 바인딩 키로 누적 3회 성공하면 초록 체크·3/3·다음을 표시하고 실습을 멈춘다`, async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const dialog = await openTutorial(page, false, KEY_BINDINGS, inputOffsetMs);
+    await dialog.locator('[data-tutorial-index-item="single-note"]').click();
+    const player = page.locator(ACTIVE_PLAYER);
+    await expect(player).toHaveAttribute('data-tutorial-paused', 'false');
+    await expect(player).toHaveAttribute('data-tutorial-elapsed-ms', /\d/);
+    const loopMs = Number(await player.getAttribute('data-tutorial-loop-ms'));
+    expect(loopMs).toBe(1500);
+    await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
+    await expect(player).toHaveAttribute('data-tutorial-input-mode', 'directInput');
+    const progress = dialog.locator('[data-tutorial-progress]');
+    await expect(progress).toHaveText('0/3');
+    await expect(dialog.getByRole('button', { name: '다음', exact: true })).toHaveCount(0);
 
-  // 현재 시연에서 전환한 패턴은 제외한다. 각 시도는 다음 전체 반복을 골라 250·750·1250ms에 입력한다.
-  // 부하로 한 번 실패해도 누적 성공 계약대로 다음 반복에서 계속하며 최대 8회로 제한한다.
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const elapsed = Number(await player.getAttribute('data-tutorial-elapsed-ms'));
-    const startMs = (Math.floor(elapsed / loopMs) + 1) * loopMs;
-    for (const [index, key] of KEY_BINDINGS.lane2.entries()) {
-      await waitForElapsed(page, startMs + (index + 0.5) * (loopMs / 3) - 12);
-      await page.keyboard.press(key);
+    // 현재 시연에서 전환한 패턴은 제외한다. 각 시도는 다음 전체 반복을 골라 250·750·1250ms에서 오프셋만큼 앞당긴 실제 시각에 입력한다.
+    // 부하로 한 번 실패해도 누적 성공 계약대로 다음 반복에서 계속하며 최대 8회로 제한한다.
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const elapsed = Number(await player.getAttribute('data-tutorial-elapsed-ms'));
+      const startMs = (Math.floor(elapsed / loopMs) + 1) * loopMs;
+      for (const [index, key] of KEY_BINDINGS.lane2.entries()) {
+        await waitForElapsed(page, startMs + (index + 0.5) * (loopMs / 3) - inputOffsetMs - 12);
+        await page.keyboard.press(key);
+      }
+      await page.waitForFunction(({ selector, endMs }) => {
+        const player = document.querySelector<HTMLElement>(selector);
+        return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 32);
+      }, { selector: ACTIVE_PLAYER, endMs: startMs + loopMs + Math.max(0, -inputOffsetMs) }, { polling: 'raf', timeout: 10_000 });
+      if (await progress.textContent() === '3/3') break;
     }
-    await page.waitForFunction(({ selector, endMs }) => {
-      const player = document.querySelector<HTMLElement>(selector);
-      return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 32);
-    }, { selector: ACTIVE_PLAYER, endMs: startMs + loopMs }, { polling: 'raf', timeout: 10_000 });
-    if (await progress.textContent() === '3/3') break;
-  }
 
-  await expect(progress).toHaveText('3/3');
-  const condition = dialog.locator('[data-tutorial-condition="targetAchievementRate"]');
-  await expect(condition).toHaveAttribute('data-tutorial-condition-status', 'met');
-  await expect(condition).toHaveCSS('color', 'rgb(142, 230, 168)');
-  await expect(condition.getByLabel('충족')).toHaveText('✓');
-  await expect(player).toHaveAttribute('data-tutorial-paused', 'true');
-  await expect(dialog.locator('[data-tutorial-index-item="single-note"]')).toHaveAttribute('aria-current', 'step');
-  await dialog.getByRole('button', { name: '다음', exact: true }).click();
-  await expect(dialog.locator('[data-tutorial-preview-slot="active"]')).toHaveAttribute('data-tutorial-preview-id', 'double-note');
-  await expect(progress).toHaveText('0/3');
-  await expect(dialog.getByRole('button', { name: '시연', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  expect(errors).toEqual([]);
-});
+    await expect(progress).toHaveText('3/3');
+    const condition = dialog.locator('[data-tutorial-condition="targetAchievementRate"]');
+    await expect(condition).toHaveAttribute('data-tutorial-condition-status', 'met');
+    await expect(condition).toHaveCSS('color', 'rgb(142, 230, 168)');
+    await expect(condition.getByLabel('충족')).toHaveText('✓');
+    await expect(player).toHaveAttribute('data-tutorial-paused', 'true');
+    await expect(dialog.locator('[data-tutorial-index-item="single-note"]')).toHaveAttribute('aria-current', 'step');
+    await dialog.getByRole('button', { name: '다음', exact: true }).click();
+    await expect(dialog.locator('[data-tutorial-preview-slot="active"]')).toHaveAttribute('data-tutorial-preview-id', 'double-note');
+    await expect(progress).toHaveText('0/3');
+    await expect(dialog.getByRole('button', { name: '시연', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    expect(errors).toEqual([]);
+  });
+}
 
 test('1레인 Q·W 2키로 advanced-double-hold를 열면 직접 입력을 막고 4키 필요 안내에서 Controls 설정을 연다', async ({ page }) => {
   const dialog = await openTutorial(page, true);

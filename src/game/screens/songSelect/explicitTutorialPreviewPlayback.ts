@@ -32,8 +32,8 @@ export interface ExplicitTutorialPatternResult {
 export interface ExplicitTutorialPreviewPlayback {
   /** 원본 compile의 시각·참조를 옮긴 3벌 표시 데이터. 렌더러 표시 전용이며 판정에 쓰지 않는다. */
   readonly renderChart: ExplicitCompiledChart;
-  /** 렌더러가 프레임마다 읽는 3벌 표시 상태. 활성 복사본만 현재 반복의 판정 상태다. */
-  renderSnapshot(activeRenderCycle: number): ExplicitJudgmentSnapshot;
+  /** 렌더러의 3벌 표시 상태. 화면 대비 세션 차수 차이(-1이면 이전 반복)를 해당 복사본과 시각에 적용한다. */
+  renderSnapshot(activeRenderCycle: number, sessionIterationOffset?: number): ExplicitJudgmentSnapshot;
   /** 이번 반복의 loopTimeMs까지 입력·판정·효과를 진행한다. 더 이른 시각이면 controller가 새 반복으로 되돌린다. */
   advanceTo(loopTimeMs: number): void;
   /** 끝난 반복을 loopMs까지 진행·finalize하고 다음 반복의 새 세션을 준비한다. 경계 입력·정산 효과는 끝난 반복에 속한다. */
@@ -93,7 +93,8 @@ export function createExplicitTutorialPreviewPlayback(
 
   return {
     renderChart,
-    renderSnapshot: activeRenderCycle => composeRenderSnapshot(controller.session.snapshot, activeRenderCycle),
+    renderSnapshot: (activeRenderCycle, sessionIterationOffset) =>
+      composeRenderSnapshot(controller.session.snapshot, activeRenderCycle, sessionIterationOffset),
     advanceTo: loopTimeMs => controller.advanceTo(loopTimeMs),
     setInputMode: (mode, heldKeys = []) => controller.setInputPlan(
       mode === "directInput" ? { kind: "live" } : plan, mode === "directInput" ? heldKeys : []),
