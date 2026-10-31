@@ -2,7 +2,7 @@ import { ADVANCED_TUTORIAL_EXPLICIT_PREVIEWS } from './advancedTutorialExplicitP
 import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreviews';
 
 import type { ExplicitTutorialPreviewDefinition } from './explicitTutorialPreviewChart';
-import { createTutorialPracticeSpec, type TutorialPracticeSpec } from './tutorialPractice';
+import { createTutorialPracticeSpec, DEFAULT_MAX_GREAT_OR_WORSE_COUNT, type TutorialPracticeSpec } from './tutorialPractice';
 
 export interface TutorialLesson extends ExplicitTutorialPreviewDefinition {
   readonly practice?: TutorialPracticeSpec;
@@ -10,13 +10,14 @@ export interface TutorialLesson extends ExplicitTutorialPreviewDefinition {
 
 function withPractice(preview: ExplicitTutorialPreviewDefinition): TutorialLesson {
   if (!preview.chart.notes.some(note => note.type !== 'body')) return preview;
-  // 연속 트릴 탭과 연결된 트릴 헤드의 교대를 배우는 두 항목만 추가 조건을 둔다.
-  // long-note는 단독 트릴 헤드·유지, grace-note는 판정 창, rest-zone은 쉬는 레인 읽기가 주제다.
+  // 트릴 교대는 goodTrill 0회, 틱을 둘 수 없는 트릴 바디 유지는 Miss 0회를 요구한다.
   const teachesTrillAlternation = ['trill-note', 'connected-trill-long'].includes(preview.id);
+  const teachesTrillLongHolding = ['long-note', 'connected-trill-long'].includes(preview.id);
   return { ...preview, practice: createTutorialPracticeSpec({
     playingMethods: [{ id: 'default' }],
     conditions: [
-      { kind: 'targetAchievementRate', percent: 90 },
+      { kind: 'maxGreatOrWorseCount', count: DEFAULT_MAX_GREAT_OR_WORSE_COUNT },
+      ...(teachesTrillLongHolding ? [{ kind: 'maxMissCount' as const, count: 0 }] : []),
       ...(teachesTrillAlternation ? [{ kind: 'maxGoodTrillCount' as const, count: 0 }] : []),
     ],
   }) };

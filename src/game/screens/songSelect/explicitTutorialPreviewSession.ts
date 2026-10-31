@@ -4,6 +4,7 @@ import type { ExplicitAutoInput, ExplicitAutoPlayerOptions } from "../../input/E
 import type { TimedJudgmentInput } from "../../input/InputTimeline";
 import { InputTimeline } from "../../input/InputTimeline";
 import { compileExplicitJudgmentChart } from "../../judgment/explicitCompiledChart";
+import type { ExplicitCompiledChart } from "../../judgment/explicitCompiledChart";
 import { ExplicitJudgmentSession } from "../../judgment/ExplicitJudgmentSession";
 import type { ExplicitHeldKey } from "../../judgment/ExplicitJudgmentState";
 import type { ExplicitSessionResult } from "../../judgment/ExplicitJudgmentSession";
@@ -47,6 +48,9 @@ export interface ExplicitTutorialPreviewSessionController {
   advanceTo(timeMs: number, visualTimeMs?: number): void;
   attachRenderer(renderer: ExplicitSnapshotRendererPort | null, visualTimeMs?: number): void;
   reset(): void;
+  /** 원본 compile을 공유하는 다음 세션을 만든다. 현재 세션은 자기 판정 기한까지 별도로 유지한다. */
+  startNextPattern(preheldKeys: readonly ExplicitHeldKey[]): ExplicitTutorialPreviewSessionController;
+  finish(endTimeMs: number): ExplicitSessionResult;
   /** 경계 입력·정산·효과는 이전 세션에서 마친 뒤 다음 반복을 만든다. */
   repeat(endTimeMs: number, preheldKeys?: readonly ExplicitHeldKey[]): ExplicitSessionResult;
   dispose(): void;
@@ -59,6 +63,16 @@ export function createExplicitTutorialPreviewSessionController(
   options: ExplicitTutorialPreviewOptions = {},
 ): ExplicitTutorialPreviewSessionController {
   const compiled = compileExplicitJudgmentChart(chart);
+  return createController(compiled, plan, options);
+}
+
+function createController(
+  compiled: ExplicitCompiledChart,
+  plan: ExplicitTutorialInputPlan,
+  options: ExplicitTutorialPreviewOptions,
+  initialIteration = 0,
+  preheldKeys?: readonly ExplicitHeldKey[],
+): ExplicitTutorialPreviewSessionController {
   // 외부 배열 수정이나 이전 AutoPlayer cursor를 다음 반복에 들고 가지 않는다.
   const createEvents = (plan: ExplicitTutorialInputPlan): readonly ExplicitAutoInput[] => (plan.kind === "auto"
     ? new ExplicitAutoPlayer(compiled, plan.options).eventsThrough(Infinity)
@@ -75,7 +89,7 @@ export function createExplicitTutorialPreviewSessionController(
   let timeline: InputTimeline;
   let adapter: ExplicitSessionRendererAdapter;
   let presentation: ExplicitTutorialPresentation | undefined;
-  let iteration = 0;
+  let iteration = initialIteration;
   let time = -Infinity;
   let disposed = false;
   const assertOpen = () => { if (disposed) throw new Error("dispose된 명시 튜토리얼 세션입니다"); };
@@ -95,7 +109,7 @@ export function createExplicitTutorialPreviewSessionController(
     presentation?.dispose();
     presentation = undefined;
   };
-  replace();
+  replace(preheldKeys);
   const controller: ExplicitTutorialPreviewSessionController = {
     get session() { return current; },
     get iteration() { return iteration; },
@@ -141,11 +155,19 @@ export function createExplicitTutorialPreviewSessionController(
       iteration++;
       replace();
     },
-    repeat(endTimeMs, preheldKeys) {
+    startNextPattern(heldKeys) {
+      assertOpen();
+      return createController(compiled, plan, options, iteration + 1, heldKeys);
+    },
+    finish(endTimeMs) {
       assertOpen();
       controller.advanceTo(endTimeMs);
       const result = current.finalize();
       adapter.sync(endTimeMs);
+      return result;
+    },
+    repeat(endTimeMs, preheldKeys) {
+      const result = controller.finish(endTimeMs);
       release();
       iteration++;
       replace(preheldKeys);
