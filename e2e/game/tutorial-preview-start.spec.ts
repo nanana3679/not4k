@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test';
 // 튜토리얼 팝업에서 다음 레슨으로 넘기면, 들어오는 축소 재생기는 슬라이드 동안 첫 프레임에 멈춰 있다가
 // 자리 잡은(active) 뒤에 처음부터 재생한다. 예전에는 보이지 않는 동안 미리 재생을 시작해, 자리 잡은 순간
 // 이미 차트가 약 0.5초 진행돼 있었다. 슬라이드 중 정지는 실제 GameRenderer.renderFrame을
-// 감싸 캔버스별 첫·마지막 렌더 시각으로 확인하고, 이후 진행은 누적 data-tutorial-elapsed-ms로 확인한다.
+// 감싸 캔버스별 첫·마지막 렌더 시각으로 확인하고, 이후 진행은 누적 data-tutorial-elapsed-ms와 렌더 시각 변화로 확인한다.
 // 두 슬롯은 렌더러와 캔버스를 유지한 채 차트만 바꾸므로, 재생기가 새 차트를 걸며 부르는 resetTransientState에서
 // 캔버스 기록을 지워 차트마다 첫 렌더 시각을 다시 잰다.
 
@@ -136,6 +136,19 @@ test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레
     await expect(player).toHaveAttribute('data-tutorial-count-in', 'false', { timeout: 5000 });
     await expect.poll(async () => Number(await player.getAttribute('data-tutorial-elapsed-ms')),
       { message: `${samples.settled?.id}: 4박 준비 뒤 누적 재생 시간`, timeout: 10000 }).toBeGreaterThan(100);
+    const readProgress = () => activeSlot.evaluate(slot => {
+      const canvas = slot.querySelector('canvas') as (HTMLCanvasElement & { __lastRenderMs?: number }) | null;
+      const elapsed = slot.querySelector<HTMLElement>('[data-tutorial-engine]')?.dataset.tutorialElapsedMs;
+      return { renderTimeMs: canvas?.__lastRenderMs ?? null, elapsedMs: Number(elapsed) };
+    });
+    const before = await readProgress();
+    expect(before.renderTimeMs).not.toBeNull();
+    await expect.poll(async () => {
+      const after = await readProgress();
+      // 반복 경계에서는 렌더 시각이 작아질 수 있다. 누적 시간도 증가해야 실제 재생 진행으로 인정한다.
+      return after.renderTimeMs !== null && after.renderTimeMs !== before.renderTimeMs
+        && after.elapsedMs > before.elapsedMs;
+    }, { message: `${samples.settled?.id}: 누적 시간과 함께 캔버스 렌더 시각 진행`, timeout: 10000 }).toBe(true);
   }
 
   expect(pageErrors).toEqual([]);

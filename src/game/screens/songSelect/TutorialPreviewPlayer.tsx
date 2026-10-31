@@ -993,12 +993,13 @@ export function TutorialPreviewPlayer({
           const inCountIn = !!clickTrack && now < loopStartNow;
           renderCountIn = inCountIn;
           if (shellRef.current) shellRef.current.dataset.tutorialCountIn = String(inCountIn);
+          const diagramHeldBeforeFrame = activeDiagramPause !== null;
           // rAF 타임스탬프는 프레임 시작 시각이라 첫 프레임 직후 잰 loopStartNow보다 앞설 수 있다. 음수면 루프 경계로 오인하므로 0으로 막는다.
           const screenTime = getExplicitTutorialInputTime(now, loopStartNow, preview.loopMs);
-          screenIteration = screenTime.iteration;
+          // 도식 대기 중에는 표시 차수도 고정해, OK 뒤에도 필요한 종료 snapshot을 화면 밖 이력으로 지우지 않는다.
+          if (!diagramHeldBeforeFrame) screenIteration = screenTime.iteration;
           let loopTimeMs = screenTime.loopTimeMs;
           // 새 도식은 이미 지난 경계의 정산을 막지 않는다. 직접 입력은 늦은 이벤트를 위해 다음 프레임까지 기다린다.
-          const diagramHeldBeforeFrame = activeDiagramPause !== null;
           if (!inCountIn) loopTimeMs = resolveDiagramPauseTime(loopTimeMs);
           syncMetronome(now);
           // J는 세션·도식·반복 경계를 유지하고, 표시만 V=J+visualOffsetMs로 옮긴다.

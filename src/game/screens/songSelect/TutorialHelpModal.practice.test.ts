@@ -1099,6 +1099,89 @@ function manualFrames() {
   };
 }
 
+it('connected-long-note-switch에서 visualOffsetMs=-1000으로 첫 반복을 마치고 다음 도식을 9000ms 기다려도 OK 뒤 완료한 릴리즈는 pending으로 돌아오지 않는다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  vi.stubGlobal('document', { body: {} });
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: -1000 } });
+  const preview = ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!;
+  const onPatternFinished = vi.fn();
+  const props = { preview, metronome, onPatternFinished };
+  renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  const clickOk = () => {
+    renderMetronomePlayer(props);
+    const { nodes } = renderMetronomePlayer(props);
+    const ok = nodes.find(node => (node.props as Record<string, unknown>)['data-tutorial-diagram-ok']);
+    expect(ok).toBeDefined();
+    ok!.props.onClick!();
+  };
+  frame(200);
+  frame(2105); // 첫 도식: J=0ms
+  clickOk();
+  frame(105); // 재개 대기 뒤 J=1000ms
+  frame(3000); // 반복 0의 끝 릴리즈 정산과 반복 1의 도식 진입
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  const frozen = rendered.frames.at(-1)!;
+  frame(4500);
+  frame(4500);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(rendered.frames.at(-1)?.timeMs).toBe(frozen.timeMs);
+  expect(rendered.frames.at(-1)?.snapshot).toEqual(frozen.snapshot);
+  clickOk();
+  const frameCount = rendered.frames.length;
+  frame(100); // 105ms의 재개 대기 중에는 마지막 화면 유지
+  expect(rendered.frames).toHaveLength(frameCount);
+  frame(6); // J=1001ms, V=1ms: 이전 반복의 릴리즈는 이전 표시 복사본에 남는다.
+
+  const last = rendered.frames.at(-1)!;
+  expect(last.timeMs).toBeCloseTo(4001);
+  const releaseIndex = preview.chart.notes.findIndex(note => note.type === 'release');
+  expect(last.snapshot?.items.find(item => item.sourceNoteIndex === releaseIndex)?.state).toBe('success');
+  expect(last.notes?.find(note => note.sourceNoteIndex === releaseIndex)?.layers.every(layer => !layer.visible)).toBe(true);
+  expect(last.snapshot?.items.find(item => item.sourceNoteIndex === releaseIndex + preview.chart.notes.length)?.state).toBe('pending');
+  metronome.dispose();
+});
+
+it('connected-long-note-switch에서 visualOffsetMs=-1000으로 첫 반복을 마치고 paused로 9000ms 기다려도 재개 뒤 완료한 릴리즈는 숨김을 유지한다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: -1000 } });
+  const preview = ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!;
+  const onPatternFinished = vi.fn();
+  const props = { preview, metronome, onPatternFinished, diagramModalEnabled: false };
+  renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  frame(200);
+  frame(2105);
+  frame(4100); // J=4100ms, V=3100ms: 완료한 릴리즈는 가운데 표시 복사본에 남는다.
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  const frameCount = rendered.frames.length;
+  renderMetronomePlayer({ ...props, paused: true });
+  frame(4500);
+  frame(4500);
+  expect(rendered.frames).toHaveLength(frameCount);
+  renderMetronomePlayer({ ...props, paused: false });
+  frame(100);
+  expect(rendered.frames).toHaveLength(frameCount);
+  frame(6);
+
+  const last = rendered.frames.at(-1)!;
+  expect(last.timeMs).toBeCloseTo(7101);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  const releaseIndex = preview.chart.notes.length + preview.chart.notes.findIndex(note => note.type === 'release');
+  expect(last.snapshot?.items.find(item => item.sourceNoteIndex === releaseIndex)?.state).toBe('success');
+  expect(last.notes?.find(note => note.sourceNoteIndex === releaseIndex)?.layers.every(layer => !layer.visible)).toBe(true);
+  expect(last.snapshot?.items.find(item => item.sourceNoteIndex === releaseIndex + preview.chart.notes.length)?.state).toBe('pending');
+  metronome.dispose();
+});
+
 it('OK 뒤 재개 예정 10105ms보다 이른 rAF 10100ms가 실제 10110ms에 실행돼도 도식을 다시 열지 않는다', async () => {
   const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
   mockMetronomeAudio();
