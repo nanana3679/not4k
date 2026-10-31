@@ -27,10 +27,23 @@ describe('이벤트 편집 창의 재생 중 잠금', () => {
     const markup = render(true);
 
     expect(markup).toMatch(/<fieldset[^>]*disabled=""/);
+    expect(markup).toMatch(new RegExp(`<fieldset[^>]*title="${PAUSE_TO_EDIT_COPY}"`));
     expect(markup).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*title="${PAUSE_TO_EDIT_COPY}"[^>]*>Save</button>`));
     expect(markup).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*title="${PAUSE_TO_EDIT_COPY}"[^>]*>Delete</button>`));
     expect(markup).toMatch(/<button[^>]*>Cancel<\/button>/);
     expect(markup).not.toMatch(/<button[^>]*disabled=""[^>]*>Cancel<\/button>/);
+  });
+
+  it.each([0, 1])('재생 중 0박 초기 이벤트 index=%s는 입력 묶음과 삭제 버튼에 초기 이벤트 제한보다 재생 안내 title을 우선 표시한다', index => {
+    const markup = renderToStaticMarkup(createElement(EventEditModal, {
+      editingEvent: { type: 'event', index }, chart, isBeatZero: true, extraLaneCount: 2, editLocked: true,
+      onSave() {}, onDelete() {}, onClose() {},
+    }));
+
+    expect(markup).toMatch(new RegExp(`<fieldset[^>]*disabled=""[^>]*title="${PAUSE_TO_EDIT_COPY}"`));
+    expect(markup).toContain('Editor lane');
+    expect(markup).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*title="${PAUSE_TO_EDIT_COPY}"[^>]*>Delete</button>`));
+    expect(markup).not.toContain('Cannot delete initial event');
   });
 
   it('정지 중 같은 창은 BPM 입력·Save·Delete를 활성으로 둔다', () => {

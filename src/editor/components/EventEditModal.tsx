@@ -209,7 +209,7 @@ export function EventEditModal({ editingEvent, chart, isBeatZero, extraLaneCount
       <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>{title}</h3>
 
-        <fieldset style={fieldsetStyle} disabled={editLocked}>
+        <fieldset style={fieldsetStyle} disabled={editLocked} title={editLocked ? PAUSE_TO_EDIT_COPY : undefined}>
           <EventFields evt={evt} values={values} setValues={setValues} />
 
           {isBeatZero && (
@@ -241,7 +241,7 @@ export function EventEditModal({ editingEvent, chart, isBeatZero, extraLaneCount
             style={{ ...modalStyles.deleteBtn, opacity: isBeatZero || editLocked ? 0.4 : 1 }}
             onClick={onDelete}
             disabled={isBeatZero || editLocked}
-            title={isBeatZero ? 'Cannot delete initial event' : editLocked ? PAUSE_TO_EDIT_COPY : 'Delete event'}
+            title={editLocked ? PAUSE_TO_EDIT_COPY : isBeatZero ? 'Cannot delete initial event' : 'Delete event'}
           >
             Delete
           </button>

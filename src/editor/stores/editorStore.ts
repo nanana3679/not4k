@@ -153,8 +153,9 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    * 한 gesture의 편집을 Undo 1개로 묶는다. 소유자 token 없는 편집·모드 전환·Undo 등
    * 독립 명령이 transaction을 먼저 확정하거나 재생 시작이 취소하면 onInterrupt로 소유자에게 알린다.
    * 소유자는 그 뒤 옛 token으로 쓰지 말고 진행 중 조작을 정리해야 한다.
+   * 누름이 선택을 먼저 바꿨다면 selectionBefore를 넘겨 그 선택 변경까지 취소한다.
    */
-  beginEditTransaction: (kind: EditTransactionKind, onInterrupt?: () => void) => symbol | null;
+  beginEditTransaction: (kind: EditTransactionKind, onInterrupt?: () => void, selectionBefore?: Selection) => symbol | null;
   commitEditTransaction: (transaction?: symbol) => void;
   cancelEditTransaction: (transaction?: symbol) => void;
   addToast: (message: string, type?: ToastType) => void;
@@ -465,14 +466,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null });
     transaction?.onInterrupt?.();
   },
-  beginEditTransaction: (kind, onInterrupt) => {
+  beginEditTransaction: (kind, onInterrupt, selectionBefore) => {
     const state = get();
     // 재생 중에는 새 편집 gesture를 열지 않는다(RFD 0099). null을 받은 삭제 gesture는 아무것도 지우지 않는다.
     if (state.editTransaction || state.isPlaying) return null;
     const token = Symbol("editor transaction");
     set({ editTransaction: {
       token, kind, before: { chart: state.chart, extraLaneCount: state.extraLaneCount },
-      selection: state.selection, lastValidSnapshot: state.lastValidSnapshot, onInterrupt,
+      selection: selectionBefore ?? state.selection, lastValidSnapshot: state.lastValidSnapshot, onInterrupt,
     } });
     return token;
   },

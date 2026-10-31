@@ -50,8 +50,8 @@ export interface SelectModeCallbacks {
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) */
   setExtraLaneCount?: (count: number, transaction?: symbol) => void;
   onWarn?: (msg: string) => void;
-  /** onInterrupt는 독립 명령이 이 transaction을 먼저 확정했을 때 불린다. */
-  beginTransaction?: (onInterrupt: () => void) => symbol | null;
+  /** 독립 명령의 확정·취소는 onInterrupt로 알린다. selectionBefore는 드래그를 시작한 누름의 선택 변경 전 값이다. */
+  beginTransaction?: (onInterrupt: () => void, selectionBefore?: Selection) => symbol | null;
   commitTransaction?: (transaction: symbol) => void;
   cancelTransaction?: (transaction: symbol) => void;
 }
@@ -351,8 +351,8 @@ export class SelectMode implements EditorMode {
     this.callbacks.setSelection({ ...selection, events });
   }
 
-  private beginTransaction(): void {
-    this.transactionToken = this.callbacks.beginTransaction?.(() => this.settleInterruptedInteraction()) ?? null;
+  private beginTransaction(selectionBefore?: Selection): void {
+    this.transactionToken = this.callbacks.beginTransaction?.(() => this.settleInterruptedInteraction(), selectionBefore) ?? null;
   }
 
   /**
@@ -415,6 +415,7 @@ export class SelectMode implements EditorMode {
   /** Begin a touch long-press move from a note without collapsing an existing multi-selection. */
   beginTouchMoveDragFromNote(index: number, x: number, y: number): boolean {
     if (index < 0 || index >= this.chart.notes.length) return false;
+    const selectionBefore = this.sel;
 
     // 이미 선택된 노트면 혼합 선택(구간 포함)을 유지한 채 전체를 이동한다. 명시 탭·릴리즈·
     // 틱 노트도 같다(RFD 0016 §6-6). 구간 유닛의 내부(파생) 노트도 "선택된 엔티티"로 취급 —
@@ -423,14 +424,14 @@ export class SelectMode implements EditorMode {
       if (!this.selectNote(index)) return false;
     }
 
-    this.startSelectionMoveDrag(x, y);
+    this.startSelectionMoveDrag(x, y, selectionBefore);
     return this.isMoveDragging;
   }
 
   /** Begin dragging the current selection from the given pointer location. */
-  beginMoveDrag(x: number, y: number): void {
+  beginMoveDrag(x: number, y: number, selectionBefore?: Selection): void {
     // 이동 축은 하나다(통합 lane) — 포인터가 놓인 통합 레인이 오프셋 앵커가 된다 (RFD 0018 ④).
-    this.startSelectionMoveDrag(x, y);
+    this.startSelectionMoveDrag(x, y, selectionBefore);
   }
 
   /** Begin resizing a main range note end, used by touch long-press handles. */
@@ -438,8 +439,9 @@ export class SelectMode implements EditorMode {
     const note = this.chart.notes[index];
     if (!note || !this.isRangeNote(note)) return false;
 
+    const selectionBefore = this.sel;
     if (!this.sel.notes.has(index) && !this.selectNote(index)) return false;
-    this.startResize("note", index, note.beat, note.endBeat);
+    this.startResize("note", index, note.beat, note.endBeat, selectionBefore);
     return true;
   }
 
@@ -463,9 +465,10 @@ export class SelectMode implements EditorMode {
       if (index !== undefined && index !== null) {
         const event = this.chart.events[index];
         if (!event || isInitialTimingEvent(event)) return false;
+        const selectionBefore = this.sel;
         if (!this.sel.events.has(index) && !this.selectEvent(index)) return false;
-        if (hits.eventEndHit === index && 'endBeat' in event) this.startResize('event', index, event.beat, event.endBeat);
-        else this.beginMoveDrag(x, y);
+        if (hits.eventEndHit === index && 'endBeat' in event) this.startResize('event', index, event.beat, event.endBeat, selectionBefore);
+        else this.beginMoveDrag(x, y, selectionBefore);
         return this.isDragging;
       }
     }
@@ -485,10 +488,11 @@ export class SelectMode implements EditorMode {
    */
   beginTouchMoveDragFromZone(index: number, x: number, y: number): boolean {
     if (index < 0 || index >= this.chart.trillZones.length) return false;
+    const selectionBefore = this.sel;
     if (!this.sel.zones.has(index)) {
       if (!this.selectZoneUnit(index)) return false;
     }
-    this.startSelectionMoveDrag(x, y);
+    this.startSelectionMoveDrag(x, y, selectionBefore);
     return this.isMoveDragging;
   }
 
@@ -577,6 +581,7 @@ export class SelectMode implements EditorMode {
 
     // 드래그 진행 중엔 down 재호출을 무시한다(지연-시작 후보의 중복 시작 방지).
     if (this.isDragging) return;
+    const selectionBefore = this.sel;
 
     // grab 우선순위 사다리는 resolveGrab이 단독 소유한다(#143). 마우스·터치가 같은 함수를
     // 소비하므로 z-order 변경은 그 한 곳이다. 여기 case 본문은 대상 확정 "후"의
@@ -597,7 +602,7 @@ export class SelectMode implements EditorMode {
           }
         }
         const note = this.chart.notes[endHit] as RangeNote | BodyNote;
-        this.startResize("note", endHit, note.beat, note.endBeat);
+        this.startResize("note", endHit, note.beat, note.endBeat, selectionBefore);
         return;
       }
       case "eventEndCap": {
@@ -605,7 +610,7 @@ export class SelectMode implements EditorMode {
         const evt = this.chart.events[evtHit];
         if (!('endBeat' in evt)) return; // 방어: hitTestEventEnd는 endBeat 있는 이벤트만 반환.
         if (!this.sel.events.has(evtHit) && !this.selectEvent(evtHit)) return;
-        this.startResize("event", evtHit, evt.beat, evt.endBeat);
+        this.startResize("event", evtHit, evt.beat, evt.endBeat, selectionBefore);
         return;
       }
       case "trillZoneEndCap": {
@@ -661,7 +666,7 @@ export class SelectMode implements EditorMode {
             zones: new Set(),
             restZones: new Set(),
           });
-          if (committed) this.beginMoveDrag(x, y);
+          if (committed) this.beginMoveDrag(x, y, selectionBefore);
         }
         return;
       }
@@ -678,7 +683,7 @@ export class SelectMode implements EditorMode {
           this.commitSelection({ events });
         } else {
           if (!events.has(index) && !this.selectEvent(index)) return;
-          this.beginMoveDrag(x, y);
+          this.beginMoveDrag(x, y, selectionBefore);
         }
         return;
       }
@@ -1382,7 +1387,7 @@ export class SelectMode implements EditorMode {
 
   // --- Private helpers ---
 
-  private startSelectionMoveDrag(x: number, y: number): void {
+  private startSelectionMoveDrag(x: number, y: number, selectionBefore?: Selection): void {
     const lane = this.callbacks.space.xToUnifiedLane(x);
     // 구간 유닛(빈 구간 포함)·restZone이 선택돼 있으면 노트가 없어도 이동 가능
     if (
@@ -1392,7 +1397,7 @@ export class SelectMode implements EditorMode {
       return;
     }
 
-    this.beginTransaction();
+    this.beginTransaction(selectionBefore);
     this.isDragging = true;
     this.dragType = "move";
     const changesTiming = [...this.sel.events].some(index => {
@@ -1667,8 +1672,9 @@ export class SelectMode implements EditorMode {
     index: number,
     startBeat: Beat,
     endBeat: Beat,
+    selectionBefore?: Selection,
   ): void {
-    this.beginTransaction();
+    this.beginTransaction(selectionBefore);
     this.dragBeatAtY = null;
     this.resizeOriginalNotes = this.chart.notes;
     this.isDragging = true;

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RefObject } from 'react';
-import { createElement } from 'react';
+import { Children, createElement, isValidElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beat } from '../../shared';
+import { beat, songAudioPath, songJacketPath } from '../../shared';
 import type { ChartAssetUpsert, ChartDocument, Lane, SongAssetPersistenceAdapter } from '../../shared';
 import { showToast } from '../../shared/toast';
 import type { PlaybackController } from '../playback/PlaybackController';
@@ -10,6 +10,7 @@ import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 import { isChartDirty, toSavedChartJson } from '../savedChart';
 import { useEditorStore } from '../stores/editorStore';
 import { emptySelection } from '../stores/selectionSlice';
+import { EventEditModal } from '../components/EventEditModal';
 import { useFileOperations, type FileOperationHandlers } from './useFileOperations';
 
 /** charts 행 upsert 하나. 테스트가 resolve·reject할 때까지 그 저장은 끝나지 않는다. */
@@ -19,11 +20,18 @@ interface PendingUpsert {
   reject: (reason: Error) => void;
 }
 
-const harness = vi.hoisted(() => ({ upserts: [] as PendingUpsert[], uploads: new Map<string, string>() }));
+const harness = vi.hoisted(() => ({
+  upserts: [] as PendingUpsert[], uploads: new Map<string, string>(),
+  uploadAsset: vi.fn(async () => ({ error: null })),
+  updateSong: vi.fn(async () => ({ error: null })),
+}));
 
-// 이 테스트는 네트워크에 닿으면 안 된다. Supabase 클라이언트를 쓰는 순간 던져, 재킷·오디오 경로 같은 실제 요청을 막는다.
+// 재킷·오디오 저장에서 쓰는 요청만 메모리에서 처리한다. 실제 Supabase에는 닿지 않는다.
 vi.mock('../../supabase/client', () => ({
-  supabase: new Proxy({}, { get: (_target, key) => { throw new Error(`테스트에서 Supabase 클라이언트(${String(key)})를 쓰면 안 된다`); } }),
+  supabase: {
+    storage: { from: () => ({ upload: harness.uploadAsset }) },
+    from: () => ({ update: () => ({ eq: harness.updateSong }) }),
+  },
 }));
 // 실제 저장 함수(shared saveChartAsset)에 메모리 adapter를 꽂는다. 업로드는 바로 끝나고 charts 행 upsert만 기다리게 해
 // "파일은 올렸지만 DB 응답이 늦은" 저장을 만든다.
@@ -72,14 +80,14 @@ let navigateTo = vi.fn<(path: string) => void>();
  * ChartEditorPage처럼 훅을 한 번 렌더해 핸들러를 돌려준다. 다시 부르면 새 훅 인스턴스라 페이지가 다시 마운트된 것과 같다
  * (테스트 플레이에서 돌아올 때). 페이지 지역 상태(구간·재킷·오디오 대기)는 비어 있다.
  */
-function renderFileOperations(): FileOperationHandlers {
+function renderFileOperations(files: { jacket?: File; audio?: File } = {}): FileOperationHandlers {
   const playback = { audioBufferData: {} as AudioBuffer, isPlaying: false, pause: vi.fn() } as unknown as PlaybackController;
   const playbackRef: RefObject<PlaybackController | null> = { current: playback };
   const rendererRef: RefObject<{ setChart: (c: unknown) => void } | null> = { current: null };
   function FileOperationsProbe({ onRender }: { onRender: (handlers: FileOperationHandlers) => void }) {
     onRender(useFileOperations(
       playbackRef, rendererRef, vi.fn(), vi.fn(), vi.fn(), vi.fn(), vi.fn(), vi.fn(),
-      vi.fn(), vi.fn(), vi.fn(), vi.fn(), null, null, null, vi.fn(), null, navigateTo,
+      vi.fn(), vi.fn(), vi.fn(), vi.fn(), null, null, files.jacket ?? null, vi.fn(), files.audio ?? null, navigateTo,
     ));
     return null;
   }
@@ -91,6 +99,8 @@ function renderFileOperations(): FileOperationHandlers {
 beforeEach(() => {
   harness.upserts.length = 0;
   harness.uploads.clear();
+  harness.uploadAsset.mockClear();
+  harness.updateSong.mockClear();
   navigateTo = vi.fn<(path: string) => void>();
   vi.mocked(showToast).mockClear();
   vi.stubGlobal('window', {
@@ -108,6 +118,67 @@ afterEach(() => {
 });
 
 describe('useFileOperations 저장 진행', () => {
+  it.each([
+    { asset: 'jacket', isPlaying: false }, { asset: 'jacket', isPlaying: true },
+    { asset: 'audio', isPlaying: false }, { asset: 'audio', isPlaying: true },
+  ] as const)('Save $asset 업로드 중 2박 노트와 제목을 수정하고 isPlaying=$isPlaying에서 완료하면 경로만 반영하고 편집과 dirty를 보존한다', async ({ asset, isPlaying }) => {
+    const uploaded = chart([single(1, 0)]);
+    open(uploaded);
+    const file = new File(['asset'], asset === 'jacket' ? 'new.png' : 'new.ogg');
+    const saving = renderFileOperations({ [asset]: file }).handleSaveChart();
+    await flush();
+
+    const edited = {
+      ...current().chart,
+      meta: { ...current().chart.meta, title: '업로드 중 수정', offsetMs: 25 },
+      notes: [...current().chart.notes, single(2, 2)],
+    };
+    current().setChart(edited);
+    current().setIsPlaying(isPlaying);
+    harness.upserts[0].resolve();
+    await saving;
+
+    const pathKey = asset === 'jacket' ? 'imageFile' : 'audioFile';
+    const path = asset === 'jacket' ? songJacketPath('song', 'png') : songAudioPath('song', 'ogg');
+    expect(current().chart).toEqual({ ...edited, meta: { ...edited.meta, [pathKey]: path } });
+    expect(current().savedChartJson).toEqual(toSavedChartJson({
+      ...uploaded, meta: { ...uploaded.meta, [pathKey]: path },
+    }, 2));
+    expect(harness.uploadAsset).toHaveBeenCalledWith(path, file, { upsert: true });
+    expect(dirty()).toBe(true);
+    expect(current().isPlaying).toBe(isPlaying);
+    expect(showToast).toHaveBeenCalledExactlyOnceWith('Chart saved', 'info');
+  });
+
+  it.each([false, true])('Save As LIFTOFF Lv.3 업로드 중 2박 노트와 제목을 수정하고 isPlaying=%s에서 완료하면 편집을 보존하고 난이도만 반영하며 dirty로 남는다', async isPlaying => {
+    const uploaded = chart([single(1, 0)]);
+    open(uploaded);
+    const saving = renderFileOperations().handleSaveAs('LIFTOFF', 3);
+    await flush();
+
+    const edited = {
+      ...current().chart,
+      meta: { ...current().chart.meta, title: '업로드 중 수정', offsetMs: 25 },
+      notes: [...current().chart.notes, single(2, 2)],
+    };
+    current().setChart(edited);
+    current().setIsPlaying(isPlaying);
+    harness.upserts[0].resolve();
+    await saving;
+
+    expect(current().chart.notes).toEqual(edited.notes);
+    expect(current().chart.meta).toMatchObject({
+      title: '업로드 중 수정', offsetMs: 25, difficultyLabel: 'LIFTOFF', difficultyLevel: 3,
+    });
+    expect(current().savedChartJson).toEqual(toSavedChartJson({
+      ...uploaded, meta: { ...uploaded.meta, difficultyLabel: 'LIFTOFF', difficultyLevel: 3 },
+    }, 2));
+    expect(dirty()).toBe(true);
+    expect(window.history.replaceState).toHaveBeenCalledWith(null, '', '?songId=song&difficulty=liftoff');
+    expect(showToast).toHaveBeenCalledExactlyOnceWith('Chart saved as LIFTOFF Lv.3', 'info');
+    expect(current().isPlaying).toBe(isPlaying);
+  });
+
   it('저장 A의 charts 행 응답을 기다리는 동안 페이지를 다시 렌더해도 두 번째 Save·Save As·테스트 플레이가 시작되지 않고, A가 끝나면 savedChartJson이 A의 업로드가 되며 그 뒤 테스트 플레이는 /game으로 간다', async () => {
     open(chart([single(1, 0)]));
     const savedA = chart([single(1, 0), single(2, 1)]);
@@ -197,6 +268,36 @@ describe('재생 중 이벤트 편집과 저장(RFD 0099)', () => {
   const withText = (): ChartDocument => ({
     ...chart([single(1, 0)]),
     events: [...chart([]).events, { type: 'text', beat: beat(4), endBeat: beat(6), text: '안내', editorLane: 1 }],
+  });
+
+  it.each([false, true])('editLocked=%s로 렌더한 EventEditModal Save 콜백도 재생 중 실행하면 BPM 120과 열린 모달을 보존한다', editLocked => {
+    open(chart([single(1, 0)]));
+    const editingEvent = { type: 'event' as const, index: 0 };
+    current().setEditingEvent(editingEvent);
+    const handlers = renderFileOperations();
+    let save: (() => void) | undefined;
+    function findSave(node: ReactNode): void {
+      Children.forEach(node, child => {
+        if (!isValidElement<{ children?: ReactNode; onClick?: () => void }>(child)) return;
+        if (child.type === 'button' && child.props.children === 'Save') save = child.props.onClick;
+        else findSave(child.props.children);
+      });
+    }
+    function ModalProbe() {
+      const tree = EventEditModal({
+        editingEvent, chart: current().chart, isBeatZero: true, extraLaneCount: 2, editLocked,
+        onSave: handlers.handleEventSave, onDelete: handlers.handleEventDelete, onClose() {},
+      });
+      findSave(tree);
+      return tree;
+    }
+    renderToStaticMarkup(createElement(ModalProbe));
+    current().setIsPlaying(true);
+    save!();
+
+    expect(current().chart.events[0]).toMatchObject({ type: 'bpm', bpm: 120 });
+    expect(current().editingEvent).toEqual(editingEvent);
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(PAUSE_TO_EDIT_COPY, 'warn');
   });
 
   it('재생 중 0박 BPM 이벤트를 120에서 90으로 저장하면 BPM 120이 남고 편집 창은 열린 채 안내 토스트를 띄운다', () => {

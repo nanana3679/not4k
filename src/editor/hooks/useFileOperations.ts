@@ -167,7 +167,8 @@ export function useFileOperations(
           .upload(resolvedJacketPath, pendingJacketFile, { upsert: true });
         if (jacketUpErr) throw new Error(`Jacket upload failed: ${jacketUpErr.message}`);
         await supabase.from('songs').update({ jacket_url: resolvedJacketPath }).eq('id', activeSongId);
-        setChart(chartToSave);
+        const currentChart = useEditorStore.getState().chart;
+        setChart({ ...currentChart, meta: { ...currentChart.meta, imageFile: resolvedJacketPath } });
         setPendingJacketFile(null);
         setJacketCacheBust(Date.now());
       }
@@ -178,7 +179,8 @@ export function useFileOperations(
           .upload(resolvedAudioPath, pendingAudioFile, { upsert: true });
         if (audioUpErr) throw new Error(`Audio upload failed: ${audioUpErr.message}`);
         await supabase.from('songs').update({ audio_url: resolvedAudioPath }).eq('id', activeSongId);
-        setChart(chartToSave);
+        const currentChart = useEditorStore.getState().chart;
+        setChart({ ...currentChart, meta: { ...currentChart.meta, audioFile: resolvedAudioPath } });
         setPendingAudioFile(null);
       }
 
@@ -241,9 +243,7 @@ export function useFileOperations(
       }
 
       // 업로드한 메인·보조 JSON(저장을 시작할 때의 chartToSave)을 아래 finally에서 savedChartJson으로 정한다.
-      // 재킷·오디오 교체가 함께 있으면 위의 setChart(chartToSave)가 라이브 차트를 chartToSave로 바꾼다. 그래서 그 전까지
-      // 저장 중에 더한 편집은 화면에서 사라져 Undo 기록에만 남고 dirty로 보이지 않는다(기존 동작, 후속 #372).
-      // 교체가 없으면 저장 중 편집은 라이브 차트에 남아 savedChartJson과 달라 dirty다.
+      // 저장 결과의 경로만 현재 차트에 합치므로 저장 중 편집은 남고 업로드한 JSON과 달라 dirty다.
       uploadedJson = { chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson };
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
@@ -301,7 +301,11 @@ export function useFileOperations(
         extraLaneCount,
       });
 
-      setChart(chartToSave);
+      const currentChart = useEditorStore.getState().chart;
+      setChart({
+        ...currentChart,
+        meta: { ...currentChart.meta, difficultyLabel: targetDifficulty, difficultyLevel: targetLevel },
+      });
       uploadedJson = { chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson };
 
       window.history.replaceState(null, '', `?songId=${activeSongId}&difficulty=${difficulty}`);
