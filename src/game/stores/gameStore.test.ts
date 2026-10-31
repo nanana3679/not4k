@@ -161,7 +161,7 @@ describe('gameStore — calibrationActive (보정 중 프리뷰 페이드 제어
 });
 
 describe('gameStore — 첫 기동 튜토리얼 모달(RFD 0055)', () => {
-  it('store 초기 상태(새로고침 직후 포함)에서는 shouldOpenFirstLaunchTutorialModal=false다', () => {
+  it('store 초기 상태에서는 shouldOpenFirstLaunchTutorialModal=false다', () => {
     expect(useGameStore.getInitialState().shouldOpenFirstLaunchTutorialModal).toBe(false);
   });
 

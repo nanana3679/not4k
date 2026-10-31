@@ -59,7 +59,7 @@ describe('SongSelectScreen 첫 기동 튜토리얼 모달', () => {
     expect(useGameStore.getState().shouldOpenFirstLaunchTutorialModal).toBe(false);
   });
 
-  it('첫 기동 튜토리얼 모달을 한 번 연 뒤 곡 선택을 다시 그리면 모달 없이 그리고 ? 버튼은 aria-expanded=false다', () => {
+  it('첫 기동 튜토리얼 모달을 한 번 연 뒤 곡 선택에 다시 들어와(새로 마운트) 그리면 모달 없이 그리고 ? 버튼은 aria-expanded=false다', () => {
     useGameStore.getState().completeFirstLaunch();
     mount();
     const html = mount();
@@ -67,12 +67,21 @@ describe('SongSelectScreen 첫 기동 튜토리얼 모달', () => {
     expect(html).toMatch(/aria-label="Open tutorial help"[^>]*aria-expanded="false"/);
   });
 
-  it('프리셋 설정 직후 곡 목록을 아직 불러오는 중(Loading songs...)이어도 튜토리얼 도움말 모달을 함께 그린다', () => {
+  it('프리셋 설정 직후 곡 목록을 아직 불러오는 중이면 로딩 화면(Loading songs...) 대신 곡 선택 레이아웃 위에 튜토리얼 도움말 모달을 그린다', () => {
     fixture.songsLoading = true;
     useGameStore.getState().completeFirstLaunch();
     const html = mount();
-    expect(html).toContain('Loading songs...');
+    expect(html).not.toContain('Loading songs...');
+    expect(html).toContain('Song Select');
     expect(html).toContain('[tutorial-help-modal]');
+  });
+
+  it('첫 기동을 이미 마친 상태에서 곡 목록을 불러오는 중이면 모달 없이 로딩 화면(Loading songs...)을 그린다', () => {
+    fixture.songsLoading = true;
+    useGameStore.getState().updateSettings({ isFirstLaunch: false });
+    const html = mount();
+    expect(html).toContain('Loading songs...');
+    expect(html).not.toContain('[tutorial-help-modal]');
   });
 
   it('첫 기동을 이미 마친 상태(isFirstLaunch=false, shouldOpenFirstLaunchTutorialModal=false)에서 곡 선택을 그리면 모달 없이 그리고 store 상태를 바꾸지 않는다', () => {

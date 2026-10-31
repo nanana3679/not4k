@@ -103,6 +103,27 @@ test.describe('Game Navigation', () => {
     await expect(dialog).toHaveCount(0);
   });
 
+  test('곡 목록 요청이 끝나지 않은 동안에도 첫 기동 튜토리얼 모달은 로딩 화면에 가리지 않아 Close를 누를 수 있고, 닫으면 Loading songs... 화면이 보인다', async ({ page }) => {
+    let releaseSongs!: () => void;
+    const songsReleased = new Promise<void>(resolve => { releaseSongs = resolve; });
+    await page.route('**/rest/v1/songs**', async route => {
+      if (route.request().method() === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
+      await songsReleased;
+      await route.fulfill({ json: [] });
+    });
+
+    await choosePresetOnFirstLaunch(page, 'TKL (Tenkeyless)');
+    const dialog = page.getByRole('dialog', { name: 'Tutorial' });
+    await expect(dialog).toBeVisible();
+    // click은 실제로 맨 위에서 포인터를 받는 요소인지 확인하므로, 로딩 화면이 덮고 있으면 실패한다.
+    await dialog.getByRole('button', { name: 'Close tutorial help' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText('Loading songs...')).toBeVisible();
+
+    releaseSongs();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
+  });
+
   test('non-first launch: Start goes directly to song select', async ({ page }) => {
     await page.goto('/game');
     await page.evaluate(
