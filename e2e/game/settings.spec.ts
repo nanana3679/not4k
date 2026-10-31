@@ -116,6 +116,35 @@ test.describe('Game Settings', () => {
     await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
   });
 
+  // 설정이 열린 채 Profile 복귀가 오면 setScreen·settingsOpen이 같은 틱에 바뀌어 패널이 다시 마운트되지 않는다.
+  // 그때는 SettingsPanel의 렌더 중 탭 조정(seenInitialSection)이 Profile로 옮기고 키 입력 대기를 끝내야 한다.
+  test('Controls에서 Lane 1 + Add로 키 입력 대기 중 Profile 복귀(pageshow persisted)가 오면 같은 설정 패널이 Profile 탭으로 바뀌고 이후 Z를 눌러도 KeyZ가 바인딩되지 않는다', async ({ page }) => {
+    const dialog = await openSettings(page);
+    const nav = dialog.getByRole('navigation', { name: 'Settings sections' });
+    await nav.evaluate(element => element.setAttribute('data-settings-instance', 'first'));
+    await laneRow(dialog, 1).getByRole('button', { name: '+ Add' }).click();
+    await expect(dialog.getByText('Press any key…')).toBeVisible();
+
+    // signInFromProfile이 Google로 떠나기 전에 남기는 복귀 마커(sessionStorage, String(Date.now()))를 쓰고
+    // Google에서 Back으로 bfcache 복귀한 것처럼 pageshow를 보낸다.
+    await page.evaluate(() => {
+      sessionStorage.setItem('not4k-profile-return', String(Date.now()));
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    });
+
+    await expect(dialog.getByRole('button', { name: 'Profile', exact: true })).toHaveAttribute('aria-current', 'page');
+    const region = dialog.getByRole('region', { name: 'Profile', exact: true });
+    await expect(region).toBeVisible();
+    await expect(region.getByText('Signed in', { exact: true })).toBeVisible();
+    await expect(nav).toHaveAttribute('data-settings-instance', 'first');
+    // 키 입력 대기가 남아 있으면 Controls가 사라진 뒤에도 window capture 리스너가 다음 키를 Lane 1에 바인딩한다.
+    await page.keyboard.press('z');
+    await dialog.getByRole('button', { name: 'Controls', exact: true }).click();
+    await expect(laneRow(dialog, 1).getByRole('button', { name: '+ Add' })).toBeVisible();
+    await expect(dialog.getByText('Press any key…')).toHaveCount(0);
+    await expect(dialog.getByText('KeyZ', { exact: true })).toHaveCount(0);
+  });
+
   test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 명시 탭 노트·Body와 Classic 기어·봄 PNG를 로드한다', async ({ page }, testInfo) => {
     test.setTimeout(PLAY_TEST_TIMEOUT_MS);
     const errors: string[] = [];

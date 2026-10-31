@@ -1,14 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { consumeProfileReturn, parseProfileRedirect, readProfileReturnStartedAt, signInFromProfile } from './profileAuth';
 
-function mockSessionStorage() {
+function mockSessionStorage(browser: object = {}) {
   const valueByKey = new Map<string, string>();
   const storage = {
     getItem: vi.fn((key: string) => valueByKey.get(key) ?? null),
     setItem: vi.fn((key: string, value: string) => { valueByKey.set(key, value); }),
     removeItem: vi.fn((key: string) => { valueByKey.delete(key); }),
   };
-  vi.stubGlobal('window', { sessionStorage: storage });
+  vi.stubGlobal('window', {
+    sessionStorage: storage,
+    location: { href: 'https://example.test/game' },
+    history: { state: null, replaceState: vi.fn() },
+    ...browser,
+  });
   return storage;
 }
 
@@ -79,8 +84,25 @@ describe('프로필 로그인 복귀 의도', () => {
     expect(consumeProfileReturn()).toBe(false);
   });
 
+  it('?error=server_error 주소에서 history.replaceState가 SecurityError를 던져도 Login은 1회 실행되고 오류 없이 끝나며 복귀 의도는 남는다', async () => {
+    const replaceState = vi.fn(() => { throw new Error('SecurityError'); });
+    mockSessionStorage({
+      location: { href: 'https://example.test/game?error=server_error' },
+      history: { state: null, replaceState },
+    });
+    const signIn = vi.fn().mockResolvedValue(undefined);
+    expect(await signInFromProfile(signIn)).toBeNull();
+    expect(replaceState).toHaveBeenCalledOnce();
+    expect(signIn).toHaveBeenCalledOnce();
+    expect(consumeProfileReturn()).toBe(true);
+  });
+
   it('sessionStorage 속성 접근 자체가 SecurityError를 던져도 로그인은 실행하고 복귀 의도는 false다', async () => {
-    vi.stubGlobal('window', { get sessionStorage() { throw new Error('SecurityError'); } });
+    vi.stubGlobal('window', {
+      get sessionStorage() { throw new Error('SecurityError'); },
+      location: { href: 'https://example.test/game' },
+      history: { state: null, replaceState: vi.fn() },
+    });
     expect(await signInFromProfile(async () => {})).toBeNull();
     expect(consumeProfileReturn()).toBe(false);
   });

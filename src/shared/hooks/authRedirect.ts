@@ -6,8 +6,11 @@ export interface AuthRedirectLocation {
 }
 
 /**
- * OAuth 복귀 URL에 붙는 결과 키(auth-js 2.95.3 `_getSessionFromURL`이 query·hash에서 읽는 값).
+ * implicit flow(이 앱의 supabase 클라이언트 기본값)의 OAuth 복귀 URL에 붙는 콜백 키
+ * (auth-js 2.95.3 `_getSessionFromURL`이 query·hash에서 읽는 값).
  * 다음 Login의 redirectTo에 남으면 새 복귀 때 auth-js가 이전 오류·토큰을 다시 읽는다.
+ * PKCE 콜백의 `code`는 일부러 남긴다. implicit flow에서는 앱의 다른 query일 수 있기 때문이다.
+ * flowType을 PKCE로 바꾸면 `code`를 지울지 다시 판단해야 한다.
  */
 const OAUTH_RESULT_PARAMS = [
   'error', 'error_code', 'error_description',

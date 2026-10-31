@@ -13,8 +13,11 @@ const storage = vi.hoisted(() => {
     };
   };
   const storage = createStorage();
-  // Login 실패 테스트의 복귀 마커는 sessionStorage에 쓴다.
-  vi.stubGlobal('window', { localStorage: storage, sessionStorage: createStorage() });
+  // Login 실패 테스트의 복귀 마커는 sessionStorage에 쓰고, Login은 떠나기 전에 location의 OAuth 결과를 확인한다.
+  vi.stubGlobal('window', {
+    localStorage: storage, sessionStorage: createStorage(),
+    location: { href: 'https://example.test/game' }, history: { state: null, replaceState: () => {} },
+  });
   return storage;
 });
 

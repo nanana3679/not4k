@@ -30,6 +30,12 @@ function mockBrowser(href = 'https://example.test/game') {
   return history;
 }
 
+// Profile Login으로 Google에 갔다가 href로 돌아온 상태를 만든다. Login은 떠나기 전에 현재 주소의 OAuth 결과를 지우므로
+// 복귀 주소는 signIn 안에서(Google 이동 뒤) 바꾼다.
+async function returnFromGoogle(href: string) {
+  await signInFromProfile(async () => { window.location.href = href; });
+}
+
 afterEach(() => {
   initialize.mockClear();
   useGameStore.setState(useGameStore.getInitialState(), true);
@@ -52,9 +58,9 @@ it('첫 실행이 아닌 앱 시작에 복귀 의도가 있으면 songSelect·Se
 });
 
 it('앱 시작에 server_error가 있으면 Profile에 Provider unavailable을 남기고 history에서 오류만 제거한다', async () => {
-  const history = mockBrowser('https://example.test/game?keep=1&error=server_error#error_description=Provider+unavailable');
+  const history = mockBrowser();
   useGameStore.getState().completeFirstLaunch();
-  await signInFromProfile(async () => {});
+  await returnFromGoogle('https://example.test/game?keep=1&error=server_error#error_description=Provider+unavailable');
   await createProfileReturnRestorer()(false);
   expect(useGameStore.getState().profileAuthError).toBe('Provider unavailable');
   expect(history.replaceState).toHaveBeenCalledWith({ router: 1 }, '', 'https://example.test/game?keep=1');
@@ -74,8 +80,8 @@ it('첫 실행인 데스크톱 복귀는 presetSetup을 거친 뒤 첫 설정 �
 });
 
 it('mobileListOnly 복귀는 첫 실행이어도 presetSetup 없이 Profile을 열고 isFirstLaunch=true를 유지한다', async () => {
-  mockBrowser('https://example.test/game#error=access_denied');
-  await signInFromProfile(async () => {});
+  mockBrowser();
+  await returnFromGoogle('https://example.test/game#error=access_denied');
   await createProfileReturnRestorer()(true);
   expect(useGameStore.getState()).toMatchObject({
     screen: 'songSelect', settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: null,
@@ -98,9 +104,9 @@ it('GameApp의 effect는 첫 실행·모바일 변경에 복귀 구독을 연결
 });
 
 it.each(['close', 'title'] as const)('Profile 복귀 후 %s로 나가 설정을 다시 열면 Controls이고 이전 오류는 없다', async (exit) => {
-  mockBrowser('https://example.test/game?error=server_error');
+  mockBrowser();
   useGameStore.getState().completeFirstLaunch();
-  await signInFromProfile(async () => {});
+  await returnFromGoogle('https://example.test/game?error=server_error');
   await createProfileReturnRestorer()(false);
   if (exit === 'close') useGameStore.getState().setSettingsOpen(false);
   else useGameStore.getState().setScreen('title');
@@ -110,9 +116,9 @@ it.each(['close', 'title'] as const)('Profile 복귀 후 %s로 나가 설정을 
 });
 
 it('토큰 복귀에서 SDK 초기화가 User lookup failed를 반환하면 세션이 없어도 Profile에 오류를 표시한다', async () => {
-  mockBrowser('https://example.test/game#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
+  mockBrowser();
   useGameStore.getState().completeFirstLaunch();
-  await signInFromProfile(async () => {});
+  await returnFromGoogle('https://example.test/game#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
   const initializeAuth = vi.fn(async () => ({ error: new Error('User lookup failed') }));
   await createProfileReturnRestorer(initializeAuth)(false);
   expect(initializeAuth).toHaveBeenCalledOnce();
@@ -122,18 +128,18 @@ it('토큰 복귀에서 SDK 초기화가 User lookup failed를 반환하면 세�
 });
 
 it('토큰 복귀의 SDK 초기화가 실패한 뒤 Profile을 열면 history에서 access_token·refresh_token·expires_in·token_type을 지우고 keep=1은 남긴다', async () => {
-  const history = mockBrowser('https://example.test/game?keep=1#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
+  const history = mockBrowser();
   useGameStore.getState().completeFirstLaunch();
-  await signInFromProfile(async () => {});
+  await returnFromGoogle('https://example.test/game?keep=1#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
   await createProfileReturnRestorer(async () => ({ error: new Error('User lookup failed') }))(false);
   expect(useGameStore.getState().profileAuthError).toBe('User lookup failed');
   expect(history.replaceState).toHaveBeenCalledWith({ router: 1 }, '', 'https://example.test/game?keep=1');
 });
 
 it('access_denied로 취소하면 SDK 초기화 오류 User cancelled가 있어도 Profile의 오류는 null이다', async () => {
-  mockBrowser('https://example.test/game#error=access_denied');
+  mockBrowser();
   useGameStore.getState().completeFirstLaunch();
-  await signInFromProfile(async () => {});
+  await returnFromGoogle('https://example.test/game#error=access_denied');
   const initializeAuth = vi.fn(async () => ({ error: new Error('User cancelled') }));
   await createProfileReturnRestorer(initializeAuth)(false);
   expect(initializeAuth).toHaveBeenCalledOnce();
@@ -141,10 +147,10 @@ it('access_denied로 취소하면 SDK 초기화 오류 User cancelled가 있어�
 });
 
 it('access_denied 취소 후 새 Login 마커로 pageshow persisted 복귀하면 캐시된 User cancelled 오류 없이 Profile을 연다', async () => {
-  const history = mockBrowser('https://example.test/game#error=access_denied&error_description=User+cancelled');
+  const history = mockBrowser();
   history.replaceState.mockImplementation((_state, _unused, url: string) => { window.location.href = url; });
   useGameStore.getState().completeFirstLaunch();
-  await signInFromProfile(async () => {});
+  await returnFromGoogle('https://example.test/game#error=access_denied&error_description=User+cancelled');
   const initializeAuth = vi.fn(async () => ({ error: new Error('User cancelled') }));
   const restore = vi.fn(createProfileReturnRestorer(initializeAuth));
   const stop = bindProfileReturnRestoration(restore, false);
@@ -167,8 +173,8 @@ it('access_denied 취소 후 새 Login 마커로 pageshow persisted 복귀하면
 });
 
 it('첫 실행 presetSetup 대기 중 같은 마커로 pageshow persisted 복귀해도 User lookup failed 오류를 유지해 설정 완료 후 Profile에 표시한다', async () => {
-  mockBrowser('https://example.test/game#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
-  await signInFromProfile(async () => {});
+  mockBrowser();
+  await returnFromGoogle('https://example.test/game#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
   const initializeAuth = vi.fn(async () => ({ error: new Error('User lookup failed') }));
   const restore = vi.fn(createProfileReturnRestorer(initializeAuth));
   const stop = bindProfileReturnRestoration(restore, false);
@@ -355,6 +361,79 @@ it('첫 실행 모바일 복귀의 초기화 대기 중 데스크톱으로 재�
     stop();
     unsubscribe();
   }
+});
+
+it.each(['새로고침', 'pageshow persisted'] as const)('헤더 Login 실패가 남긴 /game?error=server_error&error_description=Provider+unavailable에서 Profile Login을 누르면 signIn 전에 주소를 /game으로 바꾸고, Google에서 Back으로 돌아온 %s 복귀에서도 Provider unavailable을 표시하지 않는다', async (restoredBy) => {
+  const history = mockBrowser('https://example.test/game?error=server_error&error_description=Provider+unavailable');
+  history.replaceState.mockImplementation((_state, _unused, url: string) => { window.location.href = url; });
+  useGameStore.getState().completeFirstLaunch();
+  const restore = vi.fn(createProfileReturnRestorer(async () => ({ error: null })));
+  const stop = bindProfileReturnRestoration(restore, false);
+  try {
+    await restore.mock.results[0].value;
+    expect(history.replaceState).not.toHaveBeenCalled();
+
+    const hrefAtSignIn: string[] = [];
+    expect(await signInFromProfile(async () => { hrefAtSignIn.push(window.location.href); })).toBeNull();
+    expect(hrefAtSignIn).toEqual(['https://example.test/game']);
+    expect(history.replaceState).toHaveBeenCalledWith({ router: 1 }, '', 'https://example.test/game');
+
+    if (restoredBy === 'pageshow persisted') {
+      window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+      await restore.mock.results[1].value;
+    } else {
+      stop();
+      await createProfileReturnRestorer(async () => ({ error: null }))(false);
+    }
+    expect(useGameStore.getState()).toMatchObject({
+      screen: 'songSelect', settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: null,
+    });
+  } finally {
+    stop();
+  }
+});
+
+it('SDK 초기화 대기 중 Profile Login이 새 마커를 쓰면 이전 복귀는 초기화가 User lookup failed로 끝나도 새 마커를 소비하지 않고 Profile을 열지 않으며, Google에서 Back으로 온 pageshow persisted 복귀가 오류 없이 Profile을 연다', async () => {
+  mockBrowser();
+  useGameStore.getState().completeFirstLaunch();
+  window.sessionStorage.setItem('not4k-profile-return', String(Date.now() - 60 * 1000));
+  let finish!: (result: { error: Error | null }) => void;
+  const initializeAuth = vi.fn(() => new Promise<{ error: Error | null }>(resolve => { finish = resolve; }));
+  const restore = createProfileReturnRestorer(initializeAuth);
+  const pageLoadAttempt = restore(false);
+
+  await signInFromProfile(async () => {});
+  const newMarker = window.sessionStorage.getItem('not4k-profile-return');
+  finish({ error: new Error('User lookup failed') });
+  await pageLoadAttempt;
+  expect(window.sessionStorage.getItem('not4k-profile-return')).toBe(newMarker);
+  expect(useGameStore.getState()).toMatchObject({ screen: 'title', settingsOpen: false, profileAuthError: null });
+
+  await restore(false, { persisted: true });
+  expect(initializeAuth).toHaveBeenCalledOnce();
+  expect(useGameStore.getState()).toMatchObject({
+    screen: 'songSelect', settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: null,
+  });
+  expect(window.sessionStorage.getItem('not4k-profile-return')).toBeNull();
+});
+
+it('토큰 복귀의 SDK 초기화 오류 User lookup failed로 Profile을 연 뒤 다시 Login한 마커를 같은 앱의 effect 재실행이 읽으면 초기화를 다시 하지 않고 Profile 오류는 null이다', async () => {
+  const history = mockBrowser();
+  history.replaceState.mockImplementation((_state, _unused, url: string) => { window.location.href = url; });
+  useGameStore.getState().completeFirstLaunch();
+  await returnFromGoogle('https://example.test/game#access_token=token&refresh_token=refresh&expires_in=3600&token_type=bearer');
+  const initializeAuth = vi.fn(async () => ({ error: new Error('User lookup failed') }));
+  const restore = createProfileReturnRestorer(initializeAuth);
+  await restore(false);
+  expect(useGameStore.getState().profileAuthError).toBe('User lookup failed');
+  useGameStore.getState().setSettingsOpen(false);
+
+  await signInFromProfile(async () => {});
+  await restore(false);
+  expect(initializeAuth).toHaveBeenCalledOnce();
+  expect(useGameStore.getState()).toMatchObject({
+    settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: null,
+  });
 });
 
 it('11분 지난 복귀 마커는 앱 시작에서 지우고 SDK 초기화와 Profile 열기를 건너뛴다', async () => {

@@ -63,6 +63,14 @@ export async function signInFromProfile(signIn: () => Promise<void>): Promise<st
     // 저장을 막은 브라우저에서도 기존 Google 로그인은 사용할 수 있다.
   }
   try {
+    // Google에서 Back으로 돌아오면(bfcache·새로고침) 복귀 처리가 이 주소를 새 마커의 결과로 읽는다.
+    // 헤더 Login 등이 남긴 이전 OAuth 결과를 떠나기 전에 현재 history 항목에서 지운다.
+    const { cleanUrl } = parseProfileRedirect(window.location.href);
+    if (cleanUrl !== window.location.href) window.history.replaceState(window.history.state, '', cleanUrl);
+  } catch {
+    // replaceState가 막혀도(Safari의 호출 횟수 제한 등) Google 로그인은 진행한다.
+  }
+  try {
     await signIn();
     return null;
   } catch (error) {
