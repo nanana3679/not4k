@@ -39,14 +39,20 @@ class FakeAudio {
   constructor() { fixture.audio.push(this); }
 }
 class FakeRenderer {
+  judgment: Parameters<GameRenderer['showJudgmentGroup']>[0] | null = null;
+  bombLanes: number[] = [];
   init = vi.fn(() => fixture.init()); dispose = vi.fn();
   setExplicitChart = vi.fn<GameRenderer['setExplicitChart']>();
   setExplicitPlaybackChart = vi.fn<GameRenderer['setExplicitPlaybackChart']>();
   scrollSpeed = 0; setLift = vi.fn(); setSudden = vi.fn(); setChartVisible = vi.fn();
   setShowFastSlow = vi.fn(); setShowTimingDiff = vi.fn(); setPerfectWindow = vi.fn(); setupKeyboardDisplay = vi.fn();
-  prepareForPlayback = vi.fn(); resetTransientState = vi.fn();
-  setKeyState = vi.fn(); setKeyBeam = vi.fn(); renderFrame = vi.fn(); updateCombo = vi.fn(); updateAccuracy = vi.fn();
-  showJudgmentGroup = vi.fn(); recordFlightJudgment = vi.fn(); showBombEffect = vi.fn();
+  prepareForPlayback = vi.fn();
+  resetTransientState = vi.fn(() => { this.judgment = null; this.bombLanes = []; });
+  setKeyState = vi.fn(); setKeyBeam = vi.fn(); updateCombo = vi.fn(); updateAccuracy = vi.fn();
+  renderFrame = vi.fn(() => ({ judgment: this.judgment, bombLanes: [...this.bombLanes],
+    snapshot: this.setExplicitChart.mock.calls[0][2]() }));
+  showJudgmentGroup = vi.fn<GameRenderer['showJudgmentGroup']>(state => { this.judgment = state; });
+  recordFlightJudgment = vi.fn(); showBombEffect = vi.fn((lane: number) => { this.bombLanes.push(lane); });
   constructor() { fixture.renderers.push(this); }
 }
 vi.mock('../audio', () => ({ AudioEngine: class extends FakeAudio {} }));
@@ -151,7 +157,8 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     for (const restart of [() => {}, () => frame(4000), () => run.player.retry()]) {
       restart();
       frame(-20);
-      expect(run.state().songTimeMs).toBe(-20); expect(snapshot().atMs).toBe(-20);
+      expect(run.state().songTimeMs).toBe(-30); expect(snapshot().atMs).toBe(-20);
+      expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(-20, 0);
       expect(snapshot().items[0].settlementFactId).toBeNull();
       frame(0); expect(snapshot().items[0].settlementFactId).not.toBeNull();
       expect(run.onError).not.toHaveBeenCalled();
@@ -205,7 +212,7 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     expect(fixture.skins).toHaveLength(1); expect(fixture.explicit).toHaveLength(1);
     expect(fixture.renderers[0].setExplicitChart).toHaveBeenCalledOnce();
     expect(fixture.renderers[0].setExplicitPlaybackChart).toHaveBeenCalledTimes(3);
-    expect(fixture.renderers[0].resetTransientState).toHaveBeenCalledTimes(3);
+    expect(fixture.renderers[0].resetTransientState).toHaveBeenCalledOnce();
     expect([...run.target.listeners]).toEqual(listeners); expect(frames.size).toBe(1);
     expect(finalize).not.toHaveBeenCalled(); expect(run.onError).not.toHaveBeenCalled();
   });
@@ -248,6 +255,47 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     expect(run.state().manualStats).toBeNull();
     expect(renderer.updateCombo).toHaveBeenLastCalledWith(0); expect(renderer.updateAccuracy).toHaveBeenLastCalledWith(null);
     expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it.each(['Auto', '수동'] as const)('%s 16～99ms RAF는 상태를 알리지 않고 100·200ms에만 진행 시각을 알린다', async mode => {
+    const run = create(); await run.player.start(); run.player.setAuto(mode === 'Auto');
+    run.onState.mockClear();
+    for (const time of [16, 32, 48, 64, 80, 99]) frame(time);
+    expect(run.onState).not.toHaveBeenCalled();
+    frame(100);
+    expect(run.onState).toHaveBeenCalledOnce(); expect(run.state().songTimeMs).toBe(100);
+    frame(116); frame(199);
+    expect(run.onState).toHaveBeenCalledOnce();
+    frame(200);
+    expect(run.onState.mock.calls.map(([state]) => state.songTimeMs)).toEqual([100, 200]);
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('100ms 진행 알림 뒤 110·130ms 수동 Perfect는 콤보 1·2와 100%를 즉시 알리고 120ms RAF는 생략한다', async () => {
+    const run = create([p(110), p(130)]); await run.player.start(); run.player.setAuto(false); frame(100);
+    run.onState.mockClear();
+    at(110); key(run.target, 'keydown'); frame(110);
+    expect(run.onState).toHaveBeenCalledExactlyOnceWith({ autoEnabled: false,
+      manualStats: { combo: 1, achievementRate: 100 }, songTimeMs: 110 });
+    at(120); key(run.target, 'keyup'); frame(120);
+    expect(run.onState).toHaveBeenCalledOnce();
+    at(130); key(run.target, 'keydown'); frame(130);
+    expect(run.onState).toHaveBeenCalledTimes(2);
+    expect(run.state()).toEqual({ autoEnabled: false, manualStats: { combo: 2, achievementRate: 100 }, songTimeMs: 130 });
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('0ms에서 일시정지·재개·Auto·Retry를 조작하고 3999→4000ms에 반복하면 100ms를 기다리지 않고 상태를 알린다', async () => {
+    const run = create(); await run.player.start();
+    for (const action of [() => run.player.togglePause(), () => run.player.togglePause(),
+      () => run.player.setAuto(false), () => run.player.setAuto(true), () => run.player.retry()]) {
+      run.onState.mockClear(); action();
+      expect(run.onState).toHaveBeenCalledOnce(); expect(run.state().songTimeMs).toBe(0);
+    }
+    frame(3999); run.onState.mockClear(); frame(4000);
+    expect(run.onState).toHaveBeenCalledExactlyOnceWith({ autoEnabled: true, manualStats: null, songTimeMs: 0 });
+    frame(16);
+    expect(run.onState).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
   });
 
   it('1000ms 수동 탭의 효과를 1회 drain한 같은 배열로 시각 sink·수동 집계에 전달해 타격 1회·콤보 1을 만든다', async () => {
@@ -302,6 +350,31 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     expect(fixture.renderers[0].showBombEffect).not.toHaveBeenCalled(); expect(run.onError).not.toHaveBeenCalled();
   });
 
+  it('1000ms 정지 후 재개 처리 5000～5100ms 중 발생한 5050·5099ms down은 무시하고 5100ms down만 Perfect다', async () => {
+    const run = create([p(1000), p(1000, 'single', 2), p(1000, 'single', 3)]);
+    await run.player.start(); run.player.setAuto(false); frame(1000); run.player.togglePause();
+    wallFrame(5000);
+    const syncHeldKeys = ExplicitJudgmentSession.prototype.syncHeldKeys;
+    vi.spyOn(ExplicitJudgmentSession.prototype, 'syncHeldKeys').mockImplementationOnce(function (this: ExplicitJudgmentSession, ...args) {
+      fixture.now += 60;
+      return syncHeldKeys.apply(this, args);
+    });
+    const audio = fixture.audio[0];
+    audio.resume.mockImplementationOnce(() => {
+      fixture.now += 40;
+      audio.startedAt = fixture.now; audio.running = true;
+    });
+    run.player.togglePause();
+    expect(fixture.now).toBe(5100);
+    key(run.target, 'keydown', 'KeyW', 5050); key(run.target, 'keydown', 'KeyE', 5099);
+    key(run.target, 'keydown', 'KeyP', 5100); frame(1000);
+    expect(snapshot().items.slice(0, 2).map(item => item.settlementFactId)).toEqual([null, null]);
+    expect(snapshot().items[2].settlementFactId).not.toBeNull();
+    expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
+    expect(fixture.renderers[0].showBombEffect).toHaveBeenCalledExactlyOnceWith(3);
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
   it('1500ms 정지 중 Auto를 끄고 KeyW를 눌렀다 떼면 입력을 판정하지 않고 재개 후 20ms 유예 뒤 바디가 실패한다', async () => {
     const run = create([p(1000), b(1000, 3000), t(2000), r(3000), p(1500, 'single', 2)]);
     await run.player.start(); frame(1400); at(1500); run.player.togglePause();
@@ -354,13 +427,38 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     expect(run.state().manualStats).toEqual({ combo: 0, achievementRate: 0 }); expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it('입력 −100ms에서 마지막 4000ms 탭을 놓치면 4221ms에 Miss를 1회 표시한 뒤 반복한다', async () => {
+  it('입력 −100ms에서 마지막 4000ms 탭을 놓치면 4221ms에 반복한 뒤 첫 0ms 렌더에도 Miss가 남는다', async () => {
     const run = create([p(4000)], { inputOffsetMs: -100 }); await run.player.start(); run.player.setAuto(false);
     frame(4000); frame(4220);
     expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledOnce();
     frame(4221);
-    expect(fixture.renderers[0].showJudgmentGroup).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ grade: 'miss' }));
+    const renderer = fixture.renderers[0];
+    expect(renderer.showJudgmentGroup).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ grade: 'miss' }));
+    expect(renderer.renderFrame).toHaveBeenLastCalledWith(0, 0);
+    expect(renderer.renderFrame.mock.results.at(-1)!.value.judgment).toMatchObject({ grade: 'miss' });
+    frame(16);
+    expect(renderer.renderFrame.mock.results.at(-1)!.value.judgment).toMatchObject({ grade: 'miss' });
+    expect(run.state().manualStats).toEqual({ combo: 0, achievementRate: 0 });
     expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledTimes(2); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('1000～4000ms Auto 바디 뒤 4121ms에 반복하면 Perfect·타격은 남고 바디·빔은 초기화되며 Retry는 표시도 지운다', async () => {
+    const run = create([b(1000, 4000), r(4000)]); await run.player.start(); frame(3999);
+    const renderer = fixture.renderers[0];
+    expect(renderer.renderFrame.mock.results.at(-1)!.value.snapshot.bodyUnits[0].state).toBe('active');
+    expectKeys(true);
+    renderer.showBombEffect.mockClear();
+    frame(4121);
+    const rendered = renderer.renderFrame.mock.results.at(-1)!.value;
+    expect(rendered.judgment).toMatchObject({ grade: 'perfect' });
+    expect(rendered.bombLanes).toEqual([1]);
+    expect(renderer.showBombEffect).toHaveBeenCalledExactlyOnceWith(1);
+    expect(rendered.snapshot.bodyUnits[0].state).toBe('waiting'); expectKeys(false);
+    expect(renderer.renderFrame).toHaveBeenLastCalledWith(0, 0);
+    expect(renderer.setExplicitPlaybackChart).toHaveBeenCalledOnce();
+    run.player.retry();
+    expect(renderer.renderFrame.mock.results.at(-1)!.value).toMatchObject({ judgment: null, bombLanes: [] });
+    expect(run.onError).not.toHaveBeenCalled();
   });
 
   it('1500ms 정지 중 Retry하면 수동 모드를 유지한 새 0ms 세션으로 즉시 재생한다', async () => {

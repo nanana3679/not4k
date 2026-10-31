@@ -30,6 +30,7 @@ export interface ObserverPlayRuntimeOptions {
   height: number;
   inputTarget: EventTarget;
   onPhase(phase: ObserverPlayPhase): void;
+  /** Auto·수동 집계 변경과 조작은 즉시, 곡 시각만 바뀌면 100ms 간격으로 알린다. */
   onState?(state: ObserverPlayState): void;
   onError(error: Error): void;
 }
@@ -48,6 +49,8 @@ export class ObserverPlayRuntime {
   private closed = false;
   private paused = false;
   private lastFrame: number | null = null;
+  private lastState: ObserverPlayState | null = null;
+  private lastStateAt = -Infinity;
 
   constructor(private readonly options: ObserverPlayRuntimeOptions) {
     const { request, settings, canvas, width, height, inputTarget } = options;
@@ -94,7 +97,7 @@ export class ObserverPlayRuntime {
         // 끝의 효과도 같은 batch로 한 번 전달한 뒤 반복 상태를 버린다. finalize/result 경로는 없다.
         this.adapter!.sync(clock.visualTimeMs());
         if (this.repetition!.isFinished(songTimeMs, advanceAtMs)) {
-          this.retry();
+          this.restartRepetition();
           return;
         }
         const deltaMs = this.lastFrame === null ? 0 : timestamp - this.lastFrame;
@@ -114,8 +117,8 @@ export class ObserverPlayRuntime {
         // resumeAt은 바디 시작 창을 다시 연다. Observer는 현재 core의 hold만 맞춘다.
         repetition.session.syncHeldKeys(repetition.session.snapshot.atMs,
           repetition.autoEnabled ? repetition.autoHeldKeys : this.input.heldKeys, this.clock.judgmentTimeMs());
-        this.input.setJudging(repetition.judgesHumanInput, timestamp);
         this.audio.resume();
+        this.input.setJudging(repetition.judgesHumanInput, performance.now());
         this.paused = false;
       } else {
         this.audio.pause();
@@ -126,7 +129,7 @@ export class ObserverPlayRuntime {
       this.lastFrame = null;
       this.adapter!.sync(this.clock.visualTimeMs());
       this.options.onPhase(this.paused ? 'paused' : 'playing');
-      if (!this.closed) this.render(0);
+      if (!this.closed) this.render(0, true);
     } catch (error) { this.fail(error); }
   }
 
@@ -137,7 +140,7 @@ export class ObserverPlayRuntime {
       // setAuto(false)는 사람 판정을 켠다. pause가 우선이므로 이벤트를 받기 전에 다시 닫는다.
       if (this.paused) this.input.setJudging(false);
       this.adapter!.sync(this.clock.visualTimeMs());
-      this.render(0);
+      this.render(0, true);
     } catch (error) { this.fail(error); }
   }
 
@@ -145,12 +148,17 @@ export class ObserverPlayRuntime {
   retry(): void {
     if (this.closed || !this.input || !this.repetition) return;
     try {
-      this.input.setJudging(false); // 이전 반복의 미처리 입력은 새 시간축으로 넘기지 않는다.
-      this.replaceRepetition();
-      this.renderer!.setExplicitPlaybackChart(this.repetition.playbackChart);
       this.renderer!.resetTransientState();
-      this.playRepetition();
+      this.restartRepetition();
     } catch (error) { this.fail(error); }
+  }
+
+  private restartRepetition(): void {
+    this.input!.setJudging(false); // 이전 반복의 미처리 입력은 새 시간축으로 넘기지 않는다.
+    this.replaceRepetition();
+    // 자연 반복은 판정 글자·타격 수명을 유지한다. 바디 뷰는 교체하고 키·빔은 render에서 갱신한다.
+    this.renderer!.setExplicitPlaybackChart(this.repetition!.playbackChart);
+    this.playRepetition();
   }
 
   private replaceRepetition(): void {
@@ -183,7 +191,7 @@ export class ObserverPlayRuntime {
     this.lastFrame = null;
     this.renderer!.setChartVisible(true);
     this.options.onPhase('playing');
-    if (!this.closed) this.render(0);
+    if (!this.closed) this.render(0, true);
   }
 
   private stepSession(timestamp: number): number {
@@ -202,7 +210,7 @@ export class ObserverPlayRuntime {
     session.syncHeldKeys(session.snapshot.atMs, this.input!.heldKeys, songTimeMs);
   }
 
-  private render(deltaMs: number): void {
+  private render(deltaMs: number, notifyImmediately = false): void {
     const repetition = this.repetition!;
     const renderer = this.renderer!;
     const heldKeys = [...this.input!.heldKeys, ...repetition.autoHeldKeys];
@@ -213,7 +221,14 @@ export class ObserverPlayRuntime {
     renderer.updateCombo(manualStats?.combo ?? 0);
     renderer.updateAccuracy(manualStats?.achievementRate ?? null);
     renderer.renderFrame(this.clock!.visualTimeMs(), deltaMs);
-    this.options.onState?.({ autoEnabled: repetition.autoEnabled, manualStats, songTimeMs: this.clock!.judgmentTimeMs() });
+    const timestamp = performance.now();
+    const stateChanged = repetition.autoEnabled !== this.lastState?.autoEnabled
+      || manualStats?.combo !== this.lastState?.manualStats?.combo
+      || manualStats?.achievementRate !== this.lastState?.manualStats?.achievementRate;
+    if (!notifyImmediately && !stateChanged && timestamp - this.lastStateAt < 100) return;
+    this.lastStateAt = timestamp;
+    this.lastState = { autoEnabled: repetition.autoEnabled, manualStats, songTimeMs: this.clock!.judgmentTimeMs() };
+    this.options.onState?.(this.lastState);
   }
 
   dispose(): void {
