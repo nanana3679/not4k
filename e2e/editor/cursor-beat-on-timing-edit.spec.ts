@@ -8,6 +8,26 @@ import { editorTestChart, openEditor } from './editorTestSetup';
 
 test.setTimeout(60_000);
 
+type PlaybackProbeWindow = Window & { editorPlaybackStartMs?: number };
+
+/** 다음 play() 직후 재생기 위치를 기록한다. 이후 rAF·테스트 대기 시간의 진행량은 포함하지 않는다. */
+async function captureNextPlaybackStart(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const path = '/src/editor/playback/PlaybackController.ts';
+    const { PlaybackController } = await import(path);
+    const original = PlaybackController.prototype.play;
+    delete (window as PlaybackProbeWindow).editorPlaybackStartMs;
+    PlaybackController.prototype.play = function (this: { readonly currentTimeMs: number }) {
+      try {
+        original.call(this);
+        (window as PlaybackProbeWindow).editorPlaybackStartMs = this.currentTimeMs;
+      } finally {
+        PlaybackController.prototype.play = original;
+      }
+    };
+  });
+}
+
 async function cursor(page: Page): Promise<{ currentTimeMs: number; isPlaying: boolean }> {
   return page.evaluate(async () => {
     const path = '/src/editor/stores/editorStore.ts';
@@ -73,10 +93,12 @@ test.describe('정지 중 타이밍 값 수정 뒤 커서 박 유지', () => {
       await openEditor(page, { chart, audio: true });
       await expect.poll(async () => (await cursor(page)).currentTimeMs).toBe(offsetMs);
 
+      await captureNextPlaybackStart(page);
       await playBriefly(page);
-      const after = (await cursor(page)).currentTimeMs;
-      expect(after).toBeGreaterThan(offsetMs - 1);
-      expect(after).toBeLessThan(offsetMs + 1500);
+      const start = await page.evaluate(() => (window as PlaybackProbeWindow).editorPlaybackStartMs);
+      // −500ms의 허용 범위는 −501～−450ms라, 0ms에서 잘못 재생하면 반드시 실패한다.
+      expect(start).toBeGreaterThan(offsetMs - 1);
+      expect(start).toBeLessThan(offsetMs + 50);
     });
   }
 
