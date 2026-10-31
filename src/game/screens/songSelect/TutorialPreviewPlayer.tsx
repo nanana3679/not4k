@@ -15,6 +15,7 @@ import {
   type ExplicitTutorialPatternResult,
 } from './explicitTutorialPreviewPlayback';
 import { stepTutorialLoopClock } from './tutorialLoopClock';
+import { stepExplicitTutorialLoop } from './explicitTutorialLoop';
 import { getTutorialRenderCycleIndex, mapTutorialRenderBodyQuery } from './tutorialPreviewRenderMapping';
 import { TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
 import { createChartTiming } from '../../../shared';
@@ -507,6 +508,7 @@ export function TutorialPreviewPlayer({
     let previousDiagramHash = '';
     let previousNow = performance.now();
     let previousLoopTime = 0;
+    let previousExplicitLoopIteration = 0;
     let loopStartNow = previousNow;
     let pausedAtNow: number | null = null;
     let activeDiagramPause: TutorialDiagramPause | null = null;
@@ -605,6 +607,8 @@ export function TutorialPreviewPlayer({
 
       const resumeNow = performance.now();
       loopStartNow = resumeNow - activeDiagramPause.timing.endMs;
+      // OK는 시계를 현재 반복의 도식 끝으로 다시 잡으므로 명시 경계의 비교 기준도 함께 돌린다.
+      previousExplicitLoopIteration = 0;
       previousNow = resumeNow;
       // 멈춘(paused) 상태에서 재개하면 멈춘 시각을 지금으로 옮겨, 나중에 일시정지가 풀릴 때 도식 끝 시점에서 그대로 잇는다.
       if (pausedAtNow !== null) pausedAtNow = resumeNow;
@@ -752,6 +756,7 @@ export function TutorialPreviewPlayer({
         loopStartNow = previousNow;
         pausedAtNow = null;
         previousLoopTime = 0;
+        previousExplicitLoopIteration = 0;
         activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
         attachedRenderer = renderer;
         rendererRef.current = renderer;
@@ -777,7 +782,16 @@ export function TutorialPreviewPlayer({
           const renderTimeMs = preview.renderStartMs + loopTimeMs;
           const activeTimings = getActiveTutorialInputTimings(loopTimeMs, timings);
 
-          if (loopTimeMs < previousLoopTime) {
+          if (isExplicitTutorialPreview(preview)) {
+            const loop = stepExplicitTutorialLoop({
+              elapsedMs: now - loopStartNow,
+              loopMs: preview.loopMs,
+              previousIteration: previousExplicitLoopIteration,
+              frozen: clock.frozen || activeDiagramPause !== null,
+            });
+            previousExplicitLoopIteration = loop.iteration;
+            if (loop.finished) previewJudgment.finishLoop();
+          } else if (loopTimeMs < previousLoopTime) {
             previewJudgment.finishLoop();
           }
           previewJudgment.advanceTo(loopTimeMs);

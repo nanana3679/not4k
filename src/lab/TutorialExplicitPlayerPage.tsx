@@ -26,6 +26,7 @@ export default function TutorialExplicitPlayerPage() {
       : current);
   };
   const select = (previewId: string) => {
+    if (previewId === selectedPreviewId) return;
     setSelectedId(previewId);
     setStats({ previewId, finished: 0, last: null });
   };

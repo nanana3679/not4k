@@ -458,6 +458,41 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect([...legacyBoundary].sort((a, b) => a - b)).toEqual(legacyBoundary);
   });
 
+  it('명시 경계는 paused·도식 확인 후 경과 시간의 차수로 한 번 정산하고 구형은 loopTimeMs 감소만 검사', () => {
+    const explicitStart = renderLoopBody.indexOf('if (isExplicitTutorialPreview(preview)) {');
+    const legacyStart = renderLoopBody.indexOf('} else if (loopTimeMs < previousLoopTime) {', explicitStart);
+    expect(explicitStart).toBeGreaterThan(renderLoopBody.indexOf('if (clock.frozen) {'));
+    expect(explicitStart).toBeGreaterThan(renderLoopBody.indexOf('loopTimeMs = resolveDiagramPauseTime(loopTimeMs);'));
+    expect(legacyStart).toBeGreaterThan(explicitStart);
+    const explicitBoundary = renderLoopBody.slice(explicitStart, legacyStart);
+    expect(explicitBoundary).toContain('stepExplicitTutorialLoop({');
+    expect(explicitBoundary).toContain('elapsedMs: now - loopStartNow,');
+    expect(explicitBoundary).toContain('loopMs: preview.loopMs,');
+    expect(explicitBoundary).toContain('previousIteration: previousExplicitLoopIteration,');
+    expect(explicitBoundary).toContain('frozen: clock.frozen || activeDiagramPause !== null,');
+    expect(explicitBoundary).toContain('previousExplicitLoopIteration = loop.iteration;');
+    expect(explicitBoundary).toContain('if (loop.finished) previewJudgment.finishLoop();');
+    expect(explicitBoundary.match(/previewJudgment\.finishLoop\(\)/g)).toHaveLength(1);
+    expect(explicitBoundary).not.toMatch(/\b(for|while)\s*\(/);
+    expect(renderLoopBody.slice(legacyStart)).toContain([
+      '} else if (loopTimeMs < previousLoopTime) {',
+      '            previewJudgment.finishLoop();',
+      '          }',
+      '          previewJudgment.advanceTo(loopTimeMs);',
+    ].join('\n'));
+  });
+
+  it('도식 OK와 차트 재연결은 loopStartNow를 다시 잡을 때 명시 차수도 0으로 초기화', () => {
+    const resumeStart = tutorialPreviewPlayerSource.indexOf('resumeDiagramRef.current = () => {');
+    const resumeEnd = tutorialPreviewPlayerSource.indexOf('    resolveDiagramPauseTime(0);', resumeStart);
+    const resumeBody = tutorialPreviewPlayerSource.slice(resumeStart, resumeEnd);
+    expect(resumeBody).toContain('loopStartNow = resumeNow - activeDiagramPause.timing.endMs;');
+    expect(resumeBody).toContain('previousExplicitLoopIteration = 0;');
+    const attachBody = tutorialPreviewPlayerSource.slice(attachStart, renderLoopStart);
+    expect(attachBody).toContain('loopStartNow = previousNow;');
+    expect(attachBody).toContain('previousExplicitLoopIteration = 0;');
+  });
+
   it('명시 노트 도안은 렌더러마다 명시 정의를 처음 걸 때만 ExplicitSkinLoader로 불러오고, 정리는 렌더러 dispose 뒤에 함', () => {
     expect(tutorialPreviewPlayerSource).toContain("import('../../skin/ExplicitSkinLoader')");
     expect(tutorialPreviewPlayerSource).toContain('state.loadExplicitSkin().then(');

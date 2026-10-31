@@ -85,6 +85,12 @@ test('명시 튜토리얼 재생기 Lab은 탭 시연을 반복마다 Perfect 3�
   await expect(result).toHaveAttribute('data-last-perfect', '3');
   await expect(result).toHaveAttribute('data-last-miss', '0');
 
+  // 이미 선택한 시연을 눌러도 재생은 계속되므로 누적 횟수·마지막 결과도 유지한다.
+  await page.getByRole('button', { name: '싱글 탭 노트', exact: true }).click();
+  expect(Number(await result.getAttribute('data-finished-patterns'))).toBeGreaterThanOrEqual(2);
+  expect(Number(await result.getAttribute('data-last-iteration'))).toBeGreaterThanOrEqual(1);
+  await expect(result).toHaveAttribute('data-last-perfect', '3');
+
   const afterTap = await readProbe(page);
   // 차트를 걸 때 한 번만 지우고 건다. 반복 경계(2번)마다 다시 걸거나 판정 글자를 지우지 않는다.
   expect(afterTap).toMatchObject({ resets: 1, explicitCharts: 1, legacyCharts: 0 });

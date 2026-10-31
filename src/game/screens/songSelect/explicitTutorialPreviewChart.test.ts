@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { beat } from '../../../shared/types/beat';
+import { beatToMs, extractBpmChanges } from '../../../shared/timing';
 import type { ChartDocument } from '../../../shared/types/chart';
 import { compileExplicitJudgmentChart } from '../../judgment/explicitCompiledChart';
 import {
@@ -63,9 +64,42 @@ describe('명시 튜토리얼 3벌 표시 문서', () => {
     expect(chart.trillZones).toHaveLength(1);
   });
 
-  it('구형 renderChart처럼 이벤트는 bpm·박자만 남기고 tutorialInput·tutorialDiagram·text는 표시 문서에서 뺌', () => {
+  it('4박 시연을 3벌로 만들면 bpm·박자는 각각 3개 남기고 tutorialInput·tutorialDiagram·text는 뺌', () => {
     const render = createExplicitTutorialRenderDocument(sourceChart(), 4);
-    expect(render.events.map(event => event.type)).toEqual(['bpm', 'timeSignature']);
+    expect(render.events.map(event => event.type)).toEqual([
+      'bpm', 'timeSignature', 'bpm', 'timeSignature', 'bpm', 'timeSignature',
+    ]);
+  });
+
+  it('4박 중 2박에서 120→240 BPM으로 바뀌면 1박 노트는 500·2000·3500ms에 표시하고 각 복사본의 박자표도 4박씩 옮김', () => {
+    const chart = sourceChart();
+    chart.events.push(
+      { type: 'bpm', beat: beat(2), bpm: 240 },
+      { type: 'timeSignature', beat: beat(2), beatPerMeasure: beat(2), editorLane: 2 },
+    );
+    const preview = createExplicitTutorialPreview('tempo-change', '변속 시연', [], 4, chart);
+    const sourceBpmChanges = extractBpmChanges(chart.events);
+    const renderBpmChanges = extractBpmChanges(preview.renderChart.events);
+    const noteTimes = preview.renderChart.notes.map(note =>
+      beatToMs(note.beat, renderBpmChanges, chart.meta.offsetMs));
+
+    expect(preview.loopMs).toBe(1500);
+    expect([noteTimes[0], noteTimes[5], noteTimes[10]]).toEqual([500, 2000, 3500]);
+    for (const [index, noteTime] of noteTimes.entries()) {
+      const cycleIndex = Math.floor(index / chart.notes.length);
+      const sourceNote = chart.notes[index % chart.notes.length];
+      expect(noteTime).toBe(preview.loopMs * cycleIndex
+        + beatToMs(sourceNote.beat, sourceBpmChanges, chart.meta.offsetMs));
+    }
+    expect(preview.renderChart.events.filter(event => event.type === 'timeSignature')).toEqual([
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'timeSignature', beat: beat(2), beatPerMeasure: beat(2), editorLane: 2 },
+      { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'timeSignature', beat: beat(6), beatPerMeasure: beat(2), editorLane: 2 },
+      { type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'timeSignature', beat: beat(10), beatPerMeasure: beat(2), editorLane: 2 },
+    ]);
+    expect(chart.events.filter(event => event.type === 'bpm')).toHaveLength(2);
   });
 
   it('3벌 표시 문서도 명시 compile을 통과하며 점수 항목 5개·바디 1개가 각각 3배(15개·3개)', () => {
