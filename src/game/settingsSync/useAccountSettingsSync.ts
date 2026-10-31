@@ -5,7 +5,7 @@ import { showToast } from '../../shared/toast';
 import { DEV_ADMIN } from '../../shared/hooks/useAuth';
 import { useGameStore } from '../stores/gameStore';
 import { createAccountSettingsAdapter } from './accountSettingsAdapter';
-import { createAccountSettingsSync } from './accountSettingsSync';
+import { ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE, createAccountSettingsSync } from './accountSettingsSync';
 
 /** 게임 루트에서 한 번 구독하며 화면 전환과 독립적으로 살아 있다. */
 export function subscribeAccountSettingsSync(): () => void {
@@ -29,7 +29,9 @@ export function subscribeAccountSettingsSync(): () => void {
     const userId = user && !user.is_anonymous ? user.id : null;
     if (userId === currentUserId && !retryLoad) return;
     currentUserId = userId;
-    void sync.setUser(user);
+    void sync.setUser(user).catch(() => {
+      if (active && currentUserId === userId) showToast(ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE, 'error');
+    });
   };
   const onVisibilityChange = () => {
     if (document.visibilityState === 'hidden') sync.flush();

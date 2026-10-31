@@ -1,9 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../stores/gameStore';
 import { applyAccountSettings, selectAccountSettings, createAccountSettingsSync,
-  type AccountSettings, type LoadAccountSettingsResult } from './accountSettingsSync';
+  type AccountSettings, type InsertAccountSettingsResult, type LoadAccountSettingsResult } from './accountSettingsSync';
 
 describe('계정 설정 분리', () => {
+  it.each([
+    ['lane1 키 16개', Array.from({ length: 16 }, (_, i) => `Test${i}`), true],
+    ['lane1 키 17개', Array.from({ length: 17 }, (_, i) => `Test${i}`), false],
+    ['키 코드 32자', ['K'.repeat(32), 'KeyA'], true],
+    ['키 코드 33자', ['K'.repeat(33), 'KeyA'], false],
+  ] as const)('서버 %s는 상한 이내일 때만 keyBindings를 적용한다', (_label, lane1, accepted) => {
+    const local = useGameStore.getInitialState().settings;
+    const keyBindings = { ...local.keyBindings, lane1: [...lane1] };
+    expect(applyAccountSettings(local, { keyBindings, scrollSpeed: 1200 }))
+      .toEqual({ ...local, keyBindings: accepted ? keyBindings : local.keyBindings, scrollSpeed: 1200 });
+  });
+  it.each([64, 65])('서버 skinId %i자는 64자까지 적용하고 초과하면 로컬 skinId를 유지한다', length => {
+    const local = useGameStore.getInitialState().settings;
+    const skinId = 's'.repeat(length);
+    expect(applyAccountSettings(local, { skinId, scrollSpeed: 1200 }))
+      .toEqual({ ...local, skinId: length === 64 ? skinId : local.skinId, scrollSpeed: 1200 });
+  });
+  it.each([
+    ['lane1·lane2의 KeyA 중복', ['KeyA', 'KeyS'], ['KeyA', 'KeyD']],
+    ['lane1 안의 KeyA 중복', ['KeyA', 'KeyA'], ['KeyD', 'KeyF']],
+    ['lane1 키 1개', ['KeyA'], ['KeyD', 'KeyF']],
+    ['lane1 키 0개', [], ['KeyD', 'KeyF']],
+  ])('서버 %s는 keyBindings 전체를 로컬로 유지하고 scrollSpeed=1200만 적용한다', (_label, lane1, lane2) => {
+    const local = useGameStore.getInitialState().settings;
+    const keyBindings = { lane1, lane2, lane3: ['KeyJ', 'KeyK'], lane4: ['KeyL', 'Semicolon'] };
+    expect(applyAccountSettings(local, { keyBindings, scrollSpeed: 1200 }))
+      .toEqual({ ...local, scrollSpeed: 1200 });
+  });
   it('18개 설정에서 계정 설정을 고르면 기기 전용 5개와 알 수 없는 키를 제외한 13개만 남는다', () => {
     const settings = { ...useGameStore.getInitialState().settings, obsolete: 42 };
     const account = selectAccountSettings(settings);
@@ -40,9 +68,10 @@ describe('계정 설정 분리', () => {
     expect(applyAccountSettings(local, server)).toEqual(local);
   });
 
-  it('유효한 4개 문자열 배열과 gearMotion=false만 적용하고 잘못된 scrollSpeed·옛 키는 버린다', () => {
+  it('레인마다 서로 다른 키 2개와 gearMotion=false만 적용하고 잘못된 scrollSpeed·옛 키는 버린다', () => {
     const local = { ...useGameStore.getInitialState().settings, inputOffsetMs: 1500 };
-    const keyBindings = { lane1: ['KeyA'], lane2: [], lane3: ['KeyD'], lane4: ['KeyF'] };
+    const keyBindings = { lane1: ['KeyA', 'KeyS'], lane2: ['KeyD', 'KeyF'],
+      lane3: ['KeyJ', 'KeyK'], lane4: ['KeyL', 'Semicolon'] };
     const applied = applyAccountSettings(local, {
       keyBindings, gearMotion: false, scrollSpeed: NaN, frameMotion: true, unknown: 3,
     });
@@ -55,10 +84,10 @@ function setupSync() {
   const listeners = new Set<() => void>();
   const store = {
     getSettings: () => settings,
-    applySettings: (next: typeof settings) => {
+    applySettings: vi.fn((next: typeof settings) => {
       settings = next;
       listeners.forEach(listener => listener());
-    },
+    }),
     subscribe: (listener: () => void) => {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
@@ -68,10 +97,12 @@ function setupSync() {
     .mockResolvedValue({ status: 'found', settings: { scrollSpeed: 1200 } });
   const save = vi.fn<(...args: [string, AccountSettings, AbortSignal]) => Promise<boolean>>()
     .mockResolvedValue(true);
+  const insertIfAbsent = vi.fn<(...args: [string, AccountSettings, AbortSignal]) => Promise<InsertAccountSettingsResult>>()
+    .mockResolvedValue('inserted');
   const notice = vi.fn();
-  const sync = createAccountSettingsSync({ store, load, save, notice,
+  const sync = createAccountSettingsSync({ store, load, insertIfAbsent, save, notice,
     timers: { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: id => clearTimeout(id) } });
-  return { ...store, load, save, notice, sync,
+  return { ...store, load, insertIfAbsent, save, notice, sync,
     change: (partial: Partial<typeof settings>) => store.applySettings({ ...settings, ...partial }) };
 }
 
@@ -84,6 +115,134 @@ function deferred<T>() {
 describe('계정 설정 동기화 수명', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
+
+  it('서버 1200 적용 중 저장소 예외가 나면 setUser는 실패 안내 후 종료하고 900 변경을 업로드하지 않는다', async () => {
+    const test = setupSync();
+    test.applySettings.mockImplementationOnce(() => { throw new Error('quota exceeded'); });
+    await expect(test.sync.setUser({ id: 'A' })).resolves.toBeUndefined();
+    expect(test.notice).toHaveBeenCalledWith("Couldn't load your account settings. Using this browser's settings.");
+    test.change({ scrollSpeed: 900 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.save).not.toHaveBeenCalled();
+    expect(test.insertIfAbsent).not.toHaveBeenCalled();
+    await test.sync.setUser({ id: 'A' });
+    expect(test.getSettings().scrollSpeed).toBe(1200);
+    test.sync.dispose();
+  });
+
+  it.each([
+    [16384, 'a', true], [16385, 'a', false], [16384, '가', true], [16385, '가', false],
+  ] as const)('서버 JSON UTF-8 %i바이트(%s)는 16KiB까지 적용하고 초과하면 전체 불러오기 실패로 처리한다', async (bytes, character, accepted) => {
+    const test = setupSync();
+    const settings = { scrollSpeed: 1200, ignored: '' };
+    const paddingBytes = bytes - new TextEncoder().encode(JSON.stringify(settings)).byteLength;
+    const characterBytes = new TextEncoder().encode(character).byteLength;
+    settings.ignored = character.repeat(Math.floor(paddingBytes / characterBytes)) + 'a'.repeat(paddingBytes % characterBytes);
+    expect(new TextEncoder().encode(JSON.stringify(settings)).byteLength).toBe(bytes);
+    test.load.mockResolvedValue({ status: 'found', settings });
+    await test.sync.setUser({ id: 'A' });
+    expect(test.getSettings().scrollSpeed).toBe(accepted ? 1200 : 800);
+    if (accepted) expect(test.notice).not.toHaveBeenCalled();
+    else expect(test.notice).toHaveBeenCalledWith("Couldn't load your account settings. Using this browser's settings.");
+    test.change({ scrollSpeed: 900 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.save).toHaveBeenCalledTimes(accepted ? 1 : 0);
+    expect(test.insertIfAbsent).not.toHaveBeenCalled();
+    test.sync.dispose();
+  });
+
+  it('800 최초 삽입 중 900으로 변경하면 삽입 성공 전에는 저장하지 않고 성공 뒤 최신 900을 저장한다', async () => {
+    const test = setupSync();
+    const pending = deferred<InsertAccountSettingsResult>();
+    test.load.mockResolvedValue({ status: 'notFound' });
+    test.insertIfAbsent.mockReturnValueOnce(pending.promise);
+    const loading = test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(0);
+    test.change({ scrollSpeed: 900 });
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.insertIfAbsent).toHaveBeenCalledTimes(1);
+    expect(test.save).not.toHaveBeenCalled();
+    pending.resolve('inserted');
+    await loading;
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.save.mock.calls.map(([, settings]) => settings.scrollSpeed)).toEqual([900]);
+    test.sync.dispose();
+  });
+
+  it.each<LoadAccountSettingsResult>([{ status: 'notFound' }, { status: 'failed' }])(
+    '삽입 충돌 뒤 재조회가 %j이면 실패 안내 후 저장하지 않고 다음 로그인에서도 충돌하면 같은 처리를 한다', async reload => {
+      const test = setupSync();
+      test.load.mockResolvedValueOnce({ status: 'notFound' }).mockResolvedValueOnce(reload)
+        .mockResolvedValueOnce({ status: 'notFound' }).mockResolvedValueOnce(reload);
+      test.insertIfAbsent.mockResolvedValue('ignored');
+      for (const speed of [900, 1000]) {
+        await test.sync.setUser({ id: 'A' });
+        test.change({ scrollSpeed: speed });
+        test.sync.flush();
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(test.save).not.toHaveBeenCalled();
+      }
+      expect(test.load).toHaveBeenCalledTimes(4);
+      expect(test.insertIfAbsent).toHaveBeenCalledTimes(2);
+      expect(test.notice).toHaveBeenCalledTimes(2);
+      expect(test.notice).toHaveBeenCalledWith("Couldn't load your account settings. Using this browser's settings.");
+      test.sync.dispose();
+    },
+  );
+
+  it('최초 삽입 오류는 불러오기 실패로 안내하고 재조회·이후 900 변경 업로드를 하지 않는다', async () => {
+    const test = setupSync();
+    test.load.mockResolvedValue({ status: 'notFound' });
+    test.insertIfAbsent.mockResolvedValue('failed');
+    await test.sync.setUser({ id: 'A' });
+    expect(test.notice).toHaveBeenCalledWith("Couldn't load your account settings. Using this browser's settings.");
+    test.change({ scrollSpeed: 900 });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(test.load).toHaveBeenCalledTimes(1);
+    expect(test.save).not.toHaveBeenCalled();
+    test.sync.dispose();
+  });
+
+  it.each<InsertAccountSettingsResult>(['inserted', 'ignored', 'failed'])(
+    'A 삽입 대기 중 B로 전환하면 A의 늦은 %s 응답을 재조회·적용·안내하지 않는다', async result => {
+      const test = setupSync();
+      const pending = deferred<InsertAccountSettingsResult>();
+      test.load.mockResolvedValueOnce({ status: 'notFound' });
+      test.insertIfAbsent.mockReturnValueOnce(pending.promise);
+      const loading = test.sync.setUser({ id: 'A' });
+      await vi.advanceTimersByTimeAsync(0);
+      await test.sync.setUser({ id: 'B' });
+      pending.resolve(result);
+      await loading;
+      expect(test.insertIfAbsent.mock.calls[0][2].aborted).toBe(true);
+      expect(test.load).toHaveBeenCalledTimes(2);
+      expect(test.getSettings().scrollSpeed).toBe(1200);
+      expect(test.save).not.toHaveBeenCalled();
+      expect(test.notice).not.toHaveBeenCalled();
+      test.sync.dispose();
+    },
+  );
+
+  it('거짓 notFound 뒤 숨겨진 서버 1600과 삽입이 충돌하면 덮어쓰지 않고 1회 재조회해 1600을 적용한다', async () => {
+    const test = setupSync();
+    let server = { scrollSpeed: 1600 };
+    test.load.mockResolvedValueOnce({ status: 'notFound' })
+      .mockImplementation(async () => ({ status: 'found', settings: server }));
+    test.insertIfAbsent.mockResolvedValue('ignored');
+    test.save.mockImplementation(async (_id, settings) => { server = settings; return true; });
+    await test.sync.setUser({ id: 'A' });
+    expect(server.scrollSpeed).toBe(1600);
+    expect(test.getSettings().scrollSpeed).toBe(1600);
+    expect(test.load).toHaveBeenCalledTimes(2);
+    expect(test.insertIfAbsent).toHaveBeenCalledTimes(1);
+    expect(test.save).not.toHaveBeenCalled();
+    expect(test.notice).not.toHaveBeenCalled();
+    test.change({ scrollSpeed: 900 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(server.scrollSpeed).toBe(900);
+    test.sync.dispose();
+  });
 
   it('A 저장 도중 로그아웃→B 로그인하면 A 요청을 취소하고 A의 대기값 1000과 늦은 실패 안내를 버린다', async () => {
     const test = setupSync();
@@ -129,7 +288,7 @@ describe('계정 설정 동기화 수명', () => {
     expect(test.save).not.toHaveBeenCalled();
     pending.resolve({ status: 'notFound' });
     await loading;
-    expect(test.save.mock.calls[0][1].scrollSpeed).toBe(900);
+    expect(test.insertIfAbsent.mock.calls[0][1].scrollSpeed).toBe(900);
     test.sync.dispose();
   });
 
@@ -275,10 +434,14 @@ describe('계정 설정 동기화 수명', () => {
     test.load.mockResolvedValue({ status: 'notFound' });
     test.change({ scrollSpeed: 900, masterVolume: 0.3 });
     await test.sync.setUser({ id: 'A' });
-    expect(test.save).toHaveBeenCalledTimes(1);
-    expect(test.save).toHaveBeenCalledWith('A', selectAccountSettings(test.getSettings()), expect.any(AbortSignal));
-    expect(test.save.mock.calls[0][1]).toMatchObject({ scrollSpeed: 900 });
-    expect(Object.keys(test.save.mock.calls[0][1])).toHaveLength(13);
+    expect(test.insertIfAbsent).toHaveBeenCalledTimes(1);
+    expect(test.insertIfAbsent).toHaveBeenCalledWith('A', selectAccountSettings(test.getSettings()), expect.any(AbortSignal));
+    expect(test.insertIfAbsent.mock.calls[0][1]).toMatchObject({ scrollSpeed: 900 });
+    expect(Object.keys(test.insertIfAbsent.mock.calls[0][1])).toHaveLength(13);
+    expect(test.save).not.toHaveBeenCalled();
+    test.change({ scrollSpeed: 1000 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.save.mock.calls[0][1].scrollSpeed).toBe(1000);
     test.sync.dispose();
   });
 

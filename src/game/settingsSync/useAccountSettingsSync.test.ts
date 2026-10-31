@@ -47,8 +47,8 @@ beforeEach(() => {
     return { data: { subscription: { unsubscribe: mocks.unsubscribe } } };
   });
   mocks.getSession.mockResolvedValue({ data: { session: session('A') }, error: null });
-  mocks.maybeSingle.mockResolvedValue({ data: { settings: { scrollSpeed: 1200 } }, error: null });
-  mocks.saveResponse.mockResolvedValue({ error: null });
+  mocks.maybeSingle.mockResolvedValue({ data: { settings: { scrollSpeed: 1200 } }, error: null, status: 200 });
+  mocks.saveResponse.mockResolvedValue({ error: null, status: 200 });
   mocks.upsert.mockReturnValue({ abortSignal: mocks.saveResponse });
   mocks.from.mockReturnValue({
     select: () => ({ eq: () => ({ abortSignal: () => ({ maybeSingle: mocks.maybeSingle }) }) }),
@@ -63,9 +63,42 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('게임 루트 계정 설정 동기화 연결', () => {
+  it('SIGNED_IN의 setUser가 거부되면 불러오기 실패를 안내하고 미처리 거부를 남기지 않는다', async () => {
+    const module = await import('./accountSettingsSync');
+    const create = module.createAccountSettingsSync;
+    vi.spyOn(module, 'createAccountSettingsSync').mockImplementation(options => {
+      const sync = create(options);
+      vi.spyOn(sync, 'setUser').mockRejectedValueOnce(new Error('unexpected load failure'));
+      return sync;
+    });
+    // 앱 시작의 빈 세션 처리를 건너뛰고 실제 로그인 이벤트에서 거부를 일으킨다.
+    mocks.getSession.mockReturnValue(new Promise(() => {}));
+    await mount();
+    emit('SIGNED_IN', session('A'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(mocks.toast).toHaveBeenCalledWith(
+      "Couldn't load your account settings. Using this browser's settings.", 'error',
+    );
+  });
+
+  it('서버 1200의 localStorage 저장이 실패하면 안내하고 이후 900 변경은 계정에 저장하지 않는다', async () => {
+    const write = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota exceeded'); });
+    const store = await mount();
+    expect(mocks.toast).toHaveBeenCalledWith(
+      "Couldn't load your account settings. Using this browser's settings.", 'error',
+    );
+    write.mockRestore();
+    store.getState().updateSettings({ scrollSpeed: 900 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(mocks.upsert).not.toHaveBeenCalled();
+    emit('SIGNED_IN', session('A'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().settings.scrollSpeed).toBe(1200);
+  });
   it('익명 세션으로 앱을 시작하고 로그인 이벤트를 받아도 설정 I/O·안내는 0회다', async () => {
     mocks.getSession.mockResolvedValue({ data: { session: session('guest', true) }, error: null });
     const store = await mount();
@@ -108,7 +141,7 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     emit('SIGNED_OUT', null);
     await vi.advanceTimersByTimeAsync(500);
     expect(store.getState().settings.scrollSpeed).toBe(900);
-    mocks.maybeSingle.mockResolvedValue({ data: { settings: { scrollSpeed: 1300 } }, error: null });
+    mocks.maybeSingle.mockResolvedValue({ data: { settings: { scrollSpeed: 1300 } }, error: null, status: 200 });
     emit('SIGNED_IN', session('B'));
     await vi.advanceTimersByTimeAsync(500);
     expect(store.getState().settings.scrollSpeed).toBe(1300);
@@ -139,7 +172,7 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     const store = await mount();
     emit('SIGNED_IN', session('B'));
     await vi.advanceTimersByTimeAsync(0);
-    mocks.maybeSingle.mockResolvedValue({ data: { settings: { scrollSpeed: 1500 } }, error: null });
+    mocks.maybeSingle.mockResolvedValue({ data: { settings: { scrollSpeed: 1500 } }, error: null, status: 200 });
     resolve({ data: { session: session('A') }, error: null });
     await vi.advanceTimersByTimeAsync(0);
     expect(mocks.maybeSingle).toHaveBeenCalledTimes(1);
@@ -176,7 +209,7 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     expect(mocks.upsert).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(500);
     expect(mocks.upsert).toHaveBeenCalledWith(
-      { user_id: 'A', settings: expect.objectContaining({ scrollSpeed: 900 }) }, { onConflict: 'user_id' },
+      { user_id: 'A', settings: expect.objectContaining({ scrollSpeed: 900 }), updated_at: expect.any(String) }, { onConflict: 'user_id' },
     );
   });
 });
