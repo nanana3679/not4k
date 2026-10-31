@@ -313,27 +313,27 @@ export function createAccountSettingsSync({
       // 로그아웃·계정 전환·해제 뒤에 완료된 요청은 적용하지 않는다.
       if (session !== current) return;
       if (result.status === 'notFound') {
-        let insertedAccount: AccountSettings;
+        let initialUpload: AccountSettings;
         try {
           // 기록이 있으면 로컬 위에 얹어 적용한 결과를 최초 업로드한다. 최초 실행 중이면 아직 고르지 않은
           // 기본 keyBindings·preset도 함께 업로드한다(알려진 동작, game-core 스펙).
           const recorded = readUnsynced()[userId];
           if (recorded) applyLoadedSettings(mergeAccountSettings(store.getSettings(), recorded));
-          insertedAccount = selectAccountSettings(store.getSettings());
+          initialUpload = selectAccountSettings(store.getSettings());
         } catch {
           current.loading = false;
           noticeLoadFailure(userId);
           return;
         }
         current.rowKnown = true;
-        const insertResult = await insertIfAbsent(userId, insertedAccount, current.controller.signal);
+        const insertResult = await insertIfAbsent(userId, initialUpload, current.controller.signal);
         if (session !== current) return;
         if (insertResult === 'inserted') {
           markReady(current, {});
-          clearUploadedUnsynced(userId, insertedAccount);
+          clearUploadedUnsynced(userId, initialUpload);
           // 삽입하는 동안 바뀐 설정(프리셋 선택 포함)은 이어서 저장한다.
           const latest = selectAccountSettings(store.getSettings());
-          if (!isSameJsonValue(latest, insertedAccount)) schedule(latest);
+          if (!isSameJsonValue(latest, initialUpload)) schedule(latest);
           return;
         }
         // 읽을 때 숨겨졌던 기존 행은 덮어쓰지 않고 한 번만 다시 읽는다. 그동안과 실패 뒤에는 행을 모르는 상태다.
