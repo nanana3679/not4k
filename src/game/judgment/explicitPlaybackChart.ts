@@ -12,6 +12,7 @@ export function selectExplicitPlaybackChart(compiled: ExplicitCompiledChart, sta
 export function selectExplicitRangePlaybackChart(
   compiled: ExplicitCompiledChart, startTimeMs: number, endTimeMs: number,
 ): ExplicitCompiledChart {
+  if (!Number.isFinite(startTimeMs)) throw new RangeError("재생 시작 시각은 유한해야 합니다");
   if (!Number.isFinite(endTimeMs)) throw new RangeError("재생 끝 시각은 유한해야 합니다");
   return createExplicitPlaybackChartView(compiled, startTimeMs,
     compiled.scoreItems.filter(item => item.timeMs >= startTimeMs && item.timeMs <= endTimeMs), endTimeMs);
@@ -20,6 +21,7 @@ export function selectExplicitRangePlaybackChart(
 /**
  * 원본 timing·관계·source index를 유지하는 재생용 범위다. 저장 문서나 compiler 결과를 수정하지 않는다.
  * 재개는 기존 점수 항목을 그대로 넘겨 미처리 기회와 이론 가중치를 보존한다.
+ * 시작·끝 시각은 바디만 자른다. 남길 점수 항목은 호출자가 고른다.
  */
 export function createExplicitPlaybackChartView(
   compiled: ExplicitCompiledChart, startTimeMs: number, retainedItems: readonly ExplicitScoreItem[], endTimeMs = Infinity,

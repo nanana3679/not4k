@@ -23,7 +23,7 @@ const consumedByInputs = (session: ExplicitJudgmentSession) => session.facts.fla
 describe("옵저버 선택 구간 재생 범위를 앞 준비 시작부터 판정하는 세션", () => {
   const headCut = [p(1000), b(1000, 2000), s(1200), s(1700), r(2000)];
 
-  it("탭 1000ms가 잘린 바디 1000～2000ms를 구간 1500～2500ms로 판정하면 앞 준비 800ms에 누른 A를 쥔 채 1500ms에 preheld 시작하고 1000ms 탭 Miss 없이 틱 1700·릴리즈 2000으로 6/6점", () => {
+  it("1000ms 탭이 잘려 헤드가 없는 바디 1000～2000ms를 구간 1500～2500ms로 판정하면 앞 준비 800ms에 누른 A를 쥔 채 1500ms에 preheld 시작하고 1000ms 탭 Miss 없이 틱 1700·릴리즈 2000으로 6/6점", () => {
     const session = rangeSession(headCut, 1500, 2500);
     session.processBatch(800, [down()]);
     expect(consumedByInputs(session)).toEqual([["down", 800, null]]);
@@ -36,7 +36,7 @@ describe("옵저버 선택 구간 재생 범위를 앞 준비 시작부터 판�
     expect(result.score).toMatchObject({ earnedScore: 6, totalNotes: 2, finalDenominatorWeight: 6, judgmentCounts: { miss: 0 } });
   });
 
-  it.each([1380, 1600, 1620])("탭이 잘린 바디의 구간 시작 1500ms에 쥔 키가 없어도 시작 창 안 새 down %sms로 그 시각에 시작하고 Miss 없이 6/6점", at => {
+  it.each([1380, 1600, 1620])("탭이 잘려 헤드가 없는 바디의 구간 시작 1500ms에 쥔 키가 없어도 시작 창 안 새 down %sms로 그 시각에 시작하고 Miss 없이 6/6점", at => {
     const session = rangeSession(headCut, 1500, 2500);
     session.processBatch(at, [down()]);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "active", actualStartMs: at, tapStatus: "none" });
@@ -45,7 +45,7 @@ describe("옵저버 선택 구간 재생 범위를 앞 준비 시작부터 판�
     expect(session.finalize().score).toMatchObject({ earnedScore: 6, totalNotes: 2, judgmentCounts: { miss: 0 } });
   });
 
-  it("탭이 잘린 바디의 구간 시작 1500ms에 쥔 키가 없고 첫 down이 시작 창 밖 1700ms면 1620ms 시작 시간 초과로 무점수 Miss 1개, 틱 1700·릴리즈 2000은 그 실패가 원인인 종속 0점으로 0/6점", () => {
+  it("탭이 잘려 헤드가 없는 바디의 구간 시작 1500ms에 쥔 키가 없고 첫 down이 시작 창 밖 1700ms면 1620ms 시작 시간 초과로 무점수 Miss 1개, 틱 1700·릴리즈 2000은 그 실패가 원인인 종속 0점으로 0/6점", () => {
     const session = rangeSession(headCut, 1500, 2500);
     session.processBatch(1700, [down()]);
     session.processBatch(2000, [up()]);
@@ -105,6 +105,27 @@ describe("옵저버 선택 구간 재생 범위를 앞 준비 시작부터 판�
     session.advance(2500);
     expect(session.snapshot.bodyUnits[0]).toMatchObject({ state: "complete", completedAtMs: 2500 });
     expect(session.finalize().score).toMatchObject({ earnedScore: 3, totalNotes: 1, judgmentCounts: { miss: 0 } });
+  });
+
+  it("앞 준비 800ms에 멈췄다 재생 시작 0ms 기준으로 재개해도 구간 1500～2500ms로 자른 바디를 되돌리지 않고 1450ms down으로 시작해 2500ms에 완료", () => {
+    const session = rangeSession([p(1000), b(1000, 3000), s(2800), r(3000)], 1500, 2500);
+    session.advance(800);
+    session.resumeAt(800, [], undefined, 0);
+    expect(session.playbackChart.bodies[0]).toMatchObject({ startMs: 1500, endMs: 2500 });
+    session.processBatch(1450, [down()]);
+    session.processBatch(2700, [up()]);
+    expect(session.facts.flatMap(fact => fact.kind === "bodyStarted" || fact.kind === "bodyCompleted"
+      ? [[fact.kind, fact.atMs]] : [])).toEqual([["bodyStarted", 1450], ["bodyCompleted", 2500]]);
+    expect(session.finalize().score).toMatchObject({ totalNotes: 0, judgmentCounts: { miss: 0 } });
+  });
+
+  it("구간 1500～2500ms 세션을 2000ms까지 진행한 뒤 1800ms로 재구성해도 바디 1500～2500ms·점수 항목 0개를 유지", () => {
+    const session = rangeSession([p(1000), b(1000, 3000), s(2800), r(3000)], 1500, 2500);
+    session.processBatch(1450, [down()]);
+    session.advance(2000);
+    const { session: restored } = session.reconstructAt(1800);
+    expect(restored.playbackChart.bodies.map(body => [body.startMs, body.endMs])).toEqual([[1500, 2500]]);
+    expect(restored.playbackChart.scoreItems).toHaveLength(0);
   });
 
   // 더블 탭 1000 + 더블 바디 1000～2000 → 탭 없는 single 2000～3000. 2000ms 릴리즈는 2→1 감소 릴리즈다.

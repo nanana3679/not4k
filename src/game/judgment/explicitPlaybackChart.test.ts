@@ -198,7 +198,7 @@ describe("옵저버 선택 구간의 양 끝 자르기", () => {
       expect([source.bodies[0].startMs, source.bodies[0].endMs]).toEqual([1000, 3000]);
     });
 
-  it.each([NaN, 1499])("시작 1500ms 재생 범위의 끝 %s(수 아님·시작보다 앞섬)는 거부", end => {
+  it.each([[NaN, "수 아님"], [1499, "시작보다 앞섬"]] as const)("시작 1500ms 재생 범위의 끝 %s(%s)는 거부", (end, _reason) => {
     const source = compile([b(1000, 3000)]);
     expect(() => createExplicitPlaybackChartView(source, 1500, [], end)).toThrow(RangeError);
   });
