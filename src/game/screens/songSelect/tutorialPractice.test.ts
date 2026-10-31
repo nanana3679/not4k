@@ -62,11 +62,15 @@ const started = (patternId: number): TutorialPracticeEvent => ({ type: 'patternS
 const finished = (patternId: number, score: Readonly<ScoreState>): TutorialPracticeEvent => ({ type: 'patternFinished', patternId, score });
 const select = (mode: 'demonstration' | 'directInput'): TutorialPracticeEvent => ({ type: 'modeSelected', mode });
 const nextPressed: TutorialPracticeEvent = { type: 'nextPressed' };
-/** 자동 패턴 id는 1000부터 써서, 테스트가 직접 적는 작은 id(1, 2, 7…)와 겹치지 않는다. */
+/**
+ * 패턴 id는 한 실습 상태 안에서 계속 커져야 한다. 자동 id는 1001부터 커지므로, 작은 id(1, 2, 3…)를 직접 적는 테스트는
+ * 새 상태에서 그 id를 자동 id보다 먼저 쓴다. 자동 id 뒤에 같은 id를 다시 써야 하면 `nextPatternId()`로 받아 둔다.
+ */
 let lastPatternId = 1000;
+const nextPatternId = (): number => ++lastPatternId;
 /** 새 id로 시작해 끝나는 패턴 한 차례 */
 function pattern(score: Readonly<ScoreState>): TutorialPracticeEvent[] {
-  const patternId = ++lastPatternId;
+  const patternId = nextPatternId();
   return [started(patternId), finished(patternId, score)];
 }
 
@@ -238,9 +242,9 @@ describe('튜토리얼 실습 상태: 시작과 시연', () => {
     expect(state.mode).toBe('demonstration');
   });
 
-  it('조건을 만족한 시연 패턴 3이 끝나면 lastFinishedPattern은 패턴 3·counted false·succeeded true', () => {
+  it('조건을 만족한 시연 패턴 3이 끝나면 lastFinishedPattern은 패턴 3·countable false·succeeded true', () => {
     const state = run(createTutorialPracticeState(singleMethodSpec()), started(3), finished(3, SUCCESS));
-    expect(state.lastFinishedPattern).toEqual({ patternId: 3, score: SUCCESS, counted: false, succeeded: true });
+    expect(state.lastFinishedPattern).toEqual({ patternId: 3, score: SUCCESS, countable: false, succeeded: true });
   });
 });
 
@@ -257,11 +261,11 @@ describe('튜토리얼 실습 상태: 누적 성공', () => {
     expect(isTutorialPlayingMethodComplete(state)).toBe(false);
   });
 
-  it('직접 입력 패턴 1 성공 뒤 lastFinishedPattern은 counted true·succeeded true, 패턴 2 실패 뒤에는 counted true·succeeded false', () => {
+  it('직접 입력 패턴 1 성공 뒤 lastFinishedPattern은 countable true·succeeded true, 패턴 2 실패 뒤에는 countable true·succeeded false', () => {
     const afterSuccess = run(directInputState(), started(1), finished(1, SUCCESS));
-    expect(afterSuccess.lastFinishedPattern).toEqual({ patternId: 1, score: SUCCESS, counted: true, succeeded: true });
+    expect(afterSuccess.lastFinishedPattern).toEqual({ patternId: 1, score: SUCCESS, countable: true, succeeded: true });
     const afterFailure = run(afterSuccess, started(2), finished(2, FAILURE));
-    expect(afterFailure.lastFinishedPattern).toEqual({ patternId: 2, score: FAILURE, counted: true, succeeded: false });
+    expect(afterFailure.lastFinishedPattern).toEqual({ patternId: 2, score: FAILURE, countable: true, succeeded: false });
     expect(getTutorialPracticeProgress(afterFailure).current).toBe(1);
   });
 
@@ -270,11 +274,12 @@ describe('튜토리얼 실습 상태: 누적 성공', () => {
     expect(isTutorialPracticeItemPassed(state)).toBe(true);
   });
 
-  it('3/3으로 방법을 완료하면 이후 patternStarted를 무시해 재생 중인 패턴 없이 3/3에 머문다', () => {
+  it('3/3으로 방법을 완료한 직접 입력에서는 다음 패턴 시작을 무시해 실습 반복이 멈추고 3/3에 머문다', () => {
     const complete = run(directInputState(), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
-    const afterStart = run(complete, started(7));
+    const id = nextPatternId();
+    const afterStart = run(complete, started(id));
     expect(isTutorialPatternPlaying(afterStart)).toBe(false);
-    const afterFinish = run(afterStart, finished(7, SUCCESS));
+    const afterFinish = run(afterStart, finished(id, SUCCESS));
     expect(getTutorialPracticeProgress(afterFinish)).toEqual({ current: 3, required: 3 });
     expect(afterFinish.lastFinishedPattern).toEqual(complete.lastFinishedPattern);
   });
@@ -285,6 +290,36 @@ describe('튜토리얼 실습 상태: 누적 성공', () => {
     expect(state.mode).toBe('demonstration');
     expect(getSelectedTutorialPracticeMode(state)).toBe('demonstration');
     expect(getTutorialPracticeProgress(state).current).toBe(3);
+  });
+
+  it('3/3 완료 뒤 시연을 고르면 시연 패턴은 재생되고 조건을 만족해도 countable false로 3/3에 머문다', () => {
+    const complete = run(directInputState(), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
+    const id = nextPatternId();
+    const playing = run(complete, select('demonstration'), started(id));
+    expect(playing.currentPatternId).toBe(id);
+    const state = run(playing, finished(id, SUCCESS));
+    expect(getTutorialPracticeProgress(state)).toEqual({ current: 3, required: 3 });
+    expect(state.lastFinishedPattern).toEqual({ patternId: id, score: SUCCESS, countable: false, succeeded: true });
+  });
+
+  it('3/3 완료 뒤 시연 패턴 재생 중 직접 입력으로 바꾸면 그 패턴은 집계 제외되고 이어지는 직접 입력 시작은 무시', () => {
+    const complete = run(directInputState(), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
+    const demoId = nextPatternId();
+    const directId = nextPatternId();
+    const state = run(complete, select('demonstration'), started(demoId), select('directInput'), finished(demoId, SUCCESS),
+      started(directId));
+    expect(getTutorialPracticeProgress(state).current).toBe(3);
+    expect(state.lastFinishedPattern?.countable).toBe(false);
+    expect(isTutorialPatternPlaying(state)).toBe(false);
+  });
+
+  it('3/3 완료 뒤 직접 입력으로 바꾼 시연 패턴의 끝 통지 없이 직접 입력 시작이 오면 시연 패턴을 버려 재생 중인 패턴이 없고 늦은 finish도 무시', () => {
+    const complete = run(directInputState(), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
+    const demoId = nextPatternId();
+    const directId = nextPatternId();
+    const dropped = run(complete, select('demonstration'), started(demoId), select('directInput'), started(directId));
+    expect(isTutorialPatternPlaying(dropped)).toBe(false);
+    expect(run(dropped, finished(demoId, SUCCESS)).lastFinishedPattern).toEqual(complete.lastFinishedPattern);
   });
 
   it('patternStarted 없이 도착한 patternFinished는 조건을 만족해도 집계하지 않고 lastFinishedPattern도 남기지 않는다', () => {
@@ -298,7 +333,7 @@ describe('튜토리얼 실습 상태: 패턴 id', () => {
   it('시연 패턴 1 재생 중 직접 입력으로 바꾼 뒤 같은 패턴 1의 patternStarted가 다시 와도 무시해 그 패턴은 집계 제외', () => {
     const state = run(createTutorialPracticeState(singleMethodSpec()), started(1), select('directInput'), started(1), finished(1, SUCCESS));
     expect(getTutorialPracticeProgress(state).current).toBe(0);
-    expect(state.lastFinishedPattern?.counted).toBe(false);
+    expect(state.lastFinishedPattern?.countable).toBe(false);
   });
 
   it('직접 입력 패턴 1 재생 중 시연을 예약한 뒤 같은 패턴 1의 patternStarted가 다시 와도 시연을 앞당기지 않아 패턴 1을 1/3으로 집계', () => {
@@ -312,7 +347,7 @@ describe('튜토리얼 실습 상태: 패턴 id', () => {
 
   it('직접 입력 패턴 1의 끝 통지 없이 패턴 2가 시작되면 패턴 1은 결과 없이 버리고 패턴 2 성공만 1/3으로 집계', () => {
     const dropped = run(directInputState(), started(1), started(2));
-    expect(dropped.playingPatternId).toBe(2);
+    expect(dropped.currentPatternId).toBe(2);
     const state = run(dropped, finished(2, SUCCESS));
     expect(getTutorialPracticeProgress(state).current).toBe(1);
     expect(state.lastFinishedPattern?.patternId).toBe(2);
@@ -321,7 +356,7 @@ describe('튜토리얼 실습 상태: 패턴 id', () => {
   it('패턴 2가 시작된 뒤 늦게 도착한 패턴 1의 성공 finish는 무시해 0/3이고 패턴 2는 계속 재생 중', () => {
     const state = run(directInputState(), started(1), started(2), finished(1, SUCCESS));
     expect(getTutorialPracticeProgress(state).current).toBe(0);
-    expect(state.playingPatternId).toBe(2);
+    expect(state.currentPatternId).toBe(2);
     expect(state.lastFinishedPattern).toBeNull();
   });
 
@@ -331,12 +366,63 @@ describe('튜토리얼 실습 상태: 패턴 id', () => {
     expect(getTutorialPracticeProgress(run(switched, finished(2, SUCCESS))).current).toBe(0);
   });
 
-  it('첫 방법 완료 뒤 무시된 패턴 7 재생 중 다음을 누르면 늦게 온 패턴 7의 finish는 둘째 방법에 집계하지 않음', () => {
+  it('직접 입력 패턴 1이 성공으로 끝난 뒤 같은 패턴 1의 finish가 한 번 더 와도 1/3', () => {
+    const state = run(directInputState(), started(1), finished(1, SUCCESS), finished(1, SUCCESS));
+    expect(getTutorialPracticeProgress(state).current).toBe(1);
+  });
+
+  it('직접 입력 패턴 1이 성공으로 끝난 뒤 패턴 1의 start와 finish가 다시 와도 지난 id라 무시해 1/3', () => {
+    const state = run(directInputState(), started(1), finished(1, SUCCESS), started(1), finished(1, SUCCESS));
+    expect(getTutorialPracticeProgress(state).current).toBe(1);
+    expect(isTutorialPatternPlaying(state)).toBe(false);
+  });
+
+  it('패턴 5가 끝난 뒤 더 작은 id 3의 시작은 지난 패턴이라 무시해 재생 중인 패턴이 없다', () => {
+    const state = run(directInputState(), started(5), finished(5, FAILURE), started(3));
+    expect(isTutorialPatternPlaying(state)).toBe(false);
+    expect(getTutorialPracticeProgress(run(state, finished(3, SUCCESS))).current).toBe(0);
+  });
+
+  it('다음을 눌러도 id 기준은 이어져 첫 방법에서 쓴 id 3 이하의 시작은 둘째 방법에서 무시하고 id 4부터 받는다', () => {
+    const firstComplete = run(directInputState(twoMethodSpec()), started(1), finished(1, SUCCESS), started(2), finished(2, SUCCESS),
+      started(3), finished(3, SUCCESS));
+    const second = run(firstComplete, nextPressed, select('directInput'), started(1));
+    expect(isTutorialPatternPlaying(second)).toBe(false);
+    const afterPattern4 = run(second, started(4), finished(4, SUCCESS));
+    expect(getTutorialPracticeProgress(afterPattern4)).toEqual({ current: 1, required: 3 });
+  });
+
+  it('닫았다 다시 열어 새로 만든 실습 상태는 id 기준도 새로 시작해 id 1의 성공을 1/3으로 집계', () => {
+    const spec = singleMethodSpec();
+    run(createTutorialPracticeState(spec), select('directInput'), started(1), finished(1, SUCCESS), started(2));
+    const reentered = run(createTutorialPracticeState(spec), select('directInput'), started(1), finished(1, SUCCESS));
+    expect(getTutorialPracticeProgress(reentered).current).toBe(1);
+  });
+
+  it('첫 방법 완료 뒤 무시된 직접 입력 패턴 재생 중 다음을 누르면 늦게 온 그 패턴의 finish는 둘째 방법에 집계하지 않음', () => {
     const firstComplete = run(directInputState(twoMethodSpec()), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
-    const state = run(firstComplete, started(7), nextPressed, select('directInput'), finished(7, SUCCESS));
+    const id = nextPatternId();
+    const state = run(firstComplete, started(id), nextPressed, select('directInput'), finished(id, SUCCESS));
     expect(state.playingMethodIndex).toBe(1);
     expect(getTutorialPracticeProgress(state).current).toBe(0);
     expect(state.lastFinishedPattern).toBeNull();
+  });
+
+  it('첫 방법 완료 뒤 무시된 직접 입력 시작의 id도 지난 id라 다음 뒤 같은 id로 다시 시작해도 무시', () => {
+    const firstComplete = run(directInputState(twoMethodSpec()), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
+    const id = nextPatternId();
+    const state = run(firstComplete, started(id), nextPressed, select('directInput'), started(id));
+    expect(isTutorialPatternPlaying(state)).toBe(false);
+  });
+
+  it('계약 위반 고정: 다음을 누르고 직접 입력을 고른 뒤 첫 방법 루프가 더 큰 id로 늦게 시작을 보내면 둘째 방법 패턴으로 받아 1/3으로 집계', () => {
+    // 플레이어는 방법 완료 시 직접 입력 패턴 시작을 멈추고, 다음 방법 루프는 nextPressed 뒤에만 시작해야 한다.
+    // reducer는 어느 루프의 시작인지 알 수 없으므로 이 계약을 어기면 이전 루프의 패턴도 현재 방법에 집계된다.
+    const firstComplete = run(directInputState(twoMethodSpec()), ...pattern(SUCCESS), ...pattern(SUCCESS), ...pattern(SUCCESS));
+    const staleId = nextPatternId();
+    const state = run(firstComplete, nextPressed, select('directInput'), started(staleId), finished(staleId, SUCCESS));
+    expect(state.playingMethodIndex).toBe(1);
+    expect(getTutorialPracticeProgress(state).current).toBe(1);
   });
 });
 
@@ -346,7 +432,7 @@ describe('튜토리얼 실습 상태: 토글 적용 시점', () => {
     expect(switched.mode).toBe('directInput');
     const afterSwitchedPattern = run(switched, finished(1, SUCCESS));
     expect(getTutorialPracticeProgress(afterSwitchedPattern).current).toBe(0);
-    expect(afterSwitchedPattern.lastFinishedPattern).toEqual({ patternId: 1, score: SUCCESS, counted: false, succeeded: true });
+    expect(afterSwitchedPattern.lastFinishedPattern).toEqual({ patternId: 1, score: SUCCESS, countable: false, succeeded: true });
     expect(getTutorialPracticeProgress(run(afterSwitchedPattern, ...pattern(SUCCESS))).current).toBe(1);
   });
 
@@ -359,9 +445,9 @@ describe('튜토리얼 실습 상태: 토글 적용 시점', () => {
     const requested = run(directInputState(), started(1), select('demonstration'));
     expect(requested.mode).toBe('directInput');
     expect(getSelectedTutorialPracticeMode(requested)).toBe('demonstration');
-    const counted = run(requested, finished(1, SUCCESS));
-    expect(getTutorialPracticeProgress(counted).current).toBe(1);
-    const demonstrated = run(counted, started(2));
+    const afterPattern1 = run(requested, finished(1, SUCCESS));
+    expect(getTutorialPracticeProgress(afterPattern1).current).toBe(1);
+    const demonstrated = run(afterPattern1, started(2));
     expect(demonstrated.mode).toBe('demonstration');
     expect(getTutorialPracticeProgress(run(demonstrated, finished(2, SUCCESS))).current).toBe(1);
   });
