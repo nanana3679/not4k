@@ -64,6 +64,26 @@ describe("useAuth 첫 렌더 상태", () => {
   });
 });
 
+// GameApp이 닉네임 연동을 Profile 마운트에 맡길지 고를 때 읽는 값이다. 모듈을 읽을 때 한 번 정해지므로 env를 바꾼 뒤 다시 import한다.
+describe("DEV_ADMIN export", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it.each([
+    ["개발 환경(DEV=true)에서 VITE_DEV_ADMIN=true", true, true, "true"],
+    ["배포 빌드(DEV=false)에서 VITE_DEV_ADMIN=true", false, false, "true"],
+    ["개발 환경(DEV=true)에서 VITE_DEV_ADMIN=false", false, true, "false"],
+  ] as const)("%s면 DEV_ADMIN export가 %s", async (_env, expected, DEV, VITE_DEV_ADMIN) => {
+    vi.stubEnv("DEV", DEV);
+    vi.stubEnv("VITE_DEV_ADMIN", VITE_DEV_ADMIN);
+    vi.resetModules();
+
+    expect((await import("./useAuth")).DEV_ADMIN).toBe(expected);
+  });
+});
+
 describe("getGoogleRedirectTo", () => {
   it("keeps the current route so OAuth codes survive the SPA router", () => {
     const redirectTo = getGoogleRedirectTo({
