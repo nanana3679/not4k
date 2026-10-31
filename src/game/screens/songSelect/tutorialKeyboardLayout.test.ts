@@ -215,17 +215,17 @@ describe('findUnmetTutorialPracticeKeyRequirements', () => {
   it.each([
     { name: 'TKL', bindings: PRESET_BINDINGS.tkl },
     { name: 'Numpad', bindings: PRESET_BINDINGS.numpad },
-  ])('$name 프리셋(레인당 4키)으로 확인하면 Basic·Advanced 29개 항목의 실습 키 요건을 모두 충족한다', ({ bindings }) => {
+  ])('$name 프리셋(레인당 4키)으로 확인하면 Basic·Advanced 25개 항목의 실습 키 요건을 모두 충족한다', ({ bindings }) => {
     const unmetById = Object.fromEntries(ALL_TUTORIAL_PREVIEWS.map(preview => [
       preview.id,
       findUnmetTutorialPracticeKeyRequirements(getTutorialInputTimings(preview.chart), bindings),
     ]));
 
-    expect(ALL_TUTORIAL_PREVIEWS).toHaveLength(29);
+    expect(ALL_TUTORIAL_PREVIEWS).toHaveLength(25);
     expect(unmetById).toEqual(Object.fromEntries(ALL_TUTORIAL_PREVIEWS.map(preview => [preview.id, []])));
   });
 
-  it('Basic·Advanced 29개 항목을 레인당 2키로 확인하면 1번 레인의 advanced-double-hold 4키·advanced-single-head-double 3키·advanced-double-swap 4키만 미충족', () => {
+  it('Basic·Advanced 25개 항목을 레인당 2키로 확인하면 1번 레인의 advanced-double-hold 4키·advanced-single-head-double 3키·advanced-double-swap 4키만 미충족', () => {
     const unmet = ALL_TUTORIAL_PREVIEWS.flatMap(preview =>
       findUnmetTutorialPracticeKeyRequirements(getTutorialInputTimings(preview.chart), TWO_KEYS_PER_LANE)
         .map(requirement => ({ id: preview.id, ...requirement })),

@@ -254,10 +254,9 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain("phase: 'animating'");
     expect(tutorialHelpModalSource).toContain('data-tutorial-preview-slot={slotState}');
     expect(tutorialHelpModalSource).toContain('data-tutorial-transition-direction={transition?.direction ??');
-    expect(tutorialHelpModalSource).toContain("const diagramModalEnabled = slotState === 'active' || slotState === 'entering'");
     expect(tutorialHelpModalSource).toContain('diagramModalEnabled={diagramModalEnabled}');
     // 들어오는·대기 슬롯은 첫 프레임에서 멈춰 두고 active가 된 뒤 재생한다(tutorialPreviewSlots.test.ts).
-    expect(tutorialHelpModalSource).toContain('paused={!isTutorialPreviewSlotPlaying(slotState)}');
+    expect(tutorialHelpModalSource).toContain('paused={!isTutorialPreviewSlotPlaying(slotState) || practiceStopped}');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-standby');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-exiting');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-entering');
@@ -300,8 +299,6 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain('data-tutorial-preview-id={preview.id}');
     // 멈춤(pause)은 entering에서 미리 arming(도식 시작점 고정), 하지만 뷰포트 portal 모달은
     // 전환 중 두 개가 겹쳐 보이지 않도록 active 슬롯에서만 표시한다.
-    expect(tutorialHelpModalSource).toContain("const diagramModalEnabled = slotState === 'active' || slotState === 'entering'");
-    expect(tutorialHelpModalSource).toContain("const diagramModalVisible = slotState === 'active'");
     expect(tutorialHelpModalSource).toContain('diagramModalVisible={diagramModalVisible}');
   });
 

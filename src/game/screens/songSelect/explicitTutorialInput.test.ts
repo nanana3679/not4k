@@ -5,8 +5,43 @@ import { getTutorialInputTimings } from './tutorialPreviewChart';
 
 import { beat } from '../../../shared/types/beat';
 import { createExplicitTutorialPreview } from './explicitTutorialPreviewChart';
+import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreviews';
 import { describe, expect, it, vi } from 'vitest';
 import { getExplicitTutorialInputTime } from './explicitTutorialInput';
+import { DEFAULT_MAX_GREAT_OR_WORSE_COUNT, createTutorialPracticeSpec, createTutorialPracticeState, isTutorialPatternSuccess, reduceTutorialPractice } from './tutorialPractice';
+import type { KeyBinding } from '../../input/InputSystem';
+import { getJudgmentWindows } from '../../../shared/constants/judgment';
+
+it('connected-long-note-switch의 4005ms up은 이전 패턴의 Perfect 3·100%로 4120ms에 정산한다', () => {
+  const preview = BASIC_TUTORIAL_EXPLICIT_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!;
+  const timings = getTutorialInputTimings(preview.chart);
+  const playback = createExplicitTutorialPreviewPlayback(preview, createTutorialTimingsInputPlan(timings), {
+    showJudgmentGroup() {}, recordFlightJudgment() {}, showBombEffect() {},
+  });
+  const finished = vi.fn();
+  const input = createExplicitTutorialInput(playback,
+    timings.map(({ event }) => ({ lane: event.lane, key: event.keyCode })),
+    preview.loopMs, () => ({ loopStartNow: 0, blocked: false }), finished);
+  const target = new EventTarget();
+  input.attach(target);
+  input.setMode('directInput');
+  for (const { event, startMs, endMs } of timings) {
+    keyboard(target, 'keydown', event.keyCode, startMs);
+    keyboard(target, 'keyup', event.keyCode, endMs === 4000 ? 4005 : endMs);
+  }
+  input.advanceTo(4000);
+  input.advanceTo(4016);
+  input.advanceTo(4119);
+  expect(finished).not.toHaveBeenCalled();
+  input.advanceTo(4120);
+  expect(finished).toHaveBeenCalledTimes(1);
+  const pattern = finished.mock.calls[0][0];
+  expect(pattern.iteration).toBe(0);
+  expect(pattern.result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  expect(pattern.result.score.achievementRate).toBe(100);
+  expect(isTutorialPatternSuccess([{ kind: 'maxGreatOrWorseCount', count: DEFAULT_MAX_GREAT_OR_WORSE_COUNT }], pattern.result.score, 'final')).toBe(true);
+  input.stop();
+});
 
 describe('튜토리얼 키보드 시각', () => {
   it('시작 1000ms·반복 2000ms에서 event 3015ms는 다음 반복 1의 15ms로 환산', () => {
@@ -27,20 +62,140 @@ function keyboard(target: EventTarget, type: 'keydown' | 'keyup', code: string, 
   return event;
 }
 
-function setup(preview = tutorialExplicitPlayerPreviews[0].preview, key = 'KeyE', ownsKeyboardInput = () => true) {
+function setup(preview = tutorialExplicitPlayerPreviews[0].preview, key: string | readonly KeyBinding[] = 'KeyE', ownsKeyboardInput = () => true) {
   const effects = { showJudgmentGroup: vi.fn(), recordFlightJudgment: vi.fn(), showBombEffect: vi.fn() };
   const playback = createExplicitTutorialPreviewPlayback(preview,
     createTutorialTimingsInputPlan(getTutorialInputTimings(preview.chart)), effects);
   const clock = { loopStartNow: 1000, blocked: false };
   const onPatternFinished = vi.fn();
-  const input = createExplicitTutorialInput(playback, [{ lane: 2, key }], preview.loopMs,
+  const input = createExplicitTutorialInput(playback, typeof key === 'string' ? [{ lane: 2, key }] : key, preview.loopMs,
     () => clock, onPatternFinished, ownsKeyboardInput);
   const target = new EventTarget();
   input.attach(target);
   return { input, playback, target, effects, clock, onPatternFinished };
 }
 
-it.each([2999, 3000])('2000ms 경계 프레임 뒤 timestamp %i ms keyup이 도착하면 이전 패턴은 Perfect 2·Miss 0', at => {
+it('4005ms down은 새 패턴의 0ms 탭만 Perfect로 만들고 4120ms까지 이전 복사본의 판정 상태도 유지한다', () => {
+  const preview = createExplicitTutorialPreview('overlapping-sessions', '겹친 판정 세션', [], 8, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [
+      { type: 'tap', kind: 'single', lane: 1, beat: beat(0) },
+      { type: 'tap', kind: 'single', lane: 2, beat: beat(6) },
+      { type: 'body', lane: 2, holdCount: 1, beat: beat(6), endBeat: beat(8) },
+      { type: 'release', lane: 2, count: 1, beat: beat(8) },
+    ],
+  });
+  const { input, playback, target, onPatternFinished } = setup(preview, [
+    { lane: 2, key: 'KeyE' }, { lane: 1, key: 'KeyQ' },
+  ]);
+  input.setMode('directInput');
+  keyboard(target, 'keydown', 'KeyE', 4000);
+  input.advanceTo(4000);
+  expect(input.sessionIteration).toBe(1);
+  keyboard(target, 'keydown', 'KeyQ', 5005);
+  input.advanceTo(4005);
+  expect(playback.renderSnapshot(1).items.map(item => item.state)).toEqual([
+    'miss', 'success', 'pending',
+    'success', 'pending', 'pending',
+    'pending', 'pending', 'pending',
+  ]);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  input.advanceTo(4120);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 2 });
+  input.stop();
+});
+
+it.each(['release', 'tick'] as const)('4005ms up은 이전 릴리즈만 Perfect로 만들고 새 패턴의 %s(릴리즈 0ms·틱 50ms)는 성공시키지 않는다', kind => {
+  const preview = createExplicitTutorialPreview('preheld-release', '이전 키 해제', [], 8, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [
+      ...(kind === 'release' ? [
+        { type: 'release' as const, lane: 2 as const, count: 1 as const, beat: beat(0) },
+      ] : [
+        { type: 'body' as const, lane: 2 as const, holdCount: 1 as const, beat: beat(0), endBeat: beat(1, 5) },
+        { type: 'tick' as const, lane: 2 as const, count: 1 as const, beat: beat(1, 10) },
+      ]),
+      { type: 'body', lane: 2, holdCount: 1, beat: beat(6), endBeat: beat(8) },
+      { type: 'release', lane: 2, count: 1, beat: beat(8) },
+    ],
+  });
+  const { input, playback, target, onPatternFinished } = setup(preview);
+  input.setMode('directInput');
+  keyboard(target, 'keydown', 'KeyE', 4000);
+  input.advanceTo(4000);
+  if (kind === 'tick') expect(playback.renderSnapshot(1).bodyUnits[2].state).toBe('active');
+  keyboard(target, 'keyup', 'KeyE', 5005);
+  input.advanceTo(4005);
+  expect(input.heldKeys).toEqual([]);
+  expect(playback.renderSnapshot(1).items[1].grade).toBe('perfect');
+  expect(playback.renderSnapshot(1).items[2].state).toBe('pending');
+  input.advanceTo(4120);
+  input.advanceTo(4150);
+  expect(playback.renderSnapshot(1).items[2].state).toBe(kind === 'tick' ? 'dependentZero' : 'miss');
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts.perfect).toBe(1);
+  input.stop();
+});
+
+describe.each(['connected-long-note-switch', 'connected-long-note-overlap', 'headless-long-note'])('%s의 경계 릴리즈', id => {
+  it.each([
+    { inputOffsetMs: -200, judgmentMode: 'normal' },
+    { inputOffsetMs: 0, judgmentMode: 'normal' },
+    { inputOffsetMs: 200, judgmentMode: 'normal' },
+    { inputOffsetMs: -200, judgmentMode: 'easy' },
+    { inputOffsetMs: 200, judgmentMode: 'easy' },
+  ] as const)('$judgmentMode offset $inputOffsetMs ms에서 경계 +5ms up을 3회 처리하면 기한마다 finish→start 순서로 3/3이 된다', ({ inputOffsetMs, judgmentMode }) => {
+    const preview = BASIC_TUTORIAL_EXPLICIT_PREVIEWS.find(preview => preview.id === id)!;
+    const timings = getTutorialInputTimings(preview.chart);
+    const windows = getJudgmentWindows(judgmentMode);
+    const playback = createExplicitTutorialPreviewPlayback(preview, createTutorialTimingsInputPlan(timings), {
+      showJudgmentGroup() {}, recordFlightJudgment() {}, showBombEffect() {},
+    }, { windows });
+    let practice = createTutorialPracticeState(createTutorialPracticeSpec({
+      conditions: [{ kind: 'maxGreatOrWorseCount', count: DEFAULT_MAX_GREAT_OR_WORSE_COUNT }], playingMethods: [{ id: 'practice' }],
+    }));
+    practice = reduceTutorialPractice(practice, { type: 'modeSelected', mode: 'directInput' });
+    practice = reduceTutorialPractice(practice, { type: 'patternStarted', patternId: 0 });
+    const events = ['start:0'];
+    const finished = vi.fn(pattern => {
+      events.push(`finish:${pattern.iteration}`);
+      practice = reduceTutorialPractice(practice, { type: 'patternFinished', patternId: pattern.iteration, score: pattern.result.score });
+      if (practice.successCount === 3) return false as const;
+      events.push(`start:${pattern.iteration + 1}`);
+      practice = reduceTutorialPractice(practice, { type: 'patternStarted', patternId: pattern.iteration + 1 });
+    });
+    const input = createExplicitTutorialInput(playback,
+      timings.map(({ event }) => ({ lane: event.lane, key: event.keyCode })), preview.loopMs,
+      () => ({ loopStartNow: 0, blocked: false, inputOffsetMs }), finished);
+    const target = new EventTarget();
+    input.attach(target);
+    input.setMode('directInput');
+    let frameMs = 0;
+    for (const iteration of [0, 1, 2]) {
+      const actions = timings.flatMap(({ event, startMs, endMs }) => [
+        { type: 'keydown' as const, key: event.keyCode, at: startMs },
+        { type: 'keyup' as const, key: event.keyCode, at: endMs + (endMs === preview.loopMs ? 5 : 0) },
+      ]).sort((a, b) => a.at - b.at);
+      for (const action of actions) {
+        const at = iteration * preview.loopMs + action.at - inputOffsetMs;
+        for (; frameMs < at; frameMs += 16) input.advanceTo(frameMs);
+        keyboard(target, action.type, action.key, at);
+        input.advanceTo(at);
+      }
+      const deadlineMs = (iteration + 1) * preview.loopMs + windows.GOOD + Math.max(0, -inputOffsetMs);
+      for (; frameMs < deadlineMs; frameMs += 16) input.advanceTo(frameMs);
+      input.advanceTo(deadlineMs - 1);
+      expect(finished).toHaveBeenCalledTimes(iteration);
+      input.advanceTo(deadlineMs);
+      expect(practice.successCount).toBe(iteration + 1);
+      expect(finished.mock.calls[iteration][0].result.score.achievementRate).toBe(100);
+      expect(input.heldKeys).toEqual([]);
+    }
+    expect(events).toEqual(['start:0', 'finish:0', 'start:1', 'finish:1', 'start:2', 'finish:2']);
+    input.stop();
+  });
+});
+
+it.each([2999, 3000])('2000ms 경계 프레임 뒤 timestamp %i ms keyup이 도착하면 2120ms에 이전 패턴은 Perfect 2·Miss 0', at => {
   const base = tutorialExplicitPlayerPreviews[0].preview;
   const preview = createExplicitTutorialPreview('boundary-release', '경계 릴리즈', [], 4, { ...base.chart, notes: [
     { type: 'tap', kind: 'single', lane: 2, beat: beat(1) },
@@ -54,6 +209,8 @@ it.each([2999, 3000])('2000ms 경계 프레임 뒤 timestamp %i ms keyup이 도�
   input.advanceTo(2000);
   keyboard(target, 'keyup', 'KeyE', at);
   input.advanceTo(2016);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  input.advanceTo(2120);
   expect(onPatternFinished).toHaveBeenCalledTimes(1);
   expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
   expect(input.heldKeys).toEqual([]);
@@ -116,6 +273,90 @@ it('500ms까지 판정한 뒤 늦게 온 rAF 490ms는 같은 세션을 유지하
   expect(input.advanceTo(2000)).toBeUndefined();
   const finished = input.advanceTo(2016);
   expect(finished?.result.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 2 });
+  input.stop();
+});
+
+it('single-note offset -200ms에서 화면은 1500ms에 반복 1로 가지만 세션 0은 1700ms 정산 대기까지 이전 복사본에만 적용한다', () => {
+  const preview = BASIC_TUTORIAL_EXPLICIT_PREVIEWS.find(preview => preview.id === 'single-note')!;
+  const { input, playback, target, clock, onPatternFinished } = setup(preview);
+  Object.assign(clock, { inputOffsetMs: -200 });
+  input.setMode('directInput');
+  expect(preview.loopMs).toBe(1500);
+
+  for (const iteration of [0, 1]) {
+    const startMs = iteration * 1500;
+    for (const pressMs of [450, 950, 1450]) {
+      keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + startMs + pressMs);
+      keyboard(target, 'keyup', 'KeyE', clock.loopStartNow + startMs + pressMs + 20);
+      input.advanceTo(startMs + pressMs + 20);
+    }
+    // 경계 전에는 화면과 세션이 같아 현재 복사본 1의 세 탭이 모두 숨겨진다.
+    expect(playback.renderSnapshot(1).items.slice(3, 6).map(item => item.state))
+      .toEqual(['success', 'success', 'success']);
+    for (const elapsedMs of [1500, 1600, 1700]) {
+      input.advanceTo(startMs + elapsedMs);
+      const screen = getExplicitTutorialInputTime(clock.loopStartNow + startMs + elapsedMs, clock.loopStartNow, preview.loopMs);
+      expect(screen.iteration).toBe(iteration + 1);
+      expect(input.sessionIteration).toBe(iteration);
+      const snapshot = playback.renderSnapshot(1, input.sessionIteration - screen.iteration);
+      expect(snapshot.items.map(item => item.state)).toEqual([
+        'success', 'success', 'success',
+        'pending', 'pending', 'pending',
+        'pending', 'pending', 'pending',
+      ]);
+      expect(onPatternFinished).toHaveBeenCalledTimes(iteration);
+    }
+    input.advanceTo(startMs + 1716);
+    expect(input.sessionIteration).toBe(iteration + 1);
+    const settled = playback.renderSnapshot(1, input.sessionIteration - (iteration + 1));
+    expect(settled.items.every(item => item.state === 'pending')).toBe(true);
+    expect(settled.atMs).toBe(1516);
+    expect(onPatternFinished).toHaveBeenCalledTimes(iteration + 1);
+    expect(onPatternFinished.mock.calls[iteration][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  }
+  input.stop();
+});
+
+it.each([
+  { mode: 'directInput', inputOffsetMs: 0 },
+  { mode: 'directInput', inputOffsetMs: 200 },
+  { mode: 'demonstration', inputOffsetMs: -200 },
+  { mode: 'demonstration', inputOffsetMs: 0 },
+  { mode: 'demonstration', inputOffsetMs: 200 },
+] as const)('$mode offset $inputOffsetMs ms에서 1500ms 경계를 정산하면 세션 1은 현재 복사본에만 적용한다', ({ mode, inputOffsetMs }) => {
+  const preview = BASIC_TUTORIAL_EXPLICIT_PREVIEWS.find(preview => preview.id === 'single-note')!;
+  const { input, playback, target, clock, onPatternFinished } = setup(preview);
+  Object.assign(clock, { inputOffsetMs });
+  input.setMode(mode);
+  if (mode === 'directInput') {
+    for (const noteMs of [250, 750, 1250]) {
+      keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + noteMs - inputOffsetMs);
+      keyboard(target, 'keyup', 'KeyE', clock.loopStartNow + noteMs - inputOffsetMs + 20);
+    }
+  }
+  input.advanceTo(1400);
+  expect(input.sessionIteration).toBe(0);
+  expect(playback.renderSnapshot(1, 0).items.map(item => item.state)).toEqual([
+    'pending', 'pending', 'pending',
+    'success', 'success', 'success',
+    'pending', 'pending', 'pending',
+  ]);
+  input.advanceTo(1500);
+  // 시연은 경계에서 즉시, 직접 입력은 기존대로 다음 프레임에 정산한다.
+  expect(onPatternFinished).toHaveBeenCalledTimes(mode === 'demonstration' ? 1 : 0);
+  input.advanceTo(1516);
+  expect(input.sessionIteration).toBe(1);
+  expect(playback.renderSnapshot(1, 0).items.every(item => item.state === 'pending')).toBe(true);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+
+  if (mode === 'directInput') keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + 1750 - inputOffsetMs);
+  input.advanceTo(1750);
+  expect(playback.renderSnapshot(1, input.sessionIteration - 1).items.map(item => item.state)).toEqual([
+    'pending', 'pending', 'pending',
+    'success', 'pending', 'pending',
+    'pending', 'pending', 'pending',
+  ]);
   input.stop();
 });
 
@@ -213,7 +454,9 @@ it.each(['demonstration', 'directInput'] as const)('%s에서 2700ms 경계·도�
   keyboard(target, 'keydown', 'KeyE', 5500);
   keyboard(target, 'keyup', 'KeyE', 5510);
   clock.loopStartNow = 6000 - 400;
+  expect(input.sessionIteration).toBe(1);
   input.rebase(6000);
+  expect(input.sessionIteration).toBe(0);
   clock.blocked = false;
   expect(input.advanceTo(400)).toBeUndefined();
   expect(playback.renderSnapshot(0).atMs).toBe(400);
@@ -450,5 +693,120 @@ it('2016ms에 경계 정산까지 마친 뒤 옛 timestamp 3000ms down이 오면
   input.advanceTo(2032);
   expect(effects.recordFlightJudgment).not.toHaveBeenCalled();
   expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
+  input.stop();
+});
+
+
+it.each([
+  { inputOffsetMs: -200, pressMs: 450 },
+  { inputOffsetMs: 200, pressMs: 50 },
+])('직접 입력 offset $inputOffsetMs ms에서 매 프레임 진행하며 실제 $pressMs ms에 누르면 250ms 탭은 Perfect 1·Miss 0', ({ inputOffsetMs, pressMs }) => {
+  const preview = createExplicitTutorialPreview('offset-tap', '입력 보정', [], 4, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [{ type: 'tap', kind: 'single', lane: 2, beat: beat(1, 2) }],
+  });
+  const { input, target, clock, effects } = setup(preview);
+  Object.assign(clock, { inputOffsetMs });
+  input.setMode('directInput');
+  for (let elapsedMs = 0; elapsedMs < pressMs; elapsedMs += 16) input.advanceTo(elapsedMs);
+  keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + pressMs);
+  input.advanceTo(pressMs);
+  input.advanceTo(500);
+  expect(effects.recordFlightJudgment).toHaveBeenCalledExactlyOnceWith('perfect');
+  input.stop();
+});
+
+it.each([
+  { inputOffsetMs: -200, releaseMs: 2199, boundaryMs: 2200 },
+  { inputOffsetMs: -200, releaseMs: 2200, boundaryMs: 2200 },
+  { inputOffsetMs: 200, releaseMs: 1799, boundaryMs: 2000 },
+  { inputOffsetMs: 200, releaseMs: 1800, boundaryMs: 2000 },
+])('offset $inputOffsetMs ms에서 실제 $releaseMs ms에 떼면 $boundaryMs ms 경계 +120ms에 Perfect 2·Miss 0으로 정산한다', ({ inputOffsetMs, releaseMs, boundaryMs }) => {
+  const preview = createExplicitTutorialPreview('offset-boundary', '경계 입력 보정', [], 4, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [
+      { type: 'tap', kind: 'single', lane: 2, beat: beat(1) },
+      { type: 'body', lane: 2, holdCount: 1, beat: beat(1), endBeat: beat(4) },
+      { type: 'release', lane: 2, count: 1, beat: beat(4) },
+    ],
+  });
+  const { input, target, clock, onPatternFinished } = setup(preview);
+  Object.assign(clock, { inputOffsetMs });
+  input.setMode('directInput');
+  const pressMs = 500 - inputOffsetMs;
+  keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + pressMs);
+  for (let elapsedMs = pressMs; elapsedMs < releaseMs; elapsedMs += 16) input.advanceTo(elapsedMs);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  keyboard(target, 'keyup', 'KeyE', clock.loopStartNow + releaseMs);
+  input.advanceTo(releaseMs);
+  input.advanceTo(boundaryMs - 1);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  input.advanceTo(boundaryMs);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  input.advanceTo(boundaryMs + 16);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  input.advanceTo(boundaryMs + 120);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
+  expect(input.heldKeys).toEqual([]);
+  input.stop();
+});
+
+it.each([-200, 200])('시연 offset %i ms여도 자동 입력은 Perfect 3·Miss 0', inputOffsetMs => {
+  const { input, clock } = setup();
+  Object.assign(clock, { inputOffsetMs });
+  const finished = input.advanceTo(2000);
+  expect(finished?.result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  input.stop();
+});
+
+it('offset -200ms에서 600ms 시연 후 직접 입력으로 바꾸면 되감지 않고 반복 0을 Perfect 1·Miss 2로 정산한다', () => {
+  const { input, clock } = setup();
+  Object.assign(clock, { inputOffsetMs: -200 });
+  input.advanceTo(600);
+  input.setMode('directInput');
+  input.advanceTo(616);
+  input.advanceTo(2200);
+  const finished = input.advanceTo(2216);
+  expect(finished?.iteration).toBe(0);
+  expect(finished?.result.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 2 });
+  input.stop();
+});
+
+it('완료 콜백이 false를 반환하면 다음 패턴의 0ms 탭도 시작하지 않고 시연 선택 후에만 재개한다', () => {
+  const preview = createExplicitTutorialPreview('start-tap', '시작 탭', [], 4, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [{ type: 'tap', kind: 'single', lane: 2, beat: beat(0) }],
+    events: [{ type: 'bpm', beat: beat(0), bpm: 120 }],
+  });
+  const effects = { showJudgmentGroup: vi.fn(), recordFlightJudgment: vi.fn(), showBombEffect: vi.fn() };
+  const playback = createExplicitTutorialPreviewPlayback(preview, { kind: 'auto' }, effects);
+  const finish = vi.fn(() => false as const);
+  const input = createExplicitTutorialInput(playback, [], 2000, () => ({ loopStartNow: 1000, blocked: false }), finish);
+  input.advanceTo(0);
+  input.advanceTo(2001);
+  input.advanceTo(6001);
+  expect(finish).toHaveBeenCalledTimes(1);
+  expect(effects.recordFlightJudgment).toHaveBeenCalledExactlyOnceWith('perfect');
+  input.setMode('directInput');
+  input.setMode('demonstration');
+  input.advanceTo(2002);
+  expect(effects.recordFlightJudgment).toHaveBeenCalledTimes(2);
+  input.stop();
+});
+
+it('반복 종료 콜백이 demonstration을 반환하면 다음 0ms 탭은 같은 프레임에 시연 Perfect로 처리한다', () => {
+  const preview = createExplicitTutorialPreview('start-tap', '시작 탭', [], 4, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [{ type: 'tap', kind: 'single', lane: 2, beat: beat(0) }],
+    events: [{ type: 'bpm', beat: beat(0), bpm: 120 }],
+  });
+  const effects = { showJudgmentGroup: vi.fn(), recordFlightJudgment: vi.fn(), showBombEffect: vi.fn() };
+  const playback = createExplicitTutorialPreviewPlayback(preview, { kind: 'auto' }, effects);
+  const input = createExplicitTutorialInput(playback, [], 2000, () => ({ loopStartNow: 1000, blocked: false }), () => 'demonstration');
+  input.setMode('directInput');
+  input.advanceTo(2000);
+  input.advanceTo(2016);
+  expect(effects.recordFlightJudgment.mock.calls.map(([grade]) => grade)).toEqual(['miss', 'perfect']);
   input.stop();
 });
