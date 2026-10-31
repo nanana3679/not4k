@@ -173,6 +173,52 @@ export function msToBeat(
 }
 
 /**
+ * 부동소수점 박을 절대 시간(ms)으로 변환한다. `msToBeat`의 역변환이다.
+ *
+ * `beatToMs`는 유리수 `Beat`만 받는다. `msToBeat`로 구한 박을 해상도로 반올림하지 않고
+ * 그대로 다른 타이밍의 시각으로 옮길 때 쓴다. 0박보다 앞(음수 박)은 `msToBeat`처럼 첫 BPM으로 계산한다.
+ *
+ * @param beatFloat 변환할 박 (부동소수점, 음수 허용)
+ * @param bpmChanges BPM 변경 배열 (beat 오름차순 정렬, 0박에 최소 1개 필수)
+ * @param offsetMs 음원 재생 시작→0박까지의 오프셋 (ms). 기본값 0.
+ * @returns 절대 시간 (ms)
+ */
+export function beatFloatToMs(
+  beatFloat: number,
+  bpmChanges: readonly BpmChange[],
+  offsetMs: number = 0,
+): number {
+  if (bpmChanges.length === 0) {
+    throw new Error("beatFloatToMs: bpmChanges must not be empty");
+  }
+
+  let timeMs = offsetMs;
+  let accumulatedBeats = 0;
+
+  for (let i = 0; i < bpmChanges.length; i++) {
+    const msPB = msPerBeat(bpmChanges[i].bpm);
+
+    if (i + 1 < bpmChanges.length) {
+      // msToBeat과 같은 방식(유리수 차를 float으로)으로 구간 길이를 구해 왕복 오차를 줄인다
+      const segmentBeats = beatToFloat(beatSub(bpmChanges[i + 1].beat, bpmChanges[i].beat));
+
+      if (beatFloat - accumulatedBeats <= segmentBeats) {
+        // target은 이 구간 안에 있다
+        return timeMs + (beatFloat - accumulatedBeats) * msPB;
+      }
+
+      timeMs += segmentBeats * msPB;
+      accumulatedBeats += segmentBeats;
+    } else {
+      // 마지막 구간 — 남은 박을 시간으로 변환
+      return timeMs + (beatFloat - accumulatedBeats) * msPB;
+    }
+  }
+
+  return timeMs;
+}
+
+/**
  * BPM 변경 배열에서 특정 Beat 위치의 BPM을 구한다.
  */
 export function bpmAt(

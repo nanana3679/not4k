@@ -475,6 +475,43 @@ describe('editorStore savedChartJson', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 차트 불러오기 세대(chartLoadGeneration) — 타이밍 값 수정 뒤 커서 박 유지가 새로 불러온 차트를 수정으로 오인하지 않게 한다.
+// ---------------------------------------------------------------------------
+
+describe('editorStore 차트 불러오기 세대 chartLoadGeneration', () => {
+  const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeChart(), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
+      isSavingChart: false, chartSaveGeneration: 0, chartLoadGeneration: 0,
+      historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
+    });
+  });
+
+  it('처음 상태의 chartLoadGeneration은 0', () => {
+    expect(useEditorStore.getInitialState().chartLoadGeneration).toBe(0);
+  });
+
+  it('loadChart를 두 번 부르면 chartLoadGeneration이 0 → 1 → 2로 오른다', () => {
+    useEditorStore.getState().loadChart(makeChart([tap(1)]));
+    expect(useEditorStore.getState().chartLoadGeneration).toBe(1);
+
+    useEditorStore.getState().loadChart(makeChart([tap(2)]));
+    expect(useEditorStore.getState().chartLoadGeneration).toBe(2);
+  });
+
+  it('불러온 뒤 setChart·Undo·Redo·beginChartSave는 chartLoadGeneration 1을 바꾸지 않는다', () => {
+    useEditorStore.getState().loadChart(makeChart([tap(1)]));
+    useEditorStore.getState().setChart(makeChart([tap(1), tap(3)]));
+    useEditorStore.getState().undo();
+    useEditorStore.getState().redo();
+    useEditorStore.getState().beginChartSave();
+
+    expect(useEditorStore.getState().chartLoadGeneration).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 저장 진행(isSavingChart·chartSaveGeneration) — 페이지가 다시 마운트돼도 store가 유지하고,
 // 늦게 끝난 저장이 그 뒤에 정한 savedChartJson을 덮지 않는다.
 // ---------------------------------------------------------------------------

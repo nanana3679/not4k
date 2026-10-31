@@ -8,6 +8,7 @@ import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { getWaveformPeaks } from './timeline/waveform';
 import { createWaveformFeed, type WaveformFeed } from './waveformFeed';
 import { PlaybackController } from './playback/PlaybackController';
+import { createCursorBeatKeeper } from './playback/cursorBeatKeeper';
 import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
 import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
@@ -253,6 +254,11 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const waveformFeedRef = useRef<WaveformFeed | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const playbackRef = useRef<PlaybackController | null>(null);
+  // 정지 중 타이밍 값 수정 뒤 커서의 박 유지(RFD 0099). 첫 차트를 기준으로 만들고 [chart] effect가 매 교체를 알린다.
+  const [cursorBeatKeeper] = useState(() => createCursorBeatKeeper({
+    chart,
+    loadGeneration: useEditorStore.getState().chartLoadGeneration,
+  }));
   const createModeRef = useRef<CreateMode | null>(null);
   const selectModeRef = useRef<SelectMode | null>(null);
   const deleteModeRef = useRef<DeleteMode | null>(null);
@@ -712,7 +718,18 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         totalTimelineMs: rendererRef.current.getTotalTimelineMs(),
       });
     }
-  }, [chart]);
+    // 정지 중 오프셋·BPM이 바뀌었으면 커서를 수정 직전 박의 새 음원 시각으로 seek한다(RFD 0099).
+    // 위의 renderer.setChart가 타임라인 길이 캐시를 비웠으므로 clampToMeasureRange는 새 차트의 마디 범위를 쓴다.
+    // 새로 불러온 차트(chartLoadGeneration 변경)와 재생 중 변경은 seek하지 않는다.
+    const { chartLoadGeneration, currentTimeMs: cursorMs } = useEditorStore.getState();
+    cursorBeatKeeper.chartChanged({
+      chart,
+      loadGeneration: chartLoadGeneration,
+      cursorMs,
+      playback: playbackRef.current,
+      clampMs: (timeMs) => rendererRef.current?.clampToMeasureRange(timeMs) ?? timeMs,
+    });
+  }, [chart, cursorBeatKeeper]);
 
   // extraLaneCount → renderer
   useEffect(() => {

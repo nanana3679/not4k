@@ -91,6 +91,9 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // 저장을 시작할 때와 차트를 새로 불러올 때 1씩 오른다. 저장은 시작할 때 받은 값으로 끝을 알리고,
   // 그 사이 값이 바뀌었으면(차트를 새로 불러옴) 늦게 끝난 그 저장은 savedChartJson·isSavingChart를 바꾸지 않는다.
   chartSaveGeneration: number;
+  // loadChart로 차트를 새로 열 때만 1씩 오른다. 편집·Undo·Redo·저장은 바꾸지 않는다.
+  // 차트 교체를 보는 쪽이 새로 불러온 차트를 편집과 구별할 때 쓴다(타이밍 값 수정 뒤 커서 박 유지, RFD 0099).
+  chartLoadGeneration: number;
 
   // Event editing
   editingEvent: EditingEvent;
@@ -112,6 +115,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    * 다른 차트를 여는 것이므로 이전 차트의 savedChartJson을 지운다. 불러온 쪽이 setSavedChartJson으로 불러온 차트의 값을 정한다.
    * 진행 중이던 저장은 이전 차트의 것이므로 chartSaveGeneration을 올려 그 결과가 새 차트에 닿지 않게 하고 isSavingChart를 끈다.
    * 이전 차트의 변환 검토 목록(legacyConversionReview)도 비우고 닫는다.
+   * chartLoadGeneration을 1 올려, 차트 교체를 보는 쪽이 이 교체를 편집과 구별하게 한다.
    */
   loadChart: (chart: ChartDocument) => void;
   /** 불러온 차트의 savedChartJson을 정한다. loadChart 직후에만 부른다. 저장 결과는 finishChartSave로 정한다. */
@@ -247,6 +251,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   savedChartJson: null,
   isSavingChart: false,
   chartSaveGeneration: 0,
+  chartLoadGeneration: 0,
   editingEvent: null,
   legacyConversionReview: null,
   legacyConversionReviewOpen: false,
@@ -328,6 +333,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       savedChartJson: null,
       isSavingChart: false,
       chartSaveGeneration: state.chartSaveGeneration + 1,
+      chartLoadGeneration: state.chartLoadGeneration + 1,
       legacyConversionReview: null,
       legacyConversionReviewOpen: false,
       ...(errors.length === 0
