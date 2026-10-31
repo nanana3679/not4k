@@ -3,8 +3,6 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ProfileSection } from './ProfileSection';
 import type { useAuth } from '../../../shared/hooks/useAuth';
-import panelSource from './SettingsPanel.tsx?raw';
-import profileSource from './ProfileSection.tsx?raw';
 
 const auth = vi.hoisted(() => ({
   user: null as ReturnType<typeof useAuth>['user'], loading: false,
@@ -60,19 +58,4 @@ it('dev@local 로그인 Profile은 Signed in·이메일·Logout을 표시하고 
   expect(html).toContain('>Logout</button>');
   expect(html).not.toContain('>Login</button>');
   expect(html).not.toContain('<input');
-});
-
-it('SettingsPanel은 로그인 여부와 무관하게 Profile 메뉴를 등록하고 복귀 초기 섹션을 사용한다', () => {
-  expect(panelSource).toContain("{ id: 'profile', label: 'Profile' }");
-  expect(panelSource).toContain('useState<SectionId>(settingsInitialSection)');
-  expect(panelSource).toContain('<ProfileSection />');
-});
-
-it('Profile에서 Login 중 다른 탭으로 이동해도 같은 요청과 pending 상태를 유지하도록 숨기기만 한다', () => {
-  expect(panelSource).toMatch(/<div hidden=\{section !== 'profile'\}>\s*<ProfileSection\s*\/>\s*<\/div>/);
-});
-
-it('Profile을 닫으면 active를 false로 바꾸고 늦은 인증 결과는 새 설정의 오류에 쓰지 않는다', () => {
-  expect(profileSource).toMatch(/return \(\) => \{ active.current = false; \};/);
-  expect(profileSource).toMatch(/if \(!active.current\) return;\s*useGameStore.setState\(\{ profileAuthError: message \}\)/);
 });

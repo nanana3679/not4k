@@ -13,7 +13,7 @@ import {
   ResultScreen,
 } from './screens';
 import { keepGearMotionAssets } from './screens/gearMotionKeepAlive';
-import { createProfileReturnRestorer } from './screens/settings/profileReturn';
+import { bindProfileReturnRestoration, createProfileReturnRestorer } from './screens/settings/profileReturn';
 
 export default function GameApp() {
   const screen = useGameStore((state) => state.screen);
@@ -26,7 +26,7 @@ export default function GameApp() {
   const [restoreProfileReturn] = useState(createProfileReturnRestorer);
 
   useEffect(() => {
-    restoreProfileReturn(mobileListOnly);
+    return bindProfileReturnRestoration(restoreProfileReturn, mobileListOnly);
   }, [restoreProfileReturn, mobileListOnly, isFirstLaunch]);
 
   // 설정 `Gear Motion`을 끄면 플레이 화면이 keep-alive로 둔 `gearMotion` 에셋 lease를 바로 release한다(다시 켜면 다음 플레이가 acquire한다).

@@ -1,17 +1,17 @@
 import { useGameStore, PRESET_BINDINGS } from '../../stores';
 import { AVAILABLE_SKINS } from '../../skin';
-import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
+import { lazy, Suspense, useState, useReducer, useEffect, useRef, type ReactNode } from 'react';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import { KB_TKL_KEYS, KB_NUMPAD_KEYS } from '../../renderer/keyboardLayout';
 import { OffsetRow } from './OffsetRow';
 import { ProfileSection } from './ProfileSection';
+import { createSettingsSectionState, selectSettingsSection, type SettingsSection } from './settingsSections';
 
 const DevSkinVersionSelect = import.meta.env.DEV
   ? lazy(() => import('../../../lab/DevSkinVersionSelect'))
   : null;
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
-type SectionId = 'controls' | 'gameplay' | 'skin' | 'advanced' | 'profile';
 type ToastTone = 'info' | 'error';
 
 interface SettingsPanelProps {
@@ -22,7 +22,7 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
-const SECTIONS: { id: SectionId; label: string }[] = [
+const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: 'controls', label: 'Controls' },
   { id: 'gameplay', label: 'Gameplay' },
   { id: 'skin', label: 'Skin' },
@@ -42,7 +42,9 @@ const KB_H = Math.max(...KB_KEYS.map((k) => k.y + (k.h ?? 1)));
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { settings, updateSettings, settingsInitialSection } = useGameStore();
-  const [section, setSection] = useState<SectionId>(settingsInitialSection);
+  const [{ section, profileMounted }, setSection] = useReducer(
+    selectSettingsSection, settingsInitialSection, createSettingsSectionState,
+  );
   const [listeningLane, setListeningLane] = useState<Lane | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -159,10 +161,12 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </nav>
 
         <div className="stg-content" role="region" aria-label={SECTIONS.find((s) => s.id === section)?.label}>
-          {/* 탭 전환 중에도 진행 중인 인증 요청을 유지한다. 모달을 닫으면 함께 언마운트된다. */}
-          <div hidden={section !== 'profile'}>
-            <ProfileSection />
-          </div>
+          {/* 첫 방문에 인증을 시작하고 이후 탭 전환에서도 요청을 유지한다. 모달 종료 때 언마운트된다. */}
+          {profileMounted && (
+            <div hidden={section !== 'profile'}>
+              <ProfileSection />
+            </div>
+          )}
 
           {section === 'controls' && (
             <ControlsSection

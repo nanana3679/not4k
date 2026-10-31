@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../../shared/hooks/useAuth';
 import { useGameStore } from '../../stores/gameStore';
-import { signInFromProfile, signOutFromProfile } from './profileAuth';
+import { handleProfileAuth } from './profileAuthAction';
 
 export function ProfileSection() {
   const { user, loading, signInWithGoogle, signOut } = useAuth();
@@ -14,16 +14,10 @@ export function ProfileSection() {
     return () => { active.current = false; };
   }, []);
 
-  const handleAuth = async () => {
-    setPending(true);
-    useGameStore.setState({ profileAuthError: null });
-    const message = user
-      ? await signOutFromProfile(signOut, () => useGameStore.getState().setScreen('title'))
-      : await signInFromProfile(signInWithGoogle);
-    if (!active.current) return;
-    useGameStore.setState({ profileAuthError: message });
-    setPending(false);
-  };
+  const handleAuth = () => handleProfileAuth({
+    signedIn: Boolean(user), signIn: signInWithGoogle, signOut,
+    isActive: () => active.current, setPending,
+  });
 
   return (
     <div className="stg-section">

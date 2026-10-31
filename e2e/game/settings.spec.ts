@@ -77,10 +77,11 @@ function laneRow(dialog: Locator, laneNumber: number): Locator {
 
 test.describe('Game Settings', () => {
   // VITE_DEV_ADMIN=true에서는 첫 렌더부터 dev@local이다. OAuth 왕복은 단위 테스트의 가짜 인증으로 검증한다.
-  test('dev@local 로그인 상태에서 Profile을 선택하면 Signed in·Logout을 표시하고 닉네임 입력은 없다', async ({ page }) => {
+  test('dev@local의 Profile은 첫 방문에 Signed in·Logout을 표시하고 탭 전환 중 같은 인스턴스를 유지하며 설정 종료 때 제거한다', async ({ page }) => {
     const dialog = await openSettings(page);
     const profile = dialog.getByRole('button', { name: 'Profile', exact: true });
     await expect(profile).toBeVisible();
+    await expect(dialog.getByText('Signed in', { exact: true })).toHaveCount(0);
     await profile.click();
     await expect(profile).toHaveAttribute('aria-current', 'page');
     const region = dialog.getByRole('region', { name: 'Profile', exact: true });
@@ -89,6 +90,17 @@ test.describe('Game Settings', () => {
     await expect(region.getByRole('button', { name: 'Logout', exact: true })).toBeEnabled();
     await expect(region.getByRole('button', { name: 'Login', exact: true })).toHaveCount(0);
     await expect(region.getByRole('textbox')).toHaveCount(0);
+    const signedIn = dialog.getByText('Signed in', { exact: true });
+    await signedIn.evaluate(element => element.setAttribute('data-profile-instance', 'first'));
+    await dialog.getByRole('button', { name: 'Controls', exact: true }).click();
+    await expect(signedIn).toBeHidden();
+    await expect(signedIn).toHaveCount(1);
+    await profile.click();
+    await expect(signedIn).toBeVisible();
+    await expect(signedIn).toHaveAttribute('data-profile-instance', 'first');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(dialog.getByText('Signed in', { exact: true })).toHaveCount(0);
   });
 
   test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 명시 탭 노트·Body와 Classic 기어·봄 PNG를 로드한다', async ({ page }, testInfo) => {

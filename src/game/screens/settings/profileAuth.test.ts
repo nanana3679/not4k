@@ -12,9 +12,37 @@ function mockSessionStorage() {
   return storage;
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 describe('프로필 로그인 복귀 의도', () => {
+  it.each([0, 10])('Login 후 %i분에 복귀 의도를 읽으면 true이고 다음 읽기는 false다', async (minutes) => {
+    vi.useFakeTimers();
+    mockSessionStorage();
+    await signInFromProfile(async () => {});
+    vi.advanceTimersByTime(minutes * 60 * 1000);
+    expect(consumeProfileReturn()).toBe(true);
+    expect(consumeProfileReturn()).toBe(false);
+  });
+
+  it.each(['broken', '{}', 'NaN', '', '1'])('마커가 %j이면 복귀 의도를 무시하고 저장소에서 지운다', (value) => {
+    const storage = mockSessionStorage();
+    storage.setItem('not4k-profile-return', value);
+    expect(consumeProfileReturn()).toBe(false);
+    expect(storage.getItem('not4k-profile-return')).toBeNull();
+  });
+
+  it('Login 후 11분이 지나 복귀 의도를 읽으면 false이고 저장된 마커를 지운다', async () => {
+    vi.useFakeTimers();
+    const storage = mockSessionStorage();
+    await signInFromProfile(async () => {});
+    vi.advanceTimersByTime(11 * 60 * 1000);
+    expect(consumeProfileReturn()).toBe(false);
+    expect(storage.getItem('not4k-profile-return')).toBeNull();
+  });
+
   it('Login을 누르면 Google 이동 전에 복귀 의도를 저장하고 두 번 읽어도 한 번만 소비한다', async () => {
     mockSessionStorage();
     const redirect = vi.fn(async () => {
@@ -52,6 +80,16 @@ describe('프로필 로그인 복귀 의도', () => {
 });
 
 describe('Google 복귀 URL', () => {
+  it('access_denied에 signup_disabled가 있으면 취소 대신 Signups disabled 오류를 표시한다', () => {
+    expect(parseProfileRedirect('https://example.test/game#error=access_denied&error_code=signup_disabled&error_description=Signups+disabled').outcome)
+      .toEqual({ status: 'failure', message: 'Signups disabled' });
+  });
+
+  it.each(['', '&error_code=access_denied'])('access_denied%s로 복귀하면 설명 없이 cancel을 반환한다', (code) => {
+    expect(parseProfileRedirect(`https://example.test/game?error=access_denied${code}`).outcome)
+      .toEqual({ status: 'cancel' });
+  });
+
   it.each(['?', '#'])('%serror=access_denied로 복귀하면 오류 메시지 없이 cancel이며 다른 URL 값은 보존한다', (separator) => {
     expect(parseProfileRedirect(`https://example.test/game${separator}error=access_denied&error_description=User+cancelled&keep=1`)).toEqual({
       outcome: { status: 'cancel' },
