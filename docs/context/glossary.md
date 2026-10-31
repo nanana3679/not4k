@@ -947,7 +947,7 @@ _Avoid_: 판정 전파(표시 외 효과를 배제하는 인상)
 
 ### `ChartEvent`
 
-이 절의 이벤트 명칭·공통 편집 계약은 [RFD 0067](../rfd/0067-chart-event-names.md)·[RFD 0068](../rfd/0068-common-event-editing.md)을 따른다. 코드 변경·검증은 별도 PR [#368](https://github.com/nanana3679/not4k/pull/368)·[#369](https://github.com/nanana3679/not4k/pull/369)에서 진행하며, 이 기획 문서 PR의 런타임 변경은 없다.
+이 절의 이벤트 명칭·공통 편집 계약은 [RFD 0067](../rfd/0067-chart-event-names.md)·[RFD 0068](../rfd/0068-common-event-editing.md)을 따른다. 이벤트 명칭의 코드 전환은 PR [#368](https://github.com/nanana3679/not4k/pull/368), 공통 편집·배치 겹침 검증·초기 설정 선택 제외는 PR [#369](https://github.com/nanana3679/not4k/pull/369)로 반영했다. 로드 시 초기 설정 자동 분리는 후속 구현이다.
 
 차트에 배치되는 이벤트의 통합 타입. `type` 필드로 구분되는 디스크리미네이티드 유니온이다. 시점 이벤트(`BpmChangeEvent`, `TimeSignatureChangeEvent`)와 구간 이벤트(`TextEvent`, `AutoEvent`, `StopEvent`, `TutorialInputEvent`, `TutorialDiagramEvent`)로 나뉜다. 저장 데이터와 에디터의 편집·렌더링에서 같은 이벤트를 가리키며, 화면에 그렸다는 이유로 별도 도메인 개념인 “마커”로 부르지 않는다. 명명 근거는 [RFD 0067](../rfd/0067-chart-event-names.md)를 따른다.
 
@@ -1124,9 +1124,9 @@ DOM 포인터 입력을 정규화한 한 건: `{pointerId, pointerType(mouse|tou
 
 ### `resolveGrab` (grab 우선순위 사다리)
 
-Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 정하는 순수 우선순위 사다리. z-order 8단계(끝 리사이즈 캡 4종 `noteEndCap`·`eventEndCap`·`trillZoneEndCap`·`restZoneEndCap` > 통합 `note` > 몸통 `trillZoneBody`·`restZoneBody` > `empty`)를 **단독으로 소유**한다. 캡 게이트(사다리 1·3·4)는 down 시점 선택(`sel`)을 읽어, 미선택 구간의 끝 캡은 리사이즈로 잡지 않고 겹친 노트/몸통으로 하강한다(RFD 0016 §6-6). 범위 노트 끝 캡의 hit 영역(`hitTestNoteEnd`)은 탭 노트·릴리즈·틱 노트와 겹친 자리를 비우고, 그 노트가 덮은 끝은 노트 hit 바로 위 띠(끝+1/16～3/16박)로 옮긴다. 그 띠에 겹친 노트가 없으면 미선택 바디도 사다리 1에서 바로 잡힌다. 연결 경계처럼 이어진 뒤 바디가 그 띠를 덮어도 띠는 앞 바디의 끝 hit이며, 사다리 1의 게이트(선택됐거나 최상위)에 따라 앞 바디가 선택됐을 때만 끝 캡으로 잡히고 미선택이면 뒤 바디를 잡는다. 선택 게이트가 없는 끝 캡 롱프레스는 그 띠에서 앞 바디 끝을 리사이즈한다. 수식자(shift/alt/toggle)는 대상 확정 "후"의 동작이라 사다리에 나타나지 않는다.
+Select 모드 down이 한 좌표에서 **무엇을 잡는지**(`GrabTarget`)를 정하는 순수 우선순위 사다리. z-order 9단계(끝 리사이즈 캡 4종 `noteEndCap`·`eventEndCap`·`trillZoneEndCap`·`restZoneEndCap` > 통합 `note` > `event` > 몸통 `trillZoneBody`·`restZoneBody` > `empty`)를 **단독으로 소유**한다. 캡 게이트(사다리 1·3·4)는 down 시점 선택(`sel`)을 읽어, 미선택 구간의 끝 캡은 리사이즈로 잡지 않고 겹친 노트/몸통으로 하강한다(RFD 0016 §6-6). 범위 노트 끝 캡의 hit 영역(`hitTestNoteEnd`)은 탭 노트·릴리즈·틱 노트와 겹친 자리를 비우고, 그 노트가 덮은 끝은 노트 hit 바로 위 띠(끝+1/16～3/16박)로 옮긴다. 그 띠에 겹친 노트가 없으면 미선택 바디도 사다리 1에서 바로 잡힌다. 연결 경계처럼 이어진 뒤 바디가 그 띠를 덮어도 띠는 앞 바디의 끝 hit이며, 사다리 1의 게이트(선택됐거나 최상위)에 따라 앞 바디가 선택됐을 때만 끝 캡으로 잡히고 미선택이면 뒤 바디를 잡는다. 선택 게이트가 없는 끝 캡 롱프레스는 그 띠에서 앞 바디 끝을 리사이즈한다. 수식자(shift/alt/toggle)는 대상 확정 "후"의 동작이라 사다리에 나타나지 않는다.
 
-**불변식**: grab 우선순위를 아는 코드는 `resolveGrab` 한 곳뿐이다. 마우스(`SelectMode.onPointerDown`)와 터치(`useCanvasEvents` → `scheduleFromGrabTarget`)는 `SelectMode.resolveGrabAt(x, y)`라는 **같은 seam**을 소비하므로 두 경로로 갈라질 코드 위치가 없다. 터치 스케줄은 `GrabTarget`을 "`note`면 클릭 토글, 그 외 전부 지연-드래그(재생 위임)"의 2택으로 접기만 한다. 롱프레스 발화 사다리(`resolveLongPressAction`)는 선택 게이트 없는 별개 "직접 조작" 축이라 흡수하지 않는다(#143). 구현은 `src/editor/modes/resolveGrab.ts`.
+**불변식**: grab 우선순위를 아는 코드는 `resolveGrab` 한 곳뿐이다. 마우스(`SelectMode.onPointerDown`)와 터치(`useCanvasEvents` → `scheduleFromGrabTarget`)는 `SelectMode.resolveGrabAt(x, y)`라는 **같은 seam**을 소비하므로 두 경로로 갈라질 코드 위치가 없다. 터치 스케줄은 `GrabTarget`을 "`note`·`event`면 클릭 토글, 그 외 전부 지연-드래그(재생 위임)"의 2택으로 접기만 한다. 롱프레스 발화 사다리(`resolveLongPressAction`)는 선택 게이트 없는 별개 "직접 조작" 축이라 흡수하지 않는다(#143). 구현은 `src/editor/modes/resolveGrab.ts`.
 
 ### 차트 변이 게이트 (Chart Mutation Gate)
 

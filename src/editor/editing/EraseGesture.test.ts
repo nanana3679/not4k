@@ -84,7 +84,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
     const tick: DocumentNoteEntity = { type: 'tick', lane: 1, beat: beat(2.5), count: 1 };
     const initial = chart([body, tick], { restZones: [zoneAt1to4] });
     const { erase, warn } = setup(initial);
-    useEditorStore.setState({ selection: { notes: new Set([0]), zones: new Set(), restZones: new Set() } });
+    useEditorStore.setState({ selection: { notes: new Set([0]), zones: new Set(), restZones: new Set(), events: new Set() } });
     erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
 
     expect(current().chart).toBe(initial);

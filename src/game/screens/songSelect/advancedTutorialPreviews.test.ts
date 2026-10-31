@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateChart } from '../../../shared/validation';
-import { beatToMs, extractBpmMarkers } from '../../../shared/timing';
+import { beatToMs, extractBpmChanges } from '../../../shared/timing';
 import { createTutorialPreviewSessionController } from './tutorialPreviewSession';
 import { getTutorialInputTimings } from './tutorialPreviewChart';
 import { ADVANCED_TUTORIAL_PREVIEWS } from './advancedTutorialPreviews';
@@ -26,8 +26,8 @@ describe('Advanced tutorial previews', () => {
     expect(new Set(ADVANCED_TUTORIAL_PREVIEWS.map(preview => preview.id)).size).toBe(12);
     for (const preview of ADVANCED_TUTORIAL_PREVIEWS) {
       expect(validateChart(preview.chart)).toEqual([]);
-      expect(extractBpmMarkers(preview.chart.events)[0].bpm).toBe(120);
-      expect(Math.min(...preview.chart.notes.map(note => beatToMs(note.beat, extractBpmMarkers(preview.chart.events))))).toBeGreaterThanOrEqual(2000);
+      expect(extractBpmChanges(preview.chart.events)[0].bpm).toBe(120);
+      expect(Math.min(...preview.chart.notes.map(note => beatToMs(note.beat, extractBpmChanges(preview.chart.events))))).toBeGreaterThanOrEqual(2000);
     }
   });
 

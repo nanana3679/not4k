@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Container } from "pixi.js";
 import type { Graphics, GraphicsPath, Rectangle } from "pixi.js";
 import { beat } from "../../shared";
-import type { Chart, BpmMarker, NoteEntity, ChartEvent } from "../../shared";
+import type { Chart, BpmChange, NoteEntity, ChartEvent } from "../../shared";
 import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 
@@ -50,7 +50,7 @@ function renderViolations(chart: Chart, violating: { notes?: number[]; events?: 
     boxSelectRect: null,
     scrollY: 0,
     contentOffsetX: 0,
-    cachedBpmMarkers: [{ beat: beat(0), bpm: 120 }] as BpmMarker[],
+    cachedBpmChanges: [{ beat: beat(0), bpm: 120 }] as BpmChange[],
     getVisibleTimeRange: () => ({ minTimeMs: -1_000_000, maxTimeMs: 1_000_000 }),
     timeToY: (ms: number) => ms / 10,
     ghostLayer: new Container(),

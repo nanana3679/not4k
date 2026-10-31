@@ -224,7 +224,7 @@ function autoTrillZones(notes: readonly NoteEntity[], explicit: readonly TrillZo
 function caseChart(title: string, notes: NoteEntity[], trillZones: TrillZone[], inputEvents: TutorialInputEvent[]): Chart {
   const timingEvents: ChartEvent[] = [
     { type: "bpm", beat: beat(0), bpm: JUDGMENT_CASE_BPM },
-    { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(JUDGMENT_CASE_BEATS_PER_MEASURE) },
+    { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(JUDGMENT_CASE_BEATS_PER_MEASURE), editorLane: 2 },
   ];
   return {
     meta: {

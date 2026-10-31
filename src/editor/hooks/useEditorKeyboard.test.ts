@@ -47,7 +47,7 @@ function setup(source: DocumentNoteEntity[] = [{ type: 'tap', kind: 'single', la
   const press = (key: string, modifiers: { ctrlKey?: boolean; shiftKey?: boolean } = {}) => handleEditorKeyDown(
     { key, ctrlKey: false, metaKey: false, shiftKey: false, preventDefault: () => {}, ...modifiers },
     {
-      mode: current().mode, selectMode: mode, playback: null, bpmMarkers: [], offsetMs: 0, shortcutsBlocked: false,
+      mode: current().mode, selectMode: mode, playback: null, bpmChanges: [], offsetMs: 0, shortcutsBlocked: false,
       setMode: next => current().setMode(next), addToast: () => {},
     },
   );

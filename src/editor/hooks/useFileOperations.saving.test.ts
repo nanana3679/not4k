@@ -56,7 +56,7 @@ const chart = (notes: ChartDocument['notes'], difficultyLabel = 'NORMAL'): Chart
   meta: { title: '저장 진행', artist: '', difficultyLabel, difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
   notes,
   trillZones: [],
-  events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) }],
+  events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }],
 });
 const dirty = () => isChartDirty(current().chart, current().extraLaneCount, current().savedChartJson);
 /** App의 로드 경로처럼 차트를 열고 그 차트로 savedChartJson을 정한다. */
@@ -99,7 +99,7 @@ beforeEach(() => {
   });
   useEditorStore.setState({
     chart: chart([]), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
-    isSavingChart: false, chartSaveGeneration: 0, activeSongId: 'song', currentTimeMs: 0, editingMarker: null,
+    isSavingChart: false, chartSaveGeneration: 0, activeSongId: 'song', currentTimeMs: 0, editingEvent: null,
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Create Mode — 차트 엔티티 생성 인터랙션 핸들러
  *
- * 포인트 노트, 구간 노트, 마커, 메시지 등을 타임라인에 배치한다. 드래그로 구간
+ * 포인트 노트, 구간 노트, 이벤트, 메시지 등을 타임라인에 배치한다. 드래그로 구간
  * 엔티티를 생성한다. 생성은 완전 낙관(RFD 0017) — 의미 위반(중복·겹침)을 만들어도
  * 조용히 커밋하고, 피드백은 해칭+미니맵 지시자가 담당한다. 구조 위반은 setChart
  * 게이트가 거부한다. 좌표 배치 가드(isCreatePlacementBlocked)는 별도 축으로 유지.
@@ -218,6 +218,7 @@ export class CreateMode implements EditorMode {
    */
   isPlacementBlocked(x: number, y: number): boolean {
     if (!this.callbacks.isTimeInBounds(y)) return true;
+    if (isEventEntityType(this.selectedEntityType)) return this.callbacks.space.hitTestEvent(x, y) !== null;
     // 틱·릴리즈는 바디 안에도 놓는다. 중복·소속은 공용 의미 검증으로 표시한다.
     if (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
     const unifiedHit = this.callbacks.space.hitTestUnifiedNote(x, y);

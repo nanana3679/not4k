@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Container, Graphics } from "pixi.js";
 import { beat } from "../../shared";
-import type { BpmMarker, ChartDocument, Lane, TimeSignatureMarker } from "../../shared";
+import type { BpmChange, ChartDocument, Lane, TimeSignatureChange } from "../../shared";
 import { MinimapRenderer, type MinimapHost } from "./MinimapRenderer";
 
 /** 테스트에서 private 필드(_viewport·_violationIndicators)에 접근하기 위한 캐스트. */
@@ -43,8 +43,8 @@ function makeHost(
   minimapLayer: Container,
   overrides: Partial<MinimapHost> = {},
 ): MinimapHost {
-  const bpmMarkers: BpmMarker[] = [{ beat: beat(0), bpm: 120 }];
-  const timeSignatures: TimeSignatureMarker[] = [{ measure: 0, beatPerMeasure: beat(4) }];
+  const bpmChanges: BpmChange[] = [{ beat: beat(0), bpm: 120 }];
+  const timeSignatureChanges: TimeSignatureChange[] = [{ measure: 0, beatPerMeasure: beat(4) }];
   return {
     chart,
     options: {
@@ -59,8 +59,8 @@ function makeHost(
     totalTimelineHeight: 80_000,
     waveformDurationMs: 640_000,
     zoom: 200,
-    cachedBpmMarkers: bpmMarkers,
-    cachedTimeSignatures: timeSignatures,
+    cachedBpmChanges: bpmChanges,
+    cachedTimeSignatureChanges: timeSignatureChanges,
     getTotalTimelineMs: () => 640_000,
     timeToY: (timeMs: number) => 80_000 - timeMs / 10,
     minimapLayer,
@@ -89,7 +89,7 @@ describe("MinimapRenderer", () => {
     const minimapLayer = new Container();
     // 분자 0 박자표: measureStartBeat가 전진하지 않아 가드가 없으면 measure-line 루프가 무한루프.
     const renderer = new MinimapRenderer(makeHost(chart, minimapLayer, {
-      cachedTimeSignatures: [{ measure: 0, beatPerMeasure: beat(0) }],
+      cachedTimeSignatureChanges: [{ measure: 0, beatPerMeasure: beat(0) }],
     }));
 
     // 무한루프면 이 호출이 반환되지 않아 테스트가 타임아웃으로 실패한다.

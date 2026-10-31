@@ -6,7 +6,7 @@
  * All functions use raw (unsnapped) beat values for snap-independent detection.
  */
 
-import type { DocumentNoteEntity, DocumentExtraNoteEntity, RangeNote, BodyNote, TrillZone, RestZone } from "../../shared";
+import type { ChartEvent, DocumentNoteEntity, DocumentExtraNoteEntity, RangeNote, BodyNote, TrillZone, RestZone } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
 
 /** Tolerance for point note hit detection (in beats) */
@@ -25,6 +25,18 @@ const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
 
 /** Selection priority bonus — always larger than any z-order value */
 const SELECTED_BONUS = MAX_Z_ORDER + 1;
+
+/** 이벤트도 노트와 같은 raw 박·허용 오차로 찾는다. 나중에 그린 이벤트가 앞이다. */
+export function hitTestEventAt(events: readonly ChartEvent[], editorLane: number, beatFloat: number): number | null {
+  for (let index = events.length - 1; index >= 0; index--) {
+    const event = events[index];
+    if ((event.editorLane ?? 1) !== editorLane) continue;
+    const start = event.beat.n / event.beat.d;
+    const end = 'endBeat' in event ? event.endBeat.n / event.endBeat.d : start;
+    if (beatFloat >= start - POINT_NOTE_TOLERANCE && beatFloat <= end + POINT_NOTE_TOLERANCE) return index;
+  }
+  return null;
+}
 
 export function hitTestNoteAt(
   notes: readonly DocumentNoteEntity[],

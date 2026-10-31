@@ -1,7 +1,9 @@
+import { boxColumnToEventLane } from '../timeline/laneGeometry';
+import { deleteEvents } from './eventEditing';
 import type { ChartDocument, DocumentNoteEntity } from '../../shared';
 import { beatLte } from '../../shared';
 import { DeleteMode } from '../modes/DeleteMode';
-import { hitTestNoteAt, hitTestRestZoneAt, hitTestTrillZoneAt, isExplicitScoreNote } from '../timeline/hitTest';
+import { hitTestEventAt, hitTestNoteAt, hitTestRestZoneAt, hitTestTrillZoneAt, isExplicitScoreNote } from '../timeline/hitTest';
 
 interface EraseCallbacks {
   getChart: () => ChartDocument;
@@ -42,7 +44,15 @@ export class EraseGesture {
     const chart = this.callbacks.getChart();
     const selected = this.callbacks.getSelectedNotes();
     const index = hitTestNoteAt(chart.notes, lane, beatFloat, undefined, selected);
-    if (index === null) return false;
+    if (index === null) {
+      const eventLane = boxColumnToEventLane(lane);
+      const eventIndex = eventLane === null ? null : hitTestEventAt(chart.events, eventLane, beatFloat);
+      if (eventIndex === null) return false;
+      const next = deleteEvents(chart, new Set([eventIndex]));
+      if (!next) { this.callbacks.onWarn?.('Cannot delete initial event'); return false; }
+      this.callbacks.onChartUpdate(next, this.token!);
+      return true;
+    }
     const note = chart.notes[index];
     if (note.type === 'body') {
       // 노트를 지워 드러난 자리만 보호한다. 다른 위치의 바디를 직접 지우는 동작은 유지한다.

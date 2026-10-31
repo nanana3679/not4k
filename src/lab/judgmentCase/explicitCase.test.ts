@@ -21,8 +21,8 @@ const document = (notes: DocumentNoteEntity[], holds: Hold[] = []): ChartDocumen
   meta: { title: "이미지 밖 제목", artist: "test", difficultyLabel: "NORMAL", difficultyLevel: 1,
     imageFile: "", audioFile: "", previewAudioFile: "", offsetMs: 0 },
   notes, trillZones: [], restZones: [], events: [{ type: "bpm", beat: beat(0), bpm: 120 },
-    ...holds.map(([keyCode, down, up, lane = 1]) => ({ type: "tutorialInput" as const, keyCode, lane,
-      beat: beat(down, 500), endBeat: beat(up, 500) }))],
+    ...holds.map(([keyCode, down, up, lane = 1], index) => ({ type: "tutorialInput" as const, keyCode, lane,
+      beat: beat(down, 500), endBeat: beat(up, 500), editorLane: index + 3 }))],
 });
 const replay = (chart: ChartDocument) => {
   const example = explicitCaseFromSource(serializeChart(chart));

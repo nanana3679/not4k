@@ -3,7 +3,7 @@ import type { ChartDocument } from '../shared/types/chart';
 
 const meta: ChartDocument['meta'] = { title: '명시 입력 연습', artist: 'Lab', difficultyLevel: 1, difficultyLabel: 'Liftoff',
   imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 };
-const timing: ChartDocument['events'] = [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) }];
+const timing: ChartDocument['events'] = [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }];
 
 /** 보관 차트를 변환하지 않은 저작 리터럴. 표시 fixture가 아니라 실제 engine에 전달한다. */
 export const explicitPlaytestCharts: readonly { id: string; title: string; instruction: string; chart: ChartDocument }[] = [
