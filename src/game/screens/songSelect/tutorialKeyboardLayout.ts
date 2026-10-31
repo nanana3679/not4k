@@ -111,9 +111,9 @@ function getLaneBindingProperty(lane: number): keyof TutorialKeyBindings {
 /**
  * Distinct demonstration inputs per lane. `BindingN` and the preset keys of the
  * same slot (e.g. KeyQ, or Numpad7/KeyP on lane 3) count as one input
- * (`slot:N`); any other code counts as itself. The display supplement and the
- * practice key check both count inputs here so they never disagree on how many
- * keys a demonstration uses (Basic's sparse Binding1/Binding3 is two inputs).
+ * (`slot:N`); any other code counts as itself. The display supplement counts
+ * all inputs; the practice key check uses the same identities for inputs held
+ * at the same moment (Basic's sparse Binding1/Binding3 is two inputs).
  */
 function getSourceKeysByLane(timings: readonly TutorialInputTiming[]): Map<number, Set<string>> {
   const sourceKeysByLane = new Map<number, Set<string>>();
@@ -129,7 +129,7 @@ function getSourceKeysByLane(timings: readonly TutorialInputTiming[]): Map<numbe
 
 export interface UnmetTutorialPracticeKeyRequirement {
   readonly lane: number;
-  /** Distinct demonstration inputs on the lane. */
+  /** Peak simultaneous distinct demonstration inputs on the lane, at least 1. */
   readonly requiredKeyCount: number;
   /** Distinct keys the player actually bound to the lane. */
   readonly boundKeyCount: number;
@@ -140,11 +140,13 @@ export interface UnmetTutorialPracticeKeyRequirement {
  * (docs/spec/keybinding.md "튜토리얼 실습 전 키 설정"). An empty result means
  * the practice can start.
  *
- * A lane needs one bound key per distinct demonstration input on it, counted
- * like the display supplement (`getSourceKeysByLane`). Only the count matters:
- * during practice the player picks which bound keys to press, so the slot
- * positions the display mapping keeps (and may collapse, e.g. W/S with only
- * Q/W bound) do not decide whether the practice is playable.
+ * A used lane needs the peak number of distinct inputs held during overlapping
+ * [startMs, endMs) intervals, with a minimum of 1. An up at the same time as
+ * another down does not overlap it. Input identities use the display supplement's
+ * canonical slots (`getSourceKeysByLane`). The player chooses which bound keys
+ * to press, so only keys needed at the same moment are required, not every key
+ * shown by the demonstration. Trill alternation needs 2 keys, which the settings
+ * minimum of 2 keys per lane already guarantees.
  *
  * Pass the player's own settings. Keys added by `resolveTutorialKeyboardBindings`
  * are display-only and never satisfy this requirement.
@@ -153,10 +155,20 @@ export function findUnmetTutorialPracticeKeyRequirements(
   timings: readonly TutorialInputTiming[],
   bindings: TutorialKeyBindings,
 ): UnmetTutorialPracticeKeyRequirement[] {
-  return [...getSourceKeysByLane(timings)]
-    .map(([lane, sourceKeys]) => ({
+  const requiredKeyCountByLane = new Map<number, number>();
+  // A lane's held-key count can increase only when an input starts.
+  for (const { event: { lane }, startMs } of timings) {
+    const activeTimings = timings.filter(timing =>
+      timing.event.lane === lane && timing.startMs <= startMs && startMs < timing.endMs,
+    );
+    const activeKeyCount = getSourceKeysByLane(activeTimings).get(lane)?.size ?? 0;
+    requiredKeyCountByLane.set(lane, Math.max(requiredKeyCountByLane.get(lane) ?? 1, activeKeyCount));
+  }
+
+  return [...requiredKeyCountByLane]
+    .map(([lane, requiredKeyCount]) => ({
       lane,
-      requiredKeyCount: sourceKeys.size,
+      requiredKeyCount,
       boundKeyCount: new Set(getLaneBindings(bindings, lane)).size,
     }))
     .filter(({ requiredKeyCount, boundKeyCount }) => boundKeyCount < requiredKeyCount)

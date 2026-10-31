@@ -202,30 +202,51 @@ describe('findUnmetTutorialPracticeKeyRequirements', () => {
     return getTutorialInputTimings(preview.chart);
   }
 
-  function laneTimings(...inputs: [lane: 1 | 2 | 3 | 4, keyCode: string][]): TutorialInputTiming[] {
-    return inputs.map(([lane, keyCode], index) => ({
-      event: { type: 'tutorialInput', beat: beat(index), endBeat: beat(index + 1), lane, keyCode },
-      startMs: index * 500,
-      endMs: (index + 1) * 500,
+  function laneTimings(
+    ...inputs: [lane: 1 | 2 | 3 | 4, keyCode: string, startMs?: number, endMs?: number][]
+  ): TutorialInputTiming[] {
+    return inputs.map(([lane, keyCode, startMs = 0, endMs = 500]) => ({
+      event: { type: 'tutorialInput', beat: beat(startMs, 500), endBeat: beat(endMs, 500), lane, keyCode },
+      startMs,
+      endMs,
     }));
   }
 
   it.each([
     { name: 'TKL', bindings: PRESET_BINDINGS.tkl },
     { name: 'Numpad', bindings: PRESET_BINDINGS.numpad },
-  ])('$name 프리셋(레인당 4키)이면 Basic·Advanced 모든 항목의 실습 키 요건을 충족한다', ({ bindings }) => {
+  ])('$name 프리셋(레인당 4키)으로 확인하면 Basic·Advanced 29개 항목의 실습 키 요건을 모두 충족한다', ({ bindings }) => {
     const unmetById = Object.fromEntries(ALL_TUTORIAL_PREVIEWS.map(preview => [
       preview.id,
       findUnmetTutorialPracticeKeyRequirements(getTutorialInputTimings(preview.chart), bindings),
     ]));
 
+    expect(ALL_TUTORIAL_PREVIEWS).toHaveLength(29);
     expect(unmetById).toEqual(Object.fromEntries(ALL_TUTORIAL_PREVIEWS.map(preview => [preview.id, []])));
+  });
+
+  it('Basic·Advanced 29개 항목을 레인당 2키로 확인하면 advanced-double-hold의 1번 레인만 4키 요건으로 미충족', () => {
+    const unmet = ALL_TUTORIAL_PREVIEWS.flatMap(preview =>
+      findUnmetTutorialPracticeKeyRequirements(getTutorialInputTimings(preview.chart), TWO_KEYS_PER_LANE)
+        .map(requirement => ({ id: preview.id, ...requirement })),
+    );
+
+    expect(unmet).toEqual([
+      { id: 'advanced-double-hold', lane: 1, requiredKeyCount: 4, boundKeyCount: 2 },
+    ]);
   });
 
   it('Advanced 더블 연결(Q·W 유지, S·X 중간 탭)에서 1번 레인에 Q·W만 있으면 키 4개 요건을 2개 설정으로 미충족', () => {
     const bindings = { ...PRESET_BINDINGS.tkl, lane1: ['KeyQ', 'KeyW'] };
+    const timings = previewTimings('advanced-double-hold');
 
-    expect(findUnmetTutorialPracticeKeyRequirements(previewTimings('advanced-double-hold'), bindings)).toEqual([
+    expect(timings.map(({ event, startMs, endMs }) => [event.lane, event.keyCode, startMs, endMs])).toEqual([
+      [1, 'KeyQ', 2000, 3000],
+      [1, 'KeyW', 2000, 3000],
+      [1, 'KeyS', 2500, 2525],
+      [1, 'KeyX', 2500, 2525],
+    ]);
+    expect(findUnmetTutorialPracticeKeyRequirements(timings, bindings)).toEqual([
       { lane: 1, requiredKeyCount: 4, boundKeyCount: 2 },
     ]);
   });
@@ -238,7 +259,7 @@ describe('findUnmetTutorialPracticeKeyRequirements', () => {
     )).toEqual([]);
   });
 
-  it('1번 레인의 Binding1과 KeyQ, 3번 레인의 Numpad7과 KeyP는 같은 입력으로 세어 레인당 1키 설정으로 충족', () => {
+  it('1번 레인의 Binding1·KeyQ와 3번 레인의 Numpad7·KeyP를 0ms에 동시에 눌러도 레인당 1키 설정으로 충족', () => {
     const timings = laneTimings([1, 'Binding1'], [1, 'KeyQ'], [3, 'Numpad7'], [3, 'KeyP']);
 
     expect(findUnmetTutorialPracticeKeyRequirements(
@@ -247,9 +268,9 @@ describe('findUnmetTutorialPracticeKeyRequirements', () => {
     )).toEqual([]);
   });
 
-  it('시연 표시용으로 S·X를 보충하는 1번 레인 Q·W 설정이어도 4-slot 시연의 실습 키 요건은 2개 설정으로 미충족', () => {
+  it('1번 레인에서 4키를 동시에 누르면 표시용 S·X 보충 후에도 실제 Q·W 2키 설정으로 미충족', () => {
     const bindings = { lane1: ['KeyQ', 'KeyW'], lane2: [], lane3: [], lane4: [] };
-    const timings = bindingTimings('Binding1', 'Binding2', 'Binding3', 'Binding4');
+    const timings = laneTimings([1, 'Binding1'], [1, 'Binding2'], [1, 'Binding3'], [1, 'Binding4']);
     const before = findUnmetTutorialPracticeKeyRequirements(timings, bindings);
 
     const display = resolveTutorialKeyboardBindings(timings, bindings, 'tkl');
@@ -268,21 +289,86 @@ describe('findUnmetTutorialPracticeKeyRequirements', () => {
     expect(findUnmetTutorialPracticeKeyRequirements(timings, TWO_KEYS_PER_LANE)).toEqual([]);
   });
 
-  it('싱글 노트 시연의 2번 레인 F·D·C는 D·F·C 순서 3키 설정으로 충족(설정 순서와 시연 슬롯 위치가 달라도)', () => {
-    const bindings = { ...TWO_KEYS_PER_LANE, lane2: ['KeyD', 'KeyF', 'KeyC'] };
+  it.each([
+    { count: 1, keys: ['KeyD'] },
+    { count: 2, keys: ['KeyD', 'KeyF'] },
+    { count: 3, keys: ['KeyD', 'KeyF', 'KeyC'] },
+  ])('싱글 노트 시연의 2번 레인 F→D→C를 확인하면 실제 $count개 키 설정으로 충족', ({ keys }) => {
+    const bindings = { ...TWO_KEYS_PER_LANE, lane2: keys };
 
     expect(findUnmetTutorialPracticeKeyRequirements(previewTimings('single-note'), bindings)).toEqual([]);
-    expect(findUnmetTutorialPracticeKeyRequirements(
-      previewTimings('single-note'),
-      { ...TWO_KEYS_PER_LANE, lane2: ['KeyD', 'KeyF'] },
-    )).toEqual([{ lane: 2, requiredKeyCount: 3, boundKeyCount: 2 }]);
   });
 
-  it('바인딩이 0개인 1번 레인에 시연 입력 Binding1·Binding2가 있으면 키 2개 요건을 0개 설정으로 미충족', () => {
+  it('1번 레인에서 0ms에 2키를 동시에 누르면 1키 설정은 미충족이고 2키 설정은 충족', () => {
+    const timings = laneTimings([1, 'Binding1'], [1, 'Binding2']);
+
     expect(findUnmetTutorialPracticeKeyRequirements(
-      bindingTimings('Binding1', 'Binding2'),
+      timings,
+      { ...TWO_KEYS_PER_LANE, lane1: ['KeyQ'] },
+    )).toEqual([{ lane: 1, requiredKeyCount: 2, boundKeyCount: 1 }]);
+    expect(findUnmetTutorialPracticeKeyRequirements(timings, TWO_KEYS_PER_LANE)).toEqual([]);
+  });
+
+  it('3키를 500ms·1000ms 경계에서 떼고 다음 키를 누르면 1키 설정으로 충족', () => {
+    const timings = bindingTimings('Binding1', 'Binding2', 'Binding3');
+
+    expect(findUnmetTutorialPracticeKeyRequirements(
+      timings,
+      { ...TWO_KEYS_PER_LANE, lane1: ['KeyQ'] },
+    )).toEqual([]);
+    expect(findUnmetTutorialPracticeKeyRequirements(
+      timings,
+      { ...TWO_KEYS_PER_LANE, lane1: [] },
+    )).toEqual([{ lane: 1, requiredKeyCount: 1, boundKeyCount: 0 }]);
+  });
+
+  it('4종류 키 중 3키만 500～750ms에 겹치면 입력 순서가 뒤섞여도 3키를 요구해 2키 설정은 미충족', () => {
+    const timings = laneTimings(
+      [1, 'KeyS', 500, 1000],
+      [1, 'KeyQ', 0, 1000],
+      [1, 'KeyX', 1000, 1500],
+      [1, 'KeyW', 250, 750],
+    );
+
+    expect(findUnmetTutorialPracticeKeyRequirements(timings, TWO_KEYS_PER_LANE)).toEqual([
+      { lane: 1, requiredKeyCount: 3, boundKeyCount: 2 },
+    ]);
+    expect(findUnmetTutorialPracticeKeyRequirements(
+      timings,
+      { ...TWO_KEYS_PER_LANE, lane1: ['KeyQ', 'KeyW', 'KeyS'] },
+    )).toEqual([]);
+  });
+
+  it('1번 레인의 Q·Binding1 중 Binding1이 500ms에 끝나도 Q 유지 중 750ms W를 누르면 2키를 요구', () => {
+    const timings = laneTimings([1, 'KeyQ', 0, 1500], [1, 'Binding1', 0, 500], [1, 'KeyW', 750, 1000]);
+
+    expect(findUnmetTutorialPracticeKeyRequirements(
+      timings,
+      { ...TWO_KEYS_PER_LANE, lane1: ['KeyQ'] },
+    )).toEqual([{ lane: 1, requiredKeyCount: 2, boundKeyCount: 1 }]);
+  });
+
+  it('1번 레인 Q·Q 중복 바인딩으로 동시 2키 시연을 확인하면 실제 1키로 세어 미충족', () => {
+    expect(findUnmetTutorialPracticeKeyRequirements(
+      laneTimings([1, 'Binding1'], [1, 'Binding2']),
+      { ...TWO_KEYS_PER_LANE, lane1: ['KeyQ', 'KeyQ'] },
+    )).toEqual([{ lane: 1, requiredKeyCount: 2, boundKeyCount: 1 }]);
+  });
+
+  it('바인딩이 0개인 2번 레인에 싱글 노트 시연 입력 F→D→C가 있으면 키 1개 요건을 미충족', () => {
+    expect(findUnmetTutorialPracticeKeyRequirements(
+      previewTimings('single-note'),
       { lane1: [], lane2: [], lane3: [], lane4: [] },
-    )).toEqual([{ lane: 1, requiredKeyCount: 2, boundKeyCount: 0 }]);
+    )).toEqual([{ lane: 2, requiredKeyCount: 1, boundKeyCount: 0 }]);
+  });
+
+  it('1번 레인에 0ms 길이 입력 2개만 있어도 최소 1키를 요구해 0키 설정은 미충족', () => {
+    const timings = laneTimings([1, 'KeyQ', 500, 500], [1, 'KeyW', 500, 500]);
+
+    expect(findUnmetTutorialPracticeKeyRequirements(
+      timings,
+      { lane1: [], lane2: [], lane3: [], lane4: [] },
+    )).toEqual([{ lane: 1, requiredKeyCount: 1, boundKeyCount: 0 }]);
   });
 
   it('4번 레인 입력이 2번 레인보다 먼저 나와도 두 레인이 모두 부족하면 레인 번호 순 2→4로 보고', () => {
