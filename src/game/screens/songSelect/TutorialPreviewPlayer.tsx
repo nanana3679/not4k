@@ -143,10 +143,10 @@ export interface TutorialPreviewPlayerProps {
   inputMode?: TutorialInputMode;
   /** 설정 키 캡처 등 다른 UI가 키보드를 소유하면 false. 기존 held 키의 up은 계속 추적한다. */
   ownsKeyboardInput?: (event: KeyboardEvent) => boolean;
-  /** 최초 준비와 각 반복 시작에 0부터 알린다. 반환한 적용 모드는 다음 입력보다 먼저 반영한다. 중간 전환은 새 시작이 아니다. */
+  /** 최초 준비와 각 반복 시작에 0부터 알린다. 이전 패턴의 finish 뒤에만 통지하며 직접 입력의 물리 세션 시작보다 늦을 수 있다. 중간 전환은 새 시작이 아니다. */
   onPatternStarted?: (iteration: number) => TutorialInputMode | void;
   /**
-   * 명시 정의를 재생할 때만 부른다. 반복 경계에서 끝난 패턴을 controller가 `loopMs`까지 진행·finalize한 결과이며,
+   * 명시 정의를 재생할 때만 부른다. 시연은 반복 경계, 직접 입력은 경계와 마지막 판정 기한을 모두 지난 뒤 finalize한 결과이며,
    * false를 반환하면 다음 패턴 시작 통지·입력·진행을 멈춘다. 그 밖에는 다음 패턴을 시작한다. 레슨을 넘기거나 렌더러를 다시 걸어 중간에 버린 패턴은 알리지 않는다.
    */
   onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => false | void;
@@ -744,6 +744,7 @@ export function TutorialPreviewPlayer({
                 pausedRef.current = true;
                 return false;
               }
+              // 직접 입력은 다음 물리 세션이 이미 열렸어도 이전 결과 뒤에만 reducer의 패턴을 교체한다.
               const appliedMode = onPatternStartedRef.current?.(pattern.iteration + 1);
               if (appliedMode) inputModeRef.current = appliedMode;
               return appliedMode;

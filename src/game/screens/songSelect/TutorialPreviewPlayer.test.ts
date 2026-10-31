@@ -451,8 +451,11 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     // `callback?.(finishPattern())`처럼 쓰면 콜백이 없을 때 인자도 평가하지 않아 반복을 정산하지 않는다. 정산을 먼저 한다.
     const finishPattern = tutorialInputSource.indexOf('finished = playback.finishPattern(');
     expect(finishPattern).toBeGreaterThan(-1);
-    expect(tutorialInputSource.indexOf('onPatternFinished?.(finished);', finishPattern)).toBeGreaterThan(finishPattern);
-    expect(tutorialPreviewPlayerSource).toContain('onPatternFinishedRef.current?.(pattern) === false');
+    expect(tutorialInputSource.indexOf('reportFinished(finished);', finishPattern)).toBeGreaterThan(finishPattern);
+    const finishCallback = tutorialPreviewPlayerSource.indexOf('onPatternFinishedRef.current?.(pattern) === false');
+    expect(finishCallback).toBeGreaterThan(-1);
+    expect(tutorialPreviewPlayerSource.indexOf('onPatternStartedRef.current?.(pattern.iteration + 1)', finishCallback))
+      .toBeGreaterThan(finishCallback);
     expect(tutorialPreviewPlayerSource).not.toMatch(/\?\.\([^)]*finishPattern\(\)/);
     expect(tutorialPreviewPlayerSource).toContain('onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => false | void;');
   });

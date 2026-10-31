@@ -98,7 +98,7 @@ test('1레인 Q·W 2키로 advanced-double-hold를 열면 직접 입력을 막�
 });
 
 for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) {
-  test(`${id}를 직접 입력으로 3회 성공하면 도식 없이 다음을 누를 수 있고 시연으로 돌아가면 도식이 나타난다`, async ({ page }) => {
+  test(`${id}의 경계 +5ms 뒤 실제 keyup으로 3회 성공하면 도식 없이 다음을 누를 수 있고 시연 복귀 시 도식이 나타난다`, async ({ page }) => {
     test.setTimeout(90_000);
     const dialog = await openTutorial(page);
     await dialog.locator(`[data-tutorial-index-item="${id}"]`).click();
@@ -127,11 +127,12 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
         await waitForElapsed(page, startMs + 3750 - 12, selector);
         await page.keyboard.up(secondKey);
       }
-      await waitForElapsed(page, startMs + 4000 - 12, selector);
+      await waitForElapsed(page, startMs + 4000 + 5, selector);
       await page.keyboard.up(switchKeys ? secondKey : firstKey);
+      // 마지막 릴리즈의 Normal Good 창(120ms)이 닫힌 뒤 성공 횟수가 반영된다.
       await page.waitForFunction(({ selector, endMs }) => {
         const player = document.querySelector<HTMLElement>(selector);
-        return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 32);
+        return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 120 + 32);
       }, { selector, endMs: startMs + 4000 }, { polling: 'raf', timeout: 10_000 });
       if (await progress.textContent() === '3/3') break;
     }

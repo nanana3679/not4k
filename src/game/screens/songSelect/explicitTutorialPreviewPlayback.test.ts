@@ -267,3 +267,24 @@ it('정산 전 여러 프레임은 점수 알림을 만들지 않고 500ms 탭 �
   expect(onScoreChanged).toHaveBeenLastCalledWith(expect.objectContaining({ processedNotes: 0 }), 0);
   playback.stop();
 });
+
+it('이전 릴리즈의 2120ms 정산 전에는 HUD에 이전 점수만 보내고 정산 후 다음 진행에서 새 탭의 점수를 보낸다', () => {
+  const onScoreChanged = vi.fn();
+  const { playback } = createDemo(boundaryChart(), { onScoreChanged });
+  playback.setInputMode('directInput');
+  playback.enqueue({ type: 'down', lane: 1, key: 'KeyQ', inputAt: 0 });
+  playback.advanceTo(2000);
+  onScoreChanged.mockClear();
+  const closing = playback.startNextPattern([{ lane: 1, key: 'KeyQ' }]);
+  playback.enqueue({ type: 'down', lane: 1, key: 'KeyW', inputAt: 5 });
+  playback.advanceTo(5);
+  expect(onScoreChanged).not.toHaveBeenCalled();
+  closing.enqueue({ type: 'up', lane: 1, key: 'KeyQ', inputAt: 2005 });
+  closing.advanceTo(2005);
+  expect(onScoreChanged).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ earnedScore: 6 }), 2);
+  expect(closing.finish().result.score.achievementRate).toBe(100);
+  onScoreChanged.mockClear();
+  playback.advanceTo(120);
+  expect(onScoreChanged).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ earnedScore: 3 }), 1);
+  playback.stop();
+});
