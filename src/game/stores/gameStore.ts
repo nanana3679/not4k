@@ -31,6 +31,8 @@ export interface GameSettings {
   renderHeight: number;
   /** `gearMotion`(기어 위 장식 애니메이션: 광원 띠·게이지 액체 흐름과 기포·발광선·하단 바 빛). 끄면 플레이 렌더러가 `gearMotion` 객체를 만들지 않는다. 없으면 켬. */
   gearMotion: boolean;
+  /** 비행 배경의 움직임(RFD 0100). 끄면 플레이 렌더러를 `showFlightBackground: false`로 만들어 비행 배경 대신 어두운 고정 배경을 그린다. `gearMotion`과 독립이며 노트·기어·고도 게이지는 그대로다. 없으면 켬. */
+  flightBackgroundMotion: boolean;
   playSpeed: number;
   judgmentMode: JudgmentMode;
   debugMode: boolean;
@@ -131,6 +133,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   bombScale: 1,
   renderHeight: 1080,
   gearMotion: true,
+  flightBackgroundMotion: true,
   playSpeed: 1.0,
   judgmentMode: 'normal' as JudgmentMode,
   debugMode: false,
@@ -156,6 +159,8 @@ export function mergePersistedSettings(
   const merged: Record<string, unknown> = { ...cur.settings, ...p.settings };
   merged.inputOffsetMs = clampTimingOffsetMs(merged.inputOffsetMs);
   merged.visualOffsetMs = clampTimingOffsetMs(merged.visualOffsetMs);
+  // 렌더러는 `showFlightBackground ?? true`라 null 같은 저장값이면 토글은 꺼짐으로 보이는데 배경은 움직인다. boolean이 아니면 기본 켬으로 맞춘다.
+  if (typeof merged.flightBackgroundMotion !== 'boolean') merged.flightBackgroundMotion = true;
   // RFD 0031: 미출시 설정은 이전하지 않고 옛 키를 모두 버린다(차트 offsetMs와 별개).
   delete merged.audioOffsetMs;
   delete merged.judgmentOffsetMs;

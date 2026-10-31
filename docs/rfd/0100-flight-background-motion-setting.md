@@ -1,6 +1,6 @@
 # RFD 0100: 비행 배경의 움직임을 별도 설정으로 끌 수 있게 한다
 
-**Status:** Accepted (2026-10-31) · 용어·컨텍스트·게임 코어·RFD 0030·PRD 문서 반영 (2026-10-31) · 기본 켬·일반 플레이와 옵저버 공통 적용 문서 반영 (2026-10-31), 플레이어 설정과 고정 배경 전환의 런타임 반영 미구현
+**Status:** Accepted (2026-10-31) · 용어·컨텍스트·게임 코어·RFD 0030·PRD 문서 반영 (2026-10-31) · 기본 켬·일반 플레이와 옵저버 공통 적용 문서 반영 (2026-10-31), 플레이어 설정과 고정 배경 전환의 런타임 반영 미구현 · 플레이어 설정과 고정 배경 전환 구현: `Settings → Gameplay → Display`의 `Background Motion`(`flightBackgroundMotion`, 기본 켬)을 일반 플레이·테스트 재생 렌더러의 `showFlightBackground`에 연결 (2026-10-31, PR #399). 남은 항목: 옵저버는 미구현이며 구현할 때 같은 설정을 쓴다
 
 ## 기존 결정과 문제의식
 
@@ -20,7 +20,11 @@
 
 ## 현재 구현과 적용 경계
 
-현재 렌더러의 `showFlightBackground` 옵션은 내부 표시 제어이며, 새 플레이어 설정의 구현 완료를 뜻하지 않는다. 이번 작업은 문서 반영이며 렌더러·설정 코드는 변경하지 않는다. 설정 저장·렌더링 전환의 구현은 [PRD §12](../prd.md#12-미정-사항)에서 단일 관리한다.
+게임 설정 `flightBackgroundMotion`(설정 화면 `Settings → Gameplay → Display`의 `Background Motion`, 기본 켬)을 두었다. 저장된 설정에 이 값이 없으면 켬으로 복원한다. 일반 플레이·명시 테스트 재생(`ExplicitPlayRuntime`)과 구형 에디터 테스트 재생(`PlayScreen`)이 이 값을 렌더러 옵션 `showFlightBackground`로 넘긴다. 설정은 곡을 시작할 때 읽으며, `gearMotion`과 독립이라 한쪽을 바꿔도 다른 쪽은 그대로다.
+
+끄면 렌더러는 비행 배경(`FlightBackground`)을 만들지 않고 Pixi 캔버스를 스킨 테마 바탕색 `bg`로 불투명하게 칠한다. 지금 스킨의 `bg`는 모두 어두운 색이다(Classic·Note Asset Lab `0x05080d`, Crystal `0x06070c`, Prism `0x06040e`, Simple `0x0a0a14`, 보관한 Classic 버전도 `0x05080d`). 렌더러는 기어 게이지가 있으면 비행 배경이 없어도 프레임마다 고도를 계산해 게이지에 주므로, 고도 게이지와 판정에 따른 고도 변화는 그대로다. 튜토리얼 재생기처럼 원래 비행 배경을 그리지 않는 렌더러는 이 설정과 관계없이 그리지 않는다. 옵저버는 아직 구현되지 않았으며, 구현할 때 같은 설정을 쓴다.
+
+단위 테스트는 기본값과 저장 복원(`gameStore.test.ts`), 두 재생 경로가 `Gear Motion`과 반대 값을 조합해도 각 설정을 렌더러 옵션으로 그대로 넘기는지(`ExplicitPlayRuntime.test.ts`·`PlayScreen.flightBackgroundMotion.test.ts`), 끈 렌더러가 테마 바탕색으로 불투명하게 초기화되고 게이지가 고도를 따르는지(`GameRenderer.gearGauge.test.ts`)를 확인한다. 설정 화면 토글의 저장은 `e2e/game/settings.spec.ts`가 확인한다.
 
 ## 영향과 검증
 

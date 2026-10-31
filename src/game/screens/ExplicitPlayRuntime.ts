@@ -105,7 +105,8 @@ export class ExplicitPlayRuntime {
       this.clock = clock;
       const renderer = new GameRenderer({ canvas, width: resolvePlayLogicalWidth(this.options.width, this.options.height),
         height: GAME_HEIGHT, resolution: settings.renderHeight / GAME_HEIGHT, skinManager: this.skin,
-        bombScale: settings.bombScale, gearMotion: settings.gearMotion, difficultyLabel: request.document.meta.difficultyLabel });
+        bombScale: settings.bombScale, gearMotion: settings.gearMotion, showFlightBackground: settings.flightBackgroundMotion,
+        difficultyLabel: request.document.meta.difficultyLabel });
       this.renderer = renderer;
       const rendererInit = renderer.init();
       this.rendererInit = rendererInit;

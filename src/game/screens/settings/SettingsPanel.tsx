@@ -263,6 +263,12 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
                   checked={settings.gearMotion}
                   onChange={(c) => updateSettings({ gearMotion: c })}
                 />
+                <ToggleRow
+                  label="Background Motion"
+                  desc="Moving flight background behind the lanes. Turn off for a dark still background; notes, gear and altitude gauge stay."
+                  checked={settings.flightBackgroundMotion}
+                  onChange={(c) => updateSettings({ flightBackgroundMotion: c })}
+                />
               </Group>
             </div>
           )}

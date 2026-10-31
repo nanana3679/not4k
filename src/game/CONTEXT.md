@@ -205,7 +205,7 @@ _Avoid_: 녹숫(흰숫은 높이, 녹숫은 시간이다)
 _Avoid_: 달성률
 
 **비행 배경**:
-기어 모션과 별도의 설정으로 움직임을 끄면 어두운 고정 배경을 표시하고 노트·기어·고도 게이지는 유지한다. 기본 켬이며 일반 플레이·옵저버에 공통 적용한다. 설정 런타임 반영은 후속 작업이다([glossary](../../docs/context/glossary.md#비행-배경)).
+기어 모션과 별도의 설정 `Background Motion`(`flightBackgroundMotion`)으로 움직임을 끄면 어두운 고정 배경을 표시하고 노트·기어·고도 게이지는 유지한다. 기본 켬이며 일반 플레이·옵저버에 공통 적용한다([glossary](../../docs/context/glossary.md#비행-배경)).
 
 **기어**:
 플레이 화면에서 레인 영역을 둘러싼 장식 그림과 그 위의 `gearMotion`(장식 애니메이션)·유리관 게이지·키 덱이다. 레인 창을 레인 영역에 맞추고, 판정선과 함께 화면 아래보다 기어 y 오프셋 `GEAR_OFFSET_Y`(10, +가 아래)만큼 내려 고정한다(설정 `Gear Motion`으로 `gearMotion`을 끈다). 레인은 키 윗면(레인 끝 `laneEndY`)에서 끝난다. 양옆 유리관 게이지는 비행 배경과 같은 `altitude`를 두 유리관에 아래 기준 채움으로 보여 준다(약 300ms에 걸쳐 따라가고 색은 바꾸지 않는다). 풀 정의는 [glossary](../../docs/context/glossary.md#기어-gear), 배치는 [RFD 0029](../../docs/rfd/0029-frame-aspect-fit-narrow-lanes.md)를 따른다.

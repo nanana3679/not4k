@@ -15,9 +15,10 @@ vi.mock('./gearMotionAssets', async (importOriginal) => ({
   acquireGearMotionAssets: loader.acquire,
 }));
 // 비행 배경은 받은 고도만 기록한다.
-const flight = vi.hoisted(() => ({ renders: [] as [number, number][] }));
+const flight = vi.hoisted(() => ({ renders: [] as [number, number][], created: 0 }));
 vi.mock('./flight/FlightBackground', () => ({
   FlightBackground: class {
+    constructor() { flight.created++; }
     async init() {}
     render(altitude: number, deltaMs: number) { flight.renders.push([altitude, deltaMs]); }
     reset() {}
@@ -50,6 +51,7 @@ const created: InstanceType<typeof GameRenderer>[] = [];
 
 beforeEach(() => {
   flight.renders = [];
+  flight.created = 0;
   loader.acquire.mockReset();
   loader.acquire.mockImplementation((): GearMotionAssetLease => ({ ready: Promise.resolve(motionResources()), release: vi.fn() }));
 });
@@ -61,13 +63,13 @@ afterEach(() => {
 });
 
 async function createRenderer({
-  showGear = true, showFlightBackground = false, gearMotion = false, gaugeTexture = true,
-}: { showGear?: boolean; showFlightBackground?: boolean; gearMotion?: boolean; gaugeTexture?: boolean } = {}) {
+  showGear = true, showFlightBackground = false, gearMotion = false, gaugeTexture = true, bg = 0,
+}: { showGear?: boolean; showFlightBackground?: boolean; gearMotion?: boolean; gaugeTexture?: boolean; bg?: number } = {}) {
   const gear = new Texture({ source: new TextureSource({ width: 1024, height: 1536 }) });
   const gauge = new Texture({ source: new TextureSource({ width: GEAR_GEOMETRY.gauge.atlasWidth, height: GEAR_GEOMETRY.gauge.atlasHeight }) });
   const requested: string[] = [];
   const skinManager = {
-    getTheme: () => ({ bg: 0, beamColor: 0xffffff }),
+    getTheme: () => ({ bg, beamColor: 0xffffff }),
     getBodyWidthScale: () => 1,
     hasTexture: () => false,
     getLoadedTextures: () => new Map<string, Texture>(gaugeTexture ? [['gearImage', gear], ['gearGaugeEmpty', gauge]] : [['gearImage', gear]]),
@@ -220,6 +222,17 @@ describe('GameRenderer 고도 계산 — 프레임마다 한 번, 비행 배경�
     renderer.renderFrame(1016, 16);
     expect(scene.flightAltitudeState).toBe(state);
     expect(state.offset).toBeGreaterThan(0);
+  });
+});
+
+describe('GameRenderer 비행 배경 끔 — 어두운 고정 배경(RFD 0100)', () => {
+  it.each([
+    { showFlightBackground: false, backgroundAlpha: 1, created: 0 },
+    { showFlightBackground: true, backgroundAlpha: 0, created: 1 },
+  ])('Classic 테마 bg 0x05080d·showFlightBackground=$showFlightBackground이면 Pixi 앱을 bg 색·backgroundAlpha $backgroundAlpha로 초기화하고 비행 배경을 $created개 만든다', async ({ showFlightBackground, backgroundAlpha, created }) => {
+    const { scene } = await createRenderer({ showFlightBackground, bg: 0x05080d });
+    expect(vi.mocked(scene.app.init).mock.calls[0][0]).toMatchObject({ backgroundColor: 0x05080d, backgroundAlpha });
+    expect(flight.created).toBe(created);
   });
 });
 

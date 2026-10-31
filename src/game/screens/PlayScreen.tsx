@@ -151,6 +151,8 @@ export function PlayScreen() {
           bombScale: settings.bombScale,
           // 끄면 `gearMotion` 객체·텍스처를 만들지 않는다(약한 GPU용).
           gearMotion: settings.gearMotion,
+          // 설정 `Background Motion`을 끄면 비행 배경 대신 스킨 테마 바탕색의 어두운 고정 배경을 그린다(RFD 0100). 고도 게이지는 그대로 고도를 따른다.
+          showFlightBackground: settings.flightBackgroundMotion,
           difficultyLabel: chartData.meta.difficultyLabel,
         });
         rendererRef.current = renderer;

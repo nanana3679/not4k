@@ -337,6 +337,22 @@ test.describe('Game Settings', () => {
     expect(stored).toBe(false);
   });
 
+  test('Gameplay: Background Motion 토글은 기본 켬이고, 끄면 재방문 후에도 꺼진 채 저장되며 Gear Motion은 켬으로 남는다', async ({ page }) => {
+    const dialog = await openSettings(page);
+    await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
+
+    const toggle = dialog.getByLabel('Background Motion');
+    await expect(toggle).toBeChecked();
+    await toggle.uncheck();
+    await expect(toggle).not.toBeChecked();
+    await reopenSettings(page);
+    await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
+    await expect(dialog.getByLabel('Background Motion')).not.toBeChecked();
+    await expect(dialog.getByLabel('Gear Motion')).toBeChecked();
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-settings') ?? '{}').state?.settings);
+    expect(stored).toMatchObject({ flightBackgroundMotion: false, gearMotion: true });
+  });
+
   test('Gameplay에서 Input Offset −50ms·Visual Offset 30ms를 저장하면 재방문 후 유지되고 Calibrate는 숨겨진다', async ({ page }) => {
     const dialog = await openSettings(page);
     await dialog.getByRole('button', { name: 'Gameplay', exact: true }).click();
