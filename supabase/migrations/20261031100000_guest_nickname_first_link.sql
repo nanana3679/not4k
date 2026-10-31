@@ -7,6 +7,8 @@
 -- 닉네임과 첫 연동 기록이 모두 사라진다.
 -- 1단계 열 추가에 IF NOT EXISTS를 붙이는 등 재실행할 수 있게 고치지 않는다.
 -- 이미 적용한 DB에서는 열 추가가 실패해야 4단계가 다시 실행되지 않는다.
+-- 이 보호는 파일 전체를 한 트랜잭션으로 실행할 때만 성립한다(SQL Editor, Supabase CLI).
+-- psql로 실행한다면 `-1 -v ON_ERROR_STOP=1`을 붙인다.
 -- SQL Editor로 적용했다면 migration 이력에 남도록
 -- `supabase migration repair --status applied 20261031100000`으로 기록한다.
 -- =============================================================
@@ -179,8 +181,11 @@ grant execute on function public.link_guest_nickname(text) to authenticated;
 
 -- 7. 수동 변경한 닉네임은 이후 첫 연동으로 덮어쓰지 않는다.
 -- 트리거는 호출자 권한으로 동작하며 클라이언트의 열 UPDATE 권한은 늘리지 않는다.
--- 4단계처럼 권한 있는 역할이 이름을 바꾸며 first_linked_at을 null로 되돌리면
--- 첫 연동 전 상태로 남긴다.
+-- 권한 있는 역할이 첫 연동을 마친 계정(first_linked_at이 null이 아님)의 이름을 바꾸며
+-- first_linked_at을 null로 되돌리면 첫 연동 전 상태로 남긴다.
+-- 첫 연동 전 계정의 이름을 바꾸면 수동 변경으로 보고 시각을 찍으므로, 여러 계정을 한꺼번에
+-- 초기화할 때는 이름을 먼저 바꾼 뒤 이름은 그대로 두고 first_linked_at·first_link_guest_nickname만
+-- null로 되돌리는 UPDATE를 따로 실행한다. 4단계는 이 트리거를 만들기 전이라 한 번에 바꿀 수 있다.
 create or replace function public.handle_profile_update()
 returns trigger
 language plpgsql

@@ -21,7 +21,7 @@
   - 이미 첫 연동을 마쳤거나 직접 닉네임을 바꾼 계정은 advisory lock과 행 잠금 없이 본인 행을 읽고, 아무것도 갱신하지 않고 `(현재 닉네임, false, 저장된 first_link_guest_nickname)`을 반환한다. 클라이언트는 `first_linked_at`을 `null`로 되돌릴 수 없으므로 잠금 없이 읽어도 이 판정은 바뀌지 않는다. 재호출의 입력값이나 이후 수동 닉네임 변경은 저장된 `first_link_guest_nickname`을 바꾸지 않는다. 클라이언트는 첫 연동 커밋 후 응답이 유실되어도 재호출로 원래 받은 기기 닉네임을 확인할 수 있으며, 현재 닉네임과의 일치 여부에 의존하지 않는다
 - `generate_guest_nickname()`은 `security definer` 내부 함수이며 `PUBLIC`·`anon`·`authenticated`의 EXECUTE를 모두 회수하므로 클라이언트는 호출할 수 없다. 생성과 첫 연동은 같은 트랜잭션 advisory lock을 사용하며, 생성은 최대 100번 시도한 뒤 실패한다. 사용자 지정 닉네임 전체의 고유성을 강제하지는 않는다
 - BEFORE UPDATE 트리거 `on_profile_updated`는 `security invoker` 함수 `handle_profile_update()`로 항상 `updated_at = now()`를 설정한다. `display_name`이 실제로 바뀌고 변경 전과 변경 후의 `first_linked_at`이 모두 `null`이면 함께 `now()`로 설정하고 `first_link_guest_nickname`은 `null`로 남겨 이후 첫 연동 RPC가 선택한 이름을 덮어쓰지 않게 한다
-  - DB 소유자(`postgres`)나 `service_role`이 `display_name`을 바꾸면서 `first_linked_at = null`로 되돌리면 트리거가 시각을 다시 설정하지 않아 계정은 첫 연동 전 상태로 남고, 다음 `link_guest_nickname` 호출을 다시 첫 연동으로 처리한다. 이렇게 초기화할 때는 migration 20261031100000의 기존 계정 초기화처럼 `first_link_guest_nickname`도 직접 `null`로 되돌려야 한다
+  - DB 소유자(`postgres`)나 `service_role`이 첫 연동을 마친 계정의 `display_name`을 바꾸면서 `first_linked_at = null`로 되돌리면 트리거가 시각을 다시 설정하지 않아 계정은 첫 연동 전 상태로 남고, 다음 `link_guest_nickname` 호출을 다시 첫 연동으로 처리한다. 이때 `first_link_guest_nickname`도 직접 `null`로 되돌려야 한다. 아직 첫 연동 전인 계정의 이름을 바꾸면 트리거가 수동 변경으로 보고 시각을 찍으므로, 여러 계정을 한꺼번에 초기화할 때는 이름을 바꾸는 UPDATE와 `first_linked_at`·`first_link_guest_nickname`을 `null`로 되돌리는 UPDATE를 나눠 실행한다
 
 ## songs
 
