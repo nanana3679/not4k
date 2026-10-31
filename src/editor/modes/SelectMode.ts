@@ -50,7 +50,10 @@ export interface SelectModeCallbacks {
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) */
   setExtraLaneCount?: (count: number, transaction?: symbol) => void;
   onWarn?: (msg: string) => void;
-  /** 독립 명령의 확정·취소는 onInterrupt로 알린다. selectionBefore는 드래그를 시작한 누름의 선택 변경 전 값이다. */
+  /**
+   * 독립 명령의 확정·취소는 onInterrupt로 알린다. selectionBefore는 드래그를 시작한 누름의 선택 변경 전 값이며,
+   * 재생 시작 취소만 이 선택으로 되돌린다. 이 모드의 취소(cancelTransaction)는 transaction을 연 순간의 선택으로 되돌린다.
+   */
   beginTransaction?: (onInterrupt: () => void, selectionBefore?: Selection) => symbol | null;
   commitTransaction?: (transaction: symbol) => void;
   cancelTransaction?: (transaction: symbol) => void;

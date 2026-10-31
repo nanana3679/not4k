@@ -331,6 +331,40 @@ describe("PlaybackController.play", () => {
     expect(controller.isPlaying).toBe(true);
   });
 
+  it("1000ms 커서에서 play하면 정지 상태로 beforePlay를 먼저 부르고, 그 안에서 3000ms로 seek하면 3초 위치부터 재생한다", async () => {
+    const order: string[] = [];
+    const controller: PlaybackController = new PlaybackController({
+      onTimeUpdate: () => {},
+      onPlayStateChange: (isPlaying) => order.push(`playState:${isPlaying}`),
+      beforePlay: () => {
+        order.push(`beforePlay:isPlaying=${controller.isPlaying}`);
+        controller.seekTo(3000);
+      },
+    });
+    const context = setupAudioContextMock(10);
+    const source = context.createBufferSource();
+    context.createBufferSource = () => source;
+    await controller.loadAudioFile(new File([""], "test.wav"));
+    controller.seekTo(1000);
+    order.length = 0;
+
+    controller.play();
+
+    expect(order).toEqual(["beforePlay:isPlaying=false", "playState:true"]);
+    expect(source.start).toHaveBeenCalledExactlyOnceWith(0, 3);
+    expect(controller.currentTimeMs).toBe(3000);
+  });
+
+  it("음원을 불러오기 전 play는 beforePlay를 부르지 않고 재생하지 않는다", () => {
+    const beforePlay = vi.fn();
+    const controller = new PlaybackController({ onTimeUpdate: () => {}, onPlayStateChange: () => {}, beforePlay });
+
+    controller.play();
+
+    expect(beforePlay).not.toHaveBeenCalled();
+    expect(controller.isPlaying).toBe(false);
+  });
+
   it("음수 위치에서 play — 딜레이 후 음원 재생 예약", async () => {
     const controller = new PlaybackController({
       onTimeUpdate: () => {},

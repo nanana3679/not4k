@@ -282,7 +282,7 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
   const pauseToasts = () => vi.mocked(showToast).mock.calls.filter(([message]) => message === PAUSE_TO_EDIT_COPY);
   const play = () => current().setIsPlaying(true);
 
-  it.each(['mouse', 'touch'] as const)('재생 중 %s pointerId=1의 release가 누락돼도 정지 후 새 down·up은 2박 탭 1개를 놓고 안내를 추가하지 않는다', pointerType => {
+  it.each([['mouse', 1], ['touch', 0]] as const)('재생 중 %s pointerId=1의 release가 누락돼도 정지 후 새 down·up은 2박 탭 1개를 놓고, 누를 때 안내하는 mouse·뗄 때 안내하는 touch의 안내 토스트는 %i개다', (pointerType, toasts) => {
     const { handlers } = setup(chart([]), 'create');
     play();
     handlers.handlePointerDown(pointer(500, { pointerType }));
@@ -292,7 +292,7 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
 
     expect(notes().map(note => beatToFloat(note.beat))).toEqual([2]);
     expect(notes()[0]).toMatchObject({ type: 'tap', kind: 'single', lane: 1 });
-    expect(pauseToasts()).toHaveLength(1);
+    expect(pauseToasts()).toHaveLength(toasts);
   });
 
   it('재생 중 touch pointerId=1·2의 release가 누락돼도 blur 뒤 정지하면 contextmenu로 1박을 지우고 새 touch로 2박 탭 1개를 놓는다', () => {
@@ -458,15 +458,45 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(notes()).toHaveLength(1);
   });
 
-  it('1박 A를 선택하고 2박 B를 3박까지 옮긴 뒤 cancel하면 B는 2박이고 선택도 A로 복구된다', () => {
-    const { handlers, selectMode } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+  it('1박 A를 선택하고 2박 B를 3박까지 옮긴 뒤 pointercancel하면 B는 2박이고 선택은 누른 B로 남는다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
     selectFirst();
     handlers.handlePointerDown(mouse(1000));
     handlers.handlePointerMove(mouse(1500));
-    selectMode.cancel();
+    handlers.handlePointerCancel(mouse(1500));
     expect(notes()[1].beat).toEqual(beat(2));
-    expect(current().selection.notes).toEqual(new Set([0]));
+    expect(current().selection.notes).toEqual(new Set([1]));
     expect(current().historyPast).toHaveLength(0);
+  });
+
+  it('1박 A를 선택하고 2박 B를 롱프레스로 3박까지 옮기다 두 번째 손가락을 대면 B는 2박이고 선택은 누른 B로 남는다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    selectFirst();
+    handlers.handlePointerDown(pointer(1000));
+    vi.advanceTimersByTime(450);
+    handlers.handlePointerMove(pointer(1500));
+    expect(notes()[1].beat).toEqual(beat(3));
+
+    handlers.handlePointerDown(pointer(1500, { pointerId: 2, x: 200 }));
+
+    expect(notes()[1].beat).toEqual(beat(2));
+    expect(current().selection.notes).toEqual(new Set([1]));
+    expect(current().historyPast).toHaveLength(0);
+  });
+
+  it.each(['mouse', 'touch'] as const)('정지 중 1박 탭을 %s로 2박까지 끄는 중 창이 blur되어도 드래그가 이어져 3박에서 떼면 탭은 3박이고 history 1개다', pointerType => {
+    const { handlers } = setup(chart([tapAt(1)]), 'select');
+    handlers.handlePointerDown(pointer(500, { pointerType }));
+    if (pointerType === 'touch') vi.advanceTimersByTime(450);
+    handlers.handlePointerMove(pointer(1000, { pointerType }));
+    expect(notes()[0].beat).toEqual(beat(2));
+
+    window.dispatchEvent(new Event('blur'));
+    handlers.handlePointerMove(pointer(1500, { pointerType }));
+    handlers.handlePointerUp(pointer(1500, { pointerType }));
+
+    expect(notes()[0].beat).toEqual(beat(3));
+    expect(current().historyPast).toHaveLength(1);
   });
 
   it('1박 A를 선택하고 2박 B를 3박까지 옮긴 뒤 Escape를 누르면 B는 2박이고 기존처럼 선택을 비운다', () => {
@@ -483,7 +513,7 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(current().historyPast).toHaveLength(0);
   });
 
-  it.each(['시작 전', '중'] as const)('두 손가락 접촉이 재생 %s에 시작해도 정지 후 가로 스크롤·핀치 콜백을 보내며 노트 0개다', start => {
+  it.each(['시작 전', '중'] as const)('두 손가락 접촉이 재생 %s에 시작해도 정지 후 가로 스크롤·핀치 콜백을 보내며 노트 0개·안내 토스트 0개다', start => {
     const onHorizontalPan = vi.fn();
     const onPinchZoom = vi.fn();
     const { handlers } = setup(chart([]), 'create', 'single', { onHorizontalPan, onPinchZoom });
@@ -505,6 +535,19 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(onPinchZoom).toHaveBeenCalled();
     handlers.handlePointerUp(pointer(500, { pointerId: 2, x: 400 }));
     handlers.handlePointerUp(pointer(500, { x: 70 }));
+    expect(notes()).toHaveLength(0);
+    expect(pauseToasts()).toHaveLength(0);
+  });
+
+  it('재생 중 한 손가락으로 1박을 터치하면 누를 때는 안내하지 않고 뗄 때 안내 토스트 1개를 띄운다', () => {
+    const { handlers } = setup(chart([]), 'create');
+    play();
+    handlers.handlePointerDown(pointer(500));
+    expect(pauseToasts()).toHaveLength(0);
+
+    handlers.handlePointerUp(pointer(500));
+
+    expect(pauseToasts()).toHaveLength(1);
     expect(notes()).toHaveLength(0);
   });
 
@@ -635,6 +678,21 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
 
     expect(notes()).toHaveLength(2);
     expect(current().editTransaction).toBeNull();
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('재생 중 우클릭 누름의 contextmenu가 macOS처럼 뗌 전에 와도 지우지 않고, 뗀 뒤 정지하면 키보드 메뉴 키 contextmenu가 1박 탭을 지운다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'select');
+    play();
+    handlers.handlePointerDown(rightPointer(500));
+    handlers.handleContextMenu(contextMenu(500));
+    handlers.handlePointerUp(rightPointer(500));
+    expect(notes()).toHaveLength(1);
+
+    current().setIsPlaying(false);
+    handlers.handleContextMenu(contextMenu(500));
+
+    expect(notes()).toEqual([]);
     expect(pauseToasts()).toHaveLength(1);
   });
 

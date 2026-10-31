@@ -29,7 +29,10 @@ type EditTransaction = {
   token: symbol;
   kind: EditTransactionKind;
   before: HistorySnapshot;
+  /** transaction을 연 순간의 선택. 소유자의 취소(pointercancel·두 손가락 탐색 등)는 이 선택으로 되돌린다. */
   selection: Selection;
+  /** 이 gesture를 시작한 누름이 선택을 바꾸기 전의 선택. 재생 시작 취소만 이 선택으로 되돌린다(RFD 0099). */
+  selectionBeforePress: Selection;
   lastValidSnapshot: HistorySnapshot | null;
   /** 소유자 token 없이 다른 명령이 이 transaction을 끝냈을 때 소유자에게 알린다. */
   onInterrupt?: () => void;
@@ -143,8 +146,8 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
   /**
-   * 재생 상태 미러(PlaybackController.onPlayStateChange). 재생을 시작하면 열린 편집 transaction을
-   * Esc처럼 취소한다(RFD 0099): 차트·보조 레인 수·선택을 gesture 시작 전으로 되돌리고 history를 남기지 않는다.
+   * 재생 상태 미러(PlaybackController.onPlayStateChange). 재생을 시작하면 cancelEditTransactionForPlaybackStart를
+   * 한 번 더 부른다. 재생기는 시작 직전에 이미 취소하므로 보통은 취소할 transaction이 없다.
    */
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
@@ -164,11 +167,18 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    * 한 gesture의 편집을 Undo 1개로 묶는다. 소유자 token 없는 편집·모드 전환·Undo 등
    * 독립 명령이 transaction을 먼저 확정하거나 재생 시작이 취소하면 onInterrupt로 소유자에게 알린다.
    * 소유자는 그 뒤 옛 token으로 쓰지 말고 진행 중 조작을 정리해야 한다.
-   * 누름이 선택을 먼저 바꿨다면 selectionBefore를 넘겨 그 선택 변경까지 취소한다.
+   * 누름이 선택을 먼저 바꿨다면 selectionBefore를 넘긴다. 재생 시작 취소만 그 선택 변경까지 되돌린다.
    */
   beginEditTransaction: (kind: EditTransactionKind, onInterrupt?: () => void, selectionBefore?: Selection) => symbol | null;
   commitEditTransaction: (transaction?: symbol) => void;
+  /** 차트·보조 레인 수를 gesture 시작 전으로, 선택을 transaction을 연 순간으로 되돌리고 history를 남기지 않는다. */
   cancelEditTransaction: (transaction?: symbol) => void;
+  /**
+   * 재생 시작이 열린 편집 transaction(이동·리사이즈 드래그·붙여넣기 대기·우클릭 삭제)을 Esc처럼 취소한다(RFD 0099).
+   * 차트·보조 레인 수는 gesture 시작 전으로, 선택은 그 gesture를 시작한 누름 전으로 되돌리고 history를 남기지 않으며
+   * onInterrupt로 소유자에게 알린다. 재생기는 정지 상태에서 시작 위치를 읽기 전에 부른다(createEditorPlayback).
+   */
+  cancelEditTransactionForPlaybackStart: () => void;
   addToast: (message: string, type?: ToastType) => void;
   setEditingEvent: (event: EditingEvent) => void;
   /**
@@ -390,9 +400,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setEntityType: (entityType) => { get().commitEditTransaction(); set({ entityType }); },
   setGraceMode: (graceMode) => set({ graceMode }),
   setIsPlaying: (isPlaying) => {
-    // 재생을 시작하면 진행 중이던 이동·리사이즈 드래그, 붙여넣기 대기, 우클릭 삭제를 취소한다(RFD 0099).
-    // token 없는 취소라 소유 조작은 onInterrupt로 그 누름의 조작을 끝내, 같은 누름을 더 끌어도 아무것도 바꾸지 않는다.
-    if (isPlaying) get().cancelEditTransaction();
+    // 재생기 밖에서 재생 상태를 켜도 열린 편집이 재생 중에 남지 않게 한다(RFD 0099).
+    if (isPlaying) get().cancelEditTransactionForPlaybackStart();
     set({ isPlaying });
   },
   setCurrentTimeMs: (currentTimeMs) => set((state) => ({
@@ -494,7 +503,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const token = Symbol("editor transaction");
     set({ editTransaction: {
       token, kind, before: { chart: state.chart, extraLaneCount: state.extraLaneCount },
-      selection: selectionBefore ?? state.selection, lastValidSnapshot: state.lastValidSnapshot, onInterrupt,
+      selection: state.selection, selectionBeforePress: selectionBefore ?? state.selection,
+      lastValidSnapshot: state.lastValidSnapshot, onInterrupt,
     } });
     return token;
   },
@@ -523,6 +533,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ ...transaction.before, selection: transaction.selection,
       lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
     if (!token) transaction.onInterrupt?.();
+  },
+  cancelEditTransactionForPlaybackStart: () => {
+    const transaction = get().editTransaction;
+    if (!transaction) return;
+    // token 없는 취소라 소유 조작은 onInterrupt로 그 누름의 조작을 끝내, 같은 누름을 더 끌어도 아무것도 바꾸지 않는다.
+    set({ ...transaction.before, selection: transaction.selectionBeforePress,
+      lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
+    transaction.onInterrupt?.();
   },
   addToast: (message, type = 'warn') => showToast(message, type),
   setEditingEvent: (event) => set({ editingEvent: event }),

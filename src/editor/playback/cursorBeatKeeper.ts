@@ -9,7 +9,7 @@
  * 옮긴 시각은 레일과 같은 커서 범위(`timelineRange.ts`, 아래 끝 offsetMs)로 자른다. 잘리면 커서 시각으로는
  * 원래 박을 다시 구할 수 없으므로, 마지막으로 옮긴 커서의 박을 기억해 두고 사용자가 커서를 옮기지 않은 채
  * 다음 타이밍 변경이 오면 그 박에서 다시 옮긴다. 드래그 중간 프레임이나 수정에서 범위 끝에 묶였던 커서가
- * Escape·Undo로 타이밍이나 범위가 돌아오면 원래 박으로 돌아온다. 이 기억은 편집 세션에 남겨 페이지 재마운트에도 유지한다.
+ * Escape·Undo·재생 시작 취소로 타이밍이나 범위가 돌아오면 원래 박으로 돌아온다. 이 기억은 편집 세션에 남겨 페이지 재마운트에도 유지한다.
  */
 
 import type { BpmChange, ChartDocument } from '../../shared';
@@ -110,7 +110,8 @@ export function createCursorBeatKeeper(store: CursorBeatKeeperStore): CursorBeat
       store.setState({ cursorBeatKeeperState: { timing, loadGeneration, anchor: null } });
 
       if (!before || loadGeneration !== before.loadGeneration) return;
-      // 재생 중 편집 제한은 별도 작업(RFD 0099). 변환하지 않아도 다음 비교의 기준은 갱신한다.
+      // 재생 중에는 store와 입력 경로가 타이밍 편집을 막고(RFD 0099), 재생 시작이 취소한 편집은 재생기가 시작 전
+      // 정지 상태에서 이 함수를 부른다(createEditorPlayback). 재생 중 범위만 바뀌면 seek하지 않고 다음 비교의 기준만 갱신한다.
       if (!playback || playback.isPlaying) return;
       if (!convertibleTiming(before.timing) || !convertibleTiming(timing)) return;
 

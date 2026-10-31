@@ -10,6 +10,11 @@ export interface PlaybackCallbacks {
   getCursorTimeMs?: () => number;
   onTimeUpdate: (currentTimeMs: number) => void;
   onPlayStateChange: (isPlaying: boolean) => void;
+  /**
+   * 재생을 시작하기 직전, 아직 정지 상태이고 시작 위치를 읽기 전에 부른다. 여기서 seekTo하면 그 위치부터 재생한다.
+   * 음원이 없거나 이미 재생 중이라 시작하지 않으면 부르지 않는다.
+   */
+  beforePlay?: () => void;
   /** 최신 음원 로드가 반영된 뒤 파형·범위를 갱신한다. 오래된 로드·dispose 뒤에는 부르지 않는다. */
   onAudioLoaded?: (buffer: AudioBuffer) => void;
 }
@@ -90,6 +95,7 @@ export class PlaybackController {
       return;
     }
 
+    this.callbacks.beforePlay?.();
     this.playbackStartTime = this.audioContext.currentTime;
     this._isPlaying = true;
     this.callbacks.onPlayStateChange(true);

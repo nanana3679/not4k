@@ -936,4 +936,34 @@ describe('editorStore 재생 중 편집 제한', () => {
     expect(onInterrupt).not.toHaveBeenCalled();
     expect(state().editTransaction).not.toBeNull();
   });
+
+  /** 1박 탭 A를 선택해 두고, 누름이 선택을 3박 탭 B로 바꾼 뒤 B를 4박으로 옮기는 transaction을 연다. */
+  const pressBAfterSelectingA = () => {
+    useEditorStore.setState({ chart: makeChart([tap(1), tap(3)]) });
+    state().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    const selectionBeforePress = state().selection;
+    state().setSelection({ ...emptySelection(), notes: new Set([1]) });
+    const before = state().chart;
+    const token = state().beginEditTransaction('selectModeEdit', undefined, selectionBeforePress)!;
+    state().setChart(makeChart([tap(1), tap(4)]), { transaction: token });
+    return { before, token };
+  };
+
+  it('A 선택 뒤 누름이 B로 선택을 바꿔 연 transaction을 소유자 token으로 취소하면 B는 3박으로 돌아오고 선택은 B로 남는다', () => {
+    const { before, token } = pressBAfterSelectingA();
+
+    state().cancelEditTransaction(token);
+
+    expect(state().chart).toBe(before);
+    expect(state().selection.notes).toEqual(new Set([1]));
+  });
+
+  it('A 선택 뒤 누름이 B로 선택을 바꿔 연 transaction이 열린 채 재생을 시작하면 B는 3박으로 돌아오고 선택은 누르기 전 A로 돌아간다', () => {
+    const { before } = pressBAfterSelectingA();
+
+    state().setIsPlaying(true);
+
+    expect(state().chart).toBe(before);
+    expect(state().selection.notes).toEqual(new Set([0]));
+  });
 });
