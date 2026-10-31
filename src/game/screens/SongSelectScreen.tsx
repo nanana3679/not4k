@@ -1,5 +1,5 @@
 import { formatDifficultyLabel } from '../../shared/chartDifficulty';
-import { useState, useCallback, useRef, type CSSProperties } from 'react';
+import { useState, useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { useGameStore } from '../stores';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { createChartAsset, deleteSongAsset, supabase } from '../../supabase';
@@ -60,7 +60,14 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const [deleteSongTarget, setDeleteSongTarget] = useState<DbSong | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [mobileEditSelection, setMobileEditSelection] = useState<SelectedChartRef | null>(null);
-  const [showTutorialHelp, setShowTutorialHelp] = useState(false);
+  // 첫 기동 튜토리얼 모달(RFD 0055): 프리셋 설정 직후 처음 그리는 곡 선택은 도움말 모달을 연 채 시작한다.
+  // 신호는 연 즉시 지워, 이후 곡 선택에 다시 들어오면 `?` 버튼으로만 연다.
+  const shouldOpenFirstLaunchTutorialModal = useGameStore((state) => state.shouldOpenFirstLaunchTutorialModal);
+  const markFirstLaunchTutorialModalOpened = useGameStore((state) => state.markFirstLaunchTutorialModalOpened);
+  const [showTutorialHelp, setShowTutorialHelp] = useState(shouldOpenFirstLaunchTutorialModal);
+  useEffect(() => {
+    if (shouldOpenFirstLaunchTutorialModal) markFirstLaunchTutorialModalOpened();
+  }, [shouldOpenFirstLaunchTutorialModal, markFirstLaunchTutorialModalOpened]);
 
   const addToast = useCallback((msg: string, type: ToastType = 'info') => {
     showToast(msg, type);
