@@ -7,9 +7,14 @@ import { useGameStore } from '../stores/gameStore';
 import { openNormalPlayForTest } from '../stores/normalPlayTestHarness';
 
 const fixture = vi.hoisted(() => ({ effect: null as (() => (() => void)) | null,
+  deps: null as unknown[] | null, pendingEffect: false,
   error: null as string | null, load: vi.fn(), close: vi.fn(async () => undefined) }));
 vi.mock('react', async importOriginal => ({ ...await importOriginal<typeof import('react')>(),
-  useEffect: (effect: () => () => void) => { fixture.effect = effect; },
+  useEffect: (effect: () => () => void, deps: unknown[]) => {
+    if (!fixture.deps || deps.some((dep, index) => !Object.is(dep, fixture.deps![index]))) {
+      fixture.effect = effect; fixture.deps = deps; fixture.pendingEffect = true;
+    }
+  },
   useState: () => [fixture.error, (value: string | null) => { fixture.error = value; }],
 }));
 vi.mock('../stores', () => ({ useGameStore: Object.assign(() => useGameStore.getState(), { getState: useGameStore.getState }) }));
@@ -20,7 +25,8 @@ const audioBuffer = { duration: 4 } as AudioBuffer;
 let cleanup: (() => void) | undefined;
 beforeEach(() => {
   useGameStore.setState(useGameStore.getInitialState(), true);
-  fixture.error = null; fixture.effect = null; fixture.load.mockReset(); fixture.close.mockClear();
+  fixture.error = null; fixture.effect = null; fixture.deps = null; fixture.pendingEffect = false;
+  fixture.load.mockReset(); fixture.close.mockClear();
   vi.stubGlobal('AudioContext', class { close = fixture.close; });
   useGameStore.getState().selectSong('song-1', 'NORMAL', 'songs/song-1/custom.mp3', {
     startTime: 1, endTime: 3, fadeInTime: .2, fadeOutTime: .3,
@@ -28,16 +34,44 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup?.(); cleanup = undefined; vi.unstubAllGlobals(); useGameStore.setState(useGameStore.getInitialState(), true); });
 function mount() {
-  renderToStaticMarkup(createElement(LoadingScreen));
-  cleanup = fixture.effect!();
+  if (useGameStore.getState().screen !== 'loading') useGameStore.getState().setScreen('loading');
+  render();
 }
-function delayedLoad() {
+// 한 render 전의 여러 store 갱신은 React batch 하나처럼 최종 상태만 관찰한다.
+function render() {
+  renderToStaticMarkup(createElement(LoadingScreen));
+  if (fixture.pendingEffect) {
+    fixture.pendingEffect = false;
+    cleanup?.();
+    cleanup = fixture.effect!();
+  }
+}
+function delayedLoad(defaultChart = explicitPlaytestCharts[0].chart) {
   let resolve!: (data: { chart: ChartDocument; audioBuffer: AudioBuffer }) => void;
-  fixture.load.mockReturnValue(new Promise(done => { resolve = done; }));
-  return (chart = explicitPlaytestCharts[0].chart) => resolve({ chart, audioBuffer });
+  fixture.load.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+  return (chart = defaultChart) => resolve({ chart, audioBuffer });
 }
 
 describe('일반 곡 LoadingScreen', () => {
+  it('일반 로딩 중 setScreen(loading)을 다시 호출하면 2번째 로딩 완료로 play에 진입한다', async () => {
+    const resolveFirst = delayedLoad();
+    const resolveSecond = delayedLoad();
+    mount();
+    await vi.waitFor(() => expect(fixture.load).toHaveBeenCalledTimes(1));
+    useGameStore.getState().setScreen('loading');
+    render();
+    await vi.waitFor(() => expect(fixture.load).toHaveBeenCalledTimes(2));
+    resolveSecond();
+    await vi.waitFor(() => expect(useGameStore.getState().screen).toBe('play'));
+    const completed = useGameStore.getState();
+    resolveFirst();
+    await Promise.resolve(); await Promise.resolve();
+    expect(useGameStore.getState()).toBe(completed);
+    expect(completed.normalPlay?.compiled.totalJudgments).toBe(4);
+    expect(completed.observerPlay).toBeNull();
+    expect(fixture.close).toHaveBeenCalledTimes(2);
+  });
+
   it('선택한 custom.mp3와 구간을 읽고 전체 검증된 purpose=play 요청으로 한 번 진입한다', async () => {
     fixture.load.mockResolvedValue({ chart: explicitPlaytestCharts[0].chart, audioBuffer });
     mount();
@@ -126,6 +160,72 @@ describe('일반 곡 LoadingScreen', () => {
 
 describe('Observer 공유 LoadingScreen', () => {
   beforeEach(() => useGameStore.getState().beginPlayLoad('observer'));
+
+  it('observer 로딩 중 observer를 다시 요청하면 2번째 로딩을 시작하고 이전 응답을 버린 뒤 observer로 진입한다', async () => {
+    const resolveFirst = delayedLoad();
+    const resolveSecond = delayedLoad(explicitPlaytestCharts[2].chart);
+    mount();
+    await vi.waitFor(() => expect(fixture.load).toHaveBeenCalledTimes(1));
+    useGameStore.getState().beginPlayLoad('observer');
+    render();
+    await vi.waitFor(() => expect(fixture.load).toHaveBeenCalledTimes(2));
+    expect(fixture.close).toHaveBeenCalledTimes(1);
+    resolveFirst();
+    await Promise.resolve(); await Promise.resolve();
+    expect(useGameStore.getState()).toMatchObject({ screen: 'loading', observerPlay: null });
+    render();
+    resolveSecond();
+    await vi.waitFor(() => expect(useGameStore.getState().screen).toBe('observer'));
+    expect(fixture.load).toHaveBeenCalledTimes(2);
+    expect(fixture.close).toHaveBeenCalledTimes(2);
+    expect(useGameStore.getState().observerPlay?.compiled.totalJudgments).toBe(0);
+  });
+
+  it('observer 로딩 중 한 batch에서 play→observer를 요청하면 2번째 로딩 완료로 observer에만 1회 진입한다', async () => {
+    const resolveFirst = delayedLoad();
+    const resolveSecond = delayedLoad();
+    const screens: string[] = [];
+    const unsubscribe = useGameStore.subscribe((state, previous) => {
+      if (state.screen !== previous.screen) screens.push(state.screen);
+    });
+    try {
+      mount();
+      await vi.waitFor(() => expect(fixture.load).toHaveBeenCalledTimes(1));
+      useGameStore.getState().beginPlayLoad('play');
+      useGameStore.getState().beginPlayLoad('observer');
+      render();
+      await vi.waitFor(() => expect(fixture.load).toHaveBeenCalledTimes(2));
+      resolveSecond();
+      await vi.waitFor(() => expect(useGameStore.getState().screen).toBe('observer'));
+      const completed = useGameStore.getState();
+      resolveFirst();
+      await Promise.resolve(); await Promise.resolve();
+      expect(useGameStore.getState()).toBe(completed);
+      expect(screens).toEqual(['observer']);
+      expect(fixture.close).toHaveBeenCalledTimes(2);
+    } finally { unsubscribe(); }
+  });
+
+  it('StrictMode에서 effect를 setup→cleanup→setup하면 로딩 1회·observer 진입 1회로 완료한다', async () => {
+    fixture.load.mockResolvedValue({ chart: explicitPlaytestCharts[0].chart, audioBuffer });
+    const screens: string[] = [];
+    const unsubscribe = useGameStore.subscribe((state, previous) => {
+      if (state.screen !== previous.screen) screens.push(state.screen);
+    });
+    try {
+      mount();
+      // StrictMode는 같은 effect closure를 cleanup 뒤 다시 실행한다.
+      cleanup!();
+      cleanup = fixture.effect!();
+      render();
+      await vi.waitFor(() => expect(useGameStore.getState().screen).toBe('observer'));
+      cleanup!(); cleanup = undefined;
+      expect(screens).toEqual(['observer']);
+      expect(fixture.load).toHaveBeenCalledOnce();
+      expect(fixture.close).toHaveBeenCalledOnce();
+      expect(useGameStore.getState().observerPlay?.compiled.totalJudgments).toBe(4);
+    } finally { unsubscribe(); }
+  });
 
   it('Observer는 custom.mp3를 1회 읽고 검증한 4개 점수 항목·음원 구간을 observer 화면에 전달한다', async () => {
     fixture.load.mockResolvedValue({ chart: explicitPlaytestCharts[0].chart, audioBuffer });

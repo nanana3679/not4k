@@ -246,6 +246,34 @@ describe('ObserverScreen 조작과 수명', () => {
 });
 
 describe('Observer 툴바 레인 키와 포커스', () => {
+  it('진입 때 lane1에 바인딩한 Enter를 설정에서 제거해도 Exit의 down/up 기본 활성화를 막고 레인 입력을 유지한다', () => {
+    useGameStore.getState().updateKeyBindings({ lane1: ['Enter'] });
+    const player = playing();
+    const onLanePress = vi.fn(); const onLaneRelease = vi.fn();
+    const input = new InputSystem(player.options.settings.keyBindings.lane1.map(key => ({ lane: 1, key })),
+      { onLanePress, onLaneRelease });
+    input.attach(window);
+    try {
+      useGameStore.getState().updateKeyBindings({ lane1: ['KeyQ'] });
+      const page = render();
+      const button = page.button('Exit');
+      for (const type of ['keydown', 'keyup'] as const) {
+        const event = key(type, 'Enter');
+        const handler = type === 'keydown' ? button.onKeyDown : button.onKeyUp;
+        handler!(event as unknown as ReactKeyboardEvent<HTMLButtonElement>);
+        // jsdom처럼 기본 버튼 활성화가 없는 환경에서도 브라우저 동작을 재현한다.
+        if (type === 'keydown' && !event.defaultPrevented) page.click('Exit');
+        expect(event.defaultPrevented).toBe(true);
+        window.dispatchEvent(event);
+      }
+      expect(onLanePress).toHaveBeenCalledExactlyOnceWith(1, expect.any(Number), 'Enter');
+      expect(onLaneRelease).toHaveBeenCalledExactlyOnceWith(1, expect.any(Number), 'Enter');
+      expect(harness.players).toHaveLength(1);
+      expect(player.dispose).not.toHaveBeenCalled();
+      expect(useGameStore.getState().screen).toBe('observer');
+    } finally { input.detach(); }
+  });
+
   it('Space·Enter를 lane1에 바인딩하면 포커스 버튼 4개의 기본 활성화를 막고 down/up은 레인에 전달한다', () => {
     useGameStore.getState().updateKeyBindings({ lane1: ['Space', 'Enter'] });
     const player = playing();

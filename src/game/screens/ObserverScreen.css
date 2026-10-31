@@ -34,6 +34,8 @@
 
 /* 툴바는 canvas 바깥의 별도 행이다. 오른쪽에는 조작 패널을 두지 않는다. */
 .observer-screen__field {
+  position: relative;
+  overflow: hidden;
   flex: 1;
   min-height: 0;
   min-width: 0;

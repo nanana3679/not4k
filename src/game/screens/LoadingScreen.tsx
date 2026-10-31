@@ -10,7 +10,7 @@ import { font, color, primitives } from '../../shared/theme';
 
 export function LoadingScreen() {
   const { selectedSongId, selectedDifficulty, selectedAudioUrl, selectedPlaybackRange, setScreen,
-    playLoadTarget, beginPlayLoad, completePlayLoad, cancelPlayLoad } = useGameStore();
+    playLoadRequestId, claimPlayLoad, completePlayLoad, cancelPlayLoad } = useGameStore();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -21,7 +21,8 @@ export function LoadingScreen() {
       audioCtx = null;
       return context?.close().catch(() => undefined);
     };
-    const loadId = beginPlayLoad(playLoadTarget);
+    // 요청 카운터는 진입점만 올린다. effect 재실행은 새 실행 ID만 확보해 재요청 루프를 피한다.
+    const loadId = claimPlayLoad();
     const isCurrentLoad = () => isMounted && useGameStore.getState().playLoadId === loadId
       && useGameStore.getState().screen === 'loading';
 
@@ -67,7 +68,7 @@ export function LoadingScreen() {
       void closeAudioContext();
     };
   }, [selectedSongId, selectedDifficulty, selectedAudioUrl, selectedPlaybackRange,
-    playLoadTarget, beginPlayLoad, completePlayLoad, cancelPlayLoad]);
+    playLoadRequestId, claimPlayLoad, completePlayLoad, cancelPlayLoad]);
 
   if (error) {
     return (

@@ -11,7 +11,7 @@ const initialState: ObserverPlayState = { autoEnabled: true, manualStats: null, 
 /** 문서·음원은 LoadingScreen, 반복·판정·HUD는 runtime이 소유한다. 화면은 조작과 수명만 연결한다. */
 export function ObserverScreen() {
   const request = useGameStore(state => state.observerPlay);
-  const keyBindings = useGameStore(state => state.settings.keyBindings);
+  const laneKeys = useRef<ReadonlySet<string> | null>(null);
   const field = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const runtime = useRef<ObserverPlayRuntime | null>(null);
@@ -23,8 +23,11 @@ export function ObserverScreen() {
     if (!request || !canvas.current || !field.current) return;
     // Esc는 React의 다음 render를 기다리지 않고 실제 runtime phase로 판단한다(#276).
     let currentPhase: ObserverPlayPhase = 'loading';
+    const settings = useGameStore.getState().settings;
+    // runtime 입력과 같은 생성 시점의 바인딩을 유지한다. 설정 변경은 다음 runtime부터 반영한다.
+    laneKeys.current = new Set(Object.values(settings.keyBindings).flat());
     const player = new ObserverPlayRuntime({
-      request, settings: useGameStore.getState().settings, canvas: canvas.current,
+      request, settings, canvas: canvas.current,
       width: field.current.clientWidth, height: field.current.clientHeight, inputTarget: window,
       onPhase: next => {
         if (runtime.current !== player) return;
@@ -46,13 +49,14 @@ export function ObserverScreen() {
     void player.start();
     return () => {
       window.removeEventListener('keydown', onKeyDown);
-      if (runtime.current === player) { runtime.current = null; player.dispose(); }
+      if (runtime.current === player) { runtime.current = null; laneKeys.current = null; player.dispose(); }
     };
   }, [request]);
 
   const exit = () => {
     const player = runtime.current;
     runtime.current = null;
+    laneKeys.current = null;
     player?.dispose();
     const store = useGameStore.getState();
     if (request) store.clearObserverPlay(request);
@@ -61,7 +65,7 @@ export function ObserverScreen() {
   const protectLaneKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     // Enter는 keydown, Space는 keyup에서 버튼을 활성화한다. 기본 동작만 막고
     // window까지 전파해 실제 레인 down/up은 InputSystem에 그대로 전달한다.
-    if (Object.values(keyBindings).some(keys => keys.includes(event.code))) event.preventDefault();
+    if (laneKeys.current?.has(event.code)) event.preventDefault();
   };
   const buttonKeys = { onKeyDown: protectLaneKey, onKeyUp: protectLaneKey };
   const ready = !!request && !error && (phase === 'playing' || phase === 'paused');

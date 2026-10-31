@@ -79,8 +79,12 @@ interface GameState {
   observerPlay: ObserverPlayRequest | null;
   /** 같은 LoadingScreen이 검증한 문서·음원을 전달할 목적지. 영속화하지 않는다. */
   playLoadTarget: PlayLoadTarget;
+  /** 진입점의 새 요청만 센다. effect의 실행·취소로는 바뀌지 않는다. */
+  playLoadRequestId: number;
+  /** 실행 중인 로드의 소유권. cleanup 이후 StrictMode 재실행도 새 ID를 받는다. */
   playLoadId: number;
   beginPlayLoad: (target?: PlayLoadTarget) => number;
+  claimPlayLoad: () => number;
   completePlayLoad: (loadId: number, request: ExplicitPlayRequest) => boolean;
   cancelPlayLoad: (loadId: number) => void;
   completeNormalPlay: (request: ExplicitPlayRequest, result: ExplicitSessionResult) => void;
@@ -191,12 +195,19 @@ export const useGameStore = create<GameState>()(
       normalPlay: null,
       observerPlay: null,
       playLoadTarget: 'play',
+      playLoadRequestId: 0,
       playLoadId: 0,
       beginPlayLoad: (playLoadTarget = 'play') => {
         const playLoadId = get().playLoadId + 1;
-        set({ playLoadId, playLoadTarget, normalPlay: null, observerPlay: null, explicitPlay: null, lastResult: null,
+        set({ playLoadId, playLoadTarget, playLoadRequestId: get().playLoadRequestId + 1,
+          normalPlay: null, observerPlay: null, explicitPlay: null, lastResult: null,
           chartData: null, audioBuffer: null, startTimeMs: 0, editorReturnUrl: null,
           screen: 'loading', settingsOpen: false, calibrationActive: false });
+        return playLoadId;
+      },
+      claimPlayLoad: () => {
+        const playLoadId = get().playLoadId + 1;
+        set({ playLoadId });
         return playLoadId;
       },
       completePlayLoad: (loadId, request) => {
@@ -248,6 +259,7 @@ export const useGameStore = create<GameState>()(
       // 다른 화면으로 넘어간 채 열려 있으면 안 되고, 복귀 시 의도치 않게 재오픈되는 것도 막는다.
       // 명시 테스트 요청(문서·음원)은 explicitPlay 화면에서만 쓰므로 다른 화면으로 가면 항상 해제한다.
       setScreen: (screen) => set(state => ({ screen, settingsOpen: false, calibrationActive: false,
+        ...(screen === 'loading' ? { playLoadRequestId: state.playLoadRequestId + 1 } : {}),
         ...(screen !== 'explicitPlay' ? { explicitPlay: null } : {}),
         ...(screen !== 'observer' ? { observerPlay: null, playLoadTarget: 'play' as const } : {}),
         ...(screen !== 'play' && screen !== 'result' && screen !== 'explicitPlay' && screen !== 'observer'
