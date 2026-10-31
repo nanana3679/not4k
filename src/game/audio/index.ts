@@ -1,2 +1,2 @@
 export { AudioEngine } from './AudioEngine';
-export type { AudioSection } from './AudioEngine';
+export type { FadedAudioSpan } from './AudioEngine';

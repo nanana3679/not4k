@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
 import { AudioEngine } from "./AudioEngine";
+import type { FadedAudioSpan } from "./index";
 
 // ---------------------------------------------------------------------------
 // Web Audio API mock
@@ -697,9 +698,9 @@ describe('AudioEngine 음악 준비 예약', () => {
   });
 });
 
-describe("AudioEngine 옵저버 구간 재생", () => {
+describe("AudioEngine 옵저버 페이드 구간 재생", () => {
   /** 앞 준비 2000ms → 선택 구간 3000～8000ms → 뒤 정리 11000ms */
-  const SECTION = { fromMs: 2000, fadeInUntilMs: 3000, fadeOutFromMs: 8000, toMs: 11000 };
+  const SPAN: FadedAudioSpan = { fromMs: 2000, fadeInUntilMs: 3000, fadeOutFromMs: 8000, toMs: 11000 };
 
   function createLoadedEngine(bufferSeconds = 60): AudioEngine {
     const engine = new AudioEngine();
@@ -716,104 +717,286 @@ describe("AudioEngine 옵저버 구간 재생", () => {
     return mockCtx.createGain.mock.results[0].value;
   }
 
-  /** source → sourceGain → (sectionGain) → master 연결을 따라간다. */
-  function chainOf(source: MockAudioSource): { sourceGain: MockGainNode; sectionGain: MockGainNode | null } {
+  /** source → sourceGain → (spanGain) → master 연결을 따라간다. */
+  function chainOf(source: MockAudioSource): { sourceGain: MockGainNode; spanGain: MockGainNode | null } {
     const sourceGain = source.connect.mock.calls[0][0] as MockGainNode;
     const next = sourceGain.connect.mock.calls[0][0] as MockGainNode;
-    if (next === masterGain()) return { sourceGain, sectionGain: null };
+    if (next === masterGain()) return { sourceGain, spanGain: null };
     expect(next.connect).toHaveBeenCalledWith(masterGain());
-    return { sourceGain, sectionGain: next };
+    return { sourceGain, spanGain: next };
   }
 
   it("1배속·시각 5초에 구간 2000→3000→8000→11000ms를 재생하면 offset 2초·길이 9초로 시작하고 구간 gain은 5→6초 0→1, 11→14초 1→0이다", () => {
     const engine = createLoadedEngine();
     mockCtx._advanceTime(5);
 
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
 
     const source = lastSource();
     expect(source.start).toHaveBeenCalledWith(0, 2, 9);
-    const { sectionGain } = chainOf(source);
-    expect(sectionGain).not.toBeNull();
-    expect(sectionGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 5], [1, 11]]);
-    expect(sectionGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 6], [0, 14]]);
+    const { spanGain } = chainOf(source);
+    expect(spanGain).not.toBeNull();
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 5], [1, 11]]);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 6], [0, 14]]);
     expect(engine.playing).toBe(true);
     expect(engine.currentTimeMs).toBe(2000);
   });
 
-  it("0.5배속·시각 5초에 같은 구간을 재생하면 source 길이는 버퍼 기준 9초 그대로이고 구간 gain은 실제 시간 7·17·23초에 예약된다", () => {
+  it("1배속·시각 5초에 9500ms부터 재생하면 offset 9.5초·길이 1.5초이고 gain 0.5에서 6.5초에 0으로 내린다", () => {
+    const engine = createLoadedEngine();
+    mockCtx._advanceTime(5);
+
+    engine.playFadedSpan(SPAN, 9500);
+
+    const source = lastSource();
+    expect(source.start).toHaveBeenCalledWith(0, 9.5, 1.5);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[0.5, 5]]);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[0, 6.5]]);
+    expect(engine.currentTimeMs).toBe(9500);
+    expect(engine.playing).toBe(true);
+  });
+
+  it("시각 5초에 페이드 구간 끝 11000ms부터 재생하면 offset 11초·길이 0·gain 0이고 남은 ramp는 없다", () => {
+    const engine = createLoadedEngine();
+    mockCtx._advanceTime(5);
+
+    engine.playFadedSpan(SPAN, 11000);
+
+    const source = lastSource();
+    expect(source.start).toHaveBeenCalledWith(0, 11, 0);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 5]]);
+    expect(spanGain!.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+    expect(engine.currentTimeMs).toBe(11000);
+  });
+
+  it("0.5배속·시각 5초에 2000→3000→8000→11000ms 구간을 재생하면 source 길이는 버퍼 기준 9초 그대로이고 구간 gain은 실제 시간 7·17·23초에 예약된다", () => {
     const engine = createLoadedEngine();
     engine.playbackRate = 0.5;
     mockCtx._advanceTime(5);
 
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
 
     const source = lastSource();
     expect(source.playbackRate.value).toBe(0.5);
     expect(source.start).toHaveBeenCalledWith(0, 2, 9);
-    const { sectionGain } = chainOf(source);
-    expect(sectionGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 5], [1, 17]]);
-    expect(sectionGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 7], [0, 23]]);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 5], [1, 17]]);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 7], [0, 23]]);
+  });
+
+  it("시각 4초·6000ms에서 0.5배속으로 바꾸면 source를 유지하고 gain을 4초에 1로 고정해 8→14초 1→0으로 다시 예약한다", () => {
+    const engine = createLoadedEngine();
+    engine.playFadedSpan(SPAN);
+    const source = lastSource();
+    const { spanGain } = chainOf(source);
+    vi.clearAllMocks();
+    mockCtx._advanceTime(4);
+
+    engine.playbackRate = 0.5;
+
+    expect(source.playbackRate.value).toBe(0.5);
+    expect(mockCtx.createBufferSource).not.toHaveBeenCalled();
+    expect(source.start).not.toHaveBeenCalled();
+    expect(source.stop).not.toHaveBeenCalled();
+    expect(source.disconnect).not.toHaveBeenCalled();
+    expect(spanGain!.gain.cancelScheduledValues.mock.calls).toEqual([[4]]);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[1, 4], [1, 8]]);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[0, 14]]);
+    expect(spanGain!.gain.cancelScheduledValues.mock.invocationCallOrder[0])
+      .toBeLessThan(spanGain!.gain.setValueAtTime.mock.invocationCallOrder[0]);
+    expect(engine.currentTimeMs).toBe(6000);
+    mockCtx._advanceTime(2);
+    expect(engine.currentTimeMs).toBe(7000);
+  });
+
+  it("onended 미전달·11500ms에서 0.5배속으로 바꾸면 gain 0을 시각 9.5초에 고정하고 지난 페이드 ramp는 예약하지 않는다", () => {
+    const engine = createLoadedEngine();
+    engine.playFadedSpan(SPAN);
+    const source = lastSource();
+    const { spanGain } = chainOf(source);
+    vi.clearAllMocks();
+    mockCtx._advanceTime(9.5);
+
+    engine.playbackRate = 0.5;
+
+    expect(spanGain!.gain.cancelScheduledValues.mock.calls).toEqual([[9.5]]);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 9.5]]);
+    expect(spanGain!.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+    expect(mockCtx.createBufferSource).not.toHaveBeenCalled();
+    expect(source.start).not.toHaveBeenCalled();
+    expect(engine.currentTimeMs).toBe(11500);
+    mockCtx._advanceTime(1);
+    expect(engine.currentTimeMs).toBe(12000);
+  });
+
+  it("play(2000) 후 4초에 0.5배속으로 바꾸면 spanGain 없이 gain 예약을 유지하고 2초 뒤 7000ms로 진행한다", () => {
+    const engine = createLoadedEngine();
+    engine.play(2000);
+    const source = lastSource();
+    const { sourceGain, spanGain } = chainOf(source);
+    const master = masterGain();
+    expect(spanGain).toBeNull();
+    expect(mockCtx.createGain).toHaveBeenCalledTimes(2);
+    vi.clearAllMocks();
+    mockCtx._advanceTime(4);
+
+    engine.playbackRate = 0.5;
+
+    expect(source.playbackRate.value).toBe(0.5);
+    expect(mockCtx.createBufferSource).not.toHaveBeenCalled();
+    expect(mockCtx.createGain).not.toHaveBeenCalled();
+    expect(source.start).not.toHaveBeenCalled();
+    expect(source.stop).not.toHaveBeenCalled();
+    for (const node of [sourceGain, master]) {
+      expect(node.gain.cancelScheduledValues).not.toHaveBeenCalled();
+      expect(node.gain.setValueAtTime).not.toHaveBeenCalled();
+      expect(node.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+    }
+    expect(engine.currentTimeMs).toBe(6000);
+    expect(engine.playing).toBe(true);
+    mockCtx._advanceTime(2);
+    expect(engine.currentTimeMs).toBe(7000);
   });
 
   it("곡 시작에 붙은 구간 0→0→5000→8000ms는 앞 준비가 없어 구간 gain을 1로 시작하고 페이드 인 ramp를 예약하지 않는다", () => {
     const engine = createLoadedEngine();
 
-    engine.playSection({ fromMs: 0, fadeInUntilMs: 0, fadeOutFromMs: 5000, toMs: 8000 });
+    engine.playFadedSpan({ fromMs: 0, fadeInUntilMs: 0, fadeOutFromMs: 5000, toMs: 8000 });
 
     const source = lastSource();
     expect(source.start).toHaveBeenCalledWith(0, 0, 8);
-    const { sectionGain } = chainOf(source);
-    expect(sectionGain!.gain.setValueAtTime.mock.calls).toEqual([[1, 0], [1, 5]]);
-    expect(sectionGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[0, 8]]);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[1, 0], [1, 5]]);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[0, 8]]);
   });
 
   it("60초 곡 끝에 붙은 구간 52000→55000→60000→60000ms는 뒤 정리가 없어 페이드 아웃 없이 곡 끝까지 8초 재생한다", () => {
     const engine = createLoadedEngine();
 
-    engine.playSection({ fromMs: 52000, fadeInUntilMs: 55000, fadeOutFromMs: 60000, toMs: 60000 });
+    engine.playFadedSpan({ fromMs: 52000, fadeInUntilMs: 55000, fadeOutFromMs: 60000, toMs: 60000 });
 
     const source = lastSource();
     expect(source.start).toHaveBeenCalledWith(0, 52, 8);
-    const { sectionGain } = chainOf(source);
-    expect(sectionGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 0]]);
-    expect(sectionGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 3]]);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 0]]);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 3]]);
   });
 
   it("재생 범위 30～90초(fadeIn 1초·fadeOut 2초)에서 구간 2000→11000ms는 offset 32초로 시작하고 sourceGain에 범위 페이드 56→58초 1→0을 그대로 예약한다", () => {
     const engine = createLoadedEngine(120);
     engine.setPlaybackRange({ startTime: 30, endTime: 90, fadeInTime: 1, fadeOutTime: 2 });
 
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
 
     const source = lastSource();
     expect(source.start).toHaveBeenCalledWith(0, 32, 9);
-    const { sourceGain, sectionGain } = chainOf(source);
+    const { sourceGain, spanGain } = chainOf(source);
     expect(sourceGain.gain.setValueAtTime.mock.calls).toEqual([[1, 0], [1, 56]]);
     expect(sourceGain.gain.linearRampToValueAtTime.mock.calls).toEqual([[0, 58]]);
-    expect(sectionGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 0], [1, 6]]);
-    expect(sectionGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 1], [0, 9]]);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[0, 0], [1, 6]]);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 1], [0, 9]]);
   });
 
-  it("음원을 불러오기 전 playSection하면 No audio loaded 오류를 던진다", () => {
-    expect(() => new AudioEngine().playSection(SECTION)).toThrow("No audio loaded");
+  it("duration이 59899.99999999999ms일 때 toMs=59900으로 재생하면 곡 끝으로 잘라 페이드 아웃을 예약한다", () => {
+    const engine = createLoadedEngine(59.89999999999999);
+    expect(engine.duration).toBe(59899.99999999999);
+
+    engine.playFadedSpan({ ...SPAN, toMs: 59900 });
+
+    const source = lastSource();
+    expect(source.start).toHaveBeenCalledWith(0, 2, 57.89999999999999);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 1], [0, 57.89999999999999]]);
+  });
+
+  it.each([60000, 60000.5])("60000ms 곡에서 toMs=%s로 재생하면 source 길이와 페이드 끝을 58초로 제한한다", toMs => {
+    const engine = createLoadedEngine();
+
+    engine.playFadedSpan({ ...SPAN, toMs });
+
+    const source = lastSource();
+    expect(source.start).toHaveBeenCalledWith(0, 2, 58);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 1], [0, 58]]);
+  });
+
+  it.each([2000, 60000.5])("60000ms 곡에서 fromMs=%s·나머지 경계와 startMs=60000.5로 재생하면 offset 60초·길이 0·gain 1이고 ramp는 없다", fromMs => {
+    const engine = createLoadedEngine();
+    const span: FadedAudioSpan = {
+      fromMs, fadeInUntilMs: 60000.5, fadeOutFromMs: 60000.5, toMs: 60000.5,
+    };
+
+    engine.playFadedSpan(span, 60000.5);
+
+    const source = lastSource();
+    expect(source.start).toHaveBeenCalledWith(0, 60, 0);
+    expect(engine.currentTimeMs).toBe(60000);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[1, 0]]);
+    expect(spanGain!.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+    expect(span).toEqual({ fromMs, fadeInUntilMs: 60000.5, fadeOutFromMs: 60000.5, toMs: 60000.5 });
+  });
+
+  it("60000ms 곡 끝에서 startMs=60000.5로 재생하면 시작 위치를 60000ms로 잘라 offset 60초·길이 0·gain 1로 시작한다", () => {
+    const engine = createLoadedEngine();
+
+    engine.playFadedSpan({ ...SPAN, fadeOutFromMs: 60000, toMs: 60000 }, 60000.5);
+
+    const source = lastSource();
+    expect(source.start).toHaveBeenCalledWith(0, 60, 0);
+    expect(engine.currentTimeMs).toBe(60000);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[1, 0]]);
+    expect(spanGain!.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+  });
+
+  it("60000ms 곡에서 startMs=60000.501로 재생하면 0.5ms 허용 오차를 넘어 RangeError를 던진다", () => {
+    const engine = createLoadedEngine();
+
+    expect(() => engine.playFadedSpan({ ...SPAN, toMs: 60000.5 }, 60000.501)).toThrow(RangeError);
+
+    expect(mockCtx.createBufferSource).not.toHaveBeenCalled();
+    expect(engine.currentTimeMs).toBe(0);
+    expect(engine.playing).toBe(false);
+  });
+
+  it.each([[5000, 5], [60000, 60]])("네 경계가 모두 %sms인 구간을 재생하면 해당 위치에서 길이 0·gain 1로 시작하고 ramp는 없다", (positionMs, offset) => {
+    const engine = createLoadedEngine();
+
+    engine.playFadedSpan({
+      fromMs: positionMs, fadeInUntilMs: positionMs, fadeOutFromMs: positionMs, toMs: positionMs,
+    });
+
+    const source = lastSource();
+    expect(source.start).toHaveBeenCalledWith(0, offset, 0);
+    const { spanGain } = chainOf(source);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[1, 0]]);
+    expect(spanGain!.gain.linearRampToValueAtTime).not.toHaveBeenCalled();
+    expect(engine.currentTimeMs).toBe(positionMs);
+  });
+
+  it("음원을 불러오기 전 playFadedSpan하면 No audio loaded 오류를 던진다", () => {
+    expect(() => new AudioEngine().playFadedSpan(SPAN)).toThrow("No audio loaded");
   });
 
   it.each([
-    ["fromMs가 음수 -1", { ...SECTION, fromMs: -1 }],
-    ["toMs 60001이 곡 길이 60000ms 초과", { ...SECTION, toMs: 60001 }],
-    ["fadeInUntilMs 1000이 fromMs 2000보다 앞", { ...SECTION, fadeInUntilMs: 1000 }],
-    ["fadeOutFromMs 2500이 fadeInUntilMs 3000보다 앞", { ...SECTION, fadeOutFromMs: 2500 }],
-    ["toMs 7000이 fadeOutFromMs 8000보다 앞", { ...SECTION, toMs: 7000 }],
-    ["fadeInUntilMs가 NaN", { ...SECTION, fadeInUntilMs: NaN }],
-    ["toMs가 Infinity", { ...SECTION, toMs: Infinity }],
+    ["fromMs가 음수 -1", { ...SPAN, fromMs: -1 }],
+    ["toMs 60001이 곡 길이 60000ms 초과", { ...SPAN, toMs: 60001 }],
+    ["toMs 60000.501이 곡 길이 60000ms보다 0.501ms 뒤", { ...SPAN, toMs: 60000.501 }],
+    ["fadeInUntilMs 1000이 fromMs 2000보다 앞", { ...SPAN, fadeInUntilMs: 1000 }],
+    ["fadeOutFromMs 2500이 fadeInUntilMs 3000보다 앞", { ...SPAN, fadeOutFromMs: 2500 }],
+    ["toMs 7000이 fadeOutFromMs 8000보다 앞", { ...SPAN, toMs: 7000 }],
+    ["fadeInUntilMs가 NaN", { ...SPAN, fadeInUntilMs: NaN }],
+    ["toMs가 Infinity", { ...SPAN, toMs: Infinity }],
   ])("%s이면 RangeError를 던지고 재생 중인 구간의 source·시계·끝 위치를 그대로 둔다", (_, invalid) => {
     const engine = createLoadedEngine();
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
     mockCtx._advanceTime(0.5);
     const source = lastSource();
 
-    expect(() => engine.playSection(invalid)).toThrow(RangeError);
+    expect(() => engine.playFadedSpan(invalid)).toThrow(RangeError);
 
     expect(source.stop).not.toHaveBeenCalled();
     expect(mockCtx.createBufferSource).toHaveBeenCalledTimes(1);
@@ -824,9 +1007,26 @@ describe("AudioEngine 옵저버 구간 재생", () => {
     expect(lastSource().start).toHaveBeenCalledWith(0, 2.5, 8.5);
   });
 
+  it.each([1999, 11001, NaN, Infinity, -Infinity])("2000～11000ms 페이드 구간에서 startMs=%s로 재생하면 RangeError를 던지고 기존 2500ms 재생을 유지한다", startMs => {
+    const engine = createLoadedEngine();
+    engine.playFadedSpan(SPAN);
+    mockCtx._advanceTime(0.5);
+    const source = lastSource();
+
+    expect(() => engine.playFadedSpan(SPAN, startMs)).toThrow(RangeError);
+
+    expect(source.stop).not.toHaveBeenCalled();
+    expect(mockCtx.createBufferSource).toHaveBeenCalledTimes(1);
+    expect(engine.currentTimeMs).toBe(2500);
+    expect(engine.playing).toBe(true);
+    engine.pause();
+    engine.resume();
+    expect(lastSource().start).toHaveBeenCalledWith(0, 2.5, 8.5);
+  });
+
   it("구간 끝 11000ms에서 source가 끝나면 playing=false가 되고 시계는 1초 뒤 12000ms로 계속 진행한다", () => {
     const engine = createLoadedEngine();
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
 
     mockCtx._advanceTime(9);
     lastSource().onended!();
@@ -839,7 +1039,7 @@ describe("AudioEngine 옵저버 구간 재생", () => {
 
   it("페이드 인 중 2500ms(gain 0.5)에서 정지하고 시각 10.5초에 재개하면 offset 2.5초·길이 8.5초로 같은 구간을 잇고 gain 0.5→1(11초)·16→19초 1→0을 예약한다", () => {
     const engine = createLoadedEngine();
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
     mockCtx._advanceTime(0.5);
     engine.pause();
     mockCtx._advanceTime(10);
@@ -849,15 +1049,15 @@ describe("AudioEngine 옵저버 구간 재생", () => {
     const resumed = lastSource();
     expect(mockCtx.createBufferSource).toHaveBeenCalledTimes(2);
     expect(resumed.start).toHaveBeenCalledWith(0, 2.5, 8.5);
-    const { sectionGain } = chainOf(resumed);
-    expect(sectionGain!.gain.setValueAtTime.mock.calls).toEqual([[0.5, 10.5], [1, 16]]);
-    expect(sectionGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 11], [0, 19]]);
+    const { spanGain } = chainOf(resumed);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[0.5, 10.5], [1, 16]]);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 11], [0, 19]]);
     expect(engine.currentTimeMs).toBe(2500);
   });
 
   it("페이드 아웃 중 9500ms(gain 0.5)에서 정지 후 바로 재개하면 gain 0.5에서 시작해 1.5초 동안 0으로 내리고 구간 끝 11000ms에서 멈춘다", () => {
     const engine = createLoadedEngine();
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
     mockCtx._advanceTime(7.5);
     engine.pause();
 
@@ -865,15 +1065,36 @@ describe("AudioEngine 옵저버 구간 재생", () => {
 
     const resumed = lastSource();
     expect(resumed.start).toHaveBeenCalledWith(0, 9.5, 1.5);
-    const { sectionGain } = chainOf(resumed);
-    expect(sectionGain!.gain.setValueAtTime.mock.calls).toEqual([[0.5, 7.5]]);
-    expect(sectionGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[0, 9]]);
+    const { spanGain } = chainOf(resumed);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual([[0.5, 7.5]]);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[0, 9]]);
   });
 
-  it("구간 끝 11000ms 뒤 11500ms에서 정지 후 재개하면 source를 다시 만들지 않고 시계만 0.5초 뒤 12000ms로 진행한다", () => {
+  it.each([
+    { positionMs: 3000, offset: 3, duration: 8, setValues: [[1, 10], [1, 15]], endAt: 18 },
+    { positionMs: 8000, offset: 8, duration: 3, setValues: [[1, 10]], endAt: 13 },
+  ])("페이드 경계 $positionMs ms에서 정지 후 시각 10초에 재개하면 gain 1로 시작해 $endAt 초에 0으로 내리고 1로 올리는 ramp는 없다", ({ positionMs, offset, duration, setValues, endAt }) => {
     const engine = createLoadedEngine();
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
+    mockCtx._advanceTime((positionMs - SPAN.fromMs) / 1000);
+    engine.pause();
+    mockCtx._advanceTime(10 - mockCtx.currentTime);
+
+    engine.resume();
+
+    const resumed = lastSource();
+    expect(resumed.start).toHaveBeenCalledWith(0, offset, duration);
+    const { spanGain } = chainOf(resumed);
+    expect(spanGain!.gain.setValueAtTime.mock.calls).toEqual(setValues);
+    expect(spanGain!.gain.linearRampToValueAtTime.mock.calls).toEqual([[0, endAt]]);
+    expect(engine.currentTimeMs).toBe(positionMs);
+  });
+
+  it.each([false, true])("onended 전달=%s·구간 끝 11000ms 뒤 11500ms에서 정지 후 재개하면 source를 다시 만들지 않고 시계만 0.5초 뒤 12000ms로 진행한다", ended => {
+    const engine = createLoadedEngine();
+    engine.playFadedSpan(SPAN);
     mockCtx._advanceTime(9.5);
+    if (ended) lastSource().onended!();
     engine.pause();
 
     engine.resume();
@@ -884,21 +1105,38 @@ describe("AudioEngine 옵저버 구간 재생", () => {
     expect(engine.currentTimeMs).toBe(12000);
   });
 
-  it("구간 끝 뒤 12000ms에서 같은 구간을 다시 재생하면 이전 source를 끊고 새 source로 2000ms부터 반복한다", () => {
+  it.each([false, true])("onended 전달=%s·구간 끝 뒤 12000ms에서 다시 재생하고 이전 onended가 늦게 와도 새 source의 2000ms 재생을 유지한다", ended => {
     const engine = createLoadedEngine();
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
     const first = lastSource();
-    const firstSectionGain = chainOf(first).sectionGain!;
+    const firstSpanGain = chainOf(first).spanGain!;
+    const firstEnded = first.onended!;
     mockCtx._advanceTime(10);
+    if (ended) firstEnded();
 
-    engine.playSection(SECTION);
+    engine.playFadedSpan(SPAN);
 
-    expect(first.stop).toHaveBeenCalledOnce();
-    expect(firstSectionGain.disconnect).toHaveBeenCalled();
-    expect(lastSource()).not.toBe(first);
-    expect(lastSource().start).toHaveBeenCalledWith(0, 2, 9);
+    expect(first.stop).toHaveBeenCalledTimes(ended ? 0 : 1);
+    expect(first.onended).toBeNull();
+    expect(firstSpanGain.disconnect).toHaveBeenCalled();
+    const replayed = lastSource();
+    const { sourceGain, spanGain } = chainOf(replayed);
+    expect(replayed).not.toBe(first);
+    expect(replayed.start).toHaveBeenCalledWith(0, 2, 9);
+
+    firstEnded();
+
+    expect(replayed.stop).not.toHaveBeenCalled();
+    expect(replayed.disconnect).not.toHaveBeenCalled();
+    expect(sourceGain.disconnect).not.toHaveBeenCalled();
+    expect(spanGain!.disconnect).not.toHaveBeenCalled();
     expect(engine.currentTimeMs).toBe(2000);
     expect(engine.playing).toBe(true);
+    mockCtx._advanceTime(0.25);
+    engine.pause();
+    engine.resume();
+    expect(mockCtx.createBufferSource).toHaveBeenCalledTimes(3);
+    expect(lastSource().start).toHaveBeenCalledWith(0, 2.25, 8.75);
   });
 
   it("구간 없이 play(4000)하면 gain 노드는 master·sourceGain 2개뿐이고 sourceGain을 master에 바로 연결해 곡 끝까지 56초 재생한다", () => {
@@ -908,7 +1146,7 @@ describe("AudioEngine 옵저버 구간 재생", () => {
 
     const source = lastSource();
     expect(mockCtx.createGain).toHaveBeenCalledTimes(2);
-    expect(chainOf(source).sectionGain).toBeNull();
+    expect(chainOf(source).spanGain).toBeNull();
     expect(source.start).toHaveBeenCalledWith(0, 4, 56);
   });
 
@@ -918,23 +1156,23 @@ describe("AudioEngine 옵저버 구간 재생", () => {
     ["stop 후 resume", (engine: AudioEngine) => { engine.stop(); engine.resume(); }],
     ["loadBuffer 후 resume", (engine: AudioEngine) => { engine.loadBuffer(createMockBuffer(60)); engine.resume(); }],
     ["setPlaybackRange(null) 후 resume", (engine: AudioEngine) => { engine.setPlaybackRange(null); engine.resume(); }],
-  ])("구간 재생 1초 뒤 %s하면 구간을 지워 구간 gain 없이 재생하고, 12초 뒤 구간 끝을 지나 정지·재개해도 곡 끝 60초까지 잇는다", (_, act) => {
+  ])("페이드 구간 재생 1초 뒤 %s하면 구간을 지워 구간 gain 없이 재생하고, 12초 뒤 구간 끝을 지나 정지·재개해도 곡 끝 60초까지 잇는다", (_, act) => {
     const engine = createLoadedEngine();
-    engine.playSection(SECTION);
-    const sectionGain = chainOf(lastSource()).sectionGain!;
+    engine.playFadedSpan(SPAN);
+    const spanGain = chainOf(lastSource()).spanGain!;
     mockCtx._advanceTime(1);
 
     act(engine);
 
-    expect(sectionGain.disconnect).toHaveBeenCalled();
-    expect(chainOf(lastSource()).sectionGain).toBeNull();
+    expect(spanGain.disconnect).toHaveBeenCalled();
+    expect(chainOf(lastSource()).spanGain).toBeNull();
     mockCtx._advanceTime(12);
     engine.pause();
     const pausedSeconds = engine.currentTimeMs / 1000;
-    expect(pausedSeconds).toBeGreaterThanOrEqual(SECTION.toMs / 1000);
+    expect(pausedSeconds).toBeGreaterThanOrEqual(SPAN.toMs / 1000);
     engine.resume();
     const resumed = lastSource();
     expect(resumed.start).toHaveBeenCalledWith(0, pausedSeconds, 60 - pausedSeconds);
-    expect(chainOf(resumed).sectionGain).toBeNull();
+    expect(chainOf(resumed).spanGain).toBeNull();
   });
 });
