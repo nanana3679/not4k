@@ -237,11 +237,10 @@ describe('Classic 시안 렌더링 규격', () => {
   it.each([1, 4] as const)('%s번 레인 Classic 더블을 0→1→2키 유지하면 바디와 양쪽 터미널이 대기→중앙광→전체광으로 함께 바뀐다', lane => {
     const {renderer, bodyLayer, headLayer, endLayer} = createClassicRenderer();
     const note = {type:'doubleLong', lane, beat:0, endBeat:4} as unknown as NoteEntity & {endBeat:unknown};
-    let held = 0;
+    let heldCount = 0;
     renderer.setJudgmentBodyStateQuery(() => ({
       units: [0, 1].map(unitIndex => ({
-        unitIndex, active:unitIndex < held, failed:false, complete:false,
-        registeredKeys:unitIndex < held ? [`Key${unitIndex}`] : [],
+        unitIndex, hasStarted:unitIndex < heldCount, failed:false, complete:false, held:unitIndex < heldCount,
       })),
     }));
     const side = lane <= 2 ? 'Left' : 'Right';
@@ -250,7 +249,7 @@ describe('Classic 시안 렌더링 규격', () => {
       [1, `bodyDoublePartialHeld${side}`, `terminalDoublePartialFailed${side}`],
       [2, 'bodyDoubleHeld', 'terminalDouble'],
     ] as const) {
-      held = count;
+      heldCount = count;
       for (const layer of [bodyLayer, headLayer, endLayer]) childrenOf(layer).length = 0;
       renderer.renderLongNote(note, 0, 100, 300, 100);
       expect(childrenOf(bodyLayer)[0].texture).toMatchObject({key:bodyKey});
@@ -267,10 +266,10 @@ describe('Classic 시안 렌더링 규격', () => {
     if (source === '싱글의 연결 유지') {
       renderer.setLongNoteConnections(new Map([[1, 0]]), new Map([[0, -100], [1, 100]]));
       renderer.setJudgmentBodyStateQuery(index => index === 0 ? {
-        units:[{unitIndex:0, active:true, failed:false, complete:false, registeredKeys:['KeyA']}],
+        units:[{unitIndex:0, hasStarted:true, failed:false, complete:false, held:true}],
         successorIndex:1,
       } : {
-        units:[0, 1].map(unitIndex => ({unitIndex, active:false, failed:false, complete:false, registeredKeys:[]})),
+        units:[0, 1].map(unitIndex => ({unitIndex, hasStarted:false, failed:false, complete:false, held:false})),
       });
     } else {
       renderer.setHeadlessHeldFillQuery(() => ({filled:1, required:2}));
@@ -931,7 +930,7 @@ describe("GameNoteRenderer 롱노트 캡", () => {
       skinManager, 500, 1000, 0, 600,
     );
     fullHeightRenderer.setJudgmentBodyStateQuery(() => ({
-      units: [{ unitIndex: 0, active: false, failed: false, complete: false, registeredKeys: [] }],
+      units: [{ unitIndex: 0, hasStarted: false, failed: false, complete: false, held: false }],
     }));
 
     fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 0);
@@ -948,7 +947,7 @@ describe("GameNoteRenderer 롱노트 캡", () => {
       skinManager, 500, 1000, 0, 600,
     );
     fullHeightRenderer.setJudgmentBodyStateQuery(() => ({
-      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["KeyF"] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: false, complete: false, held: true }],
     }));
 
     fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 100);
@@ -965,7 +964,7 @@ describe("GameNoteRenderer 롱노트 캡", () => {
       skinManager, 500, 1000, 0, 600,
     );
     fullHeightRenderer.setJudgmentBodyStateQuery(() => ({
-      units: [{ unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: [] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: true, complete: false, held: false }],
     }));
 
     fullHeightRenderer.renderLongNote(longEntity(), 0, 100, 300, 150);
@@ -983,8 +982,8 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     );
     idleRenderer.setJudgmentBodyStateQuery(() => ({
       units: [
-        { unitIndex: 0, active: false, failed: false, complete: false, registeredKeys: [] },
-        { unitIndex: 1, active: false, failed: false, complete: false, registeredKeys: [] },
+        { unitIndex: 0, hasStarted: false, failed: false, complete: false, held: false },
+        { unitIndex: 1, hasStarted: false, failed: false, complete: false, held: false },
       ],
     }));
     const doubleLong = { type: "doubleLong", beat: 0, lane: 1, endBeat: 4 } as unknown as NoteEntity & { endBeat: unknown };
@@ -999,8 +998,8 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     );
     failedRenderer.setJudgmentBodyStateQuery(() => ({
       units: [
-        { unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: [] },
-        { unitIndex: 1, active: true, failed: true, complete: false, registeredKeys: [] },
+        { unitIndex: 0, hasStarted: true, failed: true, complete: false, held: false },
+        { unitIndex: 1, hasStarted: true, failed: true, complete: false, held: false },
       ],
     }));
 
@@ -1017,8 +1016,8 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     );
     renderer.setJudgmentBodyStateQuery(() => ({
       units:[
-        {unitIndex:0, active:true, failed:false, complete:false, registeredKeys:['KeyA']},
-        {unitIndex:1, active:false, failed:false, complete:false, registeredKeys:[]},
+        {unitIndex:0, hasStarted:true, failed:false, complete:false, held:true},
+        {unitIndex:1, hasStarted:false, failed:false, complete:false, held:false},
       ],
     }));
     const note = {type:'doubleLong', lane:1, beat:0, endBeat:4} as unknown as NoteEntity & {endBeat:unknown};
@@ -1037,8 +1036,8 @@ describe("GameNoteRenderer 롱노트 캡", () => {
     );
     renderer.setJudgmentBodyStateQuery(() => ({
       units:[
-        {unitIndex:0, active:true, failed:false, complete:false, registeredKeys:['KeyA']},
-        {unitIndex:1, active:false, failed:false, complete:false, registeredKeys:[]},
+        {unitIndex:0, hasStarted:true, failed:false, complete:false, held:true},
+        {unitIndex:1, hasStarted:false, failed:false, complete:false, held:false},
       ],
     }));
     const note = {type:'doubleLong', lane:1, beat:0, endBeat:4} as unknown as NoteEntity & {endBeat:unknown};
@@ -1184,7 +1183,7 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     );
     let failed = false;
     fullHeightRenderer.setJudgmentBodyStateQuery(() => ({
-      units: [{ unitIndex: 0, active: false, failed, complete: false, registeredKeys: [] }],
+      units: [{ unitIndex: 0, hasStarted: false, failed, complete: false, held: false }],
     }));
 
     fullHeightRenderer.renderLongNote(trillLongEntity(), 0, 100, 300, 0);
@@ -1209,7 +1208,7 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
     expect(childrenOf(endLayer).length).toBe(1);
   });
 
-  it("trillLong도 bodyState query의 registered active unit만 held texture로 표시한다", () => {
+  it("trillLong도 bodyState query의 held unit만 held texture로 표시한다", () => {
     const skinManager = createMockSkinManager();
     const bodyLayer = new Container();
     const endLayer = new Container();
@@ -1217,7 +1216,7 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
       bodyLayer, endLayer, new Container(), new Container(), skinManager, 500, 1000, 0, 600,
     );
     renderer.setJudgmentBodyStateQuery(() => ({
-      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: false, complete: false, held: true }],
     }));
     renderer.renderLongNote(trillLongEntity(), 0, 300, 500, 250);
     expect((skinManager.getTexture as unknown as { mock: { calls: unknown[][] } }).mock.calls)
@@ -1227,7 +1226,7 @@ describe("GameNoteRenderer 트릴 롱노트", () => {
   it("trillLong connected unit이 complete여도 successor가 있으면 자기 E까지 body를 유지한다", () => {
     renderer.setJudgmentBodyStateQuery(() => ({
       successorIndex: 1,
-      units: [{ unitIndex: 0, active: true, failed: false, complete: true, registeredKeys: ["A"] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: false, complete: true, held: false }],
     }));
     renderer.renderLongNote(trillLongEntity(), 0, 300, 500, 400);
     expect(childrenOf(bodyLayer).length).toBe(1);
@@ -1319,7 +1318,7 @@ describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (
     const { renderer, skinManager } = setupWithFill(null);
     renderer.setJudgmentBodyStateQuery(() => ({
       successorIndex: 1,
-      units: [{ unitIndex: 0, active: true, failed: false, complete: true, registeredKeys: ["A"] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: false, complete: true, held: false }],
     }));
     renderer.renderLongNote(singleLong(1), 0, 300, 500, 400);
     expect(texKeys(skinManager)).toContain("bodySingle");
@@ -1328,7 +1327,7 @@ describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (
   it("terminal body가 E까지 complete면 숨기고 E 전에는 렌더한다", () => {
     const { renderer, skinManager, bodyLayer } = setupWithFill(null);
     renderer.setJudgmentBodyStateQuery(() => ({
-      units: [{ unitIndex: 0, active: true, failed: false, complete: true, registeredKeys: ["A"] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: false, complete: true, held: false }],
     }));
     renderer.renderLongNote(singleLong(1), 0, 300, 500, 400);
     expect(texKeys(skinManager)).not.toContain("bodySingle");
@@ -1344,8 +1343,8 @@ describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (
     const { renderer, skinManager } = setupWithFill(null);
     renderer.setJudgmentBodyStateQuery(() => ({
       units: [
-        { unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: [] },
-        { unitIndex: 1, active: true, failed: false, complete: false, registeredKeys: ["B"] },
+        { unitIndex: 0, hasStarted: true, failed: true, complete: false, held: false },
+        { unitIndex: 1, hasStarted: true, failed: false, complete: false, held: true },
       ],
     }));
     renderer.renderLongNote(doubleLong(1), 0, 300, 500, 250);
@@ -1353,17 +1352,17 @@ describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (
     expect(texKeys(skinManager)).not.toContain("bodyDoubleFailed");
   });
 
-  it("query에서 registered active unit만 held 색을 사용하고 raw geometry held는 승격하지 않는다", () => {
+  it("query에서 held unit만 held 색을 사용하고 hasStarted만으로나 raw geometry held로는 승격하지 않는다", () => {
     const { renderer, skinManager } = setupWithFill(null);
     renderer.setJudgmentBodyStateQuery(() => ({
-      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: false, complete: false, held: true }],
     }));
     renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
     expect(texKeys(skinManager)).toContain("bodySingleHeld");
     renderer.clearPools();
     (skinManager.getTexture as unknown as { mockClear: () => void }).mockClear();
     renderer.setJudgmentBodyStateQuery(() => ({
-      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: [] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: false, complete: false, held: false }],
     }));
     renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
     expect(texKeys(skinManager)).toContain("bodySingle");
@@ -1373,17 +1372,17 @@ describe("GameNoteRenderer 헤드없는 롱노트 held 충족 시각 피드백 (
   it("싱글 롱 바디는 하강 중 bodySingle, 누르는 중 bodySingleHeld, 중간 해제 실패 후 bodySingleFailed 순서로 전환", () => {
     const { renderer, skinManager } = setupWithFill(null);
     let state = {
-      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: [] as string[] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: false, complete: false, held: false }],
     };
     renderer.setJudgmentBodyStateQuery(() => state);
 
     renderer.renderLongNote(singleLong(1), 0, 300, 500, 250);
     state = {
-      units: [{ unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: false, complete: false, held: true }],
     };
     renderer.renderLongNote(singleLong(1), 0, 300, 500, 320);
     state = {
-      units: [{ unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: [] }],
+      units: [{ unitIndex: 0, hasStarted: true, failed: true, complete: false, held: false }],
     };
     renderer.renderLongNote(singleLong(1), 0, 300, 500, 380);
 
@@ -1509,10 +1508,10 @@ describe("GameNoteRenderer heldEffect: false 스킨 (RFD 0028)", () => {
   }
   const long = (type: "long" | "doubleLong" | "trillLong", lane = 1) =>
     ({ type, lane, beat: 0, endBeat: 4 }) as unknown as NoteEntity & { endBeat: unknown };
-  const units = (count: number, held: number, failed: number[] = []) => ({
+  const units = (count: number, heldCount: number, failed: number[] = []) => ({
     units: Array.from({ length: count }, (_, unitIndex) => ({
-      unitIndex, active: unitIndex < held, failed: failed.includes(unitIndex), complete: false,
-      registeredKeys: unitIndex < held ? [`Key${unitIndex}`] : [],
+      unitIndex, hasStarted: unitIndex < heldCount, failed: failed.includes(unitIndex), complete: false,
+      held: unitIndex < heldCount && !failed.includes(unitIndex),
     })),
   });
 
