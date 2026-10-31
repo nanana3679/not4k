@@ -3,7 +3,7 @@ import { deleteEvents, isInitialTimingEvent } from '../editing/eventEditing';
  * useFileOperations — 파일 저장/삭제 핸들러
  */
 
-import { useCallback } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import {
@@ -26,7 +26,7 @@ import { useGameStore } from '../../game/stores';
 import { performPlayTest } from '../playtest/performPlayTest';
 import { editorChartErrors } from '../documentValidation';
 import type { SavedChartJson } from '../savedChart';
-import { SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 export { performPlayTest } from '../playtest/performPlayTest';
 export type { PerformPlayTestParams, PlayTestGameActions } from '../playtest/performPlayTest';
 
@@ -102,12 +102,16 @@ export function useFileOperations(
   const setChart = useEditorStore((s) => s.setChart);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
-  const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const addToast = useEditorStore((s) => s.addToast);
   const beginChartSave = useEditorStore((s) => s.beginChartSave);
   const finishChartSave = useEditorStore((s) => s.finishChartSave);
   const editingEvent = useEditorStore((s) => s.editingEvent);
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
+  // 저장 콜백은 시작 시 파일을 캡처한다. 완료 시에는 마지막으로 적용한 Meta의 파일과 identity를 비교한다.
+  const pendingAssetsRef = useRef({ jacket: pendingJacketFile, audio: pendingAudioFile });
+  useLayoutEffect(() => {
+    pendingAssetsRef.current = { jacket: pendingJacketFile, audio: pendingAudioFile };
+  }, [pendingJacketFile, pendingAudioFile]);
 
   const handleSaveChart = useCallback(async () => {
     if (!activeSongId) {
@@ -167,8 +171,11 @@ export function useFileOperations(
           .upload(resolvedJacketPath, pendingJacketFile, { upsert: true });
         if (jacketUpErr) throw new Error(`Jacket upload failed: ${jacketUpErr.message}`);
         await supabase.from('songs').update({ jacket_url: resolvedJacketPath }).eq('id', activeSongId);
-        setChart(chartToSave);
-        setPendingJacketFile(null);
+        if (pendingAssetsRef.current.jacket === pendingJacketFile) {
+          const currentChart = useEditorStore.getState().chart;
+          setChart({ ...currentChart, meta: { ...currentChart.meta, imageFile: resolvedJacketPath } });
+          setPendingJacketFile(null);
+        }
         setJacketCacheBust(Date.now());
       }
 
@@ -178,8 +185,11 @@ export function useFileOperations(
           .upload(resolvedAudioPath, pendingAudioFile, { upsert: true });
         if (audioUpErr) throw new Error(`Audio upload failed: ${audioUpErr.message}`);
         await supabase.from('songs').update({ audio_url: resolvedAudioPath }).eq('id', activeSongId);
-        setChart(chartToSave);
-        setPendingAudioFile(null);
+        if (pendingAssetsRef.current.audio === pendingAudioFile) {
+          const currentChart = useEditorStore.getState().chart;
+          setChart({ ...currentChart, meta: { ...currentChart.meta, audioFile: resolvedAudioPath } });
+          setPendingAudioFile(null);
+        }
       }
 
       const songUpdate: Record<string, unknown> = {};
@@ -241,9 +251,7 @@ export function useFileOperations(
       }
 
       // 업로드한 메인·보조 JSON(저장을 시작할 때의 chartToSave)을 아래 finally에서 savedChartJson으로 정한다.
-      // 재킷·오디오 교체가 함께 있으면 위의 setChart(chartToSave)가 라이브 차트를 chartToSave로 바꾼다. 그래서 그 전까지
-      // 저장 중에 더한 편집은 화면에서 사라져 Undo 기록에만 남고 dirty로 보이지 않는다(기존 동작, 후속 #372).
-      // 교체가 없으면 저장 중 편집은 라이브 차트에 남아 savedChartJson과 달라 dirty다.
+      // 저장 결과의 경로만 현재 차트에 합치므로 저장 중 편집은 남고 업로드한 JSON과 달라 dirty다.
       uploadedJson = { chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson };
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
@@ -301,7 +309,11 @@ export function useFileOperations(
         extraLaneCount,
       });
 
-      setChart(chartToSave);
+      const currentChart = useEditorStore.getState().chart;
+      setChart({
+        ...currentChart,
+        meta: { ...currentChart.meta, difficultyLabel: targetDifficulty, difficultyLevel: targetLevel },
+      });
       uploadedJson = { chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson };
 
       window.history.replaceState(null, '', `?songId=${activeSongId}&difficulty=${difficulty}`);
@@ -322,6 +334,7 @@ export function useFileOperations(
       addToast(SAVE_IN_PROGRESS_COPY.playTest, 'error');
       return;
     }
+    const editor = useEditorStore.getState();
     const game = useGameStore.getState();
     performPlayTest({
       fromCursor,
@@ -329,8 +342,8 @@ export function useFileOperations(
       isPlaying: playbackRef.current?.isPlaying ?? false,
       pause: () => playbackRef.current?.pause(),
       // 원본문서 전체를 검증한다. 명시 main은 새 별도 경로가 소유하고 구형 main은 기존 재생을 보존한다.
-      chart,
-      currentTimeMs,
+      chart: editor.chart,
+      currentTimeMs: editor.currentTimeMs,
       returnUrl: window.location.pathname + window.location.search,
       game: {
         setChartData: game.setChartData,
@@ -342,12 +355,17 @@ export function useFileOperations(
       },
       addToast,
       closeMenu: () => setShowPlayTestMenu(false),
+      // 열린 편집(붙여넣기 대기·드래그)은 모드 전환 같은 독립 명령처럼 확정해 테스트한 상태를 Undo 1개로 남긴다(RFD 0099).
+      // 테스트 플레이는 재생기의 play()를 거치지 않으므로 여기서 정리해야, 돌아와 재생을 시작해도 테스트한 노트가 남는다.
+      // 진입이 거절되면(오디오 없음·배치 제약 위반 등) 확정하지 않아 Esc 취소·방향키 이동이 그대로 남는다.
+      // 확정은 history만 남기고 차트를 바꾸지 않으므로 게임은 위에서 넘긴 차트를 그대로 받는다.
+      beforeEnter: () => useEditorStore.getState().commitEditTransaction(),
       // 전체 페이지 리로드(window.location)를 쓰면 게임 스토어의 비영속 상태
       // (screen='play', chartData, audioBuffer 등)가 초기화돼 타이틀 화면으로 떨어진다.
       // react-router 클라이언트 네비게이션으로 같은 JS 컨텍스트를 유지한다.
       navigate: () => navigateTo('/game'),
     });
-  }, [chart, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
+  }, [addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {
@@ -382,6 +400,12 @@ export function useFileOperations(
 
   const handleEventSave = useCallback((values: Record<string, string>) => {
     if (!editingEvent) return;
+    // 재생 중에는 이벤트 값(BPM·박자표 포함)을 바꾸지 않는다(RFD 0099). 편집 창의 Save도 비활성이지만 다른 경로까지 막는다.
+    // 렌더러에 직접 넘기기 전에 막아야 store가 거부한 차트가 화면에만 그려지지 않는다.
+    if (useEditorStore.getState().isPlaying) {
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
 
     const updated = { ...chart };
     updated.events = [...chart.events];
@@ -455,6 +479,10 @@ export function useFileOperations(
 
   const handleEventDelete = useCallback(() => {
     if (!editingEvent) return;
+    if (useEditorStore.getState().isPlaying) {
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
 
     const next = deleteEvents(chart, new Set([editingEvent.index]));
     if (!next) {

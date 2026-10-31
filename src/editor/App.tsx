@@ -46,7 +46,7 @@ import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
-import { LEAVE_CONFIRM_COPY } from './editorCopy';
+import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
 import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
 import { editorChartViolationIndices } from './documentValidation';
 import { isChartDirty, toSavedChartJson } from './savedChart';
@@ -363,6 +363,11 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   }, []);
 
   const handleDeleteSelected = useCallback(() => {
+    // 재생 중에는 지우지 않는다(RFD 0099). 메뉴 버튼도 비활성이지만 다른 경로까지 막는다.
+    if (useEditorStore.getState().isPlaying) {
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
     // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함된다 (RFD 0018 ④).
     const total = selectedNotes.size;
     if (total === 0) {
@@ -465,6 +470,11 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       return;
     }
     renderer.revealLane(item.lane);
+    // 재생 중에는 선택·모드를 바꾸지 않는다(RFD 0099). 위치 이동만 하고 정지하라고 안내한다.
+    if (useEditorStore.getState().isPlaying) {
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
     // 선택은 Select 모드의 이동·삭제·속성 조작 대상이다. 진행 중인 붙여넣기·이동은 툴바 모드 버튼처럼 확정된다(Undo로 되돌림).
     store.setMode('select');
     store.setSelection({
@@ -586,7 +596,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       // 그대로(메인·보조 통합) 쓴다. 이원 축(getExtraNotes/onExtraNotesUpdate/xToExtraLane/
       // hitTestExtraNote)은 소멸했고, 히트테스트는 통합(hitTestUnifiedNote)이다.
       onChartUpdate: (c, transaction) => setChart(c, { transaction }),
-      beginTransaction: onInterrupt => useEditorStore.getState().beginEditTransaction("selectModeEdit", onInterrupt),
+      beginTransaction: (onInterrupt, selectionBefore) => useEditorStore.getState().beginEditTransaction("selectModeEdit", onInterrupt, selectionBefore),
       commitTransaction: token => useEditorStore.getState().commitEditTransaction(token),
       cancelTransaction: token => useEditorStore.getState().cancelEditTransaction(token),
       // 선택의 소유자는 SelectionSlice — SelectMode는 사본 없이 getter/setter로만 읽고 쓴다 (RFD 0016)
@@ -888,6 +898,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           chart={chart}
           isBeatZero={!!isEditingInitial}
           extraLaneCount={extraLaneCount}
+          editLocked={isPlaying}
           onSave={fileOps.handleEventSave}
           onDelete={fileOps.handleEventDelete}
           onClose={() => setEditingEvent(null)}
@@ -902,6 +913,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           initialJacketFile={pendingJacketFile}
           jacketCacheBust={jacketCacheBust}
           initialGameplayRange={songGameplayRange}
+          offsetLocked={isPlaying}
           onSave={async (meta, previewRange, jacketFile, gameplayRange, audioFile) => {
             const prevStart = chart.meta.previewStart;
             const prevEnd = chart.meta.previewEnd;

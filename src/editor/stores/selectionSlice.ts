@@ -19,6 +19,10 @@
  *   개별 트릴 선택만 구간 유닛과 배타로 남는다.
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
  * - events는 0박 초기 BPM·박자를 포함하지 않는다. 초기 설정은 속성 모달에서만 편집한다.
+ *
+ * 재생 중 잠금(RFD 0099): 재생 중에는 선택을 바꾸지 않는다. 캔버스·키보드·변환 검토 목록이 먼저 막고 안내하며,
+ * setSelection·clearSelection이 마지막에 한 번 더 막는다. 차트 변이·Undo·transaction 취소가 하는 선택 보정은
+ * 이 액션을 거치지 않고 store가 직접 쓰므로 막히지 않는다.
  */
 import type { ChartDocument, DocumentNoteEntity, TrillZone } from '../../shared';
 import { beatToFloat } from '../../shared';
@@ -138,16 +142,24 @@ export function normalizeSelection(
 
 export interface SelectionSlice {
   selection: Selection;
-  /** 범위·트릴 동질성을 정규화한다. 의미 위반도 해제·교체할 수 있다(RFD 0037). */
+  /**
+   * 범위·트릴 동질성을 정규화한다. 의미 위반도 해제·교체할 수 있다(RFD 0037).
+   * 재생 중에는 바꾸지 않고 false를 돌려준다(RFD 0099).
+   */
   setSelection: (input: Selection) => boolean;
-  /** 박스 드래그 프리뷰도 같은 정규화를 쓴다. 취소 시 시작 전 선택으로 복구한다. */
+  /**
+   * 박스 드래그 프리뷰도 같은 정규화를 쓴다. 취소 시 시작 전 선택으로 복구한다.
+   * 재생 중에도 쓴다: 재생 시작이 진행 중이던 박스 선택을 취소하면 이 액션으로 시작 전 선택을 되돌린다.
+   */
   setSelectionTransient: (input: Selection) => void;
+  /** 빈 선택을 setSelection으로 쓴다. 재생 중에는 비우지 않고 false를 돌려준다. */
   clearSelection: () => boolean;
 }
 
-/** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 차트(보조 노트도 chart.notes에 포함). */
+/** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 차트(보조 노트도 chart.notes에 포함)와 재생 여부. */
 interface SelectionHost {
   chart: ChartDocument;
+  isPlaying: boolean;
 }
 
 type SliceSet = (
@@ -162,6 +174,7 @@ export function createSelectionSlice(
     selection: emptySelection(),
 
     setSelection: (input) => {
+      if (get().isPlaying) return false;
       // RFD 0037 §6-3: 의미 위반도 선택 해제·교체하며 수리할 수 있다.
       const normalized = normalizeSelection(input, get().chart);
       set({ selection: normalized });

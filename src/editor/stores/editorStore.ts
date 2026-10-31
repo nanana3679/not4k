@@ -8,6 +8,7 @@ import { beat, convertLegacyChart, validateChartDocumentStructural } from '../..
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
+import { isPlaybackLockedChange } from '../editing/playbackEditLock';
 import type { SavedChartJson } from '../savedChart';
 import type { CursorBeatKeeperState } from '../playback/cursorBeatKeeper';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
@@ -28,7 +29,10 @@ type EditTransaction = {
   token: symbol;
   kind: EditTransactionKind;
   before: HistorySnapshot;
+  /** transaction을 연 순간의 선택. 소유자의 취소(pointercancel·두 손가락 탐색 등)는 이 선택으로 되돌린다. */
   selection: Selection;
+  /** 이 gesture를 시작한 누름이 선택을 바꾸기 전의 선택. 재생 시작 취소만 이 선택으로 되돌린다(RFD 0099). */
+  selectionBeforePress: Selection;
   lastValidSnapshot: HistorySnapshot | null;
   /** 소유자 token 없이 다른 명령이 이 transaction을 끝냈을 때 소유자에게 알린다. */
   onInterrupt?: () => void;
@@ -141,26 +145,40 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setMode: (mode: EditorModeName) => void;
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
+  /**
+   * 재생 상태 미러(PlaybackController.onPlayStateChange). 재생을 시작하면 cancelEditTransactionForPlaybackStart를
+   * 한 번 더 부른다. 재생기는 시작 직전에 이미 취소하므로 보통은 취소할 transaction이 없다.
+   */
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
   setExtraLaneCount: (count: number, transaction?: symbol) => void;
+  /** 재생 중이면 no-op(RFD 0099). */
   undo: () => void;
+  /** 재생 중이면 no-op(RFD 0099). */
   redo: () => void;
   /**
    * 막다른 상태 탈출(RFD 0017 §7) — lastValidSnapshot으로 O(1) 점프.
    * 현재(위반) 상태를 병합창(600ms) 무시하고 historyPast에 강제 push하므로
-   * 이 복귀 자체를 undo(Ctrl+Z)로 취소할 수 있다. lastValidSnapshot이 null이면 no-op.
+   * 이 복귀 자체를 undo(Ctrl+Z)로 취소할 수 있다. lastValidSnapshot이 null이거나 재생 중이면 no-op.
    */
   revertToLastValid: () => void;
   resetHistory: () => void;
   /**
    * 한 gesture의 편집을 Undo 1개로 묶는다. 소유자 token 없는 편집·모드 전환·Undo 등
-   * 독립 명령이 transaction을 먼저 확정하면 onInterrupt로 소유자에게 알린다.
+   * 독립 명령이 transaction을 먼저 확정하거나 재생 시작이 취소하면 onInterrupt로 소유자에게 알린다.
    * 소유자는 그 뒤 옛 token으로 쓰지 말고 진행 중 조작을 정리해야 한다.
+   * 누름이 선택을 먼저 바꿨다면 selectionBefore를 넘긴다. 재생 시작 취소만 그 선택 변경까지 되돌린다.
    */
-  beginEditTransaction: (kind: EditTransactionKind, onInterrupt?: () => void) => symbol | null;
+  beginEditTransaction: (kind: EditTransactionKind, onInterrupt?: () => void, selectionBefore?: Selection) => symbol | null;
   commitEditTransaction: (transaction?: symbol) => void;
+  /** 차트·보조 레인 수를 gesture 시작 전으로, 선택을 transaction을 연 순간으로 되돌리고 history를 남기지 않는다. */
   cancelEditTransaction: (transaction?: symbol) => void;
+  /**
+   * 재생 시작이 열린 편집 transaction(이동·리사이즈 드래그·붙여넣기 대기·우클릭 삭제)을 Esc처럼 취소한다(RFD 0099).
+   * 차트·보조 레인 수는 gesture 시작 전으로, 선택은 그 gesture를 시작한 누름 전으로 되돌리고 history를 남기지 않으며
+   * onInterrupt로 소유자에게 알린다. 재생기는 정지 상태에서 시작 위치를 읽기 전에 부른다(createEditorPlayback).
+   */
+  cancelEditTransactionForPlaybackStart: () => void;
   addToast: (message: string, type?: ToastType) => void;
   setEditingEvent: (event: EditingEvent) => void;
   /**
@@ -223,14 +241,20 @@ export function hasUncommittedEdit(state: Pick<EditorState, 'editTransaction' | 
     && (transaction.before.chart !== state.chart || transaction.before.extraLaneCount !== state.extraLaneCount);
 }
 
-/** Undo 가능 여부. 불러온 직후 첫 붙여넣기처럼 transaction 안에만 있는 편집도 되돌릴 수 있다. */
-export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
-  return state.historyPast.length > 0 || hasUncommittedEdit(state);
+/**
+ * Undo 가능 여부. 불러온 직후 첫 붙여넣기처럼 transaction 안에만 있는 편집도 되돌릴 수 있다.
+ * 재생 중에는 Undo하지 않는다(RFD 0099).
+ */
+export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'isPlaying'>): boolean {
+  return !state.isPlaying && (state.historyPast.length > 0 || hasUncommittedEdit(state));
 }
 
-/** Redo 가능 여부. 변경이 있는 transaction을 확정하면 Redo 기록이 사라지므로 그동안은 불가다. */
-export function selectCanRedo(state: Pick<EditorState, 'historyFuture' | 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
-  return state.historyFuture.length > 0 && !hasUncommittedEdit(state);
+/**
+ * Redo 가능 여부. 변경이 있는 transaction을 확정하면 Redo 기록이 사라지므로 그동안은 불가다.
+ * 재생 중에는 Redo하지 않는다(RFD 0099).
+ */
+export function selectCanRedo(state: Pick<EditorState, 'historyFuture' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'isPlaying'>): boolean {
+  return !state.isPlaying && state.historyFuture.length > 0 && !hasUncommittedEdit(state);
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -271,6 +295,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setPendingAudioUrl: (pendingAudioUrl) => set({ pendingAudioUrl }),
   setChart: (chart, options) => {
     if (options?.transaction && get().editTransaction?.token !== options.transaction) return;
+    // 재생 중 편집 제한(RFD 0099)의 마지막 방어선. 입력 경로(캔버스·키보드·툴바·모달)가 먼저 막고 안내하므로
+    // 여기까지 온 쓰기는 조용히 버린다. 열린 transaction도 확정하지 않아 차트·history·재생 상태가 그대로다.
+    // 저장처럼 다른 meta만 바꾼 쓰기는 isPlaybackLockedChange가 통과시킨다.
+    if (get().isPlaying && isPlaybackLockedChange(get().chart, chart)) {
+      console.warn('재생 중 차트 편집 거부 (RFD 0099)');
+      return;
+    }
     if (!options?.transaction) get().commitEditTransaction();
     // 차트 변이 게이트 — 낙관적 편집(RFD 0017). 여기서는 **구조 위반만** 하드 거부한다:
     // malformed 데이터(구간 역전)·크래시 유발(분자 0 박자표)은 편집 중에도 절대 불가.
@@ -368,7 +399,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setMode: (mode) => { get().commitEditTransaction(); set({ mode }); },
   setEntityType: (entityType) => { get().commitEditTransaction(); set({ entityType }); },
   setGraceMode: (graceMode) => set({ graceMode }),
-  setIsPlaying: (isPlaying) => set({ isPlaying }),
+  setIsPlaying: (isPlaying) => {
+    // 재생기 밖에서 재생 상태를 켜도 열린 편집이 재생 중에 남지 않게 한다(RFD 0099).
+    if (isPlaying) get().cancelEditTransactionForPlaybackStart();
+    set({ isPlaying });
+  },
   setCurrentTimeMs: (currentTimeMs) => set((state) => ({
     currentTimeMs,
     cursorMoveCount: state.cursorMoveCount + 1,
@@ -395,6 +430,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
   undo: () => {
+    if (get().isPlaying) return; // 재생 중 Undo 금지(RFD 0099)
     get().commitEditTransaction();
     set((state) => {
       const previous = state.historyPast.at(-1);
@@ -412,6 +448,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
   redo: () => {
+    if (get().isPlaying) return; // 재생 중 Redo 금지(RFD 0099)
     get().commitEditTransaction();
     set((state) => {
       const next = state.historyFuture[0];
@@ -432,6 +469,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // 병합창(600ms) 무시하고 past에 **강제 push**한다 — 이 복귀 자체가 undo로 취소 가능해야
   // 하는 안전망이므로 captureHistory(병합)를 쓰지 않는다.
   revertToLastValid: () => {
+    if (get().isPlaying) return; // 차트를 되돌리는 편집이라 재생 중에는 막는다(RFD 0099)
     get().commitEditTransaction();
     set((state) => {
       const target = state.lastValidSnapshot;
@@ -458,13 +496,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null });
     transaction?.onInterrupt?.();
   },
-  beginEditTransaction: (kind, onInterrupt) => {
+  beginEditTransaction: (kind, onInterrupt, selectionBefore) => {
     const state = get();
-    if (state.editTransaction) return null;
+    // 재생 중에는 새 편집 gesture를 열지 않는다(RFD 0099). null을 받은 삭제 gesture는 아무것도 지우지 않는다.
+    if (state.editTransaction || state.isPlaying) return null;
     const token = Symbol("editor transaction");
     set({ editTransaction: {
       token, kind, before: { chart: state.chart, extraLaneCount: state.extraLaneCount },
-      selection: state.selection, lastValidSnapshot: state.lastValidSnapshot, onInterrupt,
+      selection: state.selection, selectionBeforePress: selectionBefore ?? state.selection,
+      lastValidSnapshot: state.lastValidSnapshot, onInterrupt,
     } });
     return token;
   },
@@ -493,6 +533,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ ...transaction.before, selection: transaction.selection,
       lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
     if (!token) transaction.onInterrupt?.();
+  },
+  cancelEditTransactionForPlaybackStart: () => {
+    const transaction = get().editTransaction;
+    if (!transaction) return;
+    // token 없는 취소라 소유 조작은 onInterrupt로 그 누름의 조작을 끝내, 같은 누름을 더 끌어도 아무것도 바꾸지 않는다.
+    set({ ...transaction.before, selection: transaction.selectionBeforePress,
+      lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
+    transaction.onInterrupt?.();
   },
   addToast: (message, type = 'warn') => showToast(message, type),
   setEditingEvent: (event) => set({ editingEvent: event }),
