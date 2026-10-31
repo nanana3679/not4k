@@ -65,6 +65,12 @@ interface GameState {
    * 페이드아웃해 멈추고(보정음과 겹치지 않게), 보정을 나가면 페이드인으로 재개한다.
    */
   calibrationActive: boolean;
+  /**
+   * 첫 기동 튜토리얼 모달(RFD 0055)을 다음 곡 선택 화면에서 열어야 하는지. 프리셋 설정을 마치는
+   * `completeFirstLaunch`가 켜고, 곡 선택이 모달을 연 채 시작하면서 `markFirstLaunchTutorialModalOpened`로 끈다.
+   * 프리셋 설정 직후 한 번만 열기 위한 일회성 신호라 영속화하지 않는다(새로고침 뒤에는 열지 않음).
+   */
+  shouldOpenFirstLaunchTutorialModal: boolean;
   settings: GameSettings;
   selectedSongId: string | null;
   selectedDifficulty: string | null;
@@ -92,6 +98,7 @@ interface GameState {
   selectSong: (songId: string, difficulty: string, audioUrl: string, playbackRange?: PlaybackRange | null) => void;
   setResult: (result: PlayResult) => void;
   completeFirstLaunch: () => void;
+  markFirstLaunchTutorialModalOpened: () => void;
   setChartData: (chart: Chart | null) => void;
   setAudioBuffer: (buffer: AudioBuffer | null) => void;
 
@@ -146,6 +153,11 @@ export function clampTimingOffsetMs(value: unknown): number {
     : 0;
 }
 
+/** @internal 테스트용으로 export. persist partialize 콜백. 설정만 저장하고 화면·모달 같은 UI 상태는 저장하지 않는다. */
+export function partializePersistedSettings(state: GameState) {
+  return { settings: state.settings };
+}
+
 /** @internal 테스트용으로 export. persist merge 콜백. */
 export function mergePersistedSettings(
   persisted: unknown,
@@ -174,6 +186,7 @@ export const useGameStore = create<GameState>()(
       screen: 'title',
       settingsOpen: false,
       calibrationActive: false,
+      shouldOpenFirstLaunchTutorialModal: false,
       settings: DEFAULT_SETTINGS,
       selectedSongId: null,
       selectedDifficulty: null,
@@ -263,9 +276,13 @@ export const useGameStore = create<GameState>()(
 
       setResult: (result) => set({ lastResult: result }),
 
+      // 프리셋 설정을 마치면 곡 선택으로 가며, 그 곡 선택 위에 첫 기동 튜토리얼 모달을 연다(RFD 0055).
       completeFirstLaunch: () => set((state) => ({
         settings: { ...state.settings, isFirstLaunch: false },
+        shouldOpenFirstLaunchTutorialModal: true,
       })),
+
+      markFirstLaunchTutorialModalOpened: () => set({ shouldOpenFirstLaunchTutorialModal: false }),
 
       setChartData: (chart) => set({ chartData: chart }),
 
@@ -276,7 +293,7 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'not4k-settings',
-      partialize: (state) => ({ settings: state.settings }),
+      partialize: partializePersistedSettings,
       merge: mergePersistedSettings,
     }
   )

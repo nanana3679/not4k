@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect } from 'vitest';
-import { mergePersistedSettings, useGameStore } from './gameStore';
+import { mergePersistedSettings, partializePersistedSettings, useGameStore } from './gameStore';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
 import { prepareNormalPlay } from './explicitPlayRequest';
 import { ExplicitJudgmentSession } from '../judgment/ExplicitJudgmentSession';
@@ -157,6 +157,46 @@ describe('gameStore — calibrationActive (보정 중 프리뷰 페이드 제어
     useGameStore.getState().setCalibrationActive(true);
     useGameStore.getState().setSettingsOpen(true);
     expect(useGameStore.getState().calibrationActive).toBe(true);
+  });
+});
+
+describe('gameStore — 첫 기동 튜토리얼 모달(RFD 0055)', () => {
+  it('처음 실행한 초기 상태에서는 shouldOpenFirstLaunchTutorialModal=false라 곡 선택이 모달을 자동으로 열지 않는다', () => {
+    expect(useGameStore.getInitialState().shouldOpenFirstLaunchTutorialModal).toBe(false);
+  });
+
+  it('프리셋 설정을 마쳐 completeFirstLaunch를 호출하면 isFirstLaunch=false와 함께 shouldOpenFirstLaunchTutorialModal=true가 된다', () => {
+    useGameStore.getState().completeFirstLaunch();
+    expect(useGameStore.getState().settings.isFirstLaunch).toBe(false);
+    expect(useGameStore.getState().shouldOpenFirstLaunchTutorialModal).toBe(true);
+  });
+
+  it('곡 선택이 모달을 열고 markFirstLaunchTutorialModalOpened를 호출하면 false가 되고 title→songSelect로 다시 들어와도 false를 유지한다', () => {
+    useGameStore.getState().completeFirstLaunch();
+    useGameStore.getState().setScreen('songSelect');
+    useGameStore.getState().markFirstLaunchTutorialModalOpened();
+    expect(useGameStore.getState().shouldOpenFirstLaunchTutorialModal).toBe(false);
+
+    useGameStore.getState().setScreen('title');
+    useGameStore.getState().setScreen('songSelect');
+    expect(useGameStore.getState().shouldOpenFirstLaunchTutorialModal).toBe(false);
+    expect(useGameStore.getState().settings.isFirstLaunch).toBe(false);
+  });
+
+  it('shouldOpenFirstLaunchTutorialModal=true인 상태를 저장(partialize)하면 settings만 남아 새로고침 복원(merge) 뒤에는 false다', () => {
+    useGameStore.getState().completeFirstLaunch();
+    const saved = partializePersistedSettings(useGameStore.getState());
+    expect(Object.keys(saved)).toEqual(['settings']);
+
+    const restored = mergePersistedSettings(saved, useGameStore.getInitialState());
+    expect(restored.settings.isFirstLaunch).toBe(false);
+    expect(restored.shouldOpenFirstLaunchTutorialModal).toBe(false);
+  });
+
+  it('저장 데이터에 shouldOpenFirstLaunchTutorialModal=true가 섞여 있어도 복원(merge)하면 false다', () => {
+    const restored = mergePersistedSettings({ settings: { isFirstLaunch: false }, shouldOpenFirstLaunchTutorialModal: true },
+      useGameStore.getInitialState());
+    expect(restored.shouldOpenFirstLaunchTutorialModal).toBe(false);
   });
 });
 
