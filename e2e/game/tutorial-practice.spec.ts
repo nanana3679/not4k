@@ -10,7 +10,8 @@ const KEY_BINDINGS = {
 async function openTutorial(page: Page, shortage = false, keyBindings = KEY_BINDINGS, inputOffsetMs = 0) {
   await page.addInitScript(({ keyBindings, inputOffsetMs }) => {
     localStorage.setItem('not4k-settings', JSON.stringify({ state: { settings: {
-      keyBindings, preset: 'tkl', isFirstLaunch: false, judgmentMode: 'normal', inputOffsetMs,
+      // 실제 키 입력의 전달 지연이 흐름 검증을 흔들지 않게 판정 창이 넓은 Easy로 둔다. 판정 창 자체는 단위 테스트가 확인한다.
+      keyBindings, preset: 'tkl', isFirstLaunch: false, judgmentMode: 'easy', inputOffsetMs,
     } }, version: 0 }));
   }, { keyBindings: { ...keyBindings, lane1: shortage ? ['KeyQ', 'KeyW'] : keyBindings.lane1 }, inputOffsetMs });
   await page.goto('/game');
@@ -114,14 +115,20 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
     const switchKeys = id === 'connected-long-note-switch';
     const firstKey = switchKeys ? 'KeyE' : 'KeyP';
     const secondKey = switchKeys ? 'KeyD' : 'KeyL';
+    const attempts: { iteration: string | null; perfect: string | null; miss: string | null; achievement: string | null }[] = [];
     for (let attempt = 0; attempt < 8; attempt++) {
       const elapsed = Number(await player.getAttribute('data-tutorial-elapsed-ms'));
       const startMs = (Math.floor(elapsed / 4000) + 1) * 4000;
-      await waitForElapsed(page, startMs + 3000 - 12, selector);
       await expect(diagram).toHaveCount(0);
+      await waitForElapsed(page, startMs + 3000 - 12, selector);
       await page.keyboard.down(firstKey);
+      if (switchKeys) {
+        // RFD 0037 §3-2: 앞 바디는 끝의 Good 이른 폭 안에서 종료할 수 있고 연결 up 소비는 없다.
+        // up을 먼저 마쳐 새 탭의 대기에 keyup 왕복 지연을 더하지 않는다. 3점수 중 Great 1개도 88.89%로 목표 90% 미달이다.
+        await waitForElapsed(page, startMs + 3400, selector);
+        await page.keyboard.up(firstKey);
+      }
       await waitForElapsed(page, startMs + 3500 - 12, selector);
-      if (switchKeys) await page.keyboard.up(firstKey);
       await page.keyboard.down(secondKey);
       if (!switchKeys) {
         await waitForElapsed(page, startMs + 3750 - 12, selector);
@@ -129,14 +136,20 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
       }
       await waitForElapsed(page, startMs + 4000 + 5, selector);
       await page.keyboard.up(switchKeys ? secondKey : firstKey);
-      // 마지막 릴리즈의 Normal Good 창(120ms)이 닫힌 뒤 성공 횟수가 반영된다.
+      // 마지막 릴리즈의 Easy Good 창(150ms)이 닫힌 뒤 성공 횟수가 반영된다.
       await page.waitForFunction(({ selector, endMs }) => {
         const player = document.querySelector<HTMLElement>(selector);
-        return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 120 + 32);
+        return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 150 + 32);
       }, { selector, endMs: startMs + 4000 }, { polling: 'raf', timeout: 10_000 });
+      attempts.push(await player.evaluate(element => ({
+        iteration: element.getAttribute('data-tutorial-last-iteration'),
+        perfect: element.getAttribute('data-tutorial-last-perfect'),
+        miss: element.getAttribute('data-tutorial-last-miss'),
+        achievement: element.getAttribute('data-tutorial-last-achievement'),
+      })));
       if (await progress.textContent() === '3/3') break;
     }
-    await expect(progress).toHaveText('3/3');
+    await expect(progress, `패턴별 정산: ${JSON.stringify(attempts)}`).toHaveText('3/3');
     await expect(player).toHaveAttribute('data-tutorial-paused', 'true');
     await expect(diagram).toHaveCount(0);
     await dialog.getByRole('button', { name: '다음', exact: true }).click({ trial: true });
