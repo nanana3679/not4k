@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { color, font, primitives, radius } from '../../../shared/theme';
-import { getTutorialConditionStatus, getTutorialPracticeNextTarget } from './tutorialPractice';
+import { getTutorialConditionStatus, getTutorialPracticeNextTarget, type TutorialSuccessCondition } from './tutorialPractice';
 import type { UnmetTutorialPracticeKeyRequirement } from './tutorialKeyboardLayout';
 import type { useTutorialPractice } from './useTutorialPractice';
 
@@ -39,8 +39,7 @@ export function TutorialPracticePanel({ practice, onNextItem, unmetKeyRequiremen
           <div style={styles.combo}>{`콤보 ${practice.combo}`}</div>
           {state.spec.conditions.map(condition => {
             const status = practice.score ? getTutorialConditionStatus(condition, practice.score) : 'neutral';
-            const label = condition.kind === 'targetAchievementRate'
-              ? `달성률 ${condition.percent}% 이상` : `GOOD◇ ${condition.count}회 이하`;
+            const label = getConditionLabel(condition);
             return (
               <div key={condition.kind} data-tutorial-condition={condition.kind} data-tutorial-condition-status={status}
                 style={{ color: status === 'met' ? '#8ee6a8' : status === 'failed' ? '#ff8b8b' : '#ffffff' }}>
@@ -63,6 +62,17 @@ export function TutorialPracticePanel({ practice, onNextItem, unmetKeyRequiremen
       )}
     </div>
   );
+}
+
+function getConditionLabel(condition: TutorialSuccessCondition): string {
+  switch (condition.kind) {
+    case 'maxGreatOrWorseCount':
+      return `Great 이하 ${condition.count}개 이하`;
+    case 'maxMissCount':
+      return condition.count === 0 ? 'Miss 0회' : `Miss ${condition.count}회 이하`;
+    case 'maxGoodTrillCount':
+      return condition.count === 0 ? 'goodTrill 0회' : `goodTrill ${condition.count}회 이하`;
+  }
 }
 
 const styles: Record<string, CSSProperties> = {

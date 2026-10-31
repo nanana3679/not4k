@@ -6,10 +6,14 @@ import type {
 } from '../../judgment/ExplicitJudgmentState';
 import { TUTORIAL_PREVIEW_RENDER_CYCLES } from './tutorialPreviewChart';
 
-/** 현재 반복의 판정 상태와 활성 표시 복사본 번호(0～2)로 3벌 표시 compile 전체의 공개 상태를 만든다. */
+/** 화면의 활성 복사본(0～2)과 세션의 상대 반복 차수로 3벌 표시 compile 전체의 공개 상태를 만든다. */
 export type ExplicitTutorialRenderSnapshotQuery = (
   live: ExplicitJudgmentSnapshot,
   activeRenderCycle: number,
+  /** 화면 반복 대비 세션 차수 차이. -1이면 이전 반복의 상태이며, 생략하면 같은 반복이다. */
+  sessionIterationOffset?: number,
+  /** 경계 뒤에도 판정 창이 열린 이전 세션. live 바로 앞 복사본에 같은 시각 이동을 적용한다. */
+  previous?: ExplicitJudgmentSnapshot,
 ) => ExplicitJudgmentSnapshot;
 
 const itemKey = (sourceNoteIndex: number, kind: string, ordinal: number) => `${sourceNoteIndex}:${kind}:${ordinal}`;
@@ -26,9 +30,9 @@ const shiftTime = (timeMs: number | null, offsetMs: number) => timeMs === null ?
 
 /**
  * `ExplicitNotePresenter`는 compile된 항목마다 공개 상태를 요구하므로, 3벌 표시 compile의 모든 항목에 상태를 채운다.
- * 구형 재생기와 같게 활성 복사본만 현재 반복의 판정 상태를 받고, 앞 반복(스크롤로 빠져나가는 복사본)과 다음 반복(들어오는 복사본)은
- * 판정 전 상태로 그린다. 표시 note index는 복사본 × 원본 노트 수 + 원본 index이며 id·ref는 표시 compile의 것을 쓴다.
- * 활성 복사본의 시각 필드는 원본 시각에 복사본 × loopMs를 더한 표시 시각이다.
+ * 세션이 속한 복사본은 live, 아직 열린 이전 복사본은 previous, 나머지는 판정 전 상태로 그린다. 음수 입력 오프셋·경계 정산 대기로 세션이 늦으면
+ * 이전 복사본에 적용한다. 표시 note index는 복사본 × 원본 노트 수 + 원본 index이며 id·ref는 표시 compile의 것을 쓴다.
+ * live 시각 필드는 원본 시각에 세션 복사본 × loopMs를 더한 표시 시각이다.
  *
  * @param unjudged 같은 원본 compile로 만든 세션의 판정 전 snapshot(아무 입력도 진행하지 않은 상태)
  */
@@ -60,16 +64,20 @@ export function createExplicitTutorialRenderSnapshotQuery(
     return value;
   };
 
-  return (live, activeRenderCycle) => {
+  return (live, activeRenderCycle, sessionIterationOffset = 0, previous) => {
     if (!Number.isInteger(activeRenderCycle) || activeRenderCycle < 0 || activeRenderCycle >= TUTORIAL_PREVIEW_RENDER_CYCLES) {
       throw new RangeError(`표시 복사본 번호는 0～${TUTORIAL_PREVIEW_RENDER_CYCLES - 1}이어야 합니다: ${activeRenderCycle}`);
     }
     const liveIndex = indexSnapshot(live);
-    const offsetMs = activeRenderCycle * loopMs;
+    const previousIndex = previous && indexSnapshot(previous);
+    const sessionRenderCycle = activeRenderCycle + sessionIterationOffset;
+    const offsetMs = sessionRenderCycle * loopMs;
+    const stateForCycle = (cycle: number) => cycle === sessionRenderCycle ? liveIndex
+      : cycle === sessionRenderCycle - 1 && previousIndex ? previousIndex : unjudgedIndex;
     const bodyUnits = renderUnits.map(({ unit, cycle, key }): ExplicitBodyUnitSnapshot => {
-      const active = cycle === activeRenderCycle;
-      const state = required((active ? liveIndex : unjudgedIndex).unitsByKey.get(key), unit.id);
-      const shift = active ? offsetMs : 0;
+      const index = stateForCycle(cycle);
+      const state = required(index.unitsByKey.get(key), unit.id);
+      const shift = index === unjudgedIndex ? 0 : cycle * loopMs;
       return Object.freeze({
         ...state,
         id: unit.id,
@@ -82,7 +90,7 @@ export function createExplicitTutorialRenderSnapshotQuery(
       });
     });
     const items = renderItems.map(({ item, cycle, key }): ExplicitItemSnapshot => {
-      const state = required((cycle === activeRenderCycle ? liveIndex : unjudgedIndex).itemsByKey.get(key), item.id);
+      const state = required(stateForCycle(cycle).itemsByKey.get(key), item.id);
       return Object.freeze({ ...state, id: item.id, sourceNoteIndex: item.source.noteIndex });
     });
     return Object.freeze({ atMs: live.atMs + offsetMs, bodyUnits: Object.freeze(bodyUnits), items: Object.freeze(items) });

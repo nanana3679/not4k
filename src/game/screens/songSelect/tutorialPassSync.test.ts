@@ -62,6 +62,51 @@ it('통과를 구독한 화면은 게스트 single-note 저장·다른 탭의 do
   expect(listener).not.toHaveBeenCalled();
 });
 
+it.each([null, 'A'])('%s의 오래된 두 탭이 single-note·double-note·trill-note를 차례로 저장하면 세 기록과 다른 주체의 캐시를 모두 보존한다', async userId => {
+  const storage = makeStorage(['guest-only']);
+  await createTutorialPassSync(storage).recordPass('B', 'account-only');
+  const firstTab = createTutorialPassSync(storage);
+  const secondTab = createTutorialPassSync(storage);
+
+  await firstTab.recordPass(userId, 'single-note');
+  await secondTab.recordPass(userId, 'double-note');
+  await firstTab.recordPass(userId, 'trill-note');
+
+  const reopened = createTutorialPassSync(storage);
+  expect(reopened.getPassedIds(userId)).toEqual([
+    ...(userId === null ? ['guest-only'] : []), 'single-note', 'double-note', 'trill-note',
+  ]);
+  expect(reopened.getPassedIds('B')).toEqual(['account-only']);
+  expect(reopened.getPassedIds(userId === null ? 'A' : null)).toEqual(userId === null ? [] : ['guest-only']);
+  secondTab.refresh();
+  expect(secondTab.getSnapshot()).toEqual(reopened.getSnapshot());
+});
+
+it('A의 조회 응답 전에 다른 탭이 A·B·게스트 통과를 저장하면 늦은 서버 single-note와 세 주체의 최신 기록을 합친다', async () => {
+  let resolveFetch!: (value: { data: { tutorial_id: string }[]; error: null }) => void;
+  client.eq.mockReturnValueOnce(new Promise(resolve => { resolveFetch = resolve; }));
+  const storage = makeStorage();
+  const firstTab = createTutorialPassSync(storage);
+  const secondTab = createTutorialPassSync(storage);
+  const loading = firstTab.syncAccount('A');
+  await vi.waitFor(() => expect(client.eq).toHaveBeenCalled());
+
+  await secondTab.recordPass('A', 'double-note');
+  await secondTab.recordPass('B', 'trill-note');
+  await secondTab.recordPass(null, 'long-note');
+  resolveFetch({ data: [{ tutorial_id: 'single-note' }], error: null });
+  await loading;
+
+  const reopened = createTutorialPassSync(storage);
+  expect(reopened.getPassedIds('A')).toEqual(['double-note', 'single-note']);
+  expect(reopened.getPassedIds('B')).toEqual(['trill-note']);
+  expect(reopened.getPassedIds(null)).toEqual(['long-note']);
+  expect(client.upsert).toHaveBeenLastCalledWith(
+    { user_id: 'A', tutorial_id: 'double-note' }, expect.any(Object),
+  );
+  expect(client.rpc).not.toHaveBeenCalled();
+});
+
 afterEach(() => { vi.unstubAllGlobals(); });
 
 it('저장 실패한 탭이 오래된 게스트 single-note를 기억해도 다른 탭의 A 인계 뒤 B에게 다시 보내지 않는다', async () => {
