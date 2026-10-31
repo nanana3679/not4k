@@ -1,4 +1,4 @@
-import { JudgmentGrade, JUDGMENT_SCORES } from '../../../shared';
+import { JudgmentGrade } from '../../../shared';
 import type { ScoreState } from '../../scoring/ScoreManager';
 
 /**
@@ -10,17 +10,21 @@ import type { ScoreState } from '../../scoring/ScoreManager';
 /** 요구 성공 횟수의 기본값. 개발자가 실습항목별로 다른 양의 정수를 정할 수 있다. */
 export const DEFAULT_REQUIRED_SUCCESS_COUNT = 3;
 
+/** Great 이하 허용 개수의 잠정 기본값. 항목별 조건의 count에 사용하며 개발자가 다른 0 이상의 정수로 정할 수 있다. */
+export const DEFAULT_MAX_GREAT_OR_WORSE_COUNT = 1;
+
 /**
- * 실습 1회 성공 조건(목표 달성률과 추가 조건). 화면에는 콤보 아래 한 줄씩 표시한다.
- * 명세에는 목표 달성률이 정확히 1개 있고, 추가 조건은 종류마다 최대 1개다.
+ * 실습 1회 성공 조건(Great 이하 허용 개수와 추가 조건). 화면에는 콤보 아래 한 줄씩 표시한다.
+ * 명세에는 maxGreatOrWorseCount가 정확히 1개 있고, 추가 조건은 종류마다 최대 1개다.
+ * 모든 count는 0 이상의 정수다. 항목별 기본 허용 개수는 DEFAULT_MAX_GREAT_OR_WORSE_COUNT를 쓴다.
  * 새 추가 조건은 kind를 더하고 `getTutorialConditionStatus`의 switch에 평가를 더한다. 이때 그 조건이 언제 결과가 정해지는지
- * (met으로 바꿀 시점)도 따로 정해야 한다. 지금의 "모든 점수 항목 정산" 기준은 점수 항목만 보는 조건에만 맞고,
- * 점수 항목을 모두 정산한 뒤에도 올 수 있는 무점수 바디 Miss는 다루지 않는다(Miss 횟수·풀콤보 같은 조건에 그대로 쓰면 틀린 met이 나온다).
- * 같은 이유로 홀드 실습 차트에서 홀드 실패가 결과에 반영되려면 release나 tick 같은 점수 노트를 두어야 한다.
+ * (met으로 바꿀 시점)도 따로 정해야 한다. 실시간 met과 최종 성공 확정의 차이는 해당 함수의 계약을 따른다.
  */
 export type TutorialSuccessCondition =
-  /** 목표 달성률: 패턴의 최종 달성률이 percent 이상 */
-  | { readonly kind: 'targetAchievementRate'; readonly percent: number }
+  /** Great 이하 허용 개수: Great·Good·goodTrill·Bad·Miss(무점수 바디 Miss 포함)의 합 */
+  | { readonly kind: 'maxGreatOrWorseCount'; readonly count: number }
+  /** Miss 허용 횟수(무점수 바디 Miss 포함): 트릴 롱노트 학습은 count 0으로 유지 실패를 성공에서 뺀다 */
+  | { readonly kind: 'maxMissCount'; readonly count: number }
   /** `goodTrill` 허용 횟수: 트릴 교대 학습은 count 0으로 교대 실패를 성공에서 뺀다 */
   | { readonly kind: 'maxGoodTrillCount'; readonly count: number };
 
@@ -32,7 +36,7 @@ export interface TutorialPlayingMethod {
 export interface TutorialPracticeSpec {
   /** 요구 성공 횟수: 연주 방법 하나를 완료하는 누적 성공 횟수 */
   readonly requiredSuccessCount: number;
-  /** 표시 순서대로 둔 성공 조건. 목표 달성률 1개와 종류별 최대 1개의 추가 조건 */
+  /** 표시 순서대로 둔 성공 조건. maxGreatOrWorseCount 1개와 종류별 최대 1개의 추가 조건 */
   readonly conditions: readonly TutorialSuccessCondition[];
   /** 실습 순서대로 둔 연주 방법. 최소 1개 */
   readonly playingMethods: readonly TutorialPlayingMethod[];
@@ -54,8 +58,10 @@ export function createTutorialPracticeSpec(input: TutorialPracticeSpecInput): Tu
   input.conditions.forEach(assertValidCondition);
   const conditionCountByKind = new Map<TutorialSuccessCondition['kind'], number>();
   for (const { kind } of input.conditions) conditionCountByKind.set(kind, (conditionCountByKind.get(kind) ?? 0) + 1);
-  const targetRateCount = conditionCountByKind.get('targetAchievementRate') ?? 0;
-  if (targetRateCount !== 1) throw new RangeError(`목표 달성률 조건은 정확히 1개여야 합니다: ${targetRateCount}개`);
+  const greatOrWorseConditionCount = conditionCountByKind.get('maxGreatOrWorseCount') ?? 0;
+  if (greatOrWorseConditionCount !== 1) {
+    throw new RangeError(`Great 이하 개수 조건은 정확히 1개여야 합니다: ${greatOrWorseConditionCount}개`);
+  }
   for (const [kind, count] of conditionCountByKind) {
     if (count > 1) throw new RangeError(`같은 종류의 추가 조건은 1개만 둘 수 있습니다: ${kind} ${count}개`);
   }
@@ -71,9 +77,14 @@ export function createTutorialPracticeSpec(input: TutorialPracticeSpecInput): Tu
 
 function assertValidCondition(condition: TutorialSuccessCondition): void {
   switch (condition.kind) {
-    case 'targetAchievementRate':
-      if (!(condition.percent >= 0 && condition.percent <= 100)) {
-        throw new RangeError(`목표 달성률은 0～100%여야 합니다: ${condition.percent}`);
+    case 'maxGreatOrWorseCount':
+      if (!Number.isInteger(condition.count) || condition.count < 0) {
+        throw new RangeError(`Great 이하 허용 개수는 0 이상의 정수여야 합니다: ${condition.count}`);
+      }
+      return;
+    case 'maxMissCount':
+      if (!Number.isInteger(condition.count) || condition.count < 0) {
+        throw new RangeError(`Miss 허용 횟수는 0 이상의 정수여야 합니다: ${condition.count}`);
       }
       return;
     case 'maxGoodTrillCount':
@@ -89,16 +100,14 @@ function assertValidCondition(condition: TutorialSuccessCondition): void {
 /** 조건 한 줄의 표시 상태: 충족(초록 체크)·실패(빨강 X)·중립(흰 글씨) */
 export type TutorialConditionStatus = 'neutral' | 'met' | 'failed';
 
-/** ScoreManager는 등급마다 weight3 × 등급 점수 ÷ 3을 더한다. 가중치 1당 Perfect가 더하는 점수다. */
-const PERFECT_SCORE_PER_WEIGHT = JUDGMENT_SCORES[JudgmentGrade.PERFECT] / 3;
-/** 경계값(정확히 90%)이 1/3 단위 점수의 부동소수 누적 오차로 미달 처리되지 않게 하는 허용치 */
-const RATE_COMPARISON_TOLERANCE = 1e-9;
-
 /**
  * 연주 도중 점수와 finalize한 점수 모두에 쓰는 조건 하나의 상태.
- * 남은 점수 항목을 전부 Perfect로 쳐도 만족할 수 없으면 바로 failed다. 패턴의 모든 점수 항목을 정산해
- * (liveDenominatorWeight가 finalDenominatorWeight에 도달) 결과가 정해졌고 조건을 만족하면 met, 그 밖은 neutral이다.
- * `ExplicitJudgmentSession.finalize()`는 모든 항목을 정산해야 끝나므로 finalize한 점수는 항상 met 또는 failed다.
+ * 허용 개수를 초과하면 즉시 failed다. 개수는 한 패턴 안에서 줄지 않으므로 failed는 유지된다.
+ * 허용 범위 안이고 모든 점수 항목을 정산했으면(liveDenominatorWeight가 finalDenominatorWeight에 도달) met,
+ * 미정산 항목이 남으면 neutral이다. 점수 항목이 0개인 바디 전용 패턴도 같은 기준을 쓴다.
+ * maxGreatOrWorseCount·maxMissCount의 met은 finalize 전 무점수 바디 Miss가 추가될 때에만 failed로 바뀔 수 있다.
+ * maxGoodTrillCount는 모든 점수 항목 정산 후 바뀌지 않는다. 성공 횟수는 이 실시간 표시로 집계하지 않고,
+ * `ExplicitJudgmentSession.finalize().score`를 `isTutorialPatternSuccess`에 'final'로 넘겨 확정한다.
  */
 export function getTutorialConditionStatus(
   condition: TutorialSuccessCondition,
@@ -106,36 +115,38 @@ export function getTutorialConditionStatus(
 ): TutorialConditionStatus {
   const remainingWeight = Math.max(0, score.finalDenominatorWeight - score.liveDenominatorWeight);
   switch (condition.kind) {
-    case 'targetAchievementRate': {
-      // 최종 달성률의 분모는 패턴 전체 점수 항목의 이론 가중치 합이다. 남은 가중치를 전부 Perfect로 채운 값이 최선이며,
-      // 모두 정산했으면 남은 가중치가 0이라 최선이 곧 최종 달성률이다.
-      const bestEarnedScore = score.earnedScore + remainingWeight * PERFECT_SCORE_PER_WEIGHT;
-      if (!reachesAchievementRate(bestEarnedScore, score.finalDenominatorWeight, condition.percent)) return 'failed';
+    case 'maxGreatOrWorseCount': {
+      const counts = score.judgmentCounts;
+      const greatOrWorseCount = counts[JudgmentGrade.GREAT] + counts[JudgmentGrade.GOOD]
+        + counts[JudgmentGrade.GOOD_TRILL] + counts[JudgmentGrade.BAD] + counts[JudgmentGrade.MISS];
+      if (greatOrWorseCount > condition.count) return 'failed';
       break;
     }
+    case 'maxMissCount':
+      if (score.judgmentCounts[JudgmentGrade.MISS] > condition.count) return 'failed';
+      break;
     case 'maxGoodTrillCount':
       if (score.goodTrillCount > condition.count) return 'failed';
       break;
     default:
       return assertNever(condition);
   }
-  // 위 두 조건은 점수 항목의 정산 결과만 보므로, 모든 점수 항목을 정산하면 더 바뀌지 않는다.
-  // 무점수 바디 Miss처럼 정산 뒤에도 바뀔 수 있는 값을 보는 조건은 이 공통 기준을 쓰지 말고 자기 확정 기준을 둔다.
   return remainingWeight === 0 ? 'met' : 'neutral';
 }
 
-/** earnedScore / denominatorWeight × 100 ≥ percent를 나눗셈 없이 비교한다. 가중치 합 0은 ScoreManager처럼 0%다. */
-function reachesAchievementRate(earnedScore: number, denominatorWeight: number, percent: number): boolean {
-  if (denominatorWeight <= 0) return percent <= 0;
-  return earnedScore * 100 >= percent * denominatorWeight - RATE_COMPARISON_TOLERANCE;
-}
-
-/** 패턴 결과가 모든 조건을 met으로 만족하면 1회 성공이다. 정산하지 않은 항목이 남으면 성공이 아니다. 일반 Good은 달성률로만 반영된다. */
+/**
+ * 'live'는 모든 조건이 met이어도 성공을 확정하지 않는다. 'final'에서 모든 조건이 met이면 1회 성공이다.
+ * ScoreState에는 finalize 여부가 없으므로 'final'은 호출자 계약이다. 반드시 해당 패턴의 세션을 finalize한 뒤 반환된
+ * 점수를 넘겨야 하며, 이전 live 점수를 재사용하면 안 된다. 그래야 점수 항목 정산 뒤의 무점수 바디 Miss까지 평가한다.
+ * `ScoreManager.finalize()` 자체는 미정산 항목을 정산하지 않으므로 남은 점수 항목이 있으면 'final'도 성공이 아니다.
+ */
 export function isTutorialPatternSuccess(
   conditions: readonly TutorialSuccessCondition[],
   score: Readonly<ScoreState>,
+  evaluation: 'live' | 'final',
 ): boolean {
-  return conditions.every((condition) => getTutorialConditionStatus(condition, score) === 'met');
+  return evaluation === 'final'
+    && conditions.every((condition) => getTutorialConditionStatus(condition, score) === 'met');
 }
 
 /** `직접 입력 / 시연` 토글의 두 선택지 */
@@ -182,6 +193,8 @@ export interface TutorialFinishedPattern {
  *   그 전에 이전 방법의 반복을 멈춘다. reducer는 어느 반복의 시작인지 알 수 없으므로, 이를 어긴 이전 반복의 시작도
  *   id가 더 크면 현재 방법의 패턴으로 받는다.
  * - 패턴 N의 `patternFinished`를 패턴 N+1의 `patternStarted`보다 먼저 보낸다. 순서가 바뀌면 N은 끝 통지를 놓친 것으로 버려진다.
+ * - `patternFinished.score`는 해당 패턴의 `ExplicitJudgmentSession.finalize().score`를 넘긴다. 모든 점수 항목을
+ *   정산했어도 바디 Miss가 뒤늦게 추가될 수 있으므로 live 점수를 최종 결과로 재사용하지 않는다.
  * - 패턴의 자동 입력(시연) 여부는 `patternStarted`를 처리한 뒤의 `state.mode`로 정한다. 토글 표시용
  *   `getSelectedTutorialPracticeMode`로 정하면 직접 입력 패턴 도중 예약한 시연이 그 패턴에 자동 입력을 섞는다.
  */
@@ -190,7 +203,7 @@ export type TutorialPracticeEvent =
   | { readonly type: 'modeSelected'; readonly mode: TutorialPracticeMode }
   /** 패턴 한 차례의 재생 시작 */
   | { readonly type: 'patternStarted'; readonly patternId: number }
-  /** 패턴 한 차례의 결과 확정. score는 그 패턴의 최종 점수 */
+  /** 패턴 한 차례의 결과 확정. score는 무점수 바디 Miss까지 포함해 세션을 finalize한 최종 점수 */
   | { readonly type: 'patternFinished'; readonly patternId: number; readonly score: Readonly<ScoreState> }
   /** `다음` 버튼 */
   | { readonly type: 'nextPressed' };
@@ -227,7 +240,7 @@ export function reduceTutorialPractice(state: TutorialPracticeState, event: Tuto
       // 재생 중인 패턴이 아닌 결과(늦게 온 이전 패턴, 이미 끝난 패턴, 시작을 받지 않은 패턴)는 무시한다.
       if (event.patternId !== state.currentPatternId) return state;
       const countable = state.currentPatternCountable;
-      const succeeded = isTutorialPatternSuccess(state.spec.conditions, event.score);
+      const succeeded = isTutorialPatternSuccess(state.spec.conditions, event.score, 'final');
       // 재생이 끝났으므로 예약한 시연은 지금 적용해도 다음 패턴 시작부터 적용한 것과 같다.
       return {
         ...state, mode: state.pendingMode ?? state.mode, pendingMode: null, currentPatternId: null,
