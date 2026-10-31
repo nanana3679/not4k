@@ -8,7 +8,14 @@ import {
   TUTORIAL_PREVIEWS,
   type TutorialPreviewDefinition,
 } from './tutorialPreviewChart';
-import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, getTutorialSection, type TutorialSectionId } from './tutorialCatalog';
+import {
+  ALL_TUTORIAL_PREVIEWS,
+  TUTORIAL_SECTIONS,
+  createLastSectionIndexes,
+  getAdjacentTutorialIndex,
+  getTutorialSection,
+  type TutorialSectionId,
+} from './tutorialCatalog';
 import { getTutorialKeyboardLabel, type TutorialKeyBindings } from './tutorialKeyboardLayout';
 import {
   canShowTutorialCacheInvalidationButton,
@@ -16,6 +23,7 @@ import {
   persistTutorialViewedIds,
   readTutorialViewedIdsFromStorage,
 } from './tutorialViewedCache';
+import { persistLastSelectedTutorialId, readLastSelectedTutorialIndexFromStorage } from './tutorialLastSelection';
 
 interface TutorialHelpModalProps {
   onClose: () => void;
@@ -40,7 +48,7 @@ interface TutorialPlayerTransition {
   phase: TutorialPageTransitionPhase;
 }
 
-function getTutorialViewedStorage(): Storage | null {
+function getBrowserLocalStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
 
   try {
@@ -51,11 +59,16 @@ function getTutorialViewedStorage(): Storage | null {
 }
 
 export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModalProps) {
-  const [tutorialIndex, setTutorialIndex] = useState(0);
-  const lastSectionIndexesRef = useRef<Record<TutorialSectionId, number>>({ basic: 0, advanced: TUTORIAL_PREVIEWS.length });
-  const [visiblePlayerIndex, setVisiblePlayerIndex] = useState(0);
+  // 다시 열면 이 브라우저에 저장된 마지막 선택 항목(과 그 탭)에서 시작하고, 이력이 없으면 Basic 첫 항목에서 시작한다.
+  // 두 재생 슬롯도 처음부터 이 항목을 걸어 첫 항목이 잠깐 보이거나 캐러셀 전환이 생기지 않게 한다.
+  const [initialTutorialIndex] = useState(() => readLastSelectedTutorialIndexFromStorage(getBrowserLocalStorage()));
+  const [tutorialIndex, setTutorialIndex] = useState(initialTutorialIndex);
+  const lastSectionIndexesRef = useRef<Record<TutorialSectionId, number>>(createLastSectionIndexes(initialTutorialIndex));
+  const [visiblePlayerIndex, setVisiblePlayerIndex] = useState(initialTutorialIndex);
   const [activePlayerSlot, setActivePlayerSlot] = useState<TutorialPreviewSlotId>(0);
-  const [previewSlotIndexes, setPreviewSlotIndexes] = useState<readonly [number, number]>(() => [0, 0]);
+  const [previewSlotIndexes, setPreviewSlotIndexes] = useState<readonly [number, number]>(
+    () => [initialTutorialIndex, initialTutorialIndex],
+  );
   const [previewSlotInstanceIds, setPreviewSlotInstanceIds] = useState<readonly [number, number]>(() => [0, 0]);
   const [playerTransition, setPlayerTransition] = useState<TutorialPlayerTransition | null>(null);
   const [playerTransitionProgress, setPlayerTransitionProgress] = useState(0);
@@ -67,7 +80,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
   const [textTransitionDirection, setTextTransitionDirection] =
     useState<TutorialPageTransitionDirection>('forward');
   const [viewedTutorialIds, setViewedTutorialIds] = useState<ReadonlySet<string>>(
-    () => readTutorialViewedIdsFromStorage(getTutorialViewedStorage()),
+    () => readTutorialViewedIdsFromStorage(getBrowserLocalStorage()),
   );
   const settings = useGameStore((state) => state.settings);
   const currentSection = getTutorialSection(tutorialIndex);
@@ -179,13 +192,17 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
   }, [cancelScheduledTransitionStart, isClosing, onClose]);
 
   const resetViewedTutorialCache = useCallback(() => {
-    clearTutorialViewedIds(getTutorialViewedStorage());
+    clearTutorialViewedIds(getBrowserLocalStorage());
     setViewedTutorialIds(new Set([TUTORIAL_PREVIEWS[0].id]));
   }, []);
 
   useEffect(() => {
-    persistTutorialViewedIds(getTutorialViewedStorage(), viewedTutorialIds);
+    persistTutorialViewedIds(getBrowserLocalStorage(), viewedTutorialIds);
   }, [viewedTutorialIds]);
+
+  useEffect(() => {
+    persistLastSelectedTutorialId(getBrowserLocalStorage(), currentTutorial.id);
+  }, [currentTutorial.id]);
 
   const handlePreviewSlotReady = useCallback((
     readySlotId: TutorialPreviewSlotId,

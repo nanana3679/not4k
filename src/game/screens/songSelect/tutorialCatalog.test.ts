@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, getTutorialSection } from './tutorialCatalog';
+import {
+  ALL_TUTORIAL_PREVIEWS,
+  TUTORIAL_SECTIONS,
+  createLastSectionIndexes,
+  getAdjacentTutorialIndex,
+  getTutorialSection,
+} from './tutorialCatalog';
 import { persistTutorialViewedIds, readTutorialViewedIdsFromStorage } from './tutorialViewedCache';
 
 describe('튜토리얼 Basic / Advanced 분류', () => {
@@ -19,6 +25,15 @@ describe('튜토리얼 Basic / Advanced 분류', () => {
   ] as const)('전체 인덱스 %i에서 방향 %i로 넘기면 같은 탭의 %i로 이동한다', (index, direction, expected) => {
     expect(getAdjacentTutorialIndex(index, direction)).toBe(expected);
     expect(getTutorialSection(expected).id).toBe(getTutorialSection(index).id);
+  });
+
+  it.each([
+    [0, 0, 17],
+    [4, 4, 17],
+    [17, 0, 17],
+    [23, 0, 23],
+  ] as const)('팝업을 전체 인덱스 %i로 열면 탭별 마지막 위치는 basic %i·advanced %i로 시작한다(선택 항목의 탭만 그 위치, 다른 탭은 첫 항목)', (selectedIndex, basic, advanced) => {
+    expect(createLastSectionIndexes(selectedIndex)).toEqual({ basic, advanced });
   });
 
   it('기존 Basic 체크와 Advanced 체크를 함께 저장하고 다시 읽어도 둘 다 유지한다', () => {
