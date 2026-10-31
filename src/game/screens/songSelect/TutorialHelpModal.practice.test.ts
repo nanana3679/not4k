@@ -13,6 +13,7 @@ import { getTutorialInputTimings } from './tutorialPreviewChart';
 import { useTutorialPassRecords } from './useTutorialPassRecords';
 import { createExplicitTutorialPreviewSessionController } from './explicitTutorialPreviewSession';
 import { createTutorialPassSync } from './tutorialPassSync';
+import { useAuth } from '../../../shared/hooks/useAuth';
 
 vi.mock('react-dom', () => ({ createPortal: (children: ReactNode) => children }));
 vi.mock('./TutorialPatternDiagram', () => ({ TutorialPatternDiagram: () => null }));
@@ -224,6 +225,47 @@ it('인증 확인 중 single-note를 3회 성공하면 게스트에 쓰지 않�
   expect(JSON.parse(valueByKey.get('not4k-tutorial-pass-state')!).guestIds).toEqual([]);
   authUserId = null;
   expect(renderModal().passedIds).toEqual([]);
+});
+
+it('초기 인증 조회 실패 뒤 single-note 통과는 영구 미확정으로 남고 완료 시 조회가 A를 확인하면 A에만 저장한다', async () => {
+  client.auth.getSession.mockRejectedValueOnce(new Error('offline'));
+  let finishOwner!: () => void;
+  client.auth.getSession.mockReturnValueOnce(new Promise(resolve => {
+    finishOwner = () => resolve({ data: { session: { user: { id: 'A' } } }, error: null });
+  }));
+  function AuthAndPassRecordsHarness() {
+    const auth = useAuth();
+    return { auth, records: useTutorialPassRecords(auth.user?.id ?? null, auth.sessionLoading, true) };
+  }
+  function renderRecords() {
+    hooks.cursor = 0;
+    const result = AuthAndPassRecordsHarness();
+    hooks.effects.splice(0).forEach(effect => effect());
+    return result;
+  }
+  renderRecords();
+  await vi.advanceTimersByTimeAsync(0);
+  const { auth, records } = renderRecords();
+  expect(auth).toMatchObject({ user: null, sessionLoading: true, loading: false });
+  expect(records.isGuest).toBe(false);
+
+  records.recordPass('single-note');
+  await vi.advanceTimersByTimeAsync(0);
+  const pending = createTutorialPassSync(window.localStorage);
+  expect(pending.getSnapshot().unresolvedPasses).toEqual([
+    { completionId: expect.any(String), tutorialId: 'single-note' },
+  ]);
+  expect(pending.getPassedIds(null)).toEqual([]);
+  expect(client.upsert).not.toHaveBeenCalled();
+  expect(client.rpc).not.toHaveBeenCalled();
+
+  finishOwner();
+  await vi.advanceTimersByTimeAsync(0);
+  const resolved = createTutorialPassSync(window.localStorage);
+  expect(resolved.getSnapshot().unresolvedPasses).toEqual([]);
+  expect(resolved.getPassedIds('A')).toEqual(['single-note']);
+  expect(resolved.getPassedIds('B')).toEqual([]);
+  expect(resolved.getPassedIds(null)).toEqual([]);
 });
 
 it('세션 미확정 통과는 먼저 영구 보관하고 화면 종료·B 로그인 뒤에도 완료 때 시작한 세션 조회의 A에만 귀속한다', async () => {

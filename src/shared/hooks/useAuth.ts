@@ -31,6 +31,7 @@ export function useAuth() {
   );
   const [isAdmin, setIsAdmin] = useState(DEV_ADMIN);
   const [loading, setLoading] = useState(!DEV_ADMIN);
+  // 세션 주체가 아직 미확정이라는 뜻이다. 조회 실패만으로 게스트로 확정하지 않는다.
   const [sessionLoading, setSessionLoading] = useState(!DEV_ADMIN);
 
   useEffect(() => {
@@ -74,7 +75,6 @@ export function useAuth() {
       if (!sessionEventReceived) void handleSession(session);
     }).catch(() => {
       if (active && !sessionEventReceived) {
-        setSessionLoading(false);
         setLoading(false);
       }
     });

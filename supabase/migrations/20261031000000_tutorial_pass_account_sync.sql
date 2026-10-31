@@ -34,14 +34,23 @@ revoke all on public.tutorial_passes, public.tutorial_guest_handoffs from anon, 
 grant select, insert on public.tutorial_passes to authenticated;
 grant select on public.tutorial_guest_handoffs to authenticated;
 
--- 직접 INSERT와 RPC 모두 계정별 최대 200행. 동일 계정의 동시 요청도 직렬화한다.
+-- 인증된 본인의 직접 INSERT와 RPC 모두 최대 200행. 동일 계정의 동시 요청도 직렬화한다.
+-- 기본 SECURITY INVOKER: 직접 INSERT는 RLS를 따르고, 본인 인증을 검사한 DEFINER RPC 안에서는 그 권한을 따른다.
 create function public.enforce_tutorial_pass_limit()
 returns trigger
 language plpgsql
-security definer
 set search_path = ''
 as $$
 begin
+  -- 주체 없는 service role/유지보수 작업에는 계정 한도를 적용하지 않는다.
+  if auth.uid() is null then
+    return new;
+  end if;
+  -- BEFORE INSERT는 RLS WITH CHECK보다 먼저 실행된다. 타인 행은 잠금·개수 조회 없이
+  -- RLS에 맡겨 200행 여부에 따라 23514/42501 오류가 달라지는 정보 노출을 막는다.
+  if new.user_id is distinct from auth.uid() then
+    return new;
+  end if;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext(new.user_id::text));
   -- ON CONFLICT DO NOTHING 재시도는 한도에 도달했어도 허용한다.
   if not exists (
