@@ -38,8 +38,10 @@ export function createExplicitTutorialRenderSnapshotQuery(
   loopMs: number,
   unjudged: ExplicitJudgmentSnapshot,
 ): ExplicitTutorialRenderSnapshotQuery {
-  if (!Number.isInteger(sourceNoteCount) || sourceNoteCount <= 0) {
-    throw new RangeError(`원본 노트 수는 양의 정수여야 합니다: ${sourceNoteCount}`);
+  // 손배치처럼 노트가 없는 시연도 있다. 노트가 없으면 표시 항목도 없어 아래 나눗셈을 쓰지 않는다.
+  const hasRenderEntries = renderChart.scoreItems.length > 0 || renderChart.bodyUnits.length > 0;
+  if (!Number.isInteger(sourceNoteCount) || sourceNoteCount < 0 || (sourceNoteCount === 0 && hasRenderEntries)) {
+    throw new RangeError(`원본 노트 수는 0 이상의 정수이고 표시 항목이 있으면 양수여야 합니다: ${sourceNoteCount}`);
   }
   if (!Number.isFinite(loopMs) || loopMs <= 0) throw new RangeError(`반복 길이는 양수여야 합니다: ${loopMs}`);
   const unjudgedIndex = indexSnapshot(unjudged);

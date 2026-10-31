@@ -87,6 +87,19 @@ describe('명시 튜토리얼 3벌 표시의 합성 snapshot', () => {
     expect(composite.bodyUnits.find(unit => unit.id === 'b1:hold:0')?.actualStartMs).toBe(500);
   });
 
+  it('노트가 0개인 손배치 같은 시연은 합성 snapshot 질의를 만들 수 있고 표시 항목·바디 상태가 비어 있다', () => {
+    const chart = { ...sourceChart(), notes: [] };
+    const source = compileExplicitJudgmentChart(chart);
+    const preview = createExplicitTutorialPreview('empty', '빈 시연', [], LOOP_BEATS, chart);
+    const render = createExplicitTutorialRenderChart(source, preview);
+    const session = new ExplicitJudgmentSession(source);
+    const query = createExplicitTutorialRenderSnapshotQuery(render, 0, LOOP_MS, session.snapshot);
+
+    const snapshot = query(session.snapshot, 1);
+    expect(snapshot.items).toEqual([]);
+    expect(snapshot.bodyUnits).toEqual([]);
+  });
+
   it('live snapshot에 원본 항목이 없으면 render 항목 id를 담은 오류', () => {
     const { query } = setup();
     const other = new ExplicitJudgmentSession(compileExplicitJudgmentChart({ ...sourceChart(), notes: [sourceChart().notes[0]] })).snapshot;
@@ -98,10 +111,11 @@ describe('명시 튜토리얼 3벌 표시의 합성 snapshot', () => {
     expect(() => query(live.snapshot, 3)).toThrow(RangeError);
   });
 
-  it('원본 노트 수 0이나 loopMs NaN이면 표시 복사본을 나눌 수 없어 생성 전에 RangeError', () => {
+  it('표시 항목이 있는데 원본 노트 수가 0이거나, 원본 노트 수가 -1이거나, loopMs가 NaN이면 표시 복사본을 나눌 수 없어 생성 전에 RangeError', () => {
     const { render } = setup();
     const unjudged = new ExplicitJudgmentSession(compileExplicitJudgmentChart(sourceChart())).snapshot;
     expect(() => createExplicitTutorialRenderSnapshotQuery(render, 0, LOOP_MS, unjudged)).toThrow(RangeError);
+    expect(() => createExplicitTutorialRenderSnapshotQuery(render, -1, LOOP_MS, unjudged)).toThrow(RangeError);
     expect(() => createExplicitTutorialRenderSnapshotQuery(render, 4, Number.NaN, unjudged)).toThrow(RangeError);
   });
 });
