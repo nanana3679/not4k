@@ -7,15 +7,14 @@ import type { ChartDocument, DocumentNoteEntity } from '../../shared';
 import { useEditorStore } from '../stores/editorStore';
 import type { EditorModeName } from '../stores/editorStore';
 import { emptySelection } from '../stores/selectionSlice';
-import { SelectMode } from '../modes/SelectMode';
-import { CreateMode, type EntityType } from '../modes/CreateMode';
-import { DeleteMode } from '../modes/DeleteMode';
+import type { EntityType } from '../modes/CreateMode';
+import { createEditorModes } from '../createEditorModes';
 import { createTimelineSpace } from '../timeline/TimelineSpace';
 import { EXTRA_LANE_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
 import { showToast } from '../../shared/toast';
-import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import { INITIAL_TIMING_EXISTS_COPY, PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import { useCanvasEvents, type CanvasEventHandlers } from './useCanvasEvents';
 import { handleEditorKeyDown } from './useEditorKeyboard';
 
@@ -92,7 +91,7 @@ type SetupOptions = {
   onVerticalPan?: (deltaY: number) => void;
 };
 
-/** App과 같은 콜백으로 모드를 만들고 useCanvasEvents를 한 번 렌더해 그 핸들러를 돌려준다. */
+/** App과 같은 모드 생성(`createEditorModes`)으로 모드를 만들고 useCanvasEvents를 한 번 렌더해 그 핸들러를 돌려준다. */
 function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityType = 'single', options: SetupOptions = {}) {
   useEditorStore.setState({
     chart: source, mode, entityType, selection: emptySelection(), extraLaneCount: 2, lastValidSnapshot: null,
@@ -102,26 +101,8 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
     getChart: () => current().chart, getSnapDivision: () => 4, getSelectedNotes: () => new Set(current().selection.notes),
     getExtraLaneCount: () => current().extraLaneCount, yToTime: y => y, getTotalTimelineMs: () => 20000,
   });
-  const createMode = new CreateMode(current().chart, {
-    onChartUpdate: value => current().setChart(value, { separateHistory: true }), space, isTimeInBounds: () => true,
-  });
+  const { createMode, selectMode, deleteMode } = createEditorModes(current().chart, { space, isTimeInBounds: () => true });
   createMode.entityType = entityType;
-  const selectMode = new SelectMode(current().chart, {
-    onChartUpdate: (value, transaction) => current().setChart(value, { transaction }),
-    beginTransaction: (onInterrupt, selectionBefore) => current().beginEditTransaction('selectModeEdit', onInterrupt, selectionBefore),
-    commitTransaction: token => current().commitEditTransaction(token),
-    cancelTransaction: token => current().cancelEditTransaction(token),
-    getSelection: () => current().selection,
-    setSelection: value => current().setSelection(value),
-    setSelectionTransient: value => current().setSelectionTransient(value),
-    space,
-    getExtraLaneCount: () => current().extraLaneCount,
-    setExtraLaneCount: (count, transaction) => current().setExtraLaneCount(count, transaction),
-    onWarn: message => current().addToast(message, 'warn'),
-  });
-  const deleteMode = new DeleteMode(current().chart, {
-    onChartUpdate: value => current().setChart(value), space, getSelectedNotes: () => current().selection.notes,
-  });
   unsubscribe = useEditorStore.subscribe(state => {
     createMode.setChart(state.chart);
     selectMode.setChart(state.chart);
@@ -272,6 +253,29 @@ describe('Create 모드 터치 롱프레스', () => {
     expect(current().mode).toBe('create');
     expect(bodyEnd()).toBe(5);
     expect(current().selection.notes.size).toBe(0);
+  });
+});
+
+describe('초기 설정이 있는 0박에 BPM·박자 생성(RFD 0082)', () => {
+  const initialEvents = (): ChartDocument['events'] => [
+    { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+  ];
+
+  it.each([
+    ['BPM', 1, '마우스', 'bpm', 'mouse'],
+    ['BPM', 1, '터치', 'bpm', 'touch'],
+    ['박자', 2, '마우스', 'timeSignature', 'mouse'],
+    ['박자', 2, '터치', 'timeSignature', 'touch'],
+  ] as const)('%s 도구로 같은 종류 초기 설정이 놓인 보조 레인%i의 0박을 %s로 누르면 만들지 않고 INITIAL_TIMING_EXISTS_COPY 안내를 한 번 띄운다', (_tool, lane, _input, entityType, pointerType) => {
+    const { handlers } = setup(chart([], { events: initialEvents() }), 'create', entityType);
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH * (lane - 0.5);
+    handlers.handlePointerDown(pointer(0, { pointerType, x }));
+    handlers.handlePointerUp(pointer(0, { pointerType, x, buttons: 0 }));
+
+    expect(current().chart.events).toEqual(initialEvents());
+    expect(current().historyPast).toEqual([]);
+    expect(vi.mocked(showToast).mock.calls).toEqual([[INITIAL_TIMING_EXISTS_COPY, 'warn']]);
   });
 });
 

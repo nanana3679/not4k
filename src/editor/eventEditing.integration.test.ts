@@ -8,7 +8,7 @@ import { INITIAL_TIMING_EXISTS_COPY } from './editorCopy';
 import { selectCanUndo, useEditorStore } from './stores/editorStore';
 import { emptySelection } from './stores/selectionSlice';
 import { createTimelineSpace } from './timeline/TimelineSpace';
-import { EXTRA_LANE_WIDTH, TIMELINE_WIDTH } from './timeline/constants';
+import { EXTRA_LANE_WIDTH, LANE_WIDTH, TIMELINE_WIDTH } from './timeline/constants';
 
 function chartFixture(): ChartDocument {
   return {
@@ -32,14 +32,14 @@ function chartWithoutInitialSignature(): ChartDocument {
     { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(4), editorLane: 3 }] };
 }
 
-function editor() {
+function editor(extraLaneCount = 3) {
   const store = () => useEditorStore.getState();
   const warnings: string[] = [];
   const space = createTimelineSpace({
     getChart: () => store().chart,
     getSnapDivision: () => 4,
     getSelectedNotes: () => store().selection.notes,
-    getExtraLaneCount: () => 3,
+    getExtraLaneCount: () => extraLaneCount,
     yToTime: y => y,
     getTotalTimelineMs: () => 60_000,
   });
@@ -52,7 +52,7 @@ function editor() {
       store().setChart(chart, { transaction });
       mode.setChart(store().chart);
     },
-    getExtraLaneCount: () => 3,
+    getExtraLaneCount: () => extraLaneCount,
     beginTransaction: onInterrupt => store().beginEditTransaction('selectModeEdit', onInterrupt),
     commitTransaction: token => store().commitEditTransaction(token),
     cancelTransaction: token => store().cancelEditTransaction(token),
@@ -414,6 +414,20 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
 
     expect(store().chart.events[3]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 });
     expect(editorChartErrors(store().chart)).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('보조 레인 2개·0박 박자 없는 차트에서 레인3의 4박 노트와 보조 레인2의 4박 박자 3/4를 함께 0박·한 레인 오른쪽으로 끌면 노트는 레인4로 가고 박자는 보조 레인2의 0박에 남는다', () => {
+    useEditorStore.getState().loadChart({ ...chartFixture(), notes: [{ type: 'single', lane: 3, beat: beat(4) }],
+      events: [chartFixture().events[0], { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(3), editorLane: 2 }] });
+    const { mode, store, warnings } = editor(2);
+    store().setSelection({ ...emptySelection(), notes: new Set([0]), events: new Set([1]) });
+    mode.onPointerDown(LANE_WIDTH * 2.5, 2000, false, false);
+    mode.onPointerMove(LANE_WIDTH * 3.5, 0);
+    mode.onPointerUp(LANE_WIDTH * 3.5, 0);
+
+    expect(store().chart.notes).toEqual([{ type: 'single', lane: 4, beat: beat(0) }]);
+    expect(store().chart.events[1]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(3), editorLane: 2 });
     expect(warnings).toEqual([]);
   });
 

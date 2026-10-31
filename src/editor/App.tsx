@@ -11,7 +11,8 @@ import type { PlaybackController } from './playback/PlaybackController';
 import { createCursorBeatKeeper } from './playback/cursorBeatKeeper';
 import { syncTimelineRange } from './playback/syncTimelineRange';
 import { createEditorPlayback } from './playback/createEditorPlayback';
-import { CreateMode, SelectMode, DeleteMode, activeEditorMode } from './modes';
+import { activeEditorMode, type CreateMode, type SelectMode, type DeleteMode } from './modes';
+import { createEditorModes } from './createEditorModes';
 import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
@@ -575,45 +576,13 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     playback.volume = useGameStore.getState().settings.masterVolume ?? 1;
     playbackRef.current = playback;
 
-    // RFD 0018 ④d: 편집 모드 3종이 전부 통합 차트(chart.notes 한 배열, 메인 lane 1..4 +
-    // 보조 lane 5+) 하나만 다룬다 — ③의 병합 어댑터(applyMainChart/applyExtraNotes)는 소멸.
-    // 히트테스트 인덱스와 모드가 든 차트의 인덱스 공간이 같아, 정규형 파티션이 깨진
-    // 차트(통합 이동·paste 이후)에서도 인덱스 오해석이 없다.
-    const createMode = new CreateMode(chart, {
-      onChartUpdate: (c) => setChart(c, { separateHistory: true }),
+    // 편집 모드 3종은 캔버스 입력 테스트와 같은 생성 함수로 만든다(통합 차트 하나·store 토스트 연결).
+    const { createMode, selectMode, deleteMode } = createEditorModes(chart, {
       space,
       isTimeInBounds: (y) => isTimeInBoundsRef.current(y),
-      onWarn: (msg) => addToast(msg, 'warn'),
     });
     createModeRef.current = createMode;
-
-    const selectMode = new SelectMode(chart, {
-      // RFD 0018 ④: SelectMode는 통합 차트 하나만 다룬다 — onChartUpdate가 chart.notes를
-      // 그대로(메인·보조 통합) 쓴다. 이원 축(getExtraNotes/onExtraNotesUpdate/xToExtraLane/
-      // hitTestExtraNote)은 소멸했고, 히트테스트는 통합(hitTestUnifiedNote)이다.
-      onChartUpdate: (c, transaction) => setChart(c, { transaction }),
-      beginTransaction: (onInterrupt, selectionBefore) => useEditorStore.getState().beginEditTransaction("selectModeEdit", onInterrupt, selectionBefore),
-      commitTransaction: token => useEditorStore.getState().commitEditTransaction(token),
-      cancelTransaction: token => useEditorStore.getState().cancelEditTransaction(token),
-      // 선택의 소유자는 SelectionSlice — SelectMode는 사본 없이 getter/setter로만 읽고 쓴다 (RFD 0016)
-      getSelection: () => useEditorStore.getState().selection,
-      setSelection: (sel) => useEditorStore.getState().setSelection(sel),
-      setSelectionTransient: (sel) => useEditorStore.getState().setSelectionTransient(sel),
-      space,
-      getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
-      // 붙여넣기 보조 레인 자동 확장 (RFD 0018 §8-6 D3) — 붙여넣은 보조 노트가 숨지 않도록.
-      setExtraLaneCount: (count, transaction) => useEditorStore.getState().setExtraLaneCount(count, transaction),
-      onWarn: (msg) => addToast(msg, 'warn'),
-    });
     selectModeRef.current = selectMode;
-
-    const deleteMode = new DeleteMode(chart, {
-      // 노트 삭제는 chart.notes 축소 커밋이 남은 선택을 identity로 재매핑한다 — 별도 보정 불필요.
-      onChartUpdate: (c) => setChart(c),
-      space,
-      getSelectedNotes: () => useEditorStore.getState().selection.notes,
-      onWarn: (msg) => addToast(msg, 'warn'),
-    });
     deleteModeRef.current = deleteMode;
 
     return () => {

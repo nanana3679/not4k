@@ -1,6 +1,6 @@
 import { eventLaneToBoxColumn } from '../timeline/laneGeometry';
 import { deleteEvents, eventInBounds, isInitialTimingEvent, translateEvent } from '../editing/eventEditing';
-import { placeEditedInitialTiming } from '../editing/initialTimingPlacement';
+import { placeEditedInitialTiming, withInitialTimingLane } from '../editing/initialTimingPlacement';
 import { INITIAL_TIMING_EXISTS_COPY } from '../editorCopy';
 import { bodyCompanionIndices, bodyDeletionBlockReason, reconcileMovedTicks, resizeExplicitBodies } from '../editing/explicitEditing';
 import { editorChartErrors } from "../documentValidation";
@@ -1575,11 +1575,13 @@ export class SelectMode implements EditorMode {
         this.callbacks.onWarn?.("Cannot move initial event from beat 0");
         return null;
       }
-      const event = translateEvent(origin, beatOffset, laneOffset);
+      // 0박에 온 BPM·박자는 초기 설정 자리에 둔 위치로 범위를 검사한다. 레인 이동이 만든 임시 레인이 보조 레인 수를
+      // 넘어도 고정 자리로 돌아가므로, 함께 옮기는 노트·이벤트의 이동을 막지 않는다(RFD 0082).
+      const event = withInitialTimingLane(translateEvent(origin, beatOffset, laneOffset));
       if (!eventInBounds(event, this.callbacks.space.getMaxBeatFloat(), this.callbacks.getExtraLaneCount?.() ?? Infinity)) return null;
       events[index] = event;
     }
-    // 0박에 온 BPM·박자는 초기 설정 자리에 두고, 같은 종류 초기 설정이 이미 있으면 이동 전체를 거부한다(RFD 0082).
+    // 같은 종류 초기 설정이 이미 있으면 이동 전체를 거부한다(RFD 0082).
     const placedEvents = placeEditedInitialTiming(events, this.originalEventsByIndex.keys());
     if (!placedEvents && !this.initialTimingExistsWarned) {
       this.initialTimingExistsWarned = true;

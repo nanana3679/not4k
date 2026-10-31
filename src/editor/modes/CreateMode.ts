@@ -23,6 +23,7 @@ import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
 import { placeEditedInitialTiming } from "../editing/initialTimingPlacement";
+import { isInitialTimingEvent } from "../editing/eventEditing";
 import { INITIAL_TIMING_EXISTS_COPY } from "../editorCopy";
 
 export type EntityType =
@@ -212,8 +213,23 @@ export class CreateMode implements EditorMode {
    * (Create 모드는 gesture의 shift/alt/toggle 수식자를 쓰지 않는다.)
    */
   handlePointerDown(gesture: PointerGesture): void {
+    // 보조 레인1·2의 0박을 누르면 그 자리의 초기 설정에 히트해 아래 배치 제약이 조용히 막는다. 같은 종류 초기 설정이
+    // 있어 생성을 막는 경우는 그 전에 이유를 안내한다(RFD 0082).
+    if (this.isInitialTimingDuplicateAt(gesture.x, gesture.y)) {
+      this.callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+      return;
+    }
     if (this.isPlacementBlocked(gesture.x, gesture.y)) return;
     this.onPointerDown(gesture.x, gesture.y);
+  }
+
+  /** BPM·박자 도구로 보조 레인의 0박을 눌렀는데 같은 종류의 0박 초기 설정이 이미 있는지(RFD 0082). */
+  private isInitialTimingDuplicateAt(x: number, y: number): boolean {
+    const type = this.selectedEntityType;
+    if (type !== "bpm" && type !== "timeSignature") return false;
+    if (!this.callbacks.isTimeInBounds(y) || this.callbacks.space.xToExtraLane(x) === null) return false;
+    if (this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y)).n !== 0) return false;
+    return this.chart.events.some(event => event.type === type && isInitialTimingEvent(event));
   }
 
   /**

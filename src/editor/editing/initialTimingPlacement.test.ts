@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { beat, validateChart, validateNoEventOverlap } from "../../shared";
 import type { Beat, ChartEvent } from "../../shared";
 import { isInitialTimingEvent } from "./eventEditing";
-import { placeEditedInitialTiming, placeEventsAroundInitialTiming } from "./initialTimingPlacement";
+import { placeEditedInitialTiming, placeEventsAroundInitialTiming, withInitialTimingLane } from "./initialTimingPlacement";
 
 const lane = (editorLane?: number) => (editorLane === undefined ? {} : { editorLane });
 const bpm = (at: number | Beat, editorLane?: number, value = 120): ChartEvent =>
@@ -273,5 +273,16 @@ describe("placeEditedInitialTiming 편집으로 0박에 온 BPM·박자를 고�
 
   it("편집한 BPM 두 개가 모두 0박에 오면 서로 중복이라 null을 돌려준다", () => {
     expect(placeEditedInitialTiming([signature(0, 2), bpm(0, 3), bpm(0, 4, 150)], [1, 2])).toBeNull();
+  });
+});
+
+describe("withInitialTimingLane 0박 BPM·박자만 고정 보조 레인으로 바꾸기", () => {
+  it("보조 레인3의 0박 박자는 editorLane만 2로, 보조 레인3의 0박 BPM은 1로 바꾼다", () => {
+    expect(withInitialTimingLane(signature(0, 3))).toEqual(signature(0, 2));
+    expect(withInitialTimingLane(bpm(0, 3))).toEqual(bpm(0, 1));
+  });
+
+  it("보조 레인3의 1박 박자·0박 text와 editorLane 없는 0박 BPM은 같은 객체를 돌려준다", () => {
+    for (const event of [signature(1, 3), text(0, 4, 3), bpm(0)]) expect(withInitialTimingLane(event)).toBe(event);
   });
 });

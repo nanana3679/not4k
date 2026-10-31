@@ -28,11 +28,7 @@ export function placeEventsAroundInitialTiming(
 ): { events: ChartEvent[]; extraLaneCount: number } {
   // 옮길 것이 없어도 초기 설정 자리인 보조 레인1·2가 보이도록 보조 레인 수를 적어도 2로 둔다.
   let placedExtraLaneCount = Math.max(extraLaneCount, INITIAL_TIME_SIGNATURE_EDITOR_LANE);
-  const placedEvents = events.map(event => {
-    if (!isInitialTimingEvent(event)) return event;
-    const editorLane = initialTimingEditorLane(event);
-    return (event.editorLane ?? 1) === editorLane ? event : { ...event, editorLane };
-  });
+  const placedEvents = events.map(withInitialTimingLane);
   const initialEvents = placedEvents.filter(isInitialTimingEvent);
   const indicesToRelocate = placedEvents.flatMap((event, index) =>
     !isInitialTimingEvent(event) && initialEvents.some(initial => eventPlacementsOverlap(event, initial)) ? [index] : []);
@@ -69,15 +65,23 @@ export function placeEditedInitialTiming(events: ChartEvent[], editedIndices: It
     const initialExists = events.some((other, otherIndex) =>
       otherIndex !== index && other.type === event.type && isInitialTimingEvent(other));
     if (initialExists) return null;
-    const editorLane = initialTimingEditorLane(event);
-    if ((event.editorLane ?? 1) === editorLane) continue;
+    const placedEvent = withInitialTimingLane(event);
+    if (placedEvent === event) continue;
     if (placedEvents === events) placedEvents = [...events];
-    placedEvents[index] = { ...event, editorLane };
+    placedEvents[index] = placedEvent;
   }
   return placedEvents;
 }
 
-/** 초기 설정의 종류별 고정 보조 레인. */
-function initialTimingEditorLane(event: ChartEvent): number {
-  return event.type === 'bpm' ? INITIAL_BPM_EDITOR_LANE : INITIAL_TIME_SIGNATURE_EDITOR_LANE;
+/**
+ * 0박 BPM·박자면 `editorLane`만 초기 설정 자리(BPM 1, 박자 2)로 바꾼 사본을, 그 밖의 이벤트나 이미 그 자리인 초기
+ * 설정이면 받은 이벤트를 그대로 돌려준다(RFD 0082).
+ *
+ * 이동은 옮긴 이벤트를 이 자리에 둔 뒤 범위를 검사한다. 0박에 온 박자가 레인 이동으로 잠시 보조 레인 수 밖의 레인을
+ * 가리켜도 고정 자리로 돌아가므로 이동 전체를 막지 않는다.
+ */
+export function withInitialTimingLane(event: ChartEvent): ChartEvent {
+  if (!isInitialTimingEvent(event)) return event;
+  const editorLane = event.type === 'bpm' ? INITIAL_BPM_EDITOR_LANE : INITIAL_TIME_SIGNATURE_EDITOR_LANE;
+  return (event.editorLane ?? 1) === editorLane ? event : { ...event, editorLane };
 }
