@@ -4,9 +4,16 @@ import { color, surface, radius, primitives } from '../../../shared/theme';
 import type { GameRenderer } from '../../renderer';
 import type { SkinManager } from '../../skin';
 import type { SkinManifest } from '../../skin/types';
+import type { ExplicitSkinLoader } from '../../skin/ExplicitSkinLoader';
 import { LANE_AREA_WIDTH, PLAYFIELD_SCALE, playfieldPx } from '../../renderer/constants';
 import { SessionRendererAdapter, type SessionRendererPort } from '../../judgment/SessionRendererAdapter';
 import { createTutorialPreviewSessionController } from './tutorialPreviewSession';
+import { isExplicitTutorialPreview, type ExplicitTutorialPreviewDefinition } from './explicitTutorialPreviewChart';
+import {
+  createExplicitTutorialPreviewPlayback,
+  createTutorialTimingsInputPlan,
+  type ExplicitTutorialPatternResult,
+} from './explicitTutorialPreviewPlayback';
 import { stepTutorialLoopClock } from './tutorialLoopClock';
 import { getTutorialRenderCycleIndex, mapTutorialRenderBodyQuery } from './tutorialPreviewRenderMapping';
 import { TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
@@ -59,11 +66,27 @@ interface TutorialDiagramPause {
   timing: TutorialDiagramTiming;
 }
 
-/** 재생기가 소유한 렌더러의 수명 상태. 렌더러 effect가 알리고 차트 effect가 구독한다. */
+/**
+ * 재생기가 소유한 렌더러의 수명 상태. 렌더러 effect가 알리고 차트 effect가 구독한다.
+ * `loadExplicitSkin`은 이 렌더러에 명시 정의를 처음 걸 때 명시 노트 도안을 불러온다(렌더러와 같은 수명).
+ */
 type TutorialPreviewRendererState =
   | { status: 'loading' }
-  | { status: 'ready'; renderer: GameRenderer }
+  | { status: 'ready'; renderer: GameRenderer; loadExplicitSkin: () => Promise<ExplicitSkinLoader> }
   | { status: 'failed' };
+
+/**
+ * 재생기의 판정 엔진 seam. 렌더러·루프 시계·키 표시·도식·캐러셀 재사용은 엔진과 무관하게 공유하고,
+ * 판정 세션 진행과 반복 경계 정산만 엔진이 맡는다. 엔진은 정의 내용(`isExplicitTutorialPreview`)으로 고른다.
+ */
+interface TutorialPreviewJudgment {
+  /** 이번 반복의 loopTimeMs까지 입력·판정·효과를 진행한다 */
+  advanceTo(loopTimeMs: number): void;
+  /** 끝난 반복을 loopMs까지 정산하고 다음 반복을 처음 상태로 준비한다 */
+  finishLoop(): void;
+  /** 렌더러에서 떨어질 때 판정 세션을 놓는다. 렌더러는 정리하지 않는다 */
+  stop(): void;
+}
 
 const PREVIEW_LANES = [1, 2, 3, 4] as const;
 // 재생기는 게임과 같은 플레이필드 상수(레인 영역 250)로 그리고 CSS로 고정 폭(최대 420px)에 맞춰 보인다.
@@ -88,7 +111,8 @@ export function getTutorialBombPosition(lane: number, keyboardAreaHeight: number
 }
 
 interface TutorialPreviewPlayerProps {
-  preview?: TutorialPreviewDefinition;
+  /** 구형 정의는 `NoteJudgmentSession`, 명시 정의(`engine: 'explicit'`)는 명시 판정 controller로 재생한다. */
+  preview?: TutorialPreviewDefinition | ExplicitTutorialPreviewDefinition;
   /**
    * 같은 레슨을 다시 방문했는지 구분하는 재생 인스턴스 id. 바뀌면 렌더러는 그대로 두고 차트를 처음부터 다시 건다.
    * 렌더러를 새로 만들려면 부모가 key를 바꿔 재생기를 다시 마운트한다(Lab의 처음부터 재생).
@@ -107,6 +131,11 @@ interface TutorialPreviewPlayerProps {
   onBombEffect?: (lane: number, position: TutorialBombPosition) => void;
   /** true면 판정 진행과 렌더를 멈추고 마지막 장면을 유지한다. false로 돌아오면 멈춘 지점부터 이어서 재생한다. */
   paused?: boolean;
+  /**
+   * 명시 정의를 재생할 때만 부른다. 반복 경계에서 끝난 패턴을 controller가 `loopMs`까지 진행·finalize한 결과이며,
+   * 다음 패턴은 이 호출 직후 새 세션으로 시작한다. 레슨을 넘기거나 렌더러를 다시 걸어 중간에 버린 패턴은 알리지 않는다.
+   */
+  onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => void;
 }
 
 export function uniqueTutorialKeys(timings: readonly TutorialInputTiming[]): TutorialKeyView[] {
@@ -210,6 +239,7 @@ export function TutorialPreviewPlayer({
   showRendererBomb = true,
   onBombEffect,
   paused = false,
+  onPatternFinished,
 }: TutorialPreviewPlayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // 지금 차트를 그리고 있는(차트를 건) 렌더러. 레인 키 라벨 effect가 쓴다.
@@ -225,6 +255,7 @@ export function TutorialPreviewPlayer({
   const showRendererBombRef = useRef(showRendererBomb);
   const onBombEffectRef = useRef(onBombEffect);
   const pausedRef = useRef(paused);
+  const onPatternFinishedRef = useRef(onPatternFinished);
   const settings = useGameStore((state) => state.settings);
   const [activeKeyIds, setActiveKeyIds] = useState<string[]>([]);
   const [stickyLaneKeyIdsByLane, setStickyLaneKeyIdsByLane] = useState<LaneKeyIdsByLane>({});
@@ -293,6 +324,10 @@ export function TutorialPreviewPlayer({
   }, [paused]);
 
   useEffect(() => {
+    onPatternFinishedRef.current = onPatternFinished;
+  }, [onPatternFinished]);
+
+  useEffect(() => {
     showRendererBombRef.current = showRendererBomb;
     onBombEffectRef.current = onBombEffect;
   }, [onBombEffect, showRendererBomb]);
@@ -345,6 +380,8 @@ export function TutorialPreviewPlayer({
     let disposed = false;
     let renderer: GameRenderer | null = null;
     let skinManager: SkinManager | null = null;
+    let explicitSkin: ExplicitSkinLoader | null = null;
+    let explicitSkinLoad: Promise<ExplicitSkinLoader> | null = null;
     let isStarting = true;
     const publishRendererState = (state: TutorialPreviewRendererState) => {
       rendererStateRef.current = state;
@@ -354,6 +391,28 @@ export function TutorialPreviewPlayer({
       disposeTutorialPreviewRenderer(renderer);
       skinManager?.dispose();
       skinManager = null;
+      // 명시 노트 Sprite를 가진 렌더러를 먼저 정리한 뒤 명시 도안 텍스처를 놓는다.
+      explicitSkin?.dispose();
+      explicitSkin = null;
+    };
+    // 명시 노트 도안은 이 렌더러에 명시 정의를 처음 걸 때 한 번만 불러오고 렌더러와 함께 정리한다.
+    // 구형 정의만 재생하는 슬롯(곡 선택 튜토리얼 팝업·노트 에셋 시연실)은 불러오지 않는다.
+    const loadExplicitSkin = (): Promise<ExplicitSkinLoader> => {
+      explicitSkinLoad ??= (async () => {
+        const { ExplicitSkinLoader } = await import('../../skin/ExplicitSkinLoader');
+        if (disposed) throw new Error('Tutorial preview renderer was disposed');
+        const loader = new ExplicitSkinLoader();
+        explicitSkin = loader;
+        await loader.load({ resolution: 1 });
+        return loader;
+      })().catch((err: unknown) => {
+        // 실패한 로드는 남기지 않아 다음 명시 정의를 걸 때 다시 불러온다.
+        explicitSkinLoad = null;
+        explicitSkin?.dispose();
+        explicitSkin = null;
+        throw err;
+      });
+      return explicitSkinLoad;
     };
 
     const start = async () => {
@@ -403,7 +462,7 @@ export function TutorialPreviewPlayer({
 
         renderer.scrollSpeed = PREVIEW_SCROLL_SPEED;
         renderer.updateAccuracy(100);
-        publishRendererState({ status: 'ready', renderer });
+        publishRendererState({ status: 'ready', renderer, loadExplicitSkin });
       } catch (err) {
         disposeResources();
         if (!disposed) {
@@ -443,6 +502,7 @@ export function TutorialPreviewPlayer({
     let disposed = false;
     let animationFrameId: number | null = null;
     let attachedRenderer: GameRenderer | null = null;
+    let attachedJudgment: TutorialPreviewJudgment | null = null;
     let previousKeyHash = '';
     let previousDiagramHash = '';
     let previousNow = performance.now();
@@ -562,69 +622,129 @@ export function TutorialPreviewPlayer({
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
       }
+      attachedJudgment?.stop();
+      attachedJudgment = null;
       if (attachedRenderer && rendererRef.current === attachedRenderer) rendererRef.current = null;
       attachedRenderer = null;
     };
 
-    const attachRenderer = (renderer: GameRenderer) => {
+    const showContentError = (err: unknown) => {
+      setContentError(err instanceof Error ? err.message : 'Failed to load tutorial preview');
+      notifyReady();
+      setRendererReady(true);
+    };
+
+    const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {
       detachRenderer();
       try {
         // 이전 차트가 남긴 봄·판정 텍스트·키 눌림을 지운 뒤 이 차트를 건다.
         renderer.resetTransientState();
-        // 렌더러는 renderChart의 시간 뷰를 쓴다. 판정 컨트롤러는 preview.chart로
-        // 별개 인스턴스를 만든다 — 두 차트는 서로 다르므로 합치지 않는다.
-        const renderTiming = createChartTiming(preview.renderChart);
-        renderer.setChart(
-          preview.renderChart.notes,
-          preview.renderChart.trillZones,
-          preview.renderChart.restZones ?? [],
-          preview.renderChart.events,
-          renderTiming,
-          preview.renderDurationMs,
-        );
+        const showPreviewBomb = (lane: number) => {
+          onBombEffectRef.current?.(lane, getTutorialBombPosition(lane, keyboardAreaHeight));
+          if (showRendererBombRef.current) renderer.showBombEffect(lane);
+        };
+        let previewJudgment: TutorialPreviewJudgment;
+        if (isExplicitTutorialPreview(preview)) {
+          if (!explicitSkin) throw new Error('Explicit note skin is not loaded');
+          // 명시 정의: 판정은 명시 controller가 바인딩으로 옮긴 같은 시연 timings로 진행한다. 판정 창은 구형 재생기와 같은
+          // 고정 기본값이다. 렌더러는 앞뒤 반복까지 이어 붙인 3벌 표시 compile을 프레임마다 합성 snapshot으로 그린다.
+          const explicitPlayback = createExplicitTutorialPreviewPlayback(preview, createTutorialTimingsInputPlan(timings), {
+            showJudgmentGroup: (state) => renderer.showJudgmentGroup(state),
+            recordFlightJudgment: (grade) => renderer.recordFlightJudgment(grade),
+            showBombEffect: showPreviewBomb,
+          });
+          previewJudgment = {
+            advanceTo: (loopTimeMs) => explicitPlayback.advanceTo(loopTimeMs),
+            // 경계 입력과 정산은 끝난 반복의 세션에서 마친 뒤 새 세션을 만든다. 노트 표시는 snapshot이 바꾸므로 구형처럼
+            // 차트를 다시 걸거나 resetTransientState로 판정 글자를 지우지 않는다. 콜백이 없어도 정산은 반드시 한다.
+            finishLoop: () => {
+              const pattern = explicitPlayback.finishPattern();
+              onPatternFinishedRef.current?.(pattern);
+            },
+            stop: () => explicitPlayback.stop(),
+          };
+          attachedJudgment = previewJudgment;
+          renderer.setExplicitChart(
+            explicitPlayback.renderChart,
+            explicitSkin,
+            () => explicitPlayback.renderSnapshot(activeRenderCycle),
+            preview.renderChart,
+            preview.renderDurationMs,
+          );
+        } else {
+          // 렌더러는 renderChart의 시간 뷰를 쓴다. 판정 컨트롤러는 preview.chart로
+          // 별개 인스턴스를 만든다 — 두 차트는 서로 다르므로 합치지 않는다.
+          const renderTiming = createChartTiming(preview.renderChart);
+          renderer.setChart(
+            preview.renderChart.notes,
+            preview.renderChart.trillZones,
+            preview.renderChart.restZones ?? [],
+            preview.renderChart.events,
+            renderTiming,
+            preview.renderDurationMs,
+          );
+          const sourceNoteCount = preview.chart.notes.length;
+          const previewPort: SessionRendererPort = {
+            showJudgment: (grade, deltaMs) => renderer.showJudgment(grade, deltaMs),
+            recordFlightJudgment: grade => renderer.recordFlightJudgment(grade),
+            showBombEffect: showPreviewBomb,
+            updateCombo: () => {},
+            updateAccuracy: () => {},
+            setJudgmentBodyStateQuery: query => {
+              renderer.setJudgmentBodyStateQuery(query
+                ? (renderNoteIndex, at) => mapTutorialRenderBodyQuery(
+                  query,
+                  sourceNoteCount,
+                  preview.loopMs,
+                  activeRenderCycle,
+                  renderNoteIndex,
+                  at,
+                )
+                : null);
+            },
+            applyNoteDisplayEffect: (noteIndex, effect) => {
+              renderer.applyNoteDisplayEffect(activeRenderCycle * sourceNoteCount + noteIndex, effect);
+            },
+          };
+          const adapterRef: { current?: SessionRendererAdapter } = {};
+          const controller = createTutorialPreviewSessionController(preview.chart, timings, {
+            onBatchConfirmed: view => adapterRef.current?.apply(view),
+          });
+          const sessionAdapter = new SessionRendererAdapter({
+            notes: preview.chart.notes,
+            connections: controller.session.connections,
+            bodyStates: () => controller.session.bodyStates,
+            scoreAccuracy: () => controller.session.score.getState().achievementRate,
+            port: previewPort,
+          });
+          adapterRef.current = sessionAdapter;
+          previewJudgment = {
+            advanceTo: (loopTimeMs) => controller.advanceTo(loopTimeMs),
+            finishLoop: () => {
+              // Flush the tail action at the exact loop boundary before creating
+              // the next session; otherwise an up at loopMs is lost to reset.
+              controller.advanceTo(preview.loopMs);
+              sessionAdapter.reset();
+              // setChart clears GameNoteRenderer's per-note display caches as well
+              // as rebuilding the repeated render-cycle index mapping.
+              renderer.setChart(
+                preview.renderChart.notes,
+                preview.renderChart.trillZones,
+                preview.renderChart.restZones ?? [],
+                preview.renderChart.events,
+                createChartTiming(preview.renderChart),
+                preview.renderDurationMs,
+              );
+            },
+            stop: () => {},
+          };
+          attachedJudgment = previewJudgment;
+        }
         renderer.updateTutorialKeyboardKeys(tutorialKeyboardKeys);
         // 첫 프레임부터 이 차트의 시작 키 라벨을 그린다. 이후 갱신은 레인 키 라벨 effect가 맡는다.
         renderer.setLaneKeyLabels(getLaneKeyLabels(keys, [], {}).map(({ lane, label }) => ({ lane, label })), true);
-        const sourceNoteCount = preview.chart.notes.length;
-        const previewPort: SessionRendererPort = {
-          showJudgment: (grade, deltaMs) => renderer.showJudgment(grade, deltaMs),
-          recordFlightJudgment: grade => renderer.recordFlightJudgment(grade),
-          showBombEffect: lane => {
-            onBombEffectRef.current?.(lane, getTutorialBombPosition(lane, keyboardAreaHeight));
-            if (showRendererBombRef.current) renderer.showBombEffect(lane);
-          },
-          updateCombo: () => {},
-          updateAccuracy: () => {},
-          setJudgmentBodyStateQuery: query => {
-            renderer.setJudgmentBodyStateQuery(query
-              ? (renderNoteIndex, at) => mapTutorialRenderBodyQuery(
-                query,
-                sourceNoteCount,
-                preview.loopMs,
-                activeRenderCycle,
-                renderNoteIndex,
-                at,
-              )
-              : null);
-          },
-          applyNoteDisplayEffect: (noteIndex, effect) => {
-            renderer.applyNoteDisplayEffect(activeRenderCycle * sourceNoteCount + noteIndex, effect);
-          },
-        };
-        const adapterRef: { current?: SessionRendererAdapter } = {};
-        const controller = createTutorialPreviewSessionController(preview.chart, timings, {
-          onBatchConfirmed: view => adapterRef.current?.apply(view),
-        });
-        const sessionAdapter = new SessionRendererAdapter({
-          notes: preview.chart.notes,
-          connections: controller.session.connections,
-          bodyStates: () => controller.session.bodyStates,
-          scoreAccuracy: () => controller.session.score.getState().achievementRate,
-          port: previewPort,
-        });
-        adapterRef.current = sessionAdapter;
         setRendererInputState(renderer, getActiveTutorialInputTimings(0, timings));
-        controller.advanceTo(0);
+        previewJudgment.advanceTo(0);
         renderer.renderFrame(preview.renderStartMs, 0);
         // 시계는 첫 프레임을 그린 지금을 루프 시간 0으로 삼는다. 멈춘 슬롯은 렌더 루프가 이 시각을 멈춘 시각으로 기록해,
         // 재생이 풀리는 순간 루프 시간 0부터 시작한다.
@@ -658,22 +778,9 @@ export function TutorialPreviewPlayer({
           const activeTimings = getActiveTutorialInputTimings(loopTimeMs, timings);
 
           if (loopTimeMs < previousLoopTime) {
-            // Flush the tail action at the exact loop boundary before creating
-            // the next session; otherwise an up at loopMs is lost to reset.
-            controller.advanceTo(preview.loopMs);
-            sessionAdapter.reset();
-            // setChart clears GameNoteRenderer's per-note display caches as well
-            // as rebuilding the repeated render-cycle index mapping.
-            renderer.setChart(
-              preview.renderChart.notes,
-              preview.renderChart.trillZones,
-              preview.renderChart.restZones ?? [],
-              preview.renderChart.events,
-              createChartTiming(preview.renderChart),
-              preview.renderDurationMs,
-            );
+            previewJudgment.finishLoop();
           }
-          controller.advanceTo(loopTimeMs);
+          previewJudgment.advanceTo(loopTimeMs);
           previousLoopTime = loopTimeMs;
           setRendererInputState(renderer, activeTimings);
           renderer.renderFrame(renderTimeMs, deltaMs);
@@ -683,14 +790,25 @@ export function TutorialPreviewPlayer({
         animationFrameId = requestAnimationFrame(renderLoop);
       } catch (err) {
         detachRenderer();
-        setContentError(err instanceof Error ? err.message : 'Failed to load tutorial preview');
-        notifyReady();
-        setRendererReady(true);
+        showContentError(err);
       }
     };
 
     const handleRendererState = (state: TutorialPreviewRendererState) => {
       if (state.status === 'ready') {
+        if (isExplicitTutorialPreview(preview)) {
+          // 명시 정의는 이 렌더러의 명시 노트 도안을 불러온 뒤 건다. 그동안 도식 모달은 스피너를 보인다.
+          detachRenderer();
+          state.loadExplicitSkin().then(
+            (explicitSkin) => {
+              if (!disposed && rendererStateRef.current === state) attachRenderer(state.renderer, explicitSkin);
+            },
+            (err: unknown) => {
+              if (!disposed && rendererStateRef.current === state) showContentError(err);
+            },
+          );
+          return;
+        }
         attachRenderer(state.renderer);
         return;
       }
