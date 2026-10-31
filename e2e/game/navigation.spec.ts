@@ -21,6 +21,26 @@ const NON_FIRST_LAUNCH_SETTINGS = JSON.stringify({
   version: 0,
 });
 
+/** 가짜 Supabase 호스트로 가는 곡 목록 요청이 부하 때문에 오래 걸리지 않게 빈 목록으로 바로 응답한다. */
+async function stubEmptySongs(page: Page) {
+  await page.route('**/rest/v1/songs**', async route => {
+    if (route.request().method() === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
+    await route.fulfill({ json: [] });
+  });
+}
+
+/** 곡 목록 요청을 붙잡아 두고, 돌려준 함수를 부르면 빈 목록으로 응답한다. */
+async function holdSongs(page: Page): Promise<() => void> {
+  let releaseSongs!: () => void;
+  const songsReleased = new Promise<void>(resolve => { releaseSongs = resolve; });
+  await page.route('**/rest/v1/songs**', async route => {
+    if (route.request().method() === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
+    await songsReleased;
+    await route.fulfill({ json: [] });
+  });
+  return releaseSongs;
+}
+
 async function choosePresetOnFirstLaunch(page: Page, preset: 'TKL (Tenkeyless)' | 'Numpad') {
   await page.goto('/game');
   await page.evaluate(() => localStorage.clear());
@@ -50,6 +70,7 @@ test.describe('Game Navigation', () => {
 
   for (const preset of ['TKL (Tenkeyless)', 'Numpad'] as const) {
     test(`첫 기동에 ${preset} 프리셋을 고르면 곡 선택 위에 튜토리얼 모달이 열리고 Close로 바로 닫으면 곡 선택을 그대로 쓴다`, async ({ page }) => {
+      await stubEmptySongs(page);
       await choosePresetOnFirstLaunch(page, preset);
 
       // 첫 기동 튜토리얼 모달(RFD 0055): 프리셋 설정 직후 곡 선택 위에 도움말 모달이 열린다.
@@ -69,6 +90,7 @@ test.describe('Game Navigation', () => {
   }
 
   test('첫 기동 튜토리얼 모달은 타이틀을 거쳐 곡 선택에 다시 들어오거나 새로고침하면 다시 열리지 않고 ? 버튼으로만 열린다', async ({ page }) => {
+    await stubEmptySongs(page);
     await choosePresetOnFirstLaunch(page, 'TKL (Tenkeyless)');
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
     await expect(dialog).toBeVisible();
@@ -93,6 +115,7 @@ test.describe('Game Navigation', () => {
   });
 
   test('첫 기동 튜토리얼 모달이 열린 채 새로고침하면 프리셋 설정 없이 들어간 곡 선택에서 모달이 다시 열리지 않는다', async ({ page }) => {
+    await stubEmptySongs(page);
     await choosePresetOnFirstLaunch(page, 'Numpad');
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
     await expect(dialog).toBeVisible();
@@ -104,14 +127,7 @@ test.describe('Game Navigation', () => {
   });
 
   test('곡 목록 요청이 끝나지 않은 동안에도 첫 기동 튜토리얼 모달은 로딩 화면에 가리지 않아 Close를 누를 수 있고, 닫으면 Loading songs... 화면이 보인다', async ({ page }) => {
-    let releaseSongs!: () => void;
-    const songsReleased = new Promise<void>(resolve => { releaseSongs = resolve; });
-    await page.route('**/rest/v1/songs**', async route => {
-      if (route.request().method() === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
-      await songsReleased;
-      await route.fulfill({ json: [] });
-    });
-
+    const releaseSongs = await holdSongs(page);
     await choosePresetOnFirstLaunch(page, 'TKL (Tenkeyless)');
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
     await expect(dialog).toBeVisible();
@@ -121,6 +137,24 @@ test.describe('Game Navigation', () => {
     await expect(page.getByText('Loading songs...')).toBeVisible();
 
     releaseSongs();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
+  });
+
+  test('곡 목록 요청 중 첫 기동 튜토리얼 모달에서 Advanced 탭을 고른 뒤 목록이 도착해도 모달이 다시 마운트되지 않아 Advanced가 선택된 채이고, Escape는 모달만 닫는다', async ({ page }) => {
+    const releaseSongs = await holdSongs(page);
+    await choosePresetOnFirstLaunch(page, 'TKL (Tenkeyless)');
+    const dialog = page.getByRole('dialog', { name: 'Tutorial' });
+    const advancedTab = dialog.getByRole('tab', { name: 'Advanced', exact: true });
+    await expect(dialog).toBeVisible();
+    await advancedTab.click();
+    await expect(advancedTab).toHaveAttribute('aria-selected', 'true');
+
+    releaseSongs();
+    await expect(page.getByRole('button', { name: 'Refresh' })).toBeEnabled();
+    await expect(advancedTab).toHaveAttribute('aria-selected', 'true');
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
   });
 

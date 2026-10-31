@@ -17,6 +17,7 @@ describe('SongSelectScreen tutorial help', () => {
 
   it('설정/추가/삭제 모달·튜토리얼 팝업이 열려 있으면 곡 선택 키 네비를 뒤에서 처리하지 않도록 배선', () => {
     // 설정을 모달로 띄우면 곡 선택이 언마운트되지 않으므로, 뒤의 키 네비를 명시적으로 차단해야 한다.
-    expect(songSelectSource).toContain('blockingModalOpen: showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null');
+    expect(songSelectSource).toContain('const blockingModalOpen = showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null;');
+    expect(songSelectSource).toMatch(/useSongNavigation\(\{\s*isAdmin,\s*blockingModalOpen,/);
   });
 });

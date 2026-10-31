@@ -84,6 +84,8 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     setScreen('loading');
   }, [playAllowed, selectSong, setScreen]);
 
+  const blockingModalOpen = showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null;
+
   const {
     songs,
     loading,
@@ -98,7 +100,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     getSortedCharts,
   } = useSongNavigation({
     isAdmin,
-    blockingModalOpen: showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null,
+    blockingModalOpen,
     newChartTarget,
     onPlay: handlePlay,
     onEscape: mobileListOnly ? () => {} : () => setScreen('title'),
@@ -233,9 +235,9 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     </>
   );
 
-  // 첫 기동 튜토리얼 모달이 열려 있으면 곡 목록을 불러오는 중에도 로딩 화면 대신 곡 선택 레이아웃 위에 모달을 그린다.
+  // 모달(첫 기동 튜토리얼 모달 등)이 열려 있으면 곡 목록을 불러오는 중에도 로딩 화면 대신 곡 선택 레이아웃 위에 모달을 그린다.
   // 로딩 화면(body 포털, z-index 3000)이 모달을 가리지 않고, 로딩이 끝나도 모달이 다시 마운트되지 않는다.
-  if (isInitialSongLoading && !showTutorialHelp) {
+  if (isInitialSongLoading && !blockingModalOpen) {
     return <PageLoading message="Loading songs..." />;
   }
 
