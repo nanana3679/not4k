@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useGameStore } from '../stores/gameStore';
-import { mergeAccountSettings, selectAccountSettings, createAccountSettingsSync,
+import { DEFAULT_SETTINGS, PRESET_BINDINGS, useGameStore, type GameSettings } from '../stores/gameStore';
+import { mergeAccountSettings, selectAccountSettings, createAccountSettingsSync, parseUnsyncedAccountSettings,
   ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE, ACCOUNT_SETTINGS_SAVE_FAILURE_MESSAGE,
-  type AccountSettings, type AccountSettingsUpload, type InsertAccountSettingsResult, type LoadAccountSettingsResult } from './accountSettingsSync';
+  type AccountSettings, type AccountSettingsUpload, type UnsyncedAccountSettings, type InsertAccountSettingsResult, type LoadAccountSettingsResult } from './accountSettingsSync';
 
 describe('계정 설정 분리', () => {
   it.each([
@@ -33,10 +33,21 @@ describe('계정 설정 분리', () => {
     expect(mergeAccountSettings(local, { preset: 'numpad', judgmentMode: 'easy' }))
       .toEqual({ ...local, preset: 'numpad', judgmentMode: 'easy' });
   });
-  it('서버 scrollSpeed=5000·liftPercent=-10·renderHeight=4320은 설정 UI 범위 끝값 2000·0·1440으로 제한해 적용한다', () => {
+  it('서버 scrollSpeed=5000·liftPercent=-10은 설정 UI 범위 끝값 2000·0으로 제한해 적용한다', () => {
     const local = useGameStore.getInitialState().settings;
-    expect(mergeAccountSettings(local, { scrollSpeed: 5000, liftPercent: -10, renderHeight: 4320 }))
-      .toEqual({ ...local, scrollSpeed: 2000, liftPercent: 0, renderHeight: 1440 });
+    expect(mergeAccountSettings(local, { scrollSpeed: 5000, liftPercent: -10 }))
+      .toEqual({ ...local, scrollSpeed: 2000, liftPercent: 0 });
+  });
+  it.each([
+    ['playSpeed=0.25(슬라이더 최솟값 0.5 미만)', { playSpeed: 0.25 }, { playSpeed: 1 }],
+    ['playSpeed=0.5', { playSpeed: 0.5 }, { playSpeed: 0.5 }],
+    ['playSpeed=3', { playSpeed: 3 }, { playSpeed: 2 }],
+    ['renderHeight=900(선택지 밖)', { renderHeight: 900 }, { renderHeight: 1080 }],
+    ['renderHeight=4320(선택지 밖)', { renderHeight: 4320 }, { renderHeight: 1080 }],
+    ['renderHeight=720', { renderHeight: 720 }, { renderHeight: 720 }],
+  ])('로컬 playSpeed=1·renderHeight=1080에 서버 %s를 병합하면 %j → %j', (_label, server, expected) => {
+    const local = useGameStore.getInitialState().settings;
+    expect(mergeAccountSettings(local, server)).toEqual({ ...local, ...expected });
   });
   it('불러오기·저장 실패 안내 문구는 게임 코어 스펙의 영어 문장과 같다', () => {
     expect(ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE).toBe("Couldn't load your account settings. Using this browser's settings.");
@@ -100,8 +111,22 @@ describe('계정 설정 분리', () => {
   });
 });
 
-function setupSync(initialUnsyncedUserId: string | null = null) {
-  let settings = { ...useGameStore.getInitialState().settings };
+/** 여러 탭이 함께 쓰는 localStorage 대신 메모리에 `unsyncedAccountSettings` 원문을 둔다. */
+function createUnsyncedStorage(initial: UnsyncedAccountSettings = {}) {
+  let raw: string | null = Object.keys(initial).length > 0 ? JSON.stringify(initial) : null;
+  return {
+    read: () => raw,
+    write: (value: string | null) => { raw = value; },
+    entries: (): Record<string, Record<string, unknown>> => (raw === null ? {} : JSON.parse(raw)),
+    replaceRaw: (value: string | null) => { raw = value; },
+  };
+}
+
+/** 기본은 최초 실행을 이미 끝낸 브라우저다. */
+function setupSync({ storage = createUnsyncedStorage(), settings: initial = {} }: {
+  storage?: ReturnType<typeof createUnsyncedStorage>; settings?: Partial<GameSettings>;
+} = {}) {
+  let settings: GameSettings = { ...useGameStore.getInitialState().settings, isFirstLaunch: false, ...initial };
   const listeners = new Set<() => void>();
   const store = {
     getSettings: () => settings,
@@ -121,22 +146,27 @@ function setupSync(initialUnsyncedUserId: string | null = null) {
   const insertIfAbsent = vi.fn<(...args: [string, AccountSettings, AbortSignal]) => Promise<InsertAccountSettingsResult>>()
     .mockResolvedValue('inserted');
   const notice = vi.fn();
-  // 브라우저 저장소 대신 메모리 한 칸에 미동기화 표시의 사용자 id를 둔다.
-  let unsyncedUserId = initialUnsyncedUserId;
-  const unsyncedMarker = {
-    owner: () => unsyncedUserId,
-    set: (userId: string) => { unsyncedUserId = userId; },
-    clear: () => { unsyncedUserId = null; },
-  };
-  const sync = createAccountSettingsSync({ store, load, insertIfAbsent, save, notice, unsyncedMarker,
+  const sync = createAccountSettingsSync({ store, load, insertIfAbsent, save, notice,
+    unsyncedStorage: { read: storage.read, write: storage.write },
     timers: { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: id => clearTimeout(id) } });
-  return { ...store, load, insertIfAbsent, save, notice, sync,
+  return { ...store, load, insertIfAbsent, save, notice, sync, unsynced: storage,
     // zustand persist처럼 메모리 상태를 바꾸고 구독자에 알린 뒤 저장소 쓰기만 실패하는 경우를 흉내 낸다.
     commitInMemory: (next: typeof settings) => { settings = next; listeners.forEach(listener => listener()); },
-    unsyncedOwner: () => unsyncedUserId,
-    setUnsyncedOwner: (userId: string | null) => { unsyncedUserId = userId; },
-    change: (partial: Partial<typeof settings>) => store.applySettings({ ...settings, ...partial }) };
+    change: (partial: Partial<typeof settings>) => store.applySettings({ ...settings, ...partial }),
+    // PresetSetupScreen.handlePreset과 같은 순서로 프리셋을 고르고 최초 실행을 끝낸다.
+    pickPreset: (preset: 'numpad' | 'tkl') => {
+      store.applySettings({ ...settings, preset, keyBindings: PRESET_BINDINGS[preset] });
+      store.applySettings({ ...settings, isFirstLaunch: false });
+    } };
 }
+
+/** 이 클라이언트가 업로드하는 계정 설정 전체 행. */
+function accountRow(overrides: Partial<AccountSettings> = {}): Record<string, unknown> {
+  return { ...selectAccountSettings(DEFAULT_SETTINGS), ...overrides };
+}
+
+const accountBindings = { lane1: ['KeyA', 'KeyZ'], lane2: ['KeyD', 'KeyF'],
+  lane3: ['KeyJ', 'KeyK'], lane4: ['KeyL', 'Semicolon'] };
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -148,7 +178,7 @@ describe('계정 설정 동기화 수명', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('서버 1200 적용 중 저장소 예외가 나면 실패 안내 후 900 변경을 바로 올리지 않고 다음 A 로그인에서 서버 1200 대신 900을 저장한다', async () => {
+  it('서버 1200 적용 중 저장소 예외가 나면 실패 안내 후 900 변경을 바로 업로드하지 않고 다음 A 로그인에서 서버 행 위에 900을 얹어 업로드한다', async () => {
     const test = setupSync();
     test.applySettings.mockImplementationOnce(() => { throw new Error('quota exceeded'); });
     await expect(test.sync.setUser({ id: 'A' })).resolves.toBeUndefined();
@@ -493,13 +523,9 @@ describe('새 브라우저의 최초 실행', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  const accountBindings = { lane1: ['KeyA', 'KeyZ'], lane2: ['KeyD', 'KeyF'],
-    lane3: ['KeyJ', 'KeyK'], lane4: ['KeyL', 'Semicolon'] };
-
   it('isFirstLaunch=true인 브라우저가 A의 서버 행에서 lane1=KeyA·KeyZ 바인딩을 적용하면 최초 실행을 끝내고 그 바인딩을 유지하며 저장은 0회다', async () => {
-    const test = setupSync();
+    const test = setupSync({ settings: { isFirstLaunch: true } });
     test.load.mockResolvedValue({ status: 'found', settings: { keyBindings: accountBindings, isFirstLaunch: true } });
-    expect(test.getSettings().isFirstLaunch).toBe(true);
     await test.sync.setUser({ id: 'A' });
     expect(test.getSettings()).toMatchObject({ isFirstLaunch: false, keyBindings: accountBindings });
     await vi.advanceTimersByTimeAsync(500);
@@ -510,44 +536,111 @@ describe('새 브라우저의 최초 실행', () => {
   it.each<[string, LoadAccountSettingsResult]>([
     ['서버 행이 없어 로컬을 삽입', { status: 'notFound' }],
     ['불러오기 실패', { status: 'failed' }],
-  ])('isFirstLaunch=true인 브라우저에서 A가 %s하면 최초 실행을 유지한다', async (_label, result) => {
-    const test = setupSync();
+    ['scrollSpeed=1200만 있는 서버 행을 적용', { status: 'found', settings: { scrollSpeed: 1200 } }],
+    ['레인 사이 KeyA가 중복된 keyBindings 행을 적용', { status: 'found', settings: { keyBindings:
+      { lane1: ['KeyA', 'KeyS'], lane2: ['KeyA', 'KeyD'], lane3: ['KeyJ', 'KeyK'], lane4: ['KeyL', 'Semicolon'] } } }],
+  ])('isFirstLaunch=true인 브라우저에서 A가 %s하면 받을 수 있는 서버 keyBindings가 없어 최초 실행을 유지한다', async (_label, result) => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
     test.load.mockResolvedValue(result);
     await test.sync.setUser({ id: 'A' });
     expect(test.getSettings().isFirstLaunch).toBe(true);
     test.sync.dispose();
   });
+
+  it('isFirstLaunch=true인 새 브라우저에서 A 불러오기 중 numpad 프리셋을 고르면 기록하지 않고 서버 행의 사용자 바인딩을 적용하며 업로드하지 않는다', async () => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
+    const pending = deferred<LoadAccountSettingsResult>();
+    test.load.mockReturnValueOnce(pending.promise);
+    const loading = test.sync.setUser({ id: 'A' });
+    test.pickPreset('numpad');
+    expect(test.unsynced.entries()).toEqual({});
+    pending.resolve({ status: 'found', settings: accountRow({ keyBindings: accountBindings }) });
+    await loading;
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.getSettings()).toMatchObject({ keyBindings: accountBindings, preset: 'tkl', isFirstLaunch: false });
+    expect(test.save).not.toHaveBeenCalled();
+    test.sync.dispose();
+  });
+
+  it('isFirstLaunch=true인 새 브라우저에서 A 불러오기 실패 뒤 numpad 프리셋을 고르면 기록하지 않고 다음 불러오기에서 사용자 바인딩을 적용하며 업로드하지 않는다', async () => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
+    test.load.mockResolvedValueOnce({ status: 'failed' })
+      .mockResolvedValue({ status: 'found', settings: accountRow({ keyBindings: accountBindings }) });
+    await test.sync.setUser({ id: 'A' });
+    test.pickPreset('numpad');
+    expect(test.unsynced.entries()).toEqual({});
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.getSettings().keyBindings).toEqual(accountBindings);
+    expect(test.save).not.toHaveBeenCalled();
+    test.sync.dispose();
+  });
+
+  it('isFirstLaunch=true인 브라우저에서 preset·keyBindings·isFirstLaunch=false를 한 번에 바꾸는 갱신도 A 항목에 기록하지 않는다', async () => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
+    test.load.mockResolvedValue({ status: 'failed' });
+    await test.sync.setUser({ id: 'A' });
+    test.change({ preset: 'numpad', keyBindings: PRESET_BINDINGS.numpad, isFirstLaunch: false });
+    expect(test.unsynced.entries()).toEqual({});
+    test.sync.dispose();
+  });
+
+  it('isFirstLaunch=true인 새 브라우저에서 A 불러오기 실패 뒤 프리셋을 고르고 scrollSpeed=900으로 바꾸면 다음 불러오기에서 계정의 사용자 바인딩을 유지하고 900만 얹어 업로드한다', async () => {
+    const test = setupSync({ settings: { isFirstLaunch: true } });
+    const row = accountRow({ keyBindings: accountBindings, scrollSpeed: 1200 });
+    test.load.mockResolvedValueOnce({ status: 'failed' }).mockResolvedValue({ status: 'found', settings: row });
+    await test.sync.setUser({ id: 'A' });
+    test.pickPreset('numpad');
+    test.change({ scrollSpeed: 900 });
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 900 } });
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(test.getSettings()).toMatchObject({ keyBindings: accountBindings, scrollSpeed: 900 });
+    expect(test.save.mock.calls.map(([id, settings]) => [id, settings])).toEqual([['A', { ...row, scrollSpeed: 900 }]]);
+    test.sync.dispose();
+  });
 });
 
-describe('미동기화 표시', () => {
+describe('unsyncedAccountSettings 기록과 업로드', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('A 불러오기 성공 뒤 scrollSpeed=900 변경을 예약하면 A 표시를 남기고 900 저장 성공 뒤 지운다', async () => {
+  it.each([['JSON이 아닌 문자열', 'not json'], ['배열', '[]'], ['숫자', '42'], ['null', 'null'], ['A 항목이 문자열', '{"A":"x"}']])(
+    'unsyncedAccountSettings 저장값이 %s이면 빈 기록으로 읽는다', (_label, raw) => {
+      expect(parseUnsyncedAccountSettings(raw)).toEqual({});
+    },
+  );
+
+  it('A 항목의 모르는 키 futureKey·기기 전용 inputOffsetMs=5·문자열 scrollSpeed는 버리고 liftPercent=30만 읽는다', () => {
+    expect(parseUnsyncedAccountSettings(JSON.stringify({
+      A: { futureKey: 1, inputOffsetMs: 5, scrollSpeed: '900', liftPercent: 30 },
+    }))).toEqual({ A: { liftPercent: 30 } });
+  });
+
+  it('unsyncedAccountSettings 저장값이 깨져 있으면 A 로그인은 서버 1200을 적용하고 업로드하지 않는다', async () => {
+    const storage = createUnsyncedStorage();
+    storage.replaceRaw('{broken');
+    const test = setupSync({ storage });
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.getSettings().scrollSpeed).toBe(1200);
+    expect(test.save).not.toHaveBeenCalled();
+    test.sync.dispose();
+  });
+
+  it('A 불러오기 성공 뒤 scrollSpeed=900으로 바꾸면 A 항목에 scrollSpeed=900을 기록하고 900 저장 성공 뒤 지운다', async () => {
     const test = setupSync();
     await test.sync.setUser({ id: 'A' });
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.unsynced.entries()).toEqual({});
     test.change({ scrollSpeed: 900 });
-    expect(test.unsyncedOwner()).toBe('A');
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 900 } });
     await vi.advanceTimersByTimeAsync(500);
     expect(test.save.mock.calls.map(([, settings]) => settings.scrollSpeed)).toEqual([900]);
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.unsynced.entries()).toEqual({});
     test.sync.dispose();
   });
 
-  it('다른 탭이 A 표시를 지운 뒤 이 탭의 900 저장이 실패하면 A 표시를 다시 남긴다', async () => {
-    const test = setupSync();
-    await test.sync.setUser({ id: 'A' });
-    test.save.mockResolvedValue(false);
-    test.change({ scrollSpeed: 900 });
-    test.setUnsyncedOwner(null);
-    await vi.advanceTimersByTimeAsync(500);
-    expect(test.unsyncedOwner()).toBe('A');
-    expect(test.notice).toHaveBeenCalledWith(ACCOUNT_SETTINGS_SAVE_FAILURE_MESSAGE);
-    test.sync.dispose();
-  });
-
-  it('900 저장 중 1000으로 바꾸면 900 저장 성공 뒤에도 A 표시를 유지하고 1000 저장 성공 뒤 지운다', async () => {
+  it('900 저장 중 같은 탭에서 1000으로 바꾸면 900 저장 성공 뒤에도 A 항목의 scrollSpeed=1000을 남기고 1000 저장 성공 뒤 지운다', async () => {
     const test = setupSync();
     await test.sync.setUser({ id: 'A' });
     const pending = deferred<boolean>();
@@ -557,65 +650,135 @@ describe('미동기화 표시', () => {
     test.change({ scrollSpeed: 1000 });
     pending.resolve(true);
     await vi.advanceTimersByTimeAsync(0);
-    expect(test.unsyncedOwner()).toBe('A');
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 1000 } });
     await vi.advanceTimersByTimeAsync(500);
     expect(test.save.mock.calls.map(([, settings]) => settings.scrollSpeed)).toEqual([900, 1000]);
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.unsynced.entries()).toEqual({});
     test.sync.dispose();
   });
 
-  it('A 표시가 있으면 서버 행 1200을 적용하지 않고 로컬 900과 서버의 모르는 키 futureKey를 바로 저장한 뒤 표시를 지운다', async () => {
-    const test = setupSync('A');
+  it('이 탭의 900 저장 중 다른 탭이 A 항목에 scrollSpeed=1000·liftPercent=30을 기록하면 900 저장 성공 뒤에도 두 값을 지우지 않는다', async () => {
+    const test = setupSync();
+    await test.sync.setUser({ id: 'A' });
+    const pending = deferred<boolean>();
+    test.save.mockReturnValueOnce(pending.promise);
     test.change({ scrollSpeed: 900 });
-    test.load.mockResolvedValue({ status: 'found', settings: { scrollSpeed: 1200, futureKey: 'keep' } });
+    await vi.advanceTimersByTimeAsync(500);
+    test.unsynced.replaceRaw(JSON.stringify({ A: { scrollSpeed: 1000, liftPercent: 30 } }));
+    pending.resolve(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 1000, liftPercent: 30 } });
+    test.sync.dispose();
+  });
+
+  it('A 항목에 scrollSpeed=900이 있으면 서버 행 1200·liftPercent=10 위에 900만 얹어 적용하고 futureKey와 함께 바로 업로드한 뒤 A 항목만 지우고 B 항목은 둔다', async () => {
+    const test = setupSync({ storage: createUnsyncedStorage({ A: { scrollSpeed: 900 }, B: { scrollSpeed: 900 } }),
+      settings: { liftPercent: 70 } });
+    const row = accountRow({ scrollSpeed: 1200, liftPercent: 10 });
+    test.load.mockResolvedValue({ status: 'found', settings: { ...row, futureKey: 'keep' } });
     await test.sync.setUser({ id: 'A' });
     await vi.advanceTimersByTimeAsync(0);
-    expect(test.getSettings()).toMatchObject({ scrollSpeed: 900, isFirstLaunch: true });
-    expect(test.save).toHaveBeenCalledTimes(1);
-    expect(test.save.mock.calls[0][1]).toEqual({ ...selectAccountSettings(test.getSettings()), futureKey: 'keep' });
+    expect(test.getSettings()).toMatchObject({ scrollSpeed: 900, liftPercent: 10 });
+    expect(test.save.mock.calls.map(([id, settings]) => [id, settings]))
+      .toEqual([['A', { ...row, scrollSpeed: 900, futureKey: 'keep' }]]);
     expect(test.insertIfAbsent).not.toHaveBeenCalled();
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.unsynced.entries()).toEqual({ B: { scrollSpeed: 900 } });
     expect(test.notice).not.toHaveBeenCalled();
     test.sync.dispose();
   });
 
-  it('A 표시가 있고 서버 행이 없으면 save 없이 insertIfAbsent로 로컬 900을 올리고 표시를 지운다', async () => {
-    const test = setupSync('A');
-    test.change({ scrollSpeed: 900 });
-    test.load.mockResolvedValue({ status: 'notFound' });
+  it('keyBindings 저장 중 다른 탭이 같은 바인딩을 lane4→lane1 순서로 다시 기록해도 저장 성공 때 같은 값으로 보고 지운다', async () => {
+    const test = setupSync();
     await test.sync.setUser({ id: 'A' });
-    expect(test.insertIfAbsent.mock.calls.map(([, settings]) => settings.scrollSpeed)).toEqual([900]);
-    expect(test.save).not.toHaveBeenCalled();
-    expect(test.unsyncedOwner()).toBeNull();
+    const pending = deferred<boolean>();
+    test.save.mockReturnValueOnce(pending.promise);
+    test.change({ keyBindings: accountBindings });
+    await vi.advanceTimersByTimeAsync(500);
+    const { lane1, lane2, lane3, lane4 } = accountBindings;
+    test.unsynced.replaceRaw(JSON.stringify({ A: { keyBindings: { lane4, lane3, lane2, lane1 } } }));
+    pending.resolve(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(test.unsynced.entries()).toEqual({});
     test.sync.dispose();
   });
 
-  it('A 표시가 있고 삽입이 conflict이면 재조회한 서버 1600을 적용하지 않고 로컬 900을 저장한다', async () => {
-    const test = setupSync('A');
-    test.change({ scrollSpeed: 900 });
-    test.load.mockResolvedValueOnce({ status: 'notFound' })
-      .mockResolvedValueOnce({ status: 'found', settings: { scrollSpeed: 1600 } });
+  it('A 항목에 scrollSpeed=900이 있고 서버 행이 없으면 save 없이 insertIfAbsent로 900을 얹은 로컬을 업로드하고 항목을 지운다', async () => {
+    const test = setupSync({ storage: createUnsyncedStorage({ A: { scrollSpeed: 900 } }) });
+    test.load.mockResolvedValue({ status: 'notFound' });
+    await test.sync.setUser({ id: 'A' });
+    expect(test.getSettings().scrollSpeed).toBe(900);
+    expect(test.insertIfAbsent.mock.calls.map(([, settings]) => settings.scrollSpeed)).toEqual([900]);
+    expect(test.save).not.toHaveBeenCalled();
+    expect(test.unsynced.entries()).toEqual({});
+    test.sync.dispose();
+  });
+
+  it('A 항목에 scrollSpeed=900이 있고 삽입이 conflict이면 재조회한 서버 행 1600·liftPercent=10 위에 900을 얹어 저장한다', async () => {
+    const test = setupSync({ storage: createUnsyncedStorage({ A: { scrollSpeed: 900 } }) });
+    const row = accountRow({ scrollSpeed: 1600, liftPercent: 10 });
+    test.load.mockResolvedValueOnce({ status: 'notFound' }).mockResolvedValueOnce({ status: 'found', settings: row });
     test.insertIfAbsent.mockResolvedValue('conflict');
     await test.sync.setUser({ id: 'A' });
     await vi.advanceTimersByTimeAsync(0);
-    expect(test.getSettings().scrollSpeed).toBe(900);
-    expect(test.save.mock.calls.map(([, settings]) => settings.scrollSpeed)).toEqual([900]);
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.getSettings()).toMatchObject({ scrollSpeed: 900, liftPercent: 10 });
+    expect(test.save.mock.calls.map(([, settings]) => settings)).toEqual([{ ...row, scrollSpeed: 900 }]);
+    expect(test.unsynced.entries()).toEqual({});
     test.sync.dispose();
   });
 
-  it('B 표시가 있을 때 A가 로그인해 서버 1200을 적용하면 B로 업로드하지 않고 B 표시를 지운다', async () => {
-    const test = setupSync('B');
+  it('A 항목으로 업로드한 저장이 실패하면 저장 실패를 안내하고 항목을 유지하며 이후 1000 변경을 저장하면 항목을 지운다', async () => {
+    const test = setupSync({ storage: createUnsyncedStorage({ A: { scrollSpeed: 900 } }) });
+    test.save.mockResolvedValueOnce(false);
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(test.notice).toHaveBeenCalledWith(ACCOUNT_SETTINGS_SAVE_FAILURE_MESSAGE);
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 900 } });
+    test.change({ scrollSpeed: 1000 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.save.mock.calls.map(([, settings]) => settings.scrollSpeed)).toEqual([900, 1000]);
+    expect(test.unsynced.entries()).toEqual({});
+    test.sync.dispose();
+  });
+
+  it('A 항목이 있어도 불러오기가 실패하면 업로드하지 않고 항목을 유지한다', async () => {
+    const test = setupSync({ storage: createUnsyncedStorage({ A: { scrollSpeed: 900 } }) });
+    test.load.mockResolvedValue({ status: 'failed' });
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(test.save).not.toHaveBeenCalled();
+    expect(test.insertIfAbsent).not.toHaveBeenCalled();
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 900 } });
+    test.sync.dispose();
+  });
+
+  it('A의 900 저장 대기 중 로그아웃하면 대기 저장을 버리고 다음 A 로그인에서 서버 행 1200·liftPercent=10 위에 900을 얹어 업로드한다', async () => {
+    const test = setupSync();
+    const row = accountRow({ scrollSpeed: 1200, liftPercent: 10 });
+    test.load.mockResolvedValue({ status: 'found', settings: row });
+    await test.sync.setUser({ id: 'A' });
     test.change({ scrollSpeed: 900 });
+    await test.sync.setUser(null);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(test.save).not.toHaveBeenCalled();
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 900 } });
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(test.save.mock.calls.map(([id, settings]) => [id, settings])).toEqual([['A', { ...row, scrollSpeed: 900 }]]);
+    expect(test.unsynced.entries()).toEqual({});
+    test.sync.dispose();
+  });
+
+  it('B 항목 scrollSpeed=1300이 있어도 A 로그인은 서버 1200을 적용하고 B 항목을 그대로 두며 B 값을 업로드하지 않는다', async () => {
+    const test = setupSync({ storage: createUnsyncedStorage({ B: { scrollSpeed: 1300 } }) });
     await test.sync.setUser({ id: 'A' });
     await vi.advanceTimersByTimeAsync(500);
     expect(test.getSettings().scrollSpeed).toBe(1200);
     expect(test.save).not.toHaveBeenCalled();
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.unsynced.entries()).toEqual({ B: { scrollSpeed: 1300 } });
     test.sync.dispose();
   });
 
-  it('서버 1200을 메모리에 반영한 뒤 저장소 쓰기에서 예외가 나도 그 1200을 A의 미동기화 변경으로 표시하지 않아 다음 A 로그인은 서버 값을 적용한다', async () => {
+  it('서버 1200을 메모리에 반영한 뒤 저장소 쓰기에서 예외가 나도 그 1200을 A 항목에 기록하지 않아 다음 A 로그인은 서버 값을 적용한다', async () => {
     const test = setupSync();
     test.applySettings.mockImplementationOnce(next => {
       test.commitInMemory(next);
@@ -623,107 +786,64 @@ describe('미동기화 표시', () => {
     });
     await test.sync.setUser({ id: 'A' });
     expect(test.notice).toHaveBeenCalledWith(ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE);
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.unsynced.entries()).toEqual({});
     await test.sync.setUser({ id: 'A' });
     await vi.advanceTimersByTimeAsync(500);
     expect(test.save).not.toHaveBeenCalled();
     test.sync.dispose();
   });
 
-  it('A 로그인으로 서버 1200을 적용하는 변경 자체는 A 표시를 남기지 않는다', async () => {
+  it('A 로그인으로 서버 1200을 적용하는 변경 자체는 A 항목에 기록하지 않는다', async () => {
     const test = setupSync();
     await test.sync.setUser({ id: 'A' });
     expect(test.getSettings().scrollSpeed).toBe(1200);
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.unsynced.entries()).toEqual({});
     test.sync.dispose();
   });
 
-  it('B 표시가 있을 때 A의 900 변경을 예약하면 한 칸의 표시가 A로 바뀐다', async () => {
+  it('A 저장 실패로 A 항목에 900이 남은 뒤 B 서버 행을 적용하고 다시 A로 로그인하면 A 서버 행 위에 A의 900만 얹어 업로드하고 B 값은 업로드하지 않는다', async () => {
     const test = setupSync();
-    await test.sync.setUser({ id: 'A' });
-    test.setUnsyncedOwner('B');
-    test.change({ scrollSpeed: 900 });
-    expect(test.unsyncedOwner()).toBe('A');
-    test.sync.dispose();
-  });
-
-  it('A의 900 저장 중 다른 탭이 표시를 B로 바꾸면 A 저장 성공 뒤에도 B 표시를 지우지 않는다', async () => {
-    const test = setupSync();
-    await test.sync.setUser({ id: 'A' });
-    const pending = deferred<boolean>();
-    test.save.mockReturnValueOnce(pending.promise);
-    test.change({ scrollSpeed: 900 });
-    await vi.advanceTimersByTimeAsync(500);
-    test.setUnsyncedOwner('B');
-    pending.resolve(true);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(test.unsyncedOwner()).toBe('B');
-    test.sync.dispose();
-  });
-
-  it('A 저장 실패로 A 표시가 남은 뒤 B가 로그인해 서버 1300을 적용하면 표시를 지우고, 다시 A로 로그인하면 서버 1200을 적용하며 A 계정에 B 설정을 올리지 않는다', async () => {
-    const test = setupSync();
-    const serverByUser: Record<string, { scrollSpeed: number }> = { A: { scrollSpeed: 1200 }, B: { scrollSpeed: 1300 } };
-    test.load.mockImplementation(async userId => ({ status: 'found', settings: serverByUser[userId] }));
+    const rowA = accountRow({ scrollSpeed: 1200, liftPercent: 5 });
+    const rowB = accountRow({ scrollSpeed: 1300, liftPercent: 20, gearMotion: false, skinId: 'crystal' });
+    test.load.mockImplementation(async userId => ({ status: 'found', settings: userId === 'A' ? rowA : rowB }));
     await test.sync.setUser({ id: 'A' });
     test.save.mockResolvedValueOnce(false);
     test.change({ scrollSpeed: 900 });
     await vi.advanceTimersByTimeAsync(500);
-    expect(test.unsyncedOwner()).toBe('A');
     await test.sync.setUser(null);
     await test.sync.setUser({ id: 'B' });
-    expect(test.getSettings().scrollSpeed).toBe(1300);
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.getSettings()).toMatchObject({ scrollSpeed: 1300, liftPercent: 20, gearMotion: false });
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 900 } });
     await test.sync.setUser(null);
     await test.sync.setUser({ id: 'A' });
     await vi.advanceTimersByTimeAsync(1000);
-    expect(test.getSettings().scrollSpeed).toBe(1200);
-    expect(test.save.mock.calls.map(([id, settings]) => [id, settings.scrollSpeed])).toEqual([['A', 900]]);
-    expect(test.insertIfAbsent).not.toHaveBeenCalled();
+    expect(test.save.mock.calls.map(([id, settings]) => [id, settings])).toEqual([
+      ['A', { ...rowA, scrollSpeed: 900 }], ['A', { ...rowA, scrollSpeed: 900 }],
+    ]);
+    expect(test.getSettings()).toMatchObject({ scrollSpeed: 900, liftPercent: 5, gearMotion: true, skinId: 'classic' });
+    expect(test.unsynced.entries()).toEqual({});
     test.sync.dispose();
   });
 
-  it('A 표시가 있어 로컬 900을 올리는 저장이 실패하면 저장 실패를 안내하고 표시를 유지하며 이후 1000 변경도 저장한다', async () => {
-    const test = setupSync('A');
-    test.change({ scrollSpeed: 900 });
-    test.save.mockResolvedValueOnce(false);
-    await test.sync.setUser({ id: 'A' });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(test.getSettings().scrollSpeed).toBe(900);
-    expect(test.notice).toHaveBeenCalledWith(ACCOUNT_SETTINGS_SAVE_FAILURE_MESSAGE);
-    expect(test.unsyncedOwner()).toBe('A');
-    test.change({ scrollSpeed: 1000 });
+  it('A 저장이 실패한 탭 1의 900 기록은 메모리가 오래된 탭 2가 다음 A 불러오기에서 서버 행 위에 얹어 업로드하고 탭 2의 liftPercent=70은 업로드하지 않는다', async () => {
+    const storage = createUnsyncedStorage();
+    const tab1 = setupSync({ storage });
+    const tab2 = setupSync({ storage, settings: { liftPercent: 70 } });
+    const row = accountRow({ scrollSpeed: 1200, liftPercent: 10 });
+    tab1.load.mockResolvedValue({ status: 'found', settings: row });
+    tab2.load.mockResolvedValueOnce({ status: 'failed' }).mockResolvedValue({ status: 'found', settings: row });
+    await tab1.sync.setUser({ id: 'A' });
+    await tab2.sync.setUser({ id: 'A' });
+    tab1.save.mockResolvedValueOnce(false);
+    tab1.change({ scrollSpeed: 900 });
     await vi.advanceTimersByTimeAsync(500);
-    expect(test.save.mock.calls.map(([, settings]) => settings.scrollSpeed)).toEqual([900, 1000]);
-    expect(test.unsyncedOwner()).toBeNull();
-    test.sync.dispose();
-  });
-
-  it('A 표시가 있어도 불러오기가 실패하면 업로드하지 않고 표시를 유지한다', async () => {
-    const test = setupSync('A');
-    test.load.mockResolvedValue({ status: 'failed' });
-    await test.sync.setUser({ id: 'A' });
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(test.save).not.toHaveBeenCalled();
-    expect(test.insertIfAbsent).not.toHaveBeenCalled();
-    expect(test.unsyncedOwner()).toBe('A');
-    test.sync.dispose();
-  });
-
-  it('A의 900 저장 대기 중 로그아웃하면 대기 저장을 버리고 표시를 남겨 다음 A 로그인에서 서버 1200 대신 로컬 900을 저장한다', async () => {
-    const test = setupSync();
-    await test.sync.setUser({ id: 'A' });
-    test.change({ scrollSpeed: 900 });
-    await test.sync.setUser(null);
-    await vi.advanceTimersByTimeAsync(1000);
-    expect(test.save).not.toHaveBeenCalled();
-    expect(test.unsyncedOwner()).toBe('A');
-    await test.sync.setUser({ id: 'A' });
+    expect(storage.entries()).toEqual({ A: { scrollSpeed: 900 } });
+    await tab2.sync.setUser({ id: 'A' });
     await vi.advanceTimersByTimeAsync(0);
-    expect(test.getSettings().scrollSpeed).toBe(900);
-    expect(test.save.mock.calls.map(([id, settings]) => [id, settings.scrollSpeed])).toEqual([['A', 900]]);
-    expect(test.unsyncedOwner()).toBeNull();
-    test.sync.dispose();
+    expect(tab2.save.mock.calls.map(([id, settings]) => [id, settings])).toEqual([['A', { ...row, scrollSpeed: 900 }]]);
+    expect(storage.entries()).toEqual({});
+    tab1.sync.dispose();
+    tab2.sync.dispose();
   });
 });
 
@@ -791,61 +911,51 @@ describe('불러오기 실패 안내 반복', () => {
   });
 });
 
-describe('로그인 중 아직 저장하지 못한 변경', () => {
+describe('로그인 중 불러오기 성공 전·실패 뒤의 변경', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('A 불러오기 중 900으로 바꾸면 A 표시를 남기고 서버 행 1200이 오면 적용하지 않고 900을 저장한다', async () => {
+  it('A 불러오기 중 900으로 바꾸면 A 항목에 기록하고 서버 행 1200·liftPercent=10이 오면 900만 얹어 업로드한다', async () => {
     const test = setupSync();
     const pending = deferred<LoadAccountSettingsResult>();
     test.load.mockReturnValueOnce(pending.promise);
     const loading = test.sync.setUser({ id: 'A' });
     test.change({ scrollSpeed: 900 });
-    expect(test.unsyncedOwner()).toBe('A');
-    pending.resolve({ status: 'found', settings: { scrollSpeed: 1200 } });
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 900 } });
+    const row = accountRow({ scrollSpeed: 1200, liftPercent: 10 });
+    pending.resolve({ status: 'found', settings: row });
     await loading;
     await vi.advanceTimersByTimeAsync(0);
-    expect(test.getSettings().scrollSpeed).toBe(900);
-    expect(test.save.mock.calls.map(([, settings]) => settings.scrollSpeed)).toEqual([900]);
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.getSettings()).toMatchObject({ scrollSpeed: 900, liftPercent: 10 });
+    expect(test.save.mock.calls.map(([, settings]) => settings)).toEqual([{ ...row, scrollSpeed: 900 }]);
+    expect(test.unsynced.entries()).toEqual({});
     test.sync.dispose();
   });
 
-  it('A 불러오기 실패 뒤 900으로 바꾸면 바로 올리지 않고 A 표시를 남겨 다음 A 로그인 성공에서 서버 1200 대신 900을 저장한다', async () => {
+  it('A 불러오기 실패 뒤 900으로 바꾸면 바로 업로드하지 않고 기록해 다음 A 불러오기 성공에서 서버 행 위에 900을 얹어 업로드한다', async () => {
     const test = setupSync();
     test.load.mockResolvedValueOnce({ status: 'failed' });
     await test.sync.setUser({ id: 'A' });
     test.change({ scrollSpeed: 900 });
     await vi.advanceTimersByTimeAsync(1000);
     expect(test.save).not.toHaveBeenCalled();
-    expect(test.unsyncedOwner()).toBe('A');
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 900 } });
     await test.sync.setUser({ id: 'A' });
     await vi.advanceTimersByTimeAsync(0);
     expect(test.getSettings().scrollSpeed).toBe(900);
     expect(test.save.mock.calls.map(([id, settings]) => [id, settings.scrollSpeed])).toEqual([['A', 900]]);
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.unsynced.entries()).toEqual({});
     test.sync.dispose();
   });
 
-  it('A의 서버 행이 없어 로컬 900을 삽입하다 실패하면 A 표시를 남겨 다음 A 로그인에서 서버 1200 대신 900을 저장한다', async () => {
+  it('A의 서버 행이 없어 로컬 900을 삽입하다 실패하면 A 항목에 아무것도 기록하지 않고 다음 A 로그인은 서버 1200을 적용한다', async () => {
     const test = setupSync();
     test.change({ scrollSpeed: 900 });
     test.load.mockResolvedValueOnce({ status: 'notFound' });
     test.insertIfAbsent.mockResolvedValueOnce('failed');
     await test.sync.setUser({ id: 'A' });
     expect(test.notice).toHaveBeenCalledWith(ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE);
-    expect(test.unsyncedOwner()).toBe('A');
-    await test.sync.setUser({ id: 'A' });
-    await vi.advanceTimersByTimeAsync(0);
-    expect(test.getSettings().scrollSpeed).toBe(900);
-    expect(test.save.mock.calls.map(([id, settings]) => [id, settings.scrollSpeed])).toEqual([['A', 900]]);
-    test.sync.dispose();
-  });
-
-  it('로그아웃 상태에서 900으로 바꾸면 표시를 남기지 않고 다음 A 로그인은 서버 1200을 적용한다', async () => {
-    const test = setupSync();
-    test.change({ scrollSpeed: 900 });
-    expect(test.unsyncedOwner()).toBeNull();
+    expect(test.unsynced.entries()).toEqual({});
     await test.sync.setUser({ id: 'A' });
     await vi.advanceTimersByTimeAsync(500);
     expect(test.getSettings().scrollSpeed).toBe(1200);
@@ -853,17 +963,30 @@ describe('로그인 중 아직 저장하지 못한 변경', () => {
     test.sync.dispose();
   });
 
-  it('직전 A가 남긴 표시가 있으면 로그아웃 중 바꾼 1000까지 다음 A 로그인에서 서버 1200 대신 올린다', async () => {
+  it('로그아웃 상태에서 900으로 바꾸면 기록하지 않고 다음 A 로그인은 서버 1200을 적용한다', async () => {
+    const test = setupSync();
+    test.change({ scrollSpeed: 900 });
+    expect(test.unsynced.entries()).toEqual({});
+    await test.sync.setUser({ id: 'A' });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(test.getSettings().scrollSpeed).toBe(1200);
+    expect(test.save).not.toHaveBeenCalled();
+    test.sync.dispose();
+  });
+
+  it('A 항목에 900이 남은 채 로그아웃 중 scrollSpeed=1000·liftPercent=50으로 바꿔도 다음 A 로그인은 서버 행 위에 기록된 900만 얹어 업로드하고 로그아웃 중 값은 업로드하지 않는다', async () => {
     const test = setupSync();
     await test.sync.setUser({ id: 'A' });
     test.change({ scrollSpeed: 900 });
     await test.sync.setUser(null);
-    test.change({ scrollSpeed: 1000 });
-    expect(test.unsyncedOwner()).toBe('A');
+    test.change({ scrollSpeed: 1000, liftPercent: 50 });
+    expect(test.unsynced.entries()).toEqual({ A: { scrollSpeed: 900 } });
+    const row = accountRow({ scrollSpeed: 1200, liftPercent: 10 });
+    test.load.mockResolvedValue({ status: 'found', settings: row });
     await test.sync.setUser({ id: 'A' });
     await vi.advanceTimersByTimeAsync(0);
-    expect(test.getSettings().scrollSpeed).toBe(1000);
-    expect(test.save.mock.calls.map(([id, settings]) => [id, settings.scrollSpeed])).toEqual([['A', 1000]]);
+    expect(test.getSettings()).toMatchObject({ scrollSpeed: 900, liftPercent: 10 });
+    expect(test.save.mock.calls.map(([id, settings]) => [id, settings])).toEqual([['A', { ...row, scrollSpeed: 900 }]]);
     test.sync.dispose();
   });
 });

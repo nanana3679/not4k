@@ -18,6 +18,11 @@ let cleanup: (() => void) | undefined;
 let visibility: EventTarget & { visibilityState: string };
 const browserValues = new Map<string, string>();
 
+/** 최초 실행을 이미 끝낸 브라우저로 시작한다. 최초 실행 중의 변경은 unsyncedAccountSettings에 기록하지 않는다. */
+function finishFirstLaunch(settings: Record<string, unknown> = {}) {
+  browserValues.set('not4k-settings', JSON.stringify({ state: { settings: { isFirstLaunch: false, ...settings } }, version: 0 }));
+}
+
 async function mount() {
   const { subscribeAccountSettingsSync } = await import('./useAccountSettingsSync');
   const { useGameStore } = await import('../stores/gameStore');
@@ -87,7 +92,8 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     );
   });
 
-  it('서버 1200의 localStorage 저장이 실패하면 안내하고 이후 900 변경은 바로 올리지 않다가 다음 SIGNED_IN에서 서버 1200 대신 900을 저장한다', async () => {
+  it('서버 1200의 localStorage 저장이 실패하면 안내하고 이후 900 변경은 바로 업로드하지 않다가 다음 SIGNED_IN에서 서버 행 위에 900을 얹어 업로드한다', async () => {
+    finishFirstLaunch();
     const write = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('quota exceeded'); });
     const store = await mount();
     expect(mocks.toast).toHaveBeenCalledWith(
@@ -151,7 +157,8 @@ describe('게임 루트 계정 설정 동기화 연결', () => {
     expect(store.getState().settings.scrollSpeed).toBe(1300);
     expect(mocks.upsert).not.toHaveBeenCalled();
   });
-  it('불러오기 실패 뒤 TOKEN_REFRESHED는 재시도하지 않고 다음 SIGNED_IN 성공에서 실패 중 바꾼 950을 서버 1200 대신 저장한다', async () => {
+  it('불러오기 실패 뒤 TOKEN_REFRESHED는 재시도하지 않고 다음 SIGNED_IN 성공에서 실패 중 바꾼 950을 서버 행 위에 얹어 업로드한다', async () => {
+    finishFirstLaunch();
     mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: { message: 'offline' } });
     const store = await mount();
     expect(mocks.toast).toHaveBeenCalledWith(
@@ -232,7 +239,8 @@ describe('새 브라우저의 프리셋 선택 화면', () => {
     expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
-  it('title 화면에서 A의 서버 행을 적용하면 title에 두고 isFirstLaunch=false만 바꿔 Start가 프리셋 선택을 건너뛰게 한다', async () => {
+  it('title 화면에서 A의 서버 행 keyBindings를 적용하면 화면은 title에 두고 isFirstLaunch=false로 바꾼다', async () => {
+    mocks.maybeSingle.mockResolvedValue({ data: { settings: { keyBindings: accountBindings } }, error: null, status: 200 });
     const store = await mount();
     expect(store.getState().screen).toBe('title');
     expect(store.getState().settings.isFirstLaunch).toBe(false);
@@ -251,61 +259,69 @@ describe('새 브라우저의 프리셋 선택 화면', () => {
   });
 });
 
-describe('브라우저의 미동기화 표시', () => {
-  const MARKER_KEY = 'not4k-account-settings-unsynced';
+describe('localStorage의 unsyncedAccountSettings', () => {
+  const UNSYNCED_KEY = 'not4k-account-settings-unsynced';
+  const unsyncedEntries = () => JSON.parse(browserValues.get(UNSYNCED_KEY) ?? '{}');
 
-  it('A의 900 변경을 예약하면 localStorage 한 칸에 사용자 id A를 남기고 저장 성공 뒤 지운다', async () => {
+  it('A의 900 변경을 예약하면 not4k-account-settings-unsynced에 A의 scrollSpeed=900을 기록하고 저장 성공 뒤 키를 지운다', async () => {
+    finishFirstLaunch();
     const store = await mount();
     store.getState().updateSettings({ scrollSpeed: 900 });
-    expect(browserValues.get(MARKER_KEY)).toBe('A');
+    expect(unsyncedEntries()).toEqual({ A: { scrollSpeed: 900 } });
     await vi.advanceTimersByTimeAsync(500);
     expect(mocks.upsert).toHaveBeenCalledTimes(1);
-    expect(browserValues.has(MARKER_KEY)).toBe(false);
+    expect(browserValues.has(UNSYNCED_KEY)).toBe(false);
   });
 
-  it('localStorage 표시가 A이고 로컬 900이 있으면 앱 시작 시 서버 1200 대신 로컬 900을 upsert하고 표시를 지운다', async () => {
-    browserValues.set('not4k-settings', JSON.stringify({ state: { settings: { scrollSpeed: 900 } }, version: 0 }));
-    browserValues.set(MARKER_KEY, 'A');
+  it('localStorage에 A의 scrollSpeed=900 기록이 있으면 앱 시작 시 서버 행 1200·liftPercent=10 위에 900을 얹어 upsert하고 기록을 지운다', async () => {
+    finishFirstLaunch({ liftPercent: 70 });
+    browserValues.set(UNSYNCED_KEY, JSON.stringify({ A: { scrollSpeed: 900 } }));
+    mocks.maybeSingle.mockResolvedValue({ data: { settings: { scrollSpeed: 1200, liftPercent: 10 } }, error: null, status: 200 });
     const store = await mount();
-    expect(store.getState().settings.scrollSpeed).toBe(900);
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      { user_id: 'A', settings: expect.objectContaining({ scrollSpeed: 900 }), updated_at: expect.any(String) }, { onConflict: 'user_id' },
-    );
-    expect(browserValues.has(MARKER_KEY)).toBe(false);
+    expect(store.getState().settings).toMatchObject({ scrollSpeed: 900, liftPercent: 10 });
+    expect(mocks.upsert).toHaveBeenCalledWith({ user_id: 'A',
+      settings: expect.objectContaining({ scrollSpeed: 900, liftPercent: 10 }), updated_at: expect.any(String) }, { onConflict: 'user_id' });
+    expect(browserValues.has(UNSYNCED_KEY)).toBe(false);
   });
 
-  it('localStorage 표시가 B이면 A 앱 시작은 서버 1200을 적용하고 B 표시를 지운다', async () => {
-    browserValues.set(MARKER_KEY, 'B');
+  it('localStorage에 B의 기록만 있으면 A 앱 시작은 서버 1200을 적용하고 B 기록을 그대로 둔다', async () => {
+    browserValues.set(UNSYNCED_KEY, JSON.stringify({ B: { scrollSpeed: 1300 } }));
     const store = await mount();
     expect(store.getState().settings.scrollSpeed).toBe(1200);
     expect(mocks.upsert).not.toHaveBeenCalled();
-    expect(browserValues.has(MARKER_KEY)).toBe(false);
+    expect(unsyncedEntries()).toEqual({ B: { scrollSpeed: 1300 } });
   });
 
-  it('A 저장 실패로 표시 A가 남은 뒤 B 로그인으로 서버 1300을 적용하고 다시 A로 로그인하면 서버 1200을 적용하고 A에 B 설정을 올리지 않는다', async () => {
+  it('A 저장 실패로 A 기록이 남은 뒤 B 서버 행을 적용하고 다시 A로 로그인하면 A 서버 행 위에 A의 900만 얹어 업로드한다', async () => {
+    finishFirstLaunch();
+    const rowA = { scrollSpeed: 1200, liftPercent: 5 };
+    mocks.maybeSingle.mockResolvedValue({ data: { settings: rowA }, error: null, status: 200 });
     const store = await mount();
     mocks.saveResponse.mockResolvedValueOnce({ error: { message: 'offline' }, status: 0 });
     store.getState().updateSettings({ scrollSpeed: 900 });
     await vi.advanceTimersByTimeAsync(500);
-    expect(browserValues.get(MARKER_KEY)).toBe('A');
+    expect(unsyncedEntries()).toEqual({ A: { scrollSpeed: 900 } });
     emit('SIGNED_OUT', null);
-    mocks.maybeSingle.mockResolvedValueOnce({ data: { settings: { scrollSpeed: 1300 } }, error: null, status: 200 });
+    mocks.maybeSingle.mockResolvedValueOnce({ data: { settings: { scrollSpeed: 1300, liftPercent: 20 } }, error: null, status: 200 });
     emit('SIGNED_IN', session('B'));
     await vi.advanceTimersByTimeAsync(0);
-    expect(store.getState().settings.scrollSpeed).toBe(1300);
-    expect(browserValues.has(MARKER_KEY)).toBe(false);
+    expect(store.getState().settings).toMatchObject({ scrollSpeed: 1300, liftPercent: 20 });
+    expect(unsyncedEntries()).toEqual({ A: { scrollSpeed: 900 } });
     emit('SIGNED_OUT', null);
     emit('SIGNED_IN', session('A'));
     await vi.advanceTimersByTimeAsync(1000);
-    expect(store.getState().settings.scrollSpeed).toBe(1200);
-    expect(mocks.upsert.mock.calls.map(([row]) => [row.user_id, row.settings.scrollSpeed])).toEqual([['A', 900]]);
+    expect(store.getState().settings).toMatchObject({ scrollSpeed: 900, liftPercent: 5 });
+    expect(mocks.upsert.mock.calls.map(([row]) => [row.user_id, row.settings.scrollSpeed, row.settings.liftPercent]))
+      .toEqual([['A', 900, 5], ['A', 900, 5]]);
+    expect(browserValues.has(UNSYNCED_KEY)).toBe(false);
   });
 
-  it('미동기화 표시를 localStorage에 쓰지 못해도 A의 900 변경은 500ms 뒤 저장한다', async () => {
+  it('unsyncedAccountSettings를 localStorage에 쓰지 못해도 A의 900 변경은 500ms 뒤 저장한다', async () => {
+    finishFirstLaunch();
     const store = await mount();
     const write = localStorage.setItem;
     vi.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
-      if (key === MARKER_KEY) throw new Error('quota exceeded');
+      if (key === UNSYNCED_KEY) throw new Error('quota exceeded');
       write(key, value);
     });
     store.getState().updateSettings({ scrollSpeed: 900 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect } from 'vitest';
-import { mergePersistedSettings, useGameStore } from './gameStore';
+import { LOWER_BOUND_EXEMPT_SETTINGS, mergePersistedSettings, useGameStore, type GameSettings } from './gameStore';
 import { RENDER_HEIGHT_OPTIONS, SETTING_SLIDER_RANGES } from './settingRanges';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
 import { prepareNormalPlay } from './explicitPlayRequest';
@@ -78,12 +78,17 @@ describe('mergePersistedSettings', () => {
     },
   );
 
-  it.each(Object.entries(SETTING_SLIDER_RANGES).filter(([key]) => key !== 'playSpeed'))(
+  it.each(Object.entries(SETTING_SLIDER_RANGES)
+    .filter(([key]) => !LOWER_BOUND_EXEMPT_SETTINGS.includes(key as keyof GameSettings)))(
     '설정 UI 슬라이더 %s의 최솟값보다 1 작은 값을 복원하면 공유 범위의 최솟값이 된다', (key, { min }) => {
       const result = mergePersistedSettings({ settings: { [key]: min - 1 } }, useGameStore.getInitialState());
       expect(result.settings[key as keyof typeof result.settings]).toBe(min);
     },
   );
+
+  it('복원 하한 예외는 개발·E2E가 UI 최솟값보다 작은 값을 저장소로 넣는 playSpeed·renderHeight뿐이다', () => {
+    expect([...LOWER_BOUND_EXEMPT_SETTINGS].sort()).toEqual(['playSpeed', 'renderHeight']);
+  });
 
   it('렌더 해상도는 설정 UI 선택지의 최댓값보다 큰 값을 그 최댓값으로 복원한다', () => {
     const max = Math.max(...RENDER_HEIGHT_OPTIONS);

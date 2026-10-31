@@ -148,12 +148,19 @@ export function clampTimingOffsetMs(value: unknown): number {
     : 0;
 }
 
-// 개발·E2E는 UI 최솟값보다 느린 배속 0.25와 낮은 해상도 600을 저장소로 넣어 쓴다.
-// 그래서 이 둘은 UI 최댓값으로만 제한하고, 재생·렌더링이 성립하지 않는 0 이하는 기본값으로 둔다.
-const SETTING_UI_MAXIMUMS: Partial<Record<keyof GameSettings, number>> = {
-  playSpeed: SETTING_SLIDER_RANGES.playSpeed.max,
-  renderHeight: Math.max(...RENDER_HEIGHT_OPTIONS),
-};
+/**
+ * 복원할 때 UI 최솟값을 적용하지 않는 설정. 개발·E2E는 UI 최솟값보다 느린 배속 0.25와 낮은 해상도 600을
+ * 저장소로 넣어 쓴다. 이 설정은 UI 최댓값만 제한하고, 재생·렌더링이 성립하지 않는 0 이하는 기본값으로 둔다.
+ * 서버 값은 계정 설정 병합에서 따로 엄격하게 검사한다.
+ */
+export const LOWER_BOUND_EXEMPT_SETTINGS: readonly (keyof GameSettings)[] = ['playSpeed', 'renderHeight'];
+
+// 복원 정규화에 쓰는 설정별 [최솟값, 최댓값]. 설정 패널과 같은 상수에서 만든다.
+const RESTORE_RANGES: [keyof GameSettings, number, number][] = [
+  ...Object.entries(SETTING_SLIDER_RANGES)
+    .map(([key, { min, max }]): [keyof GameSettings, number, number] => [key as keyof GameSettings, min, max]),
+  ['renderHeight', Math.min(...RENDER_HEIGHT_OPTIONS), Math.max(...RENDER_HEIGHT_OPTIONS)],
+];
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -170,14 +177,11 @@ export function mergePersistedSettings(
   merged.inputOffsetMs = clampTimingOffsetMs(merged.inputOffsetMs);
   merged.visualOffsetMs = clampTimingOffsetMs(merged.visualOffsetMs);
   // 저장소·서버에서 온 값이 플레이를 깨지 않게 설정 UI 범위로 제한하고, 숫자가 아니면 기본값으로 되돌린다.
-  for (const [key, { min, max }] of Object.entries(SETTING_SLIDER_RANGES)) {
-    if (Object.hasOwn(SETTING_UI_MAXIMUMS, key)) continue;
+  for (const [key, min, max] of RESTORE_RANGES) {
     const value = merged[key];
-    merged[key] = isFiniteNumber(value) ? Math.max(min, Math.min(max, value)) : DEFAULT_SETTINGS[key as keyof GameSettings];
-  }
-  for (const [key, max] of Object.entries(SETTING_UI_MAXIMUMS)) {
-    const value = merged[key];
-    merged[key] = isFiniteNumber(value) && value > 0 ? Math.min(max, value) : DEFAULT_SETTINGS[key as keyof GameSettings];
+    if (!isFiniteNumber(value)) merged[key] = DEFAULT_SETTINGS[key];
+    else if (LOWER_BOUND_EXEMPT_SETTINGS.includes(key)) merged[key] = value > 0 ? Math.min(max, value) : DEFAULT_SETTINGS[key];
+    else merged[key] = Math.max(min, Math.min(max, value));
   }
   // 스킨 목록에 없는 id는 SkinManager가 불러오지 못하므로 기본 스킨으로 되돌린다. 선택 UI에서 숨긴 스킨도 목록에는 있다.
   if (!SKIN_LIST.some(skin => skin.theme.id === merged.skinId)) merged.skinId = DEFAULT_SETTINGS.skinId;

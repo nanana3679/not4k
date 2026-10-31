@@ -6,21 +6,21 @@ import { DEV_ADMIN } from '../../shared/hooks/useAuth';
 import { useGameStore } from '../stores/gameStore';
 import { createAccountSettingsAdapter } from './accountSettingsAdapter';
 import {
-  ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE, createAccountSettingsSync, type UnsyncedAccountSettingsMarker,
+  ACCOUNT_SETTINGS_LOAD_FAILURE_MESSAGE, createAccountSettingsSync, type UnsyncedAccountSettingsStorage,
 } from './accountSettingsSync';
 
-const UNSYNCED_MARKER_KEY = 'not4k-account-settings-unsynced';
+const UNSYNCED_ACCOUNT_SETTINGS_KEY = 'not4k-account-settings-unsynced';
 
-/** 미동기화 표시를 localStorage 한 칸에 사용자 id로 둔다. 저장소를 쓸 수 없으면 표시 없음으로 보고 동기화는 계속한다. */
-const browserUnsyncedMarker: UnsyncedAccountSettingsMarker = {
-  owner: () => {
-    try { return localStorage.getItem(UNSYNCED_MARKER_KEY) || null; } catch { return null; }
+/** `unsyncedAccountSettings`를 localStorage에 둔다. 저장소를 쓸 수 없으면 기록 없음으로 보고 동기화는 계속한다. */
+const browserUnsyncedStorage: UnsyncedAccountSettingsStorage = {
+  read: () => {
+    try { return localStorage.getItem(UNSYNCED_ACCOUNT_SETTINGS_KEY); } catch { return null; }
   },
-  set: userId => {
-    try { localStorage.setItem(UNSYNCED_MARKER_KEY, userId); } catch { /* 표시 없이 진행한다. */ }
-  },
-  clear: () => {
-    try { localStorage.removeItem(UNSYNCED_MARKER_KEY); } catch { /* 다음 성공 때 다시 지운다. */ }
+  write: raw => {
+    try {
+      if (raw === null) localStorage.removeItem(UNSYNCED_ACCOUNT_SETTINGS_KEY);
+      else localStorage.setItem(UNSYNCED_ACCOUNT_SETTINGS_KEY, raw);
+    } catch { /* 기록 없이 진행한다. */ }
   },
 };
 
@@ -40,7 +40,7 @@ export function subscribeAccountSettingsSync(): () => void {
       subscribe: listener => useGameStore.subscribe(listener),
     },
     notice: message => showToast(message, 'error'),
-    unsyncedMarker: browserUnsyncedMarker,
+    unsyncedStorage: browserUnsyncedStorage,
     timers: { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: id => clearTimeout(id) },
   });
   let active = true;
