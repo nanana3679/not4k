@@ -29,6 +29,29 @@ export const color = {
   slow: '#f0854a', // 타이밍 느림 (방향 정보, 오류 아님)
 };
 
+/** 에디터와 Observer 미니맵이 공유하는 축소 차트 팔레트(Pixi 색상). */
+export const minimapColor = {
+  LANE_BG_EVEN: 0x26263f,
+  LANE_BG_ODD: 0x202038,
+  SINGLE_NOTE: 0x4488ff,
+  DOUBLE_NOTE: 0xffcc00,
+  TRILL_NOTE: 0xffffff,
+  SINGLE_LONG: 0x88bbff,
+  DOUBLE_LONG: 0xffee88,
+  TRILL_LONG: 0xaaaaaa,
+  TRILL_ZONE: 0x00ff88,
+  TRILL_ZONE_ALPHA: 0.2,
+  REST_ZONE: 0x000000,
+  REST_ZONE_ALPHA: 0.6,
+};
+
+export const minimapSurface = {
+  background: 'rgba(0, 0, 0, 0.5)',
+  measure: 'rgba(255, 255, 255, 0.2)',
+  selection: 'rgba(255, 255, 255, 0.15)',
+  selectionBorder: 'rgba(255, 255, 255, 0.5)',
+};
+
 // 금속 서피스 그라디언트 (사선 브러시드 메탈)
 export const surface = {
   screen: 'radial-gradient(120% 80% at 50% -10%, #171b21 0%, #0d0f12 55%)',

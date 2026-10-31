@@ -25,6 +25,9 @@ export interface ObserverPlayState {
   readonly manualStats: ObserverManualStats | null;
   /** 구간 변경 대기 중에는 정지 화면의 기준 위치. 그 밖에는 출력 지연을 반영한 곡 시각(첫 출력 전 음수 허용). */
   readonly songTimeMs: number;
+  readonly range: ObserverRange | null;
+  /** playbackRange를 적용한 실제 재생 음원의 길이. 원본 AudioBuffer 길이와 다를 수 있다. */
+  readonly durationMs: number;
 }
 export interface ObserverPlayRuntimeOptions {
   request: Pick<ExplicitPlayRequest, 'compiled' | 'document' | 'audioBuffer' | 'playbackRange'>;
@@ -190,8 +193,8 @@ export class ObserverPlayRuntime {
     if (range.startMs === previous.startMs && range.endMs === previous.endMs) return;
     try {
       const chart = selectExplicitRangePlaybackChart(this.options.request.compiled, range.startMs, range.endMs);
-      const songTimeMs = range.startMs !== previous.startMs ? range.startMs
-        : this.rangePreview?.songTimeMs ?? this.clock!.judgmentTimeMs();
+      // 끝 핸들만 바꾼 첫 드래그도 선택 시작점을 본다. 직전 재생 위치를 미리보기 기준으로 남기지 않는다.
+      const songTimeMs = range.startMs;
       const autoEnabled = this.rangePreview?.autoEnabled ?? this.repetition.autoEnabled;
       if (!this.rangePreview) this.renderer!.resetTransientState();
       this.selectedRange = Object.freeze({ startMs: range.startMs, endMs: range.endMs });
@@ -315,7 +318,7 @@ export class ObserverPlayRuntime {
       || manualStats?.achievementRate !== this.lastState?.manualStats?.achievementRate;
     if (!notifyImmediately && !stateChanged && timestamp - this.lastStateAt < 100) return;
     this.lastStateAt = timestamp;
-    this.lastState = { autoEnabled, manualStats, songTimeMs };
+    this.lastState = { autoEnabled, manualStats, songTimeMs, range: this.selectedRange, durationMs: this.audio!.duration };
     this.options.onState?.(this.lastState);
   }
 

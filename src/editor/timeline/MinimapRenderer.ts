@@ -4,7 +4,7 @@
  */
 
 import { Container, Graphics, TextStyle } from "pixi.js";
-import { beatToMs, measureStartBeat, isMainLane } from "../../shared";
+import { beatToMs, measureStartBeat } from "../../shared";
 import {
   LANE_COUNT,
   COLORS,
@@ -15,6 +15,7 @@ import { isRightRailX } from "./timelineViewport";
 import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
 import { computeMinimapRestZoneRects } from "./minimapRestZone";
 import { computeMinimapViolationRects, type MinimapViolationRect } from "./minimapViolation";
+import { minimapNoteRect } from "../../shared/minimapNote";
 import type { ChartDocument } from "../../shared";
 
 /** MinimapRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
@@ -266,52 +267,12 @@ export class MinimapRenderer {
     };
 
     for (const note of notes) {
-      // 보조 레인(5+)은 미니맵에 표시하지 않는다 (chart-editor 스펙 · RFD 0018 §6-6)
-      if (!isMainLane(note.lane)) continue;
-      const timeMs = beatToMs(note.beat, bpmChanges, meta.offsetMs);
-      const containerY = this.host.timeToY(timeMs);
-      const my = toMinimapY(containerY);
-
-      const laneIdx = note.lane - 1;
-      const noteX = trackX + laneIdx * laneW;
-
-      if ("endBeat" in note) {
-        // Range note (long note): draw filled rect from start to end
-        const endMs = beatToMs(note.endBeat, bpmChanges, meta.offsetMs);
-        const endContainerY = this.host.timeToY(endMs);
-        const endMy = toMinimapY(endContainerY);
-
-        let noteColor: number;
-        switch (note.type) {
-          case "body": noteColor = note.trill ? COLORS.TRILL_LONG : note.holdCount === 2 ? COLORS.DOUBLE_LONG : COLORS.SINGLE_LONG; break;
-          case "long": noteColor = COLORS.SINGLE_LONG; break;
-          case "doubleLong": noteColor = COLORS.DOUBLE_LONG; break;
-          case "trillLong": noteColor = COLORS.TRILL_LONG; break;
-          default: noteColor = COLORS.SINGLE_LONG;
-        }
-
-        const topY = Math.min(my, endMy);
-        const height = Math.max(1, Math.abs(endMy - my));
-        const batch = getBatch(rangeBatches, noteColor);
-        batch.gfx.rect(noteX, topY, laneW, height);
-        batch.count++;
-      } else {
-        // Point note: 1px height horizontal line
-        let noteColor: number;
-        switch (note.type) {
-          case "tap": noteColor = note.kind === "double" ? COLORS.DOUBLE_NOTE : note.kind === "trill" ? COLORS.TRILL_NOTE : COLORS.SINGLE_NOTE; break;
-          case "release": noteColor = note.count === 2 ? COLORS.DOUBLE_NOTE : COLORS.SINGLE_NOTE; break;
-          case "tick": noteColor = note.count === 2 ? COLORS.DOUBLE_LONG : COLORS.SINGLE_LONG; break;
-          case "single": noteColor = COLORS.SINGLE_NOTE; break;
-          case "double": noteColor = COLORS.DOUBLE_NOTE; break;
-          case "trill": noteColor = COLORS.TRILL_NOTE; break;
-          default: noteColor = COLORS.SINGLE_NOTE;
-        }
-
-        const batch = getBatch(pointBatches, noteColor);
-        batch.gfx.rect(noteX, my, laneW, 1);
-        batch.count++;
-      }
+      const rect = minimapNoteRect(note,
+        beat => toMinimapY(this.host.timeToY(beatToMs(beat, bpmChanges, meta.offsetMs))), laneW, trackX);
+      if (!rect) continue;
+      const batch = getBatch(rect.alpha === 0.5 ? rangeBatches : pointBatches, rect.color);
+      batch.gfx.rect(rect.x, rect.y, rect.width, rect.height);
+      batch.count++;
     }
 
     for (const [color, batch] of rangeBatches) {

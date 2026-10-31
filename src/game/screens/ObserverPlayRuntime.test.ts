@@ -152,7 +152,7 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     expect(renderer.setChartVisible).toHaveBeenLastCalledWith(true);
     expect(audio.playFadedSpan.mock.invocationCallOrder[0]).toBeGreaterThan(renderer.prepareForPlayback.mock.invocationCallOrder[0]);
     expect(run.onPhase.mock.calls).toEqual([['loading'], ['playing']]);
-    expect(run.state()).toEqual({ autoEnabled: true, manualStats: null, songTimeMs: 0 });
+    expect(run.state()).toMatchObject({ autoEnabled: true, manualStats: null, songTimeMs: 0 });
     // InputSystem keydown·keyup 2개와 정지 중 키 표시 갱신 1개.
     expect(run.target.listeners.size).toBe(3); expect(frames.size).toBe(1); expect(run.onError).not.toHaveBeenCalled();
   });
@@ -281,13 +281,13 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     const run = create([p(110), p(130)]); await run.player.start(); run.player.setAuto(false); frame(100);
     run.onState.mockClear();
     at(110); key(run.target, 'keydown'); frame(110);
-    expect(run.onState).toHaveBeenCalledExactlyOnceWith({ autoEnabled: false,
-      manualStats: { combo: 1, achievementRate: 100 }, songTimeMs: 110 });
+    expect(run.onState).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ autoEnabled: false,
+      manualStats: { combo: 1, achievementRate: 100 }, songTimeMs: 110 }));
     at(120); key(run.target, 'keyup'); frame(120);
     expect(run.onState).toHaveBeenCalledOnce();
     at(130); key(run.target, 'keydown'); frame(130);
     expect(run.onState).toHaveBeenCalledTimes(2);
-    expect(run.state()).toEqual({ autoEnabled: false, manualStats: { combo: 2, achievementRate: 100 }, songTimeMs: 130 });
+    expect(run.state()).toMatchObject({ autoEnabled: false, manualStats: { combo: 2, achievementRate: 100 }, songTimeMs: 130 });
     expect(run.onError).not.toHaveBeenCalled();
   });
 
@@ -299,7 +299,7 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
       expect(run.onState).toHaveBeenCalledOnce(); expect(run.state().songTimeMs).toBe(0);
     }
     frame(3999); run.onState.mockClear(); frame(4000);
-    expect(run.onState).toHaveBeenCalledExactlyOnceWith({ autoEnabled: true, manualStats: null, songTimeMs: 0 });
+    expect(run.onState).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ autoEnabled: true, manualStats: null, songTimeMs: 0 }));
     frame(16);
     expect(run.onState).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
   });
@@ -417,7 +417,7 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     const run = create([p(1000), b(1000, 3000), r(3000)]); await run.player.start(); frame(1500);
     run.player.togglePause(); run.player.setAuto(false); expectKeys(false);
     wallFrame(6500); run.player.setAuto(true); expectKeys(true);
-    expect(run.state()).toEqual({ autoEnabled: true, manualStats: null, songTimeMs: 1500 });
+    expect(run.state()).toMatchObject({ autoEnabled: true, manualStats: null, songTimeMs: 1500 });
     expect(fixture.audio[0].resume).not.toHaveBeenCalled();
     run.player.togglePause(); frame(2000);
     expect(snapshot().bodyUnits[0].state).toBe('active'); expect(run.onError).not.toHaveBeenCalled();
@@ -471,7 +471,7 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     const run = create(); await run.player.start(); run.player.setAuto(false); frame(1500); run.player.togglePause();
     run.player.retry();
     expect(run.onPhase).toHaveBeenLastCalledWith('playing');
-    expect(run.state()).toEqual({ autoEnabled: false, manualStats: { combo: 0, achievementRate: 0 }, songTimeMs: 0 });
+    expect(run.state()).toMatchObject({ autoEnabled: false, manualStats: { combo: 0, achievementRate: 0 }, songTimeMs: 0 });
     expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledTimes(2); expect(fixture.audio[0].resume).not.toHaveBeenCalled();
     expect(run.onError).not.toHaveBeenCalled();
   });
@@ -542,7 +542,7 @@ describe('ObserverPlayRuntime 선택 구간 편집', () => {
     expect(audio.playFadedSpan).toHaveBeenLastCalledWith(fadedSpan, 2000);
     expect(audio.resume).not.toHaveBeenCalled();
     expect(run.onPhase.mock.calls).toEqual([['paused'], ['playing']]);
-    expect(run.state()).toEqual({ autoEnabled: true, manualStats: null, songTimeMs: 2000 });
+    expect(run.state()).toMatchObject({ autoEnabled: true, manualStats: null, songTimeMs: 2000 });
     expect(run.onError).not.toHaveBeenCalled();
   });
 
@@ -567,14 +567,30 @@ describe('ObserverPlayRuntime 선택 구간 편집', () => {
     expect(run.request.compiled.scoreItems).toHaveLength(5); expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it('5000～8000ms 재생을 6000ms에서 멈추고 끝만 9000ms로 바꾸면 표시 위치는 6000ms에 남는다', async () => {
+  it('5000～8000ms 재생을 6000ms에서 멈추고 끝만 9000ms로 바꾸면 선택 시작 5000ms를 표시한다', async () => {
     const run = create([p(7000)], {}, 12); await run.player.start(); select(run.player); run.player.togglePause(); frame(6000);
     run.player.beginRangeEdit(); run.player.setRange({ startMs: 5000, endMs: 9000 }); run.player.endRangeEdit();
-    expect(run.state().songTimeMs).toBe(6000);
-    expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(6000, 0);
+    expect(run.state().songTimeMs).toBe(5000);
+    expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(5000, 0);
     run.player.togglePause();
     expect(fixture.audio[0].playFadedSpan).toHaveBeenLastCalledWith({ ...fadedSpan, fadeOutFromMs: 9000, toMs: 12000 }, 2000);
     expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('30초 곡의 range·duration 알림은 시각만 바뀌면 100ms를 기다리고 12000～24000ms 편집은 즉시 새 범위를 보낸다', async () => {
+    const run = create([p(16000)], {}, 30); await run.player.start();
+    const first = run.state();
+    expect(first).toMatchObject({ range: { startMs: 0, endMs: 30000 }, durationMs: 30000 });
+    run.onState.mockClear(); frame(20); frame(99);
+    expect(run.onState).not.toHaveBeenCalled();
+    frame(100); expect(run.onState).toHaveBeenCalledOnce();
+    expect(run.state().range).toBe(first.range);
+    run.player.beginRangeEdit(); run.onState.mockClear();
+    run.player.setRange({ startMs: 12000, endMs: 24000 });
+    expect(run.onState).toHaveBeenCalledExactlyOnceWith({ autoEnabled: true, manualStats: null,
+      songTimeMs: 12000, range: { startMs: 12000, endMs: 24000 }, durationMs: 30000 });
+    expect(first.range).toEqual({ startMs: 0, endMs: 30000 });
+    expect(Object.isFrozen(run.state().range)).toBe(true);
   });
 
   it('길이 3000ms인 구간 몸통을 6250.5～9250.5ms로 옮기면 스냅 없이 6250.5ms를 표시한다', async () => {
@@ -614,10 +630,10 @@ describe('ObserverPlayRuntime 선택 구간 편집', () => {
     const previousSession = advance.mock.contexts.at(-1);
     expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
     select(run.player);
-    expect(run.state()).toEqual({ autoEnabled: false, manualStats: { combo: 0, achievementRate: 0 }, songTimeMs: 5000 });
+    expect(run.state()).toMatchObject({ autoEnabled: false, manualStats: { combo: 0, achievementRate: 0 }, songTimeMs: 5000 });
     run.player.togglePause(); frame(2000);
     expect(advance.mock.contexts.at(-1)).not.toBe(previousSession);
-    expect(run.state()).toEqual({ autoEnabled: false, manualStats: { combo: 0, achievementRate: 0 }, songTimeMs: 2000 });
+    expect(run.state()).toMatchObject({ autoEnabled: false, manualStats: { combo: 0, achievementRate: 0 }, songTimeMs: 2000 });
     at(6000); key(run.target, 'keydown'); frame(6000);
     expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 }); expect(run.onError).not.toHaveBeenCalled();
   });
@@ -627,7 +643,7 @@ describe('ObserverPlayRuntime 선택 구간 편집', () => {
     expect(run.state().autoEnabled).toBe(true); expect(run.state().manualStats).toBeNull();
     for (const enabled of [false, true, false]) {
       run.player.setAuto(enabled);
-      expect(run.state()).toEqual({ autoEnabled: enabled, manualStats: enabled ? null : { combo: 0, achievementRate: 0 }, songTimeMs: 5000 });
+      expect(run.state()).toMatchObject({ autoEnabled: enabled, manualStats: enabled ? null : { combo: 0, achievementRate: 0 }, songTimeMs: 5000 });
       expect(fixture.audio[0].running).toBe(false);
     }
     run.player.endRangeEdit(); run.player.togglePause();
@@ -645,7 +661,7 @@ describe('ObserverPlayRuntime 선택 구간 편집', () => {
       restart();
       expect(fixture.audio[0].playFadedSpan).toHaveBeenLastCalledWith(fadedSpan, 2000);
       expect(snapshot().atMs).toBe(2000); expect(snapshot().items[0].settlementFactId).toBeNull();
-      expect(run.state()).toEqual({ autoEnabled: false, manualStats: { combo: 0, achievementRate: 0 }, songTimeMs: 2000 });
+      expect(run.state()).toMatchObject({ autoEnabled: false, manualStats: { combo: 0, achievementRate: 0 }, songTimeMs: 2000 });
     }
     expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledTimes(4); expect(run.onError).not.toHaveBeenCalled();
   });

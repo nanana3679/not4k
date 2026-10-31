@@ -18,8 +18,8 @@ function observerDocument(): ChartDocument {
   };
 }
 
-async function openObserverSong(page: Page, options: Parameters<typeof openNormalSong>[2] = {}) {
-  const fixture = await openNormalSong(page, observerDocument(), { duration: 30, ...options });
+async function openObserverSong(page: Page, options: Parameters<typeof openNormalSong>[2] = {}, document = observerDocument()) {
+  const fixture = await openNormalSong(page, document, { duration: 30, ...options });
   // 일시적인 result 전이도 놓치지 않도록 실제 store를 읽기 전용으로 구독한다.
   await page.evaluate(async () => {
     const path = performance.getEntriesByType('resource').map(entry => entry.name)
@@ -274,4 +274,154 @@ test('Observer 오디오 준비 중 Esc는 무시되고 준비 완료 후 Auto O
     expect((await probe(page)).pauses).toEqual([]);
     await exitObserver(page, fixture);
   } finally { await release(); }
+});
+
+/** 선택 구간을 옮긴 뒤에도 실제 수동 집계를 확인할 수 있게 0～28초에 바디·tick을 둔다. */
+function minimapDocument(): ChartDocument {
+  return { ...observerDocument(), notes: [
+    { type: 'body', lane: 1, holdCount: 1, beat: { n: 0, d: 1 }, endBeat: { n: 56, d: 1 } },
+    ...Array.from({ length: 55 }, (_, index) => ({ type: 'tick' as const, lane: 1, count: 1 as const,
+      beat: { n: index + 1, d: 1 } })),
+  ] };
+}
+
+async function readMinimap(page: Page) {
+  return page.getByTestId('observer-minimap').evaluate(element => ({
+    startMs: Number(element.getAttribute('data-range-start-ms')),
+    endMs: Number(element.getAttribute('data-range-end-ms')),
+    positionMs: Number(element.getAttribute('data-position-ms')),
+    durationMs: Number(element.getAttribute('data-duration-ms')),
+  }));
+}
+
+async function minimapCoordinates(page: Page) {
+  const minimap = page.getByTestId('observer-minimap');
+  await expect(minimap).toBeVisible();
+  const box = (await minimap.boundingBox())!;
+  // 에디터와 같은 아래→위 방향. 12px 안쪽이 음원 끝점이며 화면 픽셀로 조작한다.
+  const y = (ms: number) => box.y + box.height - 12 - ms / 30000 * (box.height - 24);
+  return { x: box.x + box.width / 2, startX: box.x + 9, endX: box.x + box.width - 9, y };
+}
+
+async function expectPausedAtStart(page: Page) {
+  await expect(page.getByTestId('observer-screen')).toHaveAttribute('data-phase', 'paused');
+  await expect.poll(async () => {
+    const state = await readMinimap(page);
+    const playback = await probe(page);
+    return !playback.audioPlaying && Math.abs(state.positionMs - state.startMs) < .01
+      && Math.abs(playback.renderedTimeMs - state.startMs) < .01;
+  }).toBe(true);
+}
+
+async function dragMinimap(page: Page, x: number, fromY: number, toY: number) {
+  await page.mouse.move(x, fromY);
+  await page.mouse.down();
+  try {
+    await expect(page.getByTestId('observer-screen')).toHaveAttribute('data-phase', 'paused');
+    await expect.poll(async () => (await probe(page)).audioPlaying).toBe(false);
+    await page.mouse.move(x, toY, { steps: 5 });
+  } finally { await page.mouse.up(); }
+}
+
+test('30초 곡에서 A를 40%로·B를 70%로·몸통을 3초 옮기면 정지를 유지하고 Play·Retry는 A−3000ms부터 새 수동 집계를 시작한다', async ({ page }) => {
+  const fixture = await openObserverSong(page, {}, minimapDocument());
+  await enterObserver(page);
+  const firstManualSpan = await startManualHold(page);
+  try {
+    await expect.poll(async () => (await probe(page)).hud.some(update =>
+      update.span >= firstManualSpan && update.combo > 0 && (update.accuracy ?? 0) > 0)).toBe(true);
+    const before = await probe(page);
+    const point = await minimapCoordinates(page);
+    await page.mouse.move(point.startX, point.y(0));
+    await page.mouse.down();
+    try {
+      await expect(page.getByTestId('observer-screen')).toHaveAttribute('data-phase', 'paused');
+      await page.mouse.move(point.startX, point.y(12000), { steps: 5 });
+      await expect.poll(async () => Math.abs((await readMinimap(page)).startMs - 12000)).toBeLessThan(80);
+      await expectPausedAtStart(page); // pointerup 전에 정지 화면과 재생선이 A를 따른다.
+      expect((await probe(page)).pauses).toHaveLength(before.pauses.length + 1);
+    } finally { await page.mouse.up(); }
+    await expectPausedAtStart(page);
+    const afterStart = await readMinimap(page);
+    expect(afterStart.endMs).toBe(30000);
+    expect(afterStart.durationMs).toBe(30000);
+    const paused = await probe(page);
+    expect(paused.fadedSpans).toEqual(before.fadedSpans);
+    expect(paused.resumes).toEqual(before.resumes);
+    expect(paused.hud.at(-1)).toMatchObject({ combo: 0, accuracy: 0 });
+
+    await dragMinimap(page, point.endX, point.y(30000), point.y(21000));
+    await expect.poll(async () => Math.abs((await readMinimap(page)).endMs - 21000)).toBeLessThan(80);
+    await expectPausedAtStart(page);
+    const afterEnd = await readMinimap(page);
+    expect(afterEnd.startMs).toBe(afterStart.startMs);
+    const middle = (afterEnd.startMs + afterEnd.endMs) / 2;
+    await dragMinimap(page, point.x, point.y(middle), point.y(middle + 3000));
+    await expect.poll(async () => Math.abs((await readMinimap(page)).startMs - afterEnd.startMs - 3000)).toBeLessThan(80);
+    await expectPausedAtStart(page);
+    const selected = await readMinimap(page);
+    expect(selected.endMs - selected.startMs).toBeCloseTo(afterEnd.endMs - afterEnd.startMs, 6);
+    expect((await probe(page)).audioPositionMs).toBe(paused.audioPositionMs);
+    expect(await page.getByTestId('observer-minimap').evaluate(element => element.contains(document.activeElement))).toBe(false);
+    // 포인터를 놓은 뒤 Space·Enter·레인 KeyR이 이전 Retry 버튼을 다시 누르지 않는다.
+    await page.keyboard.press('Space'); await page.keyboard.press('Enter'); await page.keyboard.press('KeyR');
+    await expectPausedAtStart(page);
+    expect((await probe(page)).fadedSpans).toEqual(before.fadedSpans);
+
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await expectObserverPlaying(page);
+    const expectedSpan = { positionMs: Math.max(0, selected.startMs - 3000), rate: 1,
+      fromMs: Math.max(0, selected.startMs - 3000), toMs: Math.min(30000, selected.endMs + 3000) };
+    await expect.poll(async () => (await probe(page)).fadedSpans.at(-1)).toEqual(expectedSpan);
+    const playing = await probe(page);
+    expect(playing.hud.find(update => update.span === playing.fadedSpans.length)).toEqual({
+      span: playing.fadedSpans.length, combo: 0, accuracy: 0,
+    });
+    await expect.poll(async () => (await probe(page)).hud.some(update =>
+      update.span >= playing.fadedSpans.length && update.combo > 0 && (update.accuracy ?? 0) > 0)).toBe(true);
+    const beforeRetry = await probe(page);
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expectObserverPlaying(page);
+    await expect.poll(async () => (await probe(page)).fadedSpans.length).toBe(beforeRetry.fadedSpans.length + 1);
+    const retried = await probe(page);
+    expect(retried.fadedSpans.at(-1)).toEqual(expectedSpan);
+    expect(retried.hud.find(update => update.span === retried.fadedSpans.length)).toEqual({
+      span: retried.fadedSpans.length, combo: 0, accuracy: 0,
+    });
+    expect(retried.rendererDisposals).toBe(before.rendererDisposals);
+    await expect(page.getByRole('button', { name: 'Auto', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  } finally { await page.keyboard.up('KeyQ'); }
+  await exitObserver(page, fixture);
+});
+
+test('30초 곡의 12000～21000ms 몸통을 양끝 밖으로 끌면 길이 9000ms를 유지하고 페이드를 0·30000ms에 제한한다', async ({ page }) => {
+  const fixture = await openObserverSong(page, {}, minimapDocument());
+  await enterObserver(page);
+  const point = await minimapCoordinates(page);
+  await dragMinimap(page, point.startX, point.y(0), point.y(12000));
+  await expect.poll(async () => Math.abs((await readMinimap(page)).startMs - 12000)).toBeLessThan(80);
+  await dragMinimap(page, point.endX, point.y(30000), point.y(21000));
+  await expect.poll(async () => Math.abs((await readMinimap(page)).endMs - 21000)).toBeLessThan(80);
+  const initial = await readMinimap(page);
+  const length = initial.endMs - initial.startMs;
+  const middle = (initial.startMs + initial.endMs) / 2;
+  // 캡처한 포인터를 미니맵 바깥(화면 아래)까지 옮겨도 길이는 그대로다.
+  await dragMinimap(page, point.x, point.y(middle), point.y(0) + 10);
+  await expect.poll(async () => (await readMinimap(page)).startMs).toBe(0);
+  await expectPausedAtStart(page);
+  expect((await readMinimap(page)).endMs).toBeCloseTo(length, 6);
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expectObserverPlaying(page);
+  expect((await probe(page)).fadedSpans.at(-1)).toEqual({ positionMs: 0, rate: 1, fromMs: 0, toMs: length + 3000 });
+
+  await dragMinimap(page, point.x, point.y(length / 2), point.y(30000) - 10);
+  await expect.poll(async () => (await readMinimap(page)).endMs).toBe(30000);
+  await expectPausedAtStart(page);
+  const selected = await readMinimap(page);
+  expect(selected.endMs - selected.startMs).toBeCloseTo(length, 6);
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expectObserverPlaying(page);
+  expect((await probe(page)).fadedSpans.at(-1)).toEqual({ positionMs: selected.startMs - 3000,
+    rate: 1, fromMs: selected.startMs - 3000, toMs: 30000 });
+  await exitObserver(page, fixture);
 });

@@ -32,7 +32,7 @@ export async function installProbe(page: Page) {
     const { AudioEngine } = await import(/* @vite-ignore */ moduleUrl('/src/game/audio/AudioEngine.ts')) as typeof import('../src/game/audio/AudioEngine');
     const { ExplicitPlayRuntime } = await import(/* @vite-ignore */ moduleUrl('/src/game/screens/ExplicitPlayRuntime.ts')) as typeof import('../src/game/screens/ExplicitPlayRuntime');
     const probe = { explicitCharts: 0, warmups: 0, rendererDisposals: 0, audioDisposals: 0, starts: [] as number[],
-      frames: 0, audioPlaying: false, audioPositionMs: 0,
+      frames: 0, audioPlaying: false, audioPositionMs: 0, renderedTimeMs: 0,
       fadedSpans: [] as FadedSpanStart[], resumes: [] as number[], hud: [] as HudUpdate[],
       sourceStarts: [] as { offset: number; duration: number | undefined }[],
       preparations: [] as { positionMs: number; rate: number; latencyMs: number; startedAtMs: number; visibleAfterMs: number | null }[],
@@ -104,6 +104,7 @@ export async function installProbe(page: Page) {
     const render = GameRenderer.prototype.renderFrame;
     GameRenderer.prototype.renderFrame = function (...args) {
       probe.frames++;
+      probe.renderedTimeMs = args[0];
       lastSession = currentRuntime?.session ?? lastSession;
       const fields = this as unknown as { app: { renderer: { gl?: unknown } }; explicitNoteRenderer: { spriteCount: number } | null;
         explicitSnapshotQuery?: () => import('../src/game/judgment/ExplicitJudgmentState').ExplicitJudgmentSnapshot };
@@ -175,7 +176,7 @@ export async function installProbe(page: Page) {
 export async function probe(page: Page) {
   return page.evaluate(() => (window as unknown as { explicitPlayProbe: {
     explicitCharts: number; warmups: number; rendererDisposals: number; audioDisposals: number;
-    frames: number; audioPlaying: boolean; audioPositionMs: number;
+    frames: number; audioPlaying: boolean; audioPositionMs: number; renderedTimeMs: number;
     fadedSpans: FadedSpanStart[]; resumes: number[]; hud: HudUpdate[];
     sourceStarts: { offset: number; duration: number | undefined }[];
     starts: number[]; groups: string[]; hitCount: number; flightCount: number; webgl: boolean; spriteCount: number; keyboardListeners: number;

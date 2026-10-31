@@ -12,7 +12,7 @@
   cursor: default;
 }
 
-/* 노트 필드가 화면 전체를 쓴다. 조작 버튼은 왼쪽 위에 떠 있고 오른쪽에는 조작을 두지 않는다. */
+/* 비행 배경 canvas는 화면 전체를 쓴다. 왼쪽 버튼과 오른쪽 미니맵은 그 위에 떠 있다. */
 .observer-screen__field {
   position: relative;
   overflow: hidden;

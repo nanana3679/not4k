@@ -4,9 +4,10 @@ import { color, primitives } from '../../shared/theme';
 import { useGameStore } from '../stores';
 import { ObserverPlayRuntime } from './ObserverPlayRuntime';
 import type { ObserverPlayPhase, ObserverPlayState } from './ObserverPlayRuntime';
+import { ObserverMinimap } from './ObserverMinimap';
 import './ObserverScreen.css';
 
-const initialState: ObserverPlayState = { autoEnabled: true, manualStats: null, songTimeMs: 0 };
+const initialState: ObserverPlayState = { autoEnabled: true, manualStats: null, songTimeMs: 0, range: null, durationMs: 0 };
 
 /** 문서·음원은 LoadingScreen, 반복·판정·HUD는 runtime이 소유한다. 화면은 조작과 수명만 연결한다. */
 export function ObserverScreen() {
@@ -91,6 +92,8 @@ export function ObserverScreen() {
     <div ref={field} className="observer-screen__field">
       {request && <canvas ref={canvas} data-testid="observer-canvas" aria-label="Observer note field" />}
     </div>
+    {ready && playback.range && request && <ObserverMinimap document={request.document} timing={request.compiled.timing}
+      durationMs={playback.durationMs} range={playback.range} positionMs={playback.songTimeMs} runtime={runtime} />}
   </div>;
 }
 

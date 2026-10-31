@@ -1,3 +1,5 @@
+import { minimapColor } from "../../shared/theme";
+
 /**
  * Timeline visual constants — chart-editor.md §Timeline Layout 기준
  */
@@ -28,30 +30,17 @@ export const MINIMAP_WIDTH = MEASURE_LABEL_WIDTH;
 export const COLORS = {
   // 인게임 레인 배경(game/renderer/constants.ts)과 동일하게 맞춘다 — 에디터에서 본
   // restZone dim이 실제 플레이와 같은 명암으로 읽히게 하기 위함(RFD 0019).
-  LANE_BG_EVEN: 0x26263f,
-  LANE_BG_ODD: 0x202038,
+  ...minimapColor,
   MEASURE_LINE: 0xffffff,
   BEAT_LINE: 0x666666,
   SNAP_LINE: 0x333333,
 
-  SINGLE_NOTE: 0x4488ff,
-  DOUBLE_NOTE: 0xffcc00,
-  TRILL_NOTE: 0xffffff,
-
-  SINGLE_LONG: 0x88bbff,
-  DOUBLE_LONG: 0xffee88,
-  TRILL_LONG: 0xaaaaaa,
   /** 트릴 롱 끝 마름모. Classic 트릴 끝 터미널도 같은 색을 쓴다. */
   TRILL_LONG_END: 0x888888,
-
-  TRILL_ZONE: 0x00ff88,
-  TRILL_ZONE_ALPHA: 0.2,
 
   // restZone(RFD 0019) — "쉬는/비활성 레인" 밴드. 타임라인은 레인을 살짝 어둡게 깐 위에 굵은 검정 빗금을
   // 그어 "안 쓰는 레인"으로 읽히게 한다(Lab restZone 판넬 시안(#282)의 빗금과 같은 시각 언어). 겹침 위반은 그 위
   // 가는 빨간 해칭이라 굵은 검정 빗금과 구별된다. REST_ZONE_ALPHA는 미니맵 전용으로, 칸이 작아 빗금 없이 단색 dim을 쓴다.
-  REST_ZONE: 0x000000,
-  REST_ZONE_ALPHA: 0.6,
   REST_ZONE_BASE_ALPHA: 0.2,
   REST_ZONE_STRIPE_ALPHA: 0.6,
 

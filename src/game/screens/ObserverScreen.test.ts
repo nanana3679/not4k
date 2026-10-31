@@ -102,6 +102,20 @@ beforeEach(() => {
 afterEach(() => { unmount(); vi.unstubAllGlobals(); useGameStore.setState(useGameStore.getInitialState(), true); });
 
 describe('ObserverScreen 조작과 수명', () => {
+  it('onState의 1000～3000ms·현재 1000ms를 미니맵에 전달하고 끝 3200ms 갱신에도 runtime은 1개다', () => {
+    const player = playing();
+    player.options.onState!({ autoEnabled: true, manualStats: null, songTimeMs: 1000,
+      range: { startMs: 1000, endMs: 3000 }, durationMs: 4000 });
+    expect(render().html).toContain('data-range-start-ms="1000" data-range-end-ms="3000" data-position-ms="1000" data-duration-ms="4000"');
+    player.options.onPhase('paused');
+    player.options.onState!({ autoEnabled: true, manualStats: null, songTimeMs: 1000,
+      range: { startMs: 1000, endMs: 3200 }, durationMs: 4000 });
+    const page = render();
+    expect(page.html).toContain('data-range-end-ms="3200" data-position-ms="1000"');
+    expect(page.button('Play').disabled).toBe(false);
+    expect(harness.players).toHaveLength(1);
+  });
+
   it('진입 시 Auto On·aria-pressed=true와 버튼 4개를 canvas 바깥에 표시하고 runtime을 1회 시작한다', () => {
     const page = render();
     expect(page.html).toContain('Auto <span aria-hidden="true">On</span>');
@@ -130,7 +144,7 @@ describe('ObserverScreen 조작과 수명', () => {
     const player = playing();
     render().click('Auto');
     expect(player.setAuto).toHaveBeenCalledExactlyOnceWith(false);
-    player.options.onState!({ autoEnabled: false, manualStats: { combo: 2, achievementRate: 50 }, songTimeMs: 65000 });
+    player.options.onState!({ autoEnabled: false, manualStats: { combo: 2, achievementRate: 50 }, songTimeMs: 65000, range: null, durationMs: 4000 });
     const page = render();
     expect(page.button('Auto')['aria-pressed']).toBe(false);
     expect(page.html).toContain('Off');
@@ -191,7 +205,7 @@ describe('ObserverScreen 조작과 수명', () => {
     const player = harness.players[0];
     render().click('Exit');
     player.options.onPhase('playing');
-    player.options.onState!({ autoEnabled: false, manualStats: null, songTimeMs: 1000 });
+    player.options.onState!({ autoEnabled: false, manualStats: null, songTimeMs: 1000, range: null, durationMs: 4000 });
     player.options.onError(new Error('late failure'));
     const page = render();
     expect(page.html).not.toContain('late failure');
@@ -237,7 +251,7 @@ describe('ObserverScreen 조작과 수명', () => {
     openObserver();
     render();
     first.options.onError(new Error('old request'));
-    first.options.onState!({ autoEnabled: false, manualStats: null, songTimeMs: 1000 });
+    first.options.onState!({ autoEnabled: false, manualStats: null, songTimeMs: 1000, range: null, durationMs: 4000 });
     const page = render();
     expect(first.dispose).toHaveBeenCalledOnce();
     expect(harness.players).toHaveLength(2);
