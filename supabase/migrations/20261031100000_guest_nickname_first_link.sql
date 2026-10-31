@@ -5,6 +5,8 @@
 
 -- 1. null이면 아직 첫 연동 전인 계정
 alter table public.profiles add column first_linked_at timestamptz;
+-- 첫 연동에서 받은 유효한 기기 Guest 닉네임은 충돌 여부와 관계없이 보관한다.
+alter table public.profiles add column first_link_guest_nickname text;
 
 -- 2. 기존 닉네임과 겹치지 않는 Guest 닉네임 생성
 create or replace function public.generate_guest_nickname()
@@ -43,8 +45,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, display_name, first_linked_at)
-  values (new.id, public.generate_guest_nickname(), null);
+  insert into public.profiles (id, display_name, first_linked_at, first_link_guest_nickname)
+  values (new.id, public.generate_guest_nickname(), null, null);
   return new;
 end;
 $$;
@@ -58,7 +60,9 @@ declare
 begin
   for profile_id in select p.id from public.profiles as p loop
     update public.profiles as p
-    set display_name = public.generate_guest_nickname(), first_linked_at = null
+    set display_name = public.generate_guest_nickname(),
+        first_linked_at = null,
+        first_link_guest_nickname = null
     where p.id = profile_id;
   end loop;
 end;
@@ -76,8 +80,8 @@ alter table public.profiles
   );
 
 -- 6. 첫 연동에서만 기기의 Guest 닉네임을 계정에 인계한다.
-create or replace function public.link_guest_nickname(guest_nickname text)
-returns table (nickname text, first_link boolean)
+create function public.link_guest_nickname(guest_nickname text)
+returns table (nickname text, first_link boolean, first_link_guest_nickname text)
 language plpgsql
 security definer
 set search_path = ''
@@ -86,7 +90,9 @@ declare
   caller_id uuid := auth.uid();
   current_nickname text;
   current_first_linked_at timestamptz;
+  current_first_link_guest_nickname text;
   new_nickname text;
+  new_first_link_guest_nickname text;
 begin
   if caller_id is null or (auth.jwt()->>'is_anonymous')::boolean is true then
     raise exception 'A non-anonymous authenticated user is required'
@@ -96,8 +102,8 @@ begin
   -- generate_guest_nickname과 같은 키를 행 잠금보다 먼저 획득한다.
   perform pg_advisory_xact_lock(20261031100000::bigint);
 
-  select p.display_name, p.first_linked_at
-  into current_nickname, current_first_linked_at
+  select p.display_name, p.first_linked_at, p.first_link_guest_nickname
+  into current_nickname, current_first_linked_at, current_first_link_guest_nickname
   from public.profiles as p
   where p.id = caller_id
   for update;
@@ -108,11 +114,17 @@ begin
   end if;
 
   if current_first_linked_at is not null then
-    return query select current_nickname, false;
+    return query select current_nickname, false, current_first_link_guest_nickname;
     return;
   end if;
 
-  if guest_nickname ~ '^Guest[0-9]{6}$' and not exists (
+  -- 응답 유실 후 재호출에서도 첫 연동의 기기 이름을 확인할 수 있게 보관한다.
+  new_first_link_guest_nickname := case
+    when guest_nickname ~ '^Guest[0-9]{6}$' then guest_nickname
+    else null
+  end;
+
+  if new_first_link_guest_nickname is not null and not exists (
     select 1 from public.profiles as p
     where p.display_name = guest_nickname and p.id <> caller_id
   ) then
@@ -122,17 +134,19 @@ begin
   end if;
 
   update public.profiles as p
-  set display_name = new_nickname, first_linked_at = now()
+  set display_name = new_nickname,
+      first_linked_at = now(),
+      first_link_guest_nickname = new_first_link_guest_nickname
   where p.id = caller_id;
 
-  return query select new_nickname, true;
+  return query select new_nickname, true, new_first_link_guest_nickname;
 end;
 $$;
 
 revoke execute on function public.link_guest_nickname(text) from public, anon;
 grant execute on function public.link_guest_nickname(text) to authenticated;
 
--- 7. 수동 변경한 닉네임은 이후 첫 연동로 덮어쓰지 않는다.
+-- 7. 수동 변경한 닉네임은 이후 첫 연동으로 덮어쓰지 않는다.
 -- 트리거는 호출자 권한으로 동작하며 클라이언트의 열 UPDATE 권한은 늘리지 않는다.
 create or replace function public.handle_profile_update()
 returns trigger
