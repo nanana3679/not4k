@@ -1,6 +1,6 @@
 # RFD 0100: 비행 배경의 움직임을 별도 설정으로 끌 수 있게 한다
 
-**Status:** Accepted (2026-10-31) · 용어·컨텍스트·게임 코어·RFD 0030·PRD 문서 반영 (2026-10-31) · 기본 켬·일반 플레이와 옵저버 공통 적용 문서 반영 (2026-10-31), 플레이어 설정과 고정 배경 전환의 런타임 반영 미구현 · 플레이어 설정과 고정 배경 전환 구현: `Settings → Gameplay → Display`의 `Background Motion`(`flightBackgroundMotion`, 기본 켬)을 일반 플레이·테스트 재생 렌더러의 `showFlightBackground`에 연결 (2026-10-31). 남은 항목: 옵저버는 미구현이며 구현할 때 같은 설정을 쓴다
+**Status:** Accepted (2026-10-31) · 용어·컨텍스트·게임 코어·RFD 0030·PRD 문서 반영 (2026-10-31) · 기본 켬·일반 플레이와 옵저버 공통 적용 문서 반영 (2026-10-31), 플레이어 설정과 고정 배경 전환의 런타임 반영 미구현 · 플레이어 설정과 고정 배경 전환 구현: `Settings → Gameplay → Display`의 `Background Motion`(`flightBackgroundMotion`, 기본 켬)을 일반 플레이·테스트 재생 렌더러의 `showFlightBackground`에 연결 (2026-10-31, PR #399). 남은 항목: 옵저버는 미구현이며 구현할 때 같은 설정을 쓴다
 
 ## 기존 결정과 문제의식
 
