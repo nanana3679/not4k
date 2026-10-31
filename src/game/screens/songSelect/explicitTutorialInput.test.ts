@@ -8,7 +8,7 @@ import { createExplicitTutorialPreview } from './explicitTutorialPreviewChart';
 import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreviews';
 import { describe, expect, it, vi } from 'vitest';
 import { getExplicitTutorialInputTime } from './explicitTutorialInput';
-import { createTutorialPracticeSpec, createTutorialPracticeState, isTutorialPatternSuccess, reduceTutorialPractice } from './tutorialPractice';
+import { DEFAULT_MAX_GREAT_OR_WORSE_COUNT, createTutorialPracticeSpec, createTutorialPracticeState, isTutorialPatternSuccess, reduceTutorialPractice } from './tutorialPractice';
 import type { KeyBinding } from '../../input/InputSystem';
 import { getJudgmentWindows } from '../../../shared/constants/judgment';
 
@@ -39,7 +39,7 @@ it('connected-long-note-switch의 4005ms up은 이전 패턴의 Perfect 3·100%�
   expect(pattern.iteration).toBe(0);
   expect(pattern.result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
   expect(pattern.result.score.achievementRate).toBe(100);
-  expect(isTutorialPatternSuccess([{ kind: 'targetAchievementRate', percent: 90 }], pattern.result.score)).toBe(true);
+  expect(isTutorialPatternSuccess([{ kind: 'maxGreatOrWorseCount', count: DEFAULT_MAX_GREAT_OR_WORSE_COUNT }], pattern.result.score, 'final')).toBe(true);
   input.stop();
 });
 
@@ -151,7 +151,7 @@ describe.each(['connected-long-note-switch', 'connected-long-note-overlap', 'hea
       showJudgmentGroup() {}, recordFlightJudgment() {}, showBombEffect() {},
     }, { windows });
     let practice = createTutorialPracticeState(createTutorialPracticeSpec({
-      conditions: [{ kind: 'targetAchievementRate', percent: 90 }], playingMethods: [{ id: 'practice' }],
+      conditions: [{ kind: 'maxGreatOrWorseCount', count: DEFAULT_MAX_GREAT_OR_WORSE_COUNT }], playingMethods: [{ id: 'practice' }],
     }));
     practice = reduceTutorialPractice(practice, { type: 'modeSelected', mode: 'directInput' });
     practice = reduceTutorialPractice(practice, { type: 'patternStarted', patternId: 0 });

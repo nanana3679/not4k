@@ -39,19 +39,23 @@ const expectedResults = [
 ];
 
 describe('Basic 명시 튜토리얼', () => {
-  it('Basic 12에서 500ms에 누르고 510ms에 떼기를 3회 반복하면 매회 50%로 성공을 누적하지 않는다', () => {
+  it.each([
+    { downMs: 500, upMs: 510, perfect: 1, great: 0, succeeded: true, rate: 50 },
+    { downMs: 550, upMs: 560, perfect: 0, great: 1, succeeded: false, rate: 100 / 3 },
+  ])('Basic 12에서 $downMs ms에 누르고 $upMs ms에 떼면 Great $great개·바디 Miss 1개로 최종 성공 $succeeded를 3회 반복한다', ({ downMs, upMs, perfect, great, succeeded, rate }) => {
     const lesson = ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'hold-only-long-note')!;
     const controller = createExplicitTutorialPreviewSessionController(lesson.chart, {
       kind: 'events', events: [
-        { type: 'down', lane: 2, key: 'KeyE', timeMs: 500 },
-        { type: 'up', lane: 2, key: 'KeyE', timeMs: 510 },
+        { type: 'down', lane: 2, key: 'KeyE', timeMs: downMs },
+        { type: 'up', lane: 2, key: 'KeyE', timeMs: upMs },
       ],
     });
     try {
       for (let iteration = 0; iteration < 3; iteration++) {
         const { score } = controller.repeat(lesson.loopMs);
-        expect(isTutorialPatternSuccess(lesson.practice!.conditions, score)).toBe(false);
-        expect(score.achievementRate).toBe(50);
+        expect(score.judgmentCounts).toMatchObject({ perfect, great, miss: 1 });
+        expect(isTutorialPatternSuccess(lesson.practice!.conditions, score, 'final')).toBe(succeeded);
+        expect(score.achievementRate).toBeCloseTo(rate);
       }
     } finally {
       controller.dispose();
@@ -67,7 +71,7 @@ describe('Basic 명시 튜토리얼', () => {
       const { score } = controller.repeat(lesson.loopMs);
       expect(score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
       expect(score.achievementRate).toBe(100);
-      expect(isTutorialPatternSuccess(lesson.practice!.conditions, score)).toBe(true);
+      expect(isTutorialPatternSuccess(lesson.practice!.conditions, score, 'final')).toBe(true);
     } finally {
       controller.dispose();
     }
@@ -98,7 +102,7 @@ describe('Basic 명시 튜토리얼', () => {
       const legacy = TUTORIAL_PREVIEWS.find(preview => preview.id === id)!;
       // 변환기는 테스트에서만 비교 기준으로 사용한다. 실제 정의는 독립된 명시 노트 리터럴이다.
       const convertedChart = convertLegacyChart(legacy.chart).chart;
-      // Basic 12는 유지 실패를 달성률에 반영하도록 승인한 변환 뒤 끝 틱을 추가했다.
+      // Basic 12는 바디 끝 유지에 점수를 주도록 승인한 변환 뒤 끝 틱을 추가했다.
       if (id === 'hold-only-long-note') convertedChart.notes.push({ type: 'tick', lane: 2, beat: beat(4), count: 1 });
       expect(preview.chart).toEqual({
         ...convertedChart,

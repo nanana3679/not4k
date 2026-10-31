@@ -7,9 +7,10 @@ import { createExplicitTutorialPreviewPlayback, createTutorialTimingsInputPlan }
 import { useTutorialPractice } from './useTutorialPractice';
 import { beat } from '../../../shared/types/beat';
 import { createExplicitTutorialPreview } from './explicitTutorialPreviewChart';
-import { createTutorialPracticeSpec } from './tutorialPractice';
+import { DEFAULT_MAX_GREAT_OR_WORSE_COUNT, createTutorialPracticeSpec } from './tutorialPractice';
 import { ALL_TUTORIAL_PREVIEWS } from './tutorialCatalog';
 import { getTutorialInputTimings } from './tutorialPreviewChart';
+import { createExplicitTutorialPreviewSessionController } from './explicitTutorialPreviewSession';
 
 // 기존 Lab 상호작용 테스트처럼 DOM/Pixi 없이 React 이벤트와 실제 reducer를 실행한다.
 // effect 수명과 ref도 보존해 캐러셀 전환·키보드 핸들러를 함께 검사한다.
@@ -56,7 +57,8 @@ vi.mock('../../stores', async original => {
 
 type Props = { children?: ReactNode; onClick?: () => void; disabled?: boolean; 'aria-pressed'?: boolean;
   onKeyDown?: ComponentProps<'button'>['onKeyDown'];
-  'data-tutorial-index-item'?: string; 'data-tutorial-condition-status'?: string;
+  'data-tutorial-index-item'?: string; 'data-tutorial-condition-status'?: string; 'data-tutorial-condition'?: string;
+  'aria-label'?: string;
   'data-tutorial-progress'?: string; 'data-tutorial-pattern-id'?: number; };
 function elements(node: ReactNode): ReactElement<Props>[] {
   if (Array.isArray(node)) return node.flatMap(elements);
@@ -174,7 +176,7 @@ it('직접 입력 패턴 도중 시연을 골라도 종료까지 inputMode는 di
   expect(page.progress).toBe('1/3');
 });
 
-it('정산 전 조건은 neutral, 성공 정산은 met·1/3이며 다음 시작 뒤에도 유지하다 첫 Miss 정산에서 failed로 바뀐다', () => {
+it('성공 정산의 met·1/3은 다음 첫 판정까지 유지하며 Miss 1개면 neutral, 2개면 failed로 바뀐다', () => {
   openLesson().click('직접 입력');
   let page = renderModal();
   expect(page.nodes.find(node => node.props['data-tutorial-condition-status'])?.props['data-tutorial-condition-status']).toBe('neutral');
@@ -183,6 +185,7 @@ it('정산 전 조건은 neutral, 성공 정산은 met·1/3이며 다음 시작 
   page.player().onScoreChanged?.(finished.result.score, 3);
   page = renderModal();
   expect(page.nodes.find(node => node.props['data-tutorial-condition-status'])?.props['data-tutorial-condition-status']).toBe('met');
+  expect(page.progress).toBe('0/3');
   expect(page.nodes.find(node => node.props.children === '콤보 3')).toBeDefined();
   page.player().onPatternFinished?.(finished);
   page.player().onPatternStarted?.(2);
@@ -191,8 +194,55 @@ it('정산 전 조건은 neutral, 성공 정산은 met·1/3이며 다음 시작 
   expect(page.nodes.find(node => node.props['data-tutorial-condition-status'])?.props['data-tutorial-condition-status']).toBe('met');
   page.player().onScoreChanged?.({ ...finished.result.score, processedNotes: 0, liveDenominatorWeight: 0, earnedScore: 0 }, 0);
   expect(renderModal().nodes.find(node => node.props['data-tutorial-condition-status'])?.props['data-tutorial-condition-status']).toBe('met');
-  page.player().onScoreChanged?.({ ...finished.result.score, processedNotes: 1, liveDenominatorWeight: 3, earnedScore: 0 }, 0);
+  page.player().onScoreChanged?.({ ...finished.result.score, processedNotes: 1, liveDenominatorWeight: 3, earnedScore: 0,
+    judgmentCounts: { ...finished.result.score.judgmentCounts, perfect: 0, miss: 1 },
+  }, 0);
+  expect(renderModal().nodes.find(node => node.props['data-tutorial-condition-status'])?.props['data-tutorial-condition-status']).toBe('neutral');
+  page.player().onScoreChanged?.({ ...finished.result.score, processedNotes: 2, liveDenominatorWeight: 6, earnedScore: 0,
+    judgmentCounts: { ...finished.result.score.judgmentCounts, perfect: 0, miss: 2 },
+  }, 0);
   expect(renderModal().nodes.find(node => node.props['data-tutorial-condition-status'])?.props['data-tutorial-condition-status']).toBe('failed');
+});
+
+it.each([
+  ['long-note', 2500], ['connected-trill-long', 3000],
+] as const)('%s는 %ims까지 점수 판정을 모두 Perfect로 정산해도 이후 바디 Miss 1개를 최종 평가해 성공 0/3이다', (id, lastTapMs) => {
+  openLesson(id).click('직접 입력');
+  let page = renderModal();
+  page.player(id).onPatternStarted?.(1);
+  const lesson = ALL_TUTORIAL_PREVIEWS.find(item => item.id === id)!;
+  const timings = getTutorialInputTimings(lesson.chart).map(timing => ({ ...timing,
+    endMs: timing.endMs > lastTapMs ? lastTapMs + 100 : timing.endMs,
+  }));
+  const controller = createExplicitTutorialPreviewSessionController(lesson.chart, createTutorialTimingsInputPlan(timings));
+  try {
+    controller.advanceTo(lastTapMs);
+    const liveScore = controller.session.score;
+    expect(liveScore.processedNotes).toBe(liveScore.totalNotes);
+    expect(liveScore.judgmentCounts.miss).toBe(0);
+    page.player(id).onScoreChanged?.(liveScore, controller.session.combo);
+    page = renderModal();
+    expect(page.nodes.filter(node => node.props['data-tutorial-condition-status'])
+      .every(node => node.props['data-tutorial-condition-status'] === 'met')).toBe(true);
+    expect(page.progress).toBe('0/3');
+
+    const finalized = controller.finish(lesson.loopMs);
+    expect(finalized.score.achievementRate).toBe(100);
+    expect(finalized.score.judgmentCounts.miss).toBe(1);
+    expect(finalized.facts.filter(fact => fact.kind === 'bodyFailed'))
+      .toMatchObject([{ unscoredMiss: true }]);
+    page.player(id).onPatternFinished?.({ iteration: 1, result: finalized });
+    page = renderModal();
+    expect(page.nodes.find(node => node.props['data-tutorial-condition'] === 'maxGreatOrWorseCount')
+      ?.props['data-tutorial-condition-status']).toBe('met');
+    expect(page.nodes.find(node => node.props['data-tutorial-condition'] === 'maxMissCount')
+      ?.props['data-tutorial-condition-status']).toBe('failed');
+    expect(page.nodes.find(node => node.props['aria-label'] === '실패')?.props.children).toBe('✕');
+    expect(page.progress).toBe('0/3');
+    expect(onItemPassed).not.toHaveBeenCalled();
+  } finally {
+    controller.dispose();
+  }
 });
 
 it('누적 3회 성공이면 반복은 정지·통과 콜백은 1회·다음을 눌러야 double-note가 시연 0/3으로 열린다', () => {
@@ -349,23 +399,41 @@ it('시연 중 text input에서 바인딩되지 않은 ArrowRight를 누르면 �
   expect(renderModal().player().preview?.id).toBe('single-note');
 });
 
-it('trill-note는 달성률과 GOOD◇ 조건을 한 줄씩 표시하고 GOOD◇ 1회이면 추가 조건만 즉시 실패한다', () => {
+it.each([
+  ['single-note', ['Great 이하 1개 이하']],
+  ['trill-note', ['Great 이하 1개 이하', 'goodTrill 0회']],
+  ['long-note', ['Great 이하 1개 이하', 'Miss 0회']],
+  ['connected-trill-long', ['Great 이하 1개 이하', 'Miss 0회', 'goodTrill 0회']],
+] as const)('%s의 직접 입력은 조건 %j를 한 줄씩 중립 아이콘과 함께 표시한다', (id, labels) => {
+  openLesson(id).click('직접 입력');
+  const page = renderModal();
+  const conditions = page.nodes.filter(node => node.props['data-tutorial-condition-status']);
+  expect(conditions).toHaveLength(labels.length);
+  conditions.forEach((condition, index) => {
+    expect(condition.props.children).toContain(labels[index]);
+    expect(condition.props['data-tutorial-condition-status']).toBe('neutral');
+    expect(elements(condition).find(node => node.props['aria-label'] === '진행 중')?.props.children).toBe('·');
+  });
+});
+
+it('trill-note에서 goodTrill 1회이면 Great 이하 1개 조건은 neutral이고 goodTrill 0회 조건만 즉시 실패한다', () => {
   openLesson('trill-note').click('직접 입력');
   let page = renderModal();
   const score = result('trill-note').result.score;
   page.player('trill-note').onScoreChanged?.({ ...score,
     processedNotes: 1, liveDenominatorWeight: 3, earnedScore: 1, goodTrillCount: 1,
+    judgmentCounts: { ...score.judgmentCounts, perfect: 0, goodTrill: 1 },
   }, 1);
   page = renderModal();
   const conditions = page.nodes.filter(node => node.props['data-tutorial-condition-status']);
   expect(conditions.map(node => node.props['data-tutorial-condition-status'])).toEqual(['neutral', 'failed']);
-  expect(conditions[1].props.children).toContain('GOOD◇ 0회 이하');
+  expect(conditions[1].props.children).toContain('goodTrill 0회');
 });
 
 
 it('방법이 2개인 항목에서 nextPressed를 누르면 재생을 새로 걸고 다음 방법의 pattern id는 4로 증가한다', () => {
   const lesson = { ...ALL_TUTORIAL_PREVIEWS[1], practice: createTutorialPracticeSpec({
-    conditions: [{ kind: 'targetAchievementRate', percent: 90 }], playingMethods: [{ id: 'hold' }, { id: 'swap' }],
+    conditions: [{ kind: 'maxGreatOrWorseCount', count: DEFAULT_MAX_GREAT_OR_WORSE_COUNT }], playingMethods: [{ id: 'hold' }, { id: 'swap' }],
   }) };
   const PracticeHarness = () => useTutorialPractice(lesson, onItemPassed);
   const renderPractice = () => { hooks.cursor = 0; return PracticeHarness(); };

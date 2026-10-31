@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, getTutorialSection } from './tutorialCatalog';
 import { persistTutorialViewedIds, readTutorialViewedIdsFromStorage } from './tutorialViewedCache';
+import { DEFAULT_MAX_GREAT_OR_WORSE_COUNT } from './tutorialPractice';
 
 describe('튜토리얼 Basic / Advanced 분류', () => {
   it('Basic 명시 17개와 Advanced 명시 8개는 중복 ID 없이 Basic 순서 다음에 배치된다', () => {
@@ -50,13 +51,17 @@ describe('튜토리얼 Basic / Advanced 분류', () => {
 });
 
 
-it('점수 있는 24항목은 목표 90%·누적 3회·방법 1개이고 trill-note와 connected-trill-long만 goodTrill 0회를 요구한다', () => {
+it('점수 있는 24항목은 Great 이하 기본 1개·누적 3회·방법 1개이며 트릴 교대·유지 항목에만 추가 조건을 요구한다', () => {
+  expect(DEFAULT_MAX_GREAT_OR_WORSE_COUNT).toBe(1);
   expect(ALL_TUTORIAL_PREVIEWS[0].practice).toBeUndefined();
+  expect(ALL_TUTORIAL_PREVIEWS.filter(item => item.practice)).toHaveLength(24);
   for (const item of ALL_TUTORIAL_PREVIEWS.slice(1)) {
-    expect(item.practice, item.id).toMatchObject({
+    expect(item.practice, item.id).toEqual({
       requiredSuccessCount: 3,
       playingMethods: [{ id: 'default' }],
-      conditions: [{ kind: 'targetAchievementRate', percent: 90 },
+      conditions: [{ kind: 'maxGreatOrWorseCount', count: DEFAULT_MAX_GREAT_OR_WORSE_COUNT },
+        ...(['long-note', 'connected-trill-long'].includes(item.id)
+          ? [{ kind: 'maxMissCount', count: 0 }] : []),
         ...(['trill-note', 'connected-trill-long'].includes(item.id)
           ? [{ kind: 'maxGoodTrillCount', count: 0 }] : [])],
     });

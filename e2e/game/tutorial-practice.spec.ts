@@ -68,7 +68,7 @@ for (const inputOffsetMs of [0, -200, 200]) {
     }
 
     await expect(progress).toHaveText('3/3');
-    const condition = dialog.locator('[data-tutorial-condition="targetAchievementRate"]');
+    const condition = dialog.locator('[data-tutorial-condition="maxGreatOrWorseCount"]');
     await expect(condition).toHaveAttribute('data-tutorial-condition-status', 'met');
     await expect(condition).toHaveCSS('color', 'rgb(142, 230, 168)');
     await expect(condition.getByLabel('충족')).toHaveText('✓');
@@ -124,7 +124,7 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
       await page.keyboard.down(firstKey);
       if (switchKeys) {
         // RFD 0037 §3-2: 앞 바디는 끝의 Good 이른 폭 안에서 종료할 수 있고 연결 up 소비는 없다.
-        // up을 먼저 마쳐 새 탭의 대기에 keyup 왕복 지연을 더하지 않는다. 3점수 중 Great 1개도 88.89%로 목표 90% 미달이다.
+        // up을 먼저 마쳐 새 탭의 대기에 keyup 왕복 지연을 더하지 않는다. Great 1개는 허용하지만 2개부터 성공 조건을 초과한다.
         await waitForElapsed(page, startMs + 3400, selector);
         await page.keyboard.up(firstKey);
       }

@@ -4,7 +4,7 @@ import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreview
 import { createExplicitTutorialInput } from './explicitTutorialInput';
 import { createExplicitTutorialPreviewPlayback } from './explicitTutorialPreviewPlayback';
 import type { ExplicitTutorialPatternResult } from './explicitTutorialPreviewPlayback';
-import { createTutorialPracticeSpec, createTutorialPracticeState, reduceTutorialPractice } from './tutorialPractice';
+import { DEFAULT_MAX_GREAT_OR_WORSE_COUNT, createTutorialPracticeSpec, createTutorialPracticeState, reduceTutorialPractice } from './tutorialPractice';
 
 // 절대 입력 시각과 프레임 시각을 따로 진행한다. 입력·판정·반복·reducer는 모두 실제 구현이다.
 // 시작 패턴 0은 시연 중 직접 입력으로 전환했으므로 집계하지 않는다.
@@ -16,7 +16,7 @@ function replaySwitch(loopStride: number, timings: readonly SwitchTiming[], deli
     showJudgmentGroup() {}, recordFlightJudgment() {}, showBombEffect() {},
   }, { windows });
   let practice = createTutorialPracticeState(createTutorialPracticeSpec({
-    conditions: [{ kind: 'targetAchievementRate', percent: 90 }], playingMethods: [{ id: 'practice' }],
+    conditions: [{ kind: 'maxGreatOrWorseCount', count: DEFAULT_MAX_GREAT_OR_WORSE_COUNT }], playingMethods: [{ id: 'practice' }],
   }));
   practice = reduceTutorialPractice(practice, { type: 'patternStarted', patternId: 0 });
   practice = reduceTutorialPractice(practice, { type: 'modeSelected', mode: 'directInput' });
@@ -89,18 +89,31 @@ describe.each([1, 2])('Easy에서 %i반복마다 connected-long-note-switch를 �
     expect(successCount).toBe(3);
   });
 
-  it('3488ms 대기 뒤 keyup 왕복으로 D가 3550ms±수ms에 도착하면 8회 중 2회만 90% 조건을 충족', () => {
+  it('D가 3550ms±수ms에 늦게 도착해 Great 1개가 나와도 허용 개수 1개 이내라 3회 성공하면 3/3으로 멈춘다', () => {
     const { attempts, successCount } = replaySwitch(loopStride, jitterMs.map(jitter => [
       3020 + jitter, 3520 + jitter, 3550 + jitter, 4037 + jitter,
     ]));
-    expect(attempts.map(({ result }) => result.score.judgmentCounts.perfect)).toEqual([2, 2, 2, 3, 2, 2, 3, 2]);
-    expect(attempts.map(({ result }) => result.score.judgmentCounts.great)).toEqual([1, 1, 1, 0, 1, 1, 0, 1]);
-    expect(attempts.map(pattern => pattern.successCount)).toEqual([0, 0, 0, 1, 1, 1, 2, 2]);
-    expect(successCount).toBe(2);
-    // 최소 실패 사례: 3500ms 탭에 3552ms down → Great. 바디·끝 릴리즈는 모두 정상이다.
+    expect(attempts.map(({ result }) => result.score.judgmentCounts.perfect)).toEqual([2, 2, 2]);
+    expect(attempts.map(({ result }) => result.score.judgmentCounts.great)).toEqual([1, 1, 1]);
+    expect(attempts.map(pattern => pattern.successCount)).toEqual([1, 2, 3]);
+    expect(successCount).toBe(3);
+    // 3500ms 탭에 3552ms down → Great 1개는 성공이다. 바디·끝 릴리즈는 모두 정상이다.
     expect(attempts[0].result.score.achievementRate).toBeCloseTo(88.888889);
     expect(attempts[0].result.facts.filter(fact => fact.kind === 'settlement' && fact.itemKind === 'tap'))
       .toMatchObject([{ atMs: 3022, grade: 'perfect' }, { atMs: 3552, grade: 'great', rawDeltaMs: 52 }]);
+  });
+
+  it('E와 D가 각각 3052ms·3552ms에 도착하면 Great 2개로 실패하고 이후 Great 1개인 3회만 누적한다', () => {
+    const { attempts, successCount } = replaySwitch(loopStride, [
+      [3052, 3522, 3552, 4039],
+      [3022, 3522, 3552, 4039],
+      [3052, 3522, 3552, 4039],
+      [3022, 3522, 3552, 4039],
+      [3022, 3522, 3552, 4039],
+    ]);
+    expect(attempts.map(({ result }) => result.score.judgmentCounts.great)).toEqual([2, 1, 2, 1, 1]);
+    expect(attempts.map(pattern => pattern.successCount)).toEqual([0, 1, 1, 2, 3]);
+    expect(successCount).toBe(3);
   });
 
   it('E up을 3400ms에서 따로 기다리고 D down을 3488ms에서 기다리면 같은 지연·jitter에도 3회 모두 100%·3/3', () => {
