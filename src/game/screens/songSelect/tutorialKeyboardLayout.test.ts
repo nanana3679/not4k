@@ -361,6 +361,15 @@ describe('findUnmetTutorialPracticeKeyRequirements', () => {
     )).toEqual([{ lane: 2, requiredKeyCount: 1, boundKeyCount: 0 }]);
   });
 
+  it('1번 레인에서 Q를 500ms에 떼는 순간 Q를 다시 누르는 같은 키 재타격은 1키로 충족', () => {
+    const timings = laneTimings([1, 'KeyQ', 0, 500], [1, 'KeyQ', 500, 1000]);
+
+    expect(findUnmetTutorialPracticeKeyRequirements(
+      timings,
+      { ...TWO_KEYS_PER_LANE, lane1: ['KeyQ'] },
+    )).toEqual([]);
+  });
+
   it('1번 레인에 0ms 길이 입력 1개만 있어도 최소 1키를 요구해 0키 설정은 미충족', () => {
     const timings = laneTimings([1, 'KeyQ', 500, 500]);
 
