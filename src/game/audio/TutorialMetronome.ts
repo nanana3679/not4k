@@ -41,6 +41,26 @@ export class TutorialMetronome {
 
   createTrack(pattern: TutorialMetronomePattern) {
     let origin = 0;
+    let audioOrigin: number | null = null;
+    let mapping: TutorialAudioClockSample | null = null;
+    let runningSince: number | null = null;
+    let previousValidTimestamp = false;
+    let lastSampleNow = -Infinity;
+    const settledMapping = (context: AudioContext, now: number) => {
+      if (mapping) return mapping;
+      runningSince ??= now;
+      // 같은 프레임의 start/sync 호출을 연속된 출력 관측으로 세지 않는다.
+      if (now - lastSampleNow < 25) return null;
+      lastSampleNow = now;
+      const sample = this.sample(context, now);
+      const stamp = sample.outputTimestamp;
+      const valid = !!stamp && Number.isFinite(stamp.contextTime) && stamp.contextTime! > 0
+        && Number.isFinite(stamp.performanceTime) && stamp.performanceTime! > 0;
+      if (valid && previousValidTimestamp) mapping = sample;
+      else if (now - runningSince >= 200) mapping = { ...sample, outputTimestamp: undefined };
+      previousValidTimestamp = valid;
+      return mapping;
+    };
     let untilMs = Infinity;
     let scheduledThrough = -Infinity;
     let timer: ReturnType<typeof setInterval> | undefined;
@@ -57,15 +77,18 @@ export class TutorialMetronome {
       voices.clear();
       scheduledThrough = -Infinity;
     };
-    // 25ms 타이머는 120ms 앞까지 예약을 보충할 뿐, 박 위치는 항상 loopStartNow에서 구한다.
+    // 한 번 고른 AudioContext 원점에서만 예약한다. 이후 출력 mapping 변화는 재보정하지 않는다.
+    // 제스처로 처음 출력을 열 때는 이미 진행 중인 무음 루프에 합류하며 예약 불가능한 박은 건너뛴다.
     const schedule = () => {
       const context = this.context;
       if (!context || context.state !== 'running') return;
-      const sample = this.sample(context, performance.now());
-      const from = Math.max(scheduledThrough, tutorialPerformanceTime(context.currentTime, sample) - origin);
-      const until = Math.min(untilMs, tutorialPerformanceTime(context.currentTime + 0.12, sample) - origin);
+      const sample = settledMapping(context, performance.now());
+      if (!sample) return;
+      audioOrigin ??= tutorialAudioTime(origin, sample);
+      const from = Math.max(scheduledThrough, (context.currentTime - audioOrigin) * 1000);
+      const until = Math.min(untilMs, (context.currentTime + 0.12 - audioOrigin) * 1000);
       for (const click of getTutorialClicks(pattern, from, until)) {
-        const at = tutorialAudioTime(origin + click.atMs, sample);
+        const at = audioOrigin + click.atMs / 1000;
         const oscillator = context.createOscillator();
         const gain = context.createGain();
         const voice = { oscillator, gain };
@@ -82,15 +105,33 @@ export class TutorialMetronome {
       scheduledThrough = Math.max(scheduledThrough, until);
     };
     const track = {
-      /** 첫 클릭을 25ms 뒤에 예약하고, 그 소리가 들리는 시각에서 4박 뒤를 루프 0으로 삼는다. */
-      start: (now: number) => {
+      /** running 출력이 안정될 때까지 null. 첫 클릭의 audio 원점에서 들리는 루프 0을 역산한다. */
+      start: (now: number): number | null => {
         const context = this.ensureContext();
-        return (context ? tutorialPerformanceTime(context.currentTime + 0.025, this.sample(context, now)) : now)
-          + pattern.countInMs;
+        // rAF 시각은 과거일 수 있어 audio 관측에는 실제 performance 시각을 짝지어 쓴다.
+        const sampleNow = performance.now();
+        if (!context || context.state !== 'running') {
+          // 자동 열기는 무음으로 진행한다. 나중의 첫 제스처는 이 performance 원점을 유지한다.
+          return (context ? tutorialPerformanceTime(context.currentTime + 0.025, this.sample(context, sampleNow)) : now)
+            + pattern.countInMs;
+        }
+        const sample = settledMapping(context, sampleNow);
+        if (!sample) return null;
+        audioOrigin = context.currentTime + 0.025 + pattern.countInMs / 1000;
+        origin = tutorialPerformanceTime(audioOrigin, sample);
+        return origin;
+      },
+      /** 고정 mapping을 유지하며 다음 박을 예약할 여유를 화면·판정에도 적용한다. */
+      resumeDelayMs: (now: number) => {
+        const context = this.context;
+        if (!context || context.state !== 'running') return 0;
+        return Math.max(25, tutorialPerformanceTime(context.currentTime + 0.025,
+          mapping ?? this.sample(context, now)) - now);
       },
       sync: (loopStartNow: number, playing: boolean, stopAtElapsedMs = Infinity) => {
         if (!playing) { stop(); return; }
-        if (origin !== loopStartNow || untilMs !== stopAtElapsedMs) stop();
+        if (origin !== loopStartNow) { stop(); audioOrigin = null; }
+        if (untilMs !== stopAtElapsedMs) stop();
         origin = loopStartNow;
         untilMs = stopAtElapsedMs;
         if (timer === undefined) timer = setInterval(schedule, 25);

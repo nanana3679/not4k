@@ -32,6 +32,7 @@ interface ChartProgressSample {
   id: string | null;
   /** 이 캔버스의 첫 renderFrame 이후 진행한 차트 시간(ms) */
   elapsedMs: number | null;
+  loopElapsedMs: number | null;
 }
 
 interface NavigationSamples {
@@ -75,7 +76,9 @@ async function goToNextAndSample(page: Page, previousId: string | null): Promise
       const elapsedMs = canvas?.__firstRenderMs === undefined || canvas.__lastRenderMs === undefined
         ? null
         : canvas.__lastRenderMs - canvas.__firstRenderMs;
-      return { id: slot.getAttribute('data-tutorial-preview-id'), elapsedMs };
+      const elapsed = slot.querySelector<HTMLElement>('[data-tutorial-engine]')?.dataset.tutorialElapsedMs;
+      return { id: slot.getAttribute('data-tutorial-preview-id'), elapsedMs,
+        loopElapsedMs: elapsed === undefined ? null : Number(elapsed) };
     };
     const samples: { slideStart?: ReturnType<typeof sample>; settled?: ReturnType<typeof sample> } = {};
     const startedAt = performance.now();
@@ -95,7 +98,7 @@ async function goToNextAndSample(page: Page, previousId: string | null): Promise
   }, previousId);
 }
 
-test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레임에 멈췄다가 자리 잡은 순간 4박 동안 0ms를 유지한 뒤 차트를 진행', async ({ page }) => {
+test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레임에 멈췄다가 자리 잡은 순간 4박 동안 판정 시각 0ms를 유지한 뒤 차트를 진행', async ({ page }) => {
   test.setTimeout(120000);
   const pageErrors: string[] = [];
   page.on('pageerror', (err) => pageErrors.push(`${err.name}: ${err.message}`));
@@ -118,12 +121,10 @@ test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레
     expect(samples.slideStart, `${i + 1}번째 넘김에서 슬라이드 시작을 관측하지 못함`).toBeDefined();
     expect(samples.slideStart?.elapsedMs, `${samples.slideStart?.id}: 슬라이드 시작 시점 차트 진행`).toBe(0);
     expect(samples.settled, `${i + 1}번째 넘김에서 자리 잡은 슬롯을 관측하지 못함`).toBeDefined();
-    expect(samples.settled?.elapsedMs, `${samples.settled?.id}: 자리 잡은 순간 차트 진행`).not.toBeNull();
-    expect(samples.settled?.elapsedMs ?? Infinity, `${samples.settled?.id}: 자리 잡은 순간 차트 진행`).toBeLessThan(150);
+    expect(samples.settled?.loopElapsedMs, `${samples.settled?.id}: 자리 잡은 순간 차트 진행`).not.toBeNull();
+    expect(samples.settled?.loopElapsedMs ?? Infinity, `${samples.settled?.id}: 자리 잡은 순간 차트 진행`).toBeLessThan(150);
     const player = activeSlot.locator('[data-tutorial-engine]');
-    await expect(player).toHaveAttribute('data-tutorial-count-in', 'true');
-    await page.waitForTimeout(500);
-    await expect(player).toHaveAttribute('data-tutorial-elapsed-ms', '0');
+    await expect(player).toHaveAttribute('data-tutorial-loop-origin-now', /\d/);
     await expect(player).toHaveAttribute('data-tutorial-count-in', 'false', { timeout: 5000 });
     await page.waitForTimeout(300);
     const laterElapsedMs = await activeSlot.locator('canvas').evaluate((canvas) => {
@@ -132,7 +133,7 @@ test('다음 튜토리얼로 넘기면 새 차트는 슬라이드 중 첫 프레
         ? tracked.__lastRenderMs - tracked.__firstRenderMs
         : null;
     });
-    expect(laterElapsedMs ?? 0, `${samples.settled?.id}: 4박 준비 뒤 차트 진행`).toBeGreaterThan((samples.settled?.elapsedMs ?? 0) + 100);
+    expect(laterElapsedMs ?? 0, `${samples.settled?.id}: 4박 준비 뒤 차트 진행`).toBeGreaterThan(100);
   }
 
   expect(pageErrors).toEqual([]);

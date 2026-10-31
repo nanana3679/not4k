@@ -24,10 +24,10 @@ vi.mock('../../supabase/client', () => ({ supabase: { storage: { from: () => ({
   getPublicUrl: (path: string) => ({ data: { publicUrl: `https://example.invalid/${path}` } }),
 }) } } }));
 const songs = [{ id: 'a', preview_url: 'a.ogg' }, { id: 'b', preview_url: 'b.ogg' }] as DbSong[];
-const PreviewAudioHarness = (index: number, tutorialOpen: boolean) => usePreviewAudio(songs, index, { tutorialOpen });
-function render(index: number, tutorialOpen: boolean) {
+const PreviewAudioHarness = (index: number, tutorialOpen: boolean, autoPlay: boolean) => usePreviewAudio(songs, index, { tutorialOpen, autoPlay });
+function render(index: number, tutorialOpen: boolean, autoPlay = true) {
   hooks.cursor = 0;
-  const result = PreviewAudioHarness(index, tutorialOpen);
+  const result = PreviewAudioHarness(index, tutorialOpen, autoPlay);
   hooks.effects.splice(0).forEach(effect => effect());
   return result;
 }
@@ -37,26 +37,59 @@ afterEach(() => {
   vi.useRealTimers(); vi.unstubAllGlobals();
 });
 
-it('프리뷰 대기 500ms에 튜토리얼을 열면 예약을 취소하고 닫은 뒤 현재 곡 b를 1초 뒤 처음부터 재생한다', () => {
+function mockAudio() {
   vi.useFakeTimers();
   vi.stubGlobal('window', { setInterval, clearInterval, setTimeout, clearTimeout });
-  const audio = { volume: 0, currentTime: 0, loop: false, play: vi.fn(async () => {}), pause: vi.fn(),
+  const audio = { volume: 0, currentTime: 0, loop: false, paused: true,
+    play: vi.fn(async () => { audio.paused = false; }), pause: vi.fn(() => { audio.paused = true; }),
     addEventListener() {}, removeEventListener() {}, removeAttribute() {}, load() {} };
   const create = vi.fn(function () { return audio; });
   vi.stubGlobal('Audio', create);
+  return { audio, create };
+}
+
+it('곡 선택은 a를 즉시 재생하고 b로 포커스를 바꾸면 1초 대기 없이 b를 재생한다', () => {
+  const { create } = mockAudio();
   render(0, false);
-  vi.advanceTimersByTime(500);
-  expect(create).not.toHaveBeenCalled();
+  expect(create).toHaveBeenLastCalledWith('https://example.invalid/a.ogg');
+  render(1, false);
+  expect(create).toHaveBeenLastCalledWith('https://example.invalid/b.ogg');
+  expect(create).toHaveBeenCalledTimes(2);
+});
+
+it.each([false, true])('autoPlay=false·열기 전 재생=%s이면 닫은 뒤 1초에는 이전에 재생했을 때만 b를 처음부터 재생한다', playing => {
+  const { create, audio } = mockAudio();
+  const preview = render(0, false, false);
+  if (playing) preview.playPreviewAt(0);
+  render(0, true, false);
+  if (playing) expect(audio.pause).toHaveBeenCalledTimes(1);
+  render(1, true, false).playPreviewAt(1);
+  const count = create.mock.calls.length;
+  render(1, false, false);
+  vi.advanceTimersByTime(999);
+  expect(create).toHaveBeenCalledTimes(count);
+  vi.advanceTimersByTime(1);
+  expect(create).toHaveBeenCalledTimes(count + Number(playing));
+  if (playing) expect(create).toHaveBeenLastCalledWith('https://example.invalid/b.ogg');
+});
+
+it('튜토리얼을 열면 a를 즉시 끊고 닫은 뒤 500ms에 다시 열면 대기 중인 b 시작도 취소한다', () => {
+  const { create, audio } = mockAudio();
+  render(0, false);
   render(0, true);
+  expect(audio.pause).toHaveBeenCalledTimes(1);
   render(1, true).playPreviewAt(1);
   vi.advanceTimersByTime(3000);
-  expect(create).not.toHaveBeenCalled();
+  expect(create).toHaveBeenCalledTimes(1);
+  render(1, false);
+  vi.advanceTimersByTime(500);
+  render(1, true);
+  vi.advanceTimersByTime(1000);
+  expect(create).toHaveBeenCalledTimes(1);
   render(1, false);
   vi.advanceTimersByTime(999);
-  expect(create).not.toHaveBeenCalled();
+  expect(create).toHaveBeenCalledTimes(1);
   vi.advanceTimersByTime(1);
-  expect(create).toHaveBeenCalledExactlyOnceWith('https://example.invalid/b.ogg');
-  expect(audio.play).toHaveBeenCalledTimes(1);
-  render(1, true);
-  expect(audio.pause).toHaveBeenCalledTimes(1);
+  expect(create).toHaveBeenLastCalledWith('https://example.invalid/b.ogg');
+  expect(create).toHaveBeenCalledTimes(2);
 });

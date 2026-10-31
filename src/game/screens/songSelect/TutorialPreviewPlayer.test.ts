@@ -195,7 +195,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('preview.renderStartMs');
     expect(tutorialPreviewPlayerSource).toContain('getExplicitTutorialInputTime(now, loopStartNow, preview.loopMs)');
     expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = screenTime.loopTimeMs');
-    expect(tutorialPreviewPlayerSource).toContain('const renderTimeMs = preview.renderStartMs + loopTimeMs');
+    expect(tutorialPreviewPlayerSource).toContain('const renderTimeMs = preview.renderStartMs + visualLoopTimeMs');
     expect(tutorialPreviewPlayerSource).toContain('getActiveTutorialInputTimings(loopTimeMs, timings)');
     expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(renderTimeMs, deltaMs)');
   });
@@ -420,7 +420,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(tutorialPreviewPlayerSource.split('renderer.setExplicitChart(').length - 1).toBe(1);
     expect(tutorialPreviewPlayerSource).toContain('() => explicitPlayback.renderSnapshot(');
-    expect(tutorialPreviewPlayerSource).toContain('(explicitInput?.sessionIteration ?? screenIteration) - screenIteration');
+    expect(tutorialPreviewPlayerSource).toContain('(explicitInput?.sessionIteration ?? screenIteration) - renderIteration');
     expect(tutorialPreviewPlayerSource).toContain('screenIteration = screenTime.iteration;');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderDurationMs,');
   });
@@ -482,7 +482,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
 
   it('명시 경계는 도식 진입 전 대기 상태와 해결된 loopTimeMs로 한 번 정산하고 구형은 loopTimeMs 감소만 검사', () => {
     const order = [
-      'if (clock.frozen) {',
+      'if (clock.frozen || waitingForResume()) {',
       'const diagramHeldBeforeFrame = activeDiagramPause !== null;',
       'loopTimeMs = resolveDiagramPauseTime(loopTimeMs);',
       'previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);',
@@ -493,7 +493,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialPreviewPlayerSource).toContain([
       'explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {',
       '              loopTimeMs,',
-      '              blocked: pausedRef.current || diagramHeldBeforeFrame || countingIn(),',
+      '              blocked: pausedRef.current || diagramHeldBeforeFrame || countingIn() || waitingForResume(),',
     ].join('\n'));
     // 프레임에만 이전 도식 상태를 전달한다. 프레임 사이 키 이벤트는 현재 도식 상태를 읽어야 한다.
     expect(tutorialPreviewPlayerSource).toContain('blocked: pausedRef.current || activeDiagramPause !== null');
@@ -510,7 +510,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
       'if (!isExplicitTutorialPreview(preview) && loopTimeMs < previousLoopTime) {',
       '            previewJudgment.finishLoop();',
       '          }',
-      '          previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);',
+      '          if (!inCountIn) previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);',
     ].join('\n'));
   });
 
@@ -521,7 +521,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(controlEnd).toBeGreaterThan(controlStart);
     const control = tutorialPreviewPlayerSource.slice(controlStart, controlEnd);
     const order = [
-      'if (!clock.frozen && !countingIn()) {',
+      'if (!clock.frozen && !countingIn() && !waitingForResume()) {',
       'const diagramHeldBeforeFrame = activeDiagramPause !== null;',
       'const loopTimeMs = resolveDiagramPauseTime(Math.max(0, now - loopStartNow) % preview.loopMs);',
       'advanceExplicit(loopTimeMs, diagramHeldBeforeFrame);',

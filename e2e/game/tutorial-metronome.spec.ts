@@ -36,12 +36,14 @@ test('튜토리얼 두 슬롯은 context 하나를 공유하고 4박 준비·시
   const dialog = page.getByRole('dialog', { name: 'Tutorial', exact: true });
   await dialog.locator('[data-tutorial-index-item="single-note"]').click();
   const active = dialog.locator('[data-tutorial-preview-slot="active"][data-tutorial-preview-id="single-note"] [data-tutorial-engine]');
-  await expect(active).toHaveAttribute('data-tutorial-count-in', 'true');
+  // count-in 안에 여러 상호작용을 끝내려 하지 않고 확정된 출력 원점을 기다린다.
+  await expect(active).toHaveAttribute('data-tutorial-loop-origin-now', /\d/);
+  const firstOrigin = Number(await active.getAttribute('data-tutorial-loop-origin-now'));
+  await expect.poll(() => active.evaluate(node => performance.now() >= Number((node as HTMLElement).dataset.tutorialLoopOriginNow))).toBe(true);
+  await expect(active).toHaveAttribute('data-tutorial-count-in', 'false', { timeout: 5000 });
   await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
   await page.keyboard.press('KeyE');
-  await expect(active).toHaveAttribute('data-tutorial-elapsed-ms', '0');
-  await expect(active).not.toHaveAttribute('data-tutorial-last-iteration', /\d/);
-  await expect(active).toHaveAttribute('data-tutorial-count-in', 'false', { timeout: 5000 });
+  await expect(active).toHaveAttribute('data-tutorial-input-mode', 'directInput');
   await expect.poll(async () => (await readAudio()).clicks.length).toBeGreaterThan(4);
   expect((await readAudio()).contexts - baseline.contexts).toBe(1);
 
@@ -50,7 +52,8 @@ test('튜토리얼 두 슬롯은 context 하나를 공유하고 4박 준비·시
   await expect(active).toHaveAttribute('data-tutorial-count-in', 'false');
   await dialog.locator('[data-tutorial-index-item="double-note"]').click();
   const next = dialog.locator('[data-tutorial-preview-slot="active"][data-tutorial-preview-id="double-note"] [data-tutorial-engine]');
-  await expect(next).toHaveAttribute('data-tutorial-count-in', 'true');
+  await expect.poll(async () => Number(await next.getAttribute('data-tutorial-loop-origin-now'))).toBeGreaterThan(firstOrigin);
+  await expect(next).toHaveAttribute('data-tutorial-count-in', 'false', { timeout: 5000 });
   expect((await readAudio()).contexts - baseline.contexts).toBe(1);
   await dialog.getByRole('button', { name: 'Close tutorial help' }).click();
   await expect(dialog).toBeHidden();

@@ -19,6 +19,7 @@ export function usePreviewAudio(
   const { enabled = true, autoPlay = true, tutorialOpen = false } = options;
   const startTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const wasTutorialOpenRef = useRef(tutorialOpen);
+  const wasPlayingBeforeTutorialRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   // 페이드아웃 진행 중에는 위치 기반(timeupdate) 볼륨 제어를 무시한다.
@@ -168,6 +169,9 @@ export function usePreviewAudio(
 
   useEffect(() => {
     const tutorialClosed = wasTutorialOpenRef.current && !tutorialOpen;
+    if (tutorialOpen && !wasTutorialOpenRef.current) {
+      wasPlayingBeforeTutorialRef.current = !!audioRef.current && !audioRef.current.paused;
+    }
     wasTutorialOpenRef.current = tutorialOpen;
     clearTimeout(startTimerRef.current);
     if (tutorialOpen) {
@@ -180,9 +184,13 @@ export function usePreviewAudio(
       fadeOutAndStop();
       return;
     }
-    if (!autoPlay && !tutorialClosed) return;
+    if (!autoPlay && !(tutorialClosed && wasPlayingBeforeTutorialRef.current)) return;
     stopPreview();
-    startTimerRef.current = setTimeout(() => playPreview(songs[focusedSongIndex]), 1000);
+    if (tutorialClosed) {
+      startTimerRef.current = setTimeout(() => playPreview(songs[focusedSongIndex]), 1000);
+    } else {
+      playPreview(songs[focusedSongIndex]);
+    }
     return () => clearTimeout(startTimerRef.current);
   }, [songs, focusedSongIndex, enabled, autoPlay, tutorialOpen, playPreview, fadeOutAndStop, stopPreview]);
 
