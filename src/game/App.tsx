@@ -26,6 +26,7 @@ export default function GameApp() {
   const [restoreProfileReturn] = useState(createProfileReturnRestorer);
 
   useEffect(() => {
+    // cleanup은 이전 effect의 복귀 대기만 무효화하며 공유 SDK 초기화는 유지한다.
     return bindProfileReturnRestoration(restoreProfileReturn, mobileListOnly);
   }, [restoreProfileReturn, mobileListOnly, isFirstLaunch]);
 

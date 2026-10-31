@@ -131,6 +131,32 @@ it('access_denied로 취소하면 SDK 초기화 오류 User cancelled가 있어�
   expect(useGameStore.getState()).toMatchObject({ settingsOpen: true, profileAuthError: null });
 });
 
+it('access_denied 취소 후 새 Login 마커로 pageshow persisted 복귀하면 캐시된 User cancelled 오류 없이 Profile을 연다', async () => {
+  const history = mockBrowser('https://example.test/game#error=access_denied&error_description=User+cancelled');
+  history.replaceState.mockImplementation((_state, _unused, url: string) => { window.location.href = url; });
+  useGameStore.getState().completeFirstLaunch();
+  await signInFromProfile(async () => {});
+  const initializeAuth = vi.fn(async () => ({ error: new Error('User cancelled') }));
+  const restore = vi.fn(createProfileReturnRestorer(initializeAuth));
+  const stop = bindProfileReturnRestoration(restore, false);
+  try {
+    await restore.mock.results[0].value;
+    expect(useGameStore.getState()).toMatchObject({ settingsOpen: true, profileAuthError: null });
+    expect(window.location.href).toBe('https://example.test/game');
+    useGameStore.getState().setSettingsOpen(false);
+
+    await signInFromProfile(async () => {});
+    window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true }));
+    await restore.mock.results[1].value;
+    expect(useGameStore.getState()).toMatchObject({
+      screen: 'songSelect', settingsOpen: true, settingsInitialSection: 'profile', profileAuthError: null,
+    });
+    expect(window.sessionStorage.getItem('not4k-profile-return')).toBeNull();
+  } finally {
+    stop();
+  }
+});
+
 it('첫 실행 presetSetup 중 새로고침해도 원래 타임스탬프를 유지하고 완료 후 Profile을 1회만 연다', async () => {
   mockBrowser();
   await signInFromProfile(async () => {});
@@ -194,6 +220,53 @@ it('StrictMode처럼 초기화 대기 중 복귀를 2회 실행해도 SDK 완료
     expect(opened).toHaveBeenCalledOnce();
     expect(useGameStore.getState().settingsInitialSection).toBe('profile');
   } finally {
+    unsubscribe();
+  }
+});
+
+it('첫 실행 모바일 복귀의 초기화 대기 중 데스크톱으로 재구독하면 마커를 유지한 채 presetSetup을 거쳐 Profile을 1회만 연다', async () => {
+  mockBrowser();
+  await signInFromProfile(async () => {});
+  const marker = window.sessionStorage.getItem('not4k-profile-return');
+  let finish!: (result: { error: Error | null }) => void;
+  const initializeAuth = vi.fn(() => new Promise<{ error: Error | null }>(resolve => { finish = resolve; }));
+  const restore = vi.fn(createProfileReturnRestorer(initializeAuth));
+  const opened = vi.fn();
+  const unsubscribe = useGameStore.subscribe((state, previous) => {
+    if (state.settingsOpen && !previous.settingsOpen) opened();
+  });
+  let stop = bindProfileReturnRestoration(restore, true);
+  try {
+    stop();
+    stop = bindProfileReturnRestoration(restore, false);
+    expect(initializeAuth).toHaveBeenCalledOnce();
+    finish({ error: null });
+    await Promise.all(restore.mock.results.map(result => result.value));
+    expect(useGameStore.getState()).toMatchObject({
+      screen: 'presetSetup', settingsOpen: false, settings: { isFirstLaunch: true },
+    });
+    expect(window.sessionStorage.getItem('not4k-profile-return')).toBe(marker);
+    expect(opened).not.toHaveBeenCalled();
+
+    useGameStore.getState().completeFirstLaunch();
+    stop();
+    stop = bindProfileReturnRestoration(restore, false);
+    await restore.mock.results[2].value;
+    expect(useGameStore.getState()).toMatchObject({
+      screen: 'songSelect', settingsOpen: true, settingsInitialSection: 'profile',
+    });
+    expect(window.sessionStorage.getItem('not4k-profile-return')).toBeNull();
+    expect(opened).toHaveBeenCalledOnce();
+    expect(initializeAuth).toHaveBeenCalledOnce();
+
+    useGameStore.getState().setSettingsOpen(false);
+    stop();
+    stop = bindProfileReturnRestoration(restore, false);
+    await restore.mock.results[3].value;
+    expect(useGameStore.getState().settingsOpen).toBe(false);
+    expect(opened).toHaveBeenCalledOnce();
+  } finally {
+    stop();
     unsubscribe();
   }
 });

@@ -103,6 +103,19 @@ test.describe('Game Settings', () => {
     await expect(dialog.getByText('Signed in', { exact: true })).toHaveCount(0);
   });
 
+  test('dev@local의 Profile에서 Logout을 클릭하면 설정을 닫고 타이틀의 not4k·Start를 표시한다', async ({ page }) => {
+    const dialog = await openSettings(page);
+    await dialog.getByRole('button', { name: 'Profile', exact: true }).click();
+    const profile = dialog.getByRole('region', { name: 'Profile', exact: true });
+    await expect(profile.getByText('dev@local', { exact: true })).toBeVisible();
+    // VITE_DEV_ADMIN은 실제 세션을 만들지 않는다. 깨끗한 context에서 auth-js signOut은
+    // access_token이 없어 HTTP 요청 없이 성공하므로 가짜 Supabase URL도 auth route가 필요 없다.
+    await profile.getByRole('button', { name: 'Logout', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'not4k', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
+  });
+
   test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 명시 탭 노트·Body와 Classic 기어·봄 PNG를 로드한다', async ({ page }, testInfo) => {
     test.setTimeout(PLAY_TEST_TIMEOUT_MS);
     const errors: string[] = [];
