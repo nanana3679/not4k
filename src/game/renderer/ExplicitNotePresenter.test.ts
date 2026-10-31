@@ -110,27 +110,33 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(notes[0].layers[0].width).toBeCloseTo(200 * 62.5 / 212);
   });
 
-  it("탭 싱글 성공은 즉시 숨기고 Miss는 원래 도안·Grace 없음으로 화면 밖까지 남는다", () => {
+  it("Grace 탭 싱글 성공은 본체·흰 외곽을 즉시 숨기고 Miss는 더블처럼 tap.single.failed 실패 도안과 흰 외곽 alpha 1로 화면 밖까지 남는다", () => {
     const single = explicitRenderChart([{ type: "tap", lane: 2, beat: beat(2), kind: "single", grace: true }]);
     const present = new ExplicitNotePresenter(single, skin);
     expect(present.present(explicitRenderSnapshot(single, { items: { 0: ["success"] } }), layout)[0].layers.every(layer => !layer.visible)).toBe(true);
-    expect(present.present(explicitRenderSnapshot(single, { items: { 0: ["miss"] } }), layout)[0].layers).toMatchObject([
-      { assetId: "tap.single.pending", alpha: 1, visible: true }, { visible: false },
+    const missed = present.present(explicitRenderSnapshot(single, { items: { 0: ["miss"] } }), layout)[0];
+    expect(missed.layers).toMatchObject([
+      { assetId: "tap.single.failed", alpha: 1, visible: true },
+      { assetId: "graceOverlay.tap.overlay", alpha: 1, visible: true, overlay: true },
     ]);
+    expect(missed.overlayAlpha).toBe(1);
+    expect(present.present(explicitRenderSnapshot(single, { items: { 0: ["miss"] } }), layout, 6500)[0].layers.every(layer => !layer.inViewport)).toBe(true);
   });
 
-  it("탭 더블 왼쪽 Miss·오른쪽 대기는 실패 절반만 alpha 1이고 오른쪽 성공 뒤에는 두 절반 모두 alpha 0.7이다", () => {
+  it("Grace 탭 더블 왼쪽 Miss·오른쪽 대기는 실패 절반만 alpha 1이고 오른쪽 성공 뒤에는 두 절반 모두 alpha 0.7이며 흰 외곽은 두 경우 모두 alpha 1이다", () => {
+    const outline = { assetId: "graceOverlay.tap.overlay", alpha: 1, visible: true, overlay: true };
     const pending = show({ items: { 3: ["miss", "pending"] } })[3].layers;
     expect(pending).toMatchObject([
       { assetId: "tap.double.failed", crop: "left", alpha: 1 },
-      { assetId: "tap.double.pending", crop: "right", alpha: 1 }, { visible: false },
+      { assetId: "tap.double.pending", crop: "right", alpha: 1 }, outline,
     ]);
     expect(pending[0].x + pending[0].width).toBeCloseTo(pending[1].x);
     expect(show({ items: { 3: ["miss", "success"] } })[3].layers).toMatchObject([
       { assetId: "tap.double.failed", crop: "left", alpha: 0.7, visible: true },
-      { assetId: "tap.double.pending", crop: "right", alpha: 0.7, visible: true }, { visible: false },
+      { assetId: "tap.double.pending", crop: "right", alpha: 0.7, visible: true }, outline,
     ]);
-    expect(show({ items: { 3: ["success", "success"] } })[3].layers[0].visible).toBe(false);
+    expect(show({ items: { 3: ["miss", "miss"] } })[3]).toMatchObject({ overlayAlpha: 1, layers: [{ assetId: "tap.double.failed", alpha: 1 }, outline] });
+    expect(show({ items: { 3: ["success", "success"] } })[3].layers.every(layer => !layer.visible)).toBe(true);
   });
 
   it("공개 snapshot에 b2:hold:1이 없으면 geometry로 추정하지 않고 누락 ID를 보고한다", () => {
@@ -152,7 +158,7 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(done[0].layers[0].visible).toBe(true);
   });
 
-  it("trill 바디·탭은 200×40과 자기 snapshot만 사용하고 끝에 release·cap·자동 점수 표시를 만들지 않는다", () => {
+  it("trill 바디·탭은 200×40과 자기 snapshot만 사용하고 끝에 release·cap·자동 점수 표시를 만들지 않으며 놓친 Grace 트릴 탭은 tap.trill.failed와 흰 외곽 alpha 1을 남긴다", () => {
     const trill = explicitRenderChart([
       { type: "tap", kind: "trill", lane: 3, beat: beat(2), grace: true },
       { type: "body", lane: 3, beat: beat(2), endBeat: beat(6), holdCount: 1, trill: true },
@@ -164,7 +170,9 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(notes[0].layers[0].width).toBeCloseTo(200 * 62.5 / 212);
     expect(notes[1].layers[0].assetId).toBe("body.trill.held");
     const failed = p.present(explicitRenderSnapshot(trill, { body: ["failed"], items: { 0: ["miss"] } }), layout);
-    expect(failed[0].layers[0].assetId).toBe("tap.trill.failed");
+    expect(failed[0].layers).toMatchObject([
+      { assetId: "tap.trill.failed", visible: true }, { assetId: "graceOverlay.trill.overlay", alpha: 1, visible: true },
+    ]);
     expect(failed[1].layers[0].assetId).toBe("body.trill.failed");
     expect(trill.totalJudgments).toBe(1);
   });

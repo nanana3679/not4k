@@ -285,7 +285,7 @@ export class ClipboardManager {
   }
 
   /**
-   * 붙여넣은 노트가 점유한 최대 보조 레인이 현재 extraLaneCount를 넘으면 확장한다.
+   * 붙여넣은 노트·트릴 구간·이벤트가 점유한 최대 보조 레인이 현재 extraLaneCount를 넘으면 확장한다.
    * setExtraLaneCount 미설정 시 no-op(확장 없이 숨김 — 옛 동작 계승).
    */
   private expandExtraLanesForPasted(chart: ChartDocument, callbacks: ClipboardCallbacks): void {
@@ -295,7 +295,8 @@ export class ClipboardManager {
       const n = chart.notes[idx];
       if (n) pastedNotes.push(n);
     }
-    const needed = Math.max(toAuxIndex(maxAuxLane(pastedNotes)),
+    const pastedZones = [...this.pastedZoneIndices].map(index => chart.trillZones[index]).filter(Boolean);
+    const needed = Math.max(toAuxIndex(maxAuxLane([...pastedNotes, ...pastedZones])),
       ...[...this.pastedEventIndices].map(index => chart.events[index].editorLane ?? 1));
     const cur = callbacks.getExtraLaneCount();
     if (needed > cur) {
@@ -375,7 +376,7 @@ export class ClipboardManager {
     direction: "up" | "down",
     callbacks: ClipboardCallbacks,
   ): ChartDocument | null {
-    // restZone-only 붙여넣기(노트 0개)도 이동 가능해야 한다 (RFD 0019)
+    // 노트 없는 구간만 붙여넣은 경우도 이동할 수 있다.
     if (
       !this._isPendingPaste ||
       (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0 && this.pastedZoneIndices.size === 0 && this.pastedEventIndices.size === 0)
@@ -464,14 +465,14 @@ export class ClipboardManager {
    * Returns updated chart, or null if blocked.
    *
    * RFD 0018 ④: 통합 레인 이동 — 메인4↔보조5는 한 칸 연속, 클램프는 isVisibleLane
-   * (1..4+extraLaneCount). trillZone은 게임 판정 대상이라 메인 레인(1..4)만.
+   * (1..4+extraLaneCount). trillZone도 같은 가시 범위를 쓰고 restZone만 메인 레인에 남는다.
    */
   movePasteByLane(
     chart: ChartDocument,
     direction: "left" | "right",
     callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getExtraLaneCount">,
   ): ChartDocument | null {
-    // restZone-only 붙여넣기(노트 0개)도 이동 가능해야 한다 (RFD 0019)
+    // 노트 없는 구간만 붙여넣은 경우도 이동할 수 있다.
     if (
       !this._isPendingPaste ||
       (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0 && this.pastedZoneIndices.size === 0 && this.pastedEventIndices.size === 0)
@@ -486,10 +487,10 @@ export class ClipboardManager {
       const note = chart.notes[idx];
       if (!isVisibleLane(note.lane + laneOffset, extraLaneCount)) return null;
     }
-    // 붙여넣은 trillZone은 메인 레인 범위(1..4)만
+    // 붙여넣은 trillZone도 현재 표시 중인 메인·보조 레인 범위 안에서 이동한다.
     for (const idx of this.pastedZoneIndices) {
       const targetLane = chart.trillZones[idx].lane + laneOffset;
-      if (!isMainLane(targetLane)) return null;
+      if (!isVisibleLane(targetLane, extraLaneCount)) return null;
     }
     // 붙여넣은 restZone도 가시 레인 범위(1..4)만 (RFD 0019 §4-1)
     const chartRestZones = chart.restZones ?? [];

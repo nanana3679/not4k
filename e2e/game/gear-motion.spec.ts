@@ -184,7 +184,7 @@ async function startLocalPlay(page: Page, gearMotion: boolean, { waitForCanvas =
       meta: { title: 'Gear motion check', artist: 'Local', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
       notes: [{ type: 'tap', kind: 'single', lane: 1, beat: { n: missAtBeat, d: 1 } }],
       trillZones: [],
-      events: [{ type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 }, { type: 'timeSignature', beat: { n: 0, d: 1 }, beatPerMeasure: { n: 4, d: 1 } }],
+      events: [{ type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120, editorLane: 1 }, { type: 'timeSignature', beat: { n: 0, d: 1 }, beatPerMeasure: { n: 4, d: 1 }, editorLane: 2 }],
     };
     const audioBuffer = new AudioBuffer({ length: 44100 * 90, sampleRate: 44100, numberOfChannels: 1 });
     const fixturePath = '/e2e/normalPlayFixture.ts';

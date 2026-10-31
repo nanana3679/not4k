@@ -77,3 +77,10 @@ describe("computeMinimapTrillZoneRects", () => {
     expect(rects[0].height).toBe(500);
   });
 });
+
+it('메인 lane 1과 보조 lane 5 구간이 함께 있어도 미니맵에는 메인 구간 하나만 그린다', () => {
+  const rects = computeMinimapTrillZoneRects([
+    { lane: 1, beat: beat(0), endBeat: beat(2) }, { lane: 5, beat: beat(0), endBeat: beat(2) },
+  ], bpmChanges, offsetMs, timeToY, toMinimapY, trackX, laneW);
+  expect(rects).toHaveLength(1); expect(rects[0].x).toBe(trackX);
+});

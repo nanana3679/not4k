@@ -739,3 +739,26 @@ describe("CreateMode — 명시 릴리즈·틱 배치", () => {
     ]);
     expect(editorChartErrors(callbacks.onChartUpdate.mock.calls[0][0])).toEqual([]);
   });
+
+describe('보조 trillZone 생성', () => {
+  it('lane 5에서 4→1 드래그하면 구간 [1,4]를 만들고 내부 탭은 trill이 된다', () => {
+    const cb = makeCallbacks(makeChart(), { xToUnifiedLane: () => 5, xToExtraLane: () => 1 });
+    const mode = new CreateMode(makeChart(), cb);
+    mode.entityType = 'trillZone';
+    mode.onPointerDown(5, 4);
+    expect(mode.dragLane).toBe(5);
+    mode.onPointerUp(5, 1);
+    const chart = cb.onChartUpdate.mock.calls.at(-1)![0];
+    expect(chart.trillZones).toEqual([{ lane: 5, beat: beat(1), endBeat: beat(4) }]);
+    mode.entityType = 'single';
+    mode.onPointerDown(5, 2);
+    mode.onPointerUp(5, 2);
+    expect(cb.onChartUpdate.mock.calls.at(-1)![0].notes).toEqual([{ type: 'tap', kind: 'trill', lane: 5, beat: beat(2) }]);
+  });
+  it('restZone 도구는 lane 5 드래그를 구간으로 만들지 않는다', () => {
+    const cb = makeCallbacks(makeChart(), { xToUnifiedLane: () => 5, xToExtraLane: () => 1 });
+    const mode = new CreateMode(makeChart(), cb);
+    mode.entityType = 'restZone'; mode.onPointerDown(5, 1); mode.onPointerUp(5, 4);
+    expect(cb.onChartUpdate).not.toHaveBeenCalled();
+  });
+});

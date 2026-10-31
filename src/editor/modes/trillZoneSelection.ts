@@ -261,7 +261,7 @@ export function translateTrillZone(
 ): TrillZone {
   return {
     ...zone,
-    lane: (zone.lane + laneOffset) as TrillZone["lane"],
+    lane: zone.lane + laneOffset,
     beat: beatAdd(zone.beat, beatOffset),
     endBeat: beatAdd(zone.endBeat, beatOffset),
   };

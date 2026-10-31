@@ -21,6 +21,7 @@
 | 현 한국어 표제어 | → 캐논 | 코드 식별자 |
 |---|---|---|
 | 저장·편집 차트 문서 | `ChartDocument` | `ChartDocument`/`DocumentNoteEntity`/`DocumentExtraNoteEntity` — 구형 `Chart`·`NoteEntity` 소비자와 구별. [정의](glossary.md#chartdocument) |
+| 구형 차트 1차 기계 변환 | `convertLegacyChart` | `convertLegacyChart`/`hasLegacyNotes`/`LegacyConversionReport`/`LegacyConversionItem` — 사용자가 에디터 모달에서 승인할 때만 실행. 보고 항목은 세션 동안 변환 검토 목록(`legacyConversionReview`)으로 보인다. [정의](glossary.md#convertlegacychart) |
 | 트릴 구간 | `trillZone` | `trillZone`/`TrillZone`/`trillZones` |
 | 휴지 구간 | `restZone` | `restZone`/`RestZone`/`restZones` |
 | 공릴리즈 — **폐지** (RFD 0015, 역사적 언급만) | `emptyRelease` | 없음 (도장 구현 삭제됨) |
@@ -33,6 +34,7 @@
 | 차트 이벤트 | `ChartEvent` | `ChartEvent`/`RangeEvent` |
 | BPM 마커·BPM 이벤트 | `BpmChangeEvent` | `BpmChangeEvent`(type `"bpm"`), 0박 초기 설정 포함. 계산용 데이터는 `BpmChange` |
 | 박자 마커·박자 이벤트 | `TimeSignatureChangeEvent` | `TimeSignatureChangeEvent`(type `"timeSignature"`), 0박 초기 설정 포함. 마디 번호 기준 계산용 데이터는 `TimeSignatureChange` |
+| 저장·편집 차트 문서 | `ChartDocument` | `ChartDocument`/`DocumentNoteEntity`/`DocumentExtraNoteEntity` — 구형 `Chart`·`NoteEntity` 소비자와 구별. [정의](glossary.md#chartdocument) |
 | 차트 시간 뷰 | `ChartTiming` | `ChartTiming`/`createChartTiming`/`ChartTimingSource` |
 | 메시지 이벤트 | `TextEvent` (⚠️ 2026-06-30 A1을 재전환) | `TextEvent`(type `"text"`) |
 | Auto 구간 | `AutoEvent` | `AutoEvent`(type `"auto"`) |
@@ -46,6 +48,10 @@
 표기법 심볼(`o`/`t`/`D`/`-`/`=`/`{`/`}`/`~`/`*`/`-o`/`t-`/`D=-`)은 기존 기록에서 유지한다. 구형 끝점·`holdOnly` 표기를 새 모델의 암묵적 뗌·점수 계약으로 읽지 않는다.
 
 ## B. 기존 개념 — established 이름 유지
+
+**곡 메타데이터**와 **차트 메타데이터**는 기존 데이터 용어의 한국어 표기를 사용한다. 제목·아티스트·자켓은 곡이 소유하고 난이도명·Lv.는 개별 차트를 설명한다. 현재 `ChartMeta`의 저장 필드와 논리적 소유 범위를 구별한다([곡](glossary.md#곡-메타데이터)·[차트](glossary.md#차트-메타데이터)).
+
+**곡 타이밍**은 곡의 음악적 시간 기준을 설명하는 한국어 표현으로 사용한다. 같은 곡의 차트들이 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬 오프셋을 가리킨다. 기존 `BpmChangeEvent`·`offsetMs`의 저장 표현과 곡 단위 소유 규칙을 구별하며, 정의는 [glossary](glossary.md#곡-타이밍)를 따른다.
 
 **일시정지 후 재개**는 기존 재생 조작의 한국어 표기를 유지한다. 새 흐름의 의미는 [glossary](glossary.md#일시정지-후-재개)에 정의하며 별도 코드 식별자를 이 용어로 확정하지 않는다.
 
@@ -74,7 +80,7 @@
 | 바디 몫 | 바디 몫 | single 1개·double 2개의 시작·유지·완료·실패 단위. 고정 물리 키 소유가 아니다. unit/body unit은 설명용 병기이며 새 타입명 강제 아님 |
 | 점수 항목 | 점수 항목 | 명시 노트의 요구 한 몫당 가중치 3인 항목. 바디 자체는 만들지 않는다([glossary](glossary.md#점수-항목과-무점수-miss)) |
 | 종속 0점 | 종속 0점 | 기회 소멸은 원래 가중치의 0점 정산이며 추가 Miss 효과가 없다([glossary](glossary.md#점수-항목과-무점수-miss)) |
-| 구형 차트와 과도기 | 구형 차트와 과도기 | 미수정 구형 의미 보존·혼합 저장·새 재생 차단·사람의 수리. 종료 시점은 사용자 지정([glossary](glossary.md#구형-차트와-과도기)) |
+| 구형 차트와 과도기 | 구형 차트와 과도기 | 미수정 구형 의미 보존·혼합 저장·새 재생 차단·사용자가 승인한 1차 기계 변환(`convertLegacyChart`)과 사람의 수리. 종료 시점은 사용자 지정([glossary](glossary.md#구형-차트와-과도기)) |
 | 피스류(비트 복합 트릴, 레인 내 분리, 롱끝 교대→트릴, 가변 분할 피스 등) | 한국어 이름 | 표기법 + PP 코드 |
 | 고도 게이지 시연 (← 게이지 "승인 시연" 개명. "승인"으로는 누가 언제 승인했는지 드러나지 않는다, 2026-10-13) | 고도 게이지 시연 | `lab/image-galleries/frame-keywords-six-20260929/press-animation.html`의 게이지 슬라이더와 `게이지 자동 변화`. 게임 고도 게이지가 빈 유리·유리 안쪽 마스크·8px 경계·약 300ms ease-out을 따른 기준. 디자인 기록은 [게이지 채움 조절](../design/classic-frame-keywords-20260929.md#게이지-채움-조절) |
 

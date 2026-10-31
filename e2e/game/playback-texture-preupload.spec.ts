@@ -124,9 +124,9 @@ async function startPlay(page: Page) {
       ],
       trillZones: [],
       events: [
-        { type: 'bpm', beat: b(0), bpm: 120 },
-        { type: 'timeSignature', beat: b(0), beatPerMeasure: b(4) },
-        { type: 'auto', beat: b(0), endBeat: b(5) },
+        { type: 'bpm', beat: b(0), bpm: 120, editorLane: 1 },
+        { type: 'timeSignature', beat: b(0), beatPerMeasure: b(4), editorLane: 2 },
+        { type: 'auto', beat: b(0), endBeat: b(5), editorLane: 3 },
       ],
     };
     const audioBuffer = new AudioBuffer({ length: 44100 * 5, sampleRate: 44100, numberOfChannels: 1 });

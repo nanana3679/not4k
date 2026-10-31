@@ -265,3 +265,16 @@ describe("GridRenderer.renderRestZones 밴드 기하 (RFD 0019)", () => {
     expect(unselectedBounds.width).toBe(LANE_WIDTH); // 테두리 없음
   });
 });
+
+describe('보조 trillZone 표시', () => {
+  it('lane 5 구간은 보조 첫 칸에 그려지고 숨은 lane 8 구간은 그리지 않는다', () => {
+    const chart = makeChart([]);
+    chart.trillZones = [{ lane: 5, beat: beat(1), endBeat: beat(3) }, { lane: 8, beat: beat(1), endBeat: beat(3) }];
+    const host = makeHost(chart);
+    new GridRenderer(host).renderTrillZones();
+    expect(host.trillZoneLayer.children).toHaveLength(1);
+    const bounds = host.trillZoneLayer.children[0].getLocalBounds();
+    expect(bounds.minX).toBe(TIMELINE_WIDTH);
+    expect(bounds.width).toBe(EXTRA_LANE_WIDTH);
+  });
+});

@@ -313,9 +313,6 @@ export function validateTrillExclusive(
 
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
-    // 트릴 계열 규칙은 메인 레인 한정 (RFD 0018 §3-2) — 보조 레인(5+)은 표시 전용이라
-    // 존 배타가 적용되지 않고, trillZone 자체가 메인 레인에만 존재한다.
-    if (!isMainLane(note.lane)) continue;
     const isTrill = note.type === "trill" || note.type === "trillLong";
 
     // trillLong: both start and end must be in the SAME trill zone
@@ -371,8 +368,6 @@ export function validateTrillLong(notes: readonly NoteEntity[]): ValidationError
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
     if (note.type !== "trillLong") continue;
-    // 보조 레인(5+)의 trillLong은 표시 전용 — 헤드·hold-only 규칙 미적용 (RFD 0018 §3-2)
-    if (!isMainLane(note.lane)) continue;
     const rn = note as RangeNote;
 
     const isZeroLength = beatEq(rn.beat, rn.endBeat);

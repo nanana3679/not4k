@@ -9,18 +9,19 @@ const freshManifest = () => structuredClone(generatedManifest) as ExplicitSkinMa
 describe("명시적 노트 정적 스킨 view", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("33개 역할을 조회하면 승인 도안과 같은 역할·좌우 파일을 반환한다", () => {
+  it("34개 역할을 조회하면 tap-·body-·release-·tick-·Grace overlay 이름의 역할·좌우 파일을 반환한다", () => {
     const view = buildExplicitSkinView("/");
     const expected = {
-      "tap.single.pending": "note-single.png",
-      "tap.double.pending": "note-double-anodized-contrast-070.png",
-      "tap.double.failed": "note-double-failed.png",
-      "tap.trill.pending": "note-trill.png",
-      "tap.trill.failed": "note-trill-failed.png",
+      "tap.single.pending": "tap-single.png",
+      "tap.single.failed": "tap-single-failed.png",
+      "tap.double.pending": "tap-double.png",
+      "tap.double.failed": "tap-double-failed.png",
+      "tap.trill.pending": "tap-trill.png",
+      "tap.trill.failed": "tap-trill-failed.png",
       "body.single.idle": "body-single.png",
       "body.single.held": "body-single-held.png",
       "body.single.failed": "body-single-failed.png",
-      "body.double.idle": "body-double-center-dual-beam.png",
+      "body.double.idle": "body-double.png",
       "body.double.held": "body-double-held.png",
       "body.double.failed": "body-double-failed.png",
       "body.trill.idle": "body-trill.png",
@@ -36,23 +37,24 @@ describe("명시적 노트 정적 스킨 view", () => {
       "release.double.failed": "release-double-failed.png",
       "release.double.partialFailed.left": "release-double-partial-failed-left.png",
       "release.double.partialFailed.right": "release-double-partial-failed-right.png",
-      "tick.single.pending": "sustain-single.png",
-      "tick.single.failed": "sustain-single-failed.png",
-      "tick.double.pending.left": "sustain-double-unit-left.png",
-      "tick.double.pending.right": "sustain-double-unit-right.png",
-      "tick.double.failed.left": "sustain-double-unit-left-failed.png",
-      "tick.double.failed.right": "sustain-double-unit-right-failed.png",
-      "graceOverlay.tap.overlay": "point-grace-overlay.png",
+      "tick.single.pending": "tick-single.png",
+      "tick.single.failed": "tick-single-failed.png",
+      "tick.double.pending.left": "tick-double-left.png",
+      "tick.double.pending.right": "tick-double-right.png",
+      "tick.double.failed.left": "tick-double-failed-left.png",
+      "tick.double.failed.right": "tick-double-failed-right.png",
+      "graceOverlay.tap.overlay": "tap-grace-overlay.png",
       "graceOverlay.trill.overlay": "trill-grace-overlay.png",
       "graceOverlay.release.overlay": "release-grace-overlay.png",
     };
     expect(Object.keys(view.assetsById).sort()).toEqual(Object.keys(expected).sort());
-    expect(EXPLICIT_SKIN_ASSET_IDS).toHaveLength(33);
+    expect(EXPLICIT_SKIN_ASSET_IDS).toHaveLength(34);
     for (const [id, file] of Object.entries(expected)) {
       const asset = getExplicitSkinAsset(view, id);
       expect(asset.file, id).toBe(file);
       expect(asset.url, id).toBe(`/skins/classic-explicit/${file}`);
       expect([asset.role, asset.variant, asset.state, asset.side].filter(Boolean).join(".")).toBe(id);
+      if (asset.highResolution) expect(asset.highResolution.file, id).toBe(file.replace(/\.png$/, "@2x.png"));
     }
   });
 
@@ -113,7 +115,7 @@ describe("명시적 노트 정적 스킨 view", () => {
     expect(getExplicitSkinAsset(view, "release.double.partialFailed.right")).toMatchObject({ role: "release", side: "right", sideMeaning: "failed" });
   });
 
-  it.each(["tap.single.failed", "tap.double.partialFailed.left", "release.trill.pending", "tick.double.pending", "graceOverlay.body.overlay", "terminal.single.idle", "toString"])(
+  it.each(["tap.double.partialFailed.left", "release.trill.pending", "tick.double.pending", "graceOverlay.body.overlay", "terminal.single.idle", "toString"])(
     "%s 도안이 없을 때 조회하면 다른 역할로 fallback하지 않고 거부한다", id => {
       expect(() => getExplicitSkinAsset(buildExplicitSkinView("/"), id)).toThrow(`Unsupported explicit skin asset: ${id}`);
     },

@@ -1527,9 +1527,10 @@ describe("violationsInvolving (신규 엔티티 국소 판정)", () => {
 // =========================================================================
 
 describe("규칙 × 레인 조건표 (RFD 0018 §3-2) — 보조 레인(lane 5+)", () => {
-  it("lane 5 trill 노트는 trillZone 밖이어도 trillExclusive 위반 아님 (보조는 표시 전용)", () => {
+  it("lane 5 trill 노트가 trillZone 밖이면 trillExclusive이며 lane 5 구간을 추가하면 유효하다", () => {
     const notes = [{ type: "trill", lane: 5, beat: beat(1) }] as NoteEntity[];
-    expect(validateTrillExclusive(notes, [])).toEqual([]);
+    expect(validateTrillExclusive(notes, [])).toHaveLength(1);
+    expect(validateTrillExclusive(notes, [{ lane: 5, beat: beat(0), endBeat: beat(2) }])).toEqual([]);
   });
 
   it("메인 lane 2 trill 노트는 존 밖이면 여전히 trillExclusive 위반 (메인 규칙 불변)", () => {
@@ -1537,10 +1538,12 @@ describe("규칙 × 레인 조건표 (RFD 0018 §3-2) — 보조 레인(lane 5+)
     expect(validateTrillExclusive(notes, [])).toHaveLength(1);
   });
 
-  it("lane 6 trillLong은 헤드 없어도·hold-only여도 trillLongInvalid 위반 아님", () => {
+  it("lane 6 양수 trillLong은 holdOnly라도 시작 트릴 탭이 없으면 trillLongInvalid다", () => {
     const notes = [
       { type: "trillLong", lane: 6, beat: beat(0), endBeat: beat(2), holdOnly: true },
     ] as NoteEntity[];
+    expect(validateTrillLong(notes).map(e => e.rule)).toEqual(["trillLongInvalid"]);
+    notes.push({ type: "trill", lane: 6, beat: beat(0) });
     expect(validateTrillLong(notes)).toEqual([]);
   });
 
@@ -1580,15 +1583,14 @@ describe("규칙 × 레인 조건표 (RFD 0018 §3-2) — 보조 레인(lane 5+)
     expect(validateNoDuplicates(notes)).toEqual([]);
   });
 
-  it("validateChart 통합: lane 5 trill(존 밖)+중복 차트에서 duplicate만 잡힌다", () => {
+  it("validateChart 통합: lane 5의 zone 밖 trill과 중복 노트는 duplicate·trillExclusive를 보고한다", () => {
     const notes = [
       { type: "trill", lane: 5, beat: beat(0) },
       { type: "single", lane: 5, beat: beat(2) },
       { type: "single", lane: 5, beat: beat(2) },
     ] as NoteEntity[];
     const errors = validateChart({ notes, trillZones: [], events: [] });
-    expect(errors).toHaveLength(1);
-    expect(errors[0].rule).toBe("duplicate");
+    expect(errors.map(e => e.rule)).toEqual(["duplicate", "trillExclusive"]);
   });
 });
 

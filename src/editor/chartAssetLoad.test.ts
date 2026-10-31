@@ -109,3 +109,33 @@ describe("fetchEditorExtraText", () => {
     await expect(fetchEditorExtraText("aux", failing)).rejects.toThrow("Failed to fetch");
   });
 });
+
+describe('보조 trillZone 파일 로드', () => {
+  it('노트 없이 extraLane 4 구간만 있어도 lane 8로 읽고 보조 레인 수를 4로 확장한다', () => {
+    const loaded = loadEditorChartAsset(JSON.stringify(main), JSON.stringify({
+      version: 3, extraLaneCount: 1, extraNotes: [],
+      extraTrillZones: [{ extraLane: 4, beat: '1/2', endBeat: '4' }],
+    }));
+    expect(loaded.chart.trillZones).toEqual([{ lane: 8, beat: beat(1, 2), endBeat: beat(4) }]);
+    expect(loaded.extraLaneCount).toBe(4);
+  });
+  it('별도 파일이 없으면 메인 내장 extraTrillZones를 읽고 별도 빈 파일이 있으면 내장 구간을 제외한다', () => {
+    const text = JSON.stringify({ ...main, extraTrillZones: [{ extraLane: 1, beat: '0', endBeat: '4' }] });
+    expect(loadEditorChartAsset(text, null).chart.trillZones).toEqual([{ lane: 5, beat: beat(0), endBeat: beat(4) }]);
+    expect(loadEditorChartAsset(text, '{"extraNotes":[]}').chart.trillZones).toEqual([]);
+  });
+  it.each([null, {}, [{ extraLane: 0, beat: '0', endBeat: '4' }],
+    [{ extraLane: 1.5, beat: '0', endBeat: '4' }], [{ extraLane: 1, lane: 5, beat: '0', endBeat: '4' }],
+    [{ extraLane: 1, beat: 'bad', endBeat: '4' }], [{ extraLane: 1, beat: '0' }], [null]])(
+    '손상된 extraTrillZones=%j는 빈 구간으로 바꾸지 않고 형식 오류를 전달한다', extraTrillZones => {
+      expect(() => loadEditorChartAsset(JSON.stringify(main), JSON.stringify({ extraTrillZones }))).toThrow(ChartFormatError);
+    });
+  it('기존 zone 밖 lane 5 trill은 자동 구간 생성 없이 읽고 수리할 배치 위반으로 표시한다', () => {
+    const loaded = loadEditorChartAsset(JSON.stringify(main), JSON.stringify({
+      extraNotes: [{ type: 'trill', extraLane: 1, beat: '2' }],
+    }));
+    expect(loaded.chart.trillZones).toEqual([]);
+    expect(loaded.chart.notes).toEqual([{ type: 'trill', lane: 5, beat: beat(2) }]);
+    expect(editorChartErrors(loaded.chart).map(e => e.rule)).toContain('trillExclusive');
+  });
+});

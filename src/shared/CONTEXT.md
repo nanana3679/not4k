@@ -17,9 +17,19 @@ _Avoid_: 초, 프레임
 `TimeSignatureChangeEvent`가 정의하는 박 묶음이며 차트 탐색과 그리드 표시의 큰 단위이다.
 _Avoid_: 섹션
 
+**곡 메타데이터**:
+제목·아티스트·자켓은 같은 곡의 모든 차트가 공유하며, 이 표시 정보만 수정하면 기존 기록과 랭킹을 유지한다([glossary](../../docs/context/glossary.md#곡-메타데이터)).
+
+**곡 타이밍**:
+같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 곡 단위 공유는 채택 규칙이며 런타임 반영은 후속 작업이다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+
 **차트 메타데이터**:
-곡 제목, 아티스트, 난이도명, Lv., 에셋 참조, 오프셋처럼 차트 전체를 설명하는 정보이다.
+난이도명·Lv. 등 개별 차트를 설명하는 정보이다. 현재 차트 문서가 곡 제목·아티스트·자켓·오프셋도 담는 저장 표현과 곡의 논리적 소유 범위를 구별한다([glossary](../../docs/context/glossary.md#차트-메타데이터)).
 _Avoid_: 곡 메타데이터
+
+**`ChartDocument`**:
+구형/신형 항목의 의미를 함께 보존하는 저장·편집 문서 타입이다. 기존 `Chart`는 구형 소비자 입력으로 구별한다([glossary](../../docs/context/glossary.md#chartdocument), [저장 포맷](../../docs/spec/chart-format.md)).
+_Avoid_: 전체 문서 버전으로 항목 의미 자동 변경
 
 **시점 이벤트**:
 특정 박 이후의 시간 해석을 바꾸는 `BpmChangeEvent` 또는 `TimeSignatureChangeEvent`이다. 0박 초기 설정도 포함한다([glossary](../../docs/context/glossary.md#차트-이벤트)).
@@ -42,7 +52,7 @@ _Avoid_: 이벤트의 시각 표현
 _Avoid_: 시점 이벤트
 
 **이벤트 배치 겹침**:
-같은 보조 레인에서 종류에 관계없이 이벤트의 점·구간이 겹치는 의미 위반이다. 경계·기존 종류별 의미 제약은 [glossary](../../docs/context/glossary.md#chartevent)와 [RFD 0078](../../docs/rfd/0078-event-placement-overlap.md)을 따른다.
+같은 보조 레인에서 종류에 관계없이 이벤트의 점·구간이 겹치는 의미 위반이다. 겹친 초기 BPM·박자 설정만 로드에서 보조 레인을 자동 분리하며, 값·박 위치와 다른 의미 위반은 유지한다([glossary](../../docs/context/glossary.md#chartevent), [RFD 0078](../../docs/rfd/0078-event-placement-overlap.md)·[RFD 0082](../../docs/rfd/0082-initial-timing-events-not-selectable.md), 자동 분리 런타임은 후속 구현).
 
 **`TextEvent`**:
 특정 구간 동안 튜토리얼 설명 문구를 보여주는 구간 이벤트이다.
@@ -72,8 +82,13 @@ _Avoid_: 사용자 소속 ID 지정
 미수정 구형 의미와 사람이 만든 새 의미를 보존하며 혼합 저장·재불러오기로 수리를 이어가는 기간이다. 구형 항목이 남으면 새 재생은 차단한다([glossary](../../docs/context/glossary.md#구형-차트와-과도기)).
 _Avoid_: 자동 변환, 영구 구형 지원
 
+**`convertLegacyChart`**:
+사용자가 에디터 모달에서 승인할 때만 실행하는 구형 차트 1차 기계 변환이다. 기존 명시 노트는 두고, 증가·감소 연결 등 사람이 고칠 위치를 보고로 돌려준다([glossary](../../docs/context/glossary.md#convertlegacychart)).
+_Avoid_: 자동 변환, 일괄 수리
+
 **`trillZone`**:
 트릴 노트가 등장할 수 있는 차트 영역으로, 시작 박과 끝 박을 가지며 자체 입력은 요구하지 않는다. 차트의 1급 구조로 저장된다. 풀 정의는 glossary의 `trillZone` 항목을 따른다.
+메인·보조 모든 레인에 존재하며 같은 트릴 제약을 적용한다. 보조 구간의 저장 분리·게임 제외는 [glossary](../../docs/context/glossary.md#trillzone)·[RFD 0086](../../docs/rfd/0086-auxiliary-lane-trill-zones.md)를 따른다.
 _Avoid_: 트릴존, 트릴 노트
 
 **`restZone`**:
@@ -116,7 +131,7 @@ _Avoid_: 노트 타임맵, 시간 맵
 
 ### 과도기 구형 모델
 
-아래는 구형 읽기·표시·편집을 위해 보존하는 계약이다. 새 바디·명시 점수 노트의 저장 의미와 섞지 않는다. 구형 속성을 새 릴리즈/틱 노트로 자동 변환하지 않으며 종료는 [glossary](../../docs/context/glossary.md#구형-차트와-과도기)를 따른다.
+아래는 구형 읽기·표시·편집을 위해 보존하는 계약이다. 새 바디·명시 점수 노트의 저장 의미와 섞지 않는다. 구형 속성은 사용자가 승인한 1차 기계 변환(`convertLegacyChart`) 밖에서 새 릴리즈/틱 노트로 바꾸지 않으며 종료는 [glossary](../../docs/context/glossary.md#구형-차트와-과도기)를 따른다.
 
 - **구간 노트**는 끝점에 **`holdOnly`**(떼는 판정 면제) 속성을 가질 수 있으며, 이 속성은 차트에 저장된다.
 - **트릴 롱노트**는 head가 필요하며, 양수 길이의 **`holdOnly`**는 허용하고 길이 0 조합은 금지한다.

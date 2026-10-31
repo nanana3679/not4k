@@ -189,7 +189,7 @@ test.describe('Game Settings', () => {
     for(const file of ['note-single','note-double','note-trill','terminal-double','terminal-double-idle','terminal-double-failed','terminal-trill','point-shadow','point-grace-overlay','terminal-grace-overlay','bomb-15']) {
       expect(requested).toContain(`/skins/classic/${file}.png`);
     }
-    expect(requested.some(path => path.startsWith('/skins/classic-explicit/') && path.endsWith('/note-single.png'))).toBe(true);
+    expect(requested.some(path => path.startsWith('/skins/classic-explicit/') && /\/tap-single(?:@2x)?\.png$/.test(path))).toBe(true);
     expect(requested.some(path => path.startsWith('/skins/classic-explicit/') && /body-single/.test(path))).toBe(true);
     expect(requested.some(path=>path.startsWith('/lab/'))).toBe(false);
     expect(errors).toEqual([]);
@@ -256,8 +256,8 @@ test.describe('Game Settings', () => {
             notes: [{ type: 'tap', kind: 'single', lane: 2, beat: { n: 1, d: 1 } }],
             trillZones: [],
             events: [
-              { type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 },
-              { type: 'auto', beat: { n: 0, d: 1 }, endBeat: { n: 3, d: 1 } },
+              { type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120, editorLane: 1 },
+              { type: 'auto', beat: { n: 0, d: 1 }, endBeat: { n: 3, d: 1 }, editorLane: 2 },
             ],
           };
           const audioBuffer = new AudioBuffer({ numberOfChannels: 1, length: 44100 * 1.5, sampleRate: 44100 });

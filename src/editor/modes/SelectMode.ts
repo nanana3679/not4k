@@ -1452,13 +1452,13 @@ export class SelectMode implements EditorMode {
     return zones;
   }
 
-  /** 이동된 트릴존들이 레인(1~4)·타임라인 범위 안에 있는지 검사한다. */
+  /** 이동된 트릴존들이 가시 레인·타임라인 범위 안에 있는지 검사한다. */
   private movedZonesInBounds(zones: TrillZone[]): boolean {
     const maxFloat = this.callbacks.space.getMaxBeatFloat();
     for (const idx of this.originalZonePositions.keys()) {
       const zone = zones[idx];
       if (!zone) continue;
-      if (!isMainLane(zone.lane)) return false; // 트릴존은 메인 레인 전용 (§3-2)
+      if (!isVisibleLane(zone.lane, this.callbacks.getExtraLaneCount?.() ?? 0)) return false;
       if (beatToFloat(zone.beat) < 0 || beatToFloat(zone.endBeat) > maxFloat) return false;
     }
     return true;

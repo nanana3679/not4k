@@ -1,4 +1,4 @@
-import type { ChartDocument, Lane, DocumentNoteEntity, RangeNote } from "../../shared";
+import type { ChartDocument, DocumentNoteEntity, RangeNote } from "../../shared";
 import { beatEq } from "../../shared";
 import { bodyDeletionBlockReason } from './explicitEditing';
 
@@ -15,7 +15,7 @@ function isRangeNote(note: DocumentNoteEntity): note is RangeNote {
 }
 
 function isMatchingRangeZone(
-  zone: { lane: Lane; beat: { n: number; d: number }; endBeat: { n: number; d: number } },
+  zone: { lane: number; beat: { n: number; d: number }; endBeat: { n: number; d: number } },
   note: RangeNote,
 ): boolean {
   return (

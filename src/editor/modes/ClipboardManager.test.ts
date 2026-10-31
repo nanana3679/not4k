@@ -309,3 +309,30 @@ describe("ClipboardManager — restZone 클립보드 (RFD 0019)", () => {
     expect(moved).toBeNull();
   });
 });
+
+describe('보조 trillZone 클립보드', () => {
+  it('lane 7 구간만 붙여넣어도 보조 레인 수 1→3으로 늘고 취소하면 1과 원본 구간으로 돌아간다', () => {
+    const chart = makeChart({ trillZones: [{ lane: 7, beat: beat(1), endBeat: beat(3) }] });
+    const cm = new ClipboardManager();
+    let count = 1;
+    const cb = { ...makeCallbacks(), getExtraLaneCount: () => count, setExtraLaneCount: (value: number) => { count = value; } };
+    cm.copy(chart, new Set(), new Set([0]));
+    const pasted = cm.paste(chart, beat(8), cb, () => {})!;
+    expect(count).toBe(3);
+    expect(pasted.chart.trillZones[1]).toEqual({ lane: 7, beat: beat(8), endBeat: beat(10) });
+    const restored = cm.cancelPaste(pasted.chart, cb, () => {});
+    expect(restored?.trillZones).toEqual(chart.trillZones);
+    expect(count).toBe(1);
+  });
+  it('lane 4 구간을 lane 5로 붙여넣기 이동하고 가시 상한 lane 6을 넘으면 유지한다', () => {
+    const chart = makeChart({ trillZones: [{ lane: 4, beat: beat(1), endBeat: beat(3) }] });
+    const cm = new ClipboardManager(); const cb = { ...makeCallbacks(), getExtraLaneCount: () => 2 };
+    cm.copy(chart, new Set(), new Set([0]));
+    const pasted = cm.paste(chart, beat(8), cb, () => {})!;
+    const moved = cm.movePasteByLane(pasted.chart, "right", cb)!;
+    expect(moved.trillZones[1].lane).toBe(5);
+    const edge = cm.movePasteByLane(moved, "right", cb)!;
+    expect(edge.trillZones[1].lane).toBe(6);
+    expect(cm.movePasteByLane(edge, "right", cb)).toBeNull();
+  });
+});

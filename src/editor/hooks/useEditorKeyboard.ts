@@ -223,6 +223,7 @@ export function useEditorKeyboard(
   showSaveAsModal: boolean,
   showOffsetToolbar: boolean,
   validationErrorsCount: number,
+  showLegacyConversionModal: boolean,
 ) {
   const mode = useEditorStore((s) => s.mode);
   const setMode = useEditorStore((s) => s.setMode);
@@ -237,7 +238,7 @@ export function useEditorKeyboard(
       bpmChanges,
       offsetMs: chart.meta.offsetMs,
       shortcutsBlocked: Boolean(editingEvent) || showMetaModal || showCustomSnapModal || showDeleteConfirm
-        || showLeaveConfirm || showSaveAsModal || showOffsetToolbar || validationErrorsCount > 0,
+        || showLeaveConfirm || showSaveAsModal || showOffsetToolbar || validationErrorsCount > 0 || showLegacyConversionModal,
       setMode,
       addToast,
     });
@@ -247,6 +248,7 @@ export function useEditorKeyboard(
   }, [
     mode, setMode,
     editingEvent, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar, validationErrorsCount,
+    showLegacyConversionModal,
     addToast, bpmChanges, chart.meta.offsetMs,
     playbackRef, selectModeRef,
   ]);
