@@ -255,12 +255,9 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const waveformFeedRef = useRef<WaveformFeed | null>(null);
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
   const playbackRef = useRef<PlaybackController | null>(null);
-  // 정지 중 타이밍 값 수정 뒤 커서의 박 유지(RFD 0099). 첫 차트를 기준으로 만들고 [chart] effect가 매 교체마다
-  // syncToChart로 커서를 새 타이밍에 맞춘다(필요하면 seek).
-  const [cursorBeatKeeper] = useState(() => createCursorBeatKeeper({
-    chart,
-    loadGeneration: useEditorStore.getState().chartLoadGeneration,
-  }));
+  // 정지 중 타이밍·범위 수정 뒤 커서의 박 유지(RFD 0099). 기억은 store에 남겨 테스트 플레이 뒤에도 유지하고,
+  // [chart] effect가 syncToChart로 커서를 새 타이밍·범위에 맞춘다(필요하면 seek).
+  const [cursorBeatKeeper] = useState(() => createCursorBeatKeeper(useEditorStore));
   const createModeRef = useRef<CreateMode | null>(null);
   const selectModeRef = useRef<SelectMode | null>(null);
   const deleteModeRef = useRef<DeleteMode | null>(null);
@@ -717,7 +714,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       playbackRef.current?.setEndTimeMs(timelineRange.totalTimelineMs);
       useEditorStore.getState().setTimelineRangeMs(timelineRange);
     }
-    // 정지 중 오프셋·BPM이 바뀌었으면 커서를 수정 직전 박의 새 음원 시각으로 seek한다(RFD 0099).
+    // 정지 중 매 차트 변경에서 원래 박을 유지하고, 박자표만 바뀌어도 새 범위로 자른다(RFD 0099).
     // 새로 불러온 차트(chartLoadGeneration 변경)와 재생 중 변경은 seek하지 않는다.
     // store의 커서는 실제 정지 위치보다 최대 한 프레임 늦을 수 있다. PlaybackController.pause()는 onTimeUpdate를
     // 부르지 않아 마지막 rAF가 알린 시각이 남기 때문이다. 박 유지는 화면에 그려진 이 커서를 기준으로 하며,

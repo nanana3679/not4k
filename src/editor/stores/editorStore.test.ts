@@ -27,6 +27,19 @@ function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument
   };
 }
 
+describe('editorStore 커서 이동 횟수', () => {
+  it('setCurrentTimeMs로 2000→1000→2000→2000ms를 알리면 cursorMoveCount가 4 증가한다', () => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+
+    for (const timeMs of [2000, 1000, 2000, 2000]) {
+      useEditorStore.getState().setCurrentTimeMs(timeMs);
+    }
+
+    expect(useEditorStore.getState().currentTimeMs).toBe(2000);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(4);
+  });
+});
+
 describe('editorStore history', () => {
   beforeEach(() => {
     useEditorStore.setState({

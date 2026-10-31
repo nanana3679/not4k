@@ -4,12 +4,12 @@
  * 정지 중 오프셋·BPM 값이나 BPM 변경 이벤트가 바뀌면, 수정 전 타이밍으로 지금 커서의 박을 구하고
  * 수정 후 타이밍에서 같은 박의 음원 시각으로 커서를 옮긴다. 다시 재생하면 그 위치부터 시작한다.
  * 기준은 수정 직전의 커서이므로, 일시정지 뒤 seek했다면 seek한 위치의 박을 유지한다.
- * 박자표는 박↔음원 시각 변환에 쓰지 않아 커서를 옮기지 않는다.
+ * 박자표는 박↔음원 시각 변환에 쓰지 않지만, 마디 끝이 줄면 같은 박도 타임라인 밖으로 나갈 수 있다.
  *
  * 옮긴 시각은 타임라인 범위(`timelineRange.ts`, 아래 끝 min(0, offsetMs))로 자른다. 잘리면 커서 시각으로는
  * 원래 박을 다시 구할 수 없으므로, 마지막으로 옮긴 커서의 박을 기억해 두고 사용자가 커서를 옮기지 않은 채
  * 다음 타이밍 변경이 오면 그 박에서 다시 옮긴다. 드래그 중간 프레임이나 수정에서 범위 끝에 묶였던 커서가
- * Escape·Undo로 타이밍이 돌아오면 원래 박으로 돌아온다.
+ * Escape·Undo로 타이밍이나 범위가 돌아오면 원래 박으로 돌아온다. 이 기억은 편집 세션에 남겨 페이지 재마운트에도 유지한다.
  */
 
 import type { BpmChange, ChartDocument } from '../../shared';
@@ -18,27 +18,19 @@ import type { TimelineRangeMs } from '../stores/viewportSlice';
 import { clampToTimelineRange } from '../timeline/timelineRange';
 
 /**
- * 박↔음원 시각 변환을 정하는 값(BPM 변경 목록·음원 정렬 오프셋)만 담은 비교용 값.
+ * 박↔음원 시각 변환을 정하는 값(BPM 변경 목록·음원 정렬 오프셋).
  * 노트·마디 시각까지 파생하는 `ChartTiming`과 달리 변환만 하며, glossary의 곡 타이밍과 달리 박자표는 담지 않는다.
  */
-export interface BeatMsTiming {
+interface BeatMsTiming {
   readonly bpmChanges: readonly BpmChange[];
   readonly offsetMs: number;
 }
 
-/** 이 차이 미만이면 왕복 계산의 부동소수점 오차로 보고 같은 커서 시각으로 본다. */
-const SAME_MS_TOLERANCE = 1e-6;
-
-function sameMs(a: number, b: number): boolean {
-  return Math.abs(a - b) < SAME_MS_TOLERANCE;
-}
-
-export function beatMsTimingOf(chart: Pick<ChartDocument, 'events' | 'meta'>): BeatMsTiming {
+function beatMsTimingOf(chart: Pick<ChartDocument, 'events' | 'meta'>): BeatMsTiming {
   return { bpmChanges: extractBpmChanges(chart.events), offsetMs: chart.meta.offsetMs };
 }
 
-/** 오프셋과 BPM 변경 목록(박·BPM)이 값으로 같은가. 배열 참조는 보지 않는다. */
-export function sameBeatMsTiming(a: BeatMsTiming, b: BeatMsTiming): boolean {
+function sameBeatMsTiming(a: BeatMsTiming, b: BeatMsTiming): boolean {
   return a.offsetMs === b.offsetMs
     && a.bpmChanges.length === b.bpmChanges.length
     && a.bpmChanges.every((change, i) => change.bpm === b.bpmChanges[i].bpm && beatEq(change.beat, b.bpmChanges[i].beat));
@@ -59,20 +51,6 @@ function msAtBeat(cursorBeat: number, timing: BeatMsTiming): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-/**
- * 수정 전 타이밍(before)에서 커서 시각의 박을 구해, 수정 후 타이밍(after)에서 같은 박의 음원 시각을 돌려준다.
- * 박을 해상도로 반올림하지 않으며 0박보다 앞(음수 박)도 같은 규칙으로 옮긴다.
- * 타이밍이 값으로 같거나, BPM 목록이 비었거나 첫 BPM 변경이 0박에 없거나(구조 위반 차트), 결과가 유한하지 않으면
- * 커서 시각을 그대로 돌려준다. 타임라인 범위로 자르지 않는다.
- */
-export function remapCursorMs(cursorMs: number, before: BeatMsTiming, after: BeatMsTiming): number {
-  if (sameBeatMsTiming(before, after)) return cursorMs;
-  if (!convertibleTiming(before) || !convertibleTiming(after)) return cursorMs;
-  const remapped = msAtBeat(msToBeat(cursorMs, before.bpmChanges, before.offsetMs), after);
-  if (remapped === null || sameMs(remapped, cursorMs)) return cursorMs;
-  return remapped;
-}
-
 /** 커서 박 유지에 필요한 재생기 기능. `PlaybackController`가 그대로 맞는다. */
 export interface CursorBeatKeeperPlayback {
   readonly isPlaying: boolean;
@@ -82,12 +60,11 @@ export interface CursorBeatKeeperPlayback {
 
 export interface CursorBeatKeeper {
   /**
-   * 차트가 바뀔 때마다 부른다. 직전에 본 차트와 비교해 정지 중 타이밍이 바뀌었으면
-   * 커서를 수정 직전 박의 새 시각(타임라인 범위로 자른 값)으로 seek한다.
-   * - 직전 호출이 옮긴(또는 그대로 둔) 커서가 그 자리 그대로면, 커서 시각 대신 그때 기억한 박에서 옮긴다.
-   *   범위에 잘려 시각에서 박을 되살릴 수 없을 때도 원래 박으로 돌아오게 하기 위해서다.
-   *   사용자가 커서를 옮겼으면(시각이 다르면) 기억한 박을 버리고 지금 커서 시각에서 박을 구한다.
-   * - `loadGeneration`(store의 `chartLoadGeneration`)이 달라졌으면 새로 불러온 차트라 편집으로 보지 않는다.
+   * 차트가 바뀔 때마다 부른다. 정지 중이면 기억한 박(또는 수정 직전 커서 박)을 새 타이밍으로 변환하고,
+   * 타임라인 범위로 자른 값이 현재 커서와 다를 때 seek한다. 박자표만 바뀌어도 범위는 다시 확인한다.
+   * - 마지막 호출 뒤 `cursorMoveCount`가 같으면 범위로 자르기 전 박을 재사용한다.
+   *   seek나 재생 tick으로 횟수가 달라졌으면, 같은 시각으로 돌아왔어도 현재 커서에서 박을 구한다.
+   * - 세션 기억이 없거나 `loadGeneration`이 달라졌으면 새 차트의 비교 기준만 세우고 seek하지 않는다.
    * - 재생 중이거나 재생기가 없으면 seek하지 않는다. 어느 경우든 다음 비교의 기준은 이 차트로 바뀌고 기억한 박은 버린다.
    */
   syncToChart(input: {
@@ -104,48 +81,57 @@ export interface CursorBeatKeeper {
   }): void;
 }
 
-/** 마지막으로 옮긴(또는 그대로 둔) 커서의 박과 그때의 커서 시각. 범위로 자르기 전의 박이다. */
+/** 범위로 자르기 전 박과 keeper의 seek까지 반영된 커서 이동 횟수. */
 interface CursorBeatAnchor {
   readonly cursorBeat: number;
-  readonly cursorMs: number;
+  readonly cursorMoveCount: number;
 }
 
-export function createCursorBeatKeeper(initial: {
-  chart: Pick<ChartDocument, 'events' | 'meta'>;
-  loadGeneration: number;
-}): CursorBeatKeeper {
-  let previous = { timing: beatMsTimingOf(initial.chart), loadGeneration: initial.loadGeneration };
-  let anchor: CursorBeatAnchor | null = null;
+/** 페이지가 아닌 편집 세션이 소유하는 직전 타이밍과 범위로 자르기 전 박. */
+export interface CursorBeatKeeperState {
+  readonly timing: BeatMsTiming;
+  readonly loadGeneration: number;
+  readonly anchor: CursorBeatAnchor | null;
+}
 
+interface CursorBeatKeeperStore {
+  getState(): {
+    cursorMoveCount: number;
+    cursorBeatKeeperState: CursorBeatKeeperState | null;
+  };
+  setState(state: { cursorBeatKeeperState: CursorBeatKeeperState }): void;
+}
+
+export function createCursorBeatKeeper(store: CursorBeatKeeperStore): CursorBeatKeeper {
   return {
     syncToChart({ chart, loadGeneration, cursorMs, playback, timelineRange }) {
-      const before = previous;
+      const { cursorBeatKeeperState: before, cursorMoveCount } = store.getState();
       const timing = beatMsTimingOf(chart);
-      previous = { timing, loadGeneration };
-      // 기억한 박은 커서가 그 자리 그대로일 때만 쓴다. 아래에서 다시 세우지 않으면 버린다.
-      const kept = anchor !== null && sameMs(anchor.cursorMs, cursorMs) ? anchor : null;
-      anchor = null;
+      store.setState({ cursorBeatKeeperState: { timing, loadGeneration, anchor: null } });
 
-      if (loadGeneration !== before.loadGeneration) return;
-      // 재생 중 타이밍 변경은 여기서 다루지 않는다(재생 중 값 수정 차단은 별도 작업, RFD 0099).
-      // 재생은 커서를 움직이므로 기억한 박도 버린다.
+      if (!before || loadGeneration !== before.loadGeneration) return;
+      // 재생 중 편집 제한은 별도 작업(RFD 0099). 변환하지 않아도 다음 비교의 기준은 갱신한다.
       if (!playback || playback.isPlaying) return;
-      if (sameBeatMsTiming(before.timing, timing)) {
-        anchor = kept;
-        return;
-      }
       if (!convertibleTiming(before.timing) || !convertibleTiming(timing)) return;
 
+      const kept = before.anchor?.cursorMoveCount === cursorMoveCount ? before.anchor : null;
       const cursorBeat = kept?.cursorBeat ?? msToBeat(cursorMs, before.timing.bpmChanges, before.timing.offsetMs);
-      const remapped = msAtBeat(cursorBeat, timing);
+      // 같은 타이밍의 현재 박은 시각 왕복 계산 없이 그대로 쓴다. 재마운트 직후 범위를 아직 모르면
+      // 기존에 잘린 커서를 풀지 않는다. 범위를 받으면 같은 타이밍이어도 기억한 박에서 다시 자른다.
+      const remapped = sameBeatMsTiming(before.timing, timing) && (!kept || !timelineRange)
+        ? cursorMs
+        : msAtBeat(cursorBeat, timing);
       if (remapped === null) return;
       const targetMs = timelineRange ? clampToTimelineRange(remapped, timelineRange) : remapped;
-      if (sameMs(targetMs, cursorMs)) {
-        anchor = { cursorBeat, cursorMs };
-        return;
-      }
-      playback.seekTo(targetMs);
-      anchor = { cursorBeat, cursorMs: targetMs };
+      if (targetMs !== cursorMs) playback.seekTo(targetMs);
+      store.setState({
+        cursorBeatKeeperState: {
+          timing,
+          loadGeneration,
+          // seekTo → onTimeUpdate → setCurrentTimeMs가 올린 뒤의 값을 기억한다.
+          anchor: { cursorBeat, cursorMoveCount: store.getState().cursorMoveCount },
+        },
+      });
     },
   };
 }
