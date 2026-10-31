@@ -4,6 +4,13 @@ import { createExplicitPlayInput } from '../explicitPlaySessionInput';
 import { stepExplicitTutorialLoop } from './explicitTutorialLoop';
 import type { ExplicitTutorialPatternResult, ExplicitTutorialPreviewPlayback, TutorialInputMode } from './explicitTutorialPreviewPlayback';
 
+interface ExplicitTutorialInputFrame {
+  /** 도식 확인으로 멈춘 경우 도식 시작점인, 화면과 같은 반복 내 시각 */
+  loopTimeMs: number;
+  /** 이번 프레임이 새 도식을 걸기 전의 paused·도식 대기 상태 */
+  blocked: boolean;
+}
+
 /** offset은 적용하지 않는다. pause·도식 재개의 보정은 재생기가 소유한 loopStartNow에 이미 반영돼 있다. */
 export function getExplicitTutorialInputTime(timestamp: number, loopStartNow: number, loopMs: number) {
   const elapsedMs = Math.max(0, timestamp - loopStartNow);
@@ -37,8 +44,8 @@ export function createExplicitTutorialInput(
     for (const key of source.heldKeys) heldByKey.set(key.key, key);
     playback.syncHeldKeys(source.heldKeys);
   };
-  const syncJudging = () => {
-    const enabled = mode === "directInput" && !getClock().blocked;
+  const syncJudging = (blocked = getClock().blocked) => {
+    const enabled = mode === "directInput" && !blocked;
     if (enabled === judging) return;
     judging = enabled;
     source.setJudging(enabled, getClock().loopStartNow + lastElapsedMs);
@@ -88,9 +95,14 @@ export function createExplicitTutorialInput(
       playback.setInputMode(mode, source.heldKeys);
       syncJudging();
     },
-    advanceTo(elapsedMs: number) {
-      syncJudging();
-      if (getClock().blocked) return;
+    advanceTo(elapsedMs: number, frame?: ExplicitTutorialInputFrame) {
+      // 새 도식이 걸린 프레임도 직전 반복의 큐·경계는 정산한다. 키 이벤트는 항상 현재 getClock을 쓴다.
+      const blocked = frame?.blocked ?? getClock().blocked;
+      syncJudging(blocked);
+      if (blocked) return;
+      if (frame) {
+        elapsedMs = Math.floor(Math.max(0, elapsedMs) / loopMs) * loopMs + frame.loopTimeMs;
+      }
       // prop effect는 performance.now(), rAF는 프레임 시작 시각이다. 같은 프레임에서 순서가 뒤집혀도 seek하지 않는다.
       elapsedMs = Math.max(lastElapsedMs, elapsedMs);
       lastElapsedMs = elapsedMs;
@@ -106,6 +118,8 @@ export function createExplicitTutorialInput(
       }
       flush(elapsedMs);
       playback.advanceTo(Math.max(0, elapsedMs - iteration * loopMs));
+      // 프레임 정산 후에는 새 도식의 실제 대기로 돌아가 이후 입력을 막고 남은 큐를 버린다.
+      syncJudging();
       return finished;
     },
     stop() { detach(); source.dispose(); playback.stop(); },

@@ -85,7 +85,7 @@ type TutorialPreviewRendererState =
  */
 interface TutorialPreviewJudgment {
   /** 이번 반복의 loopTimeMs까지 입력·판정·효과를 진행한다 */
-  advanceTo(loopTimeMs: number): void;
+  advanceTo(loopTimeMs: number, diagramHeldBeforeFrame?: boolean): void;
   /** 끝난 반복을 loopMs까지 정산하고 다음 반복을 처음 상태로 준비한다 */
   finishLoop(): void;
   /** 렌더러에서 떨어질 때 판정 세션을 놓는다. 렌더러는 정리하지 않는다 */
@@ -648,7 +648,7 @@ export function TutorialPreviewPlayer({
 
       const resumeNow = performance.now();
       loopStartNow = resumeNow - activeDiagramPause.timing.endMs;
-      // OK는 시계를 현재 반복의 도식 끝으로 다시 잡으므로 명시 경계의 비교 기준도 함께 돌린다.
+      // 도식 진입 프레임에서 끝난 반복은 이미 정산했다. 현재 세션을 유지하고 시계의 경계 기준만 돌린다.
       explicitInput?.rebase();
       previousNow = resumeNow;
       // 멈춘(paused) 상태에서 재개하면 멈춘 시각을 지금으로 옮겨, 나중에 일시정지가 풀릴 때 도식 끝 시점에서 그대로 잇는다.
@@ -708,14 +708,20 @@ export function TutorialPreviewPlayer({
             });
           explicitInput.attach(window);
           explicitInput.setMode(inputModeRef.current);
-          const advanceExplicit = () => explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow));
+          const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) =>
+            explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {
+              loopTimeMs,
+              blocked: pausedRef.current || diagramHeldBeforeFrame,
+            });
           syncExplicitControlRef.current = () => {
             const now = performance.now();
             const clock = stepTutorialLoopClock({ loopStartNow, pausedAtNow, previousNow }, now, pausedRef.current);
             ({ loopStartNow, pausedAtNow } = clock.next);
             if (!clock.frozen) {
               previousNow = now;
-              advanceExplicit();
+              const diagramHeldBeforeFrame = activeDiagramPause !== null;
+              const loopTimeMs = resolveDiagramPauseTime(Math.max(0, now - loopStartNow) % preview.loopMs);
+              advanceExplicit(loopTimeMs, diagramHeldBeforeFrame);
             }
             explicitInput?.setMode(inputModeRef.current);
             explicitInput?.syncJudging();
@@ -723,7 +729,7 @@ export function TutorialPreviewPlayer({
             setRendererInputState(renderer, getActiveTutorialInputTimings(previousLoopTime, timings));
           };
           previewJudgment = {
-            advanceTo: () => { advanceExplicit(); },
+            advanceTo: (loopTimeMs, diagramHeldBeforeFrame) => { advanceExplicit(loopTimeMs, diagramHeldBeforeFrame); },
             finishLoop: () => {}, // 명시 경계는 누적 시각 큐와 함께 explicitInput이 정산한다.
             stop: () => explicitInput?.stop(),
           };
@@ -843,6 +849,8 @@ export function TutorialPreviewPlayer({
           previousNow = now;
           // rAF 타임스탬프는 프레임 시작 시각이라 첫 프레임 직후 잰 loopStartNow보다 앞설 수 있다. 음수면 루프 경계로 오인하므로 0으로 막는다.
           let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs;
+          // 이 프레임에 새로 시작하는 도식은 경계 정산을 막지 않는다. 경계를 넘자마자 도식이 시작돼도 끝난 반복을 먼저 정산한다.
+          const diagramHeldBeforeFrame = activeDiagramPause !== null;
           loopTimeMs = resolveDiagramPauseTime(loopTimeMs);
           activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs + loopTimeMs, preview.loopMs);
           const renderTimeMs = preview.renderStartMs + loopTimeMs;
@@ -851,7 +859,7 @@ export function TutorialPreviewPlayer({
           if (!isExplicitTutorialPreview(preview) && loopTimeMs < previousLoopTime) {
             previewJudgment.finishLoop();
           }
-          previewJudgment.advanceTo(loopTimeMs);
+          previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);
           previousLoopTime = loopTimeMs;
           setRendererInputState(renderer, activeTimings);
           renderer.renderFrame(renderTimeMs, deltaMs);

@@ -4,6 +4,8 @@ import { beat } from '../../../shared/types/beat';
 import type { Beat } from '../../../shared/types/beat';
 import type { ChartDocument, TutorialInputEvent } from '../../../shared/types/chart';
 import type { ExplicitJudgmentEffectPort } from '../../judgment/ExplicitJudgmentEffectSink';
+import { ExplicitNotePresenter } from '../../renderer/ExplicitNotePresenter';
+import { buildExplicitSkinView } from '../../skin/explicitSkin';
 import { createExplicitTutorialPreview } from './explicitTutorialPreviewChart';
 import {
   createExplicitTutorialPreviewPlayback,
@@ -49,6 +51,17 @@ function demoChart(inputs: TutorialInputEvent[] = [
   };
 }
 
+function boundaryChart(): ChartDocument {
+  return {
+    ...demoChart([input(1, 'Binding1', beat(0), beat(4), 3)]),
+    notes: [
+      { type: 'tap', kind: 'single', lane: 1, beat: beat(0) },
+      { type: 'body', holdCount: 1, lane: 1, beat: beat(0), endBeat: beat(4) },
+      { type: 'release', count: 1, lane: 1, beat: beat(4) },
+    ],
+  };
+}
+
 function createPort() {
   const port = {
     showJudgmentGroup: vi.fn<ExplicitJudgmentEffectPort['showJudgmentGroup']>(),
@@ -84,6 +97,53 @@ describe('명시 튜토리얼 재생의 입력 계획', () => {
 });
 
 describe('명시 튜토리얼 재생의 반복', () => {
+  it('탭 0박·바디 0～4박·릴리즈 4박을 2회 재생하면 2000ms 간격 표시 3벌이 모두 그려지고 매회 Perfect 2·Miss 0', () => {
+    const { preview, playback } = createDemo(boundaryChart());
+    const render = playback.renderChart;
+    expect(render.scoreItems.map(item => [item.id, item.source.noteIndex, item.timeMs])).toEqual([
+      ['n0:tap:0', 0, 0], ['n2:release:0', 2, 2000],
+      ['n3:tap:0', 3, 2000], ['n5:release:0', 5, 4000],
+      ['n6:tap:0', 6, 4000], ['n8:release:0', 8, 6000],
+    ]);
+    expect(render.bodies.map(body => [body.source.noteIndex, body.startMs, body.endMs])).toEqual([
+      [1, 0, 2000], [4, 2000, 4000], [7, 4000, 6000],
+    ]);
+    expect(render.bodyUnits.map(unit => [unit.id, unit.ref, unit.startMs, unit.endMs])).toEqual([
+      ['b1:hold:0', { bodyIndex: 1, ordinal: 0 }, 0, 2000],
+      ['b4:hold:0', { bodyIndex: 4, ordinal: 0 }, 2000, 4000],
+      ['b7:hold:0', { bodyIndex: 7, ordinal: 0 }, 4000, 6000],
+    ]);
+    // 표시 복사본끼리는 맞닿아도 판정 연결을 만들지 않는다.
+    expect(render.connections).toEqual([]);
+    expect(render.relations.connections).toEqual([]);
+    expect(render.totalJudgments).toBe(6);
+    expect(render.theoreticalWeight).toBe(18);
+
+    const presenter = new ExplicitNotePresenter(render, buildExplicitSkinView('/'));
+    const layout = { judgmentLineY: 426, scrollSpeed: 200, laneAreaX: 0, height: 600 };
+    for (const iteration of [0, 1]) {
+      playFramesUntilBoundary(time => playback.advanceTo(time), preview.loopMs);
+      for (const cycle of [0, 1, 2]) {
+        const snapshot = playback.renderSnapshot(cycle);
+        expect(snapshot.items).toHaveLength(6);
+        expect(snapshot.bodyUnits).toHaveLength(3);
+        // present는 항목 id·source index·body ref가 하나라도 빠지거나 어긋나면 던진다.
+        const notes = presenter.present(snapshot, layout);
+        expect(notes.map(note => note.sourceNoteIndex)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+        expect(notes.filter(note => note.kind === 'tap').map(note => note.layers[0].visible))
+          .toEqual([cycle !== 0, cycle !== 1, cycle !== 2]);
+      }
+      const finished = playback.finishPattern();
+      expect(finished.iteration).toBe(iteration);
+      expect(finished.result.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
+      expect(finished.result.score.earnedScore).toBe(6);
+      expect(finished.result.score.processedNotes).toBe(2);
+      expect(finished.result.facts.find(fact => fact.kind === 'settlement' && fact.itemKind === 'release'))
+        .toMatchObject({ outcome: 'graded', grade: 'perfect', atMs: 2000 });
+    }
+    playback.stop();
+  });
+
   it('바인딩으로 옮긴 시연 입력으로 두 반복을 프레임 진행하면 반복 0·1 모두 Perfect 5·15점·Miss 0', () => {
     const { preview, playback } = createDemo();
     const finished = [0, 1].map(() => {
@@ -144,7 +204,7 @@ describe('명시 튜토리얼 재생의 반복', () => {
     playback.stop();
   });
 
-  it('표시 compile은 3벌 문서라 점수 항목이 원본 5개의 3배인 15개', () => {
+  it('원본 compile을 표시 3벌로 합성하면 점수 항목이 원본 5개의 3배인 15개', () => {
     const { playback } = createDemo();
     expect(playback.renderChart.scoreItems).toHaveLength(15);
     playback.stop();

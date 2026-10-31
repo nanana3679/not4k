@@ -435,10 +435,10 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialPreviewPlayerSource).toContain('onBombEffectRef.current?.(lane, getTutorialBombPosition(lane, keyboardAreaHeight));');
   });
 
-  it('반복 경계는 엔진별 finishLoop가 맡고, 렌더 루프는 resetTransientState·setExplicitChart를 다시 부르지 않으며 명시 결과는 onPatternFinished로 알림', () => {
+  it('구형 경계는 finishLoop·명시 경계는 explicitInput이 맡고 렌더러 재생성 없이 onPatternFinished로 알림', () => {
     expect(renderLoopBody).toContain('if (!isExplicitTutorialPreview(preview) && loopTimeMs < previousLoopTime) {');
     expect(renderLoopBody).toContain('previewJudgment.finishLoop();');
-    expect(renderLoopBody).toContain('previewJudgment.advanceTo(loopTimeMs);');
+    expect(renderLoopBody).toContain('previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);');
     expect(renderLoopBody).not.toContain('resetTransientState');
     expect(renderLoopBody).not.toContain('setExplicitChart');
     // `callback?.(finishPattern())`처럼 쓰면 콜백이 없을 때 인자도 평가하지 않아 반복을 정산하지 않는다. 정산을 먼저 한다.
@@ -461,19 +461,56 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect([...legacyBoundary].sort((a, b) => a - b)).toEqual(legacyBoundary);
   });
 
-  it('명시 경계는 paused·도식 확인 후 경과 시간의 차수로 한 번 정산하고 구형은 loopTimeMs 감소만 검사', () => {
-    expect(tutorialPreviewPlayerSource).toContain('explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow))');
+  it('명시 경계는 도식 진입 전 대기 상태와 해결된 loopTimeMs로 한 번 정산하고 구형은 loopTimeMs 감소만 검사', () => {
+    const order = [
+      'if (clock.frozen) {',
+      'const diagramHeldBeforeFrame = activeDiagramPause !== null;',
+      'loopTimeMs = resolveDiagramPauseTime(loopTimeMs);',
+      'previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);',
+    ].map(snippet => renderLoopBody.indexOf(snippet));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(tutorialPreviewPlayerSource).toContain('advanceTo: (loopTimeMs, diagramHeldBeforeFrame) => { advanceExplicit(loopTimeMs, diagramHeldBeforeFrame); }');
+    expect(tutorialPreviewPlayerSource).toContain([
+      'explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {',
+      '              loopTimeMs,',
+      '              blocked: pausedRef.current || diagramHeldBeforeFrame,',
+    ].join('\n'));
+    // 프레임에만 이전 도식 상태를 전달한다. 프레임 사이 키 이벤트는 현재 도식 상태를 읽어야 한다.
     expect(tutorialPreviewPlayerSource).toContain('blocked: pausedRef.current || activeDiagramPause !== null');
-    expect(tutorialInputSource).toContain('if (getClock().blocked) return;');
+    expect(tutorialInputSource).toContain('beforeInput: () => syncJudging()');
+    expect(tutorialInputSource).toContain('const syncJudging = (blocked = getClock().blocked) => {');
+    expect(tutorialInputSource).toContain('const blocked = frame?.blocked ?? getClock().blocked;');
+    expect(tutorialInputSource).toContain('syncJudging(blocked);\n      if (blocked) return;');
+    expect(tutorialInputSource).toContain('elapsedMs = Math.floor(Math.max(0, elapsedMs) / loopMs) * loopMs + frame.loopTimeMs;');
     expect(tutorialInputSource).toContain('stepExplicitTutorialLoop({ elapsedMs, loopMs, previousIteration: iteration');
     expect(tutorialInputSource.match(/playback\.finishPattern\(/g)).toHaveLength(1);
     expect(tutorialInputSource).toContain('iteration = loop.iteration;');
+    const inputAdvance = tutorialInputSource.slice(tutorialInputSource.indexOf('advanceTo(elapsedMs: number'));
+    expect(inputAdvance).not.toMatch(/\b(for|while)\s*\(/);
+    expect(renderLoopBody).not.toContain('stepExplicitTutorialLoop');
     expect(renderLoopBody).toContain([
       'if (!isExplicitTutorialPreview(preview) && loopTimeMs < previousLoopTime) {',
       '            previewJudgment.finishLoop();',
       '          }',
-      '          previewJudgment.advanceTo(loopTimeMs);',
+      '          previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);',
     ].join('\n'));
+  });
+
+  it('prop 제어로 진행할 때도 도식 진입 전 대기를 읽고 도식 시작점으로 제한한 뒤 명시 입력을 진행', () => {
+    const controlStart = tutorialPreviewPlayerSource.indexOf('syncExplicitControlRef.current = () => {');
+    const controlEnd = tutorialPreviewPlayerSource.indexOf('          previewJudgment = {', controlStart);
+    expect(controlStart).toBeGreaterThan(-1);
+    expect(controlEnd).toBeGreaterThan(controlStart);
+    const control = tutorialPreviewPlayerSource.slice(controlStart, controlEnd);
+    const order = [
+      'if (!clock.frozen) {',
+      'const diagramHeldBeforeFrame = activeDiagramPause !== null;',
+      'const loopTimeMs = resolveDiagramPauseTime(Math.max(0, now - loopStartNow) % preview.loopMs);',
+      'advanceExplicit(loopTimeMs, diagramHeldBeforeFrame);',
+    ].map(snippet => control.indexOf(snippet));
+    expect(order.every(index => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
   it('도식 OK와 차트 재연결은 loopStartNow를 다시 잡을 때 명시 차수도 0으로 초기화', () => {
