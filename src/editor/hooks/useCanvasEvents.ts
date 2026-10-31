@@ -52,6 +52,9 @@ export interface CanvasEventHandlers {
 
 const LONG_PRESS_MS = 450;
 
+// React 포인터 핸들러와 native lostpointercapture가 같은 취소 경로를 사용한다.
+type CanvasPointerInput = Pick<PointerEvent, 'pointerId' | 'pointerType' | 'clientX' | 'clientY' | 'button' | 'buttons'>;
+
 // 노트·엑스트라 클릭 토글은 up에서 동일 처리되므로 후보는 한 형태다(kind 구분 불필요).
 type TouchClickToggleCandidate = {
   pointerId: number;
@@ -238,7 +241,7 @@ export function useCanvasEvents(
   ]);
 
   const toSample = useCallback((
-    e: React.PointerEvent<HTMLCanvasElement>,
+    e: CanvasPointerInput,
     phase: PointerSample['phase'],
   ): PointerSample => {
     // x/y는 편집 제스처(longPress/holdEnd)에 실려 모드로 전달되는 타임라인/캔버스 좌표다.
@@ -302,14 +305,24 @@ export function useCanvasEvents(
       eraseGestureRef.current.cancel();
     };
     const finishErase = () => eraseGestureRef.current.finish();
+    const clearContacts = () => {
+      activePointerIdsRef.current.clear();
+      playbackBlockedPointerIdsRef.current.clear();
+      recognizerRef.current = new GestureRecognizer();
+      rightPressPendingRef.current = false;
+      suppressContextMenuUntilRef.current = 0;
+      isDraggingCursorRef.current = false;
+      handleEditCancel();
+      rendererRef.current?.handleMinimapPointerUp();
+    };
     window.addEventListener('keydown', cancelErase, true);
-    window.addEventListener('blur', finishErase);
+    window.addEventListener('blur', clearContacts);
     return () => {
       window.removeEventListener('keydown', cancelErase, true);
-      window.removeEventListener('blur', finishErase);
+      window.removeEventListener('blur', clearContacts);
       finishErase();
     };
-  }, [clearHoldTimer]);
+  }, [clearHoldTimer, handleEditCancel, isDraggingCursorRef, rendererRef]);
 
   // 재생 중 편집 제한(RFD 0099): 누름에 남은 편집·선택 조작을 버리고 미리보기를 걷는다.
   // 이동·리사이즈 드래그·붙여넣기 대기·우클릭 삭제는 store의 setIsPlaying이 이미 취소했다. 여기서는 편집
@@ -386,9 +399,43 @@ export function useCanvasEvents(
     return index === null ? null : { type: 'event' as const, index };
   }, [space]);
 
+  const handlePointerCancel = useCallback((e: CanvasPointerInput) => {
+    // 정상 up 뒤의 암시적 capture 해제는 이미 끝난 접촉의 후속 contextmenu 처리를 바꾸지 않는다.
+    if (!activePointerIdsRef.current.delete(e.pointerId)) return;
+    playbackBlockedPointerIdsRef.current.delete(e.pointerId);
+    if (activePointerIdsRef.current.size === 0) {
+      rightPressPendingRef.current = false;
+      suppressContextMenuUntilRef.current = 0;
+    }
+    eraseGestureRef.current.finish();
+    if (e.pointerType === 'touch') {
+      // recognizer.feed(cancel)이 hold를 버린다(holdEnd 반환은 무시 — 취소 경로는 결말을 쓰지 않는다).
+      recognizerRef.current.feed(toSample(e, 'cancel'));
+      recognizerRef.current.clearNavigation();
+      clearHoldTimer();
+      clearTouchEmptySelectCandidate();
+      touchClickToggleRef.current = null;
+      if (touchContactRef.current?.pointerId === e.pointerId) touchContactRef.current = null;
+    }
+    rendererRef.current?.handleMinimapPointerUp();
+    isDraggingCursorRef.current = false;
+    rendererRef.current?.clearMoveOrigins();
+    rendererRef.current?.clearBoxSelectRect();
+    createModeRef.current?.cancelDrag();
+    selectModeRef.current?.cancel();
+  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, selectModeRef, toSample, rendererRef, isDraggingCursorRef]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    canvas?.addEventListener('lostpointercapture', handlePointerCancel);
+    return () => canvas?.removeEventListener('lostpointercapture', handlePointerCancel);
+  }, [canvasRef, handlePointerCancel]);
+
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     activePointerIdsRef.current.add(e.pointerId);
     if (isEditLockedByPlayback()) playbackBlockedPointerIdsRef.current.add(e.pointerId);
+    // 새 down은 새 접촉이다. 이전 up/cancel이 유실돼 같은 id가 남아 있어도 봉인을 이어받지 않는다.
+    else playbackBlockedPointerIdsRef.current.delete(e.pointerId);
     // 캔버스 밖에서 떼어도 같은 접촉의 봉인을 해제할 수 있어야 한다(마우스 포함).
     canvasRef.current?.setPointerCapture(e.pointerId);
     if (e.pointerType === 'touch') {
@@ -556,6 +603,8 @@ export function useCanvasEvents(
   }, [rendererRef]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    // up이 유실돼도 버튼 없는 마우스 이동은 이전 접촉이 끝났다는 증거다.
+    if (e.pointerType === 'mouse' && e.buttons === 0) handlePointerCancel(e);
     let navGestures: Gesture[] = [];
     if (e.pointerType === 'touch') {
       e.preventDefault();
@@ -816,7 +865,7 @@ export function useCanvasEvents(
     routeViewportGestures, canvasRef, createModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, deleteAtPoint, clearHoldTimer, isTouchContactInterrupted,
-    onNavigationInteraction, applyEditResult, abandonInteractionForPlayback,
+    onNavigationInteraction, applyEditResult, abandonInteractionForPlayback, handlePointerCancel,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -992,26 +1041,6 @@ export function useCanvasEvents(
     deleteAtPoint, rendererRef, selectModeRef, applyEditResult, isTouchContactInterrupted,
     abandonInteractionForPlayback,
   ]);
-
-  const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    activePointerIdsRef.current.delete(e.pointerId);
-    playbackBlockedPointerIdsRef.current.delete(e.pointerId);
-    eraseGestureRef.current.finish();
-    if (e.pointerType === 'touch') {
-      // recognizer.feed(cancel)이 hold를 버린다(holdEnd 반환은 무시 — 취소 경로는 결말을 쓰지 않는다).
-      recognizerRef.current.feed(toSample(e, 'cancel'));
-      recognizerRef.current.clearNavigation();
-      clearHoldTimer();
-      clearTouchEmptySelectCandidate();
-      touchClickToggleRef.current = null;
-      if (touchContactRef.current?.pointerId === e.pointerId) touchContactRef.current = null;
-    }
-    rendererRef.current?.handleMinimapPointerUp();
-    rendererRef.current?.clearMoveOrigins();
-    rendererRef.current?.clearBoxSelectRect();
-    createModeRef.current?.cancelDrag();
-    selectModeRef.current?.cancel();
-  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, selectModeRef, toSample, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();

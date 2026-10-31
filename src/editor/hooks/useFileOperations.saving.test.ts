@@ -26,6 +26,16 @@ const harness = vi.hoisted(() => ({
   updateSong: vi.fn(async () => ({ error: null })),
 }));
 
+// DOM 없이 같은 훅 인스턴스의 ref와 commit을 유지해 Meta 적용 뒤의 재렌더를 구동한다.
+const lifecycle = vi.hoisted(() => ({
+  refs: [] as Array<{ current: unknown }>, cursor: 0, effects: [] as Array<() => void>,
+}));
+vi.mock('react', async importOriginal => ({
+  ...await importOriginal<typeof import('react')>(),
+  useRef: (initial: unknown) => lifecycle.refs[lifecycle.cursor++] ??= { current: initial },
+  useLayoutEffect: (effect: () => void) => { lifecycle.effects.push(effect); },
+}));
+
 // 재킷·오디오 저장에서 쓰는 요청만 메모리에서 처리한다. 실제 Supabase에는 닿지 않는다.
 vi.mock('../../supabase/client', () => ({
   supabase: {
@@ -81,19 +91,38 @@ let navigateTo = vi.fn<(path: string) => void>();
  * (테스트 플레이에서 돌아올 때). 페이지 지역 상태(구간·재킷·오디오 대기)는 비어 있다.
  */
 function renderFileOperations(files: { jacket?: File; audio?: File } = {}): FileOperationHandlers {
+  return mountFileOperations(files).handlers;
+}
+
+function mountFileOperations(initialFiles: { jacket?: File; audio?: File } = {}) {
+  let files = initialFiles;
+  const refs: Array<{ current: unknown }> = [];
   const playback = { audioBufferData: {} as AudioBuffer, isPlaying: false, pause: vi.fn() } as unknown as PlaybackController;
   const playbackRef: RefObject<PlaybackController | null> = { current: playback };
   const rendererRef: RefObject<{ setChart: (c: unknown) => void } | null> = { current: null };
+  const setPendingJacketFile = vi.fn((file: File | null) => { files = { ...files, jacket: file ?? undefined }; });
+  const setPendingAudioFile = vi.fn((file: File | null) => { files = { ...files, audio: file ?? undefined }; });
   function FileOperationsProbe({ onRender }: { onRender: (handlers: FileOperationHandlers) => void }) {
     onRender(useFileOperations(
       playbackRef, rendererRef, vi.fn(), vi.fn(), vi.fn(), vi.fn(), vi.fn(), vi.fn(),
-      vi.fn(), vi.fn(), vi.fn(), vi.fn(), null, null, files.jacket ?? null, vi.fn(), files.audio ?? null, navigateTo,
+      vi.fn(), vi.fn(), setPendingJacketFile, vi.fn(), null, null, files.jacket ?? null, setPendingAudioFile, files.audio ?? null, navigateTo,
     ));
     return null;
   }
   let handlers: FileOperationHandlers | undefined;
-  renderToStaticMarkup(createElement(FileOperationsProbe, { onRender: rendered => { handlers = rendered; } }));
-  return handlers!;
+  function render(nextFiles = files) {
+    files = nextFiles;
+    lifecycle.refs = refs;
+    lifecycle.cursor = 0;
+    lifecycle.effects.length = 0;
+    renderToStaticMarkup(createElement(FileOperationsProbe, { onRender: rendered => { handlers = rendered; } }));
+    lifecycle.effects.forEach(effect => effect());
+  }
+  render();
+  return {
+    get handlers() { return handlers!; }, get files() { return files; }, render,
+    setPendingJacketFile, setPendingAudioFile,
+  };
 }
 
 beforeEach(() => {
@@ -119,13 +148,53 @@ afterEach(() => {
 
 describe('useFileOperations 저장 진행', () => {
   it.each([
+    { asset: 'jacket', ext: 'png', isPlaying: false }, { asset: 'jacket', ext: 'png', isPlaying: true },
+    { asset: 'audio', ext: 'ogg', isPlaying: false }, { asset: 'audio', ext: 'ogg', isPlaying: true },
+  ] as const)('$asset A.$ext 업로드 중 B.$ext로 교체하고 isPlaying=$isPlaying에서 완료하면 B.$ext 경로·pending·dirty가 남는다', async ({ asset, ext, isPlaying }) => {
+    const uploaded = chart([single(1, 0)]);
+    open(uploaded);
+    const fileA = new File(['A'], `A.${ext}`);
+    const fileB = new File(['B'], `B.${ext}`);
+    const pathKey = asset === 'jacket' ? 'imageFile' : 'audioFile';
+    const uploadedPath = asset === 'jacket' ? songJacketPath('song', ext) : songAudioPath('song', ext);
+    const page = mountFileOperations({ [asset]: fileA });
+    let finishUpload!: () => void;
+    harness.uploadAsset.mockImplementationOnce(() => new Promise(resolve => {
+      finishUpload = () => resolve({ error: null });
+    }));
+    const saving = page.handlers.handleSaveChart();
+    await flush();
+    harness.upserts[0].resolve();
+    await flush();
+
+    current().setIsPlaying(isPlaying);
+    const replacement = { ...current().chart, meta: { ...current().chart.meta, [pathKey]: `B.${ext}` } };
+    current().setChart(replacement);
+    page.render({ [asset]: fileB });
+    finishUpload();
+    await saving;
+
+    expect(current().chart).toEqual(replacement);
+    expect(page.files[asset]).toBe(fileB);
+    expect(page.setPendingJacketFile).not.toHaveBeenCalled();
+    expect(page.setPendingAudioFile).not.toHaveBeenCalled();
+    expect(harness.uploadAsset).toHaveBeenCalledExactlyOnceWith(uploadedPath, fileA, { upsert: true });
+    expect(current().savedChartJson).toEqual(toSavedChartJson({
+      ...uploaded, meta: { ...uploaded.meta, [pathKey]: uploadedPath },
+    }, 2));
+    expect(dirty()).toBe(true);
+    expect(current().isPlaying).toBe(isPlaying);
+  });
+
+  it.each([
     { asset: 'jacket', isPlaying: false }, { asset: 'jacket', isPlaying: true },
     { asset: 'audio', isPlaying: false }, { asset: 'audio', isPlaying: true },
   ] as const)('Save $asset 업로드 중 2박 노트와 제목을 수정하고 isPlaying=$isPlaying에서 완료하면 경로만 반영하고 편집과 dirty를 보존한다', async ({ asset, isPlaying }) => {
     const uploaded = chart([single(1, 0)]);
     open(uploaded);
     const file = new File(['asset'], asset === 'jacket' ? 'new.png' : 'new.ogg');
-    const saving = renderFileOperations({ [asset]: file }).handleSaveChart();
+    const page = mountFileOperations({ [asset]: file });
+    const saving = page.handlers.handleSaveChart();
     await flush();
 
     const edited = {
@@ -145,6 +214,7 @@ describe('useFileOperations 저장 진행', () => {
       ...uploaded, meta: { ...uploaded.meta, [pathKey]: path },
     }, 2));
     expect(harness.uploadAsset).toHaveBeenCalledWith(path, file, { upsert: true });
+    expect(page.files[asset]).toBeUndefined();
     expect(dirty()).toBe(true);
     expect(current().isPlaying).toBe(isPlaying);
     expect(showToast).toHaveBeenCalledExactlyOnceWith('Chart saved', 'info');

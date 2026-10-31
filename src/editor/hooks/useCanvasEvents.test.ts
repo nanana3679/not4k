@@ -129,7 +129,9 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
   });
   const ref = <T,>(value: T) => ({ current: value });
   const setPointerCapture = vi.fn();
-  const canvas = { style: {}, getBoundingClientRect: () => ({ left: 0, top: 0 }), setPointerCapture } as unknown as HTMLCanvasElement;
+  const canvas = Object.assign(new EventTarget(), {
+    style: {}, getBoundingClientRect: () => ({ left: 0, top: 0 }), setPointerCapture,
+  }) as unknown as HTMLCanvasElement;
   function CanvasEventsProbe({ onRender }: { onRender: (handlers: CanvasEventHandlers) => void }) {
     onRender(useCanvasEvents(
       ref(canvas), ref(options.renderer ?? null), ref(options.playback ?? null),
@@ -142,7 +144,7 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
   renderToStaticMarkup(createElement(CanvasEventsProbe, { onRender: rendered => { handlers = rendered; } }));
   const cleanups = lifecycle.effects.map(effect => effect());
   unmountEffects = () => cleanups.forEach(cleanup => cleanup?.());
-  return { handlers: handlers!, createMode, selectMode, deleteMode, setPointerCapture };
+  return { handlers: handlers!, createMode, selectMode, deleteMode, setPointerCapture, canvas };
 }
 
 describe('우클릭 삭제', () => {
@@ -279,6 +281,90 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
   const selectFirst = () => current().setSelection({ ...emptySelection(), notes: new Set([0]) });
   const pauseToasts = () => vi.mocked(showToast).mock.calls.filter(([message]) => message === PAUSE_TO_EDIT_COPY);
   const play = () => current().setIsPlaying(true);
+
+  it.each(['mouse', 'touch'] as const)('재생 중 %s pointerId=1의 release가 누락돼도 정지 후 새 down·up은 2박 탭 1개를 놓고 안내를 추가하지 않는다', pointerType => {
+    const { handlers } = setup(chart([]), 'create');
+    play();
+    handlers.handlePointerDown(pointer(500, { pointerType }));
+    current().setIsPlaying(false);
+    handlers.handlePointerDown(pointer(1000, { pointerType }));
+    handlers.handlePointerUp(pointer(1000, { pointerType }));
+
+    expect(notes().map(note => beatToFloat(note.beat))).toEqual([2]);
+    expect(notes()[0]).toMatchObject({ type: 'tap', kind: 'single', lane: 1 });
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('재생 중 touch pointerId=1·2의 release가 누락돼도 blur 뒤 정지하면 contextmenu로 1박을 지우고 새 touch로 2박 탭 1개를 놓는다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'create');
+    play();
+    handlers.handlePointerDown(pointer(500));
+    handlers.handlePointerDown(pointer(500, { pointerId: 2 }));
+    window.dispatchEvent(new Event('blur'));
+    current().setIsPlaying(false);
+    handlers.handleContextMenu(contextMenu(500));
+    expect(notes()).toEqual([]);
+
+    handlers.handlePointerDown(pointer(1000, { pointerId: 3 }));
+    handlers.handlePointerUp(pointer(1000, { pointerId: 3 }));
+    expect(notes().map(note => beatToFloat(note.beat))).toEqual([2]);
+    // blur 전 active id가 남아 다음 재생에서 다시 봉인되지 않는다.
+    play();
+    current().setIsPlaying(false);
+    vi.advanceTimersByTime(1500);
+    handlers.handleContextMenu(contextMenu(1000));
+    expect(notes()).toEqual([]);
+  });
+
+  it.each(['mouse', 'touch'] as const)('재생을 겪은 %s pointerId=1이 정지 후 lostpointercapture되면 contextmenu가 1박을 지우고 새 touch가 2박 탭 1개를 놓는다', pointerType => {
+    const { handlers, canvas } = setup(chart([tapAt(1)]), 'create');
+    play();
+    const contact = pointer(500, { pointerType, button: pointerType === 'mouse' ? 2 : 0 });
+    handlers.handlePointerDown(contact);
+    current().setIsPlaying(false);
+    canvas.dispatchEvent(Object.assign(new Event('lostpointercapture'), contact));
+    handlers.handleContextMenu(contextMenu(500));
+    expect(notes()).toEqual([]);
+
+    handlers.handlePointerDown(pointer(1000, { pointerId: 2 }));
+    handlers.handlePointerUp(pointer(1000, { pointerId: 2 }));
+    expect(notes().map(note => beatToFloat(note.beat))).toEqual([2]);
+  });
+
+  it('재생 중 mouse pointerId=1의 우클릭 release가 누락돼도 정지 후 buttons=0 이동이면 contextmenu가 1박 탭을 지운다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'select');
+    play();
+    handlers.handlePointerDown(rightPointer(500));
+    current().setIsPlaying(false);
+    handlers.handlePointerMove(mouse(500, 0));
+    handlers.handleContextMenu(contextMenu(500));
+
+    expect(notes()).toEqual([]);
+    expect(pauseToasts()).toHaveLength(1);
+  });
+
+  it('재생을 겪은 touch 1·2 중 1만 capture를 잃고 mouse 3이 buttons=0으로 움직여도 touch 2를 뗄 때까지 1박 contextmenu 삭제를 막는다', () => {
+    const { handlers, canvas } = setup(chart([tapAt(1)]), 'delete');
+    handlers.handlePointerDown(pointer(500));
+    handlers.handlePointerDown(pointer(500, { pointerId: 2 }));
+    play();
+    current().setIsPlaying(false);
+    canvas.dispatchEvent(Object.assign(new Event('lostpointercapture'), pointer(500)));
+    handlers.handlePointerMove(mouse(500, 0, { pointerId: 3 }));
+    vi.advanceTimersByTime(1500);
+    handlers.handleContextMenu(contextMenu(500));
+    expect(notes()).toHaveLength(1);
+
+    handlers.handlePointerMove(pointer(500, { pointerId: 2 }));
+    handlers.handlePointerUp(pointer(500, { pointerId: 2 }));
+    // 정상 up 뒤 발생하는 capture 해제는 터치의 지연 contextmenu 보호를 해제하지 않는다.
+    canvas.dispatchEvent(Object.assign(new Event('lostpointercapture'), pointer(500, { pointerId: 2 })));
+    handlers.handleContextMenu(contextMenu(500));
+    expect(notes()).toHaveLength(1);
+    vi.advanceTimersByTime(1200);
+    handlers.handleContextMenu(contextMenu(500));
+    expect(notes()).toEqual([]);
+  });
   afterEach(() => useEditorStore.setState({ isPlaying: false }));
 
   it('Create 롱프레스 450ms로 시작한 드래그는 재생 시작 즉시 취소되고 정지 후 같은 접촉을 3박에서 떼도 노트 0개다', () => {

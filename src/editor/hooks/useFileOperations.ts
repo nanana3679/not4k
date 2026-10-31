@@ -3,7 +3,7 @@ import { deleteEvents, isInitialTimingEvent } from '../editing/eventEditing';
  * useFileOperations — 파일 저장/삭제 핸들러
  */
 
-import { useCallback } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import {
@@ -108,6 +108,11 @@ export function useFileOperations(
   const finishChartSave = useEditorStore((s) => s.finishChartSave);
   const editingEvent = useEditorStore((s) => s.editingEvent);
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
+  // 저장 콜백은 시작 시 파일을 캡처한다. 완료 시에는 마지막으로 적용한 Meta의 파일과 identity를 비교한다.
+  const pendingAssetsRef = useRef({ jacket: pendingJacketFile, audio: pendingAudioFile });
+  useLayoutEffect(() => {
+    pendingAssetsRef.current = { jacket: pendingJacketFile, audio: pendingAudioFile };
+  }, [pendingJacketFile, pendingAudioFile]);
 
   const handleSaveChart = useCallback(async () => {
     if (!activeSongId) {
@@ -167,9 +172,11 @@ export function useFileOperations(
           .upload(resolvedJacketPath, pendingJacketFile, { upsert: true });
         if (jacketUpErr) throw new Error(`Jacket upload failed: ${jacketUpErr.message}`);
         await supabase.from('songs').update({ jacket_url: resolvedJacketPath }).eq('id', activeSongId);
-        const currentChart = useEditorStore.getState().chart;
-        setChart({ ...currentChart, meta: { ...currentChart.meta, imageFile: resolvedJacketPath } });
-        setPendingJacketFile(null);
+        if (pendingAssetsRef.current.jacket === pendingJacketFile) {
+          const currentChart = useEditorStore.getState().chart;
+          setChart({ ...currentChart, meta: { ...currentChart.meta, imageFile: resolvedJacketPath } });
+          setPendingJacketFile(null);
+        }
         setJacketCacheBust(Date.now());
       }
 
@@ -179,9 +186,11 @@ export function useFileOperations(
           .upload(resolvedAudioPath, pendingAudioFile, { upsert: true });
         if (audioUpErr) throw new Error(`Audio upload failed: ${audioUpErr.message}`);
         await supabase.from('songs').update({ audio_url: resolvedAudioPath }).eq('id', activeSongId);
-        const currentChart = useEditorStore.getState().chart;
-        setChart({ ...currentChart, meta: { ...currentChart.meta, audioFile: resolvedAudioPath } });
-        setPendingAudioFile(null);
+        if (pendingAssetsRef.current.audio === pendingAudioFile) {
+          const currentChart = useEditorStore.getState().chart;
+          setChart({ ...currentChart, meta: { ...currentChart.meta, audioFile: resolvedAudioPath } });
+          setPendingAudioFile(null);
+        }
       }
 
       const songUpdate: Record<string, unknown> = {};
