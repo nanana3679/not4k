@@ -678,7 +678,7 @@ export function EditorToolbar({
   // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함 (RFD 0018 ④).
   const selectedCount = selectedNotes.size;
   // 재생 중 편집 제한(RFD 0099): 차트를 바꾸는 버튼·입력은 비활성으로 두고 같은 안내를 title로 단다.
-  // Undo·Redo는 selectCanUndo·selectCanRedo가 재생 중 false라 함께 비활성이다. 보조 레인 수는 막지 않는다(미정 기본값 D3).
+  // Undo·Redo는 selectCanUndo·selectCanRedo가 재생 중 false라 함께 비활성이다. 보조 레인 수는 막지 않는다(허용 여부는 PRD §12 미정).
   const editLockedTitle = isPlaying ? PAUSE_TO_EDIT_COPY : undefined;
   const undoTitle = editLockedTitle ?? 'Undo (Ctrl+Z)';
   const redoTitle = editLockedTitle ?? 'Redo (Ctrl+Shift+Z)';
