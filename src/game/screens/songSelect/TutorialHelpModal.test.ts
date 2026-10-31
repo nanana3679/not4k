@@ -5,13 +5,24 @@ import { TutorialHelpModal } from './TutorialHelpModal';
 import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreviews';
 import tutorialHelpModalSource from './TutorialHelpModal.tsx?raw';
 
+const emptyPassRecords = { passedIds: [], isGuest: true, recordPass: () => {}, resetGuest: () => {} };
+
 function countOccurrences(source: string, pattern: string): number {
   return source.split(pattern).length - 1;
 }
 
 describe('TutorialHelpModal', () => {
+  it('A의 single-note 캐시로 팝업을 열면 single-note만 체크하고 계정 기록 초기화 버튼은 표시하지 않는다', () => {
+    const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, {
+      onClose: () => {},
+      passRecords: { passedIds: ['single-note'], isGuest: false, recordPass: () => {}, resetGuest: () => {} },
+    }));
+    expect(countOccurrences(html, 'data-tutorial-index-check="true"')).toBe(1);
+    expect(html).toMatch(/data-tutorial-index-item="single-note"[^>]+data-tutorial-index-passed="true"/);
+    expect(html).not.toContain('Reset Passed');
+  });
   it('팝업을 열면 Basic 탭과 연결된 패널을 선택하고 Advanced 탭은 비선택으로 표시한다', () => {
-    const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, { onClose: () => {} }));
+    const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, { onClose: () => {}, passRecords: emptyPassRecords }));
     expect(html).toContain('role="tablist" aria-label="Tutorial level"');
     expect(html).toContain('id="tutorial-tab-basic" type="button" role="tab" aria-selected="true"');
     expect(html).toContain('id="tutorial-tab-advanced" type="button" role="tab" aria-selected="false"');
@@ -23,7 +34,7 @@ describe('TutorialHelpModal', () => {
 
   it('곡 선택 도움말 팝업은 dialog role과 닫기 버튼을 렌더링', () => {
     const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+      React.createElement(TutorialHelpModal, { onClose: () => {}, passRecords: emptyPassRecords }),
     );
 
     expect(html).toContain('role="dialog"');
@@ -33,7 +44,7 @@ describe('TutorialHelpModal', () => {
 
   it('튜토리얼 팝업은 실제 프리뷰 플레이어 캔버스 자리를 렌더링', () => {
     const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+      React.createElement(TutorialHelpModal, { onClose: () => {}, passRecords: emptyPassRecords }),
     );
 
     expect(countOccurrences(html, 'data-tutorial-preview-canvas="true"')).toBe(2);
@@ -52,7 +63,7 @@ describe('TutorialHelpModal', () => {
 
   it('튜토리얼 팝업은 이전/다음 화살표 버튼과 현재 튜토리얼 번호를 렌더링', () => {
     const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+      React.createElement(TutorialHelpModal, { onClose: () => {}, passRecords: emptyPassRecords }),
     );
 
     expect(html).toContain('aria-label="Previous tutorial"');
@@ -62,7 +73,7 @@ describe('TutorialHelpModal', () => {
 
   it('통과 기록 없이 팝업을 열면 Basic 17개 목록에 통과 체크와 열람 표시가 없다', () => {
     const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+      React.createElement(TutorialHelpModal, { onClose: () => {}, passRecords: emptyPassRecords }),
     );
 
     expect(html).toContain('aria-label="Tutorial index"');
@@ -85,7 +96,7 @@ describe('TutorialHelpModal', () => {
 
   it('튜토리얼 팝업은 가운데 플레이어와 오른쪽 텍스트 전용 영역을 분리해서 렌더링', () => {
     const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+      React.createElement(TutorialHelpModal, { onClose: () => {}, passRecords: emptyPassRecords }),
     );
 
     expect(html).toContain('not4k-tutorial-player-column');
@@ -100,7 +111,7 @@ describe('TutorialHelpModal', () => {
 
   it('튜토리얼 팝업은 0번 손배치 본문과 현재 TKL 반대손 배치를 함께 렌더링', () => {
     const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+      React.createElement(TutorialHelpModal, { onClose: () => {}, passRecords: emptyPassRecords }),
     );
 
     expect(html).toContain('손배치');
@@ -113,7 +124,7 @@ describe('TutorialHelpModal', () => {
 
   it('390px 모바일 폭에서는 프리뷰 플레이어 래퍼가 폭을 줄일 수 있는 스타일을 포함', () => {
     const html = renderToStaticMarkup(
-      React.createElement(TutorialHelpModal, { onClose: () => {} }),
+      React.createElement(TutorialHelpModal, { onClose: () => {}, passRecords: emptyPassRecords }),
     );
 
     expect(html).toContain('not4k-tutorial-player-wrap');

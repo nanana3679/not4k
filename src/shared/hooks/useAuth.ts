@@ -31,30 +31,52 @@ export function useAuth() {
   );
   const [isAdmin, setIsAdmin] = useState(DEV_ADMIN);
   const [loading, setLoading] = useState(!DEV_ADMIN);
+  // 세션 주체가 아직 미확정이라는 뜻이다. 조회 실패만으로 게스트로 확정하지 않는다.
+  const [sessionLoading, setSessionLoading] = useState(!DEV_ADMIN);
 
   useEffect(() => {
     if (DEV_ADMIN) return;
 
     let active = true;
+    let sessionEventReceived = false;
+    let sessionGeneration = 0;
+    let currentUserId: string | null | undefined;
 
     const handleSession = async (session: { user: User } | null) => {
       if (!active) return;
+      const generation = ++sessionGeneration;
       const u = session?.user ?? null;
       setUser(u);
-      setIsAdmin(u ? await fetchIsAdmin(u.id) : false);
-      if (active) setLoading(false);
+      setSessionLoading(false);
+      // 토큰 갱신처럼 같은 계정의 세션 이벤트에서는 admin 표시를 깜빡이지 않는다. 계정이 바뀔 때만 다시 확인 중으로 둔다.
+      const userChanged = (u?.id ?? null) !== currentUserId;
+      currentUserId = u?.id ?? null;
+      if (userChanged) {
+        setIsAdmin(false);
+        setLoading(!!u);
+      }
+      const admin = u ? await fetchIsAdmin(u.id) : false;
+      if (!active || generation !== sessionGeneration) return;
+      setIsAdmin(admin);
+      setLoading(false);
     };
 
     // 1. 리스너 먼저 등록 (이벤트 놓치지 않도록)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => { handleSession(session); },
+      (_event, session) => {
+        sessionEventReceived = true;
+        void handleSession(session);
+      },
     );
 
     // 2. 현재 세션 확인 (리스너 등록 이후)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session);
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) throw error;
+      if (!sessionEventReceived) void handleSession(session);
     }).catch(() => {
-      if (active) setLoading(false);
+      if (active && !sessionEventReceived) {
+        setLoading(false);
+      }
     });
 
     return () => {
@@ -75,5 +97,5 @@ export function useAuth() {
     await supabase.auth.signOut();
   };
 
-  return { user, isAdmin, loading, signInWithGoogle, signOut };
+  return { user, isAdmin, loading, sessionLoading, signInWithGoogle, signOut };
 }

@@ -25,6 +25,7 @@ import { DeleteSongModal } from './songSelect/DeleteSongModal';
 import { DifficultyModal } from './songSelect/DifficultyModal';
 import { MobileSongCard } from './songSelect/MobileSongCard';
 import { TutorialHelpModal } from './songSelect/TutorialHelpModal';
+import { useTutorialPassRecords } from './songSelect/useTutorialPassRecords';
 import { SettingsModal } from './settings/SettingsModal';
 import { usePreviewAudio } from '../hooks/usePreviewAudio';
 import { useSongNavigation } from '../hooks/useSongNavigation';
@@ -48,7 +49,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const settingsOpen = useGameStore((state) => state.settingsOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
   const calibrationActive = useGameStore((state) => state.calibrationActive);
-  const { user, isAdmin, loading: authLoading, signInWithGoogle, signOut } = useAuth();
+  const { user, isAdmin, loading: authLoading, sessionLoading, signInWithGoogle, signOut } = useAuth();
   const gameExperience = mobileListOnly ? 'mobileSongList' : 'fullGame';
   const playAllowed = canStartGameplay(gameExperience);
   const previewAllowed = canPreviewSongs(gameExperience);
@@ -61,6 +62,9 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const [deleting, setDeleting] = useState(false);
   const [mobileEditSelection, setMobileEditSelection] = useState<SelectedChartRef | null>(null);
   const [showTutorialHelp, setShowTutorialHelp] = useState(false);
+  // 개발용 가상 admin과 Supabase 익명 세션은 실제 계정 동기화 대상이 아니다.
+  const tutorialUserId = user && user.id !== 'dev-user' && !user.is_anonymous ? user.id : null;
+  const tutorialPassRecords = useTutorialPassRecords(tutorialUserId, sessionLoading, showTutorialHelp);
 
   const addToast = useCallback((msg: string, type: ToastType = 'info') => {
     showToast(msg, type);
@@ -192,7 +196,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const renderOverlays = () => (
     <>
       {showTutorialHelp && (
-        <TutorialHelpModal isAdmin={isAdmin} onClose={() => setShowTutorialHelp(false)} />
+        <TutorialHelpModal passRecords={tutorialPassRecords} isAdmin={isAdmin} onClose={() => setShowTutorialHelp(false)} />
       )}
 
       {showAddSong && (
