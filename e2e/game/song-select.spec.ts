@@ -272,6 +272,17 @@ test.describe('Song Select Screen', () => {
     await helpButton.click();
     const reopenedDialog = page.getByRole('dialog', { name: 'Tutorial' });
     await expect(reopenedDialog).toBeVisible();
+    // 다시 열면 마지막으로 선택한 connected-long-note-overlap에서 시작하고 그 도식부터 재생한다(docs/spec/tutorial.md).
+    await expect(reopenedDialog.locator(
+      '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="connected-long-note-overlap"]'
+    )).toBeVisible();
+    await expect(
+      reopenedDialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]')
+    ).toHaveAttribute('data-tutorial-index-current', 'true');
+    const reopenedDiagramModal = page.locator('[data-tutorial-diagram-modal="true"]').first();
+    await expect(reopenedDiagramModal.locator('[data-tutorial-diagram-id="connected-overlap"]')).toBeVisible();
+    await reopenedDiagramModal.locator('[data-tutorial-diagram-ok="true"]').click();
+    await expect(reopenedDiagramModal).toBeHidden();
     await expect(
       reopenedDialog.locator('[data-tutorial-index-item="connected-long-note-overlap"]')
     ).toHaveAttribute('data-tutorial-index-seen', 'true');

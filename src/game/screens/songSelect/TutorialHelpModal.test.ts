@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { TutorialHelpModal } from './TutorialHelpModal';
 import {
@@ -9,6 +9,7 @@ import {
   persistTutorialViewedIds,
   readTutorialViewedIdsFromStorage,
 } from './tutorialViewedCache';
+import { TUTORIAL_LAST_SELECTED_STORAGE_KEY } from './tutorialLastSelection';
 import { TUTORIAL_PREVIEWS } from './tutorialPreviewChart';
 import tutorialHelpModalSource from './TutorialHelpModal.tsx?raw';
 import tutorialViewedCacheSource from './tutorialViewedCache.ts?raw';
@@ -17,14 +18,99 @@ function countOccurrences(source: string, pattern: string): number {
   return source.split(pattern).length - 1;
 }
 
+function stubBrowserLocalStorage(values: Record<string, string>) {
+  const storedValues = new Map(Object.entries(values));
+  vi.stubGlobal('window', {
+    localStorage: {
+      getItem: (key: string) => storedValues.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storedValues.set(key, value);
+      },
+      removeItem: (key: string) => {
+        storedValues.delete(key);
+      },
+    },
+  });
+}
+
 describe('TutorialHelpModal', () => {
-  it('팝업을 열면 Basic 탭과 연결된 패널을 선택하고 Advanced 탭은 비선택으로 표시한다', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('브라우저 저장소가 없으면 팝업을 열 때 Basic 탭과 연결된 패널을 선택하고 Advanced 탭은 비선택으로 표시한다', () => {
     const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, { onClose: () => {} }));
     expect(html).toContain('role="tablist" aria-label="Tutorial level"');
     expect(html).toContain('id="tutorial-tab-basic" type="button" role="tab" aria-selected="true"');
     expect(html).toContain('id="tutorial-tab-advanced" type="button" role="tab" aria-selected="false"');
     expect(html).toContain('role="tabpanel" aria-labelledby="tutorial-tab-basic"');
     expect(html).not.toContain('data-tutorial-index-item="advanced-double-hold"');
+  });
+
+  it('localStorage에 마지막 선택 advanced-recovery가 있으면 팝업을 열 때 Advanced 탭의 7 / 12 항목과 두 프리뷰 슬롯이 그 항목으로 시작한다', () => {
+    stubBrowserLocalStorage({ [TUTORIAL_LAST_SELECTED_STORAGE_KEY]: 'advanced-recovery' });
+
+    const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, { onClose: () => {} }));
+
+    expect(html).toContain('id="tutorial-tab-basic" type="button" role="tab" aria-selected="false"');
+    expect(html).toContain('id="tutorial-tab-advanced" type="button" role="tab" aria-selected="true"');
+    expect(html).toContain('role="tabpanel" aria-labelledby="tutorial-tab-advanced"');
+    expect(html).toContain('data-tutorial-index-item="advanced-recovery" data-tutorial-index-current="true"');
+    expect(countOccurrences(html, 'data-tutorial-index-current="true"')).toBe(1);
+    expect(html).not.toContain('data-tutorial-index-item="hand-placement"');
+    expect(html).toContain('7 / 12');
+    expect(html).toContain('중간 실패 후 복구');
+    // 두 슬롯 모두 처음부터 복원 항목을 걸어 Basic 첫 항목이 잠깐 보이거나 캐러셀 전환이 생기지 않는다.
+    expect(html).toContain('data-tutorial-preview-slot="active" data-tutorial-preview-id="advanced-recovery"');
+    expect(countOccurrences(html, 'data-tutorial-preview-id="advanced-recovery"')).toBe(2);
+    expect(html).not.toContain('data-tutorial-preview-id="hand-placement"');
+    expect(html).toContain('data-tutorial-transition-phase="idle"');
+  });
+
+  it('본 항목 기록 없이 마지막 선택 advanced-recovery만 있으면 팝업을 열 때 복원한 그 항목에도 본 항목 체크를 붙인다', () => {
+    stubBrowserLocalStorage({ [TUTORIAL_LAST_SELECTED_STORAGE_KEY]: 'advanced-recovery' });
+
+    const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, { onClose: () => {} }));
+
+    expect(html).toMatch(/data-tutorial-index-item="advanced-recovery"[^>]*data-tutorial-index-seen="true"/);
+  });
+
+  it('localStorage에 마지막 선택이 없으면 팝업을 열 때 Basic 탭의 1 / 17 첫 항목 hand-placement로 시작한다', () => {
+    stubBrowserLocalStorage({});
+
+    const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, { onClose: () => {} }));
+
+    expect(html).toContain('id="tutorial-tab-basic" type="button" role="tab" aria-selected="true"');
+    expect(html).toContain('data-tutorial-index-item="hand-placement" data-tutorial-index-current="true"');
+    expect(html).toContain('1 / 17');
+    expect(countOccurrences(html, 'data-tutorial-preview-id="hand-placement"')).toBe(2);
+  });
+
+  it('localStorage의 마지막 선택이 카탈로그에 없는 id removed-tutorial이면 팝업을 열 때 Basic 첫 항목 hand-placement로 시작한다', () => {
+    stubBrowserLocalStorage({ [TUTORIAL_LAST_SELECTED_STORAGE_KEY]: 'removed-tutorial' });
+
+    const html = renderToStaticMarkup(React.createElement(TutorialHelpModal, { onClose: () => {} }));
+
+    expect(html).toContain('id="tutorial-tab-basic" type="button" role="tab" aria-selected="true"');
+    expect(html).toContain('data-tutorial-index-item="hand-placement" data-tutorial-index-current="true"');
+    expect(countOccurrences(html, 'data-tutorial-preview-id="hand-placement"')).toBe(2);
+  });
+
+  it('팝업은 마운트할 때 마지막 선택을 한 번 읽어 선택 인덱스·재생 슬롯·탭별 위치의 시작값으로 쓰고, 선택 항목이 바뀔 때마다 그 id를 저장한다', () => {
+    expect(tutorialHelpModalSource).toContain(
+      'useState(() => readLastSelectedTutorialIndexFromStorage(getBrowserLocalStorage()))',
+    );
+    expect(countOccurrences(tutorialHelpModalSource, 'readLastSelectedTutorialIndexFromStorage(')).toBe(1);
+    expect(tutorialHelpModalSource).toContain('useState(initialTutorialIndex)');
+    expect(tutorialHelpModalSource).toContain('[initialTutorialIndex, initialTutorialIndex]');
+    expect(tutorialHelpModalSource).toContain('createLastSectionIndexes(initialTutorialIndex)');
+    expect(tutorialHelpModalSource).not.toContain('const [tutorialIndex, setTutorialIndex] = useState(0)');
+    expect(tutorialHelpModalSource).not.toContain('const [visiblePlayerIndex, setVisiblePlayerIndex] = useState(0)');
+    expect(tutorialHelpModalSource).not.toContain('setPreviewSlotIndexes] = useState<readonly [number, number]>(() => [0, 0])');
+    expect(tutorialHelpModalSource).toContain(
+      'persistLastSelectedTutorialId(getBrowserLocalStorage(), currentTutorial.id)',
+    );
+    expect(tutorialHelpModalSource).toContain('[currentTutorial.id]');
   });
 
   it('튜토리얼 캐시 무효화 버튼은 개발환경이거나 admin이면 표시', () => {
@@ -146,8 +232,8 @@ describe('TutorialHelpModal', () => {
 
   it('튜토리얼 팝업은 본 튜토리얼 id를 localStorage에서 읽고 변경될 때 다시 저장', () => {
     expect(tutorialViewedCacheSource).toContain('TUTORIAL_VIEWED_STORAGE_KEY');
-    expect(tutorialHelpModalSource).toContain('readTutorialViewedIdsFromStorage(getTutorialViewedStorage())');
-    expect(tutorialHelpModalSource).toContain('persistTutorialViewedIds(getTutorialViewedStorage(), viewedTutorialIds)');
+    expect(tutorialHelpModalSource).toContain('readTutorialViewedIdsFromStorage(getBrowserLocalStorage())');
+    expect(tutorialHelpModalSource).toContain('persistTutorialViewedIds(getBrowserLocalStorage(), viewedTutorialIds)');
     expect(tutorialHelpModalSource).toContain('[viewedTutorialIds]');
   });
 
@@ -160,7 +246,7 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('Reset Viewed');
     expect(tutorialHelpModalSource).toContain('canShowTutorialCacheInvalidationButton({');
     expect(tutorialHelpModalSource).toContain('isDev: import.meta.env.DEV');
-    expect(tutorialHelpModalSource).toContain('clearTutorialViewedIds(getTutorialViewedStorage())');
+    expect(tutorialHelpModalSource).toContain('clearTutorialViewedIds(getBrowserLocalStorage())');
     expect(tutorialHelpModalSource).toContain('setViewedTutorialIds(new Set([TUTORIAL_PREVIEWS[0].id]))');
   });
 

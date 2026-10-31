@@ -10,6 +10,7 @@ const test = base.extend<{ previewErrors: string[] }>({
 });
 
 const VIEWED_KEY = 'not4k-tutorial-viewed-ids';
+const LAST_SELECTED_KEY = 'not4k-tutorial-last-selected-id';
 const BASIC_IDS = [
   'hand-placement',
   'single-note',
@@ -189,7 +190,7 @@ test.describe('Tutorial level tabs', () => {
     await expectActive(dialog, BASIC_IDS[0]);
   });
 
-  test('탭별 마지막 선택을 기억하고 모달 재개와 빠른 탭 전환은 최종 선택으로 안정화한다', async ({ page }) => {
+  test('탭별 마지막 선택을 기억하고 빠른 탭 전환은 최종 선택으로 안정화하며, 닫았다 다시 열면 마지막 선택 항목에서 시작한다', async ({ page }) => {
     const dialog = await openTutorial(page);
     await selectTab(dialog, 'Advanced');
     await choose(dialog, ADVANCED_IDS[5]);
@@ -208,10 +209,47 @@ test.describe('Tutorial level tabs', () => {
     await expect(dialog).toBeHidden();
     await page.getByRole('button', { name: 'Open tutorial help' }).click();
     const reopened = page.getByRole('dialog', { name: 'Tutorial' });
-    await expectActive(reopened, BASIC_IDS[0]);
-    await selectTab(reopened, 'Advanced');
+    await expect(tab(reopened, 'Advanced')).toHaveAttribute('aria-selected', 'true');
+    await expectActive(reopened, ADVANCED_IDS[5]);
     await expect(reopened.locator('[data-tutorial-index-item="' + ADVANCED_IDS[5] + '"]')).toHaveAttribute('data-tutorial-index-seen', 'true');
     await expect(indexItems(reopened)).toHaveCount(ADVANCED_IDS.length);
+  });
+
+  test('선택 이력이 없으면 Basic 첫 항목으로 열고, 마지막 선택 탭·항목은 닫았다 다시 열거나 새로고침해도 그 항목에서 시작한다', async ({ page }) => {
+    const dialog = await openTutorial(page);
+    await expect(tab(dialog, 'Basic')).toHaveAttribute('aria-selected', 'true');
+    await expectActive(dialog, BASIC_IDS[0]);
+
+    await selectTab(dialog, 'Advanced');
+    await choose(dialog, ADVANCED_IDS[6]);
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), LAST_SELECTED_KEY)).toBe(ADVANCED_IDS[6]);
+
+    await page.getByRole('button', { name: 'Close tutorial help' }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole('button', { name: 'Open tutorial help' }).click();
+    const reopened = page.getByRole('dialog', { name: 'Tutorial' });
+    await expect(tab(reopened, 'Advanced')).toHaveAttribute('aria-selected', 'true');
+    await expect(indexItems(reopened)).toHaveCount(ADVANCED_IDS.length);
+    await expectActive(reopened, ADVANCED_IDS[6]);
+    // 복원 항목에서도 재생기가 준비를 마치고 보인다(준비 키가 어긋나면 opacity 0으로 숨은 채 남는다).
+    await expect(reopened.locator('[data-tutorial-driver-visible="true"]')).toBeVisible();
+    await expect(reopened.locator('[data-tutorial-index-item="' + ADVANCED_IDS[6] + '"]')).toHaveAttribute('data-tutorial-index-seen', 'true');
+    await expect(reopened.locator('header p')).not.toBeEmpty();
+    await expect(reopened.locator('.not4k-tutorial-text-panel')).not.toBeEmpty();
+    // 복원한 항목은 그 탭의 위치로도 기억해, 다른 탭에 다녀와도 같은 항목으로 돌아온다.
+    await selectTab(reopened, 'Basic');
+    await selectTab(reopened, 'Advanced');
+    await expectActive(reopened, ADVANCED_IDS[6]);
+
+    // 탭을 바꿔 고른 항목도 저장하고, 게임을 껐다 켠 것처럼 새로고침해도 그 탭·항목으로 연다.
+    await selectTab(reopened, 'Basic');
+    await choose(reopened, BASIC_IDS[4]);
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), LAST_SELECTED_KEY)).toBe(BASIC_IDS[4]);
+    const afterReload = await openTutorial(page);
+    await expect(tab(afterReload, 'Basic')).toHaveAttribute('aria-selected', 'true');
+    await expect(indexItems(afterReload)).toHaveCount(BASIC_IDS.length);
+    await expectActive(afterReload, BASIC_IDS[4]);
+    await expect(afterReload.locator('[data-tutorial-driver-visible="true"]')).toBeVisible();
   });
 
   test('Advanced 항목을 모두 보면 29개 viewed를 저장하고 Reset Viewed는 Basic 첫 항목만 남긴다', async ({ page }) => {
