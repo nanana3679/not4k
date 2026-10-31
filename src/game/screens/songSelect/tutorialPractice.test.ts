@@ -5,6 +5,7 @@ import type { ScoreItem, ScoreState } from '../../scoring/ScoreManager';
 import {
   createTutorialPracticeSpec,
   createTutorialPracticeState,
+  DEFAULT_MAX_GREAT_OR_WORSE_COUNT,
   DEFAULT_REQUIRED_SUCCESS_COUNT,
   getSelectedTutorialPracticeMode,
   getTutorialConditionStatus,
@@ -18,7 +19,7 @@ import {
 } from './tutorialPractice';
 import type { TutorialPracticeEvent, TutorialPracticeState, TutorialSuccessCondition } from './tutorialPractice';
 
-const { PERFECT, GREAT, GOOD, GOOD_TRILL, MISS } = JudgmentGrade;
+const { PERFECT, GREAT, GOOD, GOOD_TRILL, BAD, MISS } = JudgmentGrade;
 
 /** weight3 3(기본)인 tap 점수 항목 total개. weight3 3이면 1개 Perfect가 3점, 분모 가중치도 3이다. */
 function scoreItems(total: number, weight3 = 3): ScoreItem[] {
@@ -41,18 +42,19 @@ function finalScore(grades: readonly JudgmentGrade[]): Readonly<ScoreState> {
   return manager.finalize();
 }
 
-const rate90: TutorialSuccessCondition = { kind: 'targetAchievementRate', percent: 90 };
+const greatOrWorseLimit: TutorialSuccessCondition = { kind: 'maxGreatOrWorseCount', count: 1 };
 const noGoodTrill: TutorialSuccessCondition = { kind: 'maxGoodTrillCount', count: 0 };
+const noMiss: TutorialSuccessCondition = { kind: 'maxMissCount', count: 0 };
 const NINE_PERFECT = [PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT];
 
 const SUCCESS = finalScore([PERFECT, PERFECT, PERFECT, PERFECT]);
 const FAILURE = finalScore([PERFECT, MISS, MISS, MISS]);
 
 const singleMethodSpec = (requiredSuccessCount?: number) => createTutorialPracticeSpec({
-  requiredSuccessCount, conditions: [rate90, noGoodTrill], playingMethods: [{ id: 'tap' }],
+  requiredSuccessCount, conditions: [greatOrWorseLimit, noGoodTrill], playingMethods: [{ id: 'tap' }],
 });
 const twoMethodSpec = () => createTutorialPracticeSpec({
-  conditions: [rate90], playingMethods: [{ id: 'keepExistingKey' }, { id: 'alternateHeldKey' }],
+  conditions: [greatOrWorseLimit], playingMethods: [{ id: 'keepExistingKey' }, { id: 'alternateHeldKey' }],
 });
 
 function run(state: TutorialPracticeState, ...events: TutorialPracticeEvent[]): TutorialPracticeState {
@@ -80,6 +82,21 @@ function directInputState(spec = singleMethodSpec()): TutorialPracticeState {
 }
 
 describe('튜토리얼 실습 명세', () => {
+  it('기본 Great 이하 허용 개수를 쓰면 1개를 허용하는 명세를 만든다', () => {
+    const spec = createTutorialPracticeSpec({
+      conditions: [{ kind: 'maxGreatOrWorseCount', count: DEFAULT_MAX_GREAT_OR_WORSE_COUNT }],
+      playingMethods: [{ id: 'tap' }],
+    });
+    expect(spec.conditions).toEqual([{ kind: 'maxGreatOrWorseCount', count: 1 }]);
+  });
+
+  it('Great 이하 1개 이하 조건 1개와 Miss 0회 조건 1개인 명세는 허용', () => {
+    const conditions: TutorialSuccessCondition[] = [
+      { kind: 'maxGreatOrWorseCount', count: 1 }, { kind: 'maxMissCount', count: 0 },
+    ];
+    expect(createTutorialPracticeSpec({ conditions, playingMethods: [{ id: 'trillLong' }] }).conditions).toEqual(conditions);
+  });
+
   it('requiredSuccessCount를 생략하면 요구 성공 횟수는 기본값 3회', () => {
     expect(DEFAULT_REQUIRED_SUCCESS_COUNT).toBe(3);
     expect(singleMethodSpec().requiredSuccessCount).toBe(3);
@@ -94,56 +111,137 @@ describe('튜토리얼 실습 명세', () => {
   });
 
   it('연주 방법이 0개면 거부', () => {
-    expect(() => createTutorialPracticeSpec({ conditions: [rate90], playingMethods: [] })).toThrow(/연주 방법/);
+    expect(() => createTutorialPracticeSpec({ conditions: [greatOrWorseLimit], playingMethods: [] })).toThrow(/연주 방법/);
   });
 
   it('연주 방법 id가 겹치면 거부', () => {
-    expect(() => createTutorialPracticeSpec({ conditions: [rate90], playingMethods: [{ id: 'a' }, { id: 'a' }] })).toThrow(/연주 방법 id/);
+    expect(() => createTutorialPracticeSpec({ conditions: [greatOrWorseLimit], playingMethods: [{ id: 'a' }, { id: 'a' }] })).toThrow(/연주 방법 id/);
   });
 
-  it('목표 달성률 90%만 있고 추가 조건이 없는 명세는 허용', () => {
-    expect(createTutorialPracticeSpec({ conditions: [rate90], playingMethods: [{ id: 'tap' }] }).conditions).toEqual([rate90]);
+  it('Great 이하 1개 이하 조건만 있고 추가 조건이 없는 명세는 허용', () => {
+    expect(createTutorialPracticeSpec({ conditions: [greatOrWorseLimit], playingMethods: [{ id: 'tap' }] }).conditions).toEqual([greatOrWorseLimit]);
   });
 
-  it('성공 조건이 0개면 목표 달성률 조건이 없어 거부', () => {
-    expect(() => createTutorialPracticeSpec({ conditions: [], playingMethods: [{ id: 'tap' }] })).toThrow(/목표 달성률 조건은 정확히 1개/);
+  it('성공 조건이 0개면 Great 이하 개수 조건이 없어 거부', () => {
+    expect(() => createTutorialPracticeSpec({ conditions: [], playingMethods: [{ id: 'tap' }] })).toThrow(/Great 이하 개수 조건은 정확히 1개/);
   });
 
-  it('maxGoodTrillCount 0만 있고 목표 달성률 조건이 없으면 거부', () => {
+  it('maxGoodTrillCount 0만 있고 Great 이하 개수 조건이 없으면 거부', () => {
     expect(() => createTutorialPracticeSpec({ conditions: [noGoodTrill], playingMethods: [{ id: 'tap' }] }))
-      .toThrow(/목표 달성률 조건은 정확히 1개/);
+      .toThrow(/Great 이하 개수 조건은 정확히 1개/);
   });
 
-  it('목표 달성률 조건이 90%·80% 2개면 거부', () => {
+  it('maxMissCount 0만 있고 Great 이하 개수 조건이 없으면 거부', () => {
+    expect(() => createTutorialPracticeSpec({ conditions: [noMiss], playingMethods: [{ id: 'trillLong' }] }))
+      .toThrow(/Great 이하 개수 조건은 정확히 1개/);
+  });
+
+  it('Great 이하 개수 조건이 1개 이하·2개 이하 2개면 거부', () => {
     expect(() => createTutorialPracticeSpec({
-      conditions: [rate90, { kind: 'targetAchievementRate', percent: 80 }], playingMethods: [{ id: 'tap' }],
-    })).toThrow(/목표 달성률 조건은 정확히 1개/);
+      conditions: [greatOrWorseLimit, { kind: 'maxGreatOrWorseCount', count: 2 }], playingMethods: [{ id: 'tap' }],
+    })).toThrow(/Great 이하 개수 조건은 정확히 1개/);
   });
 
   it('maxGoodTrillCount 조건이 0회·1회 2개면 같은 종류 추가 조건이 겹쳐 거부', () => {
     expect(() => createTutorialPracticeSpec({
-      conditions: [rate90, noGoodTrill, { kind: 'maxGoodTrillCount', count: 1 }], playingMethods: [{ id: 'tap' }],
+      conditions: [greatOrWorseLimit, noGoodTrill, { kind: 'maxGoodTrillCount', count: 1 }], playingMethods: [{ id: 'tap' }],
     })).toThrow(/maxGoodTrillCount/);
   });
 
-  it.each([-1, 100.5, Number.NaN])('목표 달성률 %s%는 0～100 밖이라 거부', (percent) => {
+  it('maxMissCount 조건이 0회·1회 2개면 같은 종류 추가 조건이 겹쳐 거부', () => {
     expect(() => createTutorialPracticeSpec({
-      conditions: [{ kind: 'targetAchievementRate', percent }], playingMethods: [{ id: 'tap' }],
-    })).toThrow(/목표 달성률은 0～100%/);
+      conditions: [greatOrWorseLimit, noMiss, { kind: 'maxMissCount', count: 1 }], playingMethods: [{ id: 'trillLong' }],
+    })).toThrow(/maxMissCount/);
   });
 
-  it.each([-1, 0.5])('goodTrill 허용 횟수 %s는 0 이상의 정수가 아니라 거부', (count) => {
+  it.each([0, 2])('Great 이하·Miss·goodTrill 허용 개수가 각각 %s개인 명세를 만들면 모두 허용', (count) => {
+    const conditions: TutorialSuccessCondition[] = [
+      { kind: 'maxGreatOrWorseCount', count }, { kind: 'maxMissCount', count }, { kind: 'maxGoodTrillCount', count },
+    ];
+    expect(createTutorialPracticeSpec({ conditions, playingMethods: [{ id: 'trillLong' }] }).conditions).toEqual(conditions);
+  });
+
+  it.each([-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY])('Great 이하 허용 개수 %s는 0 이상의 정수가 아니라 거부', (count) => {
     expect(() => createTutorialPracticeSpec({
-      conditions: [rate90, { kind: 'maxGoodTrillCount', count }], playingMethods: [{ id: 'tap' }],
+      conditions: [{ kind: 'maxGreatOrWorseCount', count }], playingMethods: [{ id: 'tap' }],
+    })).toThrow(/Great 이하 허용 개수/);
+  });
+
+  it.each([-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY])('Miss 허용 횟수 %s는 0 이상의 정수가 아니라 거부', (count) => {
+    expect(() => createTutorialPracticeSpec({
+      conditions: [greatOrWorseLimit, { kind: 'maxMissCount', count }], playingMethods: [{ id: 'trillLong' }],
+    })).toThrow(/Miss 허용 횟수/);
+  });
+
+  it.each([-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY])('goodTrill 허용 횟수 %s는 0 이상의 정수가 아니라 거부', (count) => {
+    expect(() => createTutorialPracticeSpec({
+      conditions: [greatOrWorseLimit, { kind: 'maxGoodTrillCount', count }], playingMethods: [{ id: 'tap' }],
     })).toThrow(/goodTrill 허용 횟수/);
   });
 });
 
 describe('성공 조건의 실시간 상태', () => {
-  it('10개 중 4개를 Perfect로 친 연주 도중에는 90% 조건과 goodTrill 0회 조건이 모두 neutral', () => {
+  it('Perfect 2·Great 1이면 Great 이하 1개 이하 조건 met', () => {
+    const score = liveScore(3, [PERFECT, PERFECT, GREAT]);
+    expect(getTutorialConditionStatus({ kind: 'maxGreatOrWorseCount', count: 1 }, score)).toBe('met');
+  });
+
+  it.each([2, 3])('점수 항목 %s개 중 Great 2개를 정산하면 남은 항목과 무관하게 Great 이하 1개 이하 조건 failed', (total) => {
+    expect(getTutorialConditionStatus(greatOrWorseLimit, liveScore(total, [GREAT, GREAT]))).toBe('failed');
+  });
+
+  it.each([GREAT, GOOD, GOOD_TRILL, BAD, MISS])('%s 1개를 정산하면 Great 이하 0개 이하 조건 failed', (grade) => {
+    expect(getTutorialConditionStatus({ kind: 'maxGreatOrWorseCount', count: 0 }, liveScore(1, [grade]))).toBe('failed');
+  });
+
+  it('Perfect 3개를 정산하면 Great 이하 0개 이하 조건 met', () => {
+    expect(getTutorialConditionStatus({ kind: 'maxGreatOrWorseCount', count: 0 }, liveScore(3, [PERFECT, PERFECT, PERFECT])))
+      .toBe('met');
+  });
+
+  it('Great·Good·goodTrill·Bad·Miss 각 1개를 정산하면 합계 5개로 4개 이하는 failed·5개 이하는 met', () => {
+    const score = liveScore(5, [GREAT, GOOD, GOOD_TRILL, BAD, MISS]);
+    expect(getTutorialConditionStatus({ kind: 'maxGreatOrWorseCount', count: 4 }, score)).toBe('failed');
+    expect(getTutorialConditionStatus({ kind: 'maxGreatOrWorseCount', count: 5 }, score)).toBe('met');
+  });
+
+  it('바디 유지 실패(무점수 Miss) 1개면 Great 이하 1개 이하는 met이지만 Miss 0회 조건은 failed', () => {
+    const manager = new ScoreManager(scoreItems(1));
+    manager.settleScoreItem('n0', PERFECT);
+    manager.recordUnscoredMiss();
+    const score = manager.getState();
+    expect(getTutorialConditionStatus({ kind: 'maxGreatOrWorseCount', count: 1 }, score)).toBe('met');
+    expect(getTutorialConditionStatus(noMiss, score)).toBe('failed');
+  });
+
+  it('종속 0점 1개·무점수 Miss 1개를 정산하면 Great 이하 합계는 1개로 1개 이하 조건 met', () => {
+    const manager = new ScoreManager(scoreItems(1));
+    manager.recordUnscoredMiss();
+    manager.settleDependentZero('n0');
+    expect(getTutorialConditionStatus(greatOrWorseLimit, manager.getState())).toBe('met');
+  });
+
+  it('점수 Miss 1개·무점수 Miss 1개는 Miss 2회 조건 neutral이고 남은 Perfect 정산 뒤 met·무점수 Miss 추가 뒤 failed', () => {
+    const manager = new ScoreManager(scoreItems(2));
+    const condition: TutorialSuccessCondition = { kind: 'maxMissCount', count: 2 };
+    manager.settleScoreItem('n0', MISS);
+    manager.recordUnscoredMiss();
+    expect(getTutorialConditionStatus(condition, manager.getState())).toBe('neutral');
+    manager.settleScoreItem('n1', PERFECT);
+    expect(getTutorialConditionStatus(condition, manager.getState())).toBe('met');
+    manager.recordUnscoredMiss();
+    expect(getTutorialConditionStatus(condition, manager.getState())).toBe('failed');
+  });
+
+  it('2개 중 점수 Miss 1개면 마지막 항목 정산 전에도 Miss 0회 조건 failed', () => {
+    expect(getTutorialConditionStatus(noMiss, liveScore(2, [MISS]))).toBe('failed');
+  });
+
+  it('10개 중 4개를 Perfect로 친 연주 도중에는 Great 이하 1개 이하·Miss 0회·goodTrill 0회 조건 모두 neutral', () => {
     const score = liveScore(10, [PERFECT, PERFECT, PERFECT, PERFECT]);
-    expect(getTutorialConditionStatus(rate90, score)).toBe('neutral');
+    expect(getTutorialConditionStatus(greatOrWorseLimit, score)).toBe('neutral');
     expect(getTutorialConditionStatus(noGoodTrill, score)).toBe('neutral');
+    expect(getTutorialConditionStatus(noMiss, score)).toBe('neutral');
   });
 
   it('연주 도중 goodTrill 1회면 maxGoodTrillCount 0 조건 즉시 failed', () => {
@@ -156,19 +254,19 @@ describe('성공 조건의 실시간 상태', () => {
     expect(getTutorialConditionStatus({ kind: 'maxGoodTrillCount', count: 1 }, score)).toBe('neutral');
   });
 
-  it('10개 중 Miss 1개·Good 1개 뒤 남은 8개를 전부 Perfect로 쳐도 25/30 = 83.3%라 90% 조건 failed', () => {
+  it('10개 중 Miss 1개·Good 1개면 남은 8개 정산 전에도 Great 이하 1개 이하 조건 failed', () => {
     const score = liveScore(10, [MISS, GOOD]);
-    expect(getTutorialConditionStatus(rate90, score)).toBe('failed');
+    expect(getTutorialConditionStatus(greatOrWorseLimit, score)).toBe('failed');
   });
 
-  it('10개 중 Miss 1개 뒤 남은 9개를 전부 Perfect로 치면 정확히 27/30 = 90%라 90% 조건은 아직 neutral', () => {
+  it('10개 중 Miss 1개 뒤 9개가 미정산이면 Great 이하 1개 이하 조건은 neutral', () => {
     const score = liveScore(10, [MISS]);
-    expect(getTutorialConditionStatus(rate90, score)).toBe('neutral');
+    expect(getTutorialConditionStatus(greatOrWorseLimit, score)).toBe('neutral');
   });
 
-  it('finalize 전이라도 10개를 모두 정산해 Miss 1개·Perfect 9개로 정확히 90%면 90% 조건 met', () => {
+  it('finalize 전이라도 Miss 1개·Perfect 9개로 10개를 모두 정산하면 Great 이하 1개 이하 조건 met', () => {
     const score = liveScore(10, [MISS, ...NINE_PERFECT]);
-    expect(getTutorialConditionStatus(rate90, score)).toBe('met');
+    expect(getTutorialConditionStatus(greatOrWorseLimit, score)).toBe('met');
   });
 
   it('finalize 전이라도 10개를 모두 정산하고 goodTrill 0회면 maxGoodTrillCount 0 조건 met', () => {
@@ -181,47 +279,90 @@ describe('성공 조건의 실시간 상태', () => {
     expect(getTutorialConditionStatus(noGoodTrill, score)).toBe('neutral');
   });
 
-  it('finalize한 Perfect 8개·Great 1개·Miss 1개로 26/30 = 86.7%면 90% 조건 failed', () => {
+  it('finalize한 Perfect 8개·Great 1개·Miss 1개면 Great 이하 합계 2개로 1개 이하 조건 failed', () => {
     const score = finalScore([MISS, GREAT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT, PERFECT]);
-    expect(score.achievementRate).toBeCloseTo(86.67, 1);
-    expect(getTutorialConditionStatus(rate90, score)).toBe('failed');
+    expect(getTutorialConditionStatus(greatOrWorseLimit, score)).toBe('failed');
   });
 
-  it('weight3 1인 Great 6개·Miss 2개로 정확히 4/8 = 50%면 2/3점 누적 오차(3.9999…)가 있어도 50% 조건 met', () => {
-    const manager = new ScoreManager(scoreItems(8, 1));
-    [GREAT, GREAT, GREAT, GREAT, GREAT, GREAT, MISS, MISS].forEach((grade, index) => manager.settleScoreItem(`n${index}`, grade));
-    const score = manager.finalize();
-    expect(getTutorialConditionStatus({ kind: 'targetAchievementRate', percent: 50 }, score)).toBe('met');
+  it('weight3 1인 Great 2개를 정산하면 가중치와 무관하게 Great 이하 1개 이하 조건 failed', () => {
+    const manager = new ScoreManager(scoreItems(2, 1));
+    manager.settleScoreItem('n0', GREAT);
+    manager.settleScoreItem('n1', GREAT);
+    expect(getTutorialConditionStatus(greatOrWorseLimit, manager.finalize())).toBe('failed');
   });
 
   it('finalize한 패턴에서 goodTrill 0회면 maxGoodTrillCount 0 조건 met', () => {
     expect(getTutorialConditionStatus(noGoodTrill, SUCCESS)).toBe('met');
   });
 
-  it('점수 항목 가중치 합이 0인 패턴은 달성률 0%라 90% 조건이 처음부터 failed', () => {
+  it('점수 항목 0개·Miss 0회인 패턴은 Great 이하 1개 이하 조건이 finalize 전후 모두 met', () => {
     const empty = new ScoreManager([]);
-    expect(getTutorialConditionStatus(rate90, empty.getState())).toBe('failed');
-    expect(getTutorialConditionStatus(rate90, empty.finalize())).toBe('failed');
+    expect(getTutorialConditionStatus(greatOrWorseLimit, empty.getState())).toBe('met');
+    expect(getTutorialConditionStatus(greatOrWorseLimit, empty.finalize())).toBe('met');
   });
 });
 
 describe('패턴 1회 성공 판정', () => {
-  it('Perfect 9개·일반 Good 1개로 28/30 = 93.3%면 Good이 있어도 90%·goodTrill 0회 조건을 모두 만족해 성공', () => {
+  it('Great 1개로 met인 뒤 무점수 Miss 1개가 오면 두 제한 모두 failed이고 finalize한 패턴은 성공 0/3', () => {
+    const manager = new ScoreManager(scoreItems(1));
+    const conditions = [greatOrWorseLimit, noMiss];
+    const spec = createTutorialPracticeSpec({ conditions, playingMethods: [{ id: 'trillLong' }] });
+    manager.settleScoreItem('n0', GREAT);
+    const live = manager.getState();
+    expect(getTutorialConditionStatus(greatOrWorseLimit, live)).toBe('met');
+    expect(getTutorialConditionStatus(noMiss, live)).toBe('met');
+    expect(isTutorialPatternSuccess(conditions, live, 'live')).toBe(false);
+
+    manager.recordUnscoredMiss();
+    const afterBodyMiss = manager.getState();
+    expect(getTutorialConditionStatus(greatOrWorseLimit, afterBodyMiss)).toBe('failed');
+    expect(getTutorialConditionStatus(noMiss, afterBodyMiss)).toBe('failed');
+    const finalized = manager.finalize();
+    expect(isTutorialPatternSuccess(conditions, finalized, 'final')).toBe(false);
+    const state = run(directInputState(spec), ...pattern(finalized));
+    expect(getTutorialPracticeProgress(state)).toEqual({ current: 0, required: 3 });
+    expect(state.lastFinishedPattern?.succeeded).toBe(false);
+  });
+
+  it('바디 전용 패턴의 무점수 Miss 1개는 finalize 후 Great 이하 1개 이하면 성공·Miss 0회도 요구하면 실패', () => {
+    const manager = new ScoreManager([]);
+    manager.recordUnscoredMiss();
+    const score = manager.finalize();
+    expect(isTutorialPatternSuccess([greatOrWorseLimit], score, 'final')).toBe(true);
+    expect(isTutorialPatternSuccess([greatOrWorseLimit, noMiss], score, 'final')).toBe(false);
+  });
+
+  it('Perfect 1개를 모두 정산해 조건이 met이어도 live 평가는 성공을 확정하지 않는다', () => {
+    const manager = new ScoreManager(scoreItems(1));
+    manager.settleScoreItem('n0', PERFECT);
+    const condition: TutorialSuccessCondition = { kind: 'maxGreatOrWorseCount', count: 1 };
+    expect(getTutorialConditionStatus(condition, manager.getState())).toBe('met');
+    expect(isTutorialPatternSuccess([condition], manager.getState(), 'live')).toBe(false);
+    expect(isTutorialPatternSuccess([condition], manager.finalize(), 'final')).toBe(true);
+  });
+
+  it('finalize한 Perfect 9개·일반 Good 1개면 Great 이하 1개 이하·goodTrill 0회 조건을 모두 만족해 성공', () => {
     const score = finalScore([GOOD, ...NINE_PERFECT]);
-    expect(isTutorialPatternSuccess([rate90, noGoodTrill], score)).toBe(true);
+    expect(isTutorialPatternSuccess([greatOrWorseLimit, noGoodTrill], score, 'final')).toBe(true);
   });
 
-  it('Perfect 9개·goodTrill 1개로 93.3%여도 goodTrill 0회 조건을 어겨 실패', () => {
+  it('finalize한 Perfect 9개·goodTrill 1개면 Great 이하 1개 이하여도 goodTrill 0회 조건을 어겨 실패', () => {
     const score = finalScore([GOOD_TRILL, ...NINE_PERFECT]);
-    expect(isTutorialPatternSuccess([rate90, noGoodTrill], score)).toBe(false);
+    expect(isTutorialPatternSuccess([greatOrWorseLimit, noGoodTrill], score, 'final')).toBe(false);
   });
 
-  it('Perfect 1개·Miss 3개로 25%면 90% 조건을 어겨 실패', () => {
-    expect(isTutorialPatternSuccess([rate90, noGoodTrill], FAILURE)).toBe(false);
+  it('finalize한 Perfect 1개·Miss 3개면 Great 이하 1개 이하 조건을 어겨 실패', () => {
+    expect(isTutorialPatternSuccess([greatOrWorseLimit, noGoodTrill], FAILURE, 'final')).toBe(false);
   });
 
   it('10개 중 Perfect 9개만 정산한 점수는 조건이 neutral이라 성공이 아니다', () => {
-    expect(isTutorialPatternSuccess([rate90, noGoodTrill], liveScore(10, NINE_PERFECT))).toBe(false);
+    expect(isTutorialPatternSuccess([greatOrWorseLimit, noGoodTrill], liveScore(10, NINE_PERFECT), 'live')).toBe(false);
+  });
+
+  it('2개 중 Perfect 1개만 정산하고 ScoreManager를 finalize해도 미정산 1개가 남아 성공이 아니다', () => {
+    const manager = new ScoreManager(scoreItems(2));
+    manager.settleScoreItem('n0', PERFECT);
+    expect(isTutorialPatternSuccess([greatOrWorseLimit], manager.finalize(), 'final')).toBe(false);
   });
 });
 
