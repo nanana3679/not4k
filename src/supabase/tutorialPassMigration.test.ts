@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import migrationSql from '../../supabase/migrations/20261031000000_tutorial_pass_account_sync.sql?raw';
+import migrationSql from '../../supabase/migrations/20261031200000_tutorial_pass_account_sync.sql?raw';
 
 // DB에 연결하지 않는 SQL 보안 계약 검사. 실제 PostgreSQL의 RLS 실행 검증은 별도다.
 const migration = migrationSql.replace(/--[^\n]*/g, '');
