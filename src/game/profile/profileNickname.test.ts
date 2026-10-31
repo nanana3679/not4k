@@ -97,27 +97,78 @@ it('FirstPilot 저장 중 Profile을 닫고 다시 열어도 SecondPilot은 무�
   expect(profile.store.getState().saving).toBe(false);
 });
 
-it.each(['user-switch', 'sign-out-and-back'])(
-  'NewPilot 저장 대기 중 %s가 발생하면 늦은 성공을 무시하고 현재 계정 이름을 유지한다', async change => {
+it('FirstPilot 저장 중 user-1이 재로그인하면 saving과 연동 대기를 유지하고 완료 후 SecondPilot을 저장한다', async () => {
+  const profile = setup();
+  await profile.setUser({ id: 'user-1' });
+  const response = deferred<string>();
+  const linked = deferred<Awaited<ReturnType<typeof profile.link>>>();
+  profile.save.mockReturnValueOnce(response.promise);
+  profile.link.mockReturnValueOnce(linked.promise);
+  const closedForm = new AbortController();
+  const first = profile.saveNickname('user-1', 'FirstPilot', closedForm.signal);
+  closedForm.abort();
+  await profile.setUser(null);
+  const relogin = profile.setUser({ id: 'user-1' });
+  const reopenedForm = new AbortController();
+  expect(profile.store.getState()).toEqual({ userId: 'user-1', nickname: null, status: 'loading', saving: true });
+  expect(await profile.saveNickname('user-1', 'SecondPilot', reopenedForm.signal)).toEqual({ status: 'ignored' });
+  expect(profile.save).toHaveBeenCalledExactlyOnceWith('user-1', 'FirstPilot');
+  expect(profile.link).toHaveBeenCalledTimes(1);
+
+  response.resolve('FirstPilot');
+  expect(await first).toEqual({ status: 'ignored' });
+  expect(profile.store.getState()).toEqual({ userId: 'user-1', nickname: 'FirstPilot', status: 'loading', saving: false });
+  linked.resolve({ nickname: 'FirstPilot', first_link: false, first_link_guest_nickname: null });
+  await relogin;
+  expect(profile.link).toHaveBeenCalledTimes(2);
+  expect(profile.store.getState().status).toBe('ready');
+  expect(await profile.saveNickname('user-1', 'SecondPilot', reopenedForm.signal)).toEqual({ status: 'saved' });
+  expect(profile.save).toHaveBeenNthCalledWith(2, 'user-1', 'SecondPilot');
+  expect(profile.store.getState()).toEqual({ userId: 'user-1', nickname: 'SecondPilot', status: 'ready', saving: false });
+});
+
+it('user-1 재로그인 중 FirstPilot 저장이 500으로 실패해도 연동으로 Pilot7을 불러오고 SecondPilot을 저장한다', async () => {
+  const profile = setup();
+  await profile.setUser({ id: 'user-1' });
+  const response = deferred<string>();
+  profile.save.mockReturnValueOnce(response.promise);
+  const closedForm = new AbortController();
+  const first = profile.saveNickname('user-1', 'FirstPilot', closedForm.signal);
+  closedForm.abort();
+  await profile.setUser(null);
+  const relogin = profile.setUser({ id: 'user-1' });
+  expect(profile.store.getState().saving).toBe(true);
+  expect(profile.link).toHaveBeenCalledTimes(1);
+
+  response.reject(new Error('HTTP 500'));
+  expect(await first).toEqual({ status: 'ignored' });
+  await relogin;
+  expect(profile.link).toHaveBeenCalledTimes(2);
+  expect(profile.store.getState()).toEqual({ userId: 'user-1', nickname: 'Pilot7', status: 'ready', saving: false });
+  expect(await profile.saveNickname('user-1', 'SecondPilot', new AbortController().signal)).toEqual({ status: 'saved' });
+  expect(profile.store.getState().nickname).toBe('SecondPilot');
+});
+
+it.each([
+  { userId: 'user-2', nickname: 'Pilot7' },
+  { userId: null, nickname: null },
+])(
+  'user-1의 NewPilot 저장 중 userId=$userId로 바꾸면 늦은 성공은 nickname=$nickname을 유지한다', async ({ userId, nickname }) => {
     const profile = setup();
     await profile.setUser({ id: 'user-1' });
     const response = deferred<string>();
     profile.save.mockReturnValueOnce(response.promise);
     const controller = new AbortController();
     const pending = profile.saveNickname('user-1', 'NewPilot', controller.signal);
-    if (change === 'user-switch') await profile.setUser({ id: 'user-2' });
-    else {
-      await profile.setUser(null);
-      await profile.setUser({ id: 'user-1' });
-    }
+    await profile.setUser(userId ? { id: userId } : null);
     response.resolve('NewPilot');
     expect(await pending).toEqual({ status: 'ignored' });
-    expect(profile.store.getState().nickname).toBe('Pilot7');
+    expect(profile.store.getState()).toEqual({ userId, nickname, status: 'ready', saving: false });
   },
 );
 
-it.each(['user-switch', 'sign-out-and-back'])(
-  'FirstPilot 저장 중 %s 후 SecondPilot을 저장하면 이전 응답은 새 세션의 saving 잠금을 풀지 않는다', async change => {
+it(
+  'user-1의 FirstPilot 저장 중 user-2는 SecondPilot을 저장하고 user-1 응답은 user-2의 이름과 saving을 바꾸지 않는다', async () => {
     const profile = setup();
     await profile.setUser({ id: 'user-1' });
     const firstResponse = deferred<string>();
@@ -125,8 +176,7 @@ it.each(['user-switch', 'sign-out-and-back'])(
     profile.save.mockReturnValueOnce(firstResponse.promise).mockReturnValueOnce(secondResponse.promise);
     const signal = new AbortController().signal;
     const first = profile.saveNickname('user-1', 'FirstPilot', signal);
-    const userId = change === 'user-switch' ? 'user-2' : 'user-1';
-    if (change === 'sign-out-and-back') await profile.setUser(null);
+    const userId = 'user-2';
     await profile.setUser({ id: userId });
     expect(profile.store.getState().saving).toBe(false);
     const second = profile.saveNickname(userId, 'SecondPilot', signal);
