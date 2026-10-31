@@ -11,6 +11,9 @@ import { isChartDirty, toSavedChartJson } from '../savedChart';
 import { useEditorStore } from '../stores/editorStore';
 import { emptySelection } from '../stores/selectionSlice';
 import { EventEditModal } from '../components/EventEditModal';
+import { SelectMode } from '../modes/SelectMode';
+import { makeFakeSpace } from '../timeline/makeFakeSpace';
+import { useGameStore } from '../../game/stores';
 import { useFileOperations, type FileOperationHandlers } from './useFileOperations';
 
 /** charts 행 upsert 하나. 테스트가 resolve·reject할 때까지 그 저장은 끝나지 않는다. */
@@ -404,5 +407,72 @@ describe('재생 중 이벤트 편집과 저장(RFD 0099)', () => {
     expect(current().chart.meta).toMatchObject({ difficultyLabel: 'LIFTOFF', difficultyLevel: 3 });
     expect(current().chart.notes).toBe(notesBefore);
     expect(current().isPlaying).toBe(true);
+  });
+});
+
+describe('테스트 플레이 진입과 열린 편집(RFD 0099)', () => {
+  let unsubscribe = () => {};
+  afterEach(() => unsubscribe());
+
+  /** App처럼 store 콜백으로 SelectMode를 만들고 store 차트를 모드에 넘긴다. 다시 부르면 페이지가 다시 마운트된 것과 같다. */
+  function mountSelectMode(): SelectMode {
+    unsubscribe();
+    const mode = new SelectMode(current().chart, {
+      space: makeFakeSpace(),
+      getSelection: () => current().selection,
+      setSelection: value => current().setSelection(value),
+      setSelectionTransient: value => current().setSelectionTransient(value),
+      onChartUpdate: (value, transaction) => current().setChart(value, { transaction }),
+      getExtraLaneCount: () => current().extraLaneCount,
+      setExtraLaneCount: (count, transaction) => current().setExtraLaneCount(count, transaction),
+      beginTransaction: (onInterrupt, selectionBefore) => current().beginEditTransaction('selectModeEdit', onInterrupt, selectionBefore),
+      commitTransaction: token => current().commitEditTransaction(token),
+      cancelTransaction: token => current().cancelEditTransaction(token),
+    });
+    unsubscribe = useEditorStore.subscribe(state => mode.setChart(state.chart));
+    return mode;
+  }
+
+  /** 레인 1의 0박 노트를 복사해 8박에 붙여넣고 배치를 확정하지 않는다. */
+  function pasteWithoutConfirmAt8(): SelectMode {
+    open(chart([single(1, 0)]));
+    const mode = mountSelectMode();
+    mode.selectNote(0); mode.copy(); mode.paste(beat(8));
+    expect(mode.isPendingPaste).toBe(true);
+    expect(current().editTransaction).not.toBeNull();
+    return mode;
+  }
+
+  it('8박 붙여넣기 대기 중 처음부터 테스트 플레이하면 붙여넣기를 확정해 게임이 0박·8박 노트 2개를 받고 에디터는 노트 2개·history 1개·열린 편집 없음이다', () => {
+    const mode = pasteWithoutConfirmAt8();
+
+    renderFileOperations().handlePlayTest(false);
+
+    expect(navigateTo).toHaveBeenCalledExactlyOnceWith('/game');
+    expect(useGameStore.getState().chartData?.notes.map(note => note.beat)).toEqual([beat(0), beat(8)]);
+    expect(current().chart.notes.map(note => note.beat)).toEqual([beat(0), beat(8)]);
+    expect(current().historyPast).toHaveLength(1);
+    expect(current().editTransaction).toBeNull();
+    expect(mode.isPendingPaste).toBe(false);
+  });
+
+  it('8박 붙여넣기 대기 중 테스트 플레이에서 돌아와 재생을 시작해도 8박 노트가 남아 노트 2개이고, 정지 뒤 Undo 1번에 0박 노트 1개가 된다', () => {
+    pasteWithoutConfirmAt8();
+    renderFileOperations().handlePlayTest(false);
+
+    // 테스트 플레이에서 돌아오면 App이 모드와 페이지 훅을 새로 만든다.
+    mountSelectMode();
+    renderFileOperations();
+    // Space: PlaybackController.play()의 beforePlay가 열린 편집을 취소하고 onPlayStateChange가 재생 상태를 켠다.
+    current().cancelEditTransactionForPlaybackStart();
+    current().setIsPlaying(true);
+
+    expect(current().chart.notes.map(note => note.beat)).toEqual([beat(0), beat(8)]);
+    expect(current().historyPast).toHaveLength(1);
+
+    current().setIsPlaying(false);
+    current().undo();
+
+    expect(current().chart.notes.map(note => note.beat)).toEqual([beat(0)]);
   });
 });

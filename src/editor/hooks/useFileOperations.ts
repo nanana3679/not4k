@@ -102,7 +102,6 @@ export function useFileOperations(
   const setChart = useEditorStore((s) => s.setChart);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
-  const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const addToast = useEditorStore((s) => s.addToast);
   const beginChartSave = useEditorStore((s) => s.beginChartSave);
   const finishChartSave = useEditorStore((s) => s.finishChartSave);
@@ -335,6 +334,11 @@ export function useFileOperations(
       addToast(SAVE_IN_PROGRESS_COPY.playTest, 'error');
       return;
     }
+    // 열린 편집(붙여넣기 대기·드래그)은 모드 전환 같은 독립 명령처럼 먼저 확정한다(RFD 0099). 사용자가 보고 테스트한
+    // 상태가 Undo 1개로 남아, 돌아와 재생을 시작해도 재생 시작 취소가 테스트한 노트를 지우지 않는다.
+    // 테스트 플레이는 재생기의 play()를 거치지 않으므로 여기서 정리하고, 확정한 store의 차트·커서를 넘긴다.
+    useEditorStore.getState().commitEditTransaction();
+    const editor = useEditorStore.getState();
     const game = useGameStore.getState();
     performPlayTest({
       fromCursor,
@@ -342,8 +346,8 @@ export function useFileOperations(
       isPlaying: playbackRef.current?.isPlaying ?? false,
       pause: () => playbackRef.current?.pause(),
       // 원본문서 전체를 검증한다. 명시 main은 새 별도 경로가 소유하고 구형 main은 기존 재생을 보존한다.
-      chart,
-      currentTimeMs,
+      chart: editor.chart,
+      currentTimeMs: editor.currentTimeMs,
       returnUrl: window.location.pathname + window.location.search,
       game: {
         setChartData: game.setChartData,
@@ -360,7 +364,7 @@ export function useFileOperations(
       // react-router 클라이언트 네비게이션으로 같은 JS 컨텍스트를 유지한다.
       navigate: () => navigateTo('/game'),
     });
-  }, [chart, currentTimeMs, addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
+  }, [addToast, setShowPlayTestMenu, playbackRef, navigateTo]);
 
   const handleDeleteChart = useCallback(async () => {
     if (!activeSongId) {

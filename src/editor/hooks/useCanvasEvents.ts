@@ -453,7 +453,12 @@ export function useCanvasEvents(
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     activePointerIdsRef.current.add(e.pointerId);
     deferredPauseToastPointerIdsRef.current.delete(e.pointerId);
-    if (isEditLockedByPlayback()) playbackLockedPointerIdsRef.current.add(e.pointerId);
+    if (isEditLockedByPlayback()) {
+      playbackLockedPointerIdsRef.current.add(e.pointerId);
+      // 재생 중 우클릭은 미니맵·커서 레일에서 눌러도 이 누름이 만들 contextmenu를 삭제·안내로 해석하지 않게 대기를 건다.
+      // 뗌 뒤에 오는 메뉴(Windows)가 이 대기를 쓰고, 뗌 전에 온 메뉴(macOS)는 handleContextMenu가 대기를 푼다.
+      if (e.button === 2) rightPressPendingRef.current = true;
+    }
     // 새 down은 새 접촉이다. 이전 up/cancel이 유실돼 같은 id가 남아 있어도 봉인을 이어받지 않는다.
     else playbackLockedPointerIdsRef.current.delete(e.pointerId);
     // 캔버스 밖에서 떼어도 같은 접촉의 봉인을 해제할 수 있어야 한다(마우스 포함).
@@ -504,8 +509,7 @@ export function useCanvasEvents(
     // 재생 중 편집 제한(RFD 0099): 미니맵·커서 레일 seek 뒤, 편집·선택을 시작하기 전에 막고 누름마다 한 번 안내한다.
     // Select 모드의 클릭·Shift/Alt 클릭·박스 선택·터치 토글도 선택을 바꾸므로 함께 막는다.
     if (isEditLockedByPlayback() || playbackLockedPointerIdsRef.current.has(e.pointerId)) {
-      // 우클릭이면 이 누름이 만들 contextmenu도 삭제하지 않게 대기를 건다.
-      if (e.button === 2) rightPressPendingRef.current = true;
+      // 우클릭 누름의 contextmenu 대기는 위에서 미니맵·커서 레일보다 먼저 걸었다.
       // 마우스·펜은 누를 때 안내한다. 터치는 두 번째 손가락이 닿으면 탐색이 되므로 뗄 때 안내한다.
       if (e.pointerType === 'touch') deferredPauseToastPointerIdsRef.current.add(e.pointerId);
       else addToast(PAUSE_TO_EDIT_COPY, 'warn');
@@ -940,7 +944,8 @@ export function useCanvasEvents(
     }
 
     // 재생 중 누른 뒤 뗄 때까지 한 손가락이었던 터치는 편집 시도였으므로 여기서 한 번 안내한다.
-    if (deferredPauseToast) addToast(PAUSE_TO_EDIT_COPY, 'warn');
+    // 떼기 전에 정지했으면 지금은 편집할 수 있으므로 "정지하라"는 안내를 띄우지 않는다(이 누름은 여전히 편집하지 않는다).
+    if (deferredPauseToast && isEditLockedByPlayback()) addToast(PAUSE_TO_EDIT_COPY, 'warn');
 
     // recognizer에는 up을 전달해 접촉을 닫되, 재생을 겪은 holdEnd·클릭·마우스 up은 편집에 쓰지 않는다.
     if (playbackLocked) return;

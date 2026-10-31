@@ -539,16 +539,51 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(pauseToasts()).toHaveLength(0);
   });
 
-  it('재생 중 한 손가락으로 1박을 터치하면 누를 때는 안내하지 않고 뗄 때 안내 토스트 1개를 띄운다', () => {
+  it.each([
+    { release: '재생 중에', pauseBeforeRelease: false, toasts: 1 },
+    { release: '정지한 뒤', pauseBeforeRelease: true, toasts: 0 },
+  ] as const)('재생 중 한 손가락으로 1박을 터치하면 누를 때는 안내하지 않고 $release 떼면 안내 토스트 $toasts개이며 노트 0개다', ({ pauseBeforeRelease, toasts }) => {
     const { handlers } = setup(chart([]), 'create');
     play();
     handlers.handlePointerDown(pointer(500));
     expect(pauseToasts()).toHaveLength(0);
 
+    if (pauseBeforeRelease) current().setIsPlaying(false);
     handlers.handlePointerUp(pointer(500));
 
-    expect(pauseToasts()).toHaveLength(1);
+    expect(pauseToasts()).toHaveLength(toasts);
     expect(notes()).toHaveLength(0);
+  });
+
+  it.each([
+    ['레일', 'Windows처럼 뗀 뒤'], ['미니맵', 'Windows처럼 뗀 뒤'],
+    ['레일', 'macOS처럼 뗌 전에'], ['미니맵', 'macOS처럼 뗌 전에'],
+  ] as const)('재생 중 %s을 우클릭한 누름의 contextmenu가 %s 와도 안내 토스트 0개이고, 정지 뒤 키보드 메뉴 키 contextmenu는 1박 탭을 지운다', (target, order) => {
+    const renderer = {
+      handleMinimapPointerDown: () => target === '미니맵', handleMinimapPointerUp: () => {},
+      screenXToTimelineX: (x: number) => x - 100, currentTimelineWidth: 240, contentCenterShiftX: 0,
+      clampToMeasureRange: (timeMs: number) => timeMs, yToTime: (y: number) => y,
+      hideGhostNote() {}, clearMoveOrigins() {}, clearBoxSelectRect() {},
+    } as unknown as TimelineRenderer;
+    const { handlers } = setup(chart([tapAt(1)]), 'select', 'single', {
+      renderer, playback: { seekTo: vi.fn() } as unknown as PlaybackController,
+    });
+    // 레일·미니맵은 화면 x=20, 1박 탭(레인 1)은 화면 x=130(타임라인 x=30)이다.
+    const navigationMenu = { clientX: 20, clientY: 500, preventDefault: () => {} } as unknown as ReactMouseEvent<HTMLCanvasElement>;
+    const keyboardMenuOnTap = { clientX: 130, clientY: 500, preventDefault: () => {} } as unknown as ReactMouseEvent<HTMLCanvasElement>;
+    play();
+    handlers.handlePointerDown(mouse(500, 2, { x: 20, button: 2 }));
+    if (order === 'macOS처럼 뗌 전에') handlers.handleContextMenu(navigationMenu);
+    handlers.handlePointerUp(mouse(500, 0, { x: 20, button: 2 }));
+    if (order === 'Windows처럼 뗀 뒤') handlers.handleContextMenu(navigationMenu);
+
+    expect(pauseToasts()).toHaveLength(0);
+    expect(notes()).toHaveLength(1);
+
+    current().setIsPlaying(false);
+    handlers.handleContextMenu(keyboardMenuOnTap);
+
+    expect(notes()).toEqual([]);
   });
 
   it.each(['레일', '미니맵'] as const)('재생 중 %s에서 시작한 마우스 접촉은 정지 후 y=500→1500 이동도 탐색으로 처리하고 노트 0개를 유지한다', target => {
