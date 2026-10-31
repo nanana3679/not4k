@@ -4,6 +4,7 @@ import { font, color, surface, radius, primitives } from '../../../shared/theme'
 import { TutorialPracticePanel } from './TutorialPracticePanel';
 import { useTutorialPractice } from './useTutorialPractice';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
+import { isTutorialControlInput } from './explicitTutorialInput';
 import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots';
 import { TUTORIAL_OPPOSITE_HAND_BODY_LINE, getTutorialInputTimings } from './tutorialPreviewChart';
 import type { TutorialPreviewPlayerProps } from './TutorialPreviewPlayer';
@@ -320,7 +321,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || settingsOpen) return;
+      if (event.defaultPrevented || settingsOpen || isTutorialControlInput(event)) return;
       if (event.key === 'Escape') {
         requestClose();
       } else if (isPracticeLaneKey(event.code)) {
@@ -420,7 +421,10 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
               style={{ ...tutorialHelpStyles.tab, ...(currentSection.id === section.id ? tutorialHelpStyles.tabSelected : {}) }}
               onClick={() => goToTutorialIndex(lastSectionIndexesRef.current[section.id])}
               onKeyDown={(event) => {
-                if (isPracticeLaneKey(event.code)) { event.preventDefault(); return; }
+                if (isPracticeLaneKey(event.code) && !isTutorialControlInput(event.nativeEvent)) {
+                  event.preventDefault();
+                  return;
+                }
                 const nextSectionIndex = event.key === 'Home' ? 0
                   : event.key === 'End' ? TUTORIAL_SECTIONS.length - 1
                   : event.key === 'ArrowRight' ? (index + 1) % TUTORIAL_SECTIONS.length
@@ -680,13 +684,15 @@ function TutorialPreviewSlot({
   transition: TutorialPlayerTransition | null;
   onReady?: () => void;
 }) {
+  // 도식은 시연에서만 멈춰 보여준다. 직접 입력은 다음 반복과 완료 뒤 다음 버튼을 가리지 않는다.
   // entering 재생기는 paused라 루프를 진행하지 않으므로, 차트를 건 시점(루프 시간 0)에 시작하는 도식만 미리 arming해
   // 도식 시작점에 프레임을 고정한다.
-  const diagramModalEnabled = slotState === 'active' || slotState === 'entering';
+  const diagramModalEnabled = practiceProps?.inputMode !== 'directInput'
+    && (slotState === 'active' || slotState === 'entering');
   // 확인 모달은 뷰포트 전체를 덮는 portal이라, 전환 중 나가는 슬롯의 exit 애니메이션과
   // 들어오는 슬롯의 enter가 겹치면 화면에 모달이 2개로 보인다. 안착한 active 슬롯에서만 표시해
   // 동시에 두 개가 뜨지 않게 한다.
-  const diagramModalVisible = slotState === 'active';
+  const diagramModalVisible = diagramModalEnabled && slotState === 'active';
 
   return (
     <div

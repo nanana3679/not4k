@@ -455,23 +455,76 @@ it('2016ms에 경계 정산까지 마친 뒤 옛 timestamp 3000ms down이 오면
 
 
 it.each([
-  { inputOffsetMs: 100, timestamp: 1400 },
-  { inputOffsetMs: -100, timestamp: 1600 },
-])('직접 입력 offset $inputOffsetMs ms에서 실제 $timestamp ms에 누르면 500ms 탭은 Perfect 1', ({ inputOffsetMs, timestamp }) => {
-  const { input, target, clock, effects } = setup();
+  { inputOffsetMs: -200, pressMs: 450 },
+  { inputOffsetMs: 200, pressMs: 50 },
+])('직접 입력 offset $inputOffsetMs ms에서 매 프레임 진행하며 실제 $pressMs ms에 누르면 250ms 탭은 Perfect 1·Miss 0', ({ inputOffsetMs, pressMs }) => {
+  const preview = createExplicitTutorialPreview('offset-tap', '입력 보정', [], 4, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [{ type: 'tap', kind: 'single', lane: 2, beat: beat(1, 2) }],
+  });
+  const { input, target, clock, effects } = setup(preview);
   Object.assign(clock, { inputOffsetMs });
   input.setMode('directInput');
-  keyboard(target, 'keydown', 'KeyE', timestamp);
+  for (let elapsedMs = 0; elapsedMs < pressMs; elapsedMs += 16) input.advanceTo(elapsedMs);
+  keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + pressMs);
+  input.advanceTo(pressMs);
   input.advanceTo(500);
   expect(effects.recordFlightJudgment).toHaveBeenCalledExactlyOnceWith('perfect');
   input.stop();
 });
 
-it.each([-137, 137])('시연 offset %i ms여도 자동 입력은 Perfect 3·Miss 0', inputOffsetMs => {
+it.each([
+  { inputOffsetMs: -200, releaseMs: 2199, boundaryMs: 2200 },
+  { inputOffsetMs: -200, releaseMs: 2200, boundaryMs: 2200 },
+  { inputOffsetMs: 200, releaseMs: 1799, boundaryMs: 2000 },
+  { inputOffsetMs: 200, releaseMs: 1800, boundaryMs: 2000 },
+])('offset $inputOffsetMs ms에서 실제 $releaseMs ms에 떼면 $boundaryMs ms 경계 다음 프레임에만 Perfect 2·Miss 0으로 정산한다', ({ inputOffsetMs, releaseMs, boundaryMs }) => {
+  const preview = createExplicitTutorialPreview('offset-boundary', '경계 입력 보정', [], 4, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [
+      { type: 'tap', kind: 'single', lane: 2, beat: beat(1) },
+      { type: 'body', lane: 2, holdCount: 1, beat: beat(1), endBeat: beat(4) },
+      { type: 'release', lane: 2, count: 1, beat: beat(4) },
+    ],
+  });
+  const { input, target, clock, onPatternFinished } = setup(preview);
+  Object.assign(clock, { inputOffsetMs });
+  input.setMode('directInput');
+  const pressMs = 500 - inputOffsetMs;
+  keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + pressMs);
+  for (let elapsedMs = pressMs; elapsedMs < releaseMs; elapsedMs += 16) input.advanceTo(elapsedMs);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  keyboard(target, 'keyup', 'KeyE', clock.loopStartNow + releaseMs);
+  input.advanceTo(releaseMs);
+  input.advanceTo(boundaryMs - 1);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  input.advanceTo(boundaryMs);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  input.advanceTo(boundaryMs + 16);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
+  expect(input.heldKeys).toEqual([]);
+  input.stop();
+});
+
+it.each([-200, 200])('시연 offset %i ms여도 자동 입력은 Perfect 3·Miss 0', inputOffsetMs => {
   const { input, clock } = setup();
   Object.assign(clock, { inputOffsetMs });
   const finished = input.advanceTo(2000);
   expect(finished?.result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  input.stop();
+});
+
+it('offset -200ms에서 600ms 시연 후 직접 입력으로 바꾸면 되감지 않고 반복 0을 Perfect 1·Miss 2로 정산한다', () => {
+  const { input, clock } = setup();
+  Object.assign(clock, { inputOffsetMs: -200 });
+  input.advanceTo(600);
+  input.setMode('directInput');
+  input.advanceTo(616);
+  input.advanceTo(2200);
+  const finished = input.advanceTo(2216);
+  expect(finished?.iteration).toBe(0);
+  expect(finished?.result.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 2 });
   input.stop();
 });
 

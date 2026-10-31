@@ -14,7 +14,8 @@ interface ExplicitTutorialInputFrame {
 // 글자를 입력받는 input type. checkbox·radio·button 같은 input은 아래 동작 키만 가져간다.
 const ACTION_INPUT_TYPES = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'file', 'color', 'range']);
 
-function isControlInput(event: KeyboardEvent): boolean {
+/** 입력 수집과 모달 탐색 모두 포커스된 컨트롤의 동작·편집 키를 양보한다. */
+export function isTutorialControlInput(event: KeyboardEvent): boolean {
   // 이벤트 대상은 포커스를 가진 요소다. button 안의 자식과 contenteditable 자식도 포함한다.
   for (let element = event.target as HTMLElement | null; element; element = element.parentElement) {
     const inputType = element.tagName === 'INPUT' ? ((element as HTMLInputElement).type || 'text').toLowerCase() : null;
@@ -58,10 +59,10 @@ export function createExplicitTutorialInput(
   let pendingBoundary: { iteration: number; elapsedMs: number; observedElapsedMs: number; blocked: boolean } | null = null;
   let judging = false;
   let target: EventTarget | null = null;
-  const ownsEvent = (event: KeyboardEvent) => ownsKeyboardInput(event) && !isControlInput(event);
+  const ownsEvent = (event: KeyboardEvent) => ownsKeyboardInput(event) && !isTutorialControlInput(event);
   const heldByKey = new Map<string, ExplicitHeldKey>();
   const unownedReleases: { at: number; key: string }[] = [];
-  // GameClock과 같은 부호: 늦은 입력은 음수 offset으로 앞당긴다. 프레임·시연 시간은 옮기지 않는다.
+  // GameClock과 같은 부호: 늦은 입력은 음수 offset으로 앞당긴다. 화면·시연 시간은 옮기지 않는다.
   const inputTime = (timestamp: number) => {
     const clock = getClock();
     return getExplicitTutorialInputTime(timestamp + (clock.inputOffsetMs ?? 0), clock.loopStartNow, loopMs).elapsedMs;
@@ -213,6 +214,8 @@ export function createExplicitTutorialInput(
       // prop effect는 performance.now(), rAF는 프레임 시작 시각이다. 같은 프레임에서 순서가 뒤집혀도 seek하지 않는다.
       elapsedMs = Math.max(lastElapsedMs, elapsedMs);
       lastElapsedMs = elapsedMs;
+      // 실제 플레이처럼 음수 offset만큼 core를 뒤에 둔다. 보정 입력이 끝에 닿기 전에는 반복도 정산하지 않는다.
+      if (mode === 'directInput') elapsedMs = Math.max(0, Math.min(elapsedMs, elapsedMs + (getClock().inputOffsetMs ?? 0)));
       const loop = stepExplicitTutorialLoop({ elapsedMs, loopMs, previousIteration: iteration, frozen: false });
       if (loop.finished) {
         if (mode === 'directInput') {
@@ -225,7 +228,8 @@ export function createExplicitTutorialInput(
         if (boundaryStopped) return finished;
       }
       flush(elapsedMs);
-      playback.advanceTo(Math.max(0, elapsedMs - iteration * loopMs));
+      // 시연에서 직접 입력으로 전환해 core 목표가 잠시 뒤로 가도 이미 처리한 판정을 되감지 않는다.
+      playback.advanceTo(Math.max(0, playback.renderSnapshot(0).atMs, elapsedMs - iteration * loopMs));
       // 프레임 정산 후에는 새 도식의 실제 대기로 돌아가 이후 입력을 막고 남은 큐를 버린다.
       syncJudging();
       return finished;
