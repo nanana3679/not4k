@@ -49,7 +49,8 @@ import { getEditorAudioLoadingSurface } from './editorLoading';
 import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
 import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
 import { editorChartViolationIndices } from './documentValidation';
-import { isChartDirty, toSavedChartJson } from './savedChart';
+import { isChartDirty } from './savedChart';
+import { openEditorChart } from './openEditorChart';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 
@@ -108,7 +109,6 @@ export default function EditorApp() {
   const setChart = useEditorStore((s) => s.setChart);
   const setActiveSongId = useEditorStore((s) => s.setActiveSongId);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
-  const resetHistory = useEditorStore((s) => s.resetHistory);
 
   const [chartLoading, setChartLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,17 +163,11 @@ export default function EditorApp() {
       .then(([chartText, extraText]) => {
         // 보조 형식·내용 오류는 빈 보조 데이터로 열지 않고 아래 catch의 로드 오류로 보낸다.
         // 열린 뒤 저장이 기존 .extra.json을 지우는 유실을 막는다.
-        const { chart: merged, extraLaneCount: mergedExtraLaneCount, hasExtraLaneCount } = loadEditorChartAsset(chartText, extraText);
-        // 로드는 게이트의 유일한 예외 통로 — 위반 차트도 열어 수리를 허용한다.
-        useEditorStore.getState().loadChart(merged);
-        if (mergedExtraLaneCount > 0 || hasExtraLaneCount) useEditorStore.getState().setExtraLaneCount(mergedExtraLaneCount);
-        // 불러온 차트를 Save가 쓰는 방식으로 직렬화해 savedChartJson으로 삼는다. 보조 레인 수를 정한 뒤여야 한다
-        // (먼저 만들면 기본값 2로 직렬화해, 보조 레인 수 3인 차트가 열자마자 dirty가 된다).
-        const loaded = useEditorStore.getState();
-        loaded.setSavedChartJson(toSavedChartJson(loaded.chart, loaded.extraLaneCount));
+        const asset = loadEditorChartAsset(chartText, extraText);
+        // 겹친 초기 설정만 빈 보조 레인으로 분리한 상태가 불러온 기본 상태다(dirty·Undo 없음, 서버에 쓰지 않음).
+        openEditorChart(asset);
         setActiveSongId(songId);
-        resetHistory();
-        setOfferLegacyConversion(hasLegacyNotes(merged.notes));
+        setOfferLegacyConversion(hasLegacyNotes(asset.chart.notes));
 
         // Fetch audio URL from songs table
         return supabase.from('songs').select('audio_url').eq('id', songId).single();
@@ -188,7 +182,7 @@ export default function EditorApp() {
         setError(err instanceof Error ? err.message : String(err));
         setChartLoading(false);
       });
-  }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl, resetHistory]);
+  }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl]);
 
   if (loading || chartLoading) {
     return <PageLoading message="Loading editor..." />;
