@@ -109,6 +109,94 @@ it('A의 조회 응답 전에 다른 탭이 A·B·게스트 통과를 저장하�
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
+it('세션 조회가 실패한 single-note는 재개방·B 로그인 뒤에도 미확정으로 남고 B나 게스트에 섞이지 않는다', async () => {
+  const storage = makeStorage();
+  const sync = createTutorialPassSync(storage);
+  await sync.recordPass(Promise.reject(new Error('identity unavailable')), 'single-note');
+  const reopened = createTutorialPassSync(storage);
+  await reopened.syncAccount('B');
+  expect(reopened.getSnapshot().unresolvedPasses).toEqual([
+    { completionId: expect.any(String), tutorialId: 'single-note' },
+  ]);
+  expect(reopened.getPassedIds('B')).toEqual([]);
+  expect(reopened.getPassedIds(null)).toEqual([]);
+  expect(client.upsert).not.toHaveBeenCalled();
+  expect(client.rpc).not.toHaveBeenCalled();
+});
+
+it('구형 A 단일 예약을 읽으면 새 게스트 double-note만 B로 넘기고 A의 원래 영수증은 유지한다', async () => {
+  const storage = makeStorage();
+  storage.setItem('not4k-tutorial-pass-state', JSON.stringify({
+    guestIds: ['double-note'], accountPassedIdsByUser: {},
+    pendingHandoff: { userId: 'A', requestId: 'old-receipt', tutorialIds: ['single-note'] },
+  }));
+  const sync = createTutorialPassSync(storage);
+  await sync.syncAccount('B');
+  await sync.syncAccount('A');
+  expect(client.rpc.mock.calls.map(call => call[1])).toEqual([
+    { target_user_id: 'B', request_id: expect.any(String), tutorial_ids: ['double-note'] },
+    { target_user_id: 'A', request_id: 'old-receipt', tutorial_ids: ['single-note'] },
+  ]);
+});
+
+it('A 조회 도중 로그아웃 후 다시 A로 돌아와도 이전 세대의 응답은 누락 통과를 재전송하지 않는다', async () => {
+  const sync = createTutorialPassSync(makeStorage());
+  await sync.recordPass('A', 'single-note');
+  client.upsert.mockClear();
+  let finish!: () => void;
+  client.eq.mockReturnValueOnce(new Promise(resolve => {
+    finish = () => resolve({ data: [], error: null });
+  }));
+  const pending = sync.syncAccount('A');
+  await vi.waitFor(() => expect(client.eq).toHaveBeenCalled());
+  sync.setSessionUser(null);
+  sync.setSessionUser('A');
+  finish();
+  await pending;
+  expect(client.upsert).not.toHaveBeenCalled();
+  await sync.syncAccount('A');
+  expect(client.upsert).toHaveBeenCalledExactlyOnceWith(
+    { user_id: 'A', tutorial_id: 'single-note' }, expect.any(Object),
+  );
+});
+
+it.each(['handoff', 'fetch'] as const)('A의 %s 응답 전에 로그아웃하면 이후 조회·누락 통과 재전송을 시작하지 않는다', async pendingRequest => {
+  const sync = createTutorialPassSync(makeStorage(pendingRequest === 'handoff' ? ['single-note'] : []));
+  await sync.recordPass('A', 'double-note');
+  client.upsert.mockClear();
+  let finish!: () => void;
+  const requestMock = pendingRequest === 'handoff' ? client.rpc : client.eq;
+  requestMock.mockReturnValueOnce(new Promise(resolve => {
+    finish = () => resolve({ data: pendingRequest === 'handoff' ? true : [], error: null });
+  }));
+  const pending = sync.syncAccount('A');
+  await vi.waitFor(() => expect(requestMock).toHaveBeenCalled());
+  sync.setSessionUser(null);
+  finish();
+  await pending;
+  expect(client.eq).toHaveBeenCalledTimes(pendingRequest === 'handoff' ? 0 : 1);
+  expect(client.upsert).not.toHaveBeenCalled();
+});
+
+it('A의 single-note 인계 응답 유실 뒤 새 게스트 double-note는 B에 인계하고 A는 원래 영수증만 재시도한다', async () => {
+  client.rpc.mockRejectedValueOnce(new Error('response lost'));
+  const storage = makeStorage(['single-note']);
+  await createTutorialPassSync(storage).syncAccount('A');
+  const receiptA = client.rpc.mock.calls[0][1].request_id;
+  const reopened = createTutorialPassSync(storage);
+  await reopened.recordPass(null, 'double-note');
+  await reopened.syncAccount('B');
+  expect(client.rpc).toHaveBeenCalledTimes(2);
+  expect(client.rpc.mock.calls[1][1]).toMatchObject({ target_user_id: 'B', tutorial_ids: ['double-note'] });
+  expect(reopened.getPassedIds('B')).toEqual(['double-note']);
+  await reopened.syncAccount('A');
+  expect(client.rpc.mock.calls[2][1]).toEqual({
+    target_user_id: 'A', request_id: receiptA, tutorial_ids: ['single-note'],
+  });
+  expect(reopened.getPassedIds('A')).toEqual(['single-note']);
+  expect(reopened.getPassedIds(null)).toEqual([]);
+});
+
 it('저장 실패한 탭이 오래된 게스트 single-note를 기억해도 다른 탭의 A 인계 뒤 B에게 다시 보내지 않는다', async () => {
   const storage = makeStorage(['single-note']);
   let blocked = true;

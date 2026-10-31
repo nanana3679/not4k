@@ -7,14 +7,15 @@ export interface TutorialGuestHandoff {
 export interface TutorialPassState {
   guestIds: readonly string[];
   accountPassedIdsByUser: Readonly<Record<string, readonly string[]>>;
-  pendingHandoff: TutorialGuestHandoff | null;
+  pendingHandoffs: readonly TutorialGuestHandoff[];
+  unresolvedPasses: readonly { completionId: string; tutorialId: string }[];
 }
 
 const EMPTY_IDS: readonly string[] = [];
 
 export function prepareTutorialGuestHandoff(state: TutorialPassState, userId: string, requestId: string): TutorialPassState {
-  if (state.pendingHandoff || !state.guestIds.length) return state;
-  return { ...state, guestIds: [], pendingHandoff: { userId, requestId, tutorialIds: state.guestIds } };
+  if (state.pendingHandoffs.some(handoff => handoff.userId === userId) || !state.guestIds.length) return state;
+  return { ...state, guestIds: [], pendingHandoffs: [...state.pendingHandoffs, { userId, requestId, tutorialIds: state.guestIds }] };
 }
 
 export function getVisibleTutorialPassedIds(state: TutorialPassState, userId: string | null): readonly string[] {
@@ -24,17 +25,19 @@ export function getVisibleTutorialPassedIds(state: TutorialPassState, userId: st
 export function completeTutorialGuestHandoff(
   state: TutorialPassState, handoff: TutorialGuestHandoff, consumed: boolean,
 ): TutorialPassState {
+  const pendingHandoffs = state.pendingHandoffs.filter(pending =>
+    pending.userId !== handoff.userId || pending.requestId !== handoff.requestId);
   if (!consumed) {
-    return { ...state, guestIds: [...new Set([...state.guestIds, ...handoff.tutorialIds])], pendingHandoff: null };
+    return { ...state, guestIds: [...new Set([...state.guestIds, ...handoff.tutorialIds])], pendingHandoffs };
   }
   return {
-    guestIds: state.guestIds,
+    ...state,
     accountPassedIdsByUser: {
       ...state.accountPassedIdsByUser,
       [handoff.userId]: [...new Set([
         ...getVisibleTutorialPassedIds(state, handoff.userId), ...handoff.tutorialIds,
       ])],
     },
-    pendingHandoff: null,
+    pendingHandoffs,
   };
 }

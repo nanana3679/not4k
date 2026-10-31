@@ -1,7 +1,11 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { addTutorialPass, fetchTutorialPasses, handoffTutorialPasses } from './tutorialPasses';
+import { addTutorialPass, fetchTutorialPasses, handoffTutorialPasses, readTutorialPassOwner } from './tutorialPasses';
+import { ALL_TUTORIAL_PREVIEWS } from '../game/screens/songSelect/tutorialCatalog';
 
-const client = vi.hoisted(() => ({ from: vi.fn(), select: vi.fn(), eq: vi.fn(), upsert: vi.fn(), rpc: vi.fn() }));
+const client = vi.hoisted(() => ({
+  from: vi.fn(), select: vi.fn(), eq: vi.fn(), upsert: vi.fn(), rpc: vi.fn(),
+  auth: { getSession: vi.fn(), onAuthStateChange: vi.fn() },
+}));
 vi.mock('./client', () => ({ supabase: client }));
 
 beforeEach(() => {
@@ -11,6 +15,40 @@ beforeEach(() => {
   client.eq.mockResolvedValue({ data: [], error: null });
   client.upsert.mockResolvedValue({ error: null });
   client.rpc.mockResolvedValue({ data: true, error: null });
+});
+
+it('완료 시 세션 조회가 대기하는 동안 B 로그인 이벤트가 오면 늦은 B 응답을 원래 소유자로 쓰지 않는다', async () => {
+  let changeSession!: (event: string) => void;
+  const unsubscribe = vi.fn();
+  client.auth.onAuthStateChange.mockImplementation(callback => {
+    changeSession = callback;
+    return { data: { subscription: { unsubscribe } } };
+  });
+  let finishSession!: () => void;
+  client.auth.getSession.mockReturnValue(new Promise(resolve => {
+    finishSession = () => resolve({ data: { session: { user: { id: 'B' } } }, error: null });
+  }));
+  const owner = readTutorialPassOwner();
+  changeSession?.('SIGNED_IN');
+  finishSession();
+  await expect(owner).rejects.toThrow();
+  expect(unsubscribe).toHaveBeenCalled();
+});
+
+it.each(['', 'A', 'single_note', 'single-note\n', 'a'.repeat(65)])('잘못된 ID %j의 통과 저장·게스트 인계는 Supabase 호출 전에 거부한다', async id => {
+  await expect(addTutorialPass('A', id)).rejects.toThrow();
+  await expect(handoffTutorialPasses('A', 'receipt-1', ['single-note', id])).rejects.toThrow();
+  expect(client.from).not.toHaveBeenCalled();
+  expect(client.rpc).not.toHaveBeenCalled();
+});
+
+it('101개 ID의 인계는 RPC 전에 거부하고 100개·길이 1과 64인 ID·현재 카탈로그 전체는 허용한다', async () => {
+  await expect(handoffTutorialPasses('A', 'receipt-1', Array(101).fill('single-note'))).rejects.toThrow();
+  expect(client.rpc).not.toHaveBeenCalled();
+  await expect(handoffTutorialPasses('A', 'receipt-2', Array(100).fill('single-note'))).resolves.toBe(true);
+  await expect(addTutorialPass('A', 'a')).resolves.toBeUndefined();
+  await expect(addTutorialPass('A', 'a'.repeat(64))).resolves.toBeUndefined();
+  await expect(handoffTutorialPasses('A', 'receipt-3', ALL_TUTORIAL_PREVIEWS.map(preview => preview.id))).resolves.toBe(true);
 });
 
 it('인계 RPC가 boolean 대신 null을 반환하면 거절로 확정하지 않고 오류로 남겨 재인계를 막는다', async () => {

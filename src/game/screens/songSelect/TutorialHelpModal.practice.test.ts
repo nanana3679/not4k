@@ -12,8 +12,12 @@ import { ALL_TUTORIAL_PREVIEWS } from './tutorialCatalog';
 import { getTutorialInputTimings } from './tutorialPreviewChart';
 import { useTutorialPassRecords } from './useTutorialPassRecords';
 import { createExplicitTutorialPreviewSessionController } from './explicitTutorialPreviewSession';
+import { createTutorialPassSync } from './tutorialPassSync';
 
-const client = vi.hoisted(() => ({ from: vi.fn(), select: vi.fn(), eq: vi.fn(), upsert: vi.fn(), rpc: vi.fn() }));
+const client = vi.hoisted(() => ({
+  from: vi.fn(), select: vi.fn(), eq: vi.fn(), upsert: vi.fn(), rpc: vi.fn(),
+  auth: { getSession: vi.fn(), onAuthStateChange: vi.fn() },
+}));
 vi.mock('../../../supabase/client', () => ({ supabase: client }));
 
 // 기존 Lab 상호작용 테스트처럼 DOM/Pixi 없이 React 이벤트와 실제 reducer를 실행한다.
@@ -138,6 +142,8 @@ beforeEach(() => {
   client.eq.mockReset().mockResolvedValue({ data: [], error: null });
   client.upsert.mockReset().mockResolvedValue({ error: null });
   client.rpc.mockReset().mockResolvedValue({ data: true, error: null });
+  client.auth.getSession.mockReset().mockResolvedValue({ data: { session: { user: { id: 'A' } } }, error: null });
+  client.auth.onAuthStateChange.mockReset().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
   useGameStore.setState({ settings: initialSettings, settingsOpen: false });
   const target = new EventTarget();
   valueByKey = new Map();
@@ -179,6 +185,25 @@ it('팝업이 닫힌 채 A로 로그인해도 게스트 single-note를 인계하
   await vi.advanceTimersByTimeAsync(0);
 });
 
+it('A의 프로필 로딩 중 single-note 통과 뒤 B로 바꾸고 화면을 나가도 A의 저장 기록만 남는다', async () => {
+  authUserId = 'A'; authLoading = true;
+  openLesson().click('직접 입력');
+  let page = renderModal();
+  for (let iteration = 1; iteration <= 3; iteration++) {
+    page.player().onPatternStarted?.(iteration);
+    page.player().onPatternFinished?.(result());
+    page = renderModal();
+  }
+  authUserId = 'B'; authLoading = false;
+  renderModal();
+  hooks.cleanups.forEach(cleanup => cleanup?.());
+  await vi.advanceTimersByTimeAsync(0);
+  const reopened = createTutorialPassSync(window.localStorage);
+  expect(reopened.getPassedIds('A')).toEqual(['single-note']);
+  expect(reopened.getPassedIds('B')).toEqual([]);
+  expect(reopened.getPassedIds(null)).toEqual([]);
+});
+
 it('인증 확인 중 single-note를 3회 성공하면 게스트에 쓰지 않고 A 확인 뒤 A의 캐시와 서버에만 저장한다', async () => {
   authLoading = true;
   openLesson().click('직접 입력');
@@ -188,7 +213,6 @@ it('인증 확인 중 single-note를 3회 성공하면 게스트에 쓰지 않�
     page.player().onPatternFinished?.(result());
     page = renderModal();
   }
-  expect(window.localStorage.setItem).not.toHaveBeenCalled();
   authUserId = 'A'; authLoading = false;
   renderModal();
   await vi.advanceTimersByTimeAsync(0);
@@ -197,6 +221,35 @@ it('인증 확인 중 single-note를 3회 성공하면 게스트에 쓰지 않�
   expect(JSON.parse(valueByKey.get('not4k-tutorial-pass-state')!).guestIds).toEqual([]);
   authUserId = null;
   expect(renderModal().passedIds).toEqual([]);
+});
+
+it('세션 미확정 통과는 먼저 영구 보관하고 화면 종료·B 로그인 뒤에도 완료 때 시작한 세션 조회의 A에만 귀속한다', async () => {
+  let finishSession!: () => void;
+  client.auth.getSession.mockReturnValueOnce(new Promise(resolve => {
+    finishSession = () => resolve({ data: { session: { user: { id: 'A' } } }, error: null });
+  }));
+  authLoading = true;
+  openLesson().click('직접 입력');
+  let page = renderModal();
+  for (let iteration = 1; iteration <= 3; iteration++) {
+    page.player().onPatternStarted?.(iteration);
+    page.player().onPatternFinished?.(result());
+    page = renderModal();
+  }
+  await vi.advanceTimersByTimeAsync(0);
+  expect(valueByKey.get('not4k-tutorial-pass-state')).toContain('single-note');
+  hooks.cleanups.forEach(cleanup => cleanup?.());
+  hooks.cursor = 0; hooks.slots = []; hooks.effects = []; hooks.cleanups = [];
+  authUserId = 'B'; authLoading = false;
+  renderModal();
+  await vi.advanceTimersByTimeAsync(0);
+  finishSession();
+  await vi.advanceTimersByTimeAsync(0);
+  const reopened = createTutorialPassSync(window.localStorage);
+  expect(reopened.getPassedIds('A')).toEqual(['single-note']);
+  expect(reopened.getPassedIds('B')).toEqual([]);
+  expect(reopened.getPassedIds(null)).toEqual([]);
+  expect(client.upsert).not.toHaveBeenCalled();
 });
 
 it.each([null, 'A'])('%s의 팝업이 열린 상태에서 새 통과 저장소의 storage 이벤트를 받으면 해당 주체의 double-note 체크만 추가한다', async userId => {
@@ -244,7 +297,7 @@ it('single-note가 2/3에서 3/3이 되면 1회 저장하고 목록 체크가 �
   page = renderModal();
   expect(page.passedIds).toEqual(['single-note']);
   expect(window.localStorage.setItem).toHaveBeenCalledExactlyOnceWith(
-    'not4k-tutorial-pass-state', JSON.stringify({ guestIds: ['single-note'], accountPassedIdsByUser: {}, pendingHandoff: null }),
+    'not4k-tutorial-pass-state', JSON.stringify({ guestIds: ['single-note'], accountPassedIdsByUser: {}, pendingHandoffs: [], unresolvedPasses: [] }),
   );
   page.player().onPatternFinished?.(result());
   renderModal();
@@ -315,7 +368,7 @@ it('single-note를 통과한 뒤 Miss 3회로 실패하고 재방문·재개방�
   expect(page.passedIds).toEqual(['single-note']);
   expect(onItemPassed).toHaveBeenCalledTimes(2);
   expect(window.localStorage.setItem).toHaveBeenCalledExactlyOnceWith(
-    'not4k-tutorial-pass-state', JSON.stringify({ guestIds: ['future-lesson', 'single-note'], accountPassedIdsByUser: {}, pendingHandoff: null }),
+    'not4k-tutorial-pass-state', JSON.stringify({ guestIds: ['future-lesson', 'single-note'], accountPassedIdsByUser: {}, pendingHandoffs: [], unresolvedPasses: [] }),
   );
 });
 
