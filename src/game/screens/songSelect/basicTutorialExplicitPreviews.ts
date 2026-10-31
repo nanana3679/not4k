@@ -485,7 +485,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
     'trill-note',
     '트릴 구간 / 트릴 노트',
     [
-      '트릴 구간에서는 직전에 누른 키와 다른 키를 눌러야 합니다',
+      '트릴 구간에서는 앞 트릴 노트를 처리한 키와 다른 키로 다음 트릴 노트를 쳐야 합니다',
       '같은 키를 연속으로 누르면 GOOD◇으로 강등됩니다',
     ],
     9,
@@ -565,7 +565,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
   createExplicitTutorialPreview(
     'grace-note',
     'grace 노트',
-    ['Good 윈도우 안에 입력하면 Perfect로 승급됩니다'],
+    ['Good 윈도우 안에 치면 타이밍 등급은 Perfect가 됩니다. 트릴 노트라면 키를 바꿔 치는 조건은 그대로입니다'],
     5,
     graceNoteChart,
   ),
