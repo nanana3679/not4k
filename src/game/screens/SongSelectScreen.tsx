@@ -233,8 +233,15 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     </>
   );
 
+  // 첫 기동 튜토리얼 모달은 곡 목록을 불러오는 동안에도 띄운다. 모달이 열린 상태면 곡 선택 키가 막히므로,
+  // 보이지 않는 모달이 Escape(타이틀로)를 삼키지 않게 한다.
   if (isInitialSongLoading) {
-    return <PageLoading message="Loading songs..." />;
+    return (
+      <>
+        <PageLoading message="Loading songs..." />
+        {renderOverlays()}
+      </>
+    );
   }
 
   if (mobileListOnly) {

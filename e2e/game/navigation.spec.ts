@@ -49,7 +49,7 @@ test.describe('Game Navigation', () => {
   });
 
   for (const preset of ['TKL (Tenkeyless)', 'Numpad'] as const) {
-    test(`preset setup: ${preset} navigates to song select with the first-launch tutorial modal open`, async ({ page }) => {
+    test(`첫 기동에 ${preset} 프리셋을 고르면 곡 선택 위에 튜토리얼 모달이 열리고 Close로 바로 닫으면 곡 선택을 그대로 쓴다`, async ({ page }) => {
       await choosePresetOnFirstLaunch(page, preset);
 
       // 첫 기동 튜토리얼 모달(RFD 0055): 프리셋 설정 직후 곡 선택 위에 도움말 모달이 열린다.
@@ -68,7 +68,7 @@ test.describe('Game Navigation', () => {
     });
   }
 
-  test('first-launch tutorial modal does not reopen on a later song select visit or after reload', async ({ page }) => {
+  test('첫 기동 튜토리얼 모달은 타이틀을 거쳐 곡 선택에 다시 들어오거나 새로고침하면 다시 열리지 않고 ? 버튼으로만 열린다', async ({ page }) => {
     await choosePresetOnFirstLaunch(page, 'TKL (Tenkeyless)');
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
     await expect(dialog).toBeVisible();
@@ -90,6 +90,17 @@ test.describe('Game Navigation', () => {
     // 수동 재진입은 `?` 버튼으로 한다.
     await page.getByRole('button', { name: 'Open tutorial help' }).click();
     await expect(dialog).toBeVisible();
+  });
+
+  test('첫 기동 튜토리얼 모달이 열린 채 새로고침하면 프리셋 설정 없이 들어간 곡 선택에서 모달이 다시 열리지 않는다', async ({ page }) => {
+    await choosePresetOnFirstLaunch(page, 'Numpad');
+    const dialog = page.getByRole('dialog', { name: 'Tutorial' });
+    await expect(dialog).toBeVisible();
+
+    await page.reload();
+    await page.getByRole('button', { name: 'Start' }).click();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
+    await expect(dialog).toHaveCount(0);
   });
 
   test('non-first launch: Start goes directly to song select', async ({ page }) => {
