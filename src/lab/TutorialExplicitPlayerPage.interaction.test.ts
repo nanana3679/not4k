@@ -26,6 +26,10 @@ vi.mock('react', async importOriginal => ({
 interface ElementProps {
   children?: ReactNode;
   onClick?: () => void;
+  onChange?: () => void;
+  inputMode?: 'demonstration' | 'directInput';
+  onPatternStarted?: (iteration: number) => void;
+  'data-started-patterns'?: number;
   onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => void;
   'data-finished-patterns'?: number;
   'data-last-iteration'?: number | '';
@@ -44,6 +48,9 @@ function renderPage() {
   const tree = TutorialExplicitPlayerPage();
   const nodes = elements(tree);
   return {
+    mode: nodes.find(node => node.type === TutorialPreviewPlayer)!.props.inputMode,
+    start: nodes.find(node => node.type === TutorialPreviewPlayer)!.props.onPatternStarted!,
+    toggle: () => nodes.find(node => node.type === 'input')!.props.onChange!(),
     selectedId: tree.props['data-selected-preview'],
     stats: nodes.find(node => node.type === 'dl')!.props,
     finish: nodes.find(node => node.type === TutorialPreviewPlayer)!.props.onPatternFinished!,
@@ -98,4 +105,25 @@ describe('명시 튜토리얼 Lab 시연 선택', () => {
       'data-finished-patterns': 0, 'data-last-iteration': '', 'data-last-perfect': '',
     });
   });
+});
+
+
+it('시연에서 직접 입력 스위치를 누르면 즉시 directInput prop을 전달하고 시작 2회·완료 1회는 모드 복귀에도 유지', () => {
+  let page = renderPage();
+  expect(page.mode).toBe('demonstration');
+  page.start(0);
+  page.toggle();
+  page = renderPage();
+  expect(page.mode).toBe('directInput');
+  const { preview } = tutorialExplicitPlayerPreviews[0];
+  const playback = createExplicitTutorialPreviewPlayback(preview, { kind: 'live' }, {
+    showJudgmentGroup() {}, recordFlightJudgment() {}, showBombEffect() {},
+  });
+  page.finish(playback.finishPattern());
+  page.start(1);
+  page.toggle();
+  page = renderPage();
+  expect(page.mode).toBe('demonstration');
+  expect(page.stats).toMatchObject({ 'data-started-patterns': 2, 'data-finished-patterns': 1, 'data-last-perfect': 0 });
+  playback.stop();
 });

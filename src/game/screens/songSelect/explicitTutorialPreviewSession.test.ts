@@ -248,3 +248,52 @@ describe("명시 튜토리얼의 반복·seek·표시 인스턴스 수명", () =
     ] })).toThrow("유한");
   });
 });
+
+
+describe("명시 튜토리얼 직접 입력", () => {
+  it("live 계획에서 1000ms 탭은 자동 입력 없이 기다리고 KeyQ down을 넣으면 Perfect 1", () => {
+    const controller = createExplicitTutorialPreviewSessionController(document([tap(1000)]), { kind: "live" });
+    controller.advanceTo(1000);
+    expect(controller.session.score.processedNotes).toBe(0);
+    controller.enqueue({ lane: 1, key: "KeyQ", type: "down", inputAt: 1000 });
+    controller.advanceTo(1000);
+    expect(controller.session.score.judgmentCounts.perfect).toBe(1);
+    controller.dispose();
+  });
+});
+
+
+it("시연 KeyQ를 1000ms에 유지하다 live로 바꾸면 합성 up 점수 없이 놓고 2000ms 탭도 자동 처리하지 않음", () => {
+  const controller = createExplicitTutorialPreviewSessionController(document([tap(1000), body(1000, 1500), release(1500), tap(2000)]), {
+    kind: "timings", timings: [{ lane: 1, key: "KeyQ", startMs: 1000, endMs: 1500 },
+      { lane: 1, key: "KeyQ", startMs: 2000, endMs: 2100 }],
+  });
+  controller.advanceTo(1000);
+  controller.setInputPlan({ kind: "live" });
+  controller.advanceTo(2200);
+  expect(controller.session.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 2 });
+  expect(controller.session.snapshot.bodyUnits[0].state).toBe("failed");
+  expect(controller.session.facts.filter(fact => fact.kind === "input" && fact.action === "up")).toEqual([]);
+  controller.dispose();
+});
+
+
+it("KeyQ를 누른 채 2000ms 경계를 넘으면 새 바디·틱은 preheld로 Perfect 1이고 새 탭 down은 만들지 않음", () => {
+  const controller = createExplicitTutorialPreviewSessionController(document([body(0, 1000), tick(500), tap(250)]), { kind: "live" });
+  controller.enqueue({ lane: 1, key: "KeyQ", type: "down", inputAt: 1900 });
+  controller.repeat(2000, [{ lane: 1, key: "KeyQ" }]);
+  controller.advanceTo(700);
+  expect(controller.session.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 1 });
+  expect(controller.session.snapshot.bodyUnits[0].state).toBe("active");
+  expect(controller.session.facts.filter(fact => fact.kind === "input")).toEqual([]);
+  controller.dispose();
+});
+
+it("live의 새 패턴 0ms에서 timings로 바꾸면 0ms 탭도 시연 입력으로 Perfect 1", () => {
+  const controller = createExplicitTutorialPreviewSessionController(document([tap(0)]), { kind: "live" });
+  controller.advanceTo(0);
+  controller.setInputPlan({ kind: "timings", timings: [{ lane: 1, key: "KeyQ", startMs: 0, endMs: 50 }] });
+  controller.advanceTo(50);
+  expect(controller.session.score.judgmentCounts.perfect).toBe(1);
+  controller.dispose();
+});
