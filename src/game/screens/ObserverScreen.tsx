@@ -73,29 +73,29 @@ export function ObserverScreen() {
   const position = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
   return <div className="observer-screen" style={styles.screen} data-testid="observer-screen" data-phase={phase}>
-    <header className="observer-screen__toolbar" aria-label="Observer controls" style={styles.toolbar}>
-      <h1 style={styles.title}>Observer</h1>
-      <div className="observer-screen__buttons" role="group" aria-label="Playback controls">
-        <button type="button" {...buttonKeys} aria-label="Auto" aria-pressed={playback.autoEnabled}
-          style={playback.autoEnabled ? styles.autoOn : styles.button} disabled={!ready}
-          onClick={() => runtime.current?.setAuto(!playback.autoEnabled)}>
-          Auto <span aria-hidden="true">{playback.autoEnabled ? 'On' : 'Off'}</span>
-        </button>
-        <button type="button" {...buttonKeys} style={styles.button} disabled={!ready} aria-keyshortcuts="Escape"
-          onClick={() => runtime.current?.togglePause()}>{phase === 'paused' ? 'Play' : 'Pause'}</button>
-        <button type="button" {...buttonKeys} style={styles.retry} disabled={!ready}
-          onClick={() => runtime.current?.retry()}>Retry</button>
-        <button type="button" {...buttonKeys} style={styles.button} onClick={exit}>Exit</button>
-      </div>
+    {/* 상단 바 대신 노트 필드 왼쪽 위에 떠 있는 버튼이다. 화면 위쪽과 오른쪽(미니맵 자리)을 비운다. */}
+    <div className="observer-screen__controls" role="toolbar" aria-label="Observer controls"
+      aria-orientation="vertical" style={styles.controls}>
+      <span className="observer-screen__label" style={styles.label}>Observer</span>
+      <button type="button" {...buttonKeys} aria-label="Auto" aria-pressed={playback.autoEnabled}
+        style={playback.autoEnabled ? styles.autoOn : styles.button} disabled={!ready}
+        onClick={() => runtime.current?.setAuto(!playback.autoEnabled)}>
+        Auto <span aria-hidden="true">{playback.autoEnabled ? 'On' : 'Off'}</span>
+      </button>
+      <button type="button" {...buttonKeys} style={styles.button} disabled={!ready} aria-keyshortcuts="Escape"
+        onClick={() => runtime.current?.togglePause()}>{phase === 'paused' ? 'Play' : 'Pause'}</button>
+      <button type="button" {...buttonKeys} style={styles.retry} disabled={!ready}
+        onClick={() => runtime.current?.retry()}>Retry</button>
+      <button type="button" {...buttonKeys} style={styles.button} onClick={exit}>Exit</button>
       <span className="observer-screen__phase" role="status" style={styles.status}>
         {request && !error && (phase === 'loading' ? 'Preparing audio and graphics'
-          : phase === 'paused' ? 'Paused · Esc to play' : phase === 'playing' ? 'Playing · Esc to pause' : '')}
+          : phase === 'paused' ? 'Paused · Esc to play' : '')}
       </span>
       {ready && <span className="observer-screen__position" aria-label="Song position" style={styles.position}>{position}</span>}
-    </header>
-    {(!request || error) && <p className="observer-screen__error" role="alert" style={styles.error}>
-      {error ?? 'No song loaded.'} Use Exit to return to Song Select.
-    </p>}
+      {(!request || error) && <p className="observer-screen__error" role="alert" style={styles.error}>
+        {error ?? 'No song loaded.'} Use Exit to return to Song Select.
+      </p>}
+    </div>
     <div ref={field} className="observer-screen__field">
       {request && <canvas ref={canvas} data-testid="observer-canvas" aria-label="Observer note field" />}
     </div>
@@ -103,13 +103,14 @@ export function ObserverScreen() {
 }
 
 const styles = {
-  screen: { ...primitives.screen, '--observer-focus': color.neon } as CSSProperties,
-  toolbar: { ...primitives.header, justifyContent: 'flex-start', padding: '8px 16px' },
-  title: { ...primitives.title, fontSize: '16px', letterSpacing: '0.02em' },
-  button: { ...primitives.metalButton, minHeight: '44px' },
-  autoOn: { ...primitives.neonButton, minHeight: '44px' },
-  retry: { ...primitives.metalButton, minHeight: '44px', color: color.gold },
-  status: { color: color.inkDim, fontSize: '13px' },
-  position: { color: color.ink, fontFamily: font.numeric, fontSize: '18px' },
-  error: { color: color.danger },
+  screen: { ...primitives.screen, position: 'relative', '--observer-focus': color.neon } as CSSProperties,
+  controls: { ...primitives.panel, position: 'absolute', top: '16px', left: '16px', zIndex: 2,
+    display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px', width: '128px', padding: '10px' },
+  label: { color: color.inkDim, fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase' },
+  button: { ...primitives.metalButton, minHeight: '40px' },
+  autoOn: { ...primitives.neonButton, minHeight: '40px' },
+  retry: { ...primitives.metalButton, minHeight: '40px', color: color.gold },
+  status: { color: color.inkDim, fontSize: '12px', minHeight: '1em' },
+  position: { color: color.ink, fontFamily: font.numeric, fontSize: '16px' },
+  error: { color: color.danger, margin: 0, fontSize: '12px' },
 } satisfies Record<string, CSSProperties>;

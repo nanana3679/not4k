@@ -107,7 +107,10 @@ describe('ObserverScreen 조작과 수명', () => {
     expect(page.html).toContain('Auto <span aria-hidden="true">On</span>');
     expect(page.button('Auto')['aria-pressed']).toBe(true);
     for (const name of ['Auto', 'Pause', 'Retry', 'Exit']) expect(page.button(name).type).toBe('button');
-    expect(page.html.indexOf('</header>')).toBeLessThan(page.html.indexOf('<canvas'));
+    // 조작 버튼은 노트 필드(canvas 부모) 밖의 떠 있는 패널에 있다.
+    const controls = page.html.indexOf('class="observer-screen__controls"');
+    expect(controls).toBeGreaterThan(-1);
+    expect(controls).toBeLessThan(page.html.indexOf('class="observer-screen__field"'));
     expect(harness.players).toHaveLength(1);
     expect(harness.players[0].start).toHaveBeenCalledOnce();
     expect(harness.players[0].options).toMatchObject({ width: 1200, height: 650, inputTarget: window });
