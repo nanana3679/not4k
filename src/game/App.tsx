@@ -14,9 +14,9 @@ import {
 } from './screens';
 import { keepGearMotionAssets } from './screens/gearMotionKeepAlive';
 import { bindProfileReturnRestoration, createProfileReturnRestorer } from './screens/settings/profileReturn';
-import { DEV_ADMIN, useAuth } from '../shared/hooks/useAuth';
+import { useAuth } from '../shared/hooks/useAuth';
 import { guestNickname } from './profile/guestNickname';
-import { profileNickname } from './profile/profileNicknameStore';
+import { useAccountNicknameLink } from './profile/useAccountNicknameLink';
 
 export default function GameApp() {
   const { user, loading: authLoading } = useAuth();
@@ -30,12 +30,10 @@ export default function GameApp() {
   const [restoreProfileReturn] = useState(createProfileReturnRestorer);
 
   useEffect(() => {
+    // 기기의 Guest 닉네임은 로그인 여부와 관계없이 첫 기동 때 만들어 둔다.
     guestNickname.get();
-    // 실제 세션은 Profile을 열지 않아도 초기 세션·로그인 직후 연동한다.
-    // 세션이 없는 DEV_ADMIN은 Profile을 열 때 연동한다.
-    // 중복 auth 알림·StrictMode effect 재실행은 페이지 수명의 모듈에서 합친다.
-    if (!DEV_ADMIN && (user || !authLoading)) void profileNickname.setUser(user);
-  }, [user, authLoading]);
+  }, []);
+  useAccountNicknameLink(user, authLoading);
 
   useEffect(() => {
     // cleanup은 이전 effect의 복귀 대기만 무효화하며 공유 SDK 초기화는 유지한다.

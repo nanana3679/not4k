@@ -171,7 +171,8 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </nav>
 
         <div className="stg-content" role="region" aria-label={SECTIONS.find((s) => s.id === section)?.label}>
-          {/* 첫 방문에 폼을 만들고 탭 전환에서도 초안을 유지한다. 모달 종료 때 언마운트된다. */}
+          {/* 첫 방문에 마운트해 탭 전환 중에도 인증 구독·진행 중인 로그인·로그아웃 요청과 닉네임 초안을 유지한다.
+              모달을 닫으면 언마운트되어 구독을 끝내고 저장하지 않은 초안을 버린다. */}
           {profileMounted && (
             <div hidden={section !== 'profile'}>
               <ProfileSection />
@@ -576,7 +577,7 @@ const settingsPanelCss = `
 .stg-profile-row { flex-wrap: wrap; }
 .stg-profile-status { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
 .stg-profile-error { margin: 8px 0 0; color: ${color.danger}; overflow-wrap: anywhere; }
-.stg-profile-row .stg-btn:disabled { opacity: 0.5; cursor: wait; }
+.stg-profile-row .stg-btn:disabled, .stg-profile-row .stg-btn[aria-disabled="true"] { opacity: 0.5; cursor: wait; }
 .stg-profile-form { border-top: 1px solid var(--border-soft); }
 .stg-profile-form .stg-profile-status { gap: 8px; }
 .stg-profile-form .stg-row-label { flex: none; }
@@ -588,7 +589,7 @@ const settingsPanelCss = `
 }
 .stg-nickname:hover { border-color: ${color.inkFaint}; }
 .stg-nickname:focus-visible { outline: 2px solid ${color.neon}; outline-offset: 1px; }
-.stg-nickname:disabled { opacity: 0.5; }
+.stg-nickname[aria-disabled="true"] { opacity: 0.5; }
 .stg-nickname[aria-invalid="true"] { border-color: ${color.danger}; }
 .stg-group { display: flex; flex-direction: column; gap: 4px; }
 .stg-group-title {

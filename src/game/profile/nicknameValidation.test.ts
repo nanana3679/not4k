@@ -28,3 +28,19 @@ it.each(['name²', 'nameⅣ', 'a_b', 'a-b', '🙂', 'e\u0301'])(
     expect(validateNickname(draft)).toBe('Nicknames can only use letters and numbers.');
   },
 );
+
+// 한글 채움 문자는 \p{L}(Lo)이라 문자 검사를 통과하지만 빈칸으로 보인다. 서버 CHECK(#417)도 같은 네 문자를 거부한다.
+it.each([
+  ['U+115F 한 글자', '\u115F'],
+  ['a 뒤의 U+1160', 'a\u1160'],
+  ['name 앞의 U+3164', '\u3164name'],
+  ['na와 me 사이의 U+FFA0', 'na\uFFA0me'],
+  ['한과 글 사이의 U+3164', '한\u3164글'],
+  ['U+115F·U+1160·U+3164·U+FFA0 네 글자', '\u115F\u1160\u3164\uFFA0'],
+])('%s인 닉네임을 저장하면 한글 채움 문자라서 문자·숫자 오류를 반환한다', (_case, draft) => {
+  expect(validateNickname(draft)).toBe('Nicknames can only use letters and numbers.');
+});
+
+it('한글 채움 문자 U+3164 17자는 문자·숫자 검사보다 먼저 길이 오류를 반환한다', () => {
+  expect(validateNickname('\u3164'.repeat(17))).toBe('Nicknames can be up to 16 characters.');
+});

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useStore } from 'zustand';
-import { DEV_ADMIN, useAuth } from '../../../shared/hooks/useAuth';
+import { useAuth } from '../../../shared/hooks/useAuth';
 import { useGameStore } from '../../stores/gameStore';
 import { handleProfileAuth } from './profileAuthAction';
 import { guestNickname } from '../../profile/guestNickname';
-import { profileNickname } from '../../profile/profileNicknameStore';
+import { accountNicknameService } from '../../profile/accountNicknameService';
 
 function GuestNickname() {
   const nickname = useSyncExternalStore(guestNickname.subscribe, guestNickname.get, guestNickname.get);
@@ -19,11 +19,12 @@ function NicknameForm({ userId, nickname, saving }: { userId: string; nickname: 
   useEffect(() => () => { request.current?.abort(); }, []);
 
   const handleSave = async () => {
-    if (request.current) return;
+    // 저장 중에도 포커스를 지키려고 disabled 대신 aria-disabled를 쓰므로 Enter·클릭을 여기서 무시한다.
+    if (saving || request.current) return;
     const controller = new AbortController();
     request.current = controller;
     setMessage(null);
-    const result = await profileNickname.saveNickname(userId, draft ?? nickname, controller.signal);
+    const result = await accountNicknameService.saveNickname(userId, draft ?? nickname, controller.signal);
     if (controller.signal.aborted) return;
     request.current = null;
     if (result.status === 'ignored') return;
@@ -38,15 +39,17 @@ function NicknameForm({ userId, nickname, saving }: { userId: string; nickname: 
       <div className="stg-row stg-profile-row">
         <div className="stg-profile-status">
           <label className="stg-row-label" htmlFor="profile-nickname">Nickname</label>
+          {/* disabled는 포커스된 입력을 body로 떨어뜨린다. 저장 중에는 읽기 전용으로 막고 비활성으로 알린다. */}
           <input
-            id="profile-nickname" className="stg-nickname" value={draft ?? nickname} disabled={saving}
+            id="profile-nickname" className="stg-nickname" value={draft ?? nickname}
+            readOnly={saving} aria-disabled={saving || undefined}
             autoComplete="off" autoCapitalize="off" spellCheck={false}
             aria-invalid={message?.error || undefined}
             aria-describedby={message ? 'profile-nickname-message' : undefined}
             onChange={event => { setDraft(event.target.value); setMessage(null); }}
           />
         </div>
-        <button className="stg-btn" type="submit" disabled={saving} aria-busy={saving}>Save</button>
+        <button className="stg-btn" type="submit" aria-disabled={saving || undefined} aria-busy={saving}>Save</button>
       </div>
       {message && (
         <p id="profile-nickname-message" className={message.error ? 'stg-profile-error' : 'stg-profile-message'}
@@ -59,9 +62,11 @@ function NicknameForm({ userId, nickname, saving }: { userId: string; nickname: 
 }
 
 function AccountNickname({ userId }: { userId: string }) {
-  const account = useStore(profileNickname.store);
+  const account = useStore(accountNicknameService.store);
+  // 실제 로그인은 GameApp도 같은 사용자를 알린다. 같은 id는 한 번만 연동하므로 GameApp의 별도 useAuth를 기다리지 않는다.
+  // 세션이 없는 DEV_ADMIN은 여기서만 연동한다.
   useEffect(() => {
-    if (DEV_ADMIN) void profileNickname.setUser({ id: userId });
+    void accountNicknameService.setUser({ id: userId });
   }, [userId]);
   if (account.userId !== userId || account.status === 'loading') {
     return <div className="stg-row"><span role="status">Loading nickname…</span></div>;
@@ -70,7 +75,7 @@ function AccountNickname({ userId }: { userId: string }) {
     return (
       <div className="stg-row stg-profile-row">
         <p className="stg-profile-error" role="alert">Couldn't load your nickname.</p>
-        <button className="stg-btn" onClick={() => { void profileNickname.retry(); }}>Retry</button>
+        <button className="stg-btn" onClick={() => { void accountNicknameService.retryLoad(); }}>Retry</button>
       </div>
     );
   }
