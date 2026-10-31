@@ -9,6 +9,7 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import type { SavedChartJson } from '../savedChart';
+import type { CursorBeatKeeperState } from '../playback/cursorBeatKeeper';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
 import {
   createSelectionSlice,
@@ -64,6 +65,10 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // Playback
   isPlaying: boolean;
   currentTimeMs: number;
+  /** seek·재생 tick마다 증가한다. 같은 시각을 다시 알려도 커서 박 유지의 기준을 갱신한다. */
+  cursorMoveCount: number;
+  /** 페이지 재마운트에도 타이밍과 커서의 원래 박을 유지한다. loadChart에서만 초기화한다. */
+  cursorBeatKeeperState: CursorBeatKeeperState | null;
 
   // Extra lanes — 보조 노트는 chart.notes(lane 5+)로 이주(RFD 0018 ③), extraLaneCount만 순수 설정으로 유지(§8-3)
   extraLaneCount: number;
@@ -91,6 +96,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // 저장을 시작할 때와 차트를 새로 불러올 때 1씩 오른다. 저장은 시작할 때 받은 값으로 끝을 알리고,
   // 그 사이 값이 바뀌었으면(차트를 새로 불러옴) 늦게 끝난 그 저장은 savedChartJson·isSavingChart를 바꾸지 않는다.
   chartSaveGeneration: number;
+  // loadChart로 차트를 새로 열 때만 1씩 오른다. 편집·Undo·Redo·저장은 바꾸지 않는다.
+  // 차트 교체를 보는 쪽이 새로 불러온 차트를 편집과 구별할 때 쓴다(타이밍 값 수정 뒤 커서 박 유지, RFD 0099).
+  // 지금은 loadChart가 에디터 페이지(ChartEditorPage)가 마운트되기 전에만 불리고, 다른 차트로 바꾸면 페이지를
+  // 다시 마운트하므로 이 값이 페이지 안에서 바뀌는 일은 없다. 페이지 안에서 차트를 바꾸는 기능이 생길 때를 위한 가드다.
+  chartLoadGeneration: number;
 
   // Event editing
   editingEvent: EditingEvent;
@@ -112,6 +122,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    * 다른 차트를 여는 것이므로 이전 차트의 savedChartJson을 지운다. 불러온 쪽이 setSavedChartJson으로 불러온 차트의 값을 정한다.
    * 진행 중이던 저장은 이전 차트의 것이므로 chartSaveGeneration을 올려 그 결과가 새 차트에 닿지 않게 하고 isSavingChart를 끈다.
    * 이전 차트의 변환 검토 목록(legacyConversionReview)도 비우고 닫는다.
+   * chartLoadGeneration을 1 올리고 cursorBeatKeeperState를 비워 새 차트에 이전 커서 박을 적용하지 않는다.
    */
   loadChart: (chart: ChartDocument) => void;
   /** 불러온 차트의 savedChartJson을 정한다. loadChart 직후에만 부른다. 저장 결과는 finishChartSave로 정한다. */
@@ -238,6 +249,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   graceMode: false,
   isPlaying: false,
   currentTimeMs: 0,
+  cursorMoveCount: 0,
+  cursorBeatKeeperState: null,
   extraLaneCount: 2,
   historyPast: [],
   historyFuture: [],
@@ -247,6 +260,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   savedChartJson: null,
   isSavingChart: false,
   chartSaveGeneration: 0,
+  chartLoadGeneration: 0,
   editingEvent: null,
   legacyConversionReview: null,
   legacyConversionReviewOpen: false,
@@ -328,6 +342,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       savedChartJson: null,
       isSavingChart: false,
       chartSaveGeneration: state.chartSaveGeneration + 1,
+      chartLoadGeneration: state.chartLoadGeneration + 1,
+      // 새 차트의 0박에서 시작한다. keeper 기억을 비우므로 사용자 커서 이동으로 세지 않는다.
+      currentTimeMs: chart.meta.offsetMs,
+      cursorBeatKeeperState: null,
       legacyConversionReview: null,
       legacyConversionReviewOpen: false,
       ...(errors.length === 0
@@ -351,7 +369,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setEntityType: (entityType) => { get().commitEditTransaction(); set({ entityType }); },
   setGraceMode: (graceMode) => set({ graceMode }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
-  setCurrentTimeMs: (currentTimeMs) => set({ currentTimeMs }),
+  setCurrentTimeMs: (currentTimeMs) => set((state) => ({
+    currentTimeMs,
+    cursorMoveCount: state.cursorMoveCount + 1,
+  })),
   setExtraLaneCount: (extraLaneCount, transaction) => {
     if (transaction && get().editTransaction?.token !== transaction) return;
     if (!transaction) get().commitEditTransaction();

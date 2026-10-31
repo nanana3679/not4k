@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PlaybackController } from "./PlaybackController";
+import { useEditorStore } from "../stores/editorStore";
+import { createCursorBeatKeeper } from "./cursorBeatKeeper";
+import { timelineRangeMsOf } from "../timeline/timelineRange";
 
 // ---------------------------------------------------------------------------
 // Mock Web Audio API & requestAnimationFrame
@@ -40,6 +43,184 @@ function setupAudioContextMock(duration: number = 10) {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+function createPlaybackAtStoreCursor() {
+  return new PlaybackController({
+    getCursorTimeMs: () => useEditorStore.getState().currentTimeMs,
+    onTimeUpdate: useEditorStore.getState().setCurrentTimeMs,
+    onPlayStateChange: useEditorStore.getState().setIsPlaying,
+  });
+}
+
+describe('PlaybackController 음원 로드 세대', () => {
+  it.each(['loadAudioUrl', 'loadAudioFile'] as const)('%s의 읽기가 늦게 끝나도 나중에 요청한 60초 파일만 디코딩하고 전달한다', async (loadMethod) => {
+    const context = setupAudioContextMock(60);
+    let finishRead!: (bytes: ArrayBuffer) => void;
+    const bytes = new Promise<ArrayBuffer>(resolve => { finishRead = resolve; });
+    const oldFile = new File([''], 'old.wav');
+    vi.spyOn(oldFile, 'arrayBuffer').mockReturnValue(bytes);
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, arrayBuffer: () => bytes })));
+    const onAudioLoaded = vi.fn();
+    const controller = new PlaybackController({
+      onTimeUpdate: vi.fn(), onPlayStateChange: vi.fn(), onAudioLoaded,
+    });
+
+    const oldLoading = loadMethod === 'loadAudioUrl'
+      ? controller.loadAudioUrl('https://audio.invalid/old.wav')
+      : controller.loadAudioFile(oldFile);
+    await controller.loadAudioFile(new File([''], 'latest.wav'));
+    finishRead(new ArrayBuffer(0));
+    await oldLoading;
+
+    expect(context.decodeAudioData).toHaveBeenCalledTimes(1);
+    expect(controller.durationMs).toBe(60000);
+    expect(onAudioLoaded).toHaveBeenCalledTimes(1);
+    controller.dispose();
+  });
+
+  it('10초 디코딩 중 시작한 60초 로드가 먼저 끝나면 늦은 10초 완료는 버퍼·파형·재생 상태를 바꾸지 않는다', async () => {
+    const context = setupAudioContextMock();
+    let finishOldDecode!: (buffer: AudioBuffer) => void;
+    const oldDecoded = new Promise<AudioBuffer>(resolve => { finishOldDecode = resolve; });
+    const latestBuffer = { duration: 60 } as AudioBuffer;
+    context.decodeAudioData.mockReturnValueOnce(oldDecoded).mockResolvedValueOnce(latestBuffer);
+    const onAudioLoaded = vi.fn();
+    const controller = new PlaybackController({
+      onTimeUpdate: vi.fn(), onPlayStateChange: vi.fn(), onAudioLoaded,
+    });
+
+    const oldLoading = controller.loadAudioFile(new File([''], 'old.wav'));
+    await vi.waitFor(() => expect(context.decodeAudioData).toHaveBeenCalledTimes(1));
+    await controller.loadAudioFile(new File([''], 'latest.wav'));
+    controller.play();
+    finishOldDecode({ duration: 10 } as AudioBuffer);
+    await oldLoading;
+
+    expect(controller.audioBufferData).toBe(latestBuffer);
+    expect(controller.durationMs).toBe(60000);
+    expect(onAudioLoaded).toHaveBeenCalledExactlyOnceWith(latestBuffer);
+    expect(controller.isPlaying).toBe(true);
+    controller.dispose();
+  });
+
+  it.each(['읽기', '디코딩'] as const)('10초 음원 %s 중 dispose하면 늦은 완료가 버퍼를 복원하거나 파형을 전달하지 않는다', async (phase) => {
+    const context = setupAudioContextMock();
+    let finishRead!: (bytes: ArrayBuffer) => void;
+    const bytes = new Promise<ArrayBuffer>(resolve => { finishRead = resolve; });
+    let finishDecode!: (buffer: AudioBuffer) => void;
+    const decoded = new Promise<AudioBuffer>(resolve => { finishDecode = resolve; });
+    const file = new File([''], 'test.wav');
+    if (phase === '읽기') vi.spyOn(file, 'arrayBuffer').mockReturnValue(bytes);
+    else context.decodeAudioData.mockReturnValueOnce(decoded);
+    const onAudioLoaded = vi.fn();
+    const controller = new PlaybackController({
+      onTimeUpdate: vi.fn(), onPlayStateChange: vi.fn(), onAudioLoaded,
+    });
+
+    const loading = controller.loadAudioFile(file);
+    if (phase === '디코딩') await vi.waitFor(() => expect(context.decodeAudioData).toHaveBeenCalledTimes(1));
+    controller.dispose();
+    finishRead(new ArrayBuffer(0));
+    finishDecode({ duration: 10 } as AudioBuffer);
+    await loading;
+
+    expect(controller.audioBufferData).toBeNull();
+    expect(controller.durationMs).toBe(0);
+    expect(onAudioLoaded).not.toHaveBeenCalled();
+    expect(context.decodeAudioData).toHaveBeenCalledTimes(phase === '읽기' ? 0 : 1);
+  });
+});
+
+describe("PlaybackController 커서 초기화", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it.each([2000, -500, 3500])("store 커서가 %ims이면 재생기를 만들 때 같은 시각으로 맞추고 cursorMoveCount는 1로 유지한다", (cursorMs) => {
+    useEditorStore.getState().setCurrentTimeMs(cursorMs);
+
+    const controller = createPlaybackAtStoreCursor();
+
+    expect(controller.currentTimeMs).toBe(cursorMs);
+    expect(useEditorStore.getState().currentTimeMs).toBe(cursorMs);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(1);
+    controller.dispose();
+  });
+
+  it.each(['loadAudioUrl', 'loadAudioFile'] as const)("%s 로드 중 커서가 2000→3500ms로 바뀌면 완료 후 3500ms에서 재생하고 재로드 후에도 이동 횟수를 늘리지 않는다", async (loadMethod) => {
+    setupAudioContextMock();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ArrayBuffer(0))));
+    useEditorStore.getState().setCurrentTimeMs(2000);
+    const controller = createPlaybackAtStoreCursor();
+    const load = () => loadMethod === 'loadAudioUrl'
+      ? controller.loadAudioUrl('https://audio.invalid/test.wav')
+      : controller.loadAudioFile(new File([''], 'test.wav'));
+
+    const loading = load();
+    useEditorStore.getState().setCurrentTimeMs(3500);
+    await loading;
+
+    expect(controller.currentTimeMs).toBe(3500);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(2);
+    controller.togglePlay();
+    expect(controller.isPlaying).toBe(true);
+    expect(controller.currentTimeMs).toBe(3500);
+
+    // 재로드는 재생을 멈추고, 음수 커서도 음원 범위로 자르지 않는다.
+    useEditorStore.getState().setCurrentTimeMs(-500);
+    await load();
+    expect(controller.isPlaying).toBe(false);
+    expect(controller.currentTimeMs).toBe(-500);
+    expect(useEditorStore.getState().currentTimeMs).toBe(-500);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(3);
+    controller.togglePlay();
+    expect(controller.currentTimeMs).toBe(-500);
+    controller.dispose();
+  });
+
+  it.each(['loadAudioUrl', 'loadAudioFile'] as const)("6박이 375→2000ms에 묶인 뒤 재마운트·%s로 초기화해도 이동 횟수가 유지되어 Undo는 375ms를 복원한다", async (loadMethod) => {
+    setupAudioContextMock();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ArrayBuffer(0))));
+    const chart = useEditorStore.getState().chart;
+    const atBpm = (bpm: number) => ({
+      ...chart,
+      events: chart.events.map(event => event.type === 'bpm' ? { ...event, bpm } : event),
+    });
+    useEditorStore.getState().loadChart(atBpm(960));
+    useEditorStore.getState().setCurrentTimeMs(375);
+    let controller = createPlaybackAtStoreCursor();
+    let keeper = createCursorBeatKeeper(useEditorStore);
+    const sync = (endMs: number) => keeper.syncToChart({
+      chart: useEditorStore.getState().chart,
+      loadGeneration: useEditorStore.getState().chartLoadGeneration,
+      cursorMs: useEditorStore.getState().currentTimeMs,
+      playback: controller,
+      timelineRange: timelineRangeMsOf(0, endMs),
+    });
+    sync(500);
+    useEditorStore.getState().setChart(atBpm(120));
+    sync(2000);
+    expect(controller.currentTimeMs).toBe(2000);
+    const moveCount = useEditorStore.getState().cursorMoveCount;
+
+    controller.dispose();
+    controller = createPlaybackAtStoreCursor();
+    keeper = createCursorBeatKeeper(useEditorStore);
+    sync(2000);
+    if (loadMethod === 'loadAudioUrl') await controller.loadAudioUrl('https://audio.invalid/test.wav');
+    else await controller.loadAudioFile(new File([''], 'test.wav'));
+    expect(controller.currentTimeMs).toBe(2000);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(moveCount);
+
+    useEditorStore.getState().undo();
+    sync(500);
+    expect(useEditorStore.getState().currentTimeMs).toBe(375);
+    controller.togglePlay();
+    expect(controller.isPlaying).toBe(true);
+    expect(controller.currentTimeMs).toBe(375);
+    controller.dispose();
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -27,6 +27,32 @@ function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument
   };
 }
 
+describe('editorStore 커서 이동 횟수', () => {
+  it.each([2000, -500])('커서 3500ms에서 offset %ims 차트를 열면 0박인 offset으로 이동하고 이동 횟수는 유지한다', (offsetMs) => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    useEditorStore.getState().setCurrentTimeMs(3500);
+    const chart = makeChart();
+    chart.meta.offsetMs = offsetMs;
+
+    useEditorStore.getState().loadChart(chart);
+
+    expect(useEditorStore.getState().currentTimeMs).toBe(offsetMs);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(1);
+    expect(useEditorStore.getState().cursorBeatKeeperState).toBeNull();
+  });
+
+  it('setCurrentTimeMs로 2000→1000→2000→2000ms를 알리면 cursorMoveCount가 4 증가한다', () => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+
+    for (const timeMs of [2000, 1000, 2000, 2000]) {
+      useEditorStore.getState().setCurrentTimeMs(timeMs);
+    }
+
+    expect(useEditorStore.getState().currentTimeMs).toBe(2000);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(4);
+  });
+});
+
 describe('editorStore history', () => {
   beforeEach(() => {
     useEditorStore.setState({
@@ -471,6 +497,43 @@ describe('editorStore savedChartJson', () => {
     useEditorStore.getState().loadChart(makeChart([tap(5)]));
 
     expect(useEditorStore.getState().savedChartJson).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 차트 불러오기 세대(chartLoadGeneration) — 타이밍 값 수정 뒤 커서 박 유지가 새로 불러온 차트를 수정으로 오인하지 않게 한다.
+// ---------------------------------------------------------------------------
+
+describe('editorStore 차트 불러오기 세대 chartLoadGeneration', () => {
+  const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeChart(), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
+      isSavingChart: false, chartSaveGeneration: 0, chartLoadGeneration: 0,
+      historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
+    });
+  });
+
+  it('처음 상태의 chartLoadGeneration은 0', () => {
+    expect(useEditorStore.getInitialState().chartLoadGeneration).toBe(0);
+  });
+
+  it('loadChart를 두 번 부르면 chartLoadGeneration이 0 → 1 → 2로 오른다', () => {
+    useEditorStore.getState().loadChart(makeChart([tap(1)]));
+    expect(useEditorStore.getState().chartLoadGeneration).toBe(1);
+
+    useEditorStore.getState().loadChart(makeChart([tap(2)]));
+    expect(useEditorStore.getState().chartLoadGeneration).toBe(2);
+  });
+
+  it('불러온 뒤 setChart·Undo·Redo·beginChartSave는 chartLoadGeneration 1을 바꾸지 않는다', () => {
+    useEditorStore.getState().loadChart(makeChart([tap(1)]));
+    useEditorStore.getState().setChart(makeChart([tap(1), tap(3)]));
+    useEditorStore.getState().undo();
+    useEditorStore.getState().redo();
+    useEditorStore.getState().beginChartSave();
+
+    expect(useEditorStore.getState().chartLoadGeneration).toBe(1);
   });
 });
 
