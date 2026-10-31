@@ -2,11 +2,14 @@
 -- admin 권한 우회 차단
 --
 -- 1. profiles 자기 승격
---   기존: authenticated가 profiles의 모든 열에 UPDATE 권한을 갖고,
---     profiles_update_own은 자기 행인지만 확인한다. 로그인한 누구나
---     자기 is_admin을 true로 바꿔 admin 정책을 통과할 수 있었다.
---   변경: 클라이언트 UPDATE는 display_name 열로 제한한다.
---     is_admin은 콘솔(service role)에서만 바꾼다.
+--   기존: anon·authenticated가 profiles의 모든 열에 UPDATE 권한을
+--     가졌다(Supabase 기본 권한). profiles_update_own은 자기 행인지만
+--     확인하므로 로그인한 누구나 자기 is_admin을 true로 바꿔 admin
+--     정책을 통과할 수 있었다. anon은 auth.uid()가 없어 정책에서
+--     막혔지만 같은 권한을 함께 거둔다.
+--   변경: 클라이언트 UPDATE는 authenticated의 display_name 열로 제한한다.
+--     is_admin은 대시보드·SQL Editor처럼 DB 소유자(postgres)나
+--     service_role 권한으로만 바꾼다.
 --
 -- 2. 남아 있던 옛 쓰기 정책
 --   migration 300000·500000이 지운 것으로 기록된 정책 3개가
@@ -15,7 +18,9 @@
 --   Storage songs/ 업로드가 가능했다. admin 정책은 그대로 둔다.
 --
 -- 운영 DB에는 2026-10-31에 같은 SQL을 먼저 적용했다.
--- 모든 문장이 멱등이라 다시 실행해도 결과가 같다.
+-- 다시 실행하면 profiles의 클라이언트 UPDATE 권한을 display_name
+-- 하나로 되돌린다. 뒤 migration이 열 권한을 더했다면 그 권한도
+-- 사라지므로 이 버전을 뒤 migration보다 늦게 실행하지 않는다.
 -- =============================================================
 
 revoke update on public.profiles from anon, authenticated;
