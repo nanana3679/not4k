@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { clearTutorialPassedIds, persistTutorialPassedIds, readTutorialPassedIdsFromStorage } from './tutorialPassRecords';
+import { addTutorialPassedId, clearTutorialPassedIds, persistTutorialPassedIds, readTutorialPassedIdsFromStorage } from './tutorialPassRecords';
 
 it('single-note·double-note 통과를 저장하고 다시 읽으면 두 항목의 통과를 복원한다', () => {
   const valueByKey = new Map<string, string>();
@@ -51,4 +51,18 @@ it('알 수 없는 ID·중복·숫자가 저장되어 있으면 문자열 ID만 
   passedIds.add('double-note');
   persistTutorialPassedIds(storage, passedIds);
   expect(JSON.parse(value)).toEqual(['future-lesson', 'single-note', 'double-note']);
+});
+
+it('다른 탭이 single-note 통과를 저장한 뒤 이 탭이 빈 메모리 집합으로 double-note 통과를 더하면 두 항목이 모두 남는다', () => {
+  const valueByKey = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => valueByKey.get(key) ?? null,
+    setItem: (key: string, value: string) => { valueByKey.set(key, value); },
+  };
+  persistTutorialPassedIds(storage, new Set(['single-note']));
+
+  const merged = addTutorialPassedId(storage, new Set(), 'double-note');
+
+  expect([...merged].sort()).toEqual(['double-note', 'single-note']);
+  expect([...readTutorialPassedIdsFromStorage(storage)].sort()).toEqual(['double-note', 'single-note']);
 });

@@ -23,6 +23,20 @@ export function persistTutorialPassedIds(
   }
 }
 
+/**
+ * 저장소의 최신 통과 기록에 한 항목을 더해 저장하고 합친 집합을 돌려준다. 다른 탭이 그사이 저장한 통과를
+ * 메모리의 오래된 집합으로 덮어쓰지 않도록 저장 직전에 다시 읽는다.
+ */
+export function addTutorialPassedId(
+  storage: Pick<Storage, 'getItem' | 'setItem'> | null | undefined,
+  knownPassedIds: ReadonlySet<string>,
+  tutorialId: string,
+): ReadonlySet<string> {
+  const merged = new Set([...readTutorialPassedIdsFromStorage(storage), ...knownPassedIds, tutorialId]);
+  persistTutorialPassedIds(storage, merged);
+  return merged;
+}
+
 export function clearTutorialPassedIds(storage: Pick<Storage, 'removeItem'> | null | undefined): void {
   try {
     storage?.removeItem(TUTORIAL_PASSED_STORAGE_KEY);

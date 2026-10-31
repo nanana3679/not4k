@@ -11,8 +11,9 @@ import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, get
 import { findUnmetTutorialPracticeKeyRequirements, getTutorialKeyboardLabel, type TutorialKeyBindings } from './tutorialKeyboardLayout';
 import {
   clearTutorialPassedIds,
-  persistTutorialPassedIds,
+  addTutorialPassedId,
   readTutorialPassedIdsFromStorage,
+  TUTORIAL_PASSED_STORAGE_KEY,
 } from './tutorialPassRecords';
 
 interface TutorialHelpModalProps {
@@ -72,15 +73,24 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
   const passedTutorialIdsRef = useRef(passedTutorialIds);
   const recordItemPassed = useCallback((itemId: string) => {
     if (!passedTutorialIdsRef.current.has(itemId)) {
-      const next = new Set(passedTutorialIdsRef.current);
-      next.add(itemId);
-      // React commit 전 완료 통지에도 같은 집합을 쓰며 통과한 순간에만 저장한다.
+      // React commit 전 완료 통지에도 같은 집합을 쓰며 통과한 순간에만 저장한다. 다른 탭의 통과를 지우지 않도록 최신 저장값과 합친다.
+      const next = addTutorialPassedId(getTutorialPassStorage(), passedTutorialIdsRef.current, itemId);
       passedTutorialIdsRef.current = next;
-      persistTutorialPassedIds(getTutorialPassStorage(), next);
       setPassedTutorialIds(next);
     }
     onItemPassed?.(itemId);
   }, [onItemPassed]);
+  // 다른 탭에서 통과하거나 기록을 지우면 이 모달의 표시도 맞춘다.
+  useEffect(() => {
+    const syncFromOtherTab = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== TUTORIAL_PASSED_STORAGE_KEY) return;
+      const latest = readTutorialPassedIdsFromStorage(getTutorialPassStorage());
+      passedTutorialIdsRef.current = latest;
+      setPassedTutorialIds(latest);
+    };
+    window.addEventListener('storage', syncFromOtherTab);
+    return () => window.removeEventListener('storage', syncFromOtherTab);
+  }, []);
   const settings = useGameStore((state) => state.settings);
   const settingsOpen = useGameStore((state) => state.settingsOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
