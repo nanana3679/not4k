@@ -30,6 +30,8 @@ const PLAY_TIMEOUT_MS = 30_000;
 // 실제 플레이 테스트는 앱을 두 번 열고(설정 저장 → 새로고침) 플레이까지 하므로 기본 30초 대신 이만큼 기다린다.
 const PLAY_TEST_TIMEOUT_MS = 90_000;
 const SONG_LIST_URL = '**/rest/v1/songs?**';
+const LINK_NICKNAME_URL = '**/rest/v1/rpc/link_guest_nickname**';
+const PROFILE_URL = '**/rest/v1/profiles?**';
 
 // 타이틀에서 Start를 눌러 곡 선택을 연다. 곡 선택과 Settings 버튼은 곡 목록 응답 뒤에야 그려진다(그 전에는 PageLoading이 화면을 대신하며, 버튼을 덮는 요소는 없다).
 // 이 스펙은 곡 목록을 쓰지 않으므로 Supabase 응답 대신 빈 목록을 준다. 실제 요청은 부하가 큰 기계에서 30초 넘게 멈추다 "Failed to fetch"로 끝나기도 했다.
@@ -76,6 +78,16 @@ function laneRow(dialog: Locator, laneNumber: number): Locator {
 }
 
 test.describe('Game Settings', () => {
+  test.beforeEach(async ({ page }) => {
+    // DEV_ADMIN도 App에서 즉시 연동한다. 모든 Settings 테스트를 가짜 응답으로 격리한다.
+    await page.route(LINK_NICKNAME_URL, route => route.fulfill({
+      json: [{ nickname: 'RoutedPilot', first_link: false }],
+    }));
+    await page.route(PROFILE_URL, route => route.fulfill({
+      json: { display_name: route.request().postDataJSON()?.display_name },
+    }));
+  });
+
   // VITE_DEV_ADMIN=true에서는 첫 렌더부터 dev@local이다. OAuth 왕복은 단위 테스트의 가짜 인증으로 검증한다.
   test('dev@local의 Profile은 첫 방문에 Signed in·Logout을 표시하고 탭 전환 중 같은 인스턴스를 유지하며 설정 종료 때 제거한다', async ({ page }) => {
     const dialog = await openSettings(page);
@@ -89,7 +101,8 @@ test.describe('Game Settings', () => {
     await expect(region.getByText('dev@local', { exact: true })).toBeVisible();
     await expect(region.getByRole('button', { name: 'Logout', exact: true })).toBeEnabled();
     await expect(region.getByRole('button', { name: 'Login', exact: true })).toHaveCount(0);
-    await expect(region.getByRole('textbox')).toHaveCount(0);
+    await expect(region.getByRole('textbox', { name: 'Nickname', exact: true })).toHaveValue('RoutedPilot');
+    await expect(region.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
     const signedIn = dialog.getByText('Signed in', { exact: true });
     await signedIn.evaluate(element => element.setAttribute('data-profile-instance', 'first'));
     await dialog.getByRole('button', { name: 'Controls', exact: true }).click();
@@ -101,6 +114,95 @@ test.describe('Game Settings', () => {
     await dialog.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(dialog.getByText('Signed in', { exact: true })).toHaveCount(0);
+  });
+
+  test('Profile을 열기 전 연동한 RoutedPilot에서 a b는 거부하고 NewPilot 저장 후 설정을 다시 열면 버린 Draft 대신 NewPilot을 표시한다', async ({ page }) => {
+    let linkCalls = 0;
+    const saves: string[] = [];
+    let finishSave!: () => void;
+    const saveResponse = new Promise<void>(resolve => { finishSave = resolve; });
+    await page.route(LINK_NICKNAME_URL, route => {
+      linkCalls++;
+      expect(route.request().postDataJSON().guest_nickname).toMatch(/^Guest\d{6}$/);
+      return route.fulfill({ json: [{ nickname: 'RoutedPilot', first_link: false }] });
+    });
+    await page.route(PROFILE_URL, async route => {
+      expect(route.request().method()).toBe('PATCH');
+      expect(new URL(route.request().url()).searchParams.get('id')).toBe('eq.dev-user');
+      expect(new URL(route.request().url()).searchParams.get('select')).toBe('display_name');
+      const { display_name } = route.request().postDataJSON();
+      saves.push(display_name);
+      await saveResponse;
+      return route.fulfill({ json: { display_name } });
+    });
+    const dialog = await openSettings(page);
+    await expect.poll(() => linkCalls).toBeGreaterThan(0);
+    await dialog.getByRole('button', { name: 'Profile', exact: true }).click();
+    const nickname = dialog.getByRole('textbox', { name: 'Nickname', exact: true });
+    const save = dialog.getByRole('button', { name: 'Save', exact: true });
+    await expect(nickname).toHaveValue('RoutedPilot');
+    const callsAfterLoad = linkCalls;
+    await nickname.fill('a b');
+    await save.click();
+    await expect(dialog.getByRole('alert')).toHaveText('Nicknames cannot contain spaces.');
+    await expect(nickname).toHaveValue('a b');
+    expect(saves).toEqual([]);
+    await nickname.fill('NewPilot');
+    await save.click();
+    await expect(save).toBeDisabled();
+    finishSave();
+    await expect(dialog.getByRole('status')).toHaveText('Nickname saved.');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Profile', exact: true })).toHaveAttribute('aria-current', 'page');
+    expect(saves).toEqual(['NewPilot']);
+    await nickname.fill('Draft');
+    await dialog.getByRole('button', { name: 'Controls', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Profile', exact: true }).click();
+    await expect(nickname).toHaveValue('Draft');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Profile', exact: true }).click();
+    await expect(nickname).toHaveValue('NewPilot');
+    expect(linkCalls).toBe(callsAfterLoad);
+  });
+
+  test('Profile의 NewPilot 저장이 500이면 초안과 오류를 유지하고 같은 Save 버튼으로 재시도한다', async ({ page }) => {
+    let attempts = 0;
+    await page.route(PROFILE_URL, route => {
+      expect(route.request().postDataJSON()).toEqual({ display_name: 'NewPilot' });
+      attempts++;
+      return attempts === 1
+        ? route.fulfill({ status: 500, json: { message: 'Save unavailable' } })
+        : route.fulfill({ json: { display_name: 'NewPilot' } });
+    });
+    const dialog = await openSettings(page);
+    await dialog.getByRole('button', { name: 'Profile', exact: true }).click();
+    const nickname = dialog.getByRole('textbox', { name: 'Nickname', exact: true });
+    const save = dialog.getByRole('button', { name: 'Save', exact: true });
+    await expect(nickname).toHaveValue('RoutedPilot');
+    await nickname.fill('NewPilot');
+    await save.click();
+    await expect(dialog.getByRole('alert')).toHaveText("Couldn't save your nickname. Please try again.");
+    await expect(nickname).toHaveValue('NewPilot');
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect(dialog.getByRole('status')).toHaveText('Nickname saved.');
+    await expect(nickname).toHaveValue('NewPilot');
+    expect(attempts).toBe(2);
+  });
+
+  test('Profile의 닉네임 연동이 500이면 Retry로 RoutedPilot을 불러온다', async ({ page }) => {
+    let fail = true;
+    await page.route(LINK_NICKNAME_URL, route => fail
+      ? route.fulfill({ status: 500, json: { message: 'Link unavailable' } })
+      : route.fulfill({ json: [{ nickname: 'RoutedPilot', first_link: false }] }));
+    const dialog = await openSettings(page);
+    await dialog.getByRole('button', { name: 'Profile', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toHaveText("Couldn't load your nickname.");
+    await expect(dialog.getByRole('textbox', { name: 'Nickname', exact: true })).toHaveCount(0);
+    fail = false;
+    await dialog.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(dialog.getByRole('textbox', { name: 'Nickname', exact: true })).toHaveValue('RoutedPilot');
   });
 
   test('dev@local의 Profile에서 Logout을 클릭하면 설정을 닫고 타이틀의 not4k·Start를 표시한다', async ({ page }) => {

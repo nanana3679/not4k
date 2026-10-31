@@ -171,7 +171,7 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </nav>
 
         <div className="stg-content" role="region" aria-label={SECTIONS.find((s) => s.id === section)?.label}>
-          {/* 첫 방문에 인증을 시작하고 이후 탭 전환에서도 요청을 유지한다. 모달 종료 때 언마운트된다. */}
+          {/* 첫 방문에 폼을 만들고 탭 전환에서도 초안을 유지한다. 모달 종료 때 언마운트된다. */}
           {profileMounted && (
             <div hidden={section !== 'profile'}>
               <ProfileSection />
@@ -577,6 +577,19 @@ const settingsPanelCss = `
 .stg-profile-status { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
 .stg-profile-error { margin: 8px 0 0; color: ${color.danger}; overflow-wrap: anywhere; }
 .stg-profile-row .stg-btn:disabled { opacity: 0.5; cursor: wait; }
+.stg-profile-form { border-top: 1px solid var(--border-soft); }
+.stg-profile-form .stg-profile-status { gap: 8px; }
+.stg-profile-form .stg-row-label { flex: none; }
+.stg-profile-form .stg-profile-error, .stg-profile-message { margin: 0; padding: 0 14px 14px; }
+.stg-nickname {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 8px 10px;
+  font: inherit; font-size: 14px; color: ${color.ink};
+  background: ${color.bg}; border: 1px solid ${color.line}; border-radius: ${radius.sm};
+}
+.stg-nickname:hover { border-color: ${color.inkFaint}; }
+.stg-nickname:focus-visible { outline: 2px solid ${color.neon}; outline-offset: 1px; }
+.stg-nickname:disabled { opacity: 0.5; }
+.stg-nickname[aria-invalid="true"] { border-color: ${color.danger}; }
 .stg-group { display: flex; flex-direction: column; gap: 4px; }
 .stg-group-title {
   margin: 0 0 6px; font-family: ${font.display}; font-size: 12px; font-weight: 700;

@@ -14,8 +14,12 @@ import {
 } from './screens';
 import { keepGearMotionAssets } from './screens/gearMotionKeepAlive';
 import { bindProfileReturnRestoration, createProfileReturnRestorer } from './screens/settings/profileReturn';
+import { useAuth } from '../shared/hooks/useAuth';
+import { guestNickname } from './profile/guestNickname';
+import { profileNickname } from './profile/profileNicknameStore';
 
 export default function GameApp() {
+  const { user, loading: authLoading } = useAuth();
   const screen = useGameStore((state) => state.screen);
   const editorReturnUrl = useGameStore((state) => state.editorReturnUrl);
   const experience = useGameExperience();
@@ -24,6 +28,13 @@ export default function GameApp() {
   const mobileListOnly = shouldForceMobileSongList(experience, editorReturnUrl);
   // initializer는 저장소를 읽지 않는다. 실제 소비는 effect에서 한 번만 수행한다(StrictMode 포함).
   const [restoreProfileReturn] = useState(createProfileReturnRestorer);
+
+  useEffect(() => {
+    guestNickname.get();
+    // Profile을 열지 않아도 초기 세션·로그인 직후 연동한다. DEV_ADMIN도 같은 경로다.
+    // 중복 auth 알림·StrictMode effect 재실행은 페이지 수명의 모듈에서 합친다.
+    if (user || !authLoading) void profileNickname.setUser(user);
+  }, [user, authLoading]);
 
   useEffect(() => {
     // cleanup은 이전 effect의 복귀 대기만 무효화하며 공유 SDK 초기화는 유지한다.
