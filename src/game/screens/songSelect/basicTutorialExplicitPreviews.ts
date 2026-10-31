@@ -307,6 +307,7 @@ const bodyWithoutReleaseChart = makeBasicChart(
   [
     { type: 'tap', kind: 'single', lane: 2, beat: beat(1) },
     { type: 'body', lane: 2, beat: beat(1), endBeat: beat(4), holdCount: 1 },
+    { type: 'tick', lane: 2, beat: beat(4), count: 1 },
   ],
   [
     tutorialInput(2, 'KeyF', 'F', beat(1), beat(9, 2), 3),

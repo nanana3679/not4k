@@ -56,6 +56,7 @@ vi.mock('../../stores', async original => {
 
 type Props = { children?: ReactNode; onClick?: () => void; disabled?: boolean; 'aria-pressed'?: boolean;
   'aria-label'?: string;
+  onKeyDown?: ComponentProps<'button'>['onKeyDown'];
   'data-tutorial-index-item'?: string; 'data-tutorial-condition-status'?: string;
   'data-tutorial-progress'?: string; 'data-tutorial-pattern-id'?: number; };
 function elements(node: ReactNode): ReactElement<Props>[] {
@@ -264,6 +265,29 @@ it('손배치에는 토글이 없고 싱글 노트의 시연 중 직접 입력�
   expect(renderModal().progress).toBe('0/3');
 });
 
+it.each(['connected-long-note-switch', 'connected-long-note-overlap'])('%s에서 직접 입력으로 3회 성공하면 도식 없이 다음을 표시하고 시연으로 돌아가면 도식을 복원한다', id => {
+  let page = openLesson(id);
+  expect(page.player(id).diagramModalEnabled).toBe(true);
+  page.click('직접 입력');
+  page = renderModal();
+  expect(page.player(id).diagramModalEnabled).toBe(false);
+  expect(page.player(id).diagramModalVisible).toBe(false);
+  for (let iteration = 1; iteration <= 3; iteration++) {
+    page.player(id).onPatternStarted?.(iteration);
+    page.player(id).onPatternFinished?.(result(id));
+    page = renderModal();
+    expect(page.player(id).diagramModalEnabled).toBe(false);
+    expect(page.player(id).paused).toBe(iteration === 3);
+  }
+  expect(page.progress).toBe('3/3');
+  expect(page.button('다음')).toBeDefined();
+  page.click('시연');
+  page = renderModal();
+  expect(page.player(id).inputMode).toBe('demonstration');
+  expect(page.player(id).diagramModalEnabled).toBe(true);
+  expect(page.player(id).diagramModalVisible).toBe(true);
+});
+
 it('직접 입력 패턴 도중 시연을 골라도 종료까지 inputMode는 directInput이며 종료 뒤 다음 패턴만 demonstration이다', () => {
   openLesson().click('직접 입력');
   let page = renderModal();
@@ -393,6 +417,65 @@ it('직접 입력에서 레인에 바인딩한 ArrowRight와 소비된 ArrowLeft
   send('Escape');
   vi.advanceTimersByTime(120);
   expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  { name: 'button', code: 'Enter', target: { tagName: 'BUTTON' } },
+  { name: 'button', code: 'Space', target: { tagName: 'BUTTON' } },
+  { name: 'button 자식', code: 'NumpadEnter', target: { parentElement: { tagName: 'BUTTON' } } },
+  { name: 'switch', code: 'Space', target: { tagName: 'DIV', getAttribute: () => 'switch' } },
+  { name: 'checkbox', code: 'Space', target: { tagName: 'INPUT', type: 'checkbox' } },
+  { name: 'tab', code: 'ArrowRight', target: { tagName: 'BUTTON', getAttribute: () => 'tab' } },
+  { name: 'text input', code: 'KeyD', target: { tagName: 'INPUT', type: 'text' } },
+  { name: 'textarea', code: 'ArrowLeft', target: { tagName: 'TEXTAREA' } },
+  { name: 'contenteditable 자식', code: 'ArrowRight', target: { parentElement: { isContentEditable: true } } },
+])('직접 입력 중 $name에서 바인딩된 $code를 누르면 기본 동작을 허용하고 single-note에 머문다', ({ code, target }) => {
+  useGameStore.setState({ settings: { ...initialSettings, keyBindings: {
+    ...initialSettings.keyBindings, lane2: [code, 'KeyE'],
+  } } });
+  openLesson().click('직접 입력');
+  renderModal();
+  const event = new Event('keydown', { cancelable: true });
+  Object.defineProperties(event, {
+    key: { value: code === 'Space' ? ' ' : code }, code: { value: code }, target: { value: target },
+  });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(false);
+  expect(renderModal().player().preview?.id).toBe('single-note');
+  expect(onClose).not.toHaveBeenCalled();
+});
+
+it.each(['Enter', 'Space', 'ArrowRight'])('직접 입력 중 Basic 탭의 바인딩된 %s는 레인 예약을 건너뛰고 탭 동작으로 처리한다', code => {
+  useGameStore.setState({ settings: { ...initialSettings, keyBindings: {
+    ...initialSettings.keyBindings, lane2: [code, 'KeyE'],
+  } } });
+  const focus = vi.fn();
+  vi.stubGlobal('document', { getElementById: () => ({ focus }) });
+  openLesson().click('직접 입력');
+  const event = new Event('keydown', { cancelable: true });
+  Object.defineProperties(event, {
+    key: { value: code === 'Space' ? ' ' : code }, code: { value: code }, nativeEvent: { value: event },
+    target: { value: { tagName: 'BUTTON', getAttribute: () => 'tab' } },
+  });
+  renderModal().button('Basic').props.onKeyDown!(event as unknown as React.KeyboardEvent<HTMLButtonElement>);
+  if (code === 'ArrowRight') {
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(settle().player('advanced-double-hold')).toBeDefined();
+  } else {
+    expect(event.defaultPrevented).toBe(false);
+    expect(renderModal().player()).toBeDefined();
+  }
+});
+
+it('시연 중 text input에서 바인딩되지 않은 ArrowRight를 누르면 커서를 이동하고 single-note에 머문다', () => {
+  openLesson();
+  const event = new Event('keydown', { cancelable: true });
+  Object.defineProperties(event, {
+    key: { value: 'ArrowRight' }, code: { value: 'ArrowRight' }, target: { value: { tagName: 'INPUT', type: 'text' } },
+  });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(false);
+  expect(renderModal().player().preview?.id).toBe('single-note');
 });
 
 it('trill-note는 달성률과 GOOD◇ 조건을 한 줄씩 표시하고 GOOD◇ 1회이면 추가 조건만 즉시 실패한다', () => {
