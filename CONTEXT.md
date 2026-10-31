@@ -72,7 +72,7 @@ _Avoid_: 프레임
 _Avoid_: 박자표
 
 **비행 배경**:
-기어 모션과 별도의 설정 `Background Motion`(`flightBackgroundMotion`)으로 움직임을 끄면 어두운 고정 배경을 표시하고 노트·기어·고도 게이지는 유지한다. 기본 켬이며 일반 플레이·옵저버에 공통 적용한다([glossary](docs/context/glossary.md#비행-배경)).
+기어 모션과 별도의 설정 `Background Motion`(`flightBackgroundMotion`)으로 움직임을 끄면 어두운 고정 배경을 표시하고 노트·기어·고도 게이지는 유지한다. 기본 켬이며 일반 플레이·테스트 재생에 적용하고, 옵저버는 구현할 때 같은 설정을 쓴다([glossary](docs/context/glossary.md#비행-배경)).
 
 ### 입력 체계
 

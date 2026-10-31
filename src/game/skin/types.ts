@@ -17,7 +17,9 @@ export interface SkinTheme {
   heldLine: number;
   /** 홀드 글로우 색상 */
   heldGlow: number;
-  /** 배경색 */
+  /**
+   * 배경색. 설정 `Background Motion`을 끄면 비행 배경 대신 플레이 화면의 불투명 바탕이 되므로(RFD 0100) 모든 스킨에서 어두운 색이어야 한다.
+   */
   bg: number;
   /** 텍스트 색상 */
   text: number;

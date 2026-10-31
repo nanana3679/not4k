@@ -105,7 +105,9 @@ export class ExplicitPlayRuntime {
       this.clock = clock;
       const renderer = new GameRenderer({ canvas, width: resolvePlayLogicalWidth(this.options.width, this.options.height),
         height: GAME_HEIGHT, resolution: settings.renderHeight / GAME_HEIGHT, skinManager: this.skin,
-        bombScale: settings.bombScale, gearMotion: settings.gearMotion, showFlightBackground: settings.flightBackgroundMotion,
+        bombScale: settings.bombScale, gearMotion: settings.gearMotion,
+        // 설정 `Background Motion`을 끄면 비행 배경 대신 스킨 테마 바탕색의 어두운 고정 배경을 그린다(RFD 0100). 고도 게이지는 그대로 고도를 따른다.
+        showFlightBackground: settings.flightBackgroundMotion,
         difficultyLabel: request.document.meta.difficultyLabel });
       this.renderer = renderer;
       const rendererInit = renderer.init();

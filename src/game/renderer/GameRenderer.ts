@@ -122,6 +122,11 @@ export interface GameRendererOptions {
    * 끄면(게임 설정 `gearMotion` 끔) `gearMotion` 객체·텍스처를 만들지도 읽지도 않고 매 프레임 비용도 없다.
    */
   gearMotion?: boolean;
+  /**
+   * 게임 캔버스 뒤에 까는 비행 배경(`FlightBackground`, RFD 0100). 기본 켬이다.
+   * 끄면(게임 설정 `flightBackgroundMotion` 끔·튜토리얼 재생기) `FlightBackground`를 만들지도 그 에셋을 읽지도 않고, Pixi 캔버스를 스킨 테마 바탕색 `bg`로 불투명하게 칠한다.
+   * 고도는 그래도 기어 게이지가 있으면 프레임마다 계산해 게이지에 준다.
+   */
   showFlightBackground?: boolean;
   difficultyLabel?: string;
   showComboAndAccuracy?: boolean;

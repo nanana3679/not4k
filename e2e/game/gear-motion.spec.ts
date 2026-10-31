@@ -67,6 +67,8 @@ async function installProbe(page: Page) {
       if (grade === 'miss' && !win.__firstMissFrame) {
         win.__pendingMissAltitude = Number(document.querySelector<HTMLElement>('[data-flight-background]')?.dataset.altitude);
       }
+      // 비행 배경이 없는 플레이(Background Motion 끔)도 확인할 수 있게, 첫 Miss가 고도에 들어가기 직전의 게이지 채움을 따로 남긴다.
+      if (grade === 'miss' && win.__missGaugeLevel === undefined) win.__missGaugeLevel = this.gearGaugeLevel;
       return flightJudgment.call(this, grade);
     };
     const renderFrame = GameRenderer.prototype.renderFrame;
@@ -131,6 +133,15 @@ async function waitForMissFrame(page: Page): Promise<{ beforeAltitude: number; g
 }
 
 /**
+ * 첫 Miss 판정이 고도에 들어가기 직전의 게이지 채움(gearGaugeLevel)을 기다려 읽는다. waitForMissFrame은 `[data-flight-background]`의 고도를 읽어
+ * 비행 배경이 없으면 NaN이 되므로, Background Motion 끔 플레이는 이 값과 readProbe의 gaugeLevel만 비교한다.
+ */
+async function waitForMissGaugeLevel(page: Page): Promise<number | null> {
+  await page.waitForFunction(() => (window as unknown as Record<string, unknown>).__missGaugeLevel !== undefined, undefined, { timeout: 30000 });
+  return page.evaluate(() => (window as unknown as { __missGaugeLevel: number | null }).__missGaugeLevel);
+}
+
+/**
  * 게이지가 비행 배경 고도와 tolerance 안으로 붙을 때까지 requestAnimationFrame마다 확인한다. 끝은 벽시계도 프레임 수도 아닌
  * 게이지 이징이 실제로 나아간 시간(renderFrame 간격을 GEAR_MOTION_MAX_STEP_MS로 자른 합)이 easeBudgetMs에 이를 때로 정해,
  * 병렬 E2E 부하로 프레임이 드물어져도(한 프레임 최대 50ms) 주사율이 높아 프레임이 짧아도(한 프레임 몇 ms) 이징 양이 같다.
@@ -168,18 +179,20 @@ async function waitAnimationFrames(page: Page, count: number) {
   }), count);
 }
 
-async function startLocalPlay(page: Page, gearMotion: boolean, { waitForCanvas = true, missAtBeat = 100 }: { waitForCanvas?: boolean; missAtBeat?: number } = {}) {
+async function startLocalPlay(page: Page, gearMotion: boolean, { waitForCanvas = true, missAtBeat = 100, flightBackgroundMotion = true }: {
+  waitForCanvas?: boolean; missAtBeat?: number; flightBackgroundMotion?: boolean;
+} = {}) {
   await page.goto('/game');
   await page.getByRole('button', { name: 'Start', exact: true }).waitFor();
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await installProbe(page);
   await resetStatusLog(page);
-  await page.evaluate(async ({ motionOn, missAtBeat }) => {
+  await page.evaluate(async ({ motionOn, missAtBeat, backgroundOn }) => {
     const storePath = performance.getEntriesByType('resource').map(entry => entry.name)
       .find(url => new URL(url).pathname === '/src/game/stores/gameStore.ts') ?? '/src/game/stores/gameStore.ts';
     const { useGameStore }: typeof import('../../src/game/stores/gameStore') = await import(storePath);
     const state = useGameStore.getState();
-    state.updateSettings({ isFirstLaunch: false, renderHeight: 720, masterVolume: 0, gearMotion: motionOn });
+    state.updateSettings({ isFirstLaunch: false, renderHeight: 720, masterVolume: 0, gearMotion: motionOn, flightBackgroundMotion: backgroundOn });
     const document: import('../../src/shared/types/chart').ChartDocument = {
       meta: { title: 'Gear motion check', artist: 'Local', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
       notes: [{ type: 'tap', kind: 'single', lane: 1, beat: { n: missAtBeat, d: 1 } }],
@@ -190,7 +203,7 @@ async function startLocalPlay(page: Page, gearMotion: boolean, { waitForCanvas =
     const fixturePath = '/e2e/normalPlayFixture.ts';
     const { startNormalFixture } = await import(fixturePath) as typeof import('../normalPlayFixture');
     startNormalFixture(document, audioBuffer);
-  }, { motionOn: gearMotion, missAtBeat });
+  }, { motionOn: gearMotion, missAtBeat, backgroundOn: flightBackgroundMotion });
   if (waitForCanvas) await expect(page.getByTestId('gameplay-canvas')).toBeVisible({ timeout: 30_000 });
 }
 
@@ -363,4 +376,35 @@ test.describe('실제 플레이의 gearMotion(기어 위 장식 애니메이션)
       expect(errors).toEqual([]);
     });
   }
+});
+
+test.describe('실제 플레이의 Background Motion(비행 배경 움직임, RFD 0100)', () => {
+  test.describe.configure({ timeout: 90_000 });
+
+  test('Background Motion 끔(설정 flightBackgroundMotion false)·Gear Motion 켬: 실제 플레이에 비행 배경([data-flight-background])이 0개이고 /approach/·distant-architecture.png 배경 에셋을 요청하지 않으며, 기어 레이어 맨 위의 고도 게이지 1개는 고도를 계속 받아 10초 탭을 놓치면 Miss 직전보다 0.2 넘게 내려간다', async ({ page }) => {
+    const errors: string[] = [];
+    const requested: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('request', request => requested.push(new URL(request.url()).pathname));
+    await startLocalPlay(page, true, { missAtBeat: 20, flightBackgroundMotion: false });
+
+    await expect.poll(async () => (await readProbe(page)).frames, { timeout: 30_000 }).toBeGreaterThan(10);
+    const playing = await readProbe(page);
+    // `Gear Motion`은 따로 켜 둔 그대로라 gearMotion 객체가 2개다. 비행 배경이 없으니 배경 고도도 읽히지 않는다.
+    expect(playing).toMatchObject({ hasGear: true, gaugeObjects: 1, gaugeOnTop: true, motionObjects: 2, backgroundAltitude: null });
+    await expect(page.locator('[data-flight-background]')).toHaveCount(0);
+    // 비행 배경이 없어도 곡 진행에 따른 임시 고도(90초 곡 앞부분이라 1에 가깝다)를 게이지가 보여 준다.
+    expect(playing.gaugeLevel!).toBeGreaterThan(0.9);
+
+    const atMiss = await waitForMissGaugeLevel(page);
+    expect(atMiss).not.toBeNull();
+    // 곡 진행만으로는 90초 곡에서 초당 약 0.011 내려가 10초 동안 0.11에 그친다. 0.2 넘게 내려가면 게이지가 Miss의 0.24 하강을 받은 것이다.
+    await expect.poll(async () => (await readProbe(page)).gaugeLevel ?? 1, { timeout: 10_000 }).toBeLessThan(atMiss! - 0.2);
+
+    // Miss까지 플레이하는 동안 비행 배경을 만들지 않았고 그 에셋도 요청하지 않았다. 고도 게이지 빈 유리는 그대로 받는다.
+    await expect(page.locator('[data-flight-background]')).toHaveCount(0);
+    expect(requested.filter(path => path.includes('/approach/') || path.endsWith('/distant-architecture.png'))).toEqual([]);
+    expect(requested).toContain('/gear/gear-gauge-empty.png');
+    expect(errors).toEqual([]);
+  });
 });
