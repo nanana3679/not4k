@@ -12,7 +12,7 @@
 
 ### 튜토리얼
 
-**현재 곡 선택 팝업**: Basic 17개·Advanced 8개의 명시 정의를 `ExplicitJudgmentSession`으로 시연하며, 플레이어의 `judgmentMode` 판정 창을 따른다. `holdOnly` 전용 Advanced 4개는 목록에서 제외하고 남은 항목의 ID를 유지한다. 직접 입력 실습은 미구현이며 시연에 `inputOffsetMs`를 적용하지 않는다. 구형 목록·`NoteJudgmentSession` 재생 경로는 `/lab/note-assets`용으로 보존한다([튜토리얼 스펙](../spec/tutorial.md#곡-선택-도움말-팝업)).
+**현재 곡 선택 팝업**: Basic 17개·Advanced 8개의 명시 정의를 `ExplicitJudgmentSession`으로 시연하며, 플레이어의 `judgmentMode` 판정 창을 따른다. `holdOnly` 전용 Advanced 4개는 목록에서 제외하고 남은 항목의 ID를 유지한다. 점수 항목이 있는 24개는 목표 달성률 90%·누적 3회 성공의 직접 입력 실습을 제공하고, `trill-note`·`connected-trill-long`만 `goodTrill` 0회 조건을 더한다. 직접 입력에만 `inputOffsetMs`를 적용한다. 조건·진행도·다음 버튼·키 부족 안내는 구현했으며 항목 통과 기록 저장은 후속이다. 기존 열람 체크는 유지한다. 구형 목록·`NoteJudgmentSession` 재생 경로는 `/lab/note-assets`용으로 보존한다([튜토리얼 스펙](../spec/tutorial.md#곡-선택-도움말-팝업)).
 
 노트의 연주 방법과 판정 규칙을 배우는 선택적 학습 흐름이다. 입력을 배우는 항목은 시연을 본 뒤 제시된 동작이나 짧은 패턴을 직접 연주하여 항목별 요구 횟수만큼 누적 성공하면 통과한다. 실습 중 실패해도 이미 쌓인 성공 횟수는 유지하며 연속 성공을 요구하지 않는다. 단순 열람과 실습 통과는 구별하며, 튜토리얼 완료·통과를 차트 선택의 선행 조건으로 두지 않는다. 처음부터 도움말 모달을 바로 닫고 곡 선택을 이용할 수 있다([RFD 0081](../rfd/0081-tutorial-demonstration-and-three-practice-successes.md)).
 

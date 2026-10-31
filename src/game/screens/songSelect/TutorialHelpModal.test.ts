@@ -257,7 +257,7 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain("const diagramModalEnabled = slotState === 'active' || slotState === 'entering'");
     expect(tutorialHelpModalSource).toContain('diagramModalEnabled={diagramModalEnabled}');
     // 들어오는·대기 슬롯은 첫 프레임에서 멈춰 두고 active가 된 뒤 재생한다(tutorialPreviewSlots.test.ts).
-    expect(tutorialHelpModalSource).toContain('paused={!isTutorialPreviewSlotPlaying(slotState)}');
+    expect(tutorialHelpModalSource).toContain('paused={!isTutorialPreviewSlotPlaying(slotState) || practiceStopped}');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-standby');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-exiting');
     expect(tutorialHelpModalSource).toContain('not4k-tutorial-player-slot-entering');

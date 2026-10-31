@@ -34,7 +34,7 @@ function isControlInput(event: KeyboardEvent): boolean {
   return false;
 }
 
-/** offset은 적용하지 않는다. pause·도식 재개의 보정은 재생기가 소유한 loopStartNow에 이미 반영돼 있다. */
+/** pause·도식 재개의 보정은 재생기가 소유한 loopStartNow에 이미 반영돼 있다. */
 export function getExplicitTutorialInputTime(timestamp: number, loopStartNow: number, loopMs: number) {
   const elapsedMs = Math.max(0, timestamp - loopStartNow);
   const iteration = Math.floor(elapsedMs / loopMs);
@@ -46,11 +46,13 @@ export function createExplicitTutorialInput(
   playback: ExplicitTutorialPreviewPlayback,
   bindings: readonly KeyBinding[],
   loopMs: number,
-  getClock: () => { loopStartNow: number; blocked: boolean },
-  onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => void,
+  getClock: () => { loopStartNow: number; blocked: boolean; inputOffsetMs?: number },
+  // 다음 패턴의 입력보다 먼저 적용한다. false는 방법 완료로 반복을 멈춘다.
+  onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => TutorialInputMode | false | void,
   ownsKeyboardInput: (event: KeyboardEvent) => boolean = () => true,
 ) {
   let mode: TutorialInputMode = 'demonstration';
+  let boundaryStopped = false;
   let iteration = 0;
   let lastElapsedMs = 0;
   let pendingBoundary: { iteration: number; elapsedMs: number; observedElapsedMs: number; blocked: boolean } | null = null;
@@ -59,7 +61,11 @@ export function createExplicitTutorialInput(
   const ownsEvent = (event: KeyboardEvent) => ownsKeyboardInput(event) && !isControlInput(event);
   const heldByKey = new Map<string, ExplicitHeldKey>();
   const unownedReleases: { at: number; key: string }[] = [];
-  const inputTime = (timestamp: number) => getExplicitTutorialInputTime(timestamp, getClock().loopStartNow, loopMs).elapsedMs;
+  // GameClock과 같은 부호: 늦은 입력은 음수 offset으로 앞당긴다. 프레임·시연 시간은 옮기지 않는다.
+  const inputTime = (timestamp: number) => {
+    const clock = getClock();
+    return getExplicitTutorialInputTime(timestamp + (clock.inputOffsetMs ?? 0), clock.loopStartNow, loopMs).elapsedMs;
+  };
   const source = createExplicitPlayInput(bindings.filter(binding => binding.key !== "Escape"), {
     toInputTimeMs: inputTime,
   }, {
@@ -81,7 +87,7 @@ export function createExplicitTutorialInput(
     if (pendingBoundary && blocked) pendingBoundary.blocked = true;
     if (pendingBoundary?.blocked && !blocked) finishPendingBoundary();
     // 경계를 관측한 다음 프레임까지는 늦게 전달된 이전 패턴 입력도 수집한다.
-    const enabled = mode === "directInput" && (!blocked || pendingBoundary !== null);
+    const enabled = mode === "directInput" && !boundaryStopped && (!blocked || pendingBoundary !== null);
     if (enabled === judging) return;
     judging = enabled;
     source.setJudging(enabled, getClock().loopStartNow + lastElapsedMs);
@@ -120,7 +126,13 @@ export function createExplicitTutorialInput(
     flush(nextIteration * loopMs, false);
     const finished = playback.finishPattern(mode === 'directInput' ? [...heldByKey.values()] : undefined);
     iteration = nextIteration;
-    onPatternFinished?.(finished);
+    const continuation = onPatternFinished?.(finished);
+    if (continuation === false) {
+      boundaryStopped = true;
+      syncJudging();
+      return finished;
+    }
+    if (continuation) setMode(continuation);
     flush(elapsedMs);
     playback.advanceTo(Math.max(0, elapsedMs - iteration * loopMs));
     return finished;
@@ -152,6 +164,19 @@ export function createExplicitTutorialInput(
     target?.removeEventListener('keyup', reserveLaneKey, { capture: true });
     target = null;
   };
+  const setMode = (next: TutorialInputMode) => {
+    if (mode === next) return;
+    finishPendingBoundary();
+    boundaryStopped = false;
+    mode = next;
+    source.setJudging(false);
+    unownedReleases.length = 0;
+    judging = false;
+    heldByKey.clear();
+    for (const key of source.heldKeys) heldByKey.set(key.key, key);
+    playback.setInputMode(mode, source.heldKeys);
+    syncJudging();
+  };
   return {
     get heldKeys() { return source.heldKeys; },
     syncJudging,
@@ -171,22 +196,13 @@ export function createExplicitTutorialInput(
       target.addEventListener('keydown', reserveLaneKey, { capture: true });
       target.addEventListener('keyup', reserveLaneKey, { capture: true });
     },
-    setMode(next: TutorialInputMode) {
-      if (mode === next) return;
-      finishPendingBoundary();
-      mode = next;
-      source.setJudging(false);
-      unownedReleases.length = 0;
-      judging = false;
-      heldByKey.clear();
-      for (const key of source.heldKeys) heldByKey.set(key.key, key);
-      playback.setInputMode(mode, source.heldKeys);
-      syncJudging();
-    },
+    setMode,
     advanceTo(elapsedMs: number, frame?: ExplicitTutorialInputFrame) {
+      if (boundaryStopped) return;
       const observedElapsedMs = elapsedMs;
       let finished = pendingBoundary && elapsedMs > pendingBoundary.observedElapsedMs
         ? finishPendingBoundary() : undefined;
+      if (boundaryStopped) return finished;
       // 새 도식이 걸린 프레임도 직전 반복의 큐·경계는 정산한다. 키 이벤트는 항상 현재 getClock을 쓴다.
       const blocked = frame?.blocked ?? getClock().blocked;
       syncJudging(blocked);
@@ -206,6 +222,7 @@ export function createExplicitTutorialInput(
           return finished;
         }
         finished = finishBoundary(loop.iteration, elapsedMs);
+        if (boundaryStopped) return finished;
       }
       flush(elapsedMs);
       playback.advanceTo(Math.max(0, elapsedMs - iteration * loopMs));

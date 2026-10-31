@@ -14,6 +14,8 @@ import { createExplicitTutorialRenderSnapshotQuery } from './explicitTutorialRen
 import { createExplicitTutorialRenderChart } from './explicitTutorialRenderChart';
 import type { TutorialInputTiming } from './tutorialPreviewChart';
 
+import type { ScoreState } from '../../scoring/ScoreManager';
+
 export type TutorialInputMode = 'demonstration' | 'directInput';
 
 /** 반복 경계에서 끝난 패턴 한 차례를 controller가 정산한 결과 */
@@ -46,6 +48,8 @@ export interface ExplicitTutorialPreviewPlayback {
 export interface ExplicitTutorialPreviewPlaybackOptions {
   /** 호출자가 판정 창을 지정한다. 팝업·Lab 재생기는 설정의 judgmentMode를 전달하고, 생략한 독립 호출은 Normal을 쓴다. */
   readonly windows?: JudgmentWindows;
+  /** 세션 준비와 확정 효과가 생긴 때만 알린다. 프레임별 점수 복사·React 갱신을 하지 않는다. */
+  readonly onScoreChanged?: (score: Readonly<ScoreState>, combo: number) => void;
 }
 
 /** 재생기가 현재 바인딩으로 옮긴 `tutorialInput` 구간을 명시 controller의 시연 입력 계획으로 바꾼다. */
@@ -69,9 +73,16 @@ export function createExplicitTutorialPreviewPlayback(
   const controller = createExplicitTutorialPreviewSessionController(preview.chart, plan, {
     windows: options.windows ?? JUDGMENT_WINDOWS,
     // 반복마다 새 sink를 만들어 이전 반복의 효과가 다음 반복에 붙지 않게 한다. 렌더러는 snapshot 조회로 따로 그린다.
-    createPresentation: () => {
+    createPresentation: session => {
       const sink = new ExplicitJudgmentEffectSink(effects);
-      return { applyConfirmedEffects: confirmed => sink.applyConfirmedEffects(confirmed), dispose() {} };
+      options.onScoreChanged?.(session.score, session.combo);
+      return {
+        applyConfirmedEffects: confirmed => {
+          sink.applyConfirmedEffects(confirmed);
+          if (confirmed.length) options.onScoreChanged?.(session.score, session.combo);
+        },
+        dispose() {},
+      };
     },
   });
   // controller가 한 번 compile한 원본을 재사용한다. 표시용 3벌 문서는 하나의 판정 차트로 검증하지 않는다.

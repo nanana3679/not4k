@@ -452,3 +452,63 @@ it('2016ms에 경계 정산까지 마친 뒤 옛 timestamp 3000ms down이 오면
   expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
   input.stop();
 });
+
+
+it.each([
+  { inputOffsetMs: 100, timestamp: 1400 },
+  { inputOffsetMs: -100, timestamp: 1600 },
+])('직접 입력 offset $inputOffsetMs ms에서 실제 $timestamp ms에 누르면 500ms 탭은 Perfect 1', ({ inputOffsetMs, timestamp }) => {
+  const { input, target, clock, effects } = setup();
+  Object.assign(clock, { inputOffsetMs });
+  input.setMode('directInput');
+  keyboard(target, 'keydown', 'KeyE', timestamp);
+  input.advanceTo(500);
+  expect(effects.recordFlightJudgment).toHaveBeenCalledExactlyOnceWith('perfect');
+  input.stop();
+});
+
+it.each([-137, 137])('시연 offset %i ms여도 자동 입력은 Perfect 3·Miss 0', inputOffsetMs => {
+  const { input, clock } = setup();
+  Object.assign(clock, { inputOffsetMs });
+  const finished = input.advanceTo(2000);
+  expect(finished?.result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  input.stop();
+});
+
+it('완료 콜백이 false를 반환하면 다음 패턴의 0ms 탭도 시작하지 않고 시연 선택 후에만 재개한다', () => {
+  const preview = createExplicitTutorialPreview('start-tap', '시작 탭', [], 4, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [{ type: 'tap', kind: 'single', lane: 2, beat: beat(0) }],
+    events: [{ type: 'bpm', beat: beat(0), bpm: 120 }],
+  });
+  const effects = { showJudgmentGroup: vi.fn(), recordFlightJudgment: vi.fn(), showBombEffect: vi.fn() };
+  const playback = createExplicitTutorialPreviewPlayback(preview, { kind: 'auto' }, effects);
+  const finish = vi.fn(() => false as const);
+  const input = createExplicitTutorialInput(playback, [], 2000, () => ({ loopStartNow: 1000, blocked: false }), finish);
+  input.advanceTo(0);
+  input.advanceTo(2001);
+  input.advanceTo(6001);
+  expect(finish).toHaveBeenCalledTimes(1);
+  expect(effects.recordFlightJudgment).toHaveBeenCalledExactlyOnceWith('perfect');
+  input.setMode('directInput');
+  input.setMode('demonstration');
+  input.advanceTo(2002);
+  expect(effects.recordFlightJudgment).toHaveBeenCalledTimes(2);
+  input.stop();
+});
+
+it('반복 종료 콜백이 demonstration을 반환하면 다음 0ms 탭은 같은 프레임에 시연 Perfect로 처리한다', () => {
+  const preview = createExplicitTutorialPreview('start-tap', '시작 탭', [], 4, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [{ type: 'tap', kind: 'single', lane: 2, beat: beat(0) }],
+    events: [{ type: 'bpm', beat: beat(0), bpm: 120 }],
+  });
+  const effects = { showJudgmentGroup: vi.fn(), recordFlightJudgment: vi.fn(), showBombEffect: vi.fn() };
+  const playback = createExplicitTutorialPreviewPlayback(preview, { kind: 'auto' }, effects);
+  const input = createExplicitTutorialInput(playback, [], 2000, () => ({ loopStartNow: 1000, blocked: false }), () => 'demonstration');
+  input.setMode('directInput');
+  input.advanceTo(2000);
+  input.advanceTo(2016);
+  expect(effects.recordFlightJudgment.mock.calls.map(([grade]) => grade)).toEqual(['miss', 'perfect']);
+  input.stop();
+});

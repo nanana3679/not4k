@@ -251,3 +251,19 @@ describe('명시 튜토리얼 재생의 판정 창과 수명', () => {
     expect(() => playback.finishPattern()).toThrow('dispose');
   });
 });
+
+it('정산 전 여러 프레임은 점수 알림을 만들지 않고 500ms 탭 정산에서 점수·콤보를 1회 알린다', () => {
+  const onScoreChanged = vi.fn();
+  const { playback } = createDemo(demoChart(), { onScoreChanged });
+  expect(onScoreChanged).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ processedNotes: 0 }), 0);
+  onScoreChanged.mockClear();
+  for (const ms of [0, 100, 200, 400]) playback.advanceTo(ms);
+  expect(onScoreChanged).not.toHaveBeenCalled();
+  playback.advanceTo(500);
+  expect(onScoreChanged).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ processedNotes: 1, earnedScore: 3 }), 1);
+  playback.advanceTo(510);
+  expect(onScoreChanged).toHaveBeenCalledTimes(1);
+  playback.finishPattern();
+  expect(onScoreChanged).toHaveBeenLastCalledWith(expect.objectContaining({ processedNotes: 0 }), 0);
+  playback.stop();
+});

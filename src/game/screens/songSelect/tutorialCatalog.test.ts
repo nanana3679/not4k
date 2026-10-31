@@ -48,3 +48,17 @@ describe('튜토리얼 Basic / Advanced 분류', () => {
     expect(JSON.parse(value)).toEqual(retainedIds);
   });
 });
+
+
+it('점수 있는 24항목은 목표 90%·누적 3회·방법 1개이고 trill-note와 connected-trill-long만 goodTrill 0회를 요구한다', () => {
+  expect(ALL_TUTORIAL_PREVIEWS[0].practice).toBeUndefined();
+  for (const item of ALL_TUTORIAL_PREVIEWS.slice(1)) {
+    expect(item.practice, item.id).toMatchObject({
+      requiredSuccessCount: 3,
+      playingMethods: [{ id: 'default' }],
+      conditions: [{ kind: 'targetAchievementRate', percent: 90 },
+        ...(['trill-note', 'connected-trill-long'].includes(item.id)
+          ? [{ kind: 'maxGoodTrillCount', count: 0 }] : [])],
+    });
+  }
+});
