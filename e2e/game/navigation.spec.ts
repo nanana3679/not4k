@@ -145,10 +145,9 @@ test.describe('Game Navigation', () => {
     await expect.poll(() => page.evaluate(() =>
       JSON.parse(localStorage.getItem('not4k-settings')!).state.shouldOpenFirstLaunchTutorialModal)).toBe(false);
 
+    // 화면은 저장하지 않으므로 새로고침 뒤에는 타이틀에서 다시 시작한다.
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Song Select' }).or(page.getByRole('button', { name: 'Start' })).first())
-      .toBeVisible();
-    if (await page.getByRole('button', { name: 'Start' }).isVisible()) await page.getByRole('button', { name: 'Start' }).click();
+    await page.getByRole('button', { name: 'Start' }).click();
     await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
     await expect(dialog).toHaveCount(0);
   });
