@@ -83,7 +83,7 @@ React 19 (DOM)                    PixiJS v8 (WebGL Canvas)
 | Supabase 기능 | not4k에서의 용도 |
 |--------------|-----------------|
 | **Auth** | Google OAuth 로그인 + Anonymous Auth(비로그인 플레이) |
-| **Database** (PostgreSQL) | 유저 프로필, 플레이 기록, 차트별 랭킹, 차트 메타데이터 |
+| **Database** (PostgreSQL) | 유저 프로필, 플레이 기록, 차트별 랭킹, 차트 메타데이터, 튜토리얼 통과 기록 |
 | **Storage** | 음원 파일, 차트 JSON, 자켓 이미지, 프리뷰 음원 |
 | **Edge Functions** | (필요 시) 랭킹 집계, 차트 유효성 검증 등 서버사이드 로직 |
 
@@ -97,6 +97,10 @@ React 19 (DOM)                    PixiJS v8 (WebGL Canvas)
   - 랭킹 등록 불가 → 동일
   - 설정 서버 동기화 불가 → 동일
 - **비로그인 → 로그인 전환**: `linkIdentity()`로 Anonymous 유저에 Google 계정을 연결. 유저가 게임을 체험한 후 자발적으로 로그인하는 `game-core.md`의 흐름과 일치.
+
+### 튜토리얼 통과 기록
+
+`tutorial_passes`는 계정·항목별 통과와 최초 서버 저장 시각을, `tutorial_guest_handoffs`는 계정당 한 번의 게스트 인계와 재확인 영수증을 저장한다. 비익명 본인 행만 조회·통과 INSERT를 허용하며, 마커는 권한을 제한한 `handoff_tutorial_passes` RPC에서 통과와 같은 트랜잭션으로 만든다. `20261031000000_tutorial_pass_account_sync.sql`은 추가했지만 DB에 적용하지 않았다. 로컬 캐시·실패 처리는 [튜토리얼 스펙](tutorial.md#통과-기록과-재진입)을 따른다.
 
 ### Storage: 차트·음원의 로딩과 재생 준비
 

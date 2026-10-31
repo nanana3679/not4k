@@ -10,6 +10,10 @@ import { createExplicitTutorialPreview } from './explicitTutorialPreviewChart';
 import { createTutorialPracticeSpec } from './tutorialPractice';
 import { ALL_TUTORIAL_PREVIEWS } from './tutorialCatalog';
 import { getTutorialInputTimings } from './tutorialPreviewChart';
+import { useTutorialPassRecords } from './useTutorialPassRecords';
+
+const client = vi.hoisted(() => ({ from: vi.fn(), select: vi.fn(), eq: vi.fn(), upsert: vi.fn(), rpc: vi.fn() }));
+vi.mock('../../../supabase/client', () => ({ supabase: client }));
 
 // 기존 Lab 상호작용 테스트처럼 DOM/Pixi 없이 React 이벤트와 실제 reducer를 실행한다.
 // effect 수명과 ref도 보존해 캐러셀 전환·키보드 핸들러를 함께 검사한다.
@@ -25,6 +29,7 @@ vi.mock('react', async original => {
     return (hooks.slots[index] as { value: unknown }).value;
   };
   return { ...react,
+    useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
     useState(initial: unknown) {
       const index = hooks.cursor++;
       if (!(index in hooks.slots)) hooks.slots[index] = typeof initial === 'function' ? initial() : initial;
@@ -71,9 +76,14 @@ const initialSettings = useGameStore.getState().settings;
 let onClose = vi.fn();
 let onItemPassed = vi.fn();
 let valueByKey: Map<string, string>;
+let authUserId: string | null;
+let authLoading: boolean;
+let modalOpen: boolean;
+const PassRecordsHarness = () => useTutorialPassRecords(authUserId, authLoading, modalOpen);
 function renderModal(isAdmin = false) {
   hooks.cursor = 0;
-  const nodes = elements(TutorialHelpModal({ onClose, onItemPassed, isAdmin }));
+  const passRecords = PassRecordsHarness();
+  const nodes = elements(TutorialHelpModal({ onClose, onItemPassed, isAdmin, passRecords }));
   hooks.effects.splice(0).forEach(effect => effect());
   return {
     nodes,
@@ -121,6 +131,12 @@ beforeEach(() => {
   vi.useFakeTimers();
   hooks.cursor = 0; hooks.slots = []; hooks.effects = []; hooks.cleanups = [];
   onClose = vi.fn(); onItemPassed = vi.fn();
+  authUserId = null; authLoading = false; modalOpen = true;
+  client.from.mockReset().mockReturnValue(client);
+  client.select.mockReset().mockReturnValue(client);
+  client.eq.mockReset().mockResolvedValue({ data: [], error: null });
+  client.upsert.mockReset().mockResolvedValue({ error: null });
+  client.rpc.mockReset().mockResolvedValue({ data: true, error: null });
   useGameStore.setState({ settings: initialSettings, settingsOpen: false });
   const target = new EventTarget();
   valueByKey = new Map();
@@ -140,6 +156,48 @@ afterEach(() => {
   vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.useRealTimers();
 });
 
+it('팝업이 닫힌 채 A로 로그인해도 게스트 single-note를 인계하고 열면 서버 double-note와 함께 보이며 로그아웃에는 숨긴다', async () => {
+  vi.stubGlobal('navigator', { locks: { request: (_name: string, run: () => unknown) => Promise.resolve(run()) } });
+  valueByKey.set('not4k-tutorial-passed-ids', '["single-note"]');
+  client.eq.mockResolvedValue({ data: [{ tutorial_id: 'double-note' }], error: null });
+  modalOpen = false;
+  renderModal();
+  authUserId = 'A';
+  renderModal();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.rpc).toHaveBeenCalledTimes(1);
+  modalOpen = true;
+  expect(renderModal().passedIds).toEqual(['single-note', 'double-note']);
+  await vi.advanceTimersByTimeAsync(0);
+  expect(client.eq).toHaveBeenCalledTimes(2);
+  expect(renderModal().button('Reset Passed')).toBeUndefined();
+  authUserId = null;
+  expect(renderModal().passedIds).toEqual([]);
+  authUserId = 'B';
+  expect(renderModal().passedIds).toEqual([]);
+  await vi.advanceTimersByTimeAsync(0);
+});
+
+it('인증 확인 중 single-note를 3회 성공하면 게스트에 쓰지 않고 A 확인 뒤 A의 캐시와 서버에만 저장한다', async () => {
+  authLoading = true;
+  openLesson().click('직접 입력');
+  let page = renderModal();
+  for (let iteration = 1; iteration <= 3; iteration++) {
+    page.player().onPatternStarted?.(iteration);
+    page.player().onPatternFinished?.(result());
+    page = renderModal();
+  }
+  expect(window.localStorage.setItem).not.toHaveBeenCalled();
+  authUserId = 'A'; authLoading = false;
+  renderModal();
+  await vi.advanceTimersByTimeAsync(0);
+  expect(renderModal().passedIds).toEqual(['single-note']);
+  expect(client.upsert).toHaveBeenCalledWith({ user_id: 'A', tutorial_id: 'single-note' }, expect.any(Object));
+  expect(JSON.parse(valueByKey.get('not4k-tutorial-pass-state')!).guestIds).toEqual([]);
+  authUserId = null;
+  expect(renderModal().passedIds).toEqual([]);
+});
+
 it('single-note가 2/3에서 3/3이 되면 1회 저장하고 목록 체크가 즉시 나타나며 중복 완료는 다시 저장하지 않는다', () => {
   openLesson().click('직접 입력');
   let page = renderModal();
@@ -156,7 +214,7 @@ it('single-note가 2/3에서 3/3이 되면 1회 저장하고 목록 체크가 �
   page = renderModal();
   expect(page.passedIds).toEqual(['single-note']);
   expect(window.localStorage.setItem).toHaveBeenCalledExactlyOnceWith(
-    'not4k-tutorial-passed-ids', '["single-note"]',
+    'not4k-tutorial-pass-state', JSON.stringify({ guestIds: ['single-note'], accountPassedIdsByUser: {}, pendingHandoff: null }),
   );
   page.player().onPatternFinished?.(result());
   renderModal();
@@ -167,8 +225,8 @@ it('single-note가 2/3에서 3/3이 되면 1회 저장하고 목록 체크가 �
   expect(page.passedIds).toEqual([]);
   page.player().onPatternFinished?.(result());
   expect(renderModal().passedIds).toEqual([]);
-  expect(valueByKey.has('not4k-tutorial-passed-ids')).toBe(false);
-  expect(window.localStorage.setItem).toHaveBeenCalledTimes(1);
+  expect(JSON.parse(valueByKey.get('not4k-tutorial-pass-state')!).guestIds).toEqual([]);
+  expect(window.localStorage.setItem).toHaveBeenCalledTimes(2);
 });
 
 it('single-note·알 수 없는 ID·기존 viewed 기록으로 목록을 열면 single-note만 체크하고 시연·항목 이동은 저장하지 않는다', () => {
@@ -225,7 +283,7 @@ it('single-note를 새로 통과한 뒤 실패·재방문·재개방·재통과�
   expect(page.passedIds).toEqual(['single-note']);
   expect(onItemPassed).toHaveBeenCalledTimes(2);
   expect(window.localStorage.setItem).toHaveBeenCalledExactlyOnceWith(
-    'not4k-tutorial-passed-ids', '["future-lesson","single-note"]',
+    'not4k-tutorial-pass-state', JSON.stringify({ guestIds: ['future-lesson', 'single-note'], accountPassedIdsByUser: {}, pendingHandoff: null }),
   );
 });
 
@@ -245,13 +303,13 @@ it('통과 기록과 viewed·설정이 있을 때 Reset Passed를 누르면 모�
   expect(renderModal().passedIds).toEqual([]);
   renderModal().click('Advanced');
   expect(settle().passedIds).toEqual([]);
-  expect([...valueByKey]).toEqual([
-    ['not4k-tutorial-viewed-ids', '["double-note"]'], ['not4k-settings', '{"volume":0.5}'],
-  ]);
+  expect(valueByKey.get('not4k-tutorial-viewed-ids')).toBe('["double-note"]');
+  expect(valueByKey.get('not4k-settings')).toBe('{"volume":0.5}');
+  expect(JSON.parse(valueByKey.get('not4k-tutorial-pass-state')!).guestIds).toEqual([]);
   hooks.cleanups.forEach(cleanup => cleanup?.());
   hooks.slots = []; hooks.cleanups = []; hooks.effects = [];
   expect(renderModal().passedIds).toEqual([]);
-  expect(window.localStorage.setItem).not.toHaveBeenCalled();
+  expect(window.localStorage.setItem).toHaveBeenCalledTimes(1);
 });
 
 it('손배치에는 토글이 없고 싱글 노트의 시연 중 직접 입력을 선택하면 즉시 player inputMode만 바뀌며 현재 패턴은 0/3이다', () => {

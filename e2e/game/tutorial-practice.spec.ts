@@ -74,7 +74,7 @@ test('Basic single-note를 실제 키로 3회 성공하면 실습을 멈추고 �
   await expect(condition.getByLabel('충족')).toHaveText('✓');
   await expect(player).toHaveAttribute('data-tutorial-paused', 'true');
   await expect(item.getByLabel('Passed tutorial')).toHaveText('✓');
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-tutorial-passed-ids') ?? '[]')))
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-tutorial-pass-state')!).guestIds))
     .toEqual(['single-note']);
   await expect(dialog.locator('[data-tutorial-index-item="single-note"]')).toHaveAttribute('aria-current', 'step');
   await dialog.getByRole('button', { name: '다음', exact: true }).click();
