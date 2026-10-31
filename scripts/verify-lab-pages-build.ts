@@ -11,6 +11,7 @@ const requiredPaths = [
   "lab/note-assets/index.html",
   "lab/explicit-renderer/index.html",
   "lab/explicit-playtest/index.html",
+  "lab/tutorial-explicit-player/index.html",
   "lab/rest-zone-lane/index.html",
   "lab/gear/index.html",
   "lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg",

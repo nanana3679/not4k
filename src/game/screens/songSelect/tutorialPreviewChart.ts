@@ -1,4 +1,4 @@
-import type { Beat, Chart, ChartEvent, NoteEntity, RestZone, TrillZone, TutorialDiagramEvent, TutorialInputEvent } from '../../../shared/types';
+import type { Beat, Chart, ChartDocument, ChartEvent, NoteEntity, RestZone, TrillZone, TutorialDiagramEvent, TutorialInputEvent } from '../../../shared/types';
 import { beat, beatAdd } from '../../../shared/types/beat';
 import { beatToMs, extractBpmChanges } from '../../../shared/timing';
 
@@ -721,15 +721,15 @@ export const TUTORIAL_PREVIEWS: readonly TutorialPreviewDefinition[] = [
 export const TUTORIAL_PREVIEW_CHART = TUTORIAL_PREVIEWS[0].chart;
 export const TUTORIAL_PREVIEW_RENDER_CHART = TUTORIAL_PREVIEWS[0].renderChart;
 
-export function getTutorialInputEvents(chart: Chart = TUTORIAL_PREVIEW_CHART): TutorialInputEvent[] {
+export function getTutorialInputEvents(chart: ChartDocument = TUTORIAL_PREVIEW_CHART): TutorialInputEvent[] {
   return chart.events.filter((event): event is TutorialInputEvent => event.type === 'tutorialInput');
 }
 
-export function getTutorialDiagramEvents(chart: Chart = TUTORIAL_PREVIEW_CHART): TutorialDiagramEvent[] {
+export function getTutorialDiagramEvents(chart: ChartDocument = TUTORIAL_PREVIEW_CHART): TutorialDiagramEvent[] {
   return chart.events.filter((event): event is TutorialDiagramEvent => event.type === 'tutorialDiagram');
 }
 
-export function getTutorialInputTimings(chart: Chart = TUTORIAL_PREVIEW_CHART): TutorialInputTiming[] {
+export function getTutorialInputTimings(chart: ChartDocument = TUTORIAL_PREVIEW_CHART): TutorialInputTiming[] {
   const bpmChanges = extractBpmChanges(chart.events);
   return getTutorialInputEvents(chart).map((event) => ({
     event,
@@ -738,7 +738,7 @@ export function getTutorialInputTimings(chart: Chart = TUTORIAL_PREVIEW_CHART): 
   }));
 }
 
-export function getTutorialDiagramTimings(chart: Chart = TUTORIAL_PREVIEW_CHART): TutorialDiagramTiming[] {
+export function getTutorialDiagramTimings(chart: ChartDocument = TUTORIAL_PREVIEW_CHART): TutorialDiagramTiming[] {
   const bpmChanges = extractBpmChanges(chart.events);
   return getTutorialDiagramEvents(chart).map((event) => ({
     event,
