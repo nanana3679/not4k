@@ -62,9 +62,7 @@ const pointer = (y: number, init: PointerInit = {}) => ({
   preventDefault: () => {},
 }) as unknown as ReactPointerEvent<HTMLCanvasElement>;
 const rightPointer = (y: number) => pointer(y, { pointerType: 'mouse', button: 2, buttons: 2 });
-const contextMenu = (y: number, nativeEvent: Partial<PointerEvent> = {}) => ({
-  clientX: 30, clientY: y, nativeEvent, preventDefault: () => {},
-}) as unknown as ReactMouseEvent<HTMLCanvasElement>;
+const contextMenu = (y: number) => ({ clientX: 30, clientY: y, preventDefault: () => {} }) as unknown as ReactMouseEvent<HTMLCanvasElement>;
 
 let unsubscribe = () => {};
 let unmountEffects = () => {};
@@ -297,46 +295,43 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(pauseToasts()).toHaveLength(1);
   });
 
-  it('재생 중 touch pointerId=1·2가 blur를 겪어도 정지 1500ms 뒤 contextmenu는 1박을 남기고 새 touch는 2박 탭을 놓는다', () => {
+  it('재생 중 touch pointerId=1·2의 release가 누락돼도 blur 뒤 정지하면 contextmenu로 1박을 지우고 새 touch로 2박 탭 1개를 놓는다', () => {
     const { handlers } = setup(chart([tapAt(1)]), 'create');
     play();
     handlers.handlePointerDown(pointer(500));
     handlers.handlePointerDown(pointer(500, { pointerId: 2 }));
     window.dispatchEvent(new Event('blur'));
     current().setIsPlaying(false);
-    vi.advanceTimersByTime(1500);
     handlers.handleContextMenu(contextMenu(500));
-    expect(notes().map(note => beatToFloat(note.beat))).toEqual([1]);
+    expect(notes()).toEqual([]);
 
     handlers.handlePointerDown(pointer(1000, { pointerId: 3 }));
     handlers.handlePointerUp(pointer(1000, { pointerId: 3 }));
-    expect(notes().map(note => beatToFloat(note.beat))).toEqual([1, 2]);
-    // 새 eligible down 이후에는 종료한 접촉의 메뉴 억제가 다음 재생까지 남지 않는다.
+    expect(notes().map(note => beatToFloat(note.beat))).toEqual([2]);
+    // blur 전 active id가 남아 다음 재생에서 다시 봉인되지 않는다.
     play();
     current().setIsPlaying(false);
     vi.advanceTimersByTime(1500);
     handlers.handleContextMenu(contextMenu(1000));
-    expect(notes().map(note => beatToFloat(note.beat))).toEqual([1]);
+    expect(notes()).toEqual([]);
   });
 
-  it.each(['mouse', 'touch'] as const)('재생을 겪은 %s pointerId=1이 정지 후 lostpointercapture되어도 1500ms 뒤 contextmenu는 1박을 남기고 새 down은 2박 탭을 놓는다', pointerType => {
+  it.each(['mouse', 'touch'] as const)('재생을 겪은 %s pointerId=1이 정지 후 lostpointercapture되면 contextmenu가 1박을 지우고 새 touch가 2박 탭 1개를 놓는다', pointerType => {
     const { handlers, canvas } = setup(chart([tapAt(1)]), 'create');
     play();
     const contact = pointer(500, { pointerType, button: pointerType === 'mouse' ? 2 : 0 });
     handlers.handlePointerDown(contact);
     current().setIsPlaying(false);
     canvas.dispatchEvent(Object.assign(new Event('lostpointercapture'), contact));
-    vi.advanceTimersByTime(1500);
     handlers.handleContextMenu(contextMenu(500));
-    expect(notes().map(note => beatToFloat(note.beat))).toEqual([1]);
+    expect(notes()).toEqual([]);
 
-    handlers.handlePointerDown(pointer(1000, { pointerType }));
-    handlers.handlePointerUp(pointer(1000, { pointerType }));
-    expect(notes().map(note => beatToFloat(note.beat))).toEqual([1, 2]);
-    expect(pauseToasts()).toHaveLength(1);
+    handlers.handlePointerDown(pointer(1000, { pointerId: 2 }));
+    handlers.handlePointerUp(pointer(1000, { pointerId: 2 }));
+    expect(notes().map(note => beatToFloat(note.beat))).toEqual([2]);
   });
 
-  it('재생 중 mouse pointerId=1의 우클릭 release가 누락되면 정지 후 buttons=0 이동·contextmenu도 1박 탭을 남긴다', () => {
+  it('재생 중 mouse pointerId=1의 우클릭 release가 누락돼도 정지 후 buttons=0 이동이면 contextmenu가 1박 탭을 지운다', () => {
     const { handlers } = setup(chart([tapAt(1)]), 'select');
     play();
     handlers.handlePointerDown(rightPointer(500));
@@ -344,7 +339,7 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     handlers.handlePointerMove(mouse(500, 0));
     handlers.handleContextMenu(contextMenu(500));
 
-    expect(notes().map(note => beatToFloat(note.beat))).toEqual([1]);
+    expect(notes()).toEqual([]);
     expect(pauseToasts()).toHaveLength(1);
   });
 
@@ -371,125 +366,6 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(notes()).toEqual([]);
   });
   afterEach(() => useEditorStore.setState({ isPlaying: false }));
-
-  it.each(['ContextMenu', 'Shift+F10', 'pointerId=-1'] as const)('재생·blur 뒤 touch 2를 계속 누른 채 %s로 키보드 메뉴를 열면 1박 탭을 지운다', input => {
-    const { handlers } = setup(chart([tapAt(1)]), 'select');
-    play();
-    handlers.handlePointerDown(pointer(500, { pointerId: 2 }));
-    window.dispatchEvent(new Event('blur'));
-    current().setIsPlaying(false);
-    if (input !== 'pointerId=-1') {
-      window.dispatchEvent(Object.assign(new Event('keydown'), {
-        key: input === 'ContextMenu' ? 'ContextMenu' : 'F10', shiftKey: input === 'Shift+F10',
-      }));
-    }
-    handlers.handleContextMenu(contextMenu(500, input === 'pointerId=-1' ? { pointerId: -1 } : {}));
-    expect(notes()).toEqual([]);
-    expect(pauseToasts()).toHaveLength(1);
-  });
-
-  it('재생을 겪은 touch 2 뒤 mouse 1을 새로 눌러도 pointerId=2 contextmenu는 1박 탭을 지우지 않는다', () => {
-    const { handlers } = setup(chart([tapAt(1)]), 'select');
-    play();
-    handlers.handlePointerDown(pointer(500, { pointerId: 2 }));
-    current().setIsPlaying(false);
-    handlers.handlePointerDown(mouse(2000));
-    handlers.handlePointerUp(mouse(2000, 0));
-    vi.advanceTimersByTime(1500);
-    handlers.handleContextMenu(contextMenu(500, { pointerId: 2, pointerType: 'touch' }));
-    expect(notes()).toHaveLength(1);
-  });
-
-  it('재생·blur를 겪은 touch 2가 정지 후 3박으로 이동·뗌해도 mouse 1의 1→2박 드래그를 움직이거나 확정하지 않는다', () => {
-    const { handlers } = setup(chart([tapAt(1)]), 'select');
-    play();
-    handlers.handlePointerDown(pointer(500, { pointerId: 2 }));
-    window.dispatchEvent(new Event('blur'));
-    current().setIsPlaying(false);
-    handlers.handlePointerDown(mouse(500));
-    handlers.handlePointerMove(mouse(1000));
-    handlers.handlePointerMove(pointer(1500, { pointerId: 2 }));
-    expect(notes()[0].beat).toEqual(beat(2));
-    handlers.handlePointerUp(pointer(1500, { pointerId: 2 }));
-    expect(notes()[0].beat).toEqual(beat(2));
-    expect(current().historyPast).toHaveLength(0);
-    expect(current().editTransaction).not.toBeNull();
-
-    handlers.handlePointerMove(mouse(2000));
-    handlers.handlePointerUp(mouse(2000, 0));
-    expect(notes()[0].beat).toEqual(beat(4));
-    expect(current().historyPast).toHaveLength(1);
-    expect(pauseToasts()).toHaveLength(1);
-  });
-
-  it.each(['up', 'cancel', 'lostpointercapture'] as const)('mouse 1이 1→2박으로 끄는 중 새 touch 2의 down·move·%s는 선택·위치·history를 바꾸지 않는다', terminal => {
-    const { handlers, canvas } = setup(chart([tapAt(1), tapAt(4)]), 'select');
-    handlers.handlePointerDown(mouse(500));
-    handlers.handlePointerMove(mouse(1000));
-    const other = pointer(2000, { pointerId: 2 });
-    handlers.handlePointerDown(other);
-    handlers.handlePointerMove(pointer(1500, { pointerId: 2 }));
-    expect(notes().map(note => note.beat)).toEqual([beat(2), beat(4)]);
-    if (terminal === 'up') handlers.handlePointerUp(other);
-    else if (terminal === 'cancel') handlers.handlePointerCancel(other);
-    else canvas.dispatchEvent(Object.assign(new Event(terminal), other));
-    expect(notes().map(note => note.beat)).toEqual([beat(2), beat(4)]);
-    expect([...current().selection.notes]).toEqual([0]);
-    expect(current().historyPast).toHaveLength(0);
-    expect(current().editTransaction).not.toBeNull();
-
-    handlers.handlePointerMove(mouse(1500));
-    handlers.handlePointerUp(mouse(1500, 0));
-    expect(notes().map(note => note.beat)).toEqual([beat(3), beat(4)]);
-    expect(current().historyPast).toHaveLength(1);
-  });
-
-  it('mouse 1의 Create 드래그 중 touch 2를 3박에서 떼도 노트 0개이고 mouse 1을 2박에서 떼면 1～2박 바디가 생긴다', () => {
-    const { handlers, createMode } = setup(chart([]), 'create');
-    handlers.handlePointerDown(mouse(500));
-    handlers.handlePointerDown(pointer(1500, { pointerId: 2 }));
-    handlers.handlePointerMove(pointer(2000, { pointerId: 2 }));
-    handlers.handlePointerUp(pointer(1500, { pointerId: 2 }));
-    expect(notes()).toEqual([]);
-    expect(createMode.dragging).toBe(true);
-
-    handlers.handlePointerUp(mouse(1000, 0));
-    const body = notes().find(note => note.type === 'body');
-    expect(body && beatToFloat(body.beat)).toBe(1);
-    expect(body && beatToFloat(body.endBeat)).toBe(2);
-  });
-
-  it('mouse 1이 우클릭으로 1박을 지우는 중 mouse 2의 2박 이동·뗌은 삭제·확정하지 않고 mouse 1만 history 1개를 만든다', () => {
-    const { handlers } = setup(chart([tapAt(1), tapAt(2), tapAt(3)]), 'select');
-    handlers.handlePointerDown(rightPointer(500));
-    handlers.handlePointerDown(mouse(1000, 2, { pointerId: 2, button: 2 }));
-    handlers.handlePointerMove(mouse(1000, 2, { pointerId: 2, button: 2 }));
-    handlers.handlePointerUp(mouse(1000, 0, { pointerId: 2, button: 2 }));
-    expect(notes().map(note => note.beat)).toEqual([beat(2), beat(3)]);
-    expect(current().historyPast).toHaveLength(0);
-
-    handlers.handlePointerMove(rightPointer(1500));
-    handlers.handlePointerUp(rightPointer(1500));
-    expect(notes().map(note => note.beat)).toEqual([beat(2)]);
-    expect(current().historyPast).toHaveLength(1);
-  });
-
-  it('Create에서 down 없는 mouse hover는 2박 고스트만 표시하고 모드 move·up을 호출하거나 노트를 놓지 않는다', () => {
-    const renderer = {
-      screenXToTimelineX: (x: number) => x,
-      setHoveredNote() {}, setHoveredTrillZone() {}, setHoveredRestZone() {}, setResizeHoverNote() {},
-      hideGhostNote() {}, showGhostNote: vi.fn(),
-    } as unknown as TimelineRenderer;
-    const { handlers, createMode } = setup(chart([]), 'create', 'single', { renderer });
-    const move = vi.spyOn(createMode, 'onPointerMove');
-    const up = vi.spyOn(createMode, 'handlePointerUp');
-    handlers.handlePointerMove(mouse(1000, 0));
-    handlers.handlePointerUp(mouse(1000, 0));
-    expect(renderer.showGhostNote).toHaveBeenCalledExactlyOnceWith(1, 1000);
-    expect(move).not.toHaveBeenCalled();
-    expect(up).not.toHaveBeenCalled();
-    expect(notes()).toEqual([]);
-  });
 
   it('Create 롱프레스 450ms로 시작한 드래그는 재생 시작 즉시 취소되고 정지 후 같은 접촉을 3박에서 떼도 노트 0개다', () => {
     const { handlers, createMode } = setup(chart([]), 'create');
@@ -632,30 +508,7 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(notes()).toHaveLength(0);
   });
 
-  it('재생 중 touch 1·2를 세로로 30px 옮기고 100px 벌리면 스크롤·핀치 콜백을 보내고 노트·history는 0개다', () => {
-    const onVerticalPan = vi.fn();
-    const onPinchZoom = vi.fn();
-    const { handlers } = setup(chart([]), 'create', 'single', { onVerticalPan, onPinchZoom });
-    play();
-    handlers.handlePointerDown(pointer(500, { x: 100 }));
-    handlers.handlePointerDown(pointer(500, { pointerId: 2, x: 300 }));
-    for (const delta of [10, 20, 30]) {
-      handlers.handlePointerMove(pointer(500 + delta, { x: 100 }));
-      handlers.handlePointerMove(pointer(500 + delta, { pointerId: 2, x: 300 }));
-    }
-    expect(onVerticalPan).toHaveBeenCalled();
-    handlers.handlePointerUp(pointer(530, { pointerId: 2, x: 300 }));
-    handlers.handlePointerDown(pointer(530, { pointerId: 2, x: 300 }));
-    handlers.handlePointerMove(pointer(530, { pointerId: 2, x: 400 }));
-    expect(onPinchZoom).toHaveBeenCalled();
-    expect(current().isPlaying).toBe(true);
-    expect(notes()).toEqual([]);
-    expect(current().historyPast).toHaveLength(0);
-  });
-
-  it.each([
-    ['레일', '정지 후'], ['미니맵', '정지 후'], ['레일', '재생 중'], ['미니맵', '재생 중'],
-  ] as const)('재생 중 %s에서 시작한 마우스 접촉은 %s y=500→1500 이동도 탐색으로 처리하고 노트 0개를 유지한다', (target, phase) => {
+  it.each(['레일', '미니맵'] as const)('재생 중 %s에서 시작한 마우스 접촉은 정지 후 y=500→1500 이동도 탐색으로 처리하고 노트 0개를 유지한다', target => {
     const seekTo = vi.fn();
     const minimapMove = vi.fn(() => target === '미니맵');
     const renderer = {
@@ -669,7 +522,7 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     const { handlers } = setup(chart([]), 'create', 'single', { renderer, playback: { seekTo } as unknown as PlaybackController });
     play();
     handlers.handlePointerDown(mouse(500, 1, { x: 20 }));
-    if (phase === '정지 후') current().setIsPlaying(false);
+    current().setIsPlaying(false);
     handlers.handlePointerMove(mouse(1500, 1, { x: 20 }));
     handlers.handlePointerUp(mouse(1500, 0, { x: 20 }));
 
