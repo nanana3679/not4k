@@ -19,8 +19,9 @@ function NicknameForm({ userId, nickname, saving }: { userId: string; nickname: 
   useEffect(() => () => { request.current?.abort(); }, []);
 
   const handleSave = async () => {
-    // 저장 중에도 포커스를 지키려고 disabled 대신 aria-disabled를 쓰므로 Enter·클릭을 여기서 무시한다.
-    if (saving || request.current) return;
+    // 저장 중에도 포커스를 지키려고 disabled 대신 aria-disabled를 쓰므로 이 폼의 저장이 끝나기 전 Enter·클릭을 여기서 무시한다.
+    // Profile을 닫기 전에 시작한 저장이 진행 중이면 saveNickname이 검증 전에 ignored를 돌려준다.
+    if (request.current) return;
     const controller = new AbortController();
     request.current = controller;
     setMessage(null);

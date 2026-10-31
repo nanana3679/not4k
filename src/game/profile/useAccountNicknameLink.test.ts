@@ -87,6 +87,14 @@ it('user-1 연동 뒤 세션 확인이 끝나 user null·loading false가 되면
   expect(service.store.getState()).toEqual({ userId: null, nickname: null, status: 'ready', saving: false });
 });
 
+it('user-1 연동 뒤 loading true인 채 user가 null이 되면 user-1을 유지하고, 같은 null에서 loading만 false가 되면 계정 닉네임을 비운다', async () => {
+  await rerender({ id: 'user-1' }, true);
+  await rerender(null, true);
+  expect(service.store.getState()).toEqual({ userId: 'user-1', nickname: 'Pilot7', status: 'ready', saving: false });
+  await rerender(null, false);
+  expect(service.store.getState()).toEqual({ userId: null, nickname: null, status: 'ready', saving: false });
+});
+
 it('로그아웃 뒤 user-2가 로그인하면 user-2로 다시 연동한다', async () => {
   await rerender({ id: 'user-1' }, false);
   await rerender(null, false);
@@ -101,7 +109,7 @@ it('익명 user-1은 연동하지 않고 계정 닉네임을 비운 채로 둔�
   expect(service.store.getState().userId).toBeNull();
 });
 
-it('DEV_ADMIN에서는 dev-user가 처음부터 로그인 상태여도 GameApp이 연동하지 않고 Profile 마운트에 맡긴다', async () => {
+it('DEV_ADMIN에서는 dev-user가 처음부터 로그인 상태로 두 번 렌더돼도 GameApp은 연동하지 않고 계정 닉네임 사용자를 비워 둔다', async () => {
   fixture.devAdmin = true;
   await rerender({ id: 'dev-user' }, false);
   await rerender({ id: 'dev-user' }, false);

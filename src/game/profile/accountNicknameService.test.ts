@@ -27,6 +27,13 @@ function responseEndedBy(signal: AbortSignal) {
   });
 }
 
+/** Node의 AbortSignal.timeout은 vi.useFakeTimers가 움직이지 않으므로 같은 ms 뒤 TimeoutError로 끊기는 신호를 가짜 타이머로 만든다. */
+function timeoutOnFakeTimers(ms: number) {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(new DOMException('signal timed out', 'TimeoutError')), ms);
+  return controller.signal;
+}
+
 beforeEach(async () => {
   await accountNicknameService.setUser(null);
   vi.clearAllMocks();
@@ -38,6 +45,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 it('dev-user도 link_guest_nickname에 guest_nickname Guest123456을 보내고 RoutedPilot을 읽는다', async () => {
@@ -116,7 +124,7 @@ it('연동 응답이 15000ms 안에 오지 않아 시간 제한으로 끊기면 
   expect(accountNicknameService.store.getState()).toEqual({ userId: 'dev-user', nickname: 'RoutedPilot', status: 'ready', saving: false });
 });
 
-it('SavedPilot 저장이 15000ms 시간 제한으로 끊기면 저장 오류를 반환하고 다시 읽은 연동으로 서버에 반영된 SavedPilot을 표시한다', async () => {
+it('SavedPilot 저장이 15000ms 시간 제한으로 끊기면 저장 오류를 반환하고 연동을 다시 읽어 서버에 반영된 SavedPilot을 계정 닉네임으로 둔다', async () => {
   await accountNicknameService.setUser({ id: 'dev-user' });
   const expired = new AbortController();
   vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(expired.signal);
@@ -131,4 +139,33 @@ it('SavedPilot 저장이 15000ms 시간 제한으로 끊기면 저장 오류를 
   await new Promise(resolve => setTimeout(resolve));
   expect(api.rpc).toHaveBeenCalledTimes(2);
   expect(accountNicknameService.store.getState()).toEqual({ userId: 'dev-user', nickname: 'SavedPilot', status: 'ready', saving: false });
+});
+
+it('연동 RPC가 access token 갱신에서 멈춰 끝나지 않아도 14999ms까지 loading이다가 15000ms에 error가 되어 Retry할 수 있다', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(AbortSignal, 'timeout').mockImplementation(timeoutOnFakeTimers);
+  api.linkAbortSignal.mockReturnValueOnce(new Promise(() => {}));
+  void accountNicknameService.setUser({ id: 'dev-user' });
+  await vi.advanceTimersByTimeAsync(14_999);
+  expect(accountNicknameService.store.getState().status).toBe('loading');
+  await vi.advanceTimersByTimeAsync(1);
+  expect(accountNicknameService.store.getState().status).toBe('error');
+  await accountNicknameService.retryLoad();
+  expect(accountNicknameService.store.getState()).toEqual({ userId: 'dev-user', nickname: 'RoutedPilot', status: 'ready', saving: false });
+});
+
+it('SavedPilot 저장이 access token 갱신에서 멈춰 끝나지 않아도 14999ms까지 saving이다가 15000ms에 저장 오류를 반환하고 saving을 푼다', async () => {
+  await accountNicknameService.setUser({ id: 'dev-user' });
+  vi.useFakeTimers();
+  vi.spyOn(AbortSignal, 'timeout').mockImplementation(timeoutOnFakeTimers);
+  api.single.mockReturnValueOnce(new Promise(() => {}));
+  let result: unknown;
+  void accountNicknameService.saveNickname('dev-user', 'SavedPilot', new AbortController().signal)
+    .then(value => { result = value; });
+  await vi.advanceTimersByTimeAsync(14_999);
+  expect(result).toBeUndefined();
+  expect(accountNicknameService.store.getState().saving).toBe(true);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(result).toEqual(SAVE_ERROR);
+  expect(accountNicknameService.store.getState()).toEqual({ userId: 'dev-user', nickname: 'RoutedPilot', status: 'ready', saving: false });
 });

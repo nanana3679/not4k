@@ -67,12 +67,15 @@ export function createAccountNicknameService({ guest, link, save }: NicknameDepe
   };
   // 오류로 끝난 저장도 서버에는 반영됐을 수 있다(응답 유실·시간 제한).
   // 불러오기 상태는 그대로 두고 계정 이름만 다시 읽는다. 폼은 저장하지 않은 초안을 계정 이름보다 먼저 보여 준다.
+  // 다시 읽기가 바로잡는 것은 DB에 닿기 전에 실패한 저장(이전 이름)과 다시 읽기 전에 커밋된 저장(새 이름)이다.
+  // 시간 제한으로 끊긴 뒤에도 서버에서 이어지던 UPDATE가 다시 읽기보다 늦게 커밋되면 이전 이름이 남고,
+  // 서버의 새 이름은 다음에 계정 닉네임을 불러올 때(새로고침·재로그인) 반영된다. Profile을 다시 열어도 다시 읽지 않는다.
   const refreshAfterFailedSave = async () => {
     const startedIn = userGeneration;
-    const savesBefore = saveGeneration;
+    const saveGenerationAtStart = saveGeneration;
     try {
       const nickname = await fetchLinkedNickname();
-      if (startedIn === userGeneration && savesBefore === saveGeneration) store.setState({ nickname });
+      if (startedIn === userGeneration && saveGenerationAtStart === saveGeneration) store.setState({ nickname });
     } catch {
       // 저장 오류 안내가 이미 보이므로 다시 읽기 실패는 알리지 않고 기존 이름을 유지한다.
     }
