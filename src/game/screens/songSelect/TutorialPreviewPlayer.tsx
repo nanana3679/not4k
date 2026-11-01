@@ -149,7 +149,7 @@ export interface TutorialPreviewPlayerProps {
   inputMode?: TutorialInputMode;
   /** 설정 키 캡처 등 다른 UI가 키보드를 소유하면 false. 기존 held 키의 up은 계속 추적한다. */
   ownsKeyboardInput?: (event: KeyboardEvent) => boolean;
-  /** 최초 준비와 각 반복 시작에 0부터 알린다. 이전 패턴의 finish 뒤에만 통지하며 직접 입력의 물리 세션 시작보다 늦을 수 있다. 중간 전환은 새 시작이 아니다. */
+  /** 첫 준비가 끝난 루프 0ms부터 알린다. 이후는 이전 패턴의 finish 뒤에만 통지하며 직접 입력의 물리 세션 시작보다 늦을 수 있다. 중간 전환은 새 시작이 아니다. */
   onPatternStarted?: (iteration: number) => void;
   /**
    * 명시 정의를 재생할 때만 부른다. 시연은 반복 경계, 직접 입력은 경계와 마지막 판정 기한을 모두 지난 뒤 finalize한 결과이며,
@@ -814,11 +814,20 @@ export function TutorialPreviewPlayer({
             }, event => ownsKeyboardInputRef.current?.(event) ?? true);
           explicitInput.attach(window);
           explicitInput.setMode(inputModeRef.current);
-          const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) =>
-            explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {
+          let firstPatternStarted = false;
+          const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) => {
+            const blocked = pausedRef.current || diagramHeldBeforeFrame
+              || countingIn(previousNow) || waitingForResume(previousNow);
+            // 렌더러·캐러셀·4박 준비는 패턴 재생이 아니다. 루프 0ms에 선택된 모드로 집계를 연다.
+            if (!firstPatternStarted && !blocked) {
+              firstPatternStarted = true;
+              onPatternStartedRef.current?.(0);
+            }
+            return explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {
               loopTimeMs,
-              blocked: pausedRef.current || diagramHeldBeforeFrame || countingIn(previousNow) || waitingForResume(previousNow),
+              blocked,
             });
+          };
           syncExplicitControlRef.current = () => {
             const now = performance.now();
             const resuming = pausedAtNow !== null && !pausedRef.current;
@@ -935,7 +944,6 @@ export function TutorialPreviewPlayer({
           renderer.updateTutorialKeyboardKeys(directKeyboardKeys);
           renderer.setLaneKeyLabels([], false);
         }
-        if (explicitInput) onPatternStartedRef.current?.(0);
         setRendererInputState(renderer, getActiveTutorialInputTimings(0, timings));
         if (!clickTrack) previewJudgment.advanceTo(0);
         renderer.renderFrame(preview.renderStartMs, 0);

@@ -163,7 +163,8 @@ describe.each(['connected-long-note-switch', 'connected-long-note-overlap', 'hea
     const events = ['start:0'];
     const finished = vi.fn(pattern => {
       events.push(`finish:${pattern.iteration}`);
-      practice = reduceTutorialPractice(practice, { type: 'patternFinished', patternId: pattern.iteration, score: pattern.result.score });
+      practice = reduceTutorialPractice(practice, { type: 'patternFinished', patternId: pattern.iteration, score: pattern.result.score,
+      modeSwitchedDuringPattern: pattern.modeSwitchedDuringPattern });
       if (practice.successCount === 3) return false as const;
       events.push(`start:${pattern.iteration + 1}`);
       practice = reduceTutorialPractice(practice, { type: 'patternStarted', patternId: pattern.iteration + 1 });
@@ -534,7 +535,8 @@ it('바디 유지 중 1000ms에 시연으로 바꾸면 keyup 점수 없이 2000m
       showJudgmentGroup() {}, recordFlightJudgment() {}, showBombEffect() {},
     }, { onScoreChanged });
   const finished = vi.fn((pattern: ExplicitTutorialPatternResult) => {
-    state = reduceTutorialPractice(state, { type: 'patternFinished', patternId: pattern.iteration, score: pattern.result.score });
+    state = reduceTutorialPractice(state, { type: 'patternFinished', patternId: pattern.iteration, score: pattern.result.score,
+      modeSwitchedDuringPattern: pattern.modeSwitchedDuringPattern });
     state = reduceTutorialPractice(state, { type: 'patternStarted', patternId: pattern.iteration + 1 });
   });
   const input = createExplicitTutorialInput(playback, [{ lane: 2, key: 'KeyE' }], preview.loopMs,
@@ -549,7 +551,7 @@ it('바디 유지 중 1000ms에 시연으로 바꾸면 keyup 점수 없이 2000m
   state = reduceTutorialPractice(state, { type: 'modeSelected', mode: 'demonstration' });
   expect(() => input.setMode(state.mode)).not.toThrow();
   expect(playback.renderSnapshot(0).atMs).toBe(1000);
-  expect(state.currentPatternCountable).toBe(false);
+  expect(state.currentPatternCountable).toBe(true); // 전환 여부는 물리 패턴 정산 때 적용한다.
   input.advanceTo(1490);
   expect(onScoreChanged.mock.lastCall?.[0].judgmentCounts.perfect).toBe(1);
   onScoreChanged.mockClear();

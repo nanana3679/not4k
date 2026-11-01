@@ -25,6 +25,8 @@ export interface ExplicitTutorialPatternResult {
    * 실습의 패턴 id로 그대로 쓰지 않고 실습 UI가 소유한 카운터와 대응시킨다.
    */
   readonly iteration: number;
+  /** 물리 반복의 시작부터 경계까지 전환했는지 입력 재생기가 기록한다. */
+  readonly modeSwitchedDuringPattern: boolean;
   readonly result: ExplicitSessionResult;
 }
 
@@ -52,9 +54,9 @@ export interface ExplicitTutorialPreviewPlayback {
   enqueue(input: TimedJudgmentInput): void;
   syncHeldKeys(heldKeys: readonly ExplicitHeldKey[]): void;
   /** 이전 세션은 정산하지 않고 보존한다. 반환한 이전 패턴은 판정 기한에 finish해야 한다. */
-  startNextPattern(preheldKeys: readonly ExplicitHeldKey[], nextIteration?: number): ExplicitTutorialClosingPattern;
+  startNextPattern(preheldKeys: readonly ExplicitHeldKey[], nextIteration?: number, modeSwitchedDuringPattern?: boolean): ExplicitTutorialClosingPattern;
   /** 시연 또는 판정 기한이 경계 안인 반복을 finalize하고 다음 세션을 준비한다. */
-  finishPattern(preheldKeys?: readonly ExplicitHeldKey[], nextIteration?: number): ExplicitTutorialPatternResult;
+  finishPattern(preheldKeys?: readonly ExplicitHeldKey[], nextIteration?: number, modeSwitchedDuringPattern?: boolean): ExplicitTutorialPatternResult;
   /** 도식 OK가 시계의 현재 반복을 0으로 옮길 때 표시 이력의 상대 위치도 보존한다. */
   rebaseIteration(): void;
   /** 세션·효과 연결을 정리한다. 멈춘 재생은 다시 진행하지 않는다. */
@@ -157,10 +159,10 @@ export function createExplicitTutorialPreviewPlayback(
       }
     },
     setInputMode: (mode, heldKeys = []) => controller.setInputPlan(
-      mode === "directInput" ? { kind: "live" } : plan, mode === "directInput" ? heldKeys : []),
+      mode === "directInput" ? { kind: "live" } : plan, mode === "directInput" ? heldKeys : undefined),
     enqueue: input => controller.enqueue(input),
     syncHeldKeys: heldKeys => controller.syncHeldKeys(heldKeys),
-    startNextPattern: (preheldKeys, nextIteration = timelineIteration + 1) => {
+    startNextPattern: (preheldKeys, nextIteration = timelineIteration + 1, modeSwitchedDuringPattern = false) => {
       const closing = controller;
       previous = closing;
       previousIteration = timelineIteration;
@@ -173,17 +175,17 @@ export function createExplicitTutorialPreviewPlayback(
         advanceTo: timeMs => closing.advanceTo(Math.max(closing.session.snapshot.atMs, timeMs)),
         syncHeldKeys: heldKeys => closing.syncHeldKeys(heldKeys),
         finish: () => {
-          const result = closing.finish(closing.session.latestJudgmentDeadlineMs);
+          const result = closing.finish(Math.max(closing.session.snapshot.atMs, closing.session.latestJudgmentDeadlineMs));
           finishedSnapshotByIteration.set(previousIteration!, closing.session.snapshot);
           closing.dispose();
           previous = null;
           previousIteration = null;
           publishCurrentScore = true;
-          return { iteration: closing.iteration, result };
+          return { iteration: closing.iteration, modeSwitchedDuringPattern, result };
         },
       };
     },
-    finishPattern: (preheldKeys, nextIteration = timelineIteration + 1) => {
+    finishPattern: (preheldKeys, nextIteration = timelineIteration + 1, modeSwitchedDuringPattern = false) => {
       const iteration = controller.iteration;
       const result = controller.finish(preview.loopMs);
       finishedSnapshotByIteration.set(timelineIteration, controller.session.snapshot);
@@ -191,7 +193,7 @@ export function createExplicitTutorialPreviewPlayback(
       const closing = controller;
       controller = closing.startNextPattern(preheldKeys ?? []);
       closing.dispose();
-      return { iteration, result };
+      return { iteration, modeSwitchedDuringPattern, result };
     },
     rebaseIteration: () => {
       const snapshots = [...finishedSnapshotByIteration];

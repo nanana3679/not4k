@@ -489,7 +489,7 @@ it('직접 입력 패턴 도중 시연을 고르면 즉시 demonstration이고 �
   page = renderModal();
   expect(page.button('시연').props['aria-pressed']).toBe(true);
   expect(page.player().inputMode).toBe('demonstration');
-  page.player().onPatternFinished?.(result());
+  page.player().onPatternFinished?.({ ...result(), modeSwitchedDuringPattern: true });
   expect(renderModal().progress).toBe('0/3');
   page.player().onPatternStarted?.(2);
   page.player().onPatternFinished?.(result());
@@ -562,7 +562,7 @@ it.each([
     expect(finalized.score.judgmentCounts.miss).toBe(1);
     expect(finalized.facts.filter(fact => fact.kind === 'bodyFailed'))
       .toMatchObject([{ unscoredMiss: true }]);
-    page.player(id).onPatternFinished?.({ iteration: 1, result: finalized });
+    page.player(id).onPatternFinished?.({ iteration: 1, modeSwitchedDuringPattern: false, result: finalized });
     page = renderModal();
     expect(page.nodes.find(node => node.props['data-tutorial-condition'] === 'maxGreatOrWorseCount')
       ?.props['data-tutorial-condition-status']).toBe('met');
@@ -830,6 +830,47 @@ vi.mock('../../renderer', () => ({ GameRenderer: class {
 vi.mock('../../skin', () => ({ SkinManager: class { async loadSkin() {} dispose() {} } }));
 vi.mock('../../skin/ExplicitSkinLoader', () => ({ ExplicitSkinLoader: class { async load() {} dispose() {} } }));
 
+it('준비 중 직접 입력을 고르면 실제 player가 재생을 시작할 때 첫 패턴을 열고 Perfect 3회를 1/3으로 집계한다', async () => {
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  const lesson = ALL_TUTORIAL_PREVIEWS.find(item => item.id === 'single-note')!;
+  let preparing = true;
+  const PracticeHarness = () => useTutorialPractice(lesson);
+  const render = () => {
+    hooks.cursor = 0;
+    const practice = PracticeHarness();
+    const nodes = elements(TutorialPreviewPlayer({ ...practice.playerProps, preview: lesson, paused: preparing }));
+    for (const node of nodes) {
+      const ref = (node.props as { ref?: { current: unknown } }).ref;
+      if (ref && !ref.current) ref.current = node.type === 'canvas' ? {} : { dataset: {} };
+    }
+    hooks.effects.splice(0).forEach(effect => effect());
+    return practice;
+  };
+  render();
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(100);
+  let practice = render();
+  expect(practice.state?.currentPatternId).toBeNull();
+  practice.dispatch({ type: 'modeSelected', mode: 'directInput' });
+  render();
+  vi.advanceTimersByTime(100);
+  preparing = false;
+  render();
+  for (const wait of [250, 500, 500]) {
+    vi.advanceTimersByTime(wait);
+    for (const type of ['keydown', 'keyup']) {
+      const event = new Event(type, { cancelable: true });
+      Object.defineProperties(event, { code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false } });
+      window.dispatchEvent(event);
+    }
+  }
+  vi.advanceTimersByTime(300);
+  practice = render();
+  expect(practice.state?.lastFinishedPattern).toMatchObject({ countable: true, succeeded: true });
+  expect(practice.progress).toEqual({ current: 1, required: 3 });
+});
+
 it.each([
   ['directInput', 'demonstration'], ['demonstration', 'directInput'],
 ] as const)('실제 player에서 %s→%s를 600ms에 적용하면 재시작 없이 남은 입력으로 Perfect 2·Miss 1을 정산한다', async (initialMode, nextMode) => {
@@ -980,6 +1021,71 @@ function renderMetronomePlayer(props: ComponentProps<typeof TutorialPreviewPlaye
   hooks.effects.splice(0).forEach(effect => effect());
   return { dataset, nodes };
 }
+
+it('모달의 4박 준비 중 직접 입력을 고르면 루프 0ms에 첫 패턴을 열고 Perfect 3회를 1/3으로 집계한다', async () => {
+  mockMetronomeAudio();
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  renderModal().select('single-note');
+  settle();
+  const onPatternStarted = vi.fn();
+  const onPatternFinished = vi.fn();
+  const render = () => {
+    const page = renderModal();
+    const props = page.player();
+    const nodes = elements(TutorialPreviewPlayer({ ...props,
+      onPatternStarted: iteration => {
+        onPatternStarted(iteration);
+        props.onPatternStarted?.(iteration);
+      },
+      onPatternFinished: pattern => {
+        onPatternFinished(pattern);
+        return props.onPatternFinished?.(pattern);
+      },
+    }));
+    let dataset: Record<string, string> = {};
+    for (const node of nodes) {
+      const ref = (node.props as { ref?: { current: unknown } }).ref;
+      if (!ref) continue;
+      ref.current ??= node.type === 'canvas' ? {} : { dataset: {} };
+      if (node.type !== 'canvas') dataset = (ref.current as { dataset: typeof dataset }).dataset;
+    }
+    hooks.effects.splice(0).forEach(effect => effect());
+    return { page, dataset };
+  };
+  const { dataset } = render();
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(500);
+  render().page.click('직접 입력');
+  render();
+  const origin = Number(dataset.tutorialLoopOriginNow);
+  expect(origin).toBeGreaterThan(performance.now());
+  vi.advanceTimersByTime(origin - 1 - performance.now());
+  expect(dataset.tutorialCountIn).toBe('true');
+  expect(onPatternStarted).not.toHaveBeenCalled();
+  expect(render().page.patternId).toBe(0);
+  vi.advanceTimersByTime(1);
+  // 루프 0ms를 지난 첫 프레임에 시작을 알린다(프레임 간격 16ms).
+  vi.advanceTimersByTime(16);
+  expect(onPatternStarted).toHaveBeenCalledExactlyOnceWith(0);
+  for (const at of [250, 750, 1250]) {
+    vi.advanceTimersByTime(origin + at - performance.now());
+    for (const type of ['keydown', 'keyup']) {
+      const event = new Event(type, { cancelable: true });
+      Object.defineProperties(event, {
+        code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false },
+      });
+      window.dispatchEvent(event);
+    }
+  }
+  vi.advanceTimersByTime(350);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0]).toMatchObject({ iteration: 0, modeSwitchedDuringPattern: false,
+    result: { score: { judgmentCounts: { perfect: 3, miss: 0 } } },
+  });
+  expect(render().page.progress).toBe('1/3');
+  expect(onPatternStarted.mock.calls).toEqual([[0], [1]]);
+});
 
 it('120 BPM의 직접 입력은 준비 4박 동안 0ms에 멈추고 E를 채점하지 않다가 출력 원점 기준 입력을 Perfect로 판정한다', async () => {
   const { TutorialMetronome } = await import('../../audio/TutorialMetronome');

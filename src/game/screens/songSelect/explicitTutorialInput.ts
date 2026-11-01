@@ -56,11 +56,21 @@ export function createExplicitTutorialInput(
   let boundaryStopped = false;
   let iteration = 0;
   let lastElapsedMs = 0;
+  // 준비 중 0ms로 고정된 시각과 실제 루프 0ms를 구별한다. rebase는 같은 재생을 이어간다.
+  let loopStarted = false;
+  // 보정 판정·reducer의 정산 순서와 별개인 물리 반복별 전환 이력이다.
+  let switchedIterations = new Set<number>();
+  const takeModeSwitched = () => {
+    const switched = switchedIterations.has(iteration);
+    switchedIterations.delete(iteration);
+    return switched;
+  };
   let pendingBoundary: { iteration: number; elapsedMs: number; observedElapsedMs: number; blocked: boolean } | null = null;
   let closingPattern: {
     session: ExplicitTutorialClosingPattern;
     startMs: number;
     deadlineMs: number;
+    inputOffsetMs: number;
     heldByKey: Map<string, ExplicitHeldKey>;
   } | null = null;
   let judging = false;
@@ -88,7 +98,7 @@ export function createExplicitTutorialInput(
   const syncPhysicalHeld = () => {
     heldByKey.clear();
     for (const key of source.heldKeys) heldByKey.set(key.key, key);
-    playback.syncHeldKeys(source.heldKeys);
+    if (mode === 'directInput') playback.syncHeldKeys(source.heldKeys);
     if (closingPattern) {
       for (const key of closingPattern.heldByKey.keys()) {
         if (!heldByKey.has(key)) closingPattern.heldByKey.delete(key);
@@ -100,7 +110,8 @@ export function createExplicitTutorialInput(
     if (pendingBoundary && blocked) pendingBoundary.blocked = true;
     if (pendingBoundary?.blocked && !blocked) finishPendingBoundary();
     // 경계를 관측한 다음 프레임까지는 늦게 전달된 이전 패턴 입력도 수집한다.
-    const enabled = mode === "directInput" && !boundaryStopped && (!blocked || pendingBoundary !== null);
+    const enabled = (mode === "directInput" || closingPattern !== null)
+      && !boundaryStopped && (!blocked || pendingBoundary !== null);
     if (enabled === judging) return;
     judging = enabled;
     source.setJudging(enabled, getClock().loopStartNow + lastElapsedMs);
@@ -121,10 +132,13 @@ export function createExplicitTutorialInput(
           if (input.type === 'down' && input.lane !== undefined) {
             closingPattern.heldByKey.set(input.key, { lane: input.lane, key: input.key });
           } else closingPattern.heldByKey.delete(input.key);
-          playback.advanceTo(Math.max(playback.renderSnapshot(0).atMs, at - iteration * loopMs));
-          playback.syncHeldKeys([...heldByKey.values()]);
+          if (mode === 'directInput') {
+            playback.advanceTo(Math.max(playback.renderSnapshot(0).atMs, at - iteration * loopMs));
+            playback.syncHeldKeys([...heldByKey.values()]);
+          }
           continue;
         }
+        if (mode !== 'directInput') continue;
         if (iteration > 0 && at <= iteration * loopMs) {
           // 한 프레임의 대기보다 더 늦으면 이미 정산한 결과를 바꾸지 않으며 다음 패턴의 0ms 입력도 만들지 않는다.
           playback.syncHeldKeys([...heldByKey.values()]);
@@ -139,8 +153,10 @@ export function createExplicitTutorialInput(
       heldByKey.delete(release.key);
       if (judge) {
         // 아직 큐에 있는 down부터 반영한 뒤 hold만 푼다. 가짜 up으로 release 점수를 만들지 않는다.
-        playback.advanceTo(Math.max(playback.renderSnapshot(0).atMs, release.at - iteration * loopMs));
-        playback.syncHeldKeys([...heldByKey.values()]);
+        if (mode === 'directInput') {
+          playback.advanceTo(Math.max(playback.renderSnapshot(0).atMs, release.at - iteration * loopMs));
+          playback.syncHeldKeys([...heldByKey.values()]);
+        }
         if (closingPattern?.heldByKey.delete(release.key)) {
           closingPattern.session.advanceTo(Math.min(release.at, closingPattern.deadlineMs) - closingPattern.startMs);
           closingPattern.session.syncHeldKeys([...closingPattern.heldByKey.values()]);
@@ -159,6 +175,8 @@ export function createExplicitTutorialInput(
   const advanceClosingPattern = (elapsedMs: number) => {
     if (!closingPattern) return;
     const closing = closingPattern;
+    // 이전 직접 입력의 보정 시계는 현재 패턴이 시연으로 바뀌어도 유지한다.
+    elapsedMs = Math.max(0, elapsedMs + Math.min(0, closing.inputOffsetMs));
     flush(Math.min(elapsedMs, closing.deadlineMs));
     closing.session.advanceTo(Math.min(elapsedMs, closing.deadlineMs) - closing.startMs);
     if (elapsedMs < closing.deadlineMs) return;
@@ -171,7 +189,7 @@ export function createExplicitTutorialInput(
     flush((iteration + 1) * loopMs);
     // 긴 프레임 공백에도 이미 재생하던 패턴만 정산한다. 생략한 반복의 입력은 hold만 옮긴다.
     flush(nextIteration * loopMs, false);
-    const finished = playback.finishPattern(mode === 'directInput' ? [...heldByKey.values()] : undefined, nextIteration);
+    const finished = playback.finishPattern(mode === 'directInput' ? [...heldByKey.values()] : undefined, nextIteration, takeModeSwitched());
     iteration = nextIteration;
     reportFinished(finished);
     if (boundaryStopped) return finished;
@@ -192,11 +210,23 @@ export function createExplicitTutorialInput(
     }
     return finished;
   };
+  const startClosingPattern = (nextIteration: number) => {
+    const startMs = iteration * loopMs;
+    closingPattern = {
+      startMs,
+      deadlineMs: startMs + playback.latestJudgmentDeadlineMs,
+      inputOffsetMs: getClock().inputOffsetMs ?? 0,
+      heldByKey: new Map(heldByKey),
+      session: playback.startNextPattern([...heldByKey.values()], nextIteration, takeModeSwitched()),
+    };
+    iteration = nextIteration;
+  };
   // 모달은 버블 단계 window 핸들러를 사용한다. 직접 입력 레인 키는 capture에서 먼저 받고 차단한다.
   // Escape는 바인딩에 있더라도 닫기에 예약한다. 도식·paused 중에도 hold 추적은 유지한다.
   const reserveLaneKey = (event: Event) => {
     const { code } = event as KeyboardEvent;
-    if (mode !== 'directInput' || getClock((event as KeyboardEvent).timeStamp).blocked || !ownsEvent(event as KeyboardEvent)
+    const closingRelease = event.type === 'keyup' && closingPattern?.heldByKey.has(code);
+    if ((mode !== 'directInput' && !closingRelease) || getClock((event as KeyboardEvent).timeStamp).blocked || !ownsEvent(event as KeyboardEvent)
       || code === 'Escape' || !bindings.some(binding => binding.key === code)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -208,14 +238,26 @@ export function createExplicitTutorialInput(
   };
   const setMode = (next: TutorialInputMode) => {
     if (mode === next) return;
+    if (loopStarted && !getClock().blocked) switchedIterations.add(Math.floor(lastElapsedMs / loopMs));
     finishPendingBoundary();
+    // 음수 offset 때문에 이전 세션이 경계 전이어도 토글은 현재 물리 반복에만 적용한다.
+    const physicalIteration = Math.floor(lastElapsedMs / loopMs);
+    if (mode === 'directInput' && physicalIteration > iteration && !closingPattern) {
+      startClosingPattern(physicalIteration);
+    }
     boundaryStopped = false;
     mode = next;
-    source.setJudging(false);
-    unownedReleases.length = 0;
-    judging = false;
+    if (!closingPattern) {
+      source.setJudging(false);
+      unownedReleases.length = 0;
+      judging = false;
+    }
     heldByKey.clear();
     for (const key of source.heldKeys) heldByKey.set(key.key, key);
+    if (mode === 'demonstration' && (getClock().inputOffsetMs ?? 0) < 0) {
+      // 직접 입력의 음수 offset 지연을 시연으로 가져가지 않는다. 과거 시연 down도 재생하지 않는다.
+      playback.advanceTo(Math.max(playback.renderSnapshot(0).atMs, lastElapsedMs - iteration * loopMs));
+    }
     playback.setInputMode(mode, source.heldKeys);
     syncJudging();
   };
@@ -226,6 +268,7 @@ export function createExplicitTutorialInput(
     syncJudging,
     rebase(resumeTimestamp: number) {
       finishPendingBoundary();
+      switchedIterations = new Set([...switchedIterations].map(value => value - iteration));
       if (closingPattern) {
         closingPattern.startMs -= iteration * loopMs;
         closingPattern.deadlineMs -= iteration * loopMs;
@@ -256,31 +299,25 @@ export function createExplicitTutorialInput(
       const blocked = frame?.blocked ?? getClock().blocked;
       syncJudging(blocked);
       if (blocked) return finished;
+      loopStarted = true;
       if (frame) {
         elapsedMs = Math.floor(Math.max(0, elapsedMs) / loopMs) * loopMs + frame.loopTimeMs;
       }
       // prop effect는 performance.now(), rAF는 프레임 시작 시각이다. 같은 프레임에서 순서가 뒤집혀도 seek하지 않는다.
       elapsedMs = Math.max(lastElapsedMs, elapsedMs);
       lastElapsedMs = elapsedMs;
-      // 실제 플레이처럼 음수 offset만큼 core를 뒤에 둔다. 보정 입력이 끝에 닿기 전에는 반복도 정산하지 않는다.
-      if (mode === 'directInput') elapsedMs = Math.max(0, Math.min(elapsedMs, elapsedMs + (getClock().inputOffsetMs ?? 0)));
       finished = advanceClosingPattern(elapsedMs) ?? finished;
       if (boundaryStopped) return finished;
+      // 실제 플레이처럼 음수 offset만큼 core를 뒤에 둔다. 보정 입력이 끝에 닿기 전에는 반복도 정산하지 않는다.
+      if (mode === 'directInput') elapsedMs = Math.max(0, Math.min(elapsedMs, elapsedMs + (getClock().inputOffsetMs ?? 0)));
       const loop = stepExplicitTutorialLoop({ elapsedMs, loopMs, previousIteration: iteration, frozen: false });
       if (loop.finished) {
         if (mode === 'directInput') {
           flush((iteration + 1) * loopMs);
           playback.advanceTo(loopMs);
           if (playback.latestJudgmentDeadlineMs > loopMs) {
-            const startMs = iteration * loopMs;
-            closingPattern = {
-              startMs,
-              deadlineMs: startMs + playback.latestJudgmentDeadlineMs,
-              heldByKey: new Map(heldByKey),
-              session: playback.startNextPattern([...heldByKey.values()], loop.iteration),
-            };
-            iteration = loop.iteration;
-            finished = advanceClosingPattern(elapsedMs) ?? finished;
+            startClosingPattern(loop.iteration);
+            finished = advanceClosingPattern(lastElapsedMs) ?? finished;
             if (boundaryStopped) return finished;
           } else {
             pendingBoundary ??= { iteration: loop.iteration, elapsedMs, observedElapsedMs, blocked: getClock().blocked };

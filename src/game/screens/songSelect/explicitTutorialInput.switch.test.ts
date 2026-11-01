@@ -24,7 +24,8 @@ function replaySwitch(loopStride: number, timings: readonly SwitchTiming[], deli
   const input = createExplicitTutorialInput(playback,
     ['KeyE', 'KeyD', 'KeyC', 'KeyO'].map(key => ({ lane: 2, key })), preview.loopMs,
     () => ({ loopStartNow: 0, blocked: false }), pattern => {
-      practice = reduceTutorialPractice(practice, { type: 'patternFinished', patternId: pattern.iteration, score: pattern.result.score });
+      practice = reduceTutorialPractice(practice, { type: 'patternFinished', patternId: pattern.iteration, score: pattern.result.score,
+      modeSwitchedDuringPattern: pattern.modeSwitchedDuringPattern });
       finished.push({ ...pattern, successCount: practice.successCount });
       if (practice.successCount === 3) return false;
       practice = reduceTutorialPractice(practice, { type: 'patternStarted', patternId: pattern.iteration + 1 });
