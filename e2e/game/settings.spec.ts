@@ -76,6 +76,75 @@ function laneRow(dialog: Locator, laneNumber: number): Locator {
 }
 
 test.describe('Game Settings', () => {
+  // VITE_DEV_ADMIN=true에서는 첫 렌더부터 dev@local이다. OAuth 왕복은 단위 테스트의 가짜 인증으로 검증한다.
+  test('dev@local의 Profile은 첫 방문에 Signed in·Logout을 표시하고 탭 전환 중 같은 인스턴스를 유지하며 설정 종료 때 제거한다', async ({ page }) => {
+    const dialog = await openSettings(page);
+    const profile = dialog.getByRole('button', { name: 'Profile', exact: true });
+    await expect(profile).toBeVisible();
+    await expect(dialog.getByText('Signed in', { exact: true })).toHaveCount(0);
+    await profile.click();
+    await expect(profile).toHaveAttribute('aria-current', 'page');
+    const region = dialog.getByRole('region', { name: 'Profile', exact: true });
+    await expect(region.getByText('Signed in', { exact: true })).toBeVisible();
+    await expect(region.getByText('dev@local', { exact: true })).toBeVisible();
+    await expect(region.getByRole('button', { name: 'Logout', exact: true })).toBeEnabled();
+    await expect(region.getByRole('button', { name: 'Login', exact: true })).toHaveCount(0);
+    await expect(region.getByRole('textbox')).toHaveCount(0);
+    const signedIn = dialog.getByText('Signed in', { exact: true });
+    await signedIn.evaluate(element => element.setAttribute('data-profile-instance', 'first'));
+    await dialog.getByRole('button', { name: 'Controls', exact: true }).click();
+    await expect(signedIn).toBeHidden();
+    await expect(signedIn).toHaveCount(1);
+    await profile.click();
+    await expect(signedIn).toBeVisible();
+    await expect(signedIn).toHaveAttribute('data-profile-instance', 'first');
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(dialog.getByText('Signed in', { exact: true })).toHaveCount(0);
+  });
+
+  test('dev@local의 Profile에서 Logout을 클릭하면 설정을 닫고 타이틀의 not4k·Start를 표시한다', async ({ page }) => {
+    const dialog = await openSettings(page);
+    await dialog.getByRole('button', { name: 'Profile', exact: true }).click();
+    const profile = dialog.getByRole('region', { name: 'Profile', exact: true });
+    await expect(profile.getByText('dev@local', { exact: true })).toBeVisible();
+    // VITE_DEV_ADMIN은 실제 세션을 만들지 않는다. 깨끗한 context에서 auth-js signOut은
+    // access_token이 없어 HTTP 요청 없이 성공하므로 가짜 Supabase URL도 auth route가 필요 없다.
+    await profile.getByRole('button', { name: 'Logout', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'not4k', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
+  });
+
+  // 설정이 열린 채 Profile 복귀가 오면 setScreen·settingsOpen이 같은 틱에 바뀌어 패널이 다시 마운트되지 않는다.
+  // 그때는 SettingsPanel의 렌더 중 탭 조정(seenInitialSection)이 Profile로 옮기고 키 입력 대기를 끝내야 한다.
+  test('Controls에서 Lane 1 + Add로 키 입력 대기 중 Profile 복귀(pageshow persisted)가 오면 같은 설정 패널이 Profile 탭으로 바뀌고 이후 Z를 눌러도 KeyZ가 바인딩되지 않는다', async ({ page }) => {
+    const dialog = await openSettings(page);
+    const nav = dialog.getByRole('navigation', { name: 'Settings sections' });
+    await nav.evaluate(element => element.setAttribute('data-settings-instance', 'first'));
+    await laneRow(dialog, 1).getByRole('button', { name: '+ Add' }).click();
+    await expect(dialog.getByText('Press any key…')).toBeVisible();
+
+    // signInFromProfile이 Google로 떠나기 전에 남기는 복귀 마커(sessionStorage, String(Date.now()))를 쓰고
+    // Google에서 Back으로 bfcache 복귀한 것처럼 pageshow를 보낸다.
+    await page.evaluate(() => {
+      sessionStorage.setItem('not4k-profile-return', String(Date.now()));
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    });
+
+    await expect(dialog.getByRole('button', { name: 'Profile', exact: true })).toHaveAttribute('aria-current', 'page');
+    const region = dialog.getByRole('region', { name: 'Profile', exact: true });
+    await expect(region).toBeVisible();
+    await expect(region.getByText('Signed in', { exact: true })).toBeVisible();
+    await expect(nav).toHaveAttribute('data-settings-instance', 'first');
+    // 키 입력 대기가 남아 있으면 Controls가 사라진 뒤에도 window capture 리스너가 다음 키를 Lane 1에 바인딩한다.
+    await page.keyboard.press('z');
+    await dialog.getByRole('button', { name: 'Controls', exact: true }).click();
+    await expect(laneRow(dialog, 1).getByRole('button', { name: '+ Add' })).toBeVisible();
+    await expect(dialog.getByText('Press any key…')).toHaveCount(0);
+    await expect(dialog.getByText('KeyZ', { exact: true })).toHaveCount(0);
+  });
+
   test('Skin 탭은 기본 선택된 Classic만 보여 주고 Crystal 카드는 없으며, Classic은 재방문 후에도 유지되고 실제 플레이에서 명시 탭 노트·Body와 Classic 기어·봄 PNG를 로드한다', async ({ page }, testInfo) => {
     test.setTimeout(PLAY_TEST_TIMEOUT_MS);
     const errors: string[] = [];
