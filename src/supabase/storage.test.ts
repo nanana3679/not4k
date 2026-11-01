@@ -1,14 +1,22 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat, serializeChart, serializeExtraNotes, auxNotesAsExtra, ChartFormatError, validateChartDocument } from '../shared';
 import type { ChartDocument } from '../shared';
 import { compileExplicitJudgmentChart } from '../game/judgment/explicitCompiledChart';
 import { explicitPlaytestCharts } from '../lab/explicitPlaytestCharts';
+import { createChartTiming } from '../shared/timing/chartTiming';
+import { SongTimingError } from '../shared/songAssets/songTiming';
 
-vi.mock('./client', () => ({ supabase: { storage: { from: () => ({ getPublicUrl: (path: string) => ({
+const songQuery = vi.hoisted(() => ({ select: vi.fn(), eq: vi.fn(), maybeSingle: vi.fn() }));
+vi.mock('./client', () => ({ supabase: { from: () => songQuery, storage: { from: () => ({ getPublicUrl: (path: string) => ({
   data: { publicUrl: `https://storage.test/${path}` },
 }) }) } } }));
 const { fetchChart, fetchChartDocument, loadSongData, loadSongDocumentData } = await import('./storage');
 
+beforeEach(() => {
+  songQuery.select.mockReturnValue(songQuery);
+  songQuery.eq.mockReturnValue(songQuery);
+  songQuery.maybeSingle.mockResolvedValue({ data: null, error: null });
+});
 afterEach(() => vi.unstubAllGlobals());
 /** 실제 Supabase Storage가 없는 객체에 돌려주는 응답: HTTP 400에 본문 statusCode "404"·code "NoSuchKey". */
 const missingObjectBody = { statusCode: '404', error: 'not_found', code: 'NoSuchKey' };
@@ -29,6 +37,46 @@ const missingAuxResponses = [
 ] as const;
 
 describe('일반 곡 문서 Storage 읽기', () => {
+  it.each(['document', 'legacy'] as const)('%s reader에서 timing null인 곡은 120 BPM 사본을 유지하고 표시 정보만 바꾼다', async reader => {
+    const chart: ChartDocument = { ...explicitPlaytestCharts[0].chart,
+      notes: [{ type: 'single', lane: 1, beat: beat(1) }] };
+    serve(chart);
+    songQuery.maybeSingle.mockResolvedValue({ data: { title: '새 곡', artist: '', jacket_url: null, timing: null, revision: 1 }, error: null });
+    const loaded = await (reader === 'document' ? fetchChartDocument : fetchChart)('song-1', 'EASY');
+    expect(loaded.events).toEqual(chart.events);
+    expect(loaded.meta.offsetMs).toBe(chart.meta.offsetMs);
+    expect(loaded.meta.title).toBe('새 곡');
+  });
+
+  it('곡 timing의 BPM 0은 파일이 유효해도 SongTimingError로 게임 로딩을 거부한다', async () => {
+    serve(explicitPlaytestCharts[0].chart);
+    songQuery.maybeSingle.mockResolvedValue({ data: { timing: { bpmChanges: [{ beat: '0', bpm: 0 }],
+      timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 } }, error: null });
+    await expect(fetchChartDocument('song-1', 'EASY')).rejects.toBeInstanceOf(SongTimingError);
+  });
+
+  it('곡 조회에서 timing 열 없음 오류가 나면 파일 타이밍으로 게임을 열지 않는다', async () => {
+    serve(explicitPlaytestCharts[0].chart);
+    songQuery.maybeSingle.mockResolvedValue({ data: null, error: { message: 'column songs.timing does not exist' } });
+    await expect(fetchChartDocument('song-1', 'EASY')).rejects.toThrow('column songs.timing does not exist');
+  });
+  it('게임 로더는 파일 150 BPM 대신 곡 151 BPM·offsetMs 25를 적용한 뒤 1박 시각을 계산한다', async () => {
+    const chart = { ...explicitPlaytestCharts[0].chart, events: [
+      { type: 'bpm' as const, beat: beat(0), bpm: 150 },
+      { type: 'timeSignature' as const, beat: beat(0), beatPerMeasure: beat(4) },
+    ] };
+    serve(chart);
+    songQuery.maybeSingle.mockResolvedValue({ error: null, data: {
+      title: '곡 제목', artist: '곡 작곡가', jacket_url: 'new.png', audio_url: 'audio.ogg', revision: 42,
+      timing: { bpmChanges: [{ beat: '0', bpm: 151 }],
+        timeSignatureChanges: [{ beat: '0', beatPerMeasure: '3' }], offsetMs: 25 },
+    } });
+    const loaded = await loadSongDocumentData('song-1', 'EASY',
+      { decodeAudioData: async () => ({ duration: 4 }) } as unknown as AudioContext);
+    expect(loaded.chart.meta).toMatchObject({ title: '곡 제목', artist: '곡 작곡가', imageFile: 'new.png', offsetMs: 25 });
+    expect(createChartTiming(loaded.chart).beatToMs(beat(1))).toBeCloseTo(422.3509933774834);
+    expect(loaded.chart.notes).toEqual(chart.notes);
+  });
   it('main 탭·Body·틱·Release와 별도 aux의 명시·legacy 항목 및 메타데이터를 모두 보존한다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.meta = { ...chart.meta, title: '원본 제목', artist: '제작자', offsetMs: 17, difficultyLevel: 7 };

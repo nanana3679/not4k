@@ -17,6 +17,9 @@ export const SAVE_IN_PROGRESS_COPY = {
  */
 export const PAUSE_TO_EDIT_COPY = "Pause playback to edit";
 
+/** 곡 저장 연결 전에는 차트 JSON에만 남을 제목·아티스트 편집을 막는다(RFD 0107 PR2). */
+export const SONG_METADATA_READ_ONLY_COPY = "Title and Artist are song-level values. Editing will be available with song save.";
+
 /**
  * 같은 종류의 0박 초기 BPM·박자가 이미 있어 막은 편집의 안내(RFD 0082). 생성·이동·붙여넣기가 BPM·박자를 0박에 두려 할 때
  * 토스트를 한 번 띄운다.
