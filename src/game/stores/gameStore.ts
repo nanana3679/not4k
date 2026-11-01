@@ -67,9 +67,9 @@ interface GameState {
   calibrationActive: boolean;
   /**
    * 첫 기동 튜토리얼 모달(RFD 0055)을 다음 곡 선택 화면에서 열어야 하는지. 프리셋 설정을 마치는
-   * `completeFirstLaunch`가 켜고, 곡 선택이 모달을 연 채 시작하면서 `markFirstLaunchTutorialModalOpened`로 끈다.
-   * 모달이 실제로 열릴 때까지 설정과 함께 저장해, 그 전에 새로고침하거나 닫아도 다음 곡 선택에서 최소 1회 연다.
-   * 한 번 연 뒤에는 꺼진 값이 저장되므로 재진입·새로고침에서 다시 열지 않는다.
+   * `completeFirstLaunch`가 켜고, 곡 선택이 모달을 연 채 시작한 뒤 사용자가 모달을 닫으면 `markFirstLaunchTutorialModalClosed`로 끈다.
+   * 닫을 때까지 설정과 함께 저장해, 닫기 전에 새로고침하거나 앱을 닫으면 다음 곡 선택에서 다시 연다.
+   * 한 번 닫은 뒤에는 꺼진 값이 저장되므로 재진입·새로고침에서 다시 열지 않는다.
    */
   shouldOpenFirstLaunchTutorialModal: boolean;
   settings: GameSettings;
@@ -99,7 +99,7 @@ interface GameState {
   selectSong: (songId: string, difficulty: string, audioUrl: string, playbackRange?: PlaybackRange | null) => void;
   setResult: (result: PlayResult) => void;
   completeFirstLaunch: () => void;
-  markFirstLaunchTutorialModalOpened: () => void;
+  markFirstLaunchTutorialModalClosed: () => void;
   setChartData: (chart: Chart | null) => void;
   setAudioBuffer: (buffer: AudioBuffer | null) => void;
 
@@ -290,7 +290,7 @@ export const useGameStore = create<GameState>()(
         shouldOpenFirstLaunchTutorialModal: true,
       })),
 
-      markFirstLaunchTutorialModalOpened: () => set({ shouldOpenFirstLaunchTutorialModal: false }),
+      markFirstLaunchTutorialModalClosed: () => set({ shouldOpenFirstLaunchTutorialModal: false }),
 
       setChartData: (chart) => set({ chartData: chart }),
 

@@ -171,10 +171,10 @@ describe('gameStore — 첫 기동 튜토리얼 모달(RFD 0055)', () => {
     expect(useGameStore.getState().shouldOpenFirstLaunchTutorialModal).toBe(true);
   });
 
-  it('곡 선택이 모달을 열고 markFirstLaunchTutorialModalOpened를 호출하면 false가 되고 title→songSelect로 다시 들어와도 false를 유지한다', () => {
+  it('사용자가 모달을 닫아 markFirstLaunchTutorialModalClosed를 호출하면 false가 되고 title→songSelect로 다시 들어와도 false를 유지한다', () => {
     useGameStore.getState().completeFirstLaunch();
     useGameStore.getState().setScreen('songSelect');
-    useGameStore.getState().markFirstLaunchTutorialModalOpened();
+    useGameStore.getState().markFirstLaunchTutorialModalClosed();
     expect(useGameStore.getState().shouldOpenFirstLaunchTutorialModal).toBe(false);
 
     useGameStore.getState().setScreen('title');
@@ -183,7 +183,7 @@ describe('gameStore — 첫 기동 튜토리얼 모달(RFD 0055)', () => {
     expect(useGameStore.getState().settings.isFirstLaunch).toBe(false);
   });
 
-  it('모달을 열기 전(shouldOpenFirstLaunchTutorialModal=true)에 저장(partialize)하면 신호도 함께 남아 새로고침 복원(merge) 뒤에도 true다', () => {
+  it('모달을 닫기 전(shouldOpenFirstLaunchTutorialModal=true)에 저장(partialize)하면 신호도 함께 남아 새로고침 복원(merge) 뒤에도 true다', () => {
     useGameStore.getState().completeFirstLaunch();
     const saved = partializePersistedSettings(useGameStore.getState());
     expect(saved).toMatchObject({ shouldOpenFirstLaunchTutorialModal: true });
@@ -193,9 +193,9 @@ describe('gameStore — 첫 기동 튜토리얼 모달(RFD 0055)', () => {
     expect(restored.shouldOpenFirstLaunchTutorialModal).toBe(true);
   });
 
-  it('곡 선택이 모달을 연 뒤(markFirstLaunchTutorialModalOpened) 저장하면 새로고침 복원(merge) 뒤에는 false다', () => {
+  it('사용자가 모달을 닫은 뒤(markFirstLaunchTutorialModalClosed) 저장하면 새로고침 복원(merge) 뒤에는 false다', () => {
     useGameStore.getState().completeFirstLaunch();
-    useGameStore.getState().markFirstLaunchTutorialModalOpened();
+    useGameStore.getState().markFirstLaunchTutorialModalClosed();
     const restored = mergePersistedSettings(partializePersistedSettings(useGameStore.getState()),
       useGameStore.getInitialState());
     expect(restored.shouldOpenFirstLaunchTutorialModal).toBe(false);

@@ -7,6 +7,7 @@ describe('SongSelectScreen tutorial help', () => {
     expect(songSelectSource).toContain('showTutorialHelp');
     expect(songSelectSource).toContain('setShowTutorialHelp(true)');
     expect(songSelectSource).toContain('setShowTutorialHelp(false)');
+    expect(songSelectSource).toContain('onClose={closeTutorialHelp}');
   });
 
   it('? 버튼은 보조 액션으로 접근 가능한 dialog 트리거 라벨을 가짐', () => {

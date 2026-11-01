@@ -114,19 +114,27 @@ test.describe('Game Navigation', () => {
     await expect(dialog).toBeVisible();
   });
 
-  test('첫 기동 튜토리얼 모달이 열린 채 새로고침하면 프리셋 설정 없이 들어간 곡 선택에서 모달이 다시 열리지 않는다', async ({ page }) => {
+  test('첫 기동 튜토리얼 모달을 닫지 않은 채 새로고침하면 Start 뒤 곡 선택에서 모달이 다시 열리고, Close로 닫은 뒤 새로고침하면 열리지 않는다', async ({ page }) => {
     await stubEmptySongs(page);
     await choosePresetOnFirstLaunch(page, 'Numpad');
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
     await expect(dialog).toBeVisible();
 
+    // 화면은 저장하지 않으므로 새로고침 뒤에는 타이틀에서 다시 시작한다. 닫기 전이라 열기 신호가 남아 있다.
+    await page.reload();
+    await page.getByRole('button', { name: 'Start' }).click();
+    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByRole('button', { name: 'Close tutorial help' }).click();
+    await expect(dialog).toHaveCount(0);
     await page.reload();
     await page.getByRole('button', { name: 'Start' }).click();
     await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
     await expect(dialog).toHaveCount(0);
   });
 
-  test('프리셋 설정을 마쳤지만 곡 선택에서 모달이 열리기 전에 새로고침하면 Start 뒤 곡 선택에서 모달이 한 번 열리고, 그 뒤 새로고침하면 다시 열리지 않는다', async ({ page }) => {
+  test('프리셋 설정을 마쳤지만 곡 선택에서 모달이 열리기 전에 새로고침하면 Start 뒤 곡 선택에서 모달이 열리고, 닫기 전까지 열기 신호가 저장된 채 남는다', async ({ page }) => {
     await stubEmptySongs(page);
     await page.goto('/game');
     // completeFirstLaunch 직후·곡 선택이 모달을 열기 전의 저장 상태: 첫 기동은 끝났고 열기 신호는 아직 켜져 있다.
@@ -142,14 +150,13 @@ test.describe('Game Navigation', () => {
     await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
     await expect(dialog).toBeVisible();
-    await expect.poll(() => page.evaluate(() =>
-      JSON.parse(localStorage.getItem('not4k-settings')!).state.shouldOpenFirstLaunchTutorialModal)).toBe(false);
+    const savedSignal = () => page.evaluate(() =>
+      JSON.parse(localStorage.getItem('not4k-settings')!).state.shouldOpenFirstLaunchTutorialModal);
+    expect(await savedSignal()).toBe(true);
 
-    // 화면은 저장하지 않으므로 새로고침 뒤에는 타이틀에서 다시 시작한다.
-    await page.reload();
-    await page.getByRole('button', { name: 'Start' }).click();
-    await expect(page.getByRole('heading', { name: 'Song Select' })).toBeVisible();
+    await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
+    await expect.poll(savedSignal).toBe(false);
   });
 
   test('곡 목록 요청이 끝나지 않은 동안에도 첫 기동 튜토리얼 모달은 로딩 화면에 가리지 않아 Close를 누를 수 있고, 닫으면 Loading songs... 화면이 보인다', async ({ page }) => {

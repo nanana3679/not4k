@@ -3,10 +3,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGameStore } from '../stores/gameStore';
 
-// 첫 기동 튜토리얼 모달(RFD 0055): 곡 선택이 store 신호로 도움말 모달을 연 채 시작하고, 마운트 effect에서 신호를 지운다.
+// 첫 기동 튜토리얼 모달(RFD 0055): 곡 선택이 store 신호로 도움말 모달을 연 채 시작하고, 사용자가 모달을 닫을 때 신호를 지운다.
 // renderToStaticMarkup은 effect를 실행하지 않으므로 useEffect만 가로채 모아 두고 테스트가 직접 실행한다.
-// 정적 렌더라 effect 뒤 재렌더(신호를 지운 뒤에도 모달이 남는지)는 여기서 볼 수 없고 e2e/game/navigation.spec.ts가 확인한다.
-const fixture = vi.hoisted(() => ({ effects: [] as Array<() => void | (() => void)>, songsLoading: false }));
+// 정적 렌더라 닫은 뒤의 재렌더는 여기서 볼 수 없어, 모달 mock이 받은 onClose를 직접 불러 store 신호만 확인한다. 화면 흐름은 e2e/game/navigation.spec.ts가 확인한다.
+const fixture = vi.hoisted(() => ({
+  effects: [] as Array<() => void | (() => void)>, songsLoading: false, closeTutorialHelp: null as null | (() => void),
+}));
 vi.mock('react', async importOriginal => ({ ...await importOriginal<typeof import('react')>(),
   useEffect: (effect: () => void | (() => void)) => { fixture.effects.push(effect); },
 }));
@@ -28,7 +30,10 @@ vi.mock('../hooks/useSongNavigation', () => ({ useSongNavigation: () => ({
   songListRef: { current: null }, songCardRefs: { current: new Map() }, getSortedCharts: () => [],
 }) }));
 vi.mock('../hooks/usePreviewAudio', () => ({ usePreviewAudio: () => ({ stopPreview: () => {}, playPreviewAt: () => {} }) }));
-vi.mock('./songSelect/TutorialHelpModal', () => ({ TutorialHelpModal: () => '[tutorial-help-modal]' }));
+vi.mock('./songSelect/TutorialHelpModal', () => ({ TutorialHelpModal: ({ onClose }: { onClose: () => void }) => {
+  fixture.closeTutorialHelp = onClose;
+  return '[tutorial-help-modal]';
+} }));
 vi.mock('./settings/SettingsModal', () => ({ SettingsModal: () => '[settings-modal]' }));
 const { SongSelectScreen } = await import('./SongSelectScreen');
 
@@ -42,6 +47,7 @@ beforeEach(() => {
   useGameStore.setState(useGameStore.getInitialState(), true);
   fixture.effects = [];
   fixture.songsLoading = false;
+  fixture.closeTutorialHelp = null;
 });
 afterEach(() => useGameStore.setState(useGameStore.getInitialState(), true));
 
@@ -53,15 +59,29 @@ describe('SongSelectScreen 첫 기동 튜토리얼 모달', () => {
     expect(html).toMatch(/aria-label="Open tutorial help"[^>]*aria-expanded="true"/);
   });
 
-  it('첫 기동 튜토리얼 모달을 연 곡 선택은 마운트하면서 shouldOpenFirstLaunchTutorialModal을 false로 지운다', () => {
+  it('첫 기동 튜토리얼 모달을 연 곡 선택은 마운트·effect를 거쳐도 닫기 전까지 shouldOpenFirstLaunchTutorialModal=true를 유지한다', () => {
     useGameStore.getState().completeFirstLaunch();
     mount();
+    expect(useGameStore.getState().shouldOpenFirstLaunchTutorialModal).toBe(true);
+  });
+
+  it('첫 기동 튜토리얼 모달의 onClose(Close 버튼·Escape)를 부르면 shouldOpenFirstLaunchTutorialModal=false가 된다', () => {
+    useGameStore.getState().completeFirstLaunch();
+    mount();
+    fixture.closeTutorialHelp!();
     expect(useGameStore.getState().shouldOpenFirstLaunchTutorialModal).toBe(false);
   });
 
-  it('첫 기동 튜토리얼 모달을 한 번 연 뒤 곡 선택에 다시 들어와(새로 마운트) 그리면 모달 없이 그리고 ? 버튼은 aria-expanded=false다', () => {
+  it('첫 기동 튜토리얼 모달을 닫지 않은 채 곡 선택에 다시 들어와(새로 마운트) 그리면 모달을 다시 연 채 그린다', () => {
     useGameStore.getState().completeFirstLaunch();
     mount();
+    expect(mount()).toContain('[tutorial-help-modal]');
+  });
+
+  it('첫 기동 튜토리얼 모달을 닫은 뒤 곡 선택에 다시 들어와(새로 마운트) 그리면 모달 없이 그리고 ? 버튼은 aria-expanded=false다', () => {
+    useGameStore.getState().completeFirstLaunch();
+    mount();
+    fixture.closeTutorialHelp!();
     const html = mount();
     expect(html).not.toContain('[tutorial-help-modal]');
     expect(html).toMatch(/aria-label="Open tutorial help"[^>]*aria-expanded="false"/);
