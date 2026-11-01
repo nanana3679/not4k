@@ -12,6 +12,7 @@ export interface SongSharedData {
 
 /**
  * 곡 행의 표시 정보·타이밍을 적용한다. 파일 형식·노트·차트별 이벤트의 박 좌표는 바꾸지 않는다.
+ * jacketUrl이 null이면 기존 에디터 동작대로 파일의 imageFile을 유지한다(빈 문자열로 지우지 않는다).
  * 곡 타이밍에는 editorLane이 없으므로 BPM은 보조 레인1, 박자는 2에 배치한다(초기값은 RFD 0082).
  * 교체할 때 박 순서, 같은 박은 BPM→박자로 앞에 두고, 일반 이벤트의 순서·레인은 그대로 둔다.
  * 따라서 기존 일반 이벤트와 겹친 자리는 숨기거나 자동 수리하지 않는다.
@@ -30,7 +31,7 @@ export function resolveSongChart<T extends ChartDocument>(chart: T, song?: SongS
     && existingTiming.every((event, index) => sameTimingEvent(event, timingEvents[index]));
   const events = !timing || sameTiming ? chart.events
     : [...timingEvents, ...chart.events.filter(event => !isTimingEvent(event))];
-  const imageFile = song.jacketUrl ?? '';
+  const imageFile = song.jacketUrl ?? chart.meta.imageFile;
   const offsetMs = timing?.offsetMs ?? chart.meta.offsetMs;
   const sameMeta = chart.meta.title === song.title && chart.meta.artist === song.artist
     && chart.meta.imageFile === imageFile && chart.meta.offsetMs === offsetMs;

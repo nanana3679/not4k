@@ -41,10 +41,10 @@ describe('resolveSongChart', () => {
     expect(timingOnly.meta).toBe(resolved.meta);
   });
 
-  it('timing null이고 표시 정보가 같으면 이벤트 순서·editorLane 3을 포함해 같은 차트를 반환한다', () => {
+  it('timing·jacketUrl null이고 제목·아티스트가 같으면 old.jpg·이벤트 순서·editorLane 3을 포함해 같은 차트를 반환한다', () => {
     const original = chart();
     expect(resolveSongChart(original, { title: original.meta.title, artist: original.meta.artist,
-      jacketUrl: original.meta.imageFile, timing: null })).toBe(original);
+      jacketUrl: null, timing: null })).toBe(original);
   });
 
   it.each([undefined, {}, { bpmChanges: [{ beat: '0', bpm: 0 }],
@@ -59,11 +59,11 @@ describe('resolveSongChart', () => {
     expect(resolveSongChart(original)).toBe(original);
   });
 
-  it('timing null이면 표시 정보만 곡 값으로 바꾸고 150 BPM·offsetMs 100·이벤트 참조를 유지한다', () => {
+  it('timing·jacketUrl null이면 제목·아티스트만 곡 값으로 바꾸고 old.jpg·150 BPM·offsetMs 100·이벤트 참조를 유지한다', () => {
     const original = chart();
     const resolved = resolveSongChart(original, { ...song, timing: null, jacketUrl: null });
     expect(resolved.events).toBe(original.events);
-    expect(resolved.meta).toEqual({ ...original.meta, title: '곡 제목', artist: '곡 작곡가', imageFile: '' });
+    expect(resolved.meta).toEqual({ ...original.meta, title: '곡 제목', artist: '곡 작곡가', imageFile: 'old.jpg' });
   });
   it.each([[150, 'EASY'], [160, 'HARD']] as const)(
     '%i BPM인 %s 사본에 곡 151 BPM을 적용하면 표시 정보·타이밍만 교체하고 박 좌표를 유지한다', (bpm, difficulty) => {

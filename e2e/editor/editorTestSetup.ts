@@ -74,6 +74,8 @@ export interface OpenEditorOptions {
   expectedLoadState?: 'timeline' | 'error';
   /** true면 곡에 음원(`EDITOR_TEST_AUDIO_FILE`)이 있어 진입할 때 함께 불러온다. */
   audio?: boolean;
+  /** false면 songs 조회에 null을 반환해 곡 행 없이 남은 차트 파일을 연다. */
+  songRow?: boolean;
   /**
    * 구형 차트 변환 모달 처리. 기본 `decline`은 모달이 뜨면 "구형 그대로 열기"를 눌러 구형 그대로 연다(뜨지 않으면 아무것도 안 함).
    * `convert`는 모달이 떠야 하며 "변환"을 누른 뒤 결과 화면을 닫는다. `manual`은 모달을 그대로 두어 spec이 직접 다룬다.
@@ -120,6 +122,7 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
       return;
     }
     if (method === 'GET' && path === '/rest/v1/songs') {
+      if (options.songRow === false) { await route.fulfill({ json: null }); return; }
       await route.fulfill({ json: {
         title: chart.meta.title, artist: chart.meta.artist, jacket_url: chart.meta.imageFile,
         timing: null, revision: 1,

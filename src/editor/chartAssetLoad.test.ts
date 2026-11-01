@@ -9,10 +9,10 @@ const main = {
 };
 
 describe('loadEditorChartAsset 문서 로드', () => {
-  it('곡 timing null이면 파일 offsetMs -20과 자체 이벤트를 유지하고 표시 정보만 교체한다', () => {
-    const loaded = loadEditorChartAsset(JSON.stringify(main), null,
+  it('곡 timing·jacketUrl null이면 파일 old.jpg·offsetMs -20과 자체 이벤트를 유지하고 제목·아티스트만 교체한다', () => {
+    const loaded = loadEditorChartAsset(JSON.stringify({ ...main, meta: { ...main.meta, imageFile: 'old.jpg' } }), null,
       { title: '곡 제목', artist: '작곡가', jacketUrl: null, timing: null });
-    expect(loaded.chart.meta).toMatchObject({ title: '곡 제목', artist: '작곡가', imageFile: '', offsetMs: -20 });
+    expect(loaded.chart.meta).toMatchObject({ title: '곡 제목', artist: '작곡가', imageFile: 'old.jpg', offsetMs: -20 });
     expect(loaded.chart.events).toEqual([]);
   });
 

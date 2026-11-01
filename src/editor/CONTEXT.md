@@ -35,6 +35,7 @@ _Avoid_: 그리드
 
 **곡 메타데이터**:
 제목·아티스트·자켓은 같은 곡의 모든 차트가 공유하며, 이 표시 정보만 수정하면 기존 기록과 랭킹을 유지한다([glossary](../../docs/context/glossary.md#곡-메타데이터)).
+곡 저장 연결 전에는 곡 행이 있는 차트의 Title·Artist를 읽기 전용으로 두며, 자켓 NULL은 차트의 `imageFile`을 유지한다([현재 모달](../../docs/spec/chart-editor.md#메타데이터-편집-현재-모달과-곡-정보-드로어)).
 
 **곡 저장**:
 곡의 표시 정보·공통 타이밍·음원·프리뷰 구간·플레이 구간을 함께 저장하며, 개별 차트 저장과 범위를 분리한다. 두 저장은 DB 함수 하나로 한 번에 확정하고, 공통 타이밍의 정본은 `songs` 행이다([RFD 0107](../../docs/rfd/0107-song-timing-storage-and-atomic-saves.md)). Undo·Redo 이력은 곡 정보와 차트 편집을 시간순으로 통합한다. 왼쪽 곡 정보 드로어와 저장 분리는 채택 규칙이며 후속 구현이다([glossary](../../docs/context/glossary.md#곡-저장)).

@@ -113,6 +113,7 @@ export default function EditorApp() {
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
 
   const [chartLoading, setChartLoading] = useState(true);
+  const [hasSongRow, setHasSongRow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 새로 불러온 차트에 구형 노트가 있으면 에디터가 열릴 때 변환을 묻는다(RFD 0037 §8-1).
   // 테스트 플레이에서 돌아오는 경로(이미 불러온 곡)는 묻지 않는다. 사용자가 답하면 내려서,
@@ -141,11 +142,15 @@ export default function EditorApp() {
     // savedChartJson도 store에 그대로 남아, 저장하지 않은 편집은 돌아와도 dirty다.
     const existingStore = useEditorStore.getState();
     if (existingStore.activeSongId === songId) {
-      // Re-fetch audio URL so PlaybackController reloads audio
-      supabase.from('songs').select('audio_url').eq('id', songId).single().then((result) => {
-        if (result?.data?.audio_url) {
-          setPendingAudioUrl(getPublicUrl(result.data.audio_url));
+      // 음원 경로와 곡 행 유무를 다시 읽되, 편집 중인 차트·저장 기준은 그대로 둔다.
+      fetchSongSharedData(songId).then((song) => {
+        setHasSongRow(song !== null);
+        if (song?.audioUrl) {
+          setPendingAudioUrl(getPublicUrl(song.audioUrl));
         }
+        setChartLoading(false);
+      }).catch((err) => {
+        setError(err instanceof Error ? err.message : String(err));
         setChartLoading(false);
       });
       return;
@@ -169,6 +174,7 @@ export default function EditorApp() {
         // 초기 BPM·박자만 보조 레인1·2에 둔 상태가 불러온 기본 상태다(dirty·Undo 없음, 서버에 쓰지 않음).
         // 그 자리와 겹친 일반 이벤트는 옮기지 않고 배치 위반으로 남긴다.
         openEditorChart(asset);
+        setHasSongRow(song !== null);
         setActiveSongId(songId);
         setOfferLegacyConversion(hasLegacyNotes(asset.chart.notes));
 
@@ -225,6 +231,7 @@ export default function EditorApp() {
 
   return (
     <ChartEditorPage
+      hasSongRow={hasSongRow}
       offerLegacyConversion={offerLegacyConversion}
       onLegacyConversionAnswered={handleLegacyConversionAnswered}
     />
@@ -235,7 +242,8 @@ export default function EditorApp() {
 // Chart Editor Page — 추출된 훅/컴포넌트로 조합
 // ---------------------------------------------------------------------------
 
-function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: {
+function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversionAnswered }: {
+  hasSongRow: boolean;
   offerLegacyConversion: boolean;
   /** 변환 모달에 답했다(변환 또는 구형 그대로 열기). 다시 마운트돼도 묻지 않게 묻는 표시를 내린다. */
   onLegacyConversionAnswered: () => void;
@@ -870,6 +878,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       {showMetaModal && (
         <MetaEditModal
           meta={chart.meta}
+          hasSongRow={hasSongRow}
           audioBuffer={loadedAudioBuffer}
           initialJacketFile={pendingJacketFile}
           jacketCacheBust={jacketCacheBust}
