@@ -282,7 +282,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const selectedNotes = useEditorStore((s) => s.selection.notes);
   const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
-  const setChart = useEditorStore((s) => s.setChart);
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
@@ -840,19 +839,22 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           initialGameplayRange={songGameplayRange}
           offsetLocked={isPlaying}
           onSave={async (meta, previewRange, jacketFile, gameplayRange, audioFile) => {
-            const prevStart = chart.meta.previewStart;
-            const prevEnd = chart.meta.previewEnd;
+            // 모달을 연 뒤 저장이 끝났어도 현재 경로·리비전·대기 파일을 기준으로 합친다.
+            const current = useEditorStore.getState();
+            const currentSong = current.song;
+            const prevStart = current.chart.meta.previewStart;
+            const prevEnd = current.chart.meta.previewEnd;
             const rangeChanged = previewRange != null && (
               previewRange.startTime !== prevStart || previewRange.endTime !== prevEnd
             );
-            setChart({ ...chart, meta });
-            if (song) {
-              useEditorStore.getState().setSong({ ...song,
-                duration: audioFile ? loadedAudioBuffer?.duration ?? song.duration : song.duration,
-                pendingJacketFile: jacketFile ?? song.pendingJacketFile,
-                pendingAudioFile: audioFile ?? song.pendingAudioFile,
-                pendingPreviewRange: rangeChanged ? previewRange : song.pendingPreviewRange,
-                gameplayRange: gameplayRange ?? song.gameplayRange,
+            current.setChart({ ...current.chart, meta: { ...current.chart.meta, ...meta } });
+            if (currentSong) {
+              current.setSong({ ...currentSong,
+                duration: audioFile ? loadedAudioBuffer?.duration ?? currentSong.duration : currentSong.duration,
+                pendingJacketFile: jacketFile ?? currentSong.pendingJacketFile,
+                pendingAudioFile: audioFile ?? currentSong.pendingAudioFile,
+                pendingPreviewRange: rangeChanged ? previewRange : currentSong.pendingPreviewRange,
+                gameplayRange: gameplayRange ?? currentSong.gameplayRange,
               });
               setShowMetaModal(false);
               return;
@@ -873,7 +875,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
                 fadeOutTime: gameplayRange.fadeOutTime,
               }
               : null;
-            if (!samePlaybackRange(nextGameplayRange, songGameplayRange)) {
+            if (nextGameplayRange && !samePlaybackRange(nextGameplayRange, songGameplayRange)) {
               setSongGameplayRange(nextGameplayRange);
               setPendingGameplayRange(nextGameplayRange);
             }

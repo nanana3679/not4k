@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { ChartMeta } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { STORAGE_BUCKET } from '../../shared';
@@ -13,12 +13,28 @@ function getPublicUrl(path: string): string {
   return data.publicUrl;
 }
 
+/** Selector의 첫 알림은 정규화한 초기값이다. 그 뒤 달라진 구간만 모달 편집으로 취급한다. */
+function useRangeDraft() {
+  const [draft, setDraft] = useState<{
+    initial: PreviewRangeState | null; current: PreviewRangeState | null;
+  } | null>(null);
+  const onChange = useCallback((current: PreviewRangeState | null) => {
+    setDraft(previous => ({ initial: previous ? previous.initial : current, current }));
+  }, []);
+  const initial = draft?.initial;
+  const current = draft?.current;
+  const changed = current != null && (initial == null
+    || current.startTime !== initial.startTime || current.endTime !== initial.endTime
+    || current.fadeInTime !== initial.fadeInTime || current.fadeOutTime !== initial.fadeOutTime);
+  return { current: current ?? null, changed, onChange };
+}
+
 export interface MetaEditModalProps {
   meta: ChartMeta;
   audioBuffer: AudioBuffer | null;
   audioLoading?: boolean;
   onSave: (
-    meta: ChartMeta,
+    meta: Partial<ChartMeta>,
     previewRange: PreviewRangeState | null,
     jacketFile: File | null,
     gameplayRange: PreviewRangeState | null,
@@ -54,17 +70,15 @@ export function MetaEditModal({
     difficultyLabel: meta.difficultyLabel,
     difficultyLevel: String(meta.difficultyLevel),
     offsetMs: String(meta.offsetMs),
-    audioFile: meta.audioFile,
-    imageFile: meta.imageFile,
-    previewAudioFile: meta.previewAudioFile,
   });
-  const [previewRange, setPreviewRange] = useState<PreviewRangeState | null>(null);
-  const [gameplayRange, setGameplayRange] = useState<PreviewRangeState | null>(null);
+  const previewDraft = useRangeDraft();
+  const gameplayDraft = useRangeDraft();
   const [jacketError, setJacketError] = useState(false);
   const [jacketLocalUrl, setJacketLocalUrl] = useState<string | null>(
-    initialJacketFile ? URL.createObjectURL(initialJacketFile) : null,
+    () => initialJacketFile ? URL.createObjectURL(initialJacketFile) : null,
   );
-  const [jacketFile, setJacketFile] = useState<File | null>(initialJacketFile ?? null);
+  // 기존 대기 파일은 미리보기에만 쓴다. 이번 모달에서 고른 파일만 다시 적용한다.
+  const [jacketFile, setJacketFile] = useState<File | null>(null);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const prevJacketUrlRef = useRef<string | null>(jacketLocalUrl);
 
@@ -77,8 +91,8 @@ export function MetaEditModal({
   const set = (key: string, val: string) => setValues({ ...values, [key]: val });
 
   const jacketUrl = jacketLocalUrl
-    ?? (values.imageFile
-      ? getPublicUrl(values.imageFile) + (jacketCacheBust ? `?t=${jacketCacheBust}` : '')
+    ?? (meta.imageFile
+      ? getPublicUrl(meta.imageFile) + (jacketCacheBust ? `?t=${jacketCacheBust}` : '')
       : null);
 
   const saveDisabled = audioLoading || (audioFile !== null && audioBuffer === null);
@@ -86,17 +100,18 @@ export function MetaEditModal({
     if (saveDisabled) return;
     const level = parseInt(values.difficultyLevel);
     const offset = parseFloat(values.offsetMs);
-    const updatedMeta: ChartMeta = {
-      ...meta,
+    const updatedMeta: Partial<ChartMeta> = {
       title: values.title,
       artist: values.artist,
       difficultyLabel: values.difficultyLabel,
       difficultyLevel: isNaN(level) ? meta.difficultyLevel : level,
       offsetMs: offsetLocked || isNaN(offset) ? meta.offsetMs : offset,
-      audioFile: values.audioFile,
-      imageFile: values.imageFile,
-      previewAudioFile: values.previewAudioFile,
     };
+    // 저장 완료로 바뀐 경로를 모달을 열 때의 파일명으로 되돌리지 않는다.
+    if (audioFile) updatedMeta.audioFile = audioFile.name;
+    // 음원을 교체했다면 새 길이로 정규화한 구간도 적용한다.
+    const previewRange = previewDraft.changed || audioFile ? previewDraft.current : null;
+    const gameplayRange = gameplayDraft.changed || audioFile ? gameplayDraft.current : null;
     if (previewRange) {
       updatedMeta.previewStart = previewRange.startTime;
       updatedMeta.previewEnd = previewRange.endTime;
@@ -155,7 +170,6 @@ export function MetaEditModal({
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    set('audioFile', file.name);
                     setAudioFile(file);
                     onLoadAudio(file);
                   }
@@ -170,7 +184,7 @@ export function MetaEditModal({
                   audioBuffer={audioBuffer}
                   label="프리뷰 구간"
                   enabledLabel="프리뷰 사용"
-                  onChange={setPreviewRange}
+                  onChange={previewDraft.onChange}
                   initialStart={meta.previewStart}
                   initialEnd={meta.previewEnd}
                 />
@@ -187,7 +201,7 @@ export function MetaEditModal({
                   initialEnd={initialGameplayRange?.endTime}
                   initialFadeInTime={initialGameplayRange?.fadeInTime}
                   initialFadeOutTime={initialGameplayRange?.fadeOutTime}
-                  onChange={setGameplayRange}
+                  onChange={gameplayDraft.onChange}
                 />
               </div>
             ) : (

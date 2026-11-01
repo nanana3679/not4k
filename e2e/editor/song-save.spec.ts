@@ -32,6 +32,38 @@ function expectSongBeforeChart(editor: OpenedEditor, path = EDITOR_TEST_CHART_UP
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 }
 
+test('음원 저장 중 Meta를 열어 완료 뒤 제목만 적용하면 다음 Save가 업로드 경로를 유지하고 미디어를 다시 올리지 않는다', async ({ page }) => {
+  const editor = await openEditor(page, { songTiming: timing });
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  let blocked = false;
+  await page.route('**/rest/v1/rpc/save_song', async route => {
+    if (!blocked) { blocked = true; await pending; }
+    await route.fallback();
+  });
+  await openMeta(page);
+  await page.locator('input[type="file"][accept="audio/*"]').setInputFiles(EDITOR_TEST_AUDIO_FILE);
+  await expect(page.getByText('Replace Audio', { exact: true })).toBeVisible();
+  await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
+  await save(page).click();
+  await expect.poll(() => blocked).toBe(true);
+  await openMeta(page);
+  await page.getByLabel('Title', { exact: true }).fill('저장 뒤 제목');
+  release();
+  await expect(page.getByText('Song saved', { exact: true })).toBeVisible();
+  const first = JSON.parse(editor.supabaseWrites.find(write => write.path === '/rest/v1/rpc/save_song')!.body!);
+  await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
+  await save(page).click();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+  const requests = editor.supabaseWrites.filter(write => write.path === '/rest/v1/rpc/save_song');
+  expect(requests).toHaveLength(2);
+  expect(JSON.parse(requests[1].body!)).toMatchObject({
+    p_title: '저장 뒤 제목', p_audio_url: first.p_audio_url, p_preview_url: first.p_preview_url,
+  });
+  expect(editor.supabaseWrites.filter(write => /\/storage\/v1\/object\/assets\/.*\/(audio|preview)-/.test(write.path))).toHaveLength(2);
+  expect(editor.unexpectedSupabaseRequests).toEqual([]);
+});
+
 test('timing NULL에서 Title·Offset 45ms·자켓·음원을 바꿔 Save하면 이행 확인 1회 뒤 새 경로 3개와 곡만 저장한다', async ({ page }) => {
   const editor = await openEditor(page);
   await openMeta(page);

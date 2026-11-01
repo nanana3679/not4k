@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Children, createElement, isValidElement, type ReactNode } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { MetaEditModal } from './components/MetaEditModal';
 import { openEditorChart } from './openEditorChart';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { toSavedChartJson } from './savedChart';
@@ -189,6 +192,67 @@ it('자켓 A.png 업로드 중 B.png로 교체하면 A 경로만 저장하고 B 
   expect(state().song?.baseline.title).toBe('곡');
   expect(state().song?.revision).toBe(57);
   expect(dirty()).toBe(true);
+});
+
+it.each(['완료 전', '완료 후'])('replacement.ogg 저장 중 Meta를 열고 %s 제목만 적용하면 다음 Save도 업로드 경로를 쓰고 재업로드하지 않는다', async when => {
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, audioFile: 'replacement.ogg' } });
+  state().setSong({ ...state().song!,
+    pendingAudioFile: new File(['audio'], 'replacement.ogg'),
+    pendingJacketFile: new File(['jacket'], 'replacement.png'),
+  });
+  const buffer = { duration: 120, length: 1200, sampleRate: 10, numberOfChannels: 1,
+    getChannelData: () => new Float32Array(1200) } as unknown as AudioBuffer;
+  let finish!: (result: { error: null }) => void;
+  api.upload.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const saving = saveEditorSong(buffer, vi.fn());
+  expect(state().isSavingSong).toBe(true);
+  let apply: (() => void) | undefined;
+  let editedTitle = false;
+  function inspect(node: ReactNode) {
+    Children.forEach(node, child => {
+      if (!isValidElement<{ children?: ReactNode; value?: string; onClick?: () => void;
+        onChange?: (event: { target: { value: string } }) => void }>(child)) return;
+      if (child.props.value === '곡' && !editedTitle) {
+        editedTitle = true;
+        child.props.onChange!({ target: { value: '저장 뒤 제목' } });
+      }
+      if (child.props.children === 'Save') apply = child.props.onClick;
+      inspect(child.props.children);
+    });
+  }
+  function Probe() {
+    const tree = MetaEditModal({ meta: state().chart.meta, audioBuffer: buffer,
+      initialJacketFile: state().song!.pendingJacketFile,
+      initialGameplayRange: state().song!.gameplayRange,
+      onClose() {}, onLoadAudio() {},
+      onSave(meta, previewRange, jacketFile, gameplayRange, audioFile) {
+        const current = state();
+        current.setChart({ ...current.chart, meta: { ...current.chart.meta, ...meta } });
+        current.setSong({ ...current.song!,
+          pendingPreviewRange: previewRange ?? current.song!.pendingPreviewRange,
+          pendingJacketFile: jacketFile ?? current.song!.pendingJacketFile,
+          pendingAudioFile: audioFile ?? current.song!.pendingAudioFile,
+          gameplayRange: gameplayRange ?? current.song!.gameplayRange,
+        });
+      },
+    });
+    inspect(tree);
+    return tree;
+  }
+  renderToStaticMarkup(createElement(Probe));
+  if (when === '완료 전') apply!();
+  finish({ error: null });
+  expect(await saving).toBe(true);
+  const savedMedia = { p_jacket_url: api.upload.mock.calls[0][0],
+    p_audio_url: api.upload.mock.calls[1][0], p_preview_url: api.upload.mock.calls[2][0] };
+
+  if (when === '완료 후') apply!();
+  expect(state().song).toMatchObject({ revision: 57, pendingAudioFile: null, pendingJacketFile: null });
+  expect(state().chart.meta.title).toBe('저장 뒤 제목');
+  expect(await saveEditorSong(buffer, vi.fn())).toBe(true);
+  expect(api.rpc.mock.calls[1][1]).toMatchObject(savedMedia);
+  expect(api.upload).toHaveBeenCalledTimes(3);
+  expect(dirty()).toBe(false);
 });
 
 it('리비전 42 저장 응답 중 제목을 다시 고치면 응답 57은 저장 시작 제목의 기준이 되고 최신 편집은 dirty다', async () => {
