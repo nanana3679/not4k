@@ -89,7 +89,7 @@ export const ADVANCED_TUTORIAL_PREVIEWS = [
     '시연의 첫 롱노트는 너무 일찍부터 누른 키로 기다려도 시작되지 않아 Miss입니다.',
     '뒤의 별도 롱노트는 시작의 Good 윈도우 안에서 새 키를 눌러 유지하므로 Perfect입니다.',
     '앞에서 이어지는 롱노트라면 유효하게 유지하던 키를 그대로 이어 쓸 수 있습니다.',
-  ), 12, independent),
+  ), 14, independent),
   createTutorialPreview('advanced-short-holdonly', '아주 짧은 grace 롱노트', lines(
     '길이가 아주 짧으면 롱노트 끝이 시작의 Good 윈도우보다 먼저 지나갈 수 있습니다.',
     '이때는 끝을 지났어도 시작의 Good 윈도우 안에서 처음 누르면 Perfect로 완료합니다.',
