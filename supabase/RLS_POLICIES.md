@@ -25,7 +25,7 @@
 - `uploaded_by uuid` 컬럼 있음 (migration 200000, default `auth.uid()`)
 - UPDATE 정책이 없다. 클라이언트의 `songs` UPDATE는 오류 없이 0행을 바꾼다
 - `songs_delete_admin`은 `authenticated` + 인라인 `is_admin` 서브쿼리로 DELETE를 허용한다(migration `20260227100000`). `20260706000000_restrict_song_delete.sql`의 FK RESTRICT는 차트가 남아 있을 때만 삭제를 막는다. 차트를 모두 지우면 곡을 삭제하고 같은 text ID로 다시 INSERT할 수 있다.
-- 현재 `useFileOperations.ts`가 자켓·음원 경로를 바꾸려고 보내는 직접 UPDATE도 이 때문에 0행을 바꾼다. `save_song`은 관리자 확인 뒤 `security definer`로 RLS를 우회하도록 설계했으며, UPDATE 정책을 추가하지 않는다. 곡 저장 연결(RFD 0107 PR4)에서 직접 UPDATE를 `save_song`으로 바꾼다.
+- 에디터 곡 저장(RFD 0107 PR4a)은 `save_song`을 사용하며 Save Chart의 직접 UPDATE는 제거했다. `save_song`은 관리자 확인 뒤 `security definer`로 RLS를 우회하며, UPDATE 정책을 추가하지 않는다.
 - `timing jsonb`는 곡 공통 타이밍의 정본이며 SQL NULL은 미이행 상태다. `revision bigint NOT NULL DEFAULT nextval('public.song_revision_seq'::regclass)`는 저장 충돌 검사에 쓴다(migration `20261101000000`). 기존 행·신규 행·`save_song` 모두 같은 비순환 시퀀스를 사용해 삭제·재등록 시 과거 리비전을 재사용하지 않는다. 시퀀스는 이 열에 소속되며 `authenticated`·`service_role`에는 USAGE만 부여해 INSERT 기본값은 허용하고 `setval`은 막는다.
 
 ## charts

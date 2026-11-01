@@ -1,3 +1,4 @@
+import { isSongDirty } from '../songState';
 /**
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
@@ -12,7 +13,7 @@ import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
 import { isChartDirty } from '../savedChart';
-import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { SONG_SAVE_COPY, PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 import { color, edge } from '../../shared/theme';
 
 const styles = {
@@ -572,6 +573,7 @@ interface EditorToolbarProps {
   pendingGameplayRange: PlaybackRange | null;
   onPlayTest: (fromCursor: boolean) => void;
   onSaveChart: () => void;
+  onSaveSong: () => void;
   onSaveAs: () => void;
   onDeleteChart: () => void;
   onDeleteSelected: () => void;
@@ -619,6 +621,7 @@ export function EditorToolbar({
   pendingGameplayRange,
   onPlayTest,
   onSaveChart,
+  onSaveSong,
   onSaveAs,
   onDeleteChart,
   onDeleteSelected,
@@ -659,6 +662,8 @@ export function EditorToolbar({
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
+  const song = useEditorStore((s) => s.song);
+  const savingSong = useEditorStore((s) => s.isSavingSong);
   const savedChartJson = useEditorStore((s) => s.savedChartJson);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const activeSongId = useEditorStore((s) => s.activeSongId);
@@ -688,10 +693,12 @@ export function EditorToolbar({
   // 현재 차트를 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 store의 savedChartJson과 비교한다 (RFD 0018 ③).
   // 재생 중에는 페이지가 currentTimeMs를 구독해 툴바도 매 프레임 다시 렌더된다. 차트 전체 직렬화는 비교 입력이 바뀔 때만 한다.
   const chartDirty = useMemo(
-    () => isChartDirty(chart, extraLaneCount, savedChartJson),
-    [chart, extraLaneCount, savedChartJson],
+    () => isChartDirty(chart, extraLaneCount, savedChartJson, song !== null),
+    [chart, extraLaneCount, savedChartJson, song],
   );
-  const isDirty = chartDirty || pendingPreviewRange != null || pendingGameplayRange != null;
+  const isDirty = chartDirty || (!song && (pendingPreviewRange != null || pendingGameplayRange != null));
+  const songDirty = useMemo(() => isSongDirty(chart, song), [chart, song]);
+  const saveLocked = saving || savingSong || deleting;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
   // validateChart는 차트 배열 참조 기준 memo라 매 렌더 호출도 저렴하다.
@@ -709,9 +716,9 @@ export function EditorToolbar({
   // 자기 컴포넌트 대상 조건부 보정이라 다음 렌더에 조건이 풀려 무한루프 없음.
   if (violationCount === 0 && showViolationList) setShowViolationList(false);
   // 저장 중에도 비활성이다 — 저장이 끝나기 전에 /game으로 가지 않게 한다(useFileOperations.handlePlayTest와 같은 조건).
-  const playTestDisabled = violationCount > 0 || saving;
+  const playTestDisabled = violationCount > 0 || saving || savingSong;
   const hasExplicitMain = mainNotes(chart.notes).some(isExplicitNote);
-  const playTestDisabledTitle = saving
+  const playTestDisabledTitle = saving || savingSong
     ? SAVE_IN_PROGRESS_COPY.playTest
     : `배치 제약 위반 ${violationCount}건을 해소한 뒤 플레이할 수 있습니다`;
 
@@ -726,6 +733,19 @@ export function EditorToolbar({
     ...(disabled ? styles.compactButtonDisabled : {}),
   });
 
+  const renderSaveSong = () => song && (
+    <button
+      style={{ ...styles.compactButton, ...(saveLocked ? styles.compactButtonDisabled : {}), position: 'relative' }}
+      onClick={onSaveSong}
+      disabled={saveLocked}
+      title={savingSong ? 'Saving song' : songDirty ? 'Save song (unsaved changes)' : 'Save song'}
+      aria-label={savingSong ? 'Saving song' : songDirty ? 'Save song, unsaved changes' : 'Save song'}
+    >
+      {SONG_SAVE_COPY.label}
+      {songDirty && <span style={styles.compactDirtyBadge} />}
+    </button>
+  );
+
   const runUndo = () => {
     if (!canUndo) return;
     undo();
@@ -739,7 +759,7 @@ export function EditorToolbar({
   };
 
   const requestBackToSongs = () => {
-    if (isDirty) {
+    if (isDirty || songDirty) {
       window.dispatchEvent(new CustomEvent('editor:requestLeave'));
     } else {
       window.location.href = '/game';
@@ -1107,15 +1127,16 @@ export function EditorToolbar({
             >
               <ToolbarIcon name={isPlaying ? 'pause' : 'play'} />
             </button>
+            {renderSaveSong()}
             <button
               style={{
                 ...compactIconStyle,
                 ...styles.compactPrimaryButton,
-                ...(saving || deleting ? styles.compactButtonDisabled : {}),
+                ...(saveLocked ? styles.compactButtonDisabled : {}),
                 position: 'relative',
               }}
               onClick={onSaveChart}
-              disabled={saving || deleting}
+              disabled={saveLocked}
               title={saving ? 'Saving chart' : isDirty ? 'Save chart (unsaved changes)' : 'Save chart'}
               aria-label={saving ? 'Saving chart' : isDirty ? 'Save chart, unsaved changes' : 'Save chart'}
             >
@@ -1167,14 +1188,14 @@ export function EditorToolbar({
                     <button
                       style={styles.compactMenuButton}
                       onClick={() => { setShowMoreMenu(false); onSaveAs(); }}
-                      disabled={saving || deleting || !activeSongId}
+                      disabled={saveLocked || !activeSongId}
                     >
                       Save As
                     </button>
                     <button
                       style={{ ...styles.compactMenuButton, ...styles.compactDangerButton }}
                       onClick={() => { setShowMoreMenu(false); onDeleteChart(); }}
-                      disabled={saving || deleting || !activeSongId}
+                      disabled={saveLocked || !activeSongId}
                     >
                       {deleting ? 'Deleting' : 'Delete Chart'}
                     </button>
@@ -1398,15 +1419,16 @@ export function EditorToolbar({
       {renderConversionReviewButton()}
       {renderViolationBadge()}
 
+      {renderSaveSong()}
       {/* Save ChartDocument (아이콘 + 변경사항 칩) */}
       <button
         style={{
-          ...getIconButtonStyle(false, saving || deleting),
+          ...getIconButtonStyle(false, saveLocked),
           ...styles.compactPrimaryButton,
           position: 'relative',
         }}
         onClick={onSaveChart}
-        disabled={saving || deleting}
+        disabled={saveLocked}
         title={saving ? 'Saving chart' : isDirty ? 'Save chart (unsaved changes)' : 'Save chart'}
         aria-label={saving ? 'Saving chart' : isDirty ? 'Save chart, unsaved changes' : 'Save chart'}
       >
@@ -1458,16 +1480,16 @@ export function EditorToolbar({
                 Offset
               </button>
               <button
-                style={{ ...styles.compactMenuButton, ...((saving || deleting || !activeSongId) ? styles.compactButtonDisabled : {}) }}
+                style={{ ...styles.compactMenuButton, ...((saveLocked || !activeSongId) ? styles.compactButtonDisabled : {}) }}
                 onClick={() => { setShowMoreMenu(false); onSaveAs(); }}
-                disabled={saving || deleting || !activeSongId}
+                disabled={saveLocked || !activeSongId}
               >
                 Save As
               </button>
               <button
-                style={{ ...styles.compactMenuButton, ...styles.compactDangerButton, ...((saving || deleting || !activeSongId) ? styles.compactButtonDisabled : {}) }}
+                style={{ ...styles.compactMenuButton, ...styles.compactDangerButton, ...((saveLocked || !activeSongId) ? styles.compactButtonDisabled : {}) }}
                 onClick={() => { setShowMoreMenu(false); onDeleteChart(); }}
-                disabled={saving || deleting || !activeSongId}
+                disabled={saveLocked || !activeSongId}
               >
                 {deleting ? 'Deleting' : 'Delete Chart'}
               </button>

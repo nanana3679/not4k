@@ -126,7 +126,8 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
       await route.fulfill({ json: {
         title: chart.meta.title, artist: chart.meta.artist, jacket_url: chart.meta.imageFile,
         timing: null, revision: 1,
-        audio_url: audio ? AUDIO_PATH : null,
+        audio_url: audio ? AUDIO_PATH : chart.meta.audioFile,
+        preview_url: chart.meta.previewAudioFile || null, preview_start: chart.meta.previewStart ?? null, preview_end: chart.meta.previewEnd ?? null,
         duration: null, gameplay_start: null, gameplay_end: null, gameplay_fade_in: null, gameplay_fade_out: null,
       } });
       return;
@@ -137,6 +138,12 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     // Save chart: 차트·보조 레인 JSON 업로드와 charts 행 upsert
     if (method === 'POST' && path.startsWith(`${UPLOAD_SONG_DIR}/`)) {
       await route.fulfill({ json: { Key: path.replace('/storage/v1/object/', '') } }); return;
+    }
+    if (method === 'GET' && path === '/rest/v1/charts') {
+      await route.fulfill({ json: [{ difficulty_label: EDITOR_TEST_DIFFICULTY, chart_path: null }] }); return;
+    }
+    if (method === 'POST' && path === '/rest/v1/rpc/save_song') {
+      await route.fulfill({ json: 7 }); return;
     }
     if (method === 'POST' && path === '/rest/v1/charts') {
       await route.fulfill({ status: 201, json: [] }); return;

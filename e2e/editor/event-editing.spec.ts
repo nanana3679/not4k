@@ -124,7 +124,13 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     await page.getByLabel('BPM', { exact: true }).fill('150');
     await expect(page.getByTitle('Delete event', { exact: true })).toBeEnabled();
     await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save song, unsaved changes', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+    await expect(page.getByText('곡 타이밍에 미저장 변경이 있습니다. Save Song으로 곡을 먼저 저장해주세요.')).toBeVisible();
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Save song, unsaved changes', exact: true }).click();
+    await expect(page.getByText('Song saved', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Save chart', exact: true }).click();
     await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
 
     const upload = editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH);

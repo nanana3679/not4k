@@ -31,8 +31,20 @@ export function toSavedChartJson(chart: ChartDocument, extraLaneCount: number): 
  * 현재 차트·보조 레인 수를 같은 방식으로 직렬화해 `savedChartJson`과 다르면 dirty다.
  * `savedChartJson`이 없으면(null, 아직 불러온 차트가 없음) 비교할 대상이 없으므로 dirty로 본다 — 확인 없이 나가 편집을 잃지 않게 한다.
  */
-export function isChartDirty(chart: ChartDocument, extraLaneCount: number, saved: SavedChartJson | null): boolean {
+export function isChartDirty(chart: ChartDocument, extraLaneCount: number, saved: SavedChartJson | null, hasSongRow = false): boolean {
   if (saved === null) return true;
   const current = toSavedChartJson(chart, extraLaneCount);
-  return current.chartJson !== saved.chartJson || current.extraJson !== saved.extraJson;
+  return (hasSongRow
+    ? chartOnlyJson(current.chartJson) !== chartOnlyJson(saved.chartJson)
+    : current.chartJson !== saved.chartJson) || current.extraJson !== saved.extraJson;
+}
+
+/** 저장 JSON 형식은 유지하고 비교에서만 곡 소유 사본을 제외한다. */
+function chartOnlyJson(json: string): string {
+  const document = JSON.parse(json);
+  for (const key of ['title', 'artist', 'imageFile', 'audioFile', 'previewAudioFile', 'previewStart', 'previewEnd', 'offsetMs']) {
+    delete document.meta[key];
+  }
+  document.events = document.events.filter((event: { type: string }) => event.type !== 'bpm' && event.type !== 'timeSignature');
+  return JSON.stringify(document);
 }

@@ -20,21 +20,25 @@ async function saveChart(page: Page, editor: OpenedEditor): Promise<ChartJsonV3 
 }
 
 test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
-  test('곡 행이 있으면 Meta의 Title·Artist는 읽기 전용이고 Offset·난이도는 편집 가능하며 Save chart는 곡 제목을 보존한다', async ({ page }) => {
+  test('곡 제목만 바꾸면 Save Song만 미저장이고 Save chart는 허용되며 곡 변경은 미저장으로 남는다', async ({ page }) => {
     const editor = await openEditor(page);
     await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
     await page.getByRole('button', { name: 'Meta', exact: true }).click();
 
     for (const name of ['Title', 'Artist']) {
-      await expect(page.getByLabel(name, { exact: true })).toHaveJSProperty('readOnly', true);
+      await expect(page.getByLabel(name, { exact: true })).toBeEditable();
     }
-    await expect(page.getByText('Title and Artist are song-level values. Editing will be available with song save.')).toBeVisible();
+    await page.getByLabel('Title', { exact: true }).fill('새 제목');
     for (const name of ['Offset (ms)', 'Difficulty Label', 'Difficulty Level']) {
       await expect(page.getByLabel(name, { exact: true })).toBeEditable();
     }
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     const uploaded = await saveChart(page, editor);
-    expect(uploaded.meta).toMatchObject({ title: 'E2E 에디터 곡', artist: 'Offline', offsetMs: 0 });
+    expect(uploaded.meta).toMatchObject({ title: '새 제목', artist: 'Offline', offsetMs: 0 });
+    await expect(page.getByRole('button', { name: 'Save song, unsaved changes', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to Songs', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Unsaved Changes', exact: true })).toBeVisible();
     expect(editor.supabaseWrites.filter(write => write.path === '/rest/v1/songs')).toEqual([]);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });

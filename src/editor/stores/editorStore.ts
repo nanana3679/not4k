@@ -9,6 +9,7 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
+import type { EditorSong } from '../songState';
 import type { SavedChartJson } from '../savedChart';
 import type { CursorBeatKeeperState } from '../playback/cursorBeatKeeper';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
@@ -93,6 +94,9 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // dirty 표시·나가기 확인이 이것과 현재 차트를 비교한다. 차트를 새로 불러올 때와 저장(Save·Save As) 성공 때만 정한다.
   // 편집·Undo·테스트 플레이는 바꾸지 않는다. 페이지 컴포넌트가 아니라 store가 소유해, 테스트 플레이에서 돌아와 페이지가 다시 마운트돼도 유지된다.
   savedChartJson: SavedChartJson | null;
+  song: EditorSong | null;
+  isSavingSong: boolean;
+  setSong: (song: EditorSong | null) => void;
 
   // 저장(Save·Save As)이 진행 중인가. 페이지 지역 상태가 아니라 store가 소유해, 페이지가 다시 마운트돼도
   // 진행 중인 저장을 잊지 않는다. 진행 중에는 두 번째 저장과 테스트 플레이를 시작하지 않는다.
@@ -282,6 +286,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editTransaction: null,
   lastValidSnapshot: null,
   savedChartJson: null,
+  song: null,
+  isSavingSong: false,
   isSavingChart: false,
   chartSaveGeneration: 0,
   chartLoadGeneration: 0,
@@ -371,6 +377,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       chart,
       selection: emptySelection(),
       savedChartJson: null,
+      song: null,
+      isSavingSong: false,
       isSavingChart: false,
       chartSaveGeneration: state.chartSaveGeneration + 1,
       chartLoadGeneration: state.chartLoadGeneration + 1,
@@ -384,10 +392,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         : {}),
     }));
   },
+  setSong: (song) => set({ song }),
   setSavedChartJson: (savedChartJson) => set({ savedChartJson }),
   beginChartSave: () => {
     const { isSavingChart, chartSaveGeneration } = get();
-    if (isSavingChart) return null;
+    if (isSavingChart || get().isSavingSong) return null;
     const generation = chartSaveGeneration + 1;
     set({ isSavingChart: true, chartSaveGeneration: generation });
     return generation;

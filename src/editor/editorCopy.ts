@@ -17,11 +17,20 @@ export const SAVE_IN_PROGRESS_COPY = {
  */
 export const PAUSE_TO_EDIT_COPY = "Pause playback to edit";
 
-/** 곡 저장 연결 전에는 차트 JSON에만 남을 제목·아티스트 편집을 막는다(RFD 0107 PR2). */
-export const SONG_METADATA_READ_ONLY_COPY = "Title and Artist are song-level values. Editing will be available with song save.";
-
 /**
  * 같은 종류의 0박 초기 BPM·박자가 이미 있어 막은 편집의 안내(RFD 0082). 생성·이동·붙여넣기가 BPM·박자를 0박에 두려 할 때
  * 토스트를 한 번 띄운다.
  */
 export const INITIAL_TIMING_EXISTS_COPY = "An initial BPM/time signature already exists at beat 0";
+
+export const SONG_SAVE_COPY = {
+  label: 'Save Song',
+  saved: 'Song saved',
+  timingFirst: '곡 타이밍에 미저장 변경이 있습니다. Save Song으로 곡을 먼저 저장해주세요.',
+  conflict: '다른 곳에서 곡을 변경했습니다. 편집 내용은 유지됩니다. 곡을 다시 불러온 뒤 저장해주세요.',
+  permission: '곡을 저장할 관리자 권한이 없습니다. 편집 내용은 유지됩니다.',
+  missing: '저장할 곡이 존재하지 않습니다. 편집 내용은 유지됩니다.',
+  failed: '곡 저장에 실패했습니다. 편집 내용은 유지됩니다. 잠시 후 다시 시도해주세요.',
+  migration: '이 차트의 타이밍을 곡 공통 타이밍으로 올리며 이 곡의 다른 차트도 이 타이밍을 따릅니다.',
+  differingCharts: '타이밍이 다른 차트',
+} as const;

@@ -17,7 +17,7 @@ import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { normalizePlaybackRange, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
+import { STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { hasLegacyNotes } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex } from '../shared';
@@ -48,7 +48,9 @@ import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
-import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
+import { saveEditorSong } from './saveEditorSong';
+import { isSongTimingDirty } from './songState';
+import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY, SONG_SAVE_COPY } from './editorCopy';
 import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
 import { editorChartViolationIndices } from './documentValidation';
 import { isChartDirty } from './savedChart';
@@ -77,27 +79,6 @@ function useCompactEditorLayout(): boolean {
   return compact;
 }
 
-interface SongGameplayRow {
-  duration: number | null;
-  gameplay_start: number | null;
-  gameplay_end: number | null;
-  gameplay_fade_in: number | null;
-  gameplay_fade_out: number | null;
-}
-
-function songRowToPlaybackRange(row: SongGameplayRow | null | undefined): PlaybackRange | null {
-  if (!row || row.gameplay_start == null || row.gameplay_end == null) return null;
-  const duration = row.duration != null && Number.isFinite(row.duration) && row.duration > 0
-    ? row.duration
-    : row.gameplay_end;
-  return normalizePlaybackRange({
-    startTime: row.gameplay_start,
-    endTime: row.gameplay_end,
-    fadeInTime: row.gameplay_fade_in ?? 0,
-    fadeOutTime: row.gameplay_fade_out ?? 0,
-  }, duration);
-}
-
 function samePlaybackRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
   if (a === null || b === null) return a === b;
   return a.startTime === b.startTime
@@ -113,7 +94,6 @@ export default function EditorApp() {
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
 
   const [chartLoading, setChartLoading] = useState(true);
-  const [hasSongRow, setHasSongRow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 새로 불러온 차트에 구형 노트가 있으면 에디터가 열릴 때 변환을 묻는다(RFD 0037 §8-1).
   // 테스트 플레이에서 돌아오는 경로(이미 불러온 곡)는 묻지 않는다. 사용자가 답하면 내려서,
@@ -142,12 +122,12 @@ export default function EditorApp() {
     // savedChartJson도 store에 그대로 남아, 저장하지 않은 편집은 돌아와도 dirty다.
     const existingStore = useEditorStore.getState();
     if (existingStore.activeSongId === songId) {
-      // 음원 경로와 곡 행 유무를 다시 읽되, 편집 중인 차트·저장 기준은 그대로 둔다.
-      fetchSongSharedData(songId).then((song) => {
-        setHasSongRow(song !== null);
-        if (song?.audioUrl) {
-          setPendingAudioUrl(getPublicUrl(song.audioUrl));
-        }
+      // 복귀 시 음원 조회는 유지하되, 열린 곡의 초안·리비전·대기 파일을 서버 값으로 바꾸지 않는다.
+      fetchSongSharedData(songId).then((loaded) => {
+        const file = existingStore.song?.pendingAudioFile;
+        const path = existingStore.song ? existingStore.chart.meta.audioFile : loaded?.audioUrl;
+        if (file) setPendingAudioUrl(URL.createObjectURL(file));
+        else if (path) setPendingAudioUrl(getPublicUrl(path));
         setChartLoading(false);
       }).catch((err) => {
         setError(err instanceof Error ? err.message : String(err));
@@ -173,8 +153,7 @@ export default function EditorApp() {
         const asset = loadEditorChartAsset(chartText, extraText, song);
         // 초기 BPM·박자만 보조 레인1·2에 둔 상태가 불러온 기본 상태다(dirty·Undo 없음, 서버에 쓰지 않음).
         // 그 자리와 겹친 일반 이벤트는 옮기지 않고 배치 위반으로 남긴다.
-        openEditorChart(asset);
-        setHasSongRow(song !== null);
+        openEditorChart(asset, song);
         setActiveSongId(songId);
         setOfferLegacyConversion(hasLegacyNotes(asset.chart.notes));
 
@@ -231,7 +210,6 @@ export default function EditorApp() {
 
   return (
     <ChartEditorPage
-      hasSongRow={hasSongRow}
       offerLegacyConversion={offerLegacyConversion}
       onLegacyConversionAnswered={handleLegacyConversionAnswered}
     />
@@ -242,13 +220,13 @@ export default function EditorApp() {
 // Chart Editor Page — 추출된 훅/컴포넌트로 조합
 // ---------------------------------------------------------------------------
 
-function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversionAnswered }: {
-  hasSongRow: boolean;
+function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: {
   offerLegacyConversion: boolean;
   /** 변환 모달에 답했다(변환 또는 구형 그대로 열기). 다시 마운트돼도 묻지 않게 묻는 표시를 내린다. */
   onLegacyConversionAnswered: () => void;
 }) {
   const chart = useEditorStore((s) => s.chart);
+  const song = useEditorStore((s) => s.song);
   const playTestNavigate = useNavigate();
   // Imperative refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -284,12 +262,14 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
   const [deleting, setDeleting] = useState(false);
   const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
   const [showOffsetToolbar, setShowOffsetToolbar] = useState(false);
-  const [pendingPreviewRange, setPendingPreviewRange] = useState<PlaybackRange | null>(null);
-  const [pendingGameplayRange, setPendingGameplayRange] = useState<PlaybackRange | null>(null);
-  const [songGameplayRange, setSongGameplayRange] = useState<PlaybackRange | null>(null);
-  const [pendingJacketFile, setPendingJacketFile] = useState<File | null>(null);
-  const [pendingAudioFile, setPendingAudioFile] = useState<File | null>(null);
-  const [jacketCacheBust, setJacketCacheBust] = useState(0);
+  const [localPreviewRange, setPendingPreviewRange] = useState<PlaybackRange | null>(null);
+  const [localGameplayRange, setPendingGameplayRange] = useState<PlaybackRange | null>(null);
+  const [localSongGameplayRange, setSongGameplayRange] = useState<PlaybackRange | null>(null);
+  const [localJacketFile, setPendingJacketFile] = useState<File | null>(null);
+  const pendingPreviewRange = song ? song.pendingPreviewRange : localPreviewRange;
+  const pendingGameplayRange = song ? null : localGameplayRange;
+  const songGameplayRange = song ? song.gameplayRange : localSongGameplayRange;
+  const pendingJacketFile = song ? song.pendingJacketFile : localJacketFile;
   // 구형 차트 변환 모달(RFD 0037 §8-1). 불러올 때 store의 savedChartJson을 구형 차트로 정했으므로 변환하면 dirty가 된다.
   // 변환 전 개수는 같은 순수 함수의 dry-run이다. 지금 차트에 구형 노트가 없으면 묻지 않는다.
   const [legacyConversionDialog, setLegacyConversionDialog] = useState<LegacyConversionDialog | null>(
@@ -395,31 +375,8 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
     rendererRef as React.RefObject<{ setChart: (c: unknown) => void } | null>,
     setDeleting, setValidationErrors,
     setShowSaveAsModal, setSaveAsOverwriteTarget, setShowDeleteConfirm, setShowPlayTestMenu,
-    setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setJacketCacheBust,
-    pendingPreviewRange, pendingGameplayRange, pendingJacketFile,
-    setPendingAudioFile, pendingAudioFile,
     playTestNavigate,
   );
-
-  useEffect(() => {
-    if (!activeSongId) {
-      setSongGameplayRange(null);
-      return;
-    }
-    let mounted = true;
-    supabase
-      .from('songs')
-      .select('duration,gameplay_start,gameplay_end,gameplay_fade_in,gameplay_fade_out')
-      .eq('id', activeSongId)
-      .single()
-      .then(({ data }) => {
-        if (!mounted) return;
-        setSongGameplayRange(songRowToPlaybackRange(data as SongGameplayRow | null));
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [activeSongId]);
 
   // 키보드 단축키 훅
   useEditorKeyboard(
@@ -626,6 +583,7 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
       setLoadedAudioBuffer(null);
       addToast(`Audio load failed: ${message}`, 'error');
     }).finally(() => {
+      if (url.startsWith('blob:')) URL.revokeObjectURL(url);
       setAudioLoading(false);
       hasCompletedInitialAudioLoadRef.current = true;
       setInitialAudioPending(false);
@@ -826,7 +784,11 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
         pendingGameplayRange={pendingGameplayRange}
         onPlayTest={fileOps.handlePlayTest}
         onSaveChart={fileOps.handleSaveChart}
-        onSaveAs={() => setShowSaveAsModal(true)}
+        onSaveSong={() => void saveEditorSong(playbackRef.current?.audioBufferData ?? null, message => window.confirm(message))}
+        onSaveAs={() => {
+          if (isSongTimingDirty(chart, song)) addToast(SONG_SAVE_COPY.timingFirst, 'warn');
+          else setShowSaveAsModal(true);
+        }}
         onDeleteChart={() => setShowDeleteConfirm(true)}
         onDeleteSelected={handleDeleteSelected}
         onOpenMeta={() => setShowMetaModal(true)}
@@ -878,10 +840,9 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
       {showMetaModal && (
         <MetaEditModal
           meta={chart.meta}
-          hasSongRow={hasSongRow}
           audioBuffer={loadedAudioBuffer}
           initialJacketFile={pendingJacketFile}
-          jacketCacheBust={jacketCacheBust}
+          audioLoading={audioLoading}
           initialGameplayRange={songGameplayRange}
           offsetLocked={isPlaying}
           onSave={async (meta, previewRange, jacketFile, gameplayRange, audioFile) => {
@@ -891,6 +852,17 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
               previewRange.startTime !== prevStart || previewRange.endTime !== prevEnd
             );
             setChart({ ...chart, meta });
+            if (song) {
+              useEditorStore.getState().setSong({ ...song,
+                duration: audioFile ? loadedAudioBuffer?.duration ?? song.duration : song.duration,
+                pendingJacketFile: jacketFile ?? song.pendingJacketFile,
+                pendingAudioFile: audioFile ?? song.pendingAudioFile,
+                pendingPreviewRange: rangeChanged ? previewRange : song.pendingPreviewRange,
+                gameplayRange: gameplayRange ?? song.gameplayRange,
+              });
+              setShowMetaModal(false);
+              return;
+            }
             if (rangeChanged && previewRange) {
               setPendingPreviewRange({
                 startTime: previewRange.startTime,
@@ -912,12 +884,15 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
               setPendingGameplayRange(nextGameplayRange);
             }
             if (jacketFile) setPendingJacketFile(jacketFile);
-            if (audioFile) setPendingAudioFile(audioFile);
             setShowMetaModal(false);
           }}
           onClose={() => setShowMetaModal(false)}
           onLoadAudio={(file) => {
-            void playbackRef.current?.loadAudioFile(file);
+            setAudioLoading(true);
+            setLoadedAudioBuffer(null);
+            void playbackRef.current?.loadAudioFile(file).catch(() => {
+              addToast('Audio load failed', 'error');
+            }).finally(() => setAudioLoading(false));
           }}
         />
       )}
@@ -960,7 +935,7 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
           currentDifficulty={chart.meta.difficultyLabel}
           title={chart.meta.title}
           level={chart.meta.difficultyLevel}
-          isDirty={isChartDirty(chart, extraLaneCount, savedChartJson)}
+          isDirty={isChartDirty(chart, extraLaneCount, savedChartJson, song !== null)}
           onSave={async (targetDifficulty, targetLevel) => {
             const { data: existing, error } = await supabase
               .from('charts')

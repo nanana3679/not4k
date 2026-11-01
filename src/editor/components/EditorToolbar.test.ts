@@ -1,3 +1,5 @@
+import { createEditorSong } from '../songState';
+import { toSavedChartJson } from '../savedChart';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -38,6 +40,7 @@ const render = (props: { compact?: boolean; showOffsetToolbar?: boolean } = {}) 
   pendingGameplayRange: null,
   onPlayTest() {},
   onSaveChart() {},
+  onSaveSong() {},
   onSaveAs() {},
   onDeleteChart() {},
   onDeleteSelected() {},
@@ -50,6 +53,7 @@ const buttonTag = (markup: string, name: string) => markup.match(new RegExp(`<bu
 
 beforeEach(() => {
   useEditorStore.setState({
+    song: null, isSavingSong: false,
     chart: chart(), extraLaneCount: 2, selection: emptySelection(), mode: 'select', isPlaying: false, editTransaction: null,
     historyPast: [{ chart: chart(), extraLaneCount: 2 }], historyFuture: [{ chart: chart(), extraLaneCount: 2 }],
   });
@@ -89,5 +93,25 @@ describe('툴바의 재생 중 잠금', () => {
     const markup = render({ showOffsetToolbar: true });
 
     expect(markup).not.toContain('disabled=""');
+  });
+});
+
+describe('곡·차트 저장 표시', () => {
+  it.each([false, true])('곡 제목만 바꾸면 compact=%s에서 Save Song만 미저장이고 Save chart는 깨끗하다', compact => {
+    const document = chart();
+    const song = createEditorSong({ title: '툴바', artist: '', jacketUrl: null, audioUrl: '', duration: null,
+      previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
+      gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 }, document);
+    useEditorStore.setState({ song, savedChartJson: toSavedChartJson(document, 2),
+      chart: { ...document, meta: { ...document.meta, title: '새 제목' } } });
+    const markup = render({ compact });
+    expect(buttonTag(markup, 'Save song, unsaved changes')).not.toBe('');
+    expect(buttonTag(markup, 'Save chart')).not.toBe('');
+    expect(markup).toContain('Save Song');
+    useEditorStore.setState({ isSavingSong: true });
+    expect(buttonTag(render({ compact }), 'Saving song')).toContain('disabled=""');
+  });
+  it('곡 행이 없으면 Save Song 버튼 0개로 기존 차트 저장만 표시한다', () => {
+    expect(render()).not.toContain('Save Song');
   });
 });
