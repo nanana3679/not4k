@@ -18,11 +18,12 @@ import type {
   Beat,
   Lane,
 } from "../../shared";
-import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex, isMainLane, beatEq, deriveExplicitNoteRelations, isInitialTimingEvent } from "../../shared";
+import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex, isMainLane, beatEq, deriveExplicitNoteRelations } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
 import { placeEditedInitialTiming } from "../editing/initialTimingPlacement";
+import { isInitialTimingEvent } from "../editing/eventEditing";
 import { INITIAL_TIMING_EXISTS_COPY } from "../editorCopy";
 
 export type EntityType =

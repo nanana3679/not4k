@@ -25,7 +25,8 @@
  * 이 액션을 거치지 않고 store가 직접 쓰므로 막히지 않는다.
  */
 import type { ChartDocument, DocumentNoteEntity, TrillZone } from '../../shared';
-import { beatToFloat, isInitialTimingEvent } from '../../shared';
+import { beatToFloat } from '../../shared';
+import { isInitialTimingEvent } from '../editing/eventEditing';
 import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
 
 /**

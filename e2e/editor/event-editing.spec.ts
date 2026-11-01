@@ -233,11 +233,13 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('초기 BPM·박자 자리인 보조 레인1·2의 text·auto [0,4)는 열 때 옮기지 않아 위반 2건으로 열리고 저장은 [eventOverlap] 2건으로 막히며, 보조 레인 수 2 → 4로 늘려 text·auto를 레인3·4로 옮기면 위반이 풀려 저장된다', async ({ page }) => {
+  test('파일에서 초기 BPM·박자보다 앞에 적힌 보조 레인1·2의 text·auto [0,4)는 열 때 레인을 옮기지 않아 위반 2건으로 열리고 저장은 [eventOverlap] 2건으로 막히며, 보조 레인 수 2 → 4로 늘려 text·auto를 레인3·4로 옮기면 위반이 풀려 초기 BPM·박자가 맨 앞인 순서로 저장된다', async ({ page }) => {
     const chart = editorTestChart();
-    chart.events = [...chart.events,
+    // 파일 순서는 [text, auto, BPM, 박자]다. 열면 초기 BPM·박자가 이벤트 목록 맨 앞으로 와 [BPM, 박자, text, auto]가 된다.
+    chart.events = [
       { type: 'text', beat: '0', endBeat: '4', text: 'hello', editorLane: 1 },
       { type: 'auto', beat: '0', endBeat: '4', editorLane: 2 },
+      ...chart.events,
     ];
     const loadViolationLogs = recordLoadViolationLogs(page);
     const editor = await openEditor(page, { chart });

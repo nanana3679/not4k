@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestRestZoneAt, noteExistsAtSnap, hitTestRangeNoteRegion, hitTestEventAt } from "./hitTest";
+import { hitTestNoteAt, hitTestExtraNoteAt, hitTestTrillZoneAt, hitTestRestZoneAt, noteExistsAtSnap, hitTestRangeNoteRegion } from "./hitTest";
 import { beat } from "../../shared";
-import type { ChartEvent, DocumentNoteEntity, DocumentExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
+import type { DocumentNoteEntity, DocumentExtraNoteEntity, RangeNote, TrillZone, RestZone } from "../../shared";
 
 // ---------------------------------------------------------------------------
 // hitTestNoteAt
@@ -389,56 +389,5 @@ describe('명시 점수 노트 hit 우선순위', () => {
       { type: 'body', holdCount: 2, extraLane: 1, beat: beat(0), endBeat: beat(4) },
       { type: 'release', count: 2, extraLane: 1, beat: beat(4) },
     ], 1, 4)).toBe(1);
-  });
-});
-
-describe('hitTestEventAt 0박 초기 설정과 일반 이벤트 겹침(RFD 0082)', () => {
-  const text: ChartEvent = { type: 'text', beat: beat(0), endBeat: beat(4), text: 'intro', editorLane: 1 };
-  const initialBpm: ChartEvent = { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 };
-
-  it.each([
-    { order: '[text, 초기 BPM]', events: [text, initialBpm], textIndex: 0, bpmIndex: 1 },
-    { order: '[초기 BPM, text]', events: [initialBpm, text], textIndex: 1, bpmIndex: 0 },
-  ])('$order 순서에서 보조 레인1의 0박을 찾으면 기본(selectable)은 text, initialTiming 우선이면 초기 BPM을 찾는다', ({ events, textIndex, bpmIndex }) => {
-    expect(hitTestEventAt(events, 1, 0)).toBe(textIndex);
-    expect(hitTestEventAt(events, 1, 0, 'selectable')).toBe(textIndex);
-    expect(hitTestEventAt(events, 1, 0, 'initialTiming')).toBe(bpmIndex);
-  });
-
-  it('0박에 초기 BPM만 있으면 기본 우선순위로도 초기 BPM 0을 찾는다', () => {
-    expect(hitTestEventAt([initialBpm], 1, 0)).toBe(0);
-  });
-
-  it('0～4박 text만 있는 2박을 initialTiming 우선으로 찾아도 text 0을 찾는다', () => {
-    expect(hitTestEventAt([text, initialBpm], 1, 2, 'initialTiming')).toBe(0);
-  });
-
-  it('0박에 겹친 일반 이벤트 text 둘은 우선순위와 관계없이 나중 인덱스 1을 찾는다', () => {
-    const other: ChartEvent = { type: 'text', beat: beat(0), endBeat: beat(2), text: 'other', editorLane: 1 };
-    expect(hitTestEventAt([text, other, initialBpm], 1, 0)).toBe(1);
-    expect(hitTestEventAt([text, other], 1, 0, 'initialTiming')).toBe(1);
-  });
-});
-
-describe('hitTestEventAt 0박 초기 설정과 겹치지 않는 근처 일반 이벤트(RFD 0082)', () => {
-  // 초기 BPM(0박)과 1/16박 BPM·1/32～4박 text는 배치가 겹치지 않는 정상 차트지만, 허용 오차 ±1/16박 안에서 함께 잡힌다.
-  const initialBpm: ChartEvent = { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 };
-  const bpmAtSixteenth: ChartEvent = { type: 'bpm', beat: beat(1, 16), bpm: 150, editorLane: 1 };
-  const textFromThirtySecond: ChartEvent = { type: 'text', beat: beat(1, 32), endBeat: beat(4), text: 'intro', editorLane: 1 };
-
-  it('[초기 BPM, 1/16박 BPM]에서 1/16박을 initialTiming 우선으로 찾으면 겹치지 않는 초기 BPM이 아니라 나중 인덱스 1/16박 BPM 1을 찾는다', () => {
-    expect(hitTestEventAt([initialBpm, bpmAtSixteenth], 1, 1 / 16, 'initialTiming')).toBe(1);
-  });
-
-  it('[1/16박 BPM, 초기 BPM]에서 0박을 기본(selectable)으로 찾으면 겹치지 않는 1/16박 BPM이 아니라 나중 인덱스 초기 BPM 1을 찾는다', () => {
-    expect(hitTestEventAt([bpmAtSixteenth, initialBpm], 1, 0)).toBe(1);
-  });
-
-  it('[초기 BPM, 1/32～4박 text]에서 1/32박을 initialTiming 우선으로 찾으면 겹치지 않는 초기 BPM이 아니라 나중 인덱스 text 1을 찾는다', () => {
-    expect(hitTestEventAt([initialBpm, textFromThirtySecond], 1, 1 / 32, 'initialTiming')).toBe(1);
-  });
-
-  it('[1/32～4박 text, 초기 BPM]에서 0박을 기본(selectable)으로 찾으면 겹치지 않는 text가 아니라 나중 인덱스 초기 BPM 1을 찾는다', () => {
-    expect(hitTestEventAt([textFromThirtySecond, initialBpm], 1, 0)).toBe(1);
   });
 });

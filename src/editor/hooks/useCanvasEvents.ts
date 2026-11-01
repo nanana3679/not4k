@@ -412,9 +412,8 @@ export function useCanvasEvents(
     }
   }, [rendererRef]);
 
-  // 더블클릭 값 편집. 0박에 일반 이벤트가 겹쳐도 초기 설정을 잡아, 선택·삭제할 수 없는 초기 설정의 값을 고칠 수 있게 한다(RFD 0082).
-  const hitTestEventForEdit = useCallback((x: number, y: number) => {
-    const index = space.hitTestEvent(x, y, 'initialTiming');
+  const hitTestEvent = useCallback((x: number, y: number) => {
+    const index = space.hitTestEvent(x, y);
     return index === null ? null : { type: 'event' as const, index };
   }, [space]);
 
@@ -1090,11 +1089,11 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    const hit = hitTestEventForEdit(x, y);
+    const hit = hitTestEvent(x, y);
     if (hit) {
       setEditingEvent(hit);
     }
-  }, [canvasRef, hitTestEventForEdit, rendererRef, setEditingEvent]);
+  }, [canvasRef, hitTestEvent, rendererRef, setEditingEvent]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();

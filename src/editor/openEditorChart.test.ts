@@ -43,7 +43,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(selectCanRedo(store())).toBe(false);
   });
 
-  it('보조 레인1·2의 text·auto [0,4)가 초기 BPM·박자 자리와 겹친 차트를 열면 text·auto를 옮기지 않고 보조 레인 수 2로 열어 eventOverlap 2건과 경고 알림이 남고 dirty·Undo·Redo가 없다', () => {
+  it('보조 레인1·2의 text·auto [0,4)가 초기 BPM·박자 자리와 겹친 [text, auto, BPM, 박자] 차트를 열면 text·auto의 레인은 옮기지 않고 [BPM, 박자, text, auto] 순서·보조 레인 수 2로 열어 eventOverlap 2건과 경고 알림이 남고 dirty·Undo·Redo가 없다', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const events: ChartEvent[] = [
       { type: 'text', beat: beat(0), endBeat: beat(4), text: 'hello', editorLane: 1 },
@@ -54,7 +54,9 @@ describe('openEditorChart 불러온 기본 상태', () => {
 
     openEditorChart({ chart: chart(events), extraLaneCount: 2, hasExtraLaneCount: true });
 
-    expect(store().chart.events).toBe(events);
+    expect(store().chart.events).toEqual([events[2], events[3], events[0], events[1]]);
+    expect(store().chart.events[2]).toBe(events[0]);
+    expect(store().chart.events[3]).toBe(events[1]);
     expect(editorChartErrors(store().chart).map(error => [error.rule, error.refs])).toEqual([
       ['eventOverlap', [{ kind: 'event', index: 0 }, { kind: 'event', index: 2 }]],
       ['eventOverlap', [{ kind: 'event', index: 1 }, { kind: 'event', index: 3 }]],
@@ -70,7 +72,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     consoleError.mockRestore();
   });
 
-  it('BPM이 보조 레인3·박자가 editorLane 없음이고 text·auto [0,4)가 보조 레인1·2인 차트를 열면 BPM·박자만 1·2로 옮기고 text·auto는 같은 객체로 1·2에 남으며 그 상태가 dirty·Undo 없는 기본이다', () => {
+  it('BPM이 보조 레인3·박자가 editorLane 없음이고 text·auto [0,4)가 보조 레인1·2인 [text, auto, BPM, 박자] 차트를 열면 BPM·박자만 1·2로 옮겨 맨 앞에 두고 text·auto는 같은 객체로 1·2에 남으며 그 상태가 dirty·Undo 없는 기본이다', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const events: ChartEvent[] = [
       { type: 'text', beat: beat(0), endBeat: beat(4), text: 'hello', editorLane: 1 },
@@ -81,9 +83,10 @@ describe('openEditorChart 불러온 기본 상태', () => {
 
     openEditorChart({ chart: chart(events), extraLaneCount: 3, hasExtraLaneCount: true });
 
-    expect(store().chart.events.map(event => event.editorLane)).toEqual([1, 2, 1, 2]);
-    expect(store().chart.events[0]).toBe(events[0]);
-    expect(store().chart.events[1]).toBe(events[1]);
+    expect(store().chart.events.map(event => [event.type, event.editorLane]))
+      .toEqual([['bpm', 1], ['timeSignature', 2], ['text', 1], ['auto', 2]]);
+    expect(store().chart.events[2]).toBe(events[0]);
+    expect(store().chart.events[3]).toBe(events[1]);
     expect(editorChartErrors(store().chart).map(error => error.rule)).toEqual(['eventOverlap', 'eventOverlap']);
     expect(store().extraLaneCount).toBe(3);
     expect(store().savedChartJson).toEqual(toSavedChartJson(store().chart, 3));

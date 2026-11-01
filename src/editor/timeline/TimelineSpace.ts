@@ -1,4 +1,4 @@
-import { hitTestEventAt, type EventHitPreference } from './hitTest';
+import { hitTestEventAt } from './hitTest';
 /**
  * TimelineSpace — 입력 좌표 공간(픽셀 → 도메인) deep module.
  *
@@ -62,11 +62,7 @@ export interface TimelineSpace {
   snapBeat(beat: Beat): Beat;
   getSnapStep(): Beat;
   getMaxBeatFloat(): number;
-  /**
-   * 보조 레인 이벤트 히트테스트 — chart.events 인덱스. 0박에 초기 설정과 일반 이벤트가 겹치면
-   * 기본은 일반 이벤트를, 더블클릭 값 편집은 `'initialTiming'`으로 초기 설정을 잡는다(RFD 0082).
-   */
-  hitTestEvent(x: number, y: number, prefer?: EventHitPreference): number | null;
+  hitTestEvent(x: number, y: number): number | null;
   /** 드래그 도중 BPM·전체 높이가 바뀌어도 down 시점의 좌표 해석을 유지한다. */
   captureBeatProjection(): (y: number) => Beat;
   /**
@@ -214,10 +210,10 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     return null;
   };
 
-  const hitTestEvent = (x: number, y: number, prefer?: EventHitPreference): number | null => {
+  const hitTestEvent = (x: number, y: number): number | null => {
     const extraLane = xToExtraLane(x);
     if (extraLane === null) return null;
-    return hitTestEventAt(source.getChart().events, extraLane, beatToFloat(yToBeatRaw(y)), prefer);
+    return hitTestEventAt(source.getChart().events, extraLane, beatToFloat(yToBeatRaw(y)));
   };
 
   const captureBeatProjection = (): ((y: number) => Beat) => {

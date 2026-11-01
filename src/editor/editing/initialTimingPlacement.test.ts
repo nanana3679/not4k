@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { beat, isInitialTimingEvent, validateChart, validateNoEventOverlap } from "../../shared";
+import { beat, validateChart, validateNoEventOverlap } from "../../shared";
 import type { Beat, ChartEvent } from "../../shared";
+import { isInitialTimingEvent } from "./eventEditing";
 import { placeEditedInitialTiming, placeInitialTimingEvents, withInitialTimingLane } from "./initialTimingPlacement";
 
 const lane = (editorLane?: number) => (editorLane === undefined ? {} : { editorLane });
@@ -15,7 +16,7 @@ const auto = (start: number, end: number, editorLane?: number): ChartEvent =>
 const tutorialInput = (start: number, end: number, editorLane?: number): ChartEvent =>
   ({ type: "tutorialInput", beat: beat(start), endBeat: beat(end), lane: 1, keyCode: "KeyD", ...lane(editorLane) });
 
-describe("placeInitialTimingEvents 차트를 열 때 초기 BPM·박자만 고정 보조 레인에 두기", () => {
+describe("placeInitialTimingEvents 차트를 열 때 초기 BPM·박자만 고정 보조 레인과 이벤트 목록 맨 앞에 두기", () => {
   it("보조 레인3의 0박 BPM 120은 보조 레인1로 옮기고 값·박과 보조 레인2 박자는 그대로다", () => {
     const events = [bpm(0, 3), signature(0, 2)];
 
@@ -49,10 +50,10 @@ describe("placeInitialTimingEvents 차트를 열 때 초기 BPM·박자만 고�
     expect(placed.events[1].editorLane).toBe(2);
   });
 
-  it("BPM이 보조 레인2·박자가 보조 레인1로 뒤바뀌어 있으면 BPM은 1·박자는 2로 바로잡는다", () => {
+  it("[보조 레인1 박자, 보조 레인2 BPM]으로 뒤바뀌어 있으면 BPM은 1·박자는 2로 바로잡고 [BPM, 박자] 순서로 둔다", () => {
     const placed = placeInitialTimingEvents([signature(0, 1), bpm(0, 2)], 2);
 
-    expect(placed.events.map(event => [event.type, event.editorLane])).toEqual([["timeSignature", 2], ["bpm", 1]]);
+    expect(placed.events.map(event => [event.type, event.editorLane])).toEqual([["bpm", 1], ["timeSignature", 2]]);
   });
 
   it.each([
@@ -104,12 +105,14 @@ describe("placeInitialTimingEvents 차트를 열 때 초기 BPM·박자만 고�
       .toEqual([[{ kind: "event", index: 1 }, { kind: "event", index: 2 }]]);
   });
 
-  it("보조 레인1·2의 text·auto [0,4)는 그대로 두고 보조 레인 수 2를 늘리지 않으며 text·BPM과 auto·박자 eventOverlap 2건으로 남는다", () => {
+  it("[보조 레인1 text [0,4), 보조 레인2 auto [0,4), BPM, 박자]는 text·auto의 레인을 그대로 두고 [BPM, 박자, text, auto] 순서로 두며 보조 레인 수 2를 늘리지 않고 BPM·text와 박자·auto eventOverlap 2건으로 남는다", () => {
     const events = [text(0, 4, 1), auto(0, 4, 2), bpm(0, 1), signature(0, 2)];
 
     const placed = placeInitialTimingEvents(events, 2);
 
-    expect(placed.events).toBe(events);
+    expect(placed.events).toEqual([events[2], events[3], events[0], events[1]]);
+    expect(placed.events[2]).toBe(events[0]);
+    expect(placed.events[3]).toBe(events[1]);
     expect(placed.extraLaneCount).toBe(2);
     expect(validateNoEventOverlap(placed.events).map(error => error.refs)).toEqual([
       [{ kind: "event", index: 0 }, { kind: "event", index: 2 }],
@@ -117,16 +120,16 @@ describe("placeInitialTimingEvents 차트를 열 때 초기 BPM·박자만 고�
     ]);
   });
 
-  it("BPM이 보조 레인3·text [0,4)가 보조 레인1이면 BPM만 보조 레인1로 옮기고 text는 같은 객체로 레인1에 남아 BPM과 eventOverlap 1건이 된다", () => {
-    const events = [text(0, 4, 1), bpm(0, 3), signature(0, 2)];
+  it("[보조 레인1 text [0,4), 보조 레인1 박자, 보조 레인3 BPM]은 [보조 레인1 BPM, 보조 레인2 박자, 보조 레인1 text]가 되고 text는 같은 객체로 BPM과 eventOverlap 1건이 된다", () => {
+    const events = [text(0, 4, 1), signature(0, 1), bpm(0, 3)];
 
     const placed = placeInitialTimingEvents(events, 3);
 
-    expect(placed.events.map(event => event.editorLane)).toEqual([1, 1, 2]);
-    expect(placed.events[0]).toBe(events[0]);
+    expect(placed.events).toEqual([bpm(0, 1), signature(0, 2), text(0, 4, 1)]);
+    expect(placed.events[2]).toBe(events[0]);
     expect(placed.extraLaneCount).toBe(3);
     expect(validateNoEventOverlap(placed.events).map(error => error.refs))
-      .toEqual([[{ kind: "event", index: 0 }, { kind: "event", index: 1 }]]);
+      .toEqual([[{ kind: "event", index: 0 }, { kind: "event", index: 2 }]]);
   });
 
   it("보조 레인1의 tutorialInput [0,2)는 초기 BPM 자리와 겹쳐도 editorLane 1·lane 1·keyCode KeyD 그대로 같은 객체다", () => {
@@ -134,8 +137,8 @@ describe("placeInitialTimingEvents 차트를 열 때 초기 BPM·박자만 고�
 
     const placed = placeInitialTimingEvents(events, 2);
 
-    expect(placed.events[0]).toBe(events[0]);
-    expect(placed.events[0]).toEqual({ type: "tutorialInput", beat: beat(0), endBeat: beat(2), lane: 1, keyCode: "KeyD", editorLane: 1 });
+    expect(placed.events[2]).toBe(events[0]);
+    expect(placed.events[2]).toEqual({ type: "tutorialInput", beat: beat(0), endBeat: beat(2), lane: 1, keyCode: "KeyD", editorLane: 1 });
   });
 
   it("보조 레인1 text [4,8)·auto [6,10)과 보조 레인2의 4박 BPM·박자는 옮기지 않고 eventOverlap 2건으로 남는다", () => {
@@ -156,15 +159,16 @@ describe("placeInitialTimingEvents 차트를 열 때 초기 BPM·박자만 고�
     { name: "보조 레인1·2 text·auto [0,4)·보조 레인2 BPM·박자·보조 레인1 BPM 중복", events: [text(0, 4, 1), auto(0, 4, 2), bpm(0, 2), signature(0, 2), bpm(0, 1, 150)] },
     { name: "보조 레인1 tutorialInput [0,2)·보조 레인3 BPM·박자", events: [tutorialInput(0, 2, 1), bpm(0, 3), signature(0, 3)] },
     { name: "숨은 보조 레인5 auto [0,4)·보조 레인0 4박 BPM·보조 레인5 BPM·박자", events: [auto(0, 4, 5), bpm(4, 0, 180), bpm(0, 5), signature(0, 5)] },
-  ])("$name을 배치해도 초기 설정이 아닌 이벤트는 모두 같은 객체로 남는다", ({ events }) => {
+  ])("$name을 배치해도 초기 설정이 아닌 이벤트는 모두 같은 객체로 원래 순서대로 초기 설정 뒤에 남는다", ({ events }) => {
     const placed = placeInitialTimingEvents(events, 2);
 
-    events.forEach((event, index) => {
-      if (!isInitialTimingEvent(event)) expect(placed.events[index]).toBe(event);
-    });
+    const ordinaryEvents = events.filter(event => !isInitialTimingEvent(event));
+    const initialCount = events.length - ordinaryEvents.length;
+    expect(placed.events.slice(0, initialCount).every(isInitialTimingEvent)).toBe(true);
+    ordinaryEvents.forEach((event, offset) => expect(placed.events[initialCount + offset]).toBe(event));
   });
 
-  it("이미 BPM 보조 레인1·박자 보조 레인2면 같은 events 참조와 보조 레인 수 5를 돌려준다", () => {
+  it("이미 BPM 보조 레인1·박자 보조 레인2로 이벤트 목록 맨 앞에 있으면 같은 events 참조와 보조 레인 수 5를 돌려준다", () => {
     const events = [bpm(0, 1), signature(0, 2), bpm(4, 1), text(0, 4, 3)];
 
     const placed = placeInitialTimingEvents(events, 5);
@@ -195,7 +199,8 @@ describe("placeInitialTimingEvents 차트를 열 때 초기 BPM·박자만 고�
 
   it("보조 레인1·2 text·auto [0,4)와 보조 레인3 BPM·editorLane 없는 박자를 한 번 배치한 결과에 다시 적용하면 같은 events 참조와 보조 레인 수 2를 돌려준다", () => {
     const first = placeInitialTimingEvents([text(0, 4, 1), auto(0, 4, 2), bpm(0, 3), signature(0)], 2);
-    expect(first.events.map(event => event.editorLane)).toEqual([1, 2, 1, 2]);
+    expect(first.events.map(event => [event.type, event.editorLane]))
+      .toEqual([["bpm", 1], ["timeSignature", 2], ["text", 1], ["auto", 2]]);
     expect(first.extraLaneCount).toBe(2);
 
     const second = placeInitialTimingEvents(first.events, first.extraLaneCount);
@@ -210,6 +215,55 @@ describe("placeInitialTimingEvents 차트를 열 때 초기 BPM·박자만 고�
 
   it("보조 레인 수 0에서 박자를 보조 레인2로 옮기면 보조 레인1·2가 보이게 보조 레인 수를 0 → 2로 늘린다", () => {
     expect(placeInitialTimingEvents([bpm(0), signature(0)], 0).extraLaneCount).toBe(2);
+  });
+});
+
+describe("placeInitialTimingEvents 초기 설정을 이벤트 목록 맨 앞(맨 아래 그림)으로 옮기기", () => {
+  it.each([
+    { order: "[보조 레인3 text [0,4), 초기 BPM, 초기 박자]", events: [text(0, 4, 3), bpm(0, 1), signature(0, 2)], expected: [1, 2, 0] },
+    { order: "[초기 박자, 초기 BPM, 보조 레인3 text [0,4)]", events: [signature(0, 2), bpm(0, 1), text(0, 4, 3)], expected: [1, 0, 2] },
+  ])("레인이 이미 고정 자리여도 $order는 [초기 BPM, 초기 박자, text] 순서의 새 배열이 되고 세 이벤트는 같은 객체다", ({ events, expected }) => {
+    const placed = placeInitialTimingEvents(events, 3);
+
+    expect(placed.events).not.toBe(events);
+    expect(placed.events.map(event => event.type)).toEqual(["bpm", "timeSignature", "text"]);
+    expected.forEach((sourceIndex, index) => expect(placed.events[index]).toBe(events[sourceIndex]));
+  });
+
+  it("4박 BPM 180·4박 박자는 초기 설정이 아니라 [4박 BPM, 보조 레인3 text, 4박 박자, 초기 BPM, 초기 박자]에서 원래 순서대로 초기 BPM·박자 뒤에 남는다", () => {
+    const events = [bpm(4, 1, 180), text(8, 12, 3), signature(4, 2), bpm(0, 1), signature(0, 2)];
+
+    const placed = placeInitialTimingEvents(events, 3);
+
+    expect(placed.events).toEqual([events[3], events[4], events[0], events[1], events[2]]);
+  });
+
+  it("초기 BPM 150·120과 초기 박자 둘이 다른 이벤트 사이에 섞여 있으면 BPM 150·120, 박자 0박·0/4박 순서로 맨 앞에 모으고 각 종류 안의 상대 순서를 지킨다", () => {
+    const events = [text(4, 8, 3), signature(0, 1), bpm(0, 3, 150), auto(8, 12, 3), signature({ n: 0, d: 4 }, 2), bpm(0, 1, 120)];
+
+    const placed = placeInitialTimingEvents(events, 3);
+
+    expect(placed.events).toEqual([
+      bpm(0, 1, 150), bpm(0, 1, 120), signature(0, 2), signature({ n: 0, d: 4 }, 2), text(4, 8, 3), auto(8, 12, 3),
+    ]);
+    expect(placed.events[3]).toBe(events[4]);
+    expect(placed.events[4]).toBe(events[0]);
+    expect(placed.events[5]).toBe(events[3]);
+  });
+
+  it("[보조 레인1 text [0,4), 보조 레인1 박자, 보조 레인3 BPM]을 한 번 배치한 결과에 다시 적용하면 같은 events 참조를 돌려준다", () => {
+    const first = placeInitialTimingEvents([text(0, 4, 1), signature(0, 1), bpm(0, 3)], 3);
+
+    const second = placeInitialTimingEvents(first.events, first.extraLaneCount);
+
+    expect(second.events).toBe(first.events);
+    expect(second.extraLaneCount).toBe(3);
+  });
+
+  it("0박 BPM·박자가 없는 [보조 레인1 text [0,4), 4박 BPM]은 순서를 바꾸지 않고 같은 events 참조를 돌려준다", () => {
+    const events = [text(0, 4, 1), bpm(4, 1)];
+
+    expect(placeInitialTimingEvents(events, 2).events).toBe(events);
   });
 });
 
