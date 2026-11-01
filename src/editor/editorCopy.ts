@@ -39,11 +39,11 @@ export const SONG_SAVE_COPY = {
   sharedTiming: (count: number) => `변경한 공통 타이밍(BPM·박자표·오프셋)을 이 곡의 다른 차트 ${count}개에도 적용합니다. 저장하시겠습니까?`,
   differingCharts: '타이밍이 다른 차트',
   /** 이행 확인에서 파일이 없거나 해석하지 못해 타이밍을 비교하지 못한 다른 차트의 머리말. */
-  uncomparedCharts: 'Could not compare (chart file unreadable)',
+  uncomparedCharts: '파일을 읽지 못해 비교하지 못한 차트',
   /** 곡 행이 있는 차트의 곡 저장은 곡 추가(AddSongModal)처럼 비어 있지 않은 제목·아티스트를 요구한다. */
-  titleArtistRequired: 'Title and Artist cannot be empty.',
+  titleArtistRequired: '제목과 아티스트는 비워 둘 수 없습니다.',
   /** 프리뷰 구간·음원을 바꿔 프리뷰 클립을 다시 만들어야 하는데 재생 음원이 없을 때(음원 로드 실패 등). */
-  previewAudioMissing: 'The song audio is not loaded, so the preview clip cannot be created. Load the audio in Meta and save again.',
+  previewAudioMissing: '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Meta에서 음원을 불러온 뒤 다시 저장해주세요.',
 } as const;
 
 /**

@@ -404,7 +404,7 @@ it.each([
   expect(await saveEditorSong(null, confirm)).toBe(false);
   expect(confirm).not.toHaveBeenCalled(); expect(api.from).not.toHaveBeenCalled();
   expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
-  expect(showToast).toHaveBeenCalledExactlyOnceWith('Title and Artist cannot be empty.', 'error');
+  expect(showToast).toHaveBeenCalledExactlyOnceWith('제목과 아티스트는 비워 둘 수 없습니다.', 'error');
   expect(state().song).toBe(before.song); expect(state().isSavingSong).toBe(false);
 });
 
@@ -429,7 +429,7 @@ it('timing NULL에서 다른 차트 hard는 BPM 180, expert는 파일 없음, ea
   expect(confirm).toHaveBeenCalledOnce();
   const message = confirm.mock.calls[0][0];
   expect(message).toContain('타이밍이 다른 차트: hard');
-  expect(message).toContain('Could not compare (chart file unreadable): expert, easy');
+  expect(message).toContain('파일을 읽지 못해 비교하지 못한 차트: expert, easy');
   expect(api.rpc).toHaveBeenCalledOnce();
 });
 
@@ -439,7 +439,7 @@ it('timing NULL에서 다른 차트 hard 파일만 없고 확인을 취소하면
   vi.stubGlobal('fetch', vi.fn(async () => new Response('missing', { status: 404 })));
   const confirm = vi.fn<(message: string) => boolean>(() => false);
   expect(await saveEditorSong(null, confirm)).toBe(false);
-  expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Could not compare (chart file unreadable): hard'));
+  expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('파일을 읽지 못해 비교하지 못한 차트: hard'));
   expect(confirm.mock.calls[0][0]).not.toContain('타이밍이 다른 차트');
   expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled();
   expect(state().song?.needsTimingMigration).toBe(true);
@@ -484,6 +484,6 @@ it('프리뷰를 0～8초로 바꾸고 Offset 25→45까지 바꿨는데 재생 
   expect(await saveEditorSong(null, confirm)).toBe(false);
   expect(confirm).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
   expect(showToast).toHaveBeenCalledExactlyOnceWith(
-    'The song audio is not loaded, so the preview clip cannot be created. Load the audio in Meta and save again.', 'error');
+    '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Meta에서 음원을 불러온 뒤 다시 저장해주세요.', 'error');
   expect(state().isSavingSong).toBe(false); expect(dirty()).toBe(true);
 });
