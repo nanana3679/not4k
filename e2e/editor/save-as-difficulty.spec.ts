@@ -32,7 +32,8 @@ test('NORMAL의 Save As는 INFILTRATION을 제외하고 LIFTOFF 덮어쓰기 확
       }
       if (method === 'GET' && path === '/rest/v1/songs') {
         await route.fulfill({ json: { title: chart.meta.title, artist: chart.meta.artist,
-          jacket_url: chart.meta.imageFile, timing: null, revision: 1, audio_url: null, duration: null, gameplay_start: null, gameplay_end: null } }); return;
+          jacket_url: chart.meta.imageFile, timing: { bpmChanges: [{ beat: '0', bpm: 120 }],
+            timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 }, revision: 1, audio_url: null, duration: null, gameplay_start: null, gameplay_end: null } }); return;
       }
       if (method === 'GET' && path === '/rest/v1/charts') {
         await route.fulfill({ json: [{ difficulty_label: 'normal' }, { difficulty_label: 'easy' }] }); return;

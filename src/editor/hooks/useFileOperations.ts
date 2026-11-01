@@ -66,11 +66,13 @@ async function prepareSave(
   }
   const songDirty = isSongDirty(start.chart, start.song);
   const chartDirty = isChartDirty(start.chart, start.extraLaneCount, start.savedChartJson, start.song !== null);
-  if (songDirty && !await saveEditorSong(audioBuffer, message => window.confirm(message))) return null;
+  const songSaveResult = songDirty || start.song?.needsTimingMigration
+    ? await saveEditorSong(audioBuffer, message => window.confirm(message)) : null;
+  if (songSaveResult === 'aborted') return null;
   const current = useEditorStore.getState();
   if (current.chartLoadGeneration !== start.chartLoadGeneration) return null;
   // 업로드로 확정된 곡 경로만 사본에 반영한다. 저장 중의 노트·타이밍 편집은 다음 저장에 남긴다.
-  const savedSong = songDirty ? current.song?.baseline : null;
+  const savedSong = songSaveResult === 'saved' ? current.song?.baseline : null;
   const chart = savedSong ? { ...start.chart, meta: { ...start.chart.meta,
     imageFile: savedSong.jacketUrl ?? '', audioFile: savedSong.audioUrl, previewAudioFile: savedSong.previewUrl ?? '',
   } } : start.chart;
@@ -78,8 +80,8 @@ async function prepareSave(
     chartLoadGeneration: start.chartLoadGeneration, difficulty: activeChartDifficulty(start),
     // 곡 행이 없으면 기존 규칙대로 차트와 함께 대기 미디어를 올린다.
     songlessMedia: !start.song && hasSonglessMedia(start.songlessMedia) ? start.songlessMedia : null,
-    // 아무 변경도 없으면 기존처럼 현재 차트를 저장한다.
-    saveChart: chartDirty || !songDirty };
+    // 아무 변경도 없거나 이행을 거절했으면 곡 변경 여부와 관계없이 현재 차트를 저장한다.
+    saveChart: chartDirty || !songDirty || songSaveResult === 'migration-declined' };
 }
 
 export interface FileOperationHandlers {

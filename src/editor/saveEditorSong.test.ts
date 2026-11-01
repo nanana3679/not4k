@@ -53,7 +53,7 @@ describe('saveEditorSong', () => {
     ], error: null });
     const confirm = vi.fn(() => false);
 
-    expect(await saveEditorSong(null, confirm)).toBe(false);
+    expect(await saveEditorSong(null, confirm)).toBe('aborted');
 
     expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('다른 차트 2개'));
     expect(api.eq).toHaveBeenCalledWith('song_id', 'song');
@@ -148,11 +148,12 @@ it.each([false, true])('timing NULL에서 확인=%s이면 BPM 180인 hard만 목
     return new Response(JSON.stringify(file));
   }));
   const confirm = vi.fn<(message: string) => boolean>(() => accepted);
-  expect(await saveEditorSong(null, confirm)).toBe(accepted);
+  expect(await saveEditorSong(null, confirm)).toBe(accepted ? 'saved' : 'migration-declined');
   expect(api.from).toHaveBeenCalledWith('charts');
   expect(api.eq).toHaveBeenCalledWith('song_id', 'song');
   expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('hard'));
   expect(confirm.mock.calls[0][0]).not.toContain('easy');
+  expect(confirm.mock.calls[0][0]).toContain('취소하면 곡 변경은 저장하지 않고 차트만 저장합니다.');
   expect(confirm.mock.calls[0][0]).toContain('다른 차트');
   if (!accepted) {
     expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled();
@@ -242,14 +243,14 @@ it.each(['완료 전', '완료 후'])('replacement.ogg 저장 중 Meta를 열고
   renderToStaticMarkup(createElement(Probe));
   if (when === '완료 전') apply!();
   finish({ error: null });
-  expect(await saving).toBe(true);
+  expect(await saving).toBe('saved');
   const savedMedia = { p_jacket_url: api.upload.mock.calls[0][0],
     p_audio_url: api.upload.mock.calls[1][0], p_preview_url: api.upload.mock.calls[2][0] };
 
   if (when === '완료 후') apply!();
   expect(state().song).toMatchObject({ revision: 57, pendingAudioFile: null, pendingJacketFile: null });
   expect(state().chart.meta.title).toBe('저장 뒤 제목');
-  expect(await saveEditorSong(buffer, vi.fn())).toBe(true);
+  expect(await saveEditorSong(buffer, vi.fn())).toBe('saved');
   expect(api.rpc.mock.calls[1][1]).toMatchObject(savedMedia);
   expect(api.upload).toHaveBeenCalledTimes(3);
   expect(dirty()).toBe(false);
@@ -306,12 +307,12 @@ it('음원 replacement.ogg·자켓 replacement.png 교체 601ms 뒤 Save→Undo�
   const buffer = { duration: 120, length: 1200, sampleRate: 10, numberOfChannels: 1,
     getChannelData: () => new Float32Array(1200) } as unknown as AudioBuffer;
   now.mockReturnValue(1601);
-  expect(await saveEditorSong(buffer, vi.fn())).toBe(true);
+  expect(await saveEditorSong(buffer, vi.fn())).toBe('saved');
   const savedMedia = { p_audio_url: api.upload.mock.calls[1][0],
     p_jacket_url: api.upload.mock.calls[0][0], p_preview_url: api.upload.mock.calls[2][0] };
 
   state().undo();
-  expect(await saveEditorSong(null, vi.fn())).toBe(true);
+  expect(await saveEditorSong(null, vi.fn())).toBe('saved');
 
   expect(api.rpc.mock.calls[1][1]).toMatchObject(savedMedia);
   expect(state().chart.meta.title).toBe('곡');
@@ -319,7 +320,7 @@ it('음원 replacement.ogg·자켓 replacement.png 교체 601ms 뒤 Save→Undo�
   expect(state().historyFuture).toHaveLength(1);
   state().redo();
   expect(state().chart.meta.title).toBe('교체 후 제목');
-  expect(await saveEditorSong(null, vi.fn())).toBe(true);
+  expect(await saveEditorSong(null, vi.fn())).toBe('saved');
   expect(api.rpc.mock.calls[2][1]).toMatchObject(savedMedia);
   expect(api.upload).toHaveBeenCalledTimes(3);
   expect(dirty()).toBe(false);
@@ -379,7 +380,7 @@ it.each(['BPM 120→180', '박자표 4→3', 'Offset 25→45'])('%s 변경에 �
       : event.type === 'timeSignature' && change.startsWith('박자표') ? { ...event, beatPerMeasure: { n: 3, d: 1 } } : event) });
   api.eq.mockResolvedValue({ data: [{ difficulty_label: base.meta.difficultyLabel.toLowerCase() }], error: null });
   const confirm = vi.fn(() => true);
-  expect(await saveEditorSong(null, confirm)).toBe(true);
+  expect(await saveEditorSong(null, confirm)).toBe('saved');
   expect(confirm).not.toHaveBeenCalled();
   expect(api.rpc).toHaveBeenCalledOnce();
   expect(dirty()).toBe(false);
@@ -389,7 +390,7 @@ it('Offset 25→45 변경에 같은 곡의 다른 차트가 hard 1개면 다른 
   state().setChart({ ...state().chart, meta: { ...state().chart.meta, offsetMs: 45 } });
   api.eq.mockResolvedValue({ data: [{ difficulty_label: base.meta.difficultyLabel.toLowerCase() }, { difficulty_label: 'hard' }], error: null });
   const confirm = vi.fn(() => true);
-  expect(await saveEditorSong(null, confirm)).toBe(true);
+  expect(await saveEditorSong(null, confirm)).toBe('saved');
   expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('다른 차트 1개'));
   expect(api.rpc).toHaveBeenCalledOnce();
 });
@@ -401,7 +402,7 @@ it.each([
   state().setSong({ ...state().song!, pendingJacketFile: new File(['A'], 'A.png') });
   const before = state();
   const confirm = vi.fn(() => true);
-  expect(await saveEditorSong(null, confirm)).toBe(false);
+  expect(await saveEditorSong(null, confirm)).toBe('aborted');
   expect(confirm).not.toHaveBeenCalled(); expect(api.from).not.toHaveBeenCalled();
   expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
   expect(showToast).toHaveBeenCalledExactlyOnceWith('제목과 아티스트는 비워 둘 수 없습니다.', 'error');
@@ -425,7 +426,7 @@ it('timing NULL에서 다른 차트 hard는 BPM 180, expert는 파일 없음, ea
     return new Response(JSON.stringify(file));
   }));
   const confirm = vi.fn<(message: string) => boolean>(() => true);
-  expect(await saveEditorSong(null, confirm)).toBe(true);
+  expect(await saveEditorSong(null, confirm)).toBe('saved');
   expect(confirm).toHaveBeenCalledOnce();
   const message = confirm.mock.calls[0][0];
   expect(message).toContain('타이밍이 다른 차트: hard');
@@ -438,7 +439,7 @@ it('timing NULL에서 다른 차트 hard 파일만 없고 확인을 취소하면
   api.eq.mockResolvedValue({ data: [{ difficulty_label: 'hard', chart_path: null }], error: null });
   vi.stubGlobal('fetch', vi.fn(async () => new Response('missing', { status: 404 })));
   const confirm = vi.fn<(message: string) => boolean>(() => false);
-  expect(await saveEditorSong(null, confirm)).toBe(false);
+  expect(await saveEditorSong(null, confirm)).toBe('migration-declined');
   expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('파일을 읽지 못해 비교하지 못한 차트: hard'));
   expect(confirm.mock.calls[0][0]).not.toContain('타이밍이 다른 차트');
   expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled();
@@ -449,7 +450,7 @@ it.each(['title', 'artist', 'gameplayRange'] as const)('%s만 새 값 또는 5�
   if (field === 'gameplayRange') state().setSong({ ...state().song!, gameplayRange: { startTime: 5, endTime: 100, fadeInTime: 1, fadeOutTime: 3 } });
   else state().setChart({ ...state().chart, meta: { ...state().chart.meta, [field]: '새 값' } });
   const confirm = vi.fn(() => true);
-  expect(await saveEditorSong(null, confirm)).toBe(true);
+  expect(await saveEditorSong(null, confirm)).toBe('saved');
   expect(confirm).not.toHaveBeenCalled(); expect(api.from).not.toHaveBeenCalled();
   expect(state().song?.revision).toBe(57); expect(dirty()).toBe(false);
 });
@@ -458,7 +459,7 @@ it('Offset 25→45의 다른 차트 수 조회가 실패하면 확인·RPC·업�
   state().setChart({ ...state().chart, meta: { ...state().chart.meta, offsetMs: 45 } });
   api.eq.mockResolvedValue({ data: null, error: { message: 'read failed' } });
   const confirm = vi.fn(() => true);
-  expect(await saveEditorSong(null, confirm)).toBe(false);
+  expect(await saveEditorSong(null, confirm)).toBe('aborted');
   expect(confirm).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled();
   expect(state().song?.revision).toBe(42); expect(dirty()).toBe(true);
 });
@@ -471,7 +472,7 @@ it('Offset 25→45의 차트 수 조회 중 새 차트를 열면 늦은 응답�
   const saving = saveEditorSong(null, confirm);
   open(); const next = state();
   finish({ data: [{ difficulty_label: 'hard' }], error: null });
-  expect(await saving).toBe(false);
+  expect(await saving).toBe('aborted');
   expect(confirm).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
   expect(state().chart).toBe(next.chart); expect(state().song).toBe(next.song);
 });
@@ -481,7 +482,7 @@ it('프리뷰를 0～8초로 바꾸고 Offset 25→45까지 바꿨는데 재생 
   state().setSong({ ...state().song!, pendingPreviewRange: { startTime: 0, endTime: 8, fadeInTime: 0, fadeOutTime: 0 } });
   api.eq.mockResolvedValue({ data: [{ difficulty_label: 'hard' }], error: null });
   const confirm = vi.fn(() => true);
-  expect(await saveEditorSong(null, confirm)).toBe(false);
+  expect(await saveEditorSong(null, confirm)).toBe('aborted');
   expect(confirm).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
   expect(showToast).toHaveBeenCalledExactlyOnceWith(
     '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Meta에서 음원을 불러온 뒤 다시 저장해주세요.', 'error');

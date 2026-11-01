@@ -154,7 +154,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('timing NULL의 4박 BPM을 보조 레인 1→2로 옮기면 미저장·이탈 확인이 생기고 Save는 차트만 저장한다', async ({ page }) => {
+  test('timing NULL의 4박 BPM을 보조 레인 1→2로 옮긴 뒤 Save 이행을 취소하면 차트만 저장한다', async ({ page }) => {
     const editor = await openEditor(page, { chart: eventChart() });
     await page.getByRole('button', { name: 'Select', exact: true }).click();
     await dragEventBodyToColumn(page, 5, 6, 4);
@@ -164,8 +164,12 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     await page.getByRole('button', { name: 'Back to Songs', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Unsaved Changes', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    const dialogs: string[] = [];
+    page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
     await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
     await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
+    expect(dialogs).toHaveLength(1);
+    expect(dialogs[0]).toContain('곡 공통 타이밍으로 올리며');
     const uploaded = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV3;
     expect(uploaded.events[2]).toMatchObject({ type: 'bpm', beat: '4', bpm: 180, editorLane: 2 });
     expect(editor.supabaseWrites.some(write => write.path === '/rest/v1/rpc/save_song')).toBe(false);

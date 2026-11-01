@@ -17,7 +17,9 @@ async function editSongAndChart(page: Page) {
   await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
 }
 async function startSave(page: Page, action: 'Save' | 'Save As') {
-  if (action === 'Save') { await save(page).click(); return; }
+  if (action === 'Save') {
+    await page.getByRole('button', { name: /^Save(?:, unsaved changes)?$/, exact: true }).click(); return;
+  }
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
   await page.getByRole('button', { name: 'Save As', exact: true }).click();
   await page.getByLabel('Target Difficulty').selectOption('LIFTOFF');
@@ -152,16 +154,55 @@ for (const [action, code, message] of [['Save', 'PT409', '다른 곳에서 곡�
   });
 }
 
-test('timing NULL에서 제목을 바꾼 Save의 이행 확인에 BPM 180인 hard가 보이고 취소하면 쓰기 0회다', async ({ page }) => {
-  const hard = editorTestChart(); hard.events[0] = { type: 'bpm', beat: '0', bpm: 180 };
-  const editor = await openEditor(page, { otherCharts: { hard } });
-  await openMeta(page);
-  await page.getByLabel('Title', { exact: true }).fill('새 제목');
-  await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
-  const dialogs: string[] = [];
-  page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
-  await save(page).click();
-  await expect(save(page)).toBeEnabled();
-  expect(dialogs).toHaveLength(1); expect(dialogs[0]).toContain('타이밍이 다른 차트: hard');
-  expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);
-});
+for (const action of ['Save', 'Save As'] as const) {
+  test(`timing NULL에서 제목을 새 제목으로 바꾼 ${action} 이행을 취소하면 BPM 180인 hard를 알리고 차트만 저장하며 제목은 미저장이다`, async ({ page }) => {
+    const hard = editorTestChart(); hard.events[0] = { type: 'bpm', beat: '0', bpm: 180 };
+    const editor = await openEditor(page, { otherCharts: { hard } });
+    await openMeta(page);
+    await page.getByLabel('Title', { exact: true }).fill('새 제목');
+    await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
+    const dialogs: string[] = [];
+    page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
+    await startSave(page, action);
+    await expect(page.getByText(action === 'Save' ? 'Chart saved' : 'Chart saved as LIFTOFF Lv.5', { exact: true })).toBeVisible();
+    await expect(save(page)).toBeEnabled();
+    expect(dialogs).toHaveLength(1); expect(dialogs[0]).toContain('타이밍이 다른 차트: hard');
+    expect(dialogs[0]).toContain('취소하면 곡 변경은 저장하지 않고 차트만 저장합니다.');
+    const chartPath = action === 'Save' ? EDITOR_TEST_CHART_UPLOAD_PATH : EDITOR_TEST_CHART_UPLOAD_PATH.replace('/normal.json', '/liftoff.json');
+    expect(editor.supabaseWrites.map(write => write.path).sort()).toEqual([
+      chartPath, chartPath.replace('.json', '.extra.json'), '/rest/v1/charts',
+    ].sort());
+    await openMeta(page);
+    await expect(page.getByLabel('Title', { exact: true })).toHaveValue('새 제목');
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  for (const accepted of [true, false]) {
+    test(`timing NULL·변경 0개에서 ${action} 이행 승인=${accepted}이면 곡 RPC ${accepted ? 1 : 0}회 뒤 차트 1개를 저장한다`, async ({ page }) => {
+      const editor = await openEditor(page);
+      const dialogs: string[] = [];
+      page.on('dialog', async dialog => {
+        dialogs.push(dialog.message());
+        if (accepted) await dialog.accept(); else await dialog.dismiss();
+      });
+      await startSave(page, action);
+      await expect(page.getByText(action === 'Save' ? 'Chart saved' : 'Chart saved as LIFTOFF Lv.5', { exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
+      expect(dialogs).toHaveLength(1);
+      expect(dialogs[0]).toContain('곡 공통 타이밍으로 올리며');
+      const requests = editor.supabaseWrites.filter(write => write.path === '/rest/v1/rpc/save_song');
+      expect(requests).toHaveLength(accepted ? 1 : 0);
+      const chartPath = action === 'Save' ? EDITOR_TEST_CHART_UPLOAD_PATH : EDITOR_TEST_CHART_UPLOAD_PATH.replace('/normal.json', '/liftoff.json');
+      expect(editor.supabaseWrites.filter(write => write.path === chartPath)).toHaveLength(1);
+      if (accepted) {
+        expect(JSON.parse(requests[0].body!)).toMatchObject({ p_expected_revision: 1, p_timing: timing });
+        expectSongBeforeChart(editor, chartPath);
+      } else {
+        expect(editor.supabaseWrites.map(write => write.path).sort()).toEqual([
+          chartPath, chartPath.replace('.json', '.extra.json'), '/rest/v1/charts',
+        ].sort());
+      }
+      expect(editor.unexpectedSupabaseRequests).toEqual([]);
+    });
+  }
+}

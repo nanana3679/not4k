@@ -38,10 +38,10 @@ _Avoid_: 그리드
 Meta에서 Title·Artist를 편집하고 곡 저장으로 확정하며, 자켓 NULL은 차트의 `imageFile`을 유지한다([현재 모달](../../docs/spec/chart-editor.md#메타데이터-편집-현재-모달과-곡-정보-드로어)).
 
 **곡 저장**:
-곡의 표시 정보·공통 타이밍·음원·프리뷰 구간·플레이 구간을 함께 저장하며, 개별 차트 저장과 범위를 분리한다. 곡 저장은 DB 함수 하나로 한 번에 확정하며 차트 저장의 같은 연결은 PR4b 범위다. 공통 타이밍의 정본은 `songs` 행이다([RFD 0107](../../docs/rfd/0107-song-timing-storage-and-atomic-saves.md)). Save 하나로 변경된 곡 → 차트를 저장하고 미저장 표시를 합친다. Save As도 곡을 먼저 저장하며, 공통 타이밍 변경·첫 이행 확인을 취소하거나 곡 저장에 실패하면 차트 저장을 실행하지 않는다. 내부 dirty와 기준은 각각 유지한다. Save·Delete Chart는 Meta의 난이도명이 아니라 열린 차트의 난이도(URL·Save As 대상)를 쓰며, Save As의 난이도 전환은 Undo 이력에 남지 않는다([Save As](../../docs/spec/chart-editor.md#다른-이름으로-저장-save-as)). 곡 행이 없는 차트는 기존 규칙대로 Save가 대기 미디어를 고정 경로에 올린다. 왼쪽 드로어·저장 후 이탈과 통합 Undo·Redo 이력은 후속 구현이다([glossary](../../docs/context/glossary.md#곡-저장)).
+곡의 표시 정보·공통 타이밍·음원·프리뷰 구간·플레이 구간을 함께 저장하며, 개별 차트 저장과 범위를 분리한다. 곡 저장은 DB 함수 하나로 한 번에 확정하며 차트 저장의 같은 연결은 PR4b 범위다. 공통 타이밍의 정본은 `songs` 행이다([RFD 0107](../../docs/rfd/0107-song-timing-storage-and-atomic-saves.md)). Save 하나로 변경된 곡 → 차트를 저장하고 미저장 표시를 합친다. Save As도 곡을 먼저 저장하며, 이행된 곡의 공통 타이밍 확인 취소·곡 저장 실패는 전체 저장을 중단한다. 타이밍 NULL 곡은 변경이 없어도 Save·Save As마다 이행을 확인하고, 취소하면 곡 변경을 남긴 채 차트만 저장한다. 내부 dirty와 기준은 각각 유지한다. Save·Delete Chart는 Meta의 난이도명이 아니라 열린 차트의 난이도(URL·Save As 대상)를 쓰며, Save As의 난이도 전환은 Undo 이력에 남지 않는다([Save As](../../docs/spec/chart-editor.md#다른-이름으로-저장-save-as)). 곡 행이 없는 차트는 기존 규칙대로 Save가 대기 미디어를 고정 경로에 올린다. 왼쪽 드로어·저장 후 이탈과 통합 Undo·Redo 이력은 후속 구현이다([glossary](../../docs/context/glossary.md#곡-저장)).
 
 **곡 타이밍**:
-같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 게임·에디터 공용 로더는 곡 행의 표시 정보·타이밍을 우선하며, 타이밍 NULL 또는 곡 행 없음일 때 파일 타이밍을 유지한다. 에디터 Save는 변경된 곡을 `save_song`으로 먼저 확정하며, 타이밍 NULL 곡은 첫 곡 저장 확인 후 열린 차트의 타이밍으로 이행한다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 게임·에디터 공용 로더는 곡 행의 표시 정보·타이밍을 우선하며, 타이밍 NULL 또는 곡 행 없음일 때 파일 타이밍을 유지한다. 에디터 Save·Save As는 변경된 곡을 `save_song`으로 먼저 확정하며, 타이밍 NULL 곡은 매 저장의 이행 확인을 승인하면 변경이 없어도 열린 차트의 타이밍으로 이행한다([glossary](../../docs/context/glossary.md#곡-타이밍)).
 
 곡 행 우선 해석 뒤 `openEditorChart`가 RFD 0082 배치를 적용하고 `savedChartJson`과 곡 저장 기준을 정하므로, 이행된 곡을 열어도 dirty·Undo·Redo가 생기지 않는다. 테스트 재생에서 복귀할 때는 이미 열린 편집 초안과 저장 기준을 유지하며, 곡 행 재조회가 실패해도 오류 화면 대신 알림만 띄운다. 공용 로더는 차트에 있던 타이밍 이벤트의 보조 레인을 유지한다([읽기 계약](../../docs/spec/chart-format.md#곡-행-우선-읽기)).
 
