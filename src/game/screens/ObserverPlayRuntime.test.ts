@@ -356,9 +356,12 @@ describe('ObserverPlayRuntime 전곡 반복', () => {
     expect(fixture.renderers[0].showBombEffect).not.toHaveBeenCalled(); expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it('1000ms 정지 후 재개 처리 5000～5100ms 중 발생한 5050·5099ms down은 무시하고 5100ms down만 Perfect다', async () => {
+  it.each(['일반 일시정지', '구간 값 유지 편집'] as const)(
+    '1000ms에서 %s 후 재개 처리 5000～5100ms 중 발생한 5050·5099ms down은 무시하고 5100ms down만 Perfect다', async mode => {
     const run = create([p(1000), p(1000, 'single', 2), p(1000, 'single', 3)]);
-    await run.player.start(); run.player.setAuto(false); frame(1000); run.player.togglePause();
+    await run.player.start(); run.player.setAuto(false); frame(1000);
+    if (mode === '일반 일시정지') run.player.togglePause();
+    else { run.player.beginRangeEdit(); run.player.endRangeEdit(); }
     wallFrame(5000);
     const syncHeldKeys = ExplicitJudgmentSession.prototype.syncHeldKeys;
     vi.spyOn(ExplicitJudgmentSession.prototype, 'syncHeldKeys').mockImplementationOnce(function (this: ExplicitJudgmentSession, ...args) {
@@ -540,7 +543,7 @@ describe('ObserverPlayRuntime 선택 구간 편집', () => {
     expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it('5000～8000ms 구간의 6000ms에서 변경 없이 편집을 마치면 A=5000ms를 표시하고 Play는 2000ms부터 새 세션·수동 집계를 시작한다', async () => {
+  it('5000～8000ms 구간의 6000ms에서 변경 없이 편집을 마치면 A=5000ms를 표시하고 Play는 같은 세션·콤보 1·100%로 6000ms를 잇는다', async () => {
     const advance = vi.spyOn(ExplicitJudgmentSession.prototype, 'advance');
     const run = create([p(6000)], {}, 12); await run.player.start(); select(run.player);
     run.player.setAuto(false); run.player.togglePause();
@@ -549,13 +552,15 @@ describe('ObserverPlayRuntime 선택 구간 편집', () => {
     expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
     run.player.beginRangeEdit();
     expect(run.state().songTimeMs).toBe(5000);
+    expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
     expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(5000, 0);
-    run.player.endRangeEdit(); run.player.togglePause(); frame(2000);
-    expect(fixture.audio[0].playFadedSpan).toHaveBeenLastCalledWith(fadedSpan, 2000);
-    expect(fixture.audio[0].resume).not.toHaveBeenCalled();
-    expect(advance.mock.contexts.at(-1)).not.toBe(previousSession);
-    expect(snapshot().items[0].settlementFactId).toBeNull();
-    expect(run.state()).toMatchObject({ autoEnabled: false, manualStats: { combo: 0, achievementRate: 0 }, songTimeMs: 2000 });
+    wallFrame(15000); run.player.endRangeEdit(); run.player.togglePause(); frame(6000);
+    expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledTimes(2);
+    expect(fixture.audio[0].resume).toHaveBeenCalledOnce();
+    expect(advance.mock.contexts.at(-1)).toBe(previousSession);
+    expect(snapshot().items[0].settlementFactId).not.toBeNull();
+    expect(run.state()).toMatchObject({ autoEnabled: false, manualStats: { combo: 1, achievementRate: 100 }, songTimeMs: 6000 });
+    expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(6000, 0);
     expect(run.onError).not.toHaveBeenCalled();
   });
 
@@ -783,32 +788,114 @@ describe('ObserverPlayRuntime 선택 구간 편집', () => {
     expect(run.state().manualStats).toEqual({ combo: 0, achievementRate: null }); expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it('1000ms에서 구간을 그대로 두거나 5000～8000ms로 바꿨다 전곡으로 돌려도 Play는 새 0ms 시도·콤보 0·0%로 시작한다', async () => {
-    const run = create([p(1000)], {}, 12); await run.player.start(); run.player.setAuto(false);
-    at(1000); key(run.target, 'keydown'); frame(1000);
+  it('1000ms에서 구간을 그대로 두거나 5000～8000ms로 바꿨다 전곡으로 돌리면 콤보 1·100%를 복원하고 Play는 1000ms부터 같은 집계를 잇는다', async () => {
+    const attach = vi.spyOn(ExplicitSessionRendererAdapter.prototype, 'attach');
+    const resumeAt = vi.spyOn(ExplicitJudgmentSession.prototype, 'resumeAt');
+    const run = create([p(1000), p(2000), p(6000)], {}, 12); await run.player.start(); run.player.setAuto(false);
+    at(1000); key(run.target, 'keydown'); frame(1000); key(run.target, 'keyup');
+    const before = snapshot();
+    const renderer = fixture.renderers[0];
+    const originalChart = renderer.setExplicitChart.mock.calls[0][0];
     run.player.beginRangeEdit(); run.player.setRange({ startMs: 0, endMs: 12000 }); run.player.endRangeEdit();
     run.player.togglePause();
-    expect(fixture.audio[0].resume).not.toHaveBeenCalled();
-    expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledTimes(2);
-    expect(fixture.audio[0].currentTimeMs).toBe(0);
-    expect(snapshot().items[0].settlementFactId).toBeNull();
+    expect(fixture.audio[0].resume).toHaveBeenCalledOnce();
+    expect(fixture.audio[0].currentTimeMs).toBe(1000);
+    expect(snapshot().items).toEqual(before.items);
+    expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
+    // 일반 일시정지 뒤 편집에 들어가도 현재 시도를 보존한다.
+    run.player.togglePause(); run.player.beginRangeEdit(); run.player.setRange(selected);
     expect(run.state().manualStats).toEqual({ combo: 0, achievementRate: 0 });
-    run.player.beginRangeEdit(); run.player.setRange(selected); run.player.setRange({ startMs: 0, endMs: 12000 });
+    run.player.setRange({ startMs: 0, endMs: 12000 });
+    expect(run.state()).toMatchObject({ songTimeMs: 0, manualStats: { combo: 1, achievementRate: 100 } });
     run.player.endRangeEdit(); run.player.togglePause();
-    expect(fixture.audio[0].playFadedSpan).toHaveBeenLastCalledWith(
-      { fromMs: 0, fadeInUntilMs: 0, fadeOutFromMs: 12000, toMs: 12000 }, 0);
-    expect(snapshot().items[0].settlementFactId).toBeNull();
-    expect(run.state().manualStats).toEqual({ combo: 0, achievementRate: 0 }); expect(run.onError).not.toHaveBeenCalled();
+    expect(fixture.audio[0].currentTimeMs).toBe(1000);
+    expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledOnce();
+    expect(fixture.audio[0].resume).toHaveBeenCalledTimes(2);
+    expect(renderer.setExplicitPlaybackChart.mock.lastCall![0]).toBe(originalChart);
+    expect(snapshot().items).toEqual(before.items);
+    expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
+    at(2000); key(run.target, 'keydown'); frame(2000);
+    expect(run.state().manualStats).toEqual({ combo: 2, achievementRate: 100 });
+    expect(attach).toHaveBeenCalledOnce(); expect(resumeAt).not.toHaveBeenCalled();
+    expect(run.onError).not.toHaveBeenCalled();
   });
 
-  it('990ms 프레임 뒤 1000ms KeyW가 큐에 남은 채 변경 없이 편집하고 Play를 누르면 새 0ms 시도에서 1000ms 탭은 미판정·콤보 0이다', async () => {
+  it('1500ms에서 구간 변경 없이 편집하며 Auto를 끄고 KeyW를 유지하면 Play는 같은 바디를 이어 2000ms 틱부터 콤보 1·100%다', async () => {
+    const run = create([p(1000), b(1000, 3000), t(2000), r(3000)]);
+    await run.player.start(); frame(1500); run.player.beginRangeEdit();
+    wallFrame(5000); run.player.setAuto(false); key(run.target, 'keydown');
+    expect(run.state()).toMatchObject({ autoEnabled: false, songTimeMs: 0, manualStats: { combo: 0, achievementRate: 0 } });
+    run.player.endRangeEdit(); run.player.togglePause();
+    expect(run.state()).toMatchObject({ autoEnabled: false, songTimeMs: 1500, manualStats: { combo: 0, achievementRate: 0 } });
+    expect(snapshot().bodyUnits[0].state).toBe('active');
+    frame(2000);
+    expect(snapshot().bodyUnits[0].state).toBe('active');
+    expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
+    expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledOnce();
+    expect(fixture.audio[0].resume).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('1500ms에서 구간 변경 없이 편집하며 Auto를 끄고 KeyW를 놓으면 Play 후 1520ms에 같은 바디의 유지가 실패한다', async () => {
+    const run = create([p(1000), b(1000, 3000), t(2000)]);
+    await run.player.start(); frame(1500); run.player.beginRangeEdit();
+    wallFrame(5000); key(run.target, 'keydown'); run.player.setAuto(false); key(run.target, 'keyup');
+    run.player.endRangeEdit(); run.player.togglePause();
+    frame(1519);
+    expect(snapshot().bodyUnits[0]).toMatchObject({ state: 'recovering', maintenanceDeadlineMs: 1520 });
+    frame(1521);
+    expect(snapshot().bodyUnits[0]).toMatchObject({ state: 'failed', failedAtMs: 1520 });
+    expect(run.state().manualStats).toEqual({ combo: 0, achievementRate: 0 });
+    expect(fixture.audio[0].resume).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('1500ms에서 구간 변경 없이 편집하며 Auto를 켜고 KeyW를 놓으면 Play는 같은 바디를 Auto로 이어 2000ms 틱을 처리하고 집계를 숨긴다', async () => {
+    const run = create([p(1000), b(1000, 3000), t(2000), r(3000)]);
+    await run.player.start(); run.player.setAuto(false);
+    at(1000); key(run.target, 'keydown'); frame(1500);
+    expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
+    run.player.beginRangeEdit(); wallFrame(5000); key(run.target, 'keyup'); run.player.setAuto(true);
+    expect(run.state()).toMatchObject({ autoEnabled: true, songTimeMs: 0, manualStats: null });
+    run.player.endRangeEdit(); run.player.togglePause();
+    expect(run.state()).toMatchObject({ autoEnabled: true, songTimeMs: 1500, manualStats: null });
+    expect(snapshot().items[0].state).toBe('success');
+    expect(snapshot().bodyUnits[0].state).toBe('active');
+    frame(2000);
+    expect(snapshot().items.find(item => item.kind === 'tick')!.state).toBe('success');
+    expect(run.state().manualStats).toBeNull();
+    expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledOnce();
+    expect(fixture.audio[0].resume).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('1500ms에 이미 실패한 바디를 구간 변경 없이 편집하고 KeyW를 누른 채 Play해도 시작 창을 다시 열지 않아 2000ms 틱은 0점이다', async () => {
+    const resumeAt = vi.spyOn(ExplicitJudgmentSession.prototype, 'resumeAt');
+    const run = create([b(1000, 3000), t(2000)]);
+    await run.player.start(); run.player.setAuto(false); frame(1500);
+    const failedBody = snapshot().bodyUnits[0];
+    expect(failedBody.state).toBe('failed');
+    run.player.beginRangeEdit(); wallFrame(5000); key(run.target, 'keydown');
+    run.player.endRangeEdit(); run.player.togglePause(); frame(2000);
+    expect(snapshot().bodyUnits[0]).toEqual(failedBody);
+    expect(snapshot().items[0].state).toBe('dependentZero');
+    expect(run.state().manualStats).toEqual({ combo: 0, achievementRate: 0 });
+    expect(resumeAt).not.toHaveBeenCalled(); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('990ms 프레임 뒤 1000ms KeyW가 큐에 남은 채 변경 없이 편집하면 입력을 1회 판정하고 Play는 1000ms·콤보 1·100%를 잇는다', async () => {
     const run = create([p(1000)], {}, 12); await run.player.start(); run.player.setAuto(false);
     frame(990); at(1000); key(run.target, 'keydown');
-    run.player.beginRangeEdit(); run.player.endRangeEdit(); run.player.togglePause();
-    expect(fixture.audio[0].currentTimeMs).toBe(0);
+    run.player.beginRangeEdit();
+    expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
+    expect(fixture.renderers[0].showBombEffect).toHaveBeenCalledExactlyOnceWith(1);
+    // drain 효과를 집계한 뒤 미리보기의 일시적인 타격 표시는 지운다.
+    expect(fixture.renderers[0].renderFrame.mock.results.at(-1)!.value).toMatchObject({ judgment: null, bombLanes: [] });
+    wallFrame(5000); run.player.endRangeEdit(); run.player.togglePause();
+    expect(fixture.audio[0].currentTimeMs).toBe(1000);
     frame(1000);
-    expect(snapshot().items[0].settlementFactId).toBeNull();
-    expect(run.state().manualStats).toEqual({ combo: 0, achievementRate: 0 });
+    expect(snapshot().items[0].settlementFactId).not.toBeNull();
+    expect(run.state().manualStats).toEqual({ combo: 1, achievementRate: 100 });
+    expect(fixture.renderers[0].showBombEffect).toHaveBeenCalledOnce();
+    expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledOnce();
+    expect(fixture.audio[0].resume).toHaveBeenCalledOnce();
     expect(run.onError).not.toHaveBeenCalled();
   });
 

@@ -323,7 +323,7 @@ async function dragMinimap(page: Page, x: number, fromY: number, toY: number) {
   } finally { await page.mouse.up(); }
 }
 
-test('30초 전곡을 6초 재생한 뒤 몸통을 3초 끌어도 구간은 그대로이고 즉시 A=0ms를 표시하며 Play는 수동 집계를 0부터 다시 시작한다', async ({ page }) => {
+test('30초 전곡을 6초 재생한 뒤 몸통을 3초 끌어도 구간은 그대로이고 즉시 A=0ms를 표시하며 Play는 같은 수동 집계로 약 6초부터 이어간다', async ({ page }) => {
   const fixture = await openObserverSong(page, {}, minimapDocument());
   await enterObserver(page);
   const firstManualSpan = await startManualHold(page);
@@ -343,16 +343,29 @@ test('30초 전곡을 6초 재생한 뒤 몸통을 3초 끌어도 구간은 그�
     } finally { await page.mouse.up(); }
     await expectPausedAtStart(page);
     expect(await readMinimap(page)).toEqual({ startMs: 0, endMs: 30000, positionMs: 0, durationMs: 30000 });
-    expect((await probe(page)).fadedSpans).toEqual(before.fadedSpans);
+    const paused = await probe(page);
+    const pausedHud = paused.hud.at(-1)!;
+    expect(paused.fadedSpans).toEqual(before.fadedSpans);
+    expect(paused.audioPositionMs).toBeGreaterThanOrEqual(6000);
+    expect(paused.audioPositionMs).toBeLessThan(8000);
+    expect(pausedHud.span).toBe(firstManualSpan);
+    expect(pausedHud.combo).toBeGreaterThanOrEqual(before.hud.at(-1)!.combo);
+    expect(pausedHud.accuracy).toBe(100);
+    // 편집 중 A를 표시하더라도 HUD가 잠시 0으로 초기화되지 않는다.
+    expect(paused.hud.slice(before.hud.length).every(update =>
+      update.span === firstManualSpan && update.combo >= before.hud.at(-1)!.combo && update.accuracy === 100)).toBe(true);
     await page.getByRole('button', { name: 'Play', exact: true }).click();
     await expectObserverPlaying(page);
     const playing = await probe(page);
-    expect(playing.fadedSpans).toHaveLength(before.fadedSpans.length + 1);
-    expect(playing.fadedSpans.at(-1)).toEqual({ positionMs: 0, rate: 1, fromMs: 0, toMs: 30000 });
-    expect(playing.resumes).toEqual(before.resumes);
-    expect(playing.hud.find(update => update.span === playing.fadedSpans.length)).toEqual({
-      span: playing.fadedSpans.length, combo: 0, accuracy: 0,
-    });
+    expect(playing.fadedSpans).toEqual(before.fadedSpans);
+    expect(playing.resumes).toEqual([...before.resumes, paused.audioPositionMs]);
+    expect(playing.audioPositionMs).toBeGreaterThanOrEqual(paused.audioPositionMs);
+    await expect.poll(async () => (await probe(page)).hud.at(-1)!.combo).toBeGreaterThan(pausedHud.combo);
+    const continued = await probe(page);
+    expect(continued.hud.at(-1)).toMatchObject({ span: firstManualSpan, accuracy: 100 });
+    expect(continued.hud.slice(paused.hud.length).every(update =>
+      update.span === firstManualSpan && update.combo >= pausedHud.combo && update.accuracy === 100)).toBe(true);
+    expect(continued.fadedSpans).toEqual(before.fadedSpans);
     await expect(page.getByRole('button', { name: 'Auto', exact: true })).toHaveAttribute('aria-pressed', 'false');
   } finally { await page.keyboard.up('KeyQ'); }
   await exitObserver(page, fixture);

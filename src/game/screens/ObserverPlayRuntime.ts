@@ -138,13 +138,21 @@ export class ObserverPlayRuntime {
     } catch (error) { if (!this.closed) this.fail(error); }
   }
 
-  /** 구간 편집 후에는 앞 준비부터 새 시도로 시작한다. 일반 일시정지는 같은 반복을 잇고 드래그 중에는 재생하지 않는다. */
+  /** 구간 값이 바뀌었을 때만 앞 준비부터 새 시도로 시작한다. 드래그 중에는 재생하지 않는다. */
   togglePause(): void {
     if (this.closed || this.editingRange || !this.input || !this.audio || !this.clock || !this.repetition) return;
     try {
       if (this.paused && this.rangePreview) {
-        this.restartRepetition();
-        return;
+        if (this.hasRangeChanged()) {
+          this.restartRepetition();
+          return;
+        }
+        const autoEnabled = this.rangePreview.autoEnabled;
+        this.rangePreview = null;
+        this.renderer!.setExplicitPlaybackChart(this.repetition.playbackChart);
+        // 미리보기 A가 아니라 멈춰 있는 오디오 위치에 Auto 변경을 적용한다.
+        this.repetition.setAuto(autoEnabled, this.input, this.clock, performance.now());
+        this.input.setJudging(false);
       }
       const timestamp = performance.now();
       if (this.paused) {
@@ -168,11 +176,16 @@ export class ObserverPlayRuntime {
     } catch (error) { this.fail(error); }
   }
 
-  /** 드래그 시작: 이전 시도의 입력을 버리고 A를 미리 본다. 물리 hold는 계속 추적하며 다음 Play는 새 시도다. */
+  /** 드래그 시작: 일시정지까지의 입력·집계를 보존하고 A를 미리 본다. 물리 hold는 계속 추적한다. */
   beginRangeEdit(): void {
     if (this.closed || this.editingRange || !this.input || !this.audio || !this.clock || !this.repetition) return;
     try {
-      if (!this.paused) this.audio.pause();
+      if (!this.paused) {
+        const timestamp = performance.now();
+        this.audio.pause();
+        this.stepSession(timestamp);
+        this.adapter!.sync(this.clock.visualTimeMs());
+      }
       this.input.setJudging(false);
       if (!this.rangePreview) {
         this.renderer!.resetTransientState();
@@ -293,6 +306,11 @@ export class ObserverPlayRuntime {
     return songTimeMs;
   }
 
+  private hasRangeChanged(): boolean {
+    return this.selectedRange!.startMs !== this.repetition!.range.startMs
+      || this.selectedRange!.endMs !== this.repetition!.range.endMs;
+  }
+
   /** 재개/반복 경계 전 이벤트가 늦게 도착하면 점수 입력 없이 현재 물리 hold만 동기화한다. */
   private syncLateHeldKeys(): void {
     if (this.closed || this.paused || !this.repetition?.judgesHumanInput) return;
@@ -311,9 +329,10 @@ export class ObserverPlayRuntime {
     for (let lane = 1; lane <= 4; lane++) renderer.setKeyBeam(lane, heldKeys.some(key => key.lane === lane));
     const pressed = new Set(heldKeys.map(key => key.key.replace('explicit-auto:', '')));
     for (const binding of this.bindings) renderer.setKeyState(binding.key, pressed.has(binding.key));
-    const manualStats = preview
-      ? autoEnabled ? null : { combo: 0, achievementRate: preview.chart.theoreticalWeight > 0 ? 0 : null }
-      : repetition.manualStats;
+    const manualStats = autoEnabled ? null
+      : preview && (this.hasRangeChanged() || repetition.autoEnabled)
+        ? { combo: 0, achievementRate: preview.chart.theoreticalWeight > 0 ? 0 : null }
+        : repetition.manualStats;
     renderer.updateCombo(manualStats?.combo ?? 0);
     renderer.updateAccuracy(manualStats?.achievementRate ?? null);
     const songTimeMs = preview?.songTimeMs ?? this.clock!.judgmentTimeMs();
