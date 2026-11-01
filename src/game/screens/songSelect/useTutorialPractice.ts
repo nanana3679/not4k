@@ -60,7 +60,8 @@ export function useTutorialPractice(initialLesson: TutorialLesson, onItemPassed?
       if (patternId === null || patternId === undefined) return;
       // 세션 finalize가 반환한 점수로 reducer의 'final' 평가를 실행해 늦은 무점수 바디 Miss까지 반영한다.
       const finalizedScore = pattern.result.score;
-      const state = dispatch({ type: 'patternFinished', patternId, score: finalizedScore });
+      const state = dispatch({ type: 'patternFinished', patternId, score: finalizedScore,
+        modeSwitchedDuringPattern: pattern.modeSwitchedDuringPattern });
       publish({ ...viewRef.current, liveScore: null, combo: pattern.result.combo });
       if (state && isTutorialPlayingMethodComplete(state) && state.mode === 'directInput') return false;
     },

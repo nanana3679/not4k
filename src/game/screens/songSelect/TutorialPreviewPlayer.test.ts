@@ -493,8 +493,9 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialPreviewPlayerSource).toContain([
       'explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {',
       '              loopTimeMs,',
-      '              blocked: pausedRef.current || diagramHeldBeforeFrame,',
+      '              blocked,',
     ].join('\n'));
+    expect(tutorialPreviewPlayerSource).toContain('const blocked = pausedRef.current || diagramHeldBeforeFrame;');
     // 프레임에만 이전 도식 상태를 전달한다. 프레임 사이 키 이벤트는 현재 도식 상태를 읽어야 한다.
     expect(tutorialPreviewPlayerSource).toContain('blocked: pausedRef.current || activeDiagramPause !== null');
     expect(tutorialInputSource).toContain('beforeInput: () => syncJudging()');

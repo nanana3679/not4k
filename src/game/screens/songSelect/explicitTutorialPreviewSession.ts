@@ -39,7 +39,7 @@ export interface ExplicitTutorialPreviewOptions extends ExplicitJudgmentCoreOpti
 export interface ExplicitTutorialPreviewSessionController {
   readonly session: ExplicitJudgmentSession;
   readonly iteration: number;
-  /** 현재 위치 이전의 계획을 버리고 hold를 무점수 동기화한다. 되감기 없이 현재 시각부터 새 계획을 쓴다. */
+  /** 현재까지의 계획상 hold(직접 입력은 전달한 실제 hold)를 무점수 동기화하고 이후 입력만 재생한다. */
   setInputPlan(plan: ExplicitTutorialInputPlan, heldKeys?: readonly ExplicitHeldKey[]): void;
   /** 멈춘 동안의 물리 hold 변화는 점수 입력을 만들지 않고 현재 판정 시각에서 맞춘다. */
   syncHeldKeys(heldKeys: readonly ExplicitHeldKey[]): void;
@@ -113,15 +113,22 @@ function createController(
   const controller: ExplicitTutorialPreviewSessionController = {
     get session() { return current; },
     get iteration() { return iteration; },
-    setInputPlan(nextPlan, heldKeys = []) {
+    setInputPlan(nextPlan, heldKeys) {
       assertOpen();
       const nextEvents = createEvents(nextPlan);
       if (nextEvents.some(event => !Number.isFinite(event.timeMs))) throw new RangeError("튜토리얼 입력 시각은 유한해야 합니다");
       timeline.clear();
       plan = nextPlan;
       events = nextEvents;
-      controller.syncHeldKeys(heldKeys);
-      timeline.enqueueMany(events.filter(event => event.timeMs >= time).map(event => ({
+      const switchTime = time;
+      const heldByKey = new Map<string, ExplicitHeldKey>();
+      for (const event of events) {
+        if (event.timeMs >= switchTime) break;
+        if (event.type === 'down') heldByKey.set(event.key, { lane: event.lane, key: event.key });
+        else heldByKey.delete(event.key);
+      }
+      controller.syncHeldKeys(heldKeys ?? [...heldByKey.values()]);
+      timeline.enqueueMany(events.filter(event => event.timeMs >= switchTime).map(event => ({
         lane: event.lane, key: event.key, type: event.type, inputAt: event.timeMs,
       })));
     },
