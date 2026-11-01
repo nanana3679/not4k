@@ -444,3 +444,90 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
     expect(warnings).toEqual([INITIAL_TIMING_EXISTS_COPY]);
   });
 });
+
+/**
+ * 보조 레인1의 0박에 일반 text와 초기 BPM이 겹친 차트(파일을 열 때 일반 이벤트를 옮기지 않아 생기는 배치 위반, RFD 0082).
+ * textFirst면 이벤트 0=text·1=초기 BPM, 아니면 0=초기 BPM·1=text이고 2=보조 레인2의 초기 박자다.
+ */
+function chartWithTextOnInitialBpm(textFirst: boolean, endBeat = beat(4)): ChartDocument {
+  const [initialBpm, initialSignature] = chartFixture().events;
+  const text: ChartDocument['events'][number] = { type: 'text', beat: beat(0), endBeat, text: 'intro', editorLane: 1 };
+  return { ...chartFixture(), events: textFirst ? [text, initialBpm, initialSignature] : [initialBpm, text, initialSignature] };
+}
+
+const overlapOrders = [
+  { order: '[text, 초기 BPM]', textFirst: true, textIndex: 0, bpmIndex: 1 },
+  { order: '[초기 BPM, text]', textFirst: false, textIndex: 1, bpmIndex: 0 },
+];
+
+describe('0박에서 초기 BPM과 겹친 일반 이벤트를 잡기(RFD 0082)', () => {
+  const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+
+  it.each(overlapOrders)('$order 순서에서 보조 레인1의 0박을 클릭하면 text를 선택하고 차트와 경고는 그대로다', ({ textFirst, textIndex }) => {
+    useEditorStore.getState().loadChart(chartWithTextOnInitialBpm(textFirst));
+    const { mode, store, warnings } = editor();
+    mode.onPointerDown(x, 0, false, false);
+    mode.onPointerUp(x, 0);
+
+    expect(store().selection.events).toEqual(new Set([textIndex]));
+    expect(store().chart).toEqual(chartWithTextOnInitialBpm(textFirst));
+    expect(warnings).toEqual([]);
+  });
+
+  it.each(overlapOrders)('$order 순서에서 보조 레인1의 0박을 잡아 1박으로 끌면 text는 1～5박이 되고 초기 BPM은 0박에 남는다', ({ textFirst, textIndex, bpmIndex }) => {
+    useEditorStore.getState().loadChart(chartWithTextOnInitialBpm(textFirst));
+    const { mode, store } = editor();
+    mode.onPointerDown(x, 0, false, false);
+    mode.onPointerMove(x, 500);
+    mode.onPointerUp(x, 500);
+
+    expect(store().chart.events[textIndex]).toMatchObject({ type: 'text', beat: beat(1), endBeat: beat(5), editorLane: 1 });
+    expect(store().chart.events[bpmIndex]).toEqual(chartFixture().events[0]);
+    expect(editorChartErrors(store().chart)).toEqual([]);
+  });
+
+  it.each(overlapOrders)('$order 순서에서 0～1/8박 text를 0박에서 잡아 1박으로 끌면 1～9/8박이 된다', ({ textFirst, textIndex }) => {
+    useEditorStore.getState().loadChart(chartWithTextOnInitialBpm(textFirst, beat(1, 8)));
+    const { mode, store } = editor();
+    mode.onPointerDown(x, 0, false, false);
+    mode.onPointerMove(x, 500);
+    mode.onPointerUp(x, 500);
+
+    expect(store().chart.events[textIndex]).toMatchObject({ type: 'text', beat: beat(1), endBeat: beat(9, 8) });
+    expect(editorChartErrors(store().chart)).toEqual([]);
+  });
+
+  it.each(overlapOrders)('$order 순서에서 Delete 모드로 보조 레인1의 0박을 클릭하면 text만 지우고 Cannot delete initial event 경고가 없다', ({ textFirst }) => {
+    useEditorStore.getState().loadChart(chartWithTextOnInitialBpm(textFirst));
+    const { store, space } = editor();
+    const warnings: string[] = [];
+    const mode = new DeleteMode(store().chart, { space,
+      onChartUpdate: chart => store().setChart(chart),
+      onWarn: message => warnings.push(message),
+    });
+    mode.onPointerDown(x, 0);
+
+    expect(store().chart.events).toEqual(chartFixture().events.slice(0, 2));
+    expect(warnings).toEqual([]);
+  });
+
+  it.each(overlapOrders)('$order 순서에서 드래그 삭제가 보조 레인1(통합 레인5)의 0박을 지나면 text만 지우고 경고가 없다', ({ textFirst }) => {
+    useEditorStore.getState().loadChart(chartWithTextOnInitialBpm(textFirst));
+    const { store } = editor();
+    const warnings: string[] = [];
+    const gesture = new EraseGesture({ getChart: () => store().chart,
+      getSelectedNotes: () => store().selection.notes,
+      beginTransaction: onInterrupt => store().beginEditTransaction('erase', onInterrupt),
+      commitTransaction: token => store().commitEditTransaction(token),
+      cancelTransaction: token => store().cancelEditTransaction(token),
+      onChartUpdate: (chart, transaction) => store().setChart(chart, { transaction }),
+      onWarn: message => warnings.push(message),
+    });
+    gesture.begin();
+    expect(gesture.erase(5, 0)).toBe(true);
+    gesture.finish();
+
+    expect(store().chart.events).toEqual(chartFixture().events.slice(0, 2));
+    expect(warnings).toEqual([]);
+  });
+});

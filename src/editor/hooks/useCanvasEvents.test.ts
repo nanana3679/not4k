@@ -279,6 +279,66 @@ describe('초기 설정이 있는 0박에 BPM·박자 생성(RFD 0082)', () => {
   });
 });
 
+describe('0박에서 초기 BPM과 겹친 일반 text(RFD 0082)', () => {
+  // 보조 레인1의 0박에 text 0～4박과 초기 BPM이 겹친다. 파일을 열 때 일반 이벤트를 옮기지 않아 생기는 배치 위반이다.
+  const text: ChartDocument['events'][number] = { type: 'text', beat: beat(0), endBeat: beat(4), text: 'intro', editorLane: 1 };
+  const initialBpm: ChartDocument['events'][number] = { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 };
+  const initialSignature: ChartDocument['events'][number] = { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 };
+  const orders = [
+    { order: '[text, 초기 BPM]', events: () => [text, initialBpm, initialSignature], textIndex: 0, bpmIndex: 1 },
+    { order: '[초기 BPM, text]', events: () => [initialBpm, text, initialSignature], textIndex: 1, bpmIndex: 0 },
+  ];
+  const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+  const doubleClick = (y: number) => ({ clientX: x, clientY: y }) as unknown as ReactMouseEvent<HTMLCanvasElement>;
+
+  it.each(orders)('$order 순서에서 Select 모드로 보조 레인1의 0박을 터치로 짧게 누르면 text를 선택한다', ({ events, textIndex }) => {
+    const { handlers } = setup(chart([], { events: events() }), 'select');
+    handlers.handlePointerDown(pointer(0, { x }));
+    handlers.handlePointerUp(pointer(0, { x, buttons: 0 }));
+
+    expect(current().selection.events).toEqual(new Set([textIndex]));
+    expect(current().chart.events).toEqual(events());
+  });
+
+  it.each(orders)('$order 순서에서 Select 모드로 보조 레인1의 0박을 450ms 눌러 1박까지 끌면 text가 1～5박이 되고 초기 BPM은 0박에 남는다', ({ events, textIndex, bpmIndex }) => {
+    const { handlers } = setup(chart([], { events: events() }), 'select');
+    handlers.handlePointerDown(pointer(0, { x }));
+    vi.advanceTimersByTime(450);
+    handlers.handlePointerMove(pointer(500, { x }));
+    handlers.handlePointerUp(pointer(500, { x, buttons: 0 }));
+
+    expect(current().chart.events[textIndex]).toMatchObject({ type: 'text', beat: beat(1), endBeat: beat(5) });
+    expect(current().chart.events[bpmIndex]).toEqual(initialBpm);
+  });
+
+  it.each(orders)('$order 순서에서 보조 레인1의 0박을 우클릭하면 text만 지우고 안내 토스트가 없다', ({ events }) => {
+    const { handlers } = setup(chart([], { events: events() }), 'select');
+    handlers.handlePointerDown(pointer(0, { pointerType: 'mouse', button: 2, buttons: 2, x }));
+    handlers.handlePointerUp(pointer(0, { pointerType: 'mouse', button: 2, buttons: 0, x }));
+
+    expect(current().chart.events).toEqual([initialBpm, initialSignature]);
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it.each(orders)('$order 순서에서 Delete 모드로 보조 레인1의 0박을 터치로 짧게 누르면 text만 지우고 안내 토스트가 없다', ({ events }) => {
+    const { handlers } = setup(chart([], { events: events() }), 'delete');
+    handlers.handlePointerDown(pointer(0, { x }));
+    handlers.handlePointerUp(pointer(0, { x, buttons: 0 }));
+
+    expect(current().chart.events).toEqual([initialBpm, initialSignature]);
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it.each(orders)('$order 순서에서 보조 레인1의 0박을 더블클릭하면 초기 BPM 편집을, 2박을 더블클릭하면 text 편집을 연다', ({ events, textIndex, bpmIndex }) => {
+    const { handlers } = setup(chart([], { events: events() }), 'select');
+    handlers.handleDoubleClick(doubleClick(0));
+    expect(current().editingEvent).toEqual({ type: 'event', index: bpmIndex });
+
+    handlers.handleDoubleClick(doubleClick(1000));
+    expect(current().editingEvent).toEqual({ type: 'event', index: textIndex });
+  });
+});
+
 describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
   const tapAt = (at: number, lane = 1): DocumentNoteEntity => ({ type: 'tap', kind: 'single', lane, beat: beat(at) });
   const mouse = (y: number, buttons = 1, init: PointerInit = {}) => pointer(y, { pointerType: 'mouse', buttons, ...init });

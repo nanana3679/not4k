@@ -8,6 +8,7 @@
 
 import type { ChartEvent, DocumentNoteEntity, DocumentExtraNoteEntity, RangeNote, BodyNote, TrillZone, RestZone } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
+import { isInitialTimingEvent } from "../editing/eventEditing";
 
 /** Tolerance for point note hit detection (in beats) */
 const POINT_NOTE_TOLERANCE = 1 / 16;
@@ -26,16 +27,36 @@ const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
 /** Selection priority bonus — always larger than any z-order value */
 const SELECTED_BONUS = MAX_Z_ORDER + 1;
 
-/** 이벤트도 노트와 같은 raw 박·허용 오차로 찾는다. 나중에 그린 이벤트가 앞이다. */
-export function hitTestEventAt(events: readonly ChartEvent[], editorLane: number, beatFloat: number): number | null {
+/**
+ * 0박에 초기 설정(초기 BPM·박자)과 일반 이벤트가 함께 잡힐 때 고를 쪽(RFD 0082).
+ * 파일을 열 때 일반 이벤트를 옮기지 않아 그 자리에 둘이 겹쳐 있을 수 있다.
+ * - `selectable`: 선택·이동·삭제. 선택·삭제할 수 없는 초기 설정보다 일반 이벤트를 잡는다.
+ * - `initialTiming`: 더블클릭 값 편집. 초기 설정은 더블클릭으로만 값을 고치므로 초기 설정을 잡는다.
+ */
+export type EventHitPreference = 'selectable' | 'initialTiming';
+
+/**
+ * 이벤트도 노트와 같은 raw 박·허용 오차로 찾는다. 나중에 그린 이벤트가 앞이다.
+ * 초기 설정과 일반 이벤트가 함께 잡히면 `prefer` 쪽을 먼저 고르고, 그 안에서는 나중 이벤트가 앞이다.
+ */
+export function hitTestEventAt(
+  events: readonly ChartEvent[],
+  editorLane: number,
+  beatFloat: number,
+  prefer: EventHitPreference = 'selectable',
+): number | null {
+  let nonPreferredIndex: number | null = null;
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index];
     if ((event.editorLane ?? 1) !== editorLane) continue;
     const start = event.beat.n / event.beat.d;
     const end = 'endBeat' in event ? event.endBeat.n / event.endBeat.d : start;
-    if (beatFloat >= start - POINT_NOTE_TOLERANCE && beatFloat <= end + POINT_NOTE_TOLERANCE) return index;
+    const hit = beatFloat >= start - POINT_NOTE_TOLERANCE && beatFloat <= end + POINT_NOTE_TOLERANCE;
+    if (!hit) continue;
+    if (isInitialTimingEvent(event) === (prefer === 'initialTiming')) return index;
+    nonPreferredIndex ??= index;
   }
-  return null;
+  return nonPreferredIndex;
 }
 
 export function hitTestNoteAt(
