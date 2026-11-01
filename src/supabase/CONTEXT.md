@@ -86,7 +86,7 @@ _Avoid_: 로컬 설정 저장
 
 세 함수는 기존 `public.is_admin()`으로 첫 쓰기 전에 관리자 여부를 확인하고 `security definer`로 실행한다. 마이그레이션에 `songs` UPDATE 정책이 없는데 기존 앱은 직접 UPDATE한다는 차이가 있다. 새 `save_song`은 RLS를 우회하도록 설계했으며 기존 RLS를 바꾸지 않는다. 서명·권한·오류 계약과 직접 쓰기의 리비전 제한은 [RLS 정책 문서](../../supabase/RLS_POLICIES.md#곡차트-저장-함수-rfd-0107)를 따른다.
 
-**필수 선행 조건:** `profiles.is_admin` 자기 승격을 차단하는 PR [#396](https://github.com/nanana3679/not4k/pull/396)의 `20261031000000_block_admin_privilege_bypass.sql`에 의존한다. 운영에는 2026-10-31 적용되었으며 이 브랜치에는 복제하지 않는다. 새 환경에는 시간순으로 먼저 적용해야 하고, 이 보호가 없는 환경에 저장 마이그레이션을 적용해서는 안 된다.
+**필수 선행 조건:** `profiles.is_admin` 자기 승격을 차단하는 PR [#396](https://github.com/nanana3679/not4k/pull/396)의 `20261031000000_block_admin_privilege_bypass.sql`에 의존한다. 운영에는 2026-10-31 적용되었고 main에는 2026-11-01 머지되었다. 새 환경에는 시간순으로 먼저 적용해야 하고, 이 보호가 없는 환경에 저장 마이그레이션을 적용해서는 안 된다.
 
 ## Example dialogue
 
