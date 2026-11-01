@@ -169,7 +169,7 @@ it('직접 입력 패턴 도중 시연을 고르면 즉시 demonstration이고 �
   page = renderModal();
   expect(page.button('시연').props['aria-pressed']).toBe(true);
   expect(page.player().inputMode).toBe('demonstration');
-  page.player().onPatternFinished?.(result());
+  page.player().onPatternFinished?.({ ...result(), modeSwitchedDuringPattern: true });
   expect(renderModal().progress).toBe('0/3');
   page.player().onPatternStarted?.(2);
   page.player().onPatternFinished?.(result());
@@ -242,7 +242,7 @@ it.each([
     expect(finalized.score.judgmentCounts.miss).toBe(1);
     expect(finalized.facts.filter(fact => fact.kind === 'bodyFailed'))
       .toMatchObject([{ unscoredMiss: true }]);
-    page.player(id).onPatternFinished?.({ iteration: 1, result: finalized });
+    page.player(id).onPatternFinished?.({ iteration: 1, modeSwitchedDuringPattern: false, result: finalized });
     page = renderModal();
     expect(page.nodes.find(node => node.props['data-tutorial-condition'] === 'maxGreatOrWorseCount')
       ?.props['data-tutorial-condition-status']).toBe('met');
@@ -485,6 +485,47 @@ vi.mock('../../renderer', () => ({ GameRenderer: class {
 } }));
 vi.mock('../../skin', () => ({ SkinManager: class { async loadSkin() {} dispose() {} } }));
 vi.mock('../../skin/ExplicitSkinLoader', () => ({ ExplicitSkinLoader: class { async load() {} dispose() {} } }));
+
+it('준비 중 직접 입력을 고르면 실제 player가 재생을 시작할 때 첫 패턴을 열고 Perfect 3회를 1/3으로 집계한다', async () => {
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  const lesson = ALL_TUTORIAL_PREVIEWS.find(item => item.id === 'single-note')!;
+  let preparing = true;
+  const PracticeHarness = () => useTutorialPractice(lesson);
+  const render = () => {
+    hooks.cursor = 0;
+    const practice = PracticeHarness();
+    const nodes = elements(TutorialPreviewPlayer({ ...practice.playerProps, preview: lesson, paused: preparing }));
+    for (const node of nodes) {
+      const ref = (node.props as { ref?: { current: unknown } }).ref;
+      if (ref && !ref.current) ref.current = node.type === 'canvas' ? {} : { dataset: {} };
+    }
+    hooks.effects.splice(0).forEach(effect => effect());
+    return practice;
+  };
+  render();
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(100);
+  let practice = render();
+  expect(practice.state?.currentPatternId).toBeNull();
+  practice.dispatch({ type: 'modeSelected', mode: 'directInput' });
+  render();
+  vi.advanceTimersByTime(100);
+  preparing = false;
+  render();
+  for (const wait of [250, 500, 500]) {
+    vi.advanceTimersByTime(wait);
+    for (const type of ['keydown', 'keyup']) {
+      const event = new Event(type, { cancelable: true });
+      Object.defineProperties(event, { code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false } });
+      window.dispatchEvent(event);
+    }
+  }
+  vi.advanceTimersByTime(300);
+  practice = render();
+  expect(practice.state?.lastFinishedPattern).toMatchObject({ countable: true, succeeded: true });
+  expect(practice.progress).toEqual({ current: 1, required: 3 });
+});
 
 it.each([
   ['directInput', 'demonstration'], ['demonstration', 'directInput'],
