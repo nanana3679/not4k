@@ -10,6 +10,7 @@ import type { ExplicitTutorialInputPlan } from './explicitTutorialPreviewSession
 function setup(inputOffsetMs = 0, initialMode: TutorialInputMode = 'directInput', demoPlan: ExplicitTutorialInputPlan = {
   kind: 'timings', timings: [{ lane: 2, key: 'KeyE', startMs: 500, endMs: 2000 }],
 }, initiallyBlocked = false) {
+  // 공개 레슨은 마지막 판정 뒤 2000ms 여백을 둔다. closing 경계는 끝 릴리즈가 반복 경계인 합성 차트로 검증한다.
   const preview = createExplicitTutorialPreview('mode-ownership', '모드 전환', [], 4, {
     ...tutorialExplicitPlayerPreviews[0].preview.chart,
     notes: [

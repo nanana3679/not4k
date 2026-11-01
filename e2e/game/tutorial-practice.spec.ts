@@ -35,7 +35,7 @@ async function waitForElapsed(page: Page, target: number, selector = ACTIVE_PLAY
 
 for (const inputOffsetMs of [0, -200, 200]) {
   test(`Basic single-note offset ${inputOffsetMs}ms에서 실제 바인딩 키로 누적 3회 성공하면 초록 체크·3/3·다음을 표시하고 실습을 멈춘다`, async ({ page }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(90_000);
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     const dialog = await openTutorial(page, false, KEY_BINDINGS, inputOffsetMs);
@@ -44,7 +44,7 @@ for (const inputOffsetMs of [0, -200, 200]) {
     await expect(player).toHaveAttribute('data-tutorial-paused', 'false');
     await expect(player).toHaveAttribute('data-tutorial-elapsed-ms', /\d/);
     const loopMs = Number(await player.getAttribute('data-tutorial-loop-ms'));
-    expect(loopMs).toBe(1500);
+    expect(loopMs).toBe(3500);
     await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
     await expect(player).toHaveAttribute('data-tutorial-input-mode', 'directInput');
     const progress = dialog.locator('[data-tutorial-progress]');
@@ -57,7 +57,8 @@ for (const inputOffsetMs of [0, -200, 200]) {
       const elapsed = Number(await player.getAttribute('data-tutorial-elapsed-ms'));
       const startMs = (Math.floor(elapsed / loopMs) + 1) * loopMs;
       for (const [index, key] of KEY_BINDINGS.lane2.entries()) {
-        await waitForElapsed(page, startMs + (index + 0.5) * (loopMs / 3) - inputOffsetMs - 12);
+        const tapMs = 250 + index * 500;
+        await waitForElapsed(page, startMs + tapMs - inputOffsetMs - 12);
         await page.keyboard.press(key);
       }
       await page.waitForFunction(({ selector, endMs }) => {
@@ -117,37 +118,6 @@ test('single-note 패턴의 600ms에 양방향 전환하면 같은 반복에서 
   expect(errors).toEqual([]);
 });
 
-test('headless-long-note offset -200ms에서 경계 직후 시연 왕복은 이전 릴리즈를 보존하고 다음 패턴만 제외한다', async ({ page }) => {
-  test.setTimeout(60_000);
-  const dialog = await openTutorial(page, false, KEY_BINDINGS, -200);
-  await dialog.locator('[data-tutorial-index-item="headless-long-note"]').click();
-  const selector = '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="headless-long-note"] [data-tutorial-engine]';
-  const player = page.locator(selector);
-  await expect(player).toHaveAttribute('data-tutorial-elapsed-ms', /\d/);
-  await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
-  const loopMs = Number(await player.getAttribute('data-tutorial-loop-ms'));
-  const elapsed = Number(await player.getAttribute('data-tutorial-elapsed-ms'));
-  const firstStart = (Math.floor(elapsed / loopMs) + 1) * loopMs;
-  const progress = dialog.locator('[data-tutorial-progress]');
-  for (const [attempt, expectedProgress] of ['1/3', '1/3', '2/3'].entries()) {
-    const start = firstStart + attempt * loopMs;
-    await waitForElapsed(page, start + 1100 - 12, selector);
-    await page.keyboard.down('KeyE');
-    if (attempt === 0) {
-      // 화면은 N+1이지만 -200ms 보정의 N은 아직 끝나지 않았다.
-      await waitForElapsed(page, start + loopMs + 5, selector);
-      await dialog.getByRole('button', { name: '시연', exact: true }).click();
-      await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
-    }
-    await waitForElapsed(page, start + loopMs + 200 - 12, selector);
-    await page.keyboard.up('KeyE');
-    await waitForElapsed(page, start + loopMs + 200 + 150 + 32, selector);
-    await expect(player).toHaveAttribute('data-tutorial-last-perfect', '1');
-    await expect(player).toHaveAttribute('data-tutorial-last-miss', '0');
-    await expect(progress).toHaveText(expectedProgress);
-  }
-});
-
 test('1레인 Q·W 2키로 advanced-double-hold를 열면 직접 입력을 막고 4키 필요 안내에서 Controls 설정을 연다', async ({ page }) => {
   const dialog = await openTutorial(page, true);
   await dialog.getByRole('tab', { name: 'Advanced', exact: true }).click();
@@ -165,8 +135,8 @@ test('1레인 Q·W 2키로 advanced-double-hold를 열면 직접 입력을 막�
 });
 
 for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) {
-  test(`${id}의 경계 +5ms 뒤 실제 keyup으로 3회 성공하면 도식 없이 다음을 누를 수 있고 시연 복귀 시 도식이 나타난다`, async ({ page }) => {
-    test.setTimeout(90_000);
+  test(`${id}의 마지막 릴리즈 4000ms보다 5ms 늦게 떼고 6000ms 반복을 3회 성공하면 도식 없이 다음을 누를 수 있고 시연 복귀 시 도식이 나타난다`, async ({ page }) => {
+    test.setTimeout(120_000);
     const dialog = await openTutorial(page);
     await dialog.locator(`[data-tutorial-index-item="${id}"]`).click();
     const diagram = page.locator('[data-tutorial-diagram-modal="true"]');
@@ -177,6 +147,9 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
     const player = page.locator(selector);
     await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
     await expect(player).toHaveAttribute('data-tutorial-input-mode', 'directInput');
+    const loopMs = Number(await player.getAttribute('data-tutorial-loop-ms'));
+    expect(loopMs).toBe(6000);
+    const lastReleaseMs = 4000;
     const progress = dialog.locator('[data-tutorial-progress]');
     const switchKeys = id === 'connected-long-note-switch';
     const firstKey = switchKeys ? 'KeyE' : 'KeyP';
@@ -184,7 +157,7 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
     const attempts: { iteration: string | null; perfect: string | null; miss: string | null; achievement: string | null }[] = [];
     for (let attempt = 0; attempt < 8; attempt++) {
       const elapsed = Number(await player.getAttribute('data-tutorial-elapsed-ms'));
-      const startMs = (Math.floor(elapsed / 4000) + 1) * 4000;
+      const startMs = (Math.floor(elapsed / loopMs) + 1) * loopMs;
       await expect(diagram).toHaveCount(0);
       await waitForElapsed(page, startMs + 3000 - 12, selector);
       await page.keyboard.down(firstKey);
@@ -200,13 +173,13 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
         await waitForElapsed(page, startMs + 3750 - 12, selector);
         await page.keyboard.up(secondKey);
       }
-      await waitForElapsed(page, startMs + 4000 + 5, selector);
+      await waitForElapsed(page, startMs + lastReleaseMs + 5, selector);
       await page.keyboard.up(switchKeys ? secondKey : firstKey);
-      // 마지막 릴리즈의 Easy Good 창(150ms)이 닫힌 뒤 성공 횟수가 반영된다.
+      // 마지막 릴리즈 뒤 2000ms 여백과 반복 경계 정산까지 기다린다.
       await page.waitForFunction(({ selector, endMs }) => {
         const player = document.querySelector<HTMLElement>(selector);
-        return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 150 + 32);
-      }, { selector, endMs: startMs + 4000 }, { polling: 'raf', timeout: 10_000 });
+        return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 32);
+      }, { selector, endMs: startMs + loopMs }, { polling: 'raf', timeout: 10_000 });
       attempts.push(await player.evaluate(element => ({
         iteration: element.getAttribute('data-tutorial-last-iteration'),
         perfect: element.getAttribute('data-tutorial-last-perfect'),

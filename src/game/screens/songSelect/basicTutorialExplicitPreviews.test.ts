@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { convertLegacyChart } from '../../../shared/chart/legacyConversion';
+import { beatToMs, extractBpmChanges, msToBeat } from '../../../shared/timing';
 import { beat } from '../../../shared/types/beat';
 import { isExplicitNote } from '../../../shared/types/chart';
 import { validateChartDocument } from '../../../shared/validation/documentValidation';
 import { compileExplicitJudgmentChart } from '../../judgment/explicitCompiledChart';
 import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreviews';
+import { ADVANCED_TUTORIAL_PREVIEWS } from './advancedTutorialPreviews';
 import { createTutorialTimingsInputPlan } from './explicitTutorialPreviewPlayback';
 import { createExplicitTutorialPreviewSessionController } from './explicitTutorialPreviewSession';
 import { ALL_TUTORIAL_PREVIEWS } from './tutorialCatalog';
@@ -13,6 +15,7 @@ import {
   getTutorialDiagramEvents,
   getTutorialInputEvents,
   getTutorialInputTimings,
+  TUTORIAL_LOOP_TRAILING_MARGIN_MS,
   TUTORIAL_PREVIEWS,
 } from './tutorialPreviewChart';
 
@@ -37,6 +40,36 @@ const expectedResults = [
   { id: 'horizontal-movement', perfect: 16, goodTrill: 0, rate: 100 },
   { id: 'vertical-movement', perfect: 16, goodTrill: 0, rate: 100 },
 ];
+
+describe.each([
+  { name: '공개 Basic·Advanced', previews: ALL_TUTORIAL_PREVIEWS },
+  { name: '구형 Advanced', previews: ADVANCED_TUTORIAL_PREVIEWS },
+])('$name 튜토리얼 반복 여백', ({ previews }) => {
+  it.each([...previews])(
+    '$id는 마지막 노트·릴리즈 뒤 최소 2000ms를 두고 정수 박에서 반복하며 시연 keyup도 반복 안에 끝난다',
+    preview => {
+      const bpmChanges = extractBpmChanges(preview.chart.events);
+      const { offsetMs } = preview.chart.meta;
+      const loopStartMs = beatToMs(beat(0), bpmChanges, offsetMs);
+      const noteEndTimes = preview.chart.notes.map(note =>
+        beatToMs('endBeat' in note ? note.endBeat : note.beat, bpmChanges, offsetMs));
+      const inputs = getTutorialInputTimings(preview.chart);
+      // 무점수 바디도 끝까지 유지해야 한다. 노트가 없는 손배치만 마지막 시연 keyup을 기준으로 삼는다.
+      const lastItemMs = noteEndTimes.length > 0
+        ? Math.max(...noteEndTimes)
+        : Math.max(loopStartMs, ...inputs.map(input => input.endMs));
+      expect(preview.loopMs - (lastItemMs - loopStartMs)).toBeGreaterThanOrEqual(TUTORIAL_LOOP_TRAILING_MARGIN_MS);
+      expect(Number.isInteger(preview.loopBeats)).toBe(true);
+      expect(msToBeat(loopStartMs + preview.loopMs, bpmChanges, offsetMs)).toBe(preview.loopBeats);
+      for (const input of inputs) expect(input.endMs - loopStartMs).toBeLessThan(preview.loopMs);
+      if (BASIC_TUTORIAL_EXPLICIT_PREVIEWS.some(basic => basic.id === preview.id)) {
+        // Basic은 기존 길이를 늘릴 때 이 조건을 만족하는 최소 정수 박까지만 늘린다.
+        const previousBeatMs = beatToMs(beat(preview.loopBeats - 1), bpmChanges, offsetMs);
+        expect(previousBeatMs - lastItemMs).toBeLessThan(TUTORIAL_LOOP_TRAILING_MARGIN_MS);
+      }
+    },
+  );
+});
 
 describe('Basic 명시 튜토리얼', () => {
   it.each([
@@ -77,18 +110,14 @@ describe('Basic 명시 튜토리얼', () => {
     }
   });
 
-  it('구형 Basic 17개를 명시 목록으로 옮기면 ID·순서·반복 길이·시연 입력·도식이 모두 유지된다', () => {
+  it('구형 Basic 17개를 명시 목록으로 옮기고 뒤 여백을 늘려도 ID·순서·시연 입력·도식이 모두 유지된다', () => {
     expect(BASIC_TUTORIAL_EXPLICIT_PREVIEWS).toHaveLength(17);
     expect(BASIC_TUTORIAL_EXPLICIT_PREVIEWS.map(preview => ({
       id: preview.id,
-      loopBeats: preview.loopBeats,
-      loopMs: preview.loopMs,
       inputs: getTutorialInputEvents(preview.chart),
       diagrams: getTutorialDiagramEvents(preview.chart),
     }))).toEqual(TUTORIAL_PREVIEWS.map(preview => ({
       id: preview.id,
-      loopBeats: preview.loopBeats,
-      loopMs: preview.loopMs,
       inputs: getTutorialInputEvents(preview.chart),
       diagrams: getTutorialDiagramEvents(preview.chart),
     })));
@@ -161,7 +190,7 @@ describe('Basic 명시 튜토리얼', () => {
           expect(controller.iteration).toBe(iteration);
           expect(controller.session.score.processedNotes).toBe(0);
           for (let timeMs = 0; timeMs < preview.loopMs; timeMs += 16) controller.advanceTo(timeMs);
-          // loopMs와 같은 시각의 릴리즈도 이전 반복에서 처리한 뒤 정산·초기화한다.
+          // 뒤 여백까지 진행한 이전 반복의 판정을 정산한 뒤 초기화한다.
           const { score } = controller.repeat(preview.loopMs);
           expect(score.judgmentCounts).toEqual({ perfect, great: 0, good: 0, goodTrill, bad: 0, miss: 0 });
           expect(score.achievementRate).toBe(rate);
