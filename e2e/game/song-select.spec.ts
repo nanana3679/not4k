@@ -71,7 +71,7 @@ const SONG_MEDIA_PATH = /^\/storage\/v1\/object\/public\/assets\/songs\/[^/]+\/(
 /**
  * 페이지의 모든 요청을 가로채, 연결된 Supabase 프로젝트의 곡 데이터나 자격 증명과 무관하게 같은 화면을 보게 한다.
  * - 경로가 `/rest/v1/`·`/storage/v1/`·`/auth/v1/`로 시작하는 요청(origin 무관): OPTIONS는 204, `GET /rest/v1/songs`는
- *   `MOCK_SONGS`, `SONG_MEDIA_PATH`에 맞는 GET은 404로 응답한다(곡 선택 화면은 자켓을 숨기고 프리뷰 재생 실패를 무시한다).
+ *   `MOCK_SONGS`(`id=eq.<id>` 필터가 있으면 그 곡만), `SONG_MEDIA_PATH`에 맞는 GET은 404로 응답한다(곡 선택 화면은 자켓을 숨기고 프리뷰 재생 실패를 무시한다).
  *   그 밖의 요청은 500으로 응답하고 기록한다.
  * - 앱 origin의 GET은 그대로 통과시킨다.
  * - Google Fonts origin의 요청은 기록하지 않고 중단한다.
@@ -89,7 +89,10 @@ async function guardOfflineRequests(page: Page, appOrigin: string): Promise<stri
     if (/^\/(rest|storage|auth)\/v1\//.test(path)) {
       if (method === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
       if (method === 'GET' && path === '/rest/v1/songs') {
-        await route.fulfill({ json: MOCK_SONGS }); return;
+        // 곡 하나를 읽는 로더(`id=eq.<id>`)에는 실제 PostgREST처럼 그 곡만 돌려준다.
+        const idFilter = url.searchParams.get('id');
+        const songs = idFilter?.startsWith('eq.') ? MOCK_SONGS.filter(song => song.id === idFilter.slice(3)) : MOCK_SONGS;
+        await route.fulfill({ json: songs }); return;
       }
       if (method === 'GET' && SONG_MEDIA_PATH.test(path)) {
         await route.fulfill({ status: 404, body: 'Not found' }); return;
