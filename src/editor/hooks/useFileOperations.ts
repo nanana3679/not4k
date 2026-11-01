@@ -28,10 +28,19 @@ export { performPlayTest } from '../playtest/performPlayTest';
 export type { PerformPlayTestParams, PlayTestGameActions } from '../playtest/performPlayTest';
 
 /** Save·Save As는 같은 시작 초안을 사용한다. 기다리는 동안 추가한 편집은 저장 기준에 넣지 않는다. */
-async function prepareSave(audioBuffer: AudioBuffer | null) {
+async function prepareSave(
+  audioBuffer: AudioBuffer | null,
+  onValidationErrors: (errors: ValidationError[]) => void,
+) {
   const start = useEditorStore.getState();
   if (start.isSavingSong || start.isSavingChart) {
     start.addToast(SAVE_IN_PROGRESS_COPY.secondSave, 'error');
+    return null;
+  }
+  // 곡만 변경해도 전체 차트를 먼저 검증한다. 공통 타이밍을 게시한 뒤에는 차단할 수 없다.
+  const errors = editorChartErrors(start.chart);
+  if (errors.length > 0) {
+    onValidationErrors(errors);
     return null;
   }
   const songDirty = isSongDirty(start.chart, start.song);
@@ -80,7 +89,7 @@ export function useFileOperations(
   const editingEvent = useEditorStore((s) => s.editingEvent);
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const handleSaveChart = useCallback(async () => {
-    const prepared = await prepareSave(playbackRef.current?.audioBufferData ?? null);
+    const prepared = await prepareSave(playbackRef.current?.audioBufferData ?? null, setValidationErrors);
     if (!prepared || !prepared.saveChart
       || useEditorStore.getState().chartLoadGeneration !== prepared.chartLoadGeneration) return;
     const { chart, activeSongId, extraLaneCount } = prepared;
@@ -91,18 +100,6 @@ export function useFileOperations(
     const difficulty = chart.meta.difficultyLabel.toLowerCase();
     if (!difficulty) {
       addToast('Difficulty label is empty', 'error');
-      return;
-    }
-
-    // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6 — ③ 후 chart.notes로 환원)
-    const errors = editorChartErrors({
-      notes: chart.notes,
-      trillZones: chart.trillZones,
-      restZones: chart.restZones,
-      events: chart.events,
-    });
-    if (errors.length > 0) {
-      setValidationErrors(errors);
       return;
     }
 
@@ -134,24 +131,14 @@ export function useFileOperations(
   }, [playbackRef, addToast, beginChartSave, finishChartSave, setValidationErrors]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
-    const prepared = await prepareSave(playbackRef.current?.audioBufferData ?? null);
+    const prepared = await prepareSave(playbackRef.current?.audioBufferData ?? null, errors => {
+      setValidationErrors(errors);
+      setShowSaveAsModal(false);
+    });
     if (!prepared || useEditorStore.getState().chartLoadGeneration !== prepared.chartLoadGeneration) return;
     const { chart, activeSongId, extraLaneCount } = prepared;
     if (!activeSongId) {
       addToast('No song selected — cannot save', 'error');
-      return;
-    }
-
-    // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6)
-    const errors = editorChartErrors({
-      notes: chart.notes,
-      trillZones: chart.trillZones,
-      restZones: chart.restZones,
-      events: chart.events,
-    });
-    if (errors.length > 0) {
-      setValidationErrors(errors);
-      setShowSaveAsModal(false);
       return;
     }
 

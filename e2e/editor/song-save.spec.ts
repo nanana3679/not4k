@@ -89,6 +89,8 @@ for (const action of ['Save', 'Save As'] as const) {
     const dialogs: string[] = [];
     page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
     await startSave(page, action);
+    // Save As는 대상 난이도 조회 동안 툴바 Save가 아직 활성이다. 확인 도착을 먼저 기다린다.
+    await expect.poll(() => dialogs).toHaveLength(1);
     await expect(save(page)).toBeEnabled();
     expect(dialogs).toHaveLength(1); expect(dialogs[0]).toContain('다른 차트 1개');
     expect(editor.supabaseWrites).toEqual([]);

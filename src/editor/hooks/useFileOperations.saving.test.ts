@@ -92,12 +92,13 @@ function mountFileOperations({ audioBufferData = {} as AudioBuffer }: { audioBuf
   const playbackRef: RefObject<PlaybackController | null> = { current: playback };
   const rendererRef: RefObject<{ setChart: (c: unknown) => void } | null> = { current: null };
   let handlers: FileOperationHandlers | undefined;
+  const setValidationErrors = vi.fn();
   function Probe({ onRender }: { onRender: (handlers: FileOperationHandlers) => void }) {
-    onRender(useFileOperations(playbackRef, rendererRef, vi.fn(), vi.fn(), vi.fn(), vi.fn(), vi.fn(), vi.fn(), navigateTo));
+    onRender(useFileOperations(playbackRef, rendererRef, vi.fn(), setValidationErrors, vi.fn(), vi.fn(), vi.fn(), vi.fn(), navigateTo));
     return null;
   }
   renderToStaticMarkup(createElement(Probe, { onRender: value => { handlers = value; } }));
-  return { handlers: handlers! };
+  return { handlers: handlers!, setValidationErrors };
 }
 
 function attachSong(migrated = true) {
@@ -473,6 +474,35 @@ describe('테스트 플레이 진입과 열린 편집(RFD 0099)', () => {
 
 
 describe('Save·Save As의 곡 선행 저장', () => {
+  it.each(['Save', 'Save As'].flatMap(action => [false, true].map(chartEdited => ({ action, chartEdited }))))(
+    '초기 박자 4→3·8박 변박에서 $action하면 차트 변경=$chartEdited여도 timeSigNotAtMeasureStart로 RPC·업로드 0회다',
+    async ({ action, chartEdited }) => {
+      const document = chart([single(1, 0)]);
+      document.events.push({ type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(4), editorLane: 2 });
+      open(document); attachSong();
+      current().setChart({ ...current().chart,
+        events: current().chart.events.map((event, index) => index === 1
+          ? { ...event, beatPerMeasure: beat(3) } : event),
+        notes: chartEdited ? [...current().chart.notes, single(2, 2)] : current().chart.notes,
+      });
+      current().setSong({ ...current().song!, pendingAudioFile: new File(['audio'], 'replacement.ogg') });
+      const before = current();
+      const { handlers, setValidationErrors } = mountFileOperations();
+
+      await (action === 'Save' ? handlers.handleSaveChart() : handlers.handleSaveAs('HARD', 8));
+
+      expect(setValidationErrors).toHaveBeenCalledWith(expect.arrayContaining([
+        expect.objectContaining({ rule: 'timeSigNotAtMeasureStart' }),
+      ]));
+      expect(harness.rpc).not.toHaveBeenCalled();
+      expect(harness.uploadAsset).not.toHaveBeenCalled();
+      expect(harness.uploads.size).toBe(0);
+      expect(harness.upserts).toHaveLength(0);
+      expect(current().song).toBe(before.song);
+      expect(current().savedChartJson).toBe(before.savedChartJson);
+    },
+  );
+
   const save = (action: string) => {
     const handlers = renderFileOperations();
     return action === 'Save' ? handlers.handleSaveChart() : handlers.handleSaveAs('HARD', 8);
@@ -559,6 +589,27 @@ it('제목만 새 제목으로 바꾸고 Save하면 확인 없이 save_song 1회
   expect(harness.confirm).not.toHaveBeenCalled();
   expect(current().song?.baseline.title).toBe('새 제목');
   expect(current().savedChartJson).toBe(savedChart);
+});
+
+it('timing NULL의 4박 BPM 180→150만 편집하고 Save하면 이행 확인 1회·곡 RPC 1회·차트 업로드 0회다', async () => {
+  const document = chart([]);
+  document.events.push({ type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 });
+  open(document); attachSong(false);
+  harness.charts.mockResolvedValue({ data: [{ difficulty_label: 'normal' }], error: null });
+  current().setEditingEvent({ type: 'event', index: 2 });
+  renderFileOperations().handleEventSave({ eventBpm: '150' });
+  const saving = renderFileOperations().handleSaveChart();
+  await flush();
+  for (const upsert of harness.upserts) upsert.resolve();
+  await saving;
+  expect(harness.confirm).toHaveBeenCalledOnce();
+  expect(harness.rpc).toHaveBeenCalledExactlyOnceWith('save_song', expect.objectContaining({
+    p_timing: expect.objectContaining({ bpmChanges: [{ beat: '0', bpm: 120 }, { beat: '4', bpm: 150 }] }),
+  }));
+  expect(harness.uploads.size).toBe(0);
+  expect(harness.upserts).toHaveLength(0);
+  expect(isChartDirty(current().chart, 2, current().savedChartJson, true)).toBe(false);
+  expect(isSongDirty(current().chart, current().song)).toBe(false);
 });
 
 it('timing NULL 곡을 NORMAL에서 HARD로 Save As하면 이행 비교에서 제외할 열린 차트만 HARD로 바뀌고 곡 기준·리비전 42는 유지된다', async () => {

@@ -117,6 +117,8 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
 
   test('4박 BPM 180을 150으로 바꿔 Save하면 이행 확인 뒤 곡 타이밍만 저장하고 재편집·삭제할 수 있다', async ({ page }) => {
     const editor = await openEditor(page, { chart: eventChart() });
+    // Create의 Single 도구로 더블클릭하면 첫 클릭이 보조 노트를 만든다. 값 편집만 하는 흐름으로 고정한다.
+    await page.getByRole('button', { name: 'Select', exact: true }).click();
     const position = await canvasPosition(page, 5, 4);
     await page.mouse.dblclick(position.x, position.y);
 
@@ -149,6 +151,24 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
       const path = '/src/editor/stores/editorStore.ts';
       return (await import(path)).useEditorStore.getState().chart.events.length;
     })).toBe(2);
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('timing NULL의 4박 BPM을 보조 레인 1→2로 옮기면 미저장·이탈 확인이 생기고 Save는 차트만 저장한다', async ({ page }) => {
+    const editor = await openEditor(page, { chart: eventChart() });
+    await page.getByRole('button', { name: 'Select', exact: true }).click();
+    await dragEventBodyToColumn(page, 5, 6, 4);
+    await expect.poll(() => eventLanes(page)).toEqual([1, 2, 2]);
+    await expect(page.getByRole('button', { name: 'Save, unsaved changes', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+    await page.getByRole('button', { name: 'Back to Songs', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Unsaved Changes', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
+    await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
+    const uploaded = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV3;
+    expect(uploaded.events[2]).toMatchObject({ type: 'bpm', beat: '4', bpm: 180, editorLane: 2 });
+    expect(editor.supabaseWrites.some(write => write.path === '/rest/v1/rpc/save_song')).toBe(false);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 

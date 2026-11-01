@@ -58,7 +58,7 @@ export async function saveEditorSong(
     if (samePreview && meta.previewAudioFile === start.chart.meta.previewAudioFile) meta.previewAudioFile = values.previewUrl ?? '';
     if (meta.imageFile !== current.chart.meta.imageFile || meta.audioFile !== current.chart.meta.audioFile
       || meta.previewAudioFile !== current.chart.meta.previewAudioFile) {
-      current.setChart({ ...current.chart, meta });
+      current.reconcileSongMedia({ audioFile: meta.audioFile, imageFile: meta.imageFile, previewAudioFile: meta.previewAudioFile });
     }
     current.setSong({ ...current.song, revision, baseline: values, needsTimingMigration: false,
       pendingJacketFile: sameJacket ? null : current.song.pendingJacketFile,

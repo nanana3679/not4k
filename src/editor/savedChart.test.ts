@@ -22,6 +22,24 @@ const mainNote = { type: 'single', lane: 1 as Lane, beat: beat(0) } as const;
 const auxNote = { type: 'single', lane: 5 as Lane, beat: beat(1) } as const;
 
 describe('isChartDirty', () => {
+  it.each(['bpm', 'timeSignature'] as const)('8박 %s의 editorLane만 1→2로 옮기면 곡 행이 있어도 차트가 dirty다', type => {
+    const chart = makeChart();
+    chart.events.push(type === 'bpm'
+      ? { type, beat: beat(8), bpm: 180, editorLane: 1 }
+      : { type, beat: beat(8), beatPerMeasure: beat(3), editorLane: 1 });
+    const saved = toSavedChartJson(chart, 2);
+    const edited = { ...chart, events: chart.events.map((event, index) => index === 2 ? { ...event, editorLane: 2 } : event) };
+    expect(isChartDirty(edited, 2, saved, true)).toBe(true);
+  });
+
+  it('BPM 180→150·박 4→8만 바꾸고 editorLane 1을 유지하면 곡 행이 있는 차트는 깨끗하다', () => {
+    const chart = makeChart();
+    chart.events.push({ type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 });
+    const saved = toSavedChartJson(chart, 2);
+    const edited = { ...chart, events: chart.events.map((event, index) => index === 2 ? { ...event, bpm: 150, beat: beat(8) } : event) };
+    expect(isChartDirty(edited, 2, saved, true)).toBe(false);
+  });
+
   it('savedChartJson을 만든 차트·보조 레인 수 2 그대로면 dirty 아님', () => {
     const chart = makeChart([mainNote]);
     expect(isChartDirty(chart, 2, toSavedChartJson(chart, 2))).toBe(false);

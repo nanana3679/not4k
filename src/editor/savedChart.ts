@@ -45,6 +45,11 @@ function chartOnlyJson(json: string): string {
   for (const key of ['title', 'artist', 'imageFile', 'audioFile', 'previewAudioFile', 'previewStart', 'previewEnd', 'offsetMs']) {
     delete document.meta[key];
   }
+  // 값·박 위치는 곡 소유지만 보조 레인 배치는 차트에 남는다. 일반 이벤트와의 배열 교차 순서는 제외한다.
+  const timingEvents = document.events.filter((event: { type: string }) => event.type === 'bpm' || event.type === 'timeSignature');
+  document.timingLayout = timingEvents.map((event: { type: string; editorLane?: number }) => ({
+    type: event.type, editorLane: event.editorLane ?? 1,
+  }));
   document.events = document.events.filter((event: { type: string }) => event.type !== 'bpm' && event.type !== 'timeSignature');
   return JSON.stringify(document);
 }

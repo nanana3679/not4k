@@ -1,8 +1,9 @@
 import { createEditorSong } from '../songState';
-import { toSavedChartJson } from '../savedChart';
-import { createElement } from 'react';
+import { isChartDirty, toSavedChartJson } from '../savedChart';
+import { isSongDirty } from '../songState';
+import { Children, createElement, isValidElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat } from '../../shared';
 import type { ChartDocument } from '../../shared';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
@@ -25,7 +26,7 @@ const chart = (): ChartDocument => ({
   events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) }],
 });
 
-const render = (props: { compact?: boolean; showOffsetToolbar?: boolean; saving?: boolean } = {}) => renderToStaticMarkup(createElement(EditorToolbar, {
+const toolbarProps = (props: { compact?: boolean; showOffsetToolbar?: boolean; saving?: boolean } = {}) => ({
   compact: props.compact ?? false,
   playbackRef: { current: null },
   autoScroll: true,
@@ -45,7 +46,9 @@ const render = (props: { compact?: boolean; showOffsetToolbar?: boolean; saving?
   onDeleteSelected() {},
   onOpenMeta() {},
   onOpenCustomSnap() {},
-}));
+});
+const render = (props: Parameters<typeof toolbarProps>[0] = {}) => renderToStaticMarkup(createElement(EditorToolbar, toolbarProps(props)));
+afterEach(() => vi.unstubAllGlobals());
 
 /** 접근 이름(aria-label)이 name인 버튼의 여는 태그. */
 const buttonTag = (markup: string, name: string) => markup.match(new RegExp(`<button[^>]*aria-label="${name}"[^>]*>`))?.[0] ?? '';
@@ -96,6 +99,49 @@ describe('툴바의 재생 중 잠금', () => {
 });
 
 describe('저장 버튼 하나의 표시', () => {
+  it('timing NULL의 4박 BPM을 보조 레인 1→2로 옮기면 곡은 깨끗하고 차트 dirty·이탈 확인이 남는다', () => {
+    const document = chart();
+    document.events[1] = { ...document.events[1], editorLane: 2 };
+    document.events.push({ type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 });
+    const song = createEditorSong({ title: '툴바', artist: '', jacketUrl: null, audioUrl: '', duration: null,
+      previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
+      gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 }, document);
+    useEditorStore.setState({ song, chart: document, savedChartJson: toSavedChartJson(document, 2) });
+    useEditorStore.getState().setChart({ ...document,
+      events: document.events.map((event, index) => index === 2 ? { ...event, editorLane: 2 } : event),
+    });
+    const state = useEditorStore.getState();
+    expect(isSongDirty(state.chart, state.song)).toBe(false);
+    expect(isChartDirty(state.chart, 2, state.savedChartJson, true)).toBe(true);
+    expect(buttonTag(render(), 'Save, unsaved changes')).not.toBe('');
+
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal('window', { dispatchEvent, location: { href: '/editor' } });
+    let openedMenu = false;
+    let leave: (() => void) | undefined;
+    function inspect(node: ReactNode) {
+      Children.forEach(node, child => {
+        if (!isValidElement<{ children?: ReactNode; 'aria-label'?: string; onClick?: () => void }>(child)) return;
+        if (child.props['aria-label'] === 'More editor actions' && !openedMenu) {
+          openedMenu = true;
+          child.props.onClick?.();
+        }
+        if (child.props.children === 'Back to Songs') leave = child.props.onClick;
+        inspect(child.props.children);
+      });
+    }
+    function Probe() {
+      const tree = EditorToolbar(toolbarProps());
+      inspect(tree);
+      return tree;
+    }
+    renderToStaticMarkup(createElement(Probe));
+    expect(leave).toBeDefined();
+    leave!();
+    expect(dispatchEvent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: 'editor:requestLeave' }));
+    expect(window.location.href).toBe('/editor');
+  });
+
   it.each([false, true])('곡 제목을 새 제목으로 바꾸면 compact=%s에서 Save 1개만 미저장이고 곡 저장 중 비활성이다', compact => {
     const document = chart();
     const song = createEditorSong({ title: '툴바', artist: '', jacketUrl: null, audioUrl: '', duration: null,

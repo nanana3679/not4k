@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openEditorChart } from './openEditorChart';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { toSavedChartJson } from './savedChart';
-import { useEditorStore } from './stores/editorStore';
+import { selectCanUndo, useEditorStore } from './stores/editorStore';
 import { isSongDirty } from './songState';
 import { saveEditorSong } from './saveEditorSong';
 
@@ -27,7 +27,7 @@ function open(timing: unknown = song.timing) {
 const editTitle = (title: string) => state().setChart({ ...state().chart, meta: { ...state().chart.meta, title } });
 const dirty = () => isSongDirty(state().chart, state().song);
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -228,6 +228,50 @@ it('깨끗한 곡을 파일 교체 없이 저장하면 리비전만 57이 되고
   await saveEditorSong(null, vi.fn());
   expect(state().historyPast).toHaveLength(0);
   expect(state().song?.revision).toBe(57);
+});
+
+it('음원 replacement.ogg·자켓 replacement.png 교체 601ms 뒤 Save→Undo→Save해도 업로드 경로를 보내고 Redo가 유지된다', async () => {
+  const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta,
+    title: '교체 후 제목', audioFile: 'replacement.ogg', imageFile: 'replacement.png',
+  } });
+  state().setSong({ ...state().song!,
+    pendingAudioFile: new File(['audio'], 'replacement.ogg'),
+    pendingJacketFile: new File(['jacket'], 'replacement.png'),
+  });
+  const buffer = { duration: 120, length: 1200, sampleRate: 10, numberOfChannels: 1,
+    getChannelData: () => new Float32Array(1200) } as unknown as AudioBuffer;
+  now.mockReturnValue(1601);
+  expect(await saveEditorSong(buffer, vi.fn())).toBe(true);
+  const savedMedia = { p_audio_url: api.upload.mock.calls[1][0],
+    p_jacket_url: api.upload.mock.calls[0][0], p_preview_url: api.upload.mock.calls[2][0] };
+
+  state().undo();
+  expect(await saveEditorSong(null, vi.fn())).toBe(true);
+
+  expect(api.rpc.mock.calls[1][1]).toMatchObject(savedMedia);
+  expect(state().chart.meta.title).toBe('곡');
+  expect(state().historyPast).toHaveLength(0);
+  expect(state().historyFuture).toHaveLength(1);
+  state().redo();
+  expect(state().chart.meta.title).toBe('교체 후 제목');
+  expect(await saveEditorSong(null, vi.fn())).toBe(true);
+  expect(api.rpc.mock.calls[2][1]).toMatchObject(savedMedia);
+  expect(api.upload).toHaveBeenCalledTimes(3);
+  expect(dirty()).toBe(false);
+});
+
+it.each(['commit', 'cancel'] as const)('빈 편집 transaction 중 자켓을 저장하고 %s해도 Undo 0개와 업로드 경로를 유지한다', async action => {
+  state().setSong({ ...state().song!, pendingJacketFile: new File(['jacket'], 'replacement.png') });
+  const token = state().beginEditTransaction('selectModeEdit')!;
+  await saveEditorSong(null, vi.fn());
+  expect(state().editTransaction?.token).toBe(token);
+  expect(selectCanUndo(state())).toBe(false);
+  if (action === 'commit') state().commitEditTransaction(token);
+  else state().cancelEditTransaction(token);
+  expect(state().historyPast).toHaveLength(0);
+  expect(state().chart.meta.imageFile).toBe(api.upload.mock.calls[0][0]);
+  expect(dirty()).toBe(false);
 });
 
 it('PT409 전에 자켓 업로드가 성공해도 기존 경로 old.jpg·파일 A.png·리비전 42를 보존한다', async () => {

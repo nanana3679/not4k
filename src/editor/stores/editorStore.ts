@@ -123,6 +123,8 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setActiveSongId: (songId: string | null) => void;
   setPendingAudioUrl: (url: string | null) => void;
   setChart: (chart: ChartDocument, options?: { separateHistory?: boolean; transaction?: symbol }) => void;
+  /** 업로드 결과의 미디어 경로만 반영한다. 편집·Undo 이력·열린 transaction은 만들거나 끝내지 않는다. */
+  reconcileSongMedia: (media: Pick<ChartDocument['meta'], 'audioFile' | 'imageFile' | 'previewAudioFile'>) => void;
   /**
    * 로드 전용 통로 — 위반 차트도 수용해 열람·수리를 허용한다(경고만 표시).
    * 재저장은 저장 게이트(useFileOperations의 editorChartErrors)가 차단하므로
@@ -217,6 +219,15 @@ function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraLaneCoun
     chart: cloneJson(state.chart),
     extraLaneCount: state.extraLaneCount,
   };
+}
+
+/** 대기 파일과 미디어 경로는 곡 세션 소유다. 차트 이력만 복원해 파일과 경로가 분리되지 않게 한다(PR6 전). */
+function restoreChartSnapshot(state: EditorState, chart: ChartDocument): ChartDocument {
+  if (!state.song) return chart;
+  const { audioFile, imageFile, previewAudioFile } = state.chart.meta;
+  if (chart.meta.audioFile === audioFile && chart.meta.imageFile === imageFile
+    && chart.meta.previewAudioFile === previewAudioFile) return chart;
+  return { ...chart, meta: { ...chart.meta, audioFile, imageFile, previewAudioFile } };
 }
 
 function captureHistory(state: EditorState, separateHistory = false, transaction?: symbol): Partial<EditorState> {
@@ -358,6 +369,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     });
   },
+  reconcileSongMedia: (media) => set(state => {
+    const chart = { ...state.chart, meta: { ...state.chart.meta, ...media } };
+    // 저장 응답이 빈 gesture를 편집으로 만들거나 마지막 유효 상태의 경로를 되돌리지 않게 한다.
+    const reconcileSnapshot = (snapshot: HistorySnapshot): HistorySnapshot => ({ ...snapshot,
+      chart: snapshot.chart === state.chart ? chart : restoreChartSnapshot({ ...state, chart }, snapshot.chart),
+    });
+    const transaction = state.editTransaction;
+    return { chart,
+      lastValidSnapshot: state.lastValidSnapshot ? reconcileSnapshot(state.lastValidSnapshot) : null,
+      editTransaction: transaction ? { ...transaction,
+        before: reconcileSnapshot(transaction.before),
+        lastValidSnapshot: transaction.lastValidSnapshot ? reconcileSnapshot(transaction.lastValidSnapshot) : null,
+      } : null,
+    };
+  }),
   loadChart: (chart) => {
     get().commitEditTransaction();
     const errors = editorChartErrors({
@@ -446,7 +472,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!previous) return {};
       const current = createHistorySnapshot(state);
       return {
-        chart: previous.chart,
+        chart: restoreChartSnapshot(state, previous.chart),
         extraLaneCount: previous.extraLaneCount,
         // 선택은 복원된 차트에 대해 무의미하므로 전체 clear(zones 포함) — 같은 set()에서 원자적으로
         selection: emptySelection(),
@@ -464,7 +490,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!next) return {};
       const current = createHistorySnapshot(state);
       return {
-        chart: next.chart,
+        chart: restoreChartSnapshot(state, next.chart),
         extraLaneCount: next.extraLaneCount,
         selection: emptySelection(),
         historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
@@ -487,7 +513,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!target || state.chart === target.chart) return {};
       const current = createHistorySnapshot(state);
       return {
-        chart: target.chart,
+        chart: restoreChartSnapshot(state, target.chart),
         extraLaneCount: target.extraLaneCount,
         // 복원된 차트에 대해 기존 선택은 무의미 — 전체 clear(undo/redo와 동일)
         selection: emptySelection(),
@@ -539,7 +565,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   cancelEditTransaction: token => {
     const transaction = get().editTransaction;
     if (!transaction || (token && transaction.token !== token)) return;
-    set({ ...transaction.before, selection: transaction.selection,
+    set({ ...transaction.before, chart: restoreChartSnapshot(get(), transaction.before.chart), selection: transaction.selection,
       lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
     if (!token) transaction.onInterrupt?.();
   },
@@ -547,7 +573,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const transaction = get().editTransaction;
     if (!transaction) return;
     // token 없는 취소라 소유 조작은 onInterrupt로 그 누름의 조작을 끝내, 같은 누름을 더 끌어도 아무것도 바꾸지 않는다.
-    set({ ...transaction.before, selection: transaction.selectionBeforePress,
+    set({ ...transaction.before, chart: restoreChartSnapshot(get(), transaction.before.chart), selection: transaction.selectionBeforePress,
       lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
     transaction.onInterrupt?.();
   },
