@@ -61,12 +61,13 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const [deleting, setDeleting] = useState(false);
   const [mobileEditSelection, setMobileEditSelection] = useState<SelectedChartRef | null>(null);
   // 첫 기동 튜토리얼 모달(RFD 0055): 프리셋 설정 직후 처음 그리는 곡 선택은 도움말 모달을 연 채 시작한다.
-  // 신호는 사용자가 모달을 닫을 때 지운다. 닫기 전에 새로고침하면 다음 곡 선택에서 다시 열고, 닫은 뒤에는 `?` 버튼으로만 연다.
+  // 신호는 사용자가 모달을 닫을 때(Close 버튼·Escape·배경 클릭) 지운다. 닫기 전에 새로고침하거나 곡 선택을 벗어나면 다음 곡 선택에서 다시 열고,
+  // 닫은 뒤에는 `?` 버튼으로만 연다.
   const shouldOpenFirstLaunchTutorialModal = useGameStore((state) => state.shouldOpenFirstLaunchTutorialModal);
   const markFirstLaunchTutorialModalClosed = useGameStore((state) => state.markFirstLaunchTutorialModalClosed);
   const [showTutorialHelp, setShowTutorialHelp] = useState(shouldOpenFirstLaunchTutorialModal);
-  const closeTutorialHelp = () => {
-    setShowTutorialHelp(false);
+  // 닫기를 요청한 순간 끄므로, 120ms 닫힘 애니메이션 중에 새로고침해도 닫은 것으로 남는다.
+  const handleTutorialHelpCloseRequested = () => {
     if (shouldOpenFirstLaunchTutorialModal) markFirstLaunchTutorialModalClosed();
   };
 
@@ -202,7 +203,11 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const renderOverlays = () => (
     <>
       {showTutorialHelp && (
-        <TutorialHelpModal isAdmin={isAdmin} onClose={closeTutorialHelp} />
+        <TutorialHelpModal
+          isAdmin={isAdmin}
+          onCloseRequested={handleTutorialHelpCloseRequested}
+          onClose={() => setShowTutorialHelp(false)}
+        />
       )}
 
       {showAddSong && (

@@ -89,7 +89,7 @@ test.describe('Game Navigation', () => {
     });
   }
 
-  test('첫 기동 튜토리얼 모달은 타이틀을 거쳐 곡 선택에 다시 들어오거나 새로고침하면 다시 열리지 않고 ? 버튼으로만 열린다', async ({ page }) => {
+  test('첫 기동 튜토리얼 모달을 Close로 닫은 뒤에는 타이틀을 거쳐 곡 선택에 다시 들어와도 열리지 않고 ? 버튼으로만 열린다', async ({ page }) => {
     await stubEmptySongs(page);
     await choosePresetOnFirstLaunch(page, 'TKL (Tenkeyless)');
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
@@ -134,7 +134,7 @@ test.describe('Game Navigation', () => {
     await expect(dialog).toHaveCount(0);
   });
 
-  test('프리셋 설정을 마쳤지만 곡 선택에서 모달이 열리기 전에 새로고침하면 Start 뒤 곡 선택에서 모달이 열리고, 닫기 전까지 열기 신호가 저장된 채 남는다', async ({ page }) => {
+  test('열기 신호가 켜진 채 저장된 상태로 새로고침하면 Start 뒤 곡 선택에서 모달이 열리고, 저장 신호는 닫기 전까지 true였다가 Escape를 누르는 즉시(120ms 닫힘 애니메이션 전) false가 된다', async ({ page }) => {
     await stubEmptySongs(page);
     await page.goto('/game');
     // completeFirstLaunch 직후·곡 선택이 모달을 열기 전의 저장 상태: 첫 기동은 끝났고 열기 신호는 아직 켜져 있다.
@@ -154,9 +154,10 @@ test.describe('Game Navigation', () => {
       JSON.parse(localStorage.getItem('not4k-settings')!).state.shouldOpenFirstLaunchTutorialModal);
     expect(await savedSignal()).toBe(true);
 
+    // 닫힘 애니메이션이 끝나기 전에 새로고침해도 닫은 것으로 남도록, 닫기를 요청한 키 처리에서 바로 저장한다.
     await page.keyboard.press('Escape');
+    expect(await savedSignal()).toBe(false);
     await expect(dialog).toHaveCount(0);
-    await expect.poll(savedSignal).toBe(false);
   });
 
   test('곡 목록 요청이 끝나지 않은 동안에도 첫 기동 튜토리얼 모달은 로딩 화면에 가리지 않아 Close를 누를 수 있고, 닫으면 Loading songs... 화면이 보인다', async ({ page }) => {
