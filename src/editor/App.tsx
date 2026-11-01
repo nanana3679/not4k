@@ -45,6 +45,7 @@ import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
 import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
+import { useEditorAudioLoad } from './hooks/useEditorAudioLoad';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
@@ -122,10 +123,10 @@ export default function EditorApp() {
     if (existingStore.activeSongId === songId) {
       // 복귀 시 음원 조회는 유지하되, 열린 곡의 초안·리비전·대기 파일을 서버 값으로 바꾸지 않는다.
       fetchSongSharedData(songId).then((loaded) => {
-        const file = existingStore.song?.pendingAudioFile;
-        const path = existingStore.song ? existingStore.chart.meta.audioFile : loaded?.audioUrl;
-        if (file) setPendingAudioUrl(URL.createObjectURL(file));
-        else if (path) setPendingAudioUrl(getPublicUrl(path));
+        // 대기 File은 재생기가 직접 읽는다. 없으면 기존처럼 방금 조회한 곡의 음원을 복원한다.
+        if (!existingStore.song?.pendingAudioFile && loaded?.audioUrl) {
+          setPendingAudioUrl(getPublicUrl(loaded.audioUrl));
+        }
         setChartLoading(false);
       }).catch((err) => {
         setError(err instanceof Error ? err.message : String(err));
@@ -248,9 +249,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
-  const [audioLoading, setAudioLoading] = useState(false);
-  const [initialAudioPending, setInitialAudioPending] = useState(() => Boolean(useEditorStore.getState().pendingAudioUrl));
-  const hasCompletedInitialAudioLoadRef = useRef(!useEditorStore.getState().pendingAudioUrl);
   const [loadedAudioBuffer, setLoadedAudioBuffer] = useState<AudioBuffer | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -280,8 +278,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const selectedNotes = useEditorStore((s) => s.selection.notes);
-  const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
-  const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
@@ -296,7 +292,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const legacyConversionReview = useEditorStore((s) => s.legacyConversionReview);
   const legacyConversionReviewOpen = useEditorStore((s) => s.legacyConversionReviewOpen);
   const setLegacyConversionReviewOpen = useEditorStore((s) => s.setLegacyConversionReviewOpen);
-  const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // TimelineSpace deep module — 좌표 변환 / 히트테스트
   const { space, bpmChanges } = useTimelineSpace(rendererRef);
@@ -469,7 +464,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     const container = canvasContainerRef.current;
     const initWidth = container?.clientWidth ?? 800;
     const initHeight = container?.clientHeight ?? 600;
-    setCanvasSize({ width: initWidth, height: initHeight });
+    // 렌더러는 측정값으로 시작하고, 화면 크기 상태는 아래 ResizeObserver가 갱신한다.
 
     const renderer = new TimelineRenderer({
       canvas,
@@ -561,31 +556,9 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     }
   }, [masterVolume]);
 
-  // 오디오 로드
-  useEffect(() => {
-    if (!pendingAudioUrl) return;
-    const playback = playbackRef.current;
-    if (!playback) return;
+  const { audioLoading, setAudioLoading, initialAudioPending } = useEditorAudioLoad(playbackRef, setLoadedAudioBuffer);
 
-    const url = pendingAudioUrl;
-    if (!hasCompletedInitialAudioLoadRef.current) {
-      setInitialAudioPending(true);
-    }
-    setPendingAudioUrl(null);
-    setAudioLoading(true);
-    // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 직렬화한다 — 메인/보조 분리 후 비교.
-
-    playback.loadAudioUrl(url).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      setLoadedAudioBuffer(null);
-      addToast(`Audio load failed: ${message}`, 'error');
-    }).finally(() => {
-      if (url.startsWith('blob:')) URL.revokeObjectURL(url);
-      setAudioLoading(false);
-      hasCompletedInitialAudioLoadRef.current = true;
-      setInitialAudioPending(false);
-    });
-  }, [pendingAudioUrl, setPendingAudioUrl, addToast]);
+  const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // ResizeObserver
   useEffect(() => {
