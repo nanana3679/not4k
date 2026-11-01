@@ -25,7 +25,7 @@ export interface ExplicitTutorialPatternResult {
    * 실습의 패턴 id로 그대로 쓰지 않고 실습 UI가 소유한 카운터와 대응시킨다.
    */
   readonly iteration: number;
-  /** 물리 반복의 시작부터 경계까지 전환했는지 입력 재생기가 기록한다. */
+  /** 물리 반복의 시작부터 경계까지 전환했는지 기록한다. 시작 뒤 일시정지·도식 대기도 포함하며 최초 준비는 제외한다. */
   readonly modeSwitchedDuringPattern: boolean;
   readonly result: ExplicitSessionResult;
 }
