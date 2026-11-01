@@ -337,6 +337,30 @@ describe('0박에서 초기 BPM과 겹친 일반 text(RFD 0082)', () => {
     handlers.handleDoubleClick(doubleClick(1000));
     expect(current().editingEvent).toEqual({ type: 'event', index: textIndex });
   });
+
+  it.each(orders)('$order 순서에서 Select 모드로 text를 선택한 뒤 보조 레인1의 0박에 마우스를 올리면 커서가 move다', ({ events, textIndex }) => {
+    const { handlers, selectMode, canvas } = setup(chart([], { events: events() }), 'select');
+    selectMode.selectEvent(textIndex);
+    handlers.handlePointerMove(pointer(0, { pointerType: 'mouse', buttons: 0, x }));
+
+    expect(canvas.style.cursor).toBe('move');
+  });
+});
+
+describe('0박 초기 BPM과 겹치지 않는 1/16박 BPM(RFD 0082)', () => {
+  // 보조 레인1의 초기 BPM(0박)과 1/16박 BPM은 배치가 겹치지 않는 정상 차트지만, 허용 오차 ±1/16박 안에서 함께 잡힌다.
+  const initialBpm: ChartDocument['events'][number] = { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 };
+  const initialSignature: ChartDocument['events'][number] = { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 };
+  const bpmAtSixteenth: ChartDocument['events'][number] = { type: 'bpm', beat: beat(1, 16), bpm: 150, editorLane: 1 };
+  const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+  const sixteenthY = 500 / 16;
+
+  it('[초기 BPM, 초기 박자, 1/16박 BPM] 순서에서 보조 레인1의 1/16박을 더블클릭하면 초기 BPM이 아니라 1/16박 BPM 편집을 연다', () => {
+    const { handlers } = setup(chart([], { events: [initialBpm, initialSignature, bpmAtSixteenth] }), 'select');
+    handlers.handleDoubleClick({ clientX: x, clientY: sixteenthY } as unknown as ReactMouseEvent<HTMLCanvasElement>);
+
+    expect(current().editingEvent).toEqual({ type: 'event', index: 2 });
+  });
 });
 
 describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {

@@ -7,8 +7,8 @@
  */
 
 import type { ChartEvent, DocumentNoteEntity, DocumentExtraNoteEntity, RangeNote, BodyNote, TrillZone, RestZone } from "../../shared";
+import { eventPlacementsOverlap, isInitialTimingEvent } from "../../shared";
 import { NOTE_Z_ORDER } from "./constants";
-import { isInitialTimingEvent } from "../editing/eventEditing";
 
 /** Tolerance for point note hit detection (in beats) */
 const POINT_NOTE_TOLERANCE = 1 / 16;
@@ -28,16 +28,25 @@ const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
 const SELECTED_BONUS = MAX_Z_ORDER + 1;
 
 /**
- * 0박에 초기 설정(초기 BPM·박자)과 일반 이벤트가 함께 잡힐 때 고를 쪽(RFD 0082).
+ * 0박에서 초기 설정(초기 BPM·박자)과 배치가 실제로 겹친 일반 이벤트가 함께 잡힐 때 고를 쪽(RFD 0082).
  * 파일을 열 때 일반 이벤트를 옮기지 않아 그 자리에 둘이 겹쳐 있을 수 있다.
  * - `selectable`: 선택·이동·삭제. 선택·삭제할 수 없는 초기 설정보다 일반 이벤트를 잡는다.
  * - `initialTiming`: 더블클릭 값 편집. 초기 설정은 더블클릭으로만 값을 고치므로 초기 설정을 잡는다.
  */
 export type EventHitPreference = 'selectable' | 'initialTiming';
 
+function eventHitAt(event: ChartEvent, editorLane: number, beatFloat: number): boolean {
+  if ((event.editorLane ?? 1) !== editorLane) return false;
+  const start = event.beat.n / event.beat.d;
+  const end = 'endBeat' in event ? event.endBeat.n / event.endBeat.d : start;
+  return beatFloat >= start - POINT_NOTE_TOLERANCE && beatFloat <= end + POINT_NOTE_TOLERANCE;
+}
+
 /**
  * 이벤트도 노트와 같은 raw 박·허용 오차로 찾는다. 나중에 그린 이벤트가 앞이다.
- * 초기 설정과 일반 이벤트가 함께 잡히면 `prefer` 쪽을 먼저 고르고, 그 안에서는 나중 이벤트가 앞이다.
+ * 맨 앞 이벤트가 `prefer` 쪽이 아니면, 함께 잡힌 `prefer` 쪽 이벤트 가운데 맨 앞 이벤트와 배치가 실제로 겹친
+ * 것(`eventPlacementsOverlap`)을 고른다. 허용 오차 안에 함께 잡혔을 뿐 겹치지 않은 이웃(1/16박 BPM 등)에는
+ * 우선순위를 적용하지 않고 맨 앞 이벤트를 돌려준다.
  */
 export function hitTestEventAt(
   events: readonly ChartEvent[],
@@ -45,18 +54,19 @@ export function hitTestEventAt(
   beatFloat: number,
   prefer: EventHitPreference = 'selectable',
 ): number | null {
-  let nonPreferredIndex: number | null = null;
-  for (let index = events.length - 1; index >= 0; index--) {
+  let topIndex = events.length - 1;
+  while (topIndex >= 0 && !eventHitAt(events[topIndex], editorLane, beatFloat)) topIndex--;
+  if (topIndex < 0) return null;
+  const top = events[topIndex];
+  const preferInitial = prefer === 'initialTiming';
+  if (isInitialTimingEvent(top) === preferInitial) return topIndex;
+  for (let index = topIndex - 1; index >= 0; index--) {
     const event = events[index];
-    if ((event.editorLane ?? 1) !== editorLane) continue;
-    const start = event.beat.n / event.beat.d;
-    const end = 'endBeat' in event ? event.endBeat.n / event.endBeat.d : start;
-    const hit = beatFloat >= start - POINT_NOTE_TOLERANCE && beatFloat <= end + POINT_NOTE_TOLERANCE;
-    if (!hit) continue;
-    if (isInitialTimingEvent(event) === (prefer === 'initialTiming')) return index;
-    nonPreferredIndex ??= index;
+    if (isInitialTimingEvent(event) === preferInitial
+      && eventPlacementsOverlap(event, top)
+      && eventHitAt(event, editorLane, beatFloat)) return index;
   }
-  return nonPreferredIndex;
+  return topIndex;
 }
 
 export function hitTestNoteAt(

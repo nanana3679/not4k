@@ -531,3 +531,25 @@ describe('0박에서 초기 BPM과 겹친 일반 이벤트를 잡기(RFD 0082)',
     expect(warnings).toEqual([]);
   });
 });
+
+describe('0박 초기 BPM과 겹치지 않는 1/16박 BPM(RFD 0082)', () => {
+  const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+
+  it('[1/16박 BPM, 초기 BPM, 초기 박자] 순서에서 Delete 모드로 보조 레인1의 0박을 클릭하면 1/16박 BPM을 지우지 않고 Cannot delete initial event 경고를 낸다', () => {
+    const [initialBpm, initialSignature] = chartFixture().events;
+    const bpmAtSixteenth: ChartDocument['events'][number] = { type: 'bpm', beat: beat(1, 16), bpm: 150, editorLane: 1 };
+    const loaded: ChartDocument = { ...chartFixture(), events: [bpmAtSixteenth, initialBpm, initialSignature] };
+    useEditorStore.getState().loadChart(loaded);
+    const { store, space } = editor();
+    expect(editorChartErrors(store().chart)).toEqual([]);
+    const warnings: string[] = [];
+    const mode = new DeleteMode(store().chart, { space,
+      onChartUpdate: chart => store().setChart(chart),
+      onWarn: message => warnings.push(message),
+    });
+    mode.onPointerDown(x, 0);
+
+    expect(store().chart.events).toEqual(loaded.events);
+    expect(warnings).toEqual(['Cannot delete initial event']);
+  });
+});

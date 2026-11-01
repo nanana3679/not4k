@@ -419,3 +419,26 @@ describe('hitTestEventAt 0박 초기 설정과 일반 이벤트 겹침(RFD 0082)
     expect(hitTestEventAt([text, other], 1, 0, 'initialTiming')).toBe(1);
   });
 });
+
+describe('hitTestEventAt 0박 초기 설정과 겹치지 않는 근처 일반 이벤트(RFD 0082)', () => {
+  // 초기 BPM(0박)과 1/16박 BPM·1/32～4박 text는 배치가 겹치지 않는 정상 차트지만, 허용 오차 ±1/16박 안에서 함께 잡힌다.
+  const initialBpm: ChartEvent = { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 };
+  const bpmAtSixteenth: ChartEvent = { type: 'bpm', beat: beat(1, 16), bpm: 150, editorLane: 1 };
+  const textFromThirtySecond: ChartEvent = { type: 'text', beat: beat(1, 32), endBeat: beat(4), text: 'intro', editorLane: 1 };
+
+  it('[초기 BPM, 1/16박 BPM]에서 1/16박을 initialTiming 우선으로 찾으면 겹치지 않는 초기 BPM이 아니라 나중 인덱스 1/16박 BPM 1을 찾는다', () => {
+    expect(hitTestEventAt([initialBpm, bpmAtSixteenth], 1, 1 / 16, 'initialTiming')).toBe(1);
+  });
+
+  it('[1/16박 BPM, 초기 BPM]에서 0박을 기본(selectable)으로 찾으면 겹치지 않는 1/16박 BPM이 아니라 나중 인덱스 초기 BPM 1을 찾는다', () => {
+    expect(hitTestEventAt([bpmAtSixteenth, initialBpm], 1, 0)).toBe(1);
+  });
+
+  it('[초기 BPM, 1/32～4박 text]에서 1/32박을 initialTiming 우선으로 찾으면 겹치지 않는 초기 BPM이 아니라 나중 인덱스 text 1을 찾는다', () => {
+    expect(hitTestEventAt([initialBpm, textFromThirtySecond], 1, 1 / 32, 'initialTiming')).toBe(1);
+  });
+
+  it('[1/32～4박 text, 초기 BPM]에서 0박을 기본(selectable)으로 찾으면 겹치지 않는 text가 아니라 나중 인덱스 초기 BPM 1을 찾는다', () => {
+    expect(hitTestEventAt([textFromThirtySecond, initialBpm], 1, 0)).toBe(1);
+  });
+});

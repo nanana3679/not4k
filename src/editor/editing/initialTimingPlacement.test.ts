@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { beat, validateChart, validateNoEventOverlap } from "../../shared";
+import { beat, isInitialTimingEvent, validateChart, validateNoEventOverlap } from "../../shared";
 import type { Beat, ChartEvent } from "../../shared";
-import { isInitialTimingEvent } from "./eventEditing";
 import { placeEditedInitialTiming, placeInitialTimingEvents, withInitialTimingLane } from "./initialTimingPlacement";
 
 const lane = (editorLane?: number) => (editorLane === undefined ? {} : { editorLane });

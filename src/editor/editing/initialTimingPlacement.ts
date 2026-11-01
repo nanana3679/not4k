@@ -1,5 +1,4 @@
-import type { ChartEvent } from '../../shared';
-import { isInitialTimingEvent } from './eventEditing';
+import { isInitialTimingEvent, type ChartEvent } from '../../shared';
 
 /** 0박 초기 BPM 설정의 고정 보조 레인(RFD 0082). */
 const INITIAL_BPM_EDITOR_LANE = 1;

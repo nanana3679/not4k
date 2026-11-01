@@ -1,8 +1,4 @@
-import { beatAdd, beatToFloat, type Beat, type ChartDocument, type ChartEvent } from '../../shared';
-
-export function isInitialTimingEvent(event: ChartEvent): boolean {
-  return event.beat.n === 0 && (event.type === 'bpm' || event.type === 'timeSignature');
-}
+import { beatAdd, beatToFloat, isInitialTimingEvent, type Beat, type ChartDocument, type ChartEvent } from '../../shared';
 
 export function translateEvent(event: ChartEvent, beatOffset: Beat, laneOffset = 0): ChartEvent {
   const position = { beat: beatAdd(event.beat, beatOffset),

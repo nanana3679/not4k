@@ -273,6 +273,11 @@ export type ChartEvent =
 /** 구간 이벤트 (beat + endBeat를 가지는 이벤트) */
 export type RangeEvent = TextEvent | AutoEvent | StopEvent | TutorialInputEvent | TutorialDiagramEvent;
 
+/** 0박 BPM·박자 이벤트인 초기 설정 여부(RFD 0082). */
+export function isInitialTimingEvent(event: ChartEvent): boolean {
+  return event.beat.n === 0 && (event.type === 'bpm' || event.type === 'timeSignature');
+}
+
 // ---------------------------------------------------------------------------
 // 차트 전체
 // ---------------------------------------------------------------------------

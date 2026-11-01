@@ -1,11 +1,11 @@
 import { eventLaneToBoxColumn } from '../timeline/laneGeometry';
-import { deleteEvents, eventInBounds, isInitialTimingEvent, translateEvent } from '../editing/eventEditing';
+import { deleteEvents, eventInBounds, translateEvent } from '../editing/eventEditing';
 import { placeEditedInitialTiming, withInitialTimingLane } from '../editing/initialTimingPlacement';
 import { INITIAL_TIMING_EXISTS_COPY } from '../editorCopy';
 import { bodyCompanionIndices, bodyDeletionBlockReason, reconcileMovedTicks, resizeExplicitBodies } from '../editing/explicitEditing';
 import { editorChartErrors } from "../documentValidation";
 import type { ChartDocument, ChartEvent, DocumentNoteEntity, RangeNote, BodyNote, Beat } from "../../shared";
-import { validateChartDocumentStructural, beatToFloat, isVisibleLane, isMainLane } from "../../shared";
+import { validateChartDocumentStructural, beatToFloat, isVisibleLane, isMainLane, isInitialTimingEvent } from "../../shared";
 import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
 import {
   deleteChartNotesAtIndices,
