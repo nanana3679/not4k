@@ -1,59 +1,12 @@
 /**
  * 옵저버 감속 청음 비교 Lab(RFD 0076)의 순수 계산.
  * 오디오 장치·AudioWorklet에 닿는 코드는 observerSlowdownRig.ts에 두고, 여기에는 시험 가능한 계산만 둔다.
+ * 곡 위치 시계·예약 계산은 observerSlowdownClock.ts에 있다.
  */
 
 /** 옵저버 감속 범위(0.25x～1.0x)에서 비교할 재생 속도. */
 export const OBSERVER_SLOWDOWN_RATES = [0.25, 0.5, 0.75, 1] as const;
 export type ObserverSlowdownRate = (typeof OBSERVER_SLOWDOWN_RATES)[number];
-
-/** ctxTime(AudioContext 시각)에 곡 위치가 songTime이고, 그 뒤로 rate 배로 흐르는 직선 시계. */
-export interface SongClock {
-  ctxTime: number;
-  songTime: number;
-  rate: number;
-}
-
-/** 시계가 시작하기 전(예약한 시작 시각 전)에는 시작 위치에 머문다. */
-export function songTimeAt(clock: SongClock, ctxTime: number): number {
-  return clock.songTime + Math.max(0, ctxTime - clock.ctxTime) * clock.rate;
-}
-
-export function ctxTimeOfSong(clock: SongClock, songTime: number): number {
-  return clock.ctxTime + (songTime - clock.songTime) / clock.rate;
-}
-
-/**
- * changeAt 시각의 곡 위치에서 새 rate로 이어지는 시계. 시작 예약 전에 바꾸면 시작 시각·위치는 그대로 두고 rate만 바꾼다.
- * 위치가 끊기지 않으므로 재생 속도 변경이 현재 위치에서 바로 적용된다(RFD 0076).
- */
-export function retimeClock(clock: SongClock, changeAt: number, rate: number): SongClock {
-  const ctxTime = Math.max(changeAt, clock.ctxTime);
-  return { ctxTime, songTime: songTimeAt(clock, ctxTime), rate };
-}
-
-export interface ScheduledBeat {
-  beat: number;
-  ctxTime: number;
-}
-
-/** [fromCtx, toCtx) 동안 들릴 박 중 afterBeat 뒤이고 곡 길이 안에 있는 박과 그 AudioContext 시각. */
-export function beatsToSchedule(
-  clock: SongClock,
-  fromCtx: number,
-  toCtx: number,
-  beatSeconds: number,
-  durationSeconds: number,
-  afterBeat: number,
-): ScheduledBeat[] {
-  const fromSong = songTimeAt(clock, fromCtx);
-  const toSong = Math.min(songTimeAt(clock, toCtx), durationSeconds);
-  const beats: ScheduledBeat[] = [];
-  for (let beat = Math.max(Math.ceil(fromSong / beatSeconds), afterBeat + 1); beat * beatSeconds < toSong; beat += 1) {
-    beats.push({ beat, ctxTime: ctxTimeOfSong(clock, beat * beatSeconds) });
-  }
-  return beats;
-}
 
 export const TEST_LOOP_BPM = 120;
 export const TEST_LOOP_BEAT_SECONDS = 60 / TEST_LOOP_BPM;
@@ -132,6 +85,60 @@ export function firstAudibleIndex(samples: Float32Array, notBeforeIndex = 0, thr
     if (Math.abs(samples[index]) > threshold) return index;
   }
   return -1;
+}
+
+/** found는 since부터 첫 소리까지(초), missed는 앞선 창과 이번 창 사이를 못 봐 첫 소리를 놓쳤을 수 있음, pending은 아직 소리 없음. */
+export type FirstOutputPoll = { kind: "found"; seconds: number } | { kind: "missed" } | { kind: "pending" };
+
+/**
+ * windowEnd(AudioContext 시각)에서 끝나는 분석 창 samples 하나로 since 이후 첫 출력을 찾는다.
+ * 앞선 창이 coveredUntil까지 봤는데 이번 창이 그보다 늦게 시작하면 그 사이에 첫 소리가 있었을 수 있어 missed로 둔다.
+ * 처음 볼 때는 coveredUntil에 since를 넘긴다.
+ */
+export function pollFirstOutput(
+  samples: Float32Array,
+  sampleRate: number,
+  windowEnd: number,
+  since: number,
+  coveredUntil: number,
+  threshold = AUDIBLE_THRESHOLD,
+): FirstOutputPoll {
+  const windowStart = windowEnd - samples.length / sampleRate;
+  if (windowStart > coveredUntil + 1 / sampleRate) return { kind: "missed" };
+  // since 전에 이미 창에 있던 소리(같은 방식을 곧바로 다시 재생한 경우의 꼬리)는 세지 않는다.
+  const index = firstAudibleIndex(samples, Math.ceil((since - windowStart) * sampleRate - 1e-6), threshold);
+  if (index < 0) return { kind: "pending" };
+  return { kind: "found", seconds: Math.max(0, windowStart + index / sampleRate - since) };
+}
+
+/**
+ * windowEnd에서 끝나는 분석 창의 마지막 quietSeconds가 모두 문턱 아래이고, 그 구간이 통째로 notBefore(입력이 끝난 시각) 뒤인지.
+ * 처리 노드에 입력이 끝난 뒤 남은 소리(처리 꼬리)가 다 나왔는지 볼 때 쓴다.
+ */
+export function isOutputQuiet(
+  samples: Float32Array,
+  sampleRate: number,
+  windowEnd: number,
+  notBefore: number,
+  quietSeconds: number,
+  threshold = AUDIBLE_THRESHOLD,
+): boolean {
+  const quietFrames = Math.round(quietSeconds * sampleRate);
+  if (windowEnd - notBefore < quietSeconds || quietFrames > samples.length) return false;
+  return firstAudibleIndex(samples, samples.length - quietFrames, threshold) < 0;
+}
+
+/**
+ * 넣은 작업을 넣은 순서대로 하나씩 실행한다. 앞 작업이 실패해도 다음 작업은 실행한다.
+ * 음원 읽기(Signalsmith의 dropBuffers → addBuffers)가 겹쳐 두 음원이 이어 붙지 않게 한다.
+ */
+export function createSerialQueue() {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(task: () => Promise<T>): Promise<T> => {
+    const run = tail.then(task);
+    tail = run.catch(() => undefined);
+    return run;
+  };
 }
 
 /** 0:42.125 형식. */

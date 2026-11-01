@@ -1,5 +1,6 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { labScriptSrcProblem } from "./labPagesCsp.ts";
 
 const outputRoot = resolve(process.cwd(), "dist-lab");
 const requiredPaths = [
@@ -99,6 +100,7 @@ const javascriptSource = (
 ).join("\n");
 // 옵저버 감속 Lab의 AudioWorklet 모듈은 ?url로 복사되어 GitHub Pages base 아래 주소로 읽힌다.
 // Signalsmith Stretch는 워크릿 안에서 WASM을 컴파일하므로 Lab 문서 CSP가 'wasm-unsafe-eval'을 허용해야 한다.
+// 그 밖의 출처가 더 붙지 않았는지까지 보도록 script-src 지시문 전체를 비교한다.
 const assetNames = await readdir(resolve(outputRoot, "assets"));
 for (const workletPattern of [/^soundtouch-processor-[\w-]+\.js$/, /^SignalsmithStretch-[\w-]+\.mjs$/]) {
   const workletFile = assetNames.find((name) => workletPattern.test(name));
@@ -107,9 +109,8 @@ for (const workletPattern of [/^soundtouch-processor-[\w-]+\.js$/, /^Signalsmith
     throw new Error(`Observer slowdown worklet is not loaded from the GitHub Pages base: ${workletFile}`);
   }
 }
-if (!labDocument.includes("script-src 'self' 'wasm-unsafe-eval';")) {
-  throw new Error("Lab document CSP must allow WebAssembly for the observer slowdown worklet");
-}
+const labScriptSrcError = labScriptSrcProblem(labDocument);
+if (labScriptSrcError) throw new Error(labScriptSrcError);
 
 if (javascriptSource.includes("VITE_SUPABASE_URL") || javascriptSource.includes("supabase.co")) {
   throw new Error("The public Lab bundle must not initialize Supabase");

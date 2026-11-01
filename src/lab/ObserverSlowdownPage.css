@@ -45,6 +45,19 @@
 .observer-slowdown-methods button { margin: 12px 0 4px; width: 100%; }
 .observer-slowdown-page dt { color: #b8b8b8; font-size: 12px; margin-top: 10px; }
 .observer-slowdown-page dd { font-variant-numeric: tabular-nums; }
+.observer-slowdown-page a { color: #a2b8ff; }
+.observer-slowdown-notices h3 { font-size: 14px; margin: 16px 0 4px; }
+.observer-slowdown-notices article + article { border-top: 1px solid #444; margin-top: 16px; padding-top: 4px; }
+.observer-slowdown-notices ul { margin: 4px 0; padding-left: 20px; overflow-wrap: anywhere; }
+.observer-slowdown-notices pre {
+  margin: 8px 0;
+  padding: 12px;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #c8c8c8;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
 
 @media (max-width: 860px) {
   .observer-slowdown-page { padding: 20px 16px; }

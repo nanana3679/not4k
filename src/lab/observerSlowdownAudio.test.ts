@@ -2,64 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   OBSERVER_SLOWDOWN_RATES,
   TEST_LOOP_SECONDS,
-  beatsToSchedule,
-  ctxTimeOfSong,
+  createSerialQueue,
   encodeWav,
   firstAudibleIndex,
   formatMilliseconds,
   formatRate,
   formatSongTime,
-  retimeClock,
-  songTimeAt,
+  isOutputQuiet,
+  pollFirstOutput,
   testLoopHits,
 } from "./observerSlowdownAudio";
 
 describe("옵저버 감속 재생 속도", () => {
   it("비교할 재생 속도는 옵저버 범위 안의 0.25x·0.5x·0.75x·1.0x 네 개다", () => {
     expect(OBSERVER_SLOWDOWN_RATES.map(formatRate)).toEqual(["0.25x", "0.5x", "0.75x", "1.0x"]);
-  });
-});
-
-describe("곡 위치 시계", () => {
-  const clock = { ctxTime: 10, songTime: 2, rate: 0.5 };
-
-  it("ctx 10초에 곡 2초·0.5배속인 시계는 ctx 12초에 곡 3초를 가리킨다", () => {
-    expect(songTimeAt(clock, 12)).toBe(3);
-  });
-
-  it("예약한 시작 시각(ctx 10초) 전인 ctx 9초에는 시작 위치 곡 2초에 머문다", () => {
-    expect(songTimeAt(clock, 9)).toBe(2);
-  });
-
-  it("0.5배속 시계에서 곡 4초가 들리는 시각은 ctx 14초", () => {
-    expect(ctxTimeOfSong(clock, 4)).toBe(14);
-  });
-
-  it("ctx 12초에 0.5배속에서 1.0배속으로 바꾸면 곡 3초에서 끊기지 않고 이어져 ctx 13초에 곡 4초", () => {
-    const changed = retimeClock(clock, 12, 1);
-    expect(changed).toEqual({ ctxTime: 12, songTime: 3, rate: 1 });
-    expect(songTimeAt(changed, 13)).toBe(4);
-  });
-
-  it("시작 예약(ctx 10초) 전인 ctx 9.5초에 0.25배속으로 바꾸면 시작 시각·위치는 그대로 두고 배속만 바꾼다", () => {
-    expect(retimeClock(clock, 9.5, 0.25)).toEqual({ ctxTime: 10, songTime: 2, rate: 0.25 });
-  });
-});
-
-describe("박 클릭 예약", () => {
-  it("0.5배속으로 곡 0.9초부터 ctx 0～0.6초를 보면 곡 1.0초의 박 2만 ctx 0.2초에 예약한다", () => {
-    const beats = beatsToSchedule({ ctxTime: 0, songTime: 0.9, rate: 0.5 }, 0, 0.6, 0.5, 16, -1);
-    expect(beats).toHaveLength(1);
-    expect(beats[0].beat).toBe(2);
-    expect(beats[0].ctxTime).toBeCloseTo(0.2, 9);
-  });
-
-  it("이미 예약한 박 2(afterBeat=2)는 같은 창에서 다시 예약하지 않는다", () => {
-    expect(beatsToSchedule({ ctxTime: 0, songTime: 0.9, rate: 0.5 }, 0, 0.6, 0.5, 16, 2)).toEqual([]);
-  });
-
-  it("곡 15.4초부터 1초를 보면 곡 15.5초의 박 31만 예약하고 곡 길이 16초와 같은 박 32는 예약하지 않는다", () => {
-    expect(beatsToSchedule({ ctxTime: 0, songTime: 15.4, rate: 1 }, 0, 1, 0.5, 16, -1).map(({ beat }) => beat)).toEqual([31]);
   });
 });
 
@@ -118,6 +74,95 @@ describe("첫 출력 감지", () => {
 
   it("모든 샘플의 크기가 문턱 0.001보다 작은 0.0009 이하이면 -1", () => {
     expect(firstAudibleIndex(new Float32Array([0, 0.0009, -0.0009]))).toBe(-1);
+  });
+});
+
+describe("분석 창 하나로 첫 출력 재기", () => {
+  const sampleRate = 48000;
+  /** windowEnd에서 끝나는 frames프레임 창에서 soundFrom번째 샘플부터 소리가 있다. */
+  const windowWithSound = (frames: number, soundFrom: number) => {
+    const samples = new Float32Array(frames);
+    samples.fill(0.5, soundFrom);
+    return samples;
+  };
+
+  it("ctx 1.1초에 끝나는 4800프레임(0.1초) 창에서 클릭 시각 1.0초 뒤 2400번째 샘플에 소리가 나면 첫 출력 50ms", () => {
+    const poll = pollFirstOutput(windowWithSound(4800, 2400), sampleRate, 1.1, 1, 1);
+    expect(poll.kind).toBe("found");
+    expect(poll.kind === "found" && poll.seconds).toBeCloseTo(0.05, 9);
+  });
+
+  it("클릭 시각 1.05초 전부터 이어진 소리는 세지 않고 클릭 시각 이후 첫 샘플(0ms)로 잰다", () => {
+    const poll = pollFirstOutput(windowWithSound(4800, 0), sampleRate, 1.1, 1.05, 1.05);
+    expect(poll.kind === "found" && poll.seconds).toBeCloseTo(0, 9);
+  });
+
+  it("클릭 시각 이후 창에 소리가 없으면 pending", () => {
+    expect(pollFirstOutput(new Float32Array(4800), sampleRate, 1.1, 1, 1)).toEqual({ kind: "pending" });
+  });
+
+  it("앞선 창이 ctx 1.0초까지 봤는데 이번 창이 1.2초에 시작하면(0.2초 놓침) 소리를 찾아도 missed", () => {
+    expect(pollFirstOutput(windowWithSound(4800, 100), sampleRate, 1.3, 1, 1)).toEqual({ kind: "missed" });
+  });
+
+  it("32768프레임 창(48kHz 약 683ms)이면 클릭 시각 1.0초 뒤 첫 확인이 600ms 늦어도 창이 이어져 첫 출력 100ms를 그대로 잰다", () => {
+    const windowEnd = 1.6;
+    const windowStart = windowEnd - 32768 / sampleRate;
+    const soundFrom = Math.round((1.1 - windowStart) * sampleRate);
+    const poll = pollFirstOutput(windowWithSound(32768, soundFrom), sampleRate, windowEnd, 1, 1);
+    expect(poll.kind === "found" && poll.seconds).toBeCloseTo(0.1, 4);
+  });
+});
+
+describe("처리 꼬리가 끝났는지", () => {
+  const sampleRate = 48000;
+
+  it("입력이 끝난 ctx 10초 뒤 ctx 10.3초까지 마지막 0.2초 출력이 모두 문턱 아래면 끝났다", () => {
+    const samples = new Float32Array(32768);
+    samples.fill(0.5, 0, samples.length - 0.25 * sampleRate);
+    expect(isOutputQuiet(samples, sampleRate, 10.3, 10, 0.2)).toBe(true);
+  });
+
+  it("입력이 끝난 ctx 10초 뒤 0.15초밖에 지나지 않았으면 조용해도 아직 끝나지 않았다", () => {
+    expect(isOutputQuiet(new Float32Array(32768), sampleRate, 10.15, 10, 0.2)).toBe(false);
+  });
+
+  it("마지막 0.2초 안 맨 끝 샘플 하나라도 문턱을 넘으면 아직 끝나지 않았다", () => {
+    const samples = new Float32Array(32768);
+    samples[samples.length - 1] = 0.002;
+    expect(isOutputQuiet(samples, sampleRate, 10.3, 10, 0.2)).toBe(false);
+  });
+});
+
+describe("음원 읽기 직렬화", () => {
+  it("먼저 넣은 읽기가 끝나기 전에 넣은 읽기는 그 뒤에 시작해 단계가 섞이지 않는다(A 시작·A 끝·B 시작·B 끝)", async () => {
+    const enqueue = createSerialQueue();
+    const steps: string[] = [];
+    let finishFirst = () => {};
+    const first = enqueue(async () => {
+      steps.push("A 시작");
+      await new Promise<void>((resolve) => { finishFirst = resolve; });
+      steps.push("A 끝");
+      return "A";
+    });
+    const second = enqueue(async () => {
+      steps.push("B 시작");
+      steps.push("B 끝");
+      return "B";
+    });
+    await Promise.resolve();
+    expect(steps).toEqual(["A 시작"]);
+    finishFirst();
+    expect(await Promise.all([first, second])).toEqual(["A", "B"]);
+    expect(steps).toEqual(["A 시작", "A 끝", "B 시작", "B 끝"]);
+  });
+
+  it("앞선 읽기가 실패해도 뒤에 넣은 읽기는 실행된다", async () => {
+    const enqueue = createSerialQueue();
+    const failed = enqueue(async () => { throw new Error("디코딩 실패"); });
+    const next = enqueue(async () => "다음 음원");
+    await expect(failed).rejects.toThrow("디코딩 실패");
+    await expect(next).resolves.toBe("다음 음원");
   });
 });
 

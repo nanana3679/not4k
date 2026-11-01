@@ -28,4 +28,17 @@ describe("옵저버 감속 청음 비교 Lab", () => {
     expect(markup).toContain("테스트 루프 만들기 (120 BPM · 16초)");
     expect(markup).toContain('href="/lab"');
   });
+
+  it("Signalsmith·SoundTouchJS 제목의 MIT·MPL-2.0 표기는 제삼자 고지 절로 연결되고 고지 절에 두 라이브러리 이름·버전·저작권자가 있다", () => {
+    const markup = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(ObserverSlowdownPage)));
+
+    expect(markup).toContain('<a href="#observer-slowdown-license-signalsmith">MIT</a>');
+    expect(markup).toContain('<a href="#observer-slowdown-license-soundtouch">MPL-2.0</a>');
+    expect(markup).toContain('id="observer-slowdown-license-signalsmith"');
+    expect(markup).toContain('id="observer-slowdown-license-soundtouch"');
+    expect(markup).toContain("Signalsmith Stretch 1.3.2");
+    expect(markup).toContain("SoundTouchJS 2.1.1");
+    expect(markup).toContain("Copyright (c) 2022 Geraint Luff / Signalsmith Audio Ltd.");
+    expect(markup).toContain("Copyright (c) Steve &#x27;Cutter&#x27; Blades");
+  });
 });
