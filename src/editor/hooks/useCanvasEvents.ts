@@ -37,6 +37,7 @@ import {
   type HoldHits,
 } from './touchEditRouting';
 import { resolveContextMenuDelete } from './contextMenuRouting';
+import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
 
 export interface CanvasEventHandlers {
   handlePointerDown: (e: React.PointerEvent<HTMLCanvasElement>) => void;
@@ -50,6 +51,9 @@ export interface CanvasEventHandlers {
 }
 
 const LONG_PRESS_MS = 450;
+
+// React 포인터 핸들러와 native lostpointercapture가 같은 취소 경로를 사용한다.
+type CanvasPointerInput = Pick<PointerEvent, 'pointerId' | 'pointerType' | 'clientX' | 'clientY' | 'button' | 'buttons'>;
 
 // 노트·엑스트라 클릭 토글은 up에서 동일 처리되므로 후보는 한 형태다(kind 구분 불필요).
 type TouchClickToggleCandidate = {
@@ -76,6 +80,9 @@ function getLongPressRangeType(type: EntityType): "long" | "doubleLong" | null {
   return null;
 }
 
+/** 재생 중이라 차트 편집이 잠겼는가(RFD 0099). 이벤트가 온 순간의 store 값을 읽는다. */
+const isEditLockedByPlayback = () => useEditorStore.getState().isPlaying;
+
 export function useCanvasEvents(
   canvasRef: RefObject<HTMLCanvasElement | null>,
   rendererRef: RefObject<TimelineRenderer | null>,
@@ -93,9 +100,8 @@ export function useCanvasEvents(
 ): CanvasEventHandlers {
   const mode = useEditorStore((s) => s.mode);
   const entityType = useEditorStore((s) => s.entityType);
-  const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
-  const setEditingMarker = useEditorStore((s) => s.setEditingMarker);
+  const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const addToast = useEditorStore((s) => s.addToast);
 
   const rightPressPendingRef = useRef(false);
@@ -109,6 +115,11 @@ export function useCanvasEvents(
     onWarn: message => useEditorStore.getState().addToast(message),
   }));
   const recognizerRef = useRef(new GestureRecognizer());
+  // 재생을 겪은 누름은 정지해도 up/cancel까지 편집 자격을 되찾지 않는다. 내비게이션 추적은 유지한다.
+  const activePointerIdsRef = useRef(new Set<number>());
+  const playbackLockedPointerIdsRef = useRef(new Set<number>());
+  // 재생 중 누른 터치의 안내는 뗄 때로 미룬다. 두 번째 손가락이 닿으면 탐색이라 편집 시도가 아니다.
+  const deferredPauseToastPointerIdsRef = useRef(new Set<number>());
   // 롱프레스 hold 생명주기(arm/moved/발화/결말)는 recognizer가 소유한다.
   // 훅은 advanceTo를 ~450ms 시점에 한 번 poke하는 타이머만 붙든다(Time-A 스케줄러).
   const holdTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
@@ -186,12 +197,21 @@ export function useCanvasEvents(
         .advanceTo(performance.now())
         .find((g): g is Extract<Gesture, { kind: 'longPress' }> => g.kind === 'longPress');
       if (!fired) return;
+      // 재생 중이면(누른 뒤 재생이 시작된 경우 포함) 범위 생성·선택 드래그·드래그 삭제를 시작하지 않고 한 번 안내한다(RFD 0099).
+      // 이 누름에 남은 선택 후보(지연 박스·클릭 토글)는 재생 중 이동·뗌이 버린다.
+      if (isEditLockedByPlayback()) {
+        suppressContextMenuUntilRef.current = Date.now() + 1200;
+        addToast(PAUSE_TO_EDIT_COPY, 'warn');
+        return;
+      }
       const { x: fx, y: fy } = fired;
       const fireHits: HoldHits = {
         noteHit: space.hitTestUnifiedNote(fx, fy),
         noteEndHit: space.hitTestNoteEnd(fx, fy),
         extraHit: space.hitTestExtraNote(fx, fy),
         zoneHit: space.hitTestTrillZone(fx, fy),
+        eventHit: space.hitTestEvent(fx, fy),
+        eventEndHit: space.hitTestEventEnd(fx, fy),
       };
       const firePlacementBlocked = mode === 'create'
         ? (createModeRef.current?.isPlacementBlocked(fx, fy) ?? false)
@@ -212,16 +232,18 @@ export function useCanvasEvents(
           noteEndHit: fireHits.noteEndHit,
           noteHit: fireHits.noteHit,
           zoneHit: fireHits.zoneHit,
+          eventHit: fireHits.eventHit,
+          eventEndHit: fireHits.eventEndHit,
         });
         rendererRef.current?.hideGhostNote();
       }
     }, LONG_PRESS_MS);
   }, [
-    clearHoldTimer, deleteAtPoint, createModeRef, selectModeRef, rendererRef, space,
+    clearHoldTimer, deleteAtPoint, createModeRef, selectModeRef, rendererRef, space, addToast,
   ]);
 
   const toSample = useCallback((
-    e: React.PointerEvent<HTMLCanvasElement>,
+    e: CanvasPointerInput,
     phase: PointerSample['phase'],
   ): PointerSample => {
     // x/y는 편집 제스처(longPress/holdEnd)에 실려 모드로 전달되는 타임라인/캔버스 좌표다.
@@ -285,14 +307,67 @@ export function useCanvasEvents(
       eraseGestureRef.current.cancel();
     };
     const finishErase = () => eraseGestureRef.current.finish();
+    // blur는 삭제를 확정한다. 정지 중 이동·리사이즈·생성 드래그와 롱프레스는 그대로 이어 간다.
+    // 재생을 겪은 접촉(RFD 0099)은 release를 놓치면 봉인이 풀리지 않으므로 그 접촉의 기록만 지운다.
+    const finishEraseAndReleaseLockedContacts = () => {
+      finishErase();
+      const lockedPointerIds = playbackLockedPointerIdsRef.current;
+      if (lockedPointerIds.size === 0) return;
+      for (const pointerId of lockedPointerIds) {
+        activePointerIdsRef.current.delete(pointerId);
+        deferredPauseToastPointerIdsRef.current.delete(pointerId);
+        if (recognizerRef.current.hasTouch(pointerId)) {
+          recognizerRef.current.feed({
+            pointerId, pointerType: 'touch', phase: 'cancel', x: 0, y: 0, clientX: 0, clientY: 0,
+            timeMs: performance.now(), button: 0, buttons: 0,
+          });
+        }
+        if (touchContactRef.current?.pointerId === pointerId) touchContactRef.current = null;
+      }
+      lockedPointerIds.clear();
+      // 남은 접촉이 없으면 봉인된 접촉이 걸어 둔 contextmenu 대기와 레일·미니맵 드래그도 끝낸다.
+      if (activePointerIdsRef.current.size > 0) return;
+      rightPressPendingRef.current = false;
+      suppressContextMenuUntilRef.current = 0;
+      isDraggingCursorRef.current = false;
+      rendererRef.current?.handleMinimapPointerUp();
+    };
     window.addEventListener('keydown', cancelErase, true);
-    window.addEventListener('blur', finishErase);
+    window.addEventListener('blur', finishEraseAndReleaseLockedContacts);
     return () => {
       window.removeEventListener('keydown', cancelErase, true);
-      window.removeEventListener('blur', finishErase);
+      window.removeEventListener('blur', finishEraseAndReleaseLockedContacts);
       finishErase();
     };
-  }, [clearHoldTimer]);
+  }, [clearHoldTimer, isDraggingCursorRef, rendererRef]);
+
+  // 재생 중 편집 제한(RFD 0099): 누름에 남은 편집·선택 조작을 버리고 미리보기를 걷는다.
+  // 이동·리사이즈 드래그·붙여넣기 대기·우클릭 삭제는 재생기가 시작 직전에 store로 이미 취소했다
+  // (cancelEditTransactionForPlaybackStart). 여기서는 편집
+  // transaction이 없는 조작 — 생성 드래그, 박스 선택(시작 전 선택으로 되돌린다), 롱프레스 대기, 터치 선택 후보 — 를 버린다.
+  // 재생이 시작될 때와 재생 중 캔버스 이동·뗌마다 부른다. 버릴 조작이 없으면 아무것도 바꾸지 않는다.
+  const abandonInteractionForPlayback = useCallback(() => {
+    for (const pointerId of activePointerIdsRef.current) {
+      playbackLockedPointerIdsRef.current.add(pointerId);
+    }
+    clearHoldTimer();
+    eraseGestureRef.current.finish();
+    createModeRef.current?.cancelDrag();
+    selectModeRef.current?.cancel();
+    touchEmptySelectCandidateRef.current = null;
+    touchClickToggleRef.current = null;
+    rendererRef.current?.clearMoveOrigins();
+    rendererRef.current?.clearBoxSelectRect();
+    rendererRef.current?.hideGhostNote();
+  }, [clearHoldTimer, createModeRef, selectModeRef, rendererRef]);
+
+  useEffect(() => {
+    if (useEditorStore.getState().isPlaying) abandonInteractionForPlayback();
+    // React가 재생→정지를 한 렌더로 합쳐도 시작 순간의 접촉·미리보기는 즉시 취소한다.
+    return useEditorStore.subscribe((state, previous) => {
+      if (state.isPlaying && !previous.isPlaying) abandonInteractionForPlayback();
+    });
+  }, [abandonInteractionForPlayback]);
 
   const routeViewportGestures = useCallback((gestures: Gesture[], rect: DOMRect) => {
     for (const g of gestures) {
@@ -337,32 +412,67 @@ export function useCanvasEvents(
     }
   }, [rendererRef]);
 
-  // 마커 히트테스트 (extra lane — editorLane 기반)
-  const hitTestMarker = useCallback((x: number, y: number) => {
-    const extraLane = space.xToExtraLane(x);
-    if (!extraLane) return null;
-    const beat = space.yToBeat(y);
-    const testBeatFloat = beat.n / beat.d;
-    const tolerance = 1 / 8;
-    for (let i = 0; i < chart.events.length; i++) {
-      const evt = chart.events[i];
-      if ((evt.editorLane ?? 1) !== extraLane) continue;
-      const startFloat = evt.beat.n / evt.beat.d;
-      const endFloat = 'endBeat' in evt ? evt.endBeat.n / evt.endBeat.d : startFloat;
-      if (testBeatFloat >= startFloat - tolerance && testBeatFloat <= endFloat + tolerance) {
-        return { type: 'event' as const, index: i };
-      }
+  const hitTestEvent = useCallback((x: number, y: number) => {
+    const index = space.hitTestEvent(x, y);
+    return index === null ? null : { type: 'event' as const, index };
+  }, [space]);
+
+  const handlePointerCancel = useCallback((e: CanvasPointerInput) => {
+    // 정상 up 뒤의 암시적 capture 해제는 이미 끝난 접촉의 후속 contextmenu 처리를 바꾸지 않는다.
+    if (!activePointerIdsRef.current.delete(e.pointerId)) return;
+    playbackLockedPointerIdsRef.current.delete(e.pointerId);
+    deferredPauseToastPointerIdsRef.current.delete(e.pointerId);
+    if (activePointerIdsRef.current.size === 0) {
+      rightPressPendingRef.current = false;
+      suppressContextMenuUntilRef.current = 0;
     }
-    return null;
-  }, [chart.events, space]);
+    eraseGestureRef.current.finish();
+    if (e.pointerType === 'touch') {
+      // recognizer.feed(cancel)이 hold를 버린다(holdEnd 반환은 무시 — 취소 경로는 결말을 쓰지 않는다).
+      recognizerRef.current.feed(toSample(e, 'cancel'));
+      recognizerRef.current.clearNavigation();
+      clearHoldTimer();
+      clearTouchEmptySelectCandidate();
+      touchClickToggleRef.current = null;
+      if (touchContactRef.current?.pointerId === e.pointerId) touchContactRef.current = null;
+    }
+    rendererRef.current?.handleMinimapPointerUp();
+    isDraggingCursorRef.current = false;
+    rendererRef.current?.clearMoveOrigins();
+    rendererRef.current?.clearBoxSelectRect();
+    createModeRef.current?.cancelDrag();
+    selectModeRef.current?.cancel();
+  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, selectModeRef, toSample, rendererRef, isDraggingCursorRef]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    canvas?.addEventListener('lostpointercapture', handlePointerCancel);
+    return () => canvas?.removeEventListener('lostpointercapture', handlePointerCancel);
+  }, [canvasRef, handlePointerCancel]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    activePointerIdsRef.current.add(e.pointerId);
+    deferredPauseToastPointerIdsRef.current.delete(e.pointerId);
+    // 캔버스 밖에서 뗀 우클릭은 Windows에서 그 contextmenu가 뗀 자리의 다른 요소로 가 대기가 남는다.
+    // 우클릭이 아닌 새 누름 시점에는 그 메뉴가 더 오지 않으므로 대기를 풀어, 뒤의 키보드 메뉴 키 삭제를 삼키지 않는다.
+    if (e.button !== 2) rightPressPendingRef.current = false;
+    if (isEditLockedByPlayback()) {
+      playbackLockedPointerIdsRef.current.add(e.pointerId);
+      // 재생 중 우클릭은 미니맵·커서 레일에서 눌러도 이 누름이 만들 contextmenu를 삭제·안내로 해석하지 않게 대기를 건다.
+      // 뗌 뒤에 오는 메뉴(Windows)가 이 대기를 쓰고, 뗌 전에 온 메뉴(macOS)는 handleContextMenu가 대기를 푼다.
+      if (e.button === 2) rightPressPendingRef.current = true;
+    }
+    // 새 down은 새 접촉이다. 이전 up/cancel이 유실돼 같은 id가 남아 있어도 봉인을 이어받지 않는다.
+    else playbackLockedPointerIdsRef.current.delete(e.pointerId);
+    // 캔버스 밖에서 떼어도 같은 접촉의 봉인을 해제할 수 있어야 한다(마우스 포함).
+    canvasRef.current?.setPointerCapture(e.pointerId);
     if (e.pointerType === 'touch') {
       e.preventDefault();
       suppressContextMenuUntilRef.current = Date.now() + 1200;
       const navGestures = recognizerRef.current.feed(toSample(e, 'down'));
-      canvasRef.current?.setPointerCapture(e.pointerId);
       if (navGestures.some((g) => g.kind === 'editCancel')) {
+        // 두 손가락 탐색이 된 접촉은 편집 시도가 아니므로 미뤄 둔 재생 중 안내를 띄우지 않는다.
+        deferredPauseToastPointerIdsRef.current.clear();
         handleEditCancel();
         return;
       }
@@ -380,7 +490,6 @@ export function useCanvasEvents(
 
     if (rendererRef.current?.handleMinimapPointerDown(rawX, y)) {
       onNavigationInteraction?.();
-      canvasRef.current?.setPointerCapture(e.pointerId);
       return;
     }
 
@@ -397,7 +506,16 @@ export function useCanvasEvents(
       isDraggingCursorRef.current = true;
       const timeMs = renderer.clampToMeasureRange(renderer.yToTime(y));
       playbackRef.current?.seekTo(timeMs);
-      canvasRef.current?.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    // 재생 중 편집 제한(RFD 0099): 미니맵·커서 레일 seek 뒤, 편집·선택을 시작하기 전에 막고 누름마다 한 번 안내한다.
+    // Select 모드의 클릭·Shift/Alt 클릭·박스 선택·터치 토글도 선택을 바꾸므로 함께 막는다.
+    if (isEditLockedByPlayback() || playbackLockedPointerIdsRef.current.has(e.pointerId)) {
+      // 우클릭 누름의 contextmenu 대기는 위에서 미니맵·커서 레일보다 먼저 걸었다.
+      // 마우스·펜은 누를 때 안내한다. 터치는 두 번째 손가락이 닿으면 탐색이 되므로 뗄 때 안내한다.
+      if (e.pointerType === 'touch') deferredPauseToastPointerIdsRef.current.add(e.pointerId);
+      else addToast(PAUSE_TO_EDIT_COPY, 'warn');
       return;
     }
 
@@ -408,7 +526,6 @@ export function useCanvasEvents(
     if (e.button === 2) {
       // 삭제는 여기서 시작한다. 이 누름이 만들 contextmenu 한 번은 삭제하지 않는다.
       rightPressPendingRef.current = true;
-      canvasRef.current?.setPointerCapture(e.pointerId);
       // 붙여넣기 대기처럼 다른 조작의 transaction이 열려 있으면 키보드 명령처럼 먼저 확정한다.
       // 소유 모드는 onInterrupt로 붙여넣기를 확정하고, 삭제 gesture가 새 transaction을 연다.
       const openTransaction = useEditorStore.getState().editTransaction;
@@ -427,12 +544,9 @@ export function useCanvasEvents(
           if (result.blockedReason) addToast(result.blockedReason);
           if (result.chart) setChart(result.chart, { transaction: eraseGestureRef.current.transaction });
         } else {
-          const hit = hitTestMarker(x, y);
-          const event = hit && current.events[hit.index];
-          if (hit && event) {
-            if (event.beat.n === 0 && (event.type === 'bpm' || event.type === 'timeSignature')) {
-              addToast('Cannot delete initial event marker');
-            } else setChart({ ...current, events: current.events.filter((_, index) => index !== hit.index) }, { transaction: eraseGestureRef.current.transaction });
+          if (lane !== null) {
+            const beat = space.yToBeatRaw(y);
+            eraseGestureRef.current.erase(lane, beat.n / beat.d);
           }
         }
       }
@@ -450,6 +564,8 @@ export function useCanvasEvents(
           noteEndHit: touchNoteEndHit,
           extraHit: touchExtraHit,
           zoneHit: space.hitTestTrillZone(x, y),
+          eventHit: space.hitTestEvent(x, y),
+          eventEndHit: space.hitTestEventEnd(x, y),
         },
         mode,
         entityType as EntityType,
@@ -493,7 +609,7 @@ export function useCanvasEvents(
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
-    selectModeRef, onNavigationInteraction, addToast, setChart, hitTestMarker,
+    selectModeRef, onNavigationInteraction, addToast, setChart,
   ]);
 
   // 모드가 반환한 EditResult를 렌더러에 PUSH한다(훅이 모드 내부 getter를 PULL하던 것을 대체).
@@ -518,6 +634,8 @@ export function useCanvasEvents(
   }, [rendererRef]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    // up이 유실돼도 버튼 없는 마우스 이동은 이전 접촉이 끝났다는 증거다.
+    if (e.pointerType === 'mouse' && e.buttons === 0) handlePointerCancel(e);
     let navGestures: Gesture[] = [];
     if (e.pointerType === 'touch') {
       e.preventDefault();
@@ -550,14 +668,18 @@ export function useCanvasEvents(
 
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
 
+    // 재생 중(RFD 0099)에는 이 누름에 남은 편집·선택 조작을 버리고, hover 표시와 커서 레일 seek 드래그만 이어 간다.
+    if (isEditLockedByPlayback()) abandonInteractionForPlayback();
+    const editLocked = isEditLockedByPlayback() || playbackLockedPointerIdsRef.current.has(e.pointerId);
+
     // hold 생명주기는 recognizer가 소유 — 이 pointer의 발화/이동 상태를 조회해 연속 처리를 가른다.
     const holdState = e.pointerType === 'touch'
       ? recognizerRef.current.holdState(e.pointerId)
       : null;
 
-    // 드래그 삭제: 발화한 delete hold는 이동마다 히트 지점을 삭제한다.
+    // 드래그 삭제: 발화한 delete hold는 이동마다 히트 지점을 삭제한다. 재생 중에는 발화해도 지우지 않는다.
     if (mode === 'delete' && holdState?.fired) {
-      deleteAtPoint(x, y);
+      if (!editLocked) deleteAtPoint(x, y);
       return;
     }
 
@@ -655,6 +777,8 @@ export function useCanvasEvents(
     if (canvasEl) {
       let cursor = '';
       if (mode === 'select') {
+        const eventHit = space.hitTestEvent(x, y);
+        if (eventHit !== null && selectModeRef.current?.selectedEvents.has(eventHit)) cursor = space.hitTestEventEnd(x, y) === eventHit ? 'ns-resize' : 'move';
         const zoneBody = space.hitTestTrillZone(x, y);
         const zoneEnd = space.hitTestTrillZoneEnd(x, y);
         // 끝 리사이즈 커서·move 커서 모두 그 구간이 **선택됐을 때만** — 미선택 구간의 끝 노트
@@ -662,7 +786,7 @@ export function useCanvasEvents(
         // restZone도 같은 게이트(선택된 것만) — trillZone이 위 레이어라 트릴 히트가 우선한다 (RFD 0019).
         const restBody = space.hitTestRestZone(x, y);
         const restEnd = space.hitTestRestZoneEnd(x, y);
-        if (zoneEnd !== null && (selectModeRef.current?.selectedZones.has(zoneEnd) ?? false)) {
+        if (cursor) { /* 이벤트 선택 커서가 우선한다. */ } else if (zoneEnd !== null && (selectModeRef.current?.selectedZones.has(zoneEnd) ?? false)) {
           cursor = 'ns-resize';
         } else if (zoneBody !== null && (selectModeRef.current?.selectedZones.has(zoneBody) ?? false)) {
           cursor = 'move';
@@ -684,6 +808,8 @@ export function useCanvasEvents(
       playbackRef.current?.seekTo(timeMs);
       return;
     }
+
+    if (editLocked) return;
 
     // 선택 드래그: 발화한 select hold(롱프레스 이동/리사이즈)는 이동을 모드로 흘려보낸다.
     if (mode === 'select' && holdState?.fired && selectModeRef.current) {
@@ -712,18 +838,18 @@ export function useCanvasEvents(
 
       if (rendererRef.current) {
         const beat = space.yToBeat(y);
-        const bpmMarkers = space.getBpmMarkers();
+        const bpmChanges = space.getBpmChanges();
         const snapped = space.snapBeat(beat);
-        const timeMs = beatToMs(snapped, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
+        const timeMs = beatToMs(snapped, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
 
         if (createModeRef.current?.dragging && createModeRef.current.dragBeat) {
           if (createModeRef.current.dragType === 'event') {
-            rendererRef.current.showGhostMarker(createModeRef.current.dragExtraLane ?? 1, timeMs);
+            rendererRef.current.showGhostEvent(createModeRef.current.dragExtraLane ?? 1, timeMs);
           } else if (createModeRef.current.dragType === 'extraRangeNote' && createModeRef.current.dragExtraLane) {
-            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
+            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
             rendererRef.current.showGhostExtraRange(createModeRef.current.dragExtraLane, startTimeMs, timeMs);
           } else if (createModeRef.current.dragLane) {
-            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmMarkers, useEditorStore.getState().chart.meta.offsetMs);
+            const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
             rendererRef.current.showGhostRange(createModeRef.current.dragLane, startTimeMs, timeMs);
           }
         } else {
@@ -731,8 +857,8 @@ export function useCanvasEvents(
           const extraLane = space.xToExtraLane(x);
           if (extraLane) {
             if (isEventEntityType(entityType as import('../modes').EntityType)) {
-              // Show ghost marker for event entity types on extra lanes
-              rendererRef.current.showGhostMarker(extraLane, timeMs);
+              // Show ghost event for event entity types on extra lanes
+              rendererRef.current.showGhostEvent(extraLane, timeMs);
             } else {
               // 보조 노트도 chart.notes(lane 5+)에 살아 통합 인덱스로 직접 히트한다 (RFD 0018 ④d)
               const existingAux = noteExistsAtSnap(useEditorStore.getState().chart.notes, fromAuxIndex(extraLane), snappedBeatFloat);
@@ -770,10 +896,16 @@ export function useCanvasEvents(
     routeViewportGestures, canvasRef, createModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, deleteAtPoint, clearHoldTimer, isTouchContactInterrupted,
-    onNavigationInteraction, applyEditResult,
+    onNavigationInteraction, applyEditResult, abandonInteractionForPlayback, handlePointerCancel,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    activePointerIdsRef.current.delete(e.pointerId);
+    const playbackLocked = playbackLockedPointerIdsRef.current.delete(e.pointerId);
+    const deferredPauseToast = deferredPauseToastPointerIdsRef.current.delete(e.pointerId);
+    if (playbackLocked && e.pointerType === 'touch') suppressContextMenuUntilRef.current = Date.now() + 1200;
+    // 우클릭 누름의 contextmenu 대기는 여기서 다시 걸지 않는다. 누를 때 건 대기를 뗌 뒤에 오는 메뉴(Windows)가 쓰고,
+    // 뗌 전에 온 메뉴(macOS)는 handleContextMenu가 이미 대기를 풀었다.
     let wasPinching = false;
     // hold 결말은 recognizer가 feed(up)에서 holdEnd로 알려준다(fired·moved·down 좌표).
     let holdFired = false;
@@ -814,6 +946,13 @@ export function useCanvasEvents(
       return;
     }
 
+    // 재생 중 누른 뒤 뗄 때까지 한 손가락이었던 터치는 편집 시도였으므로 여기서 한 번 안내한다.
+    // 떼기 전에 정지했으면 지금은 편집할 수 있으므로 "정지하라"는 안내를 띄우지 않는다(이 누름은 여전히 편집하지 않는다).
+    if (deferredPauseToast && isEditLockedByPlayback()) addToast(PAUSE_TO_EDIT_COPY, 'warn');
+
+    // recognizer에는 up을 전달해 접촉을 닫되, 재생을 겪은 holdEnd·클릭·마우스 up은 편집에 쓰지 않는다.
+    if (playbackLocked) return;
+
     // 끊긴 누름의 up은 지연 박스 재생·클릭 토글을 하지 않는다. 다중선택 래치만 남은 선택에 맞춘다.
     if (interruptedTouchContact) {
       if (touchClickToggleRef.current?.pointerId === e.pointerId) touchClickToggleRef.current = null;
@@ -828,6 +967,12 @@ export function useCanvasEvents(
 
     if (e.button === 2) {
       eraseGestureRef.current.finish();
+      return;
+    }
+
+    // 재생 중(RFD 0099)의 뗌은 배치·삭제·선택을 확정하지 않고, 재생 전에 시작한 생성 드래그·박스 선택도 버린다.
+    if (isEditLockedByPlayback()) {
+      abandonInteractionForPlayback();
       return;
     }
 
@@ -861,7 +1006,7 @@ export function useCanvasEvents(
         rendererRef.current?.clearBoxSelectRect();
         const sel = useEditorStore.getState();
         const selectionSize =
-          sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size;
+          sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size + sel.selection.events.size;
         // 박스 드래그(moved)가 비어있지 않게 끝나면 래치 on — 이후 클릭이 토글이 된다 (RFD 0016 §4.4).
         // 클릭(빈 곳 클릭·핸들 클릭)은 기존 규칙 유지: 선택이 비면 off, 아니면 현 상태 유지.
         touchMultiSelectRef.current = touchEmptySelectCandidate.moved
@@ -919,7 +1064,7 @@ export function useCanvasEvents(
       const sel = useEditorStore.getState();
       touchMultiSelectRef.current = nextTouchMultiSelectLatch(
         touchMultiSelectRef.current,
-        sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size,
+        sel.selection.notes.size + sel.selection.zones.size + sel.selection.restZones.size + sel.selection.events.size,
       );
     }
     if (clickToggle?.pointerId === e.pointerId) {
@@ -929,25 +1074,8 @@ export function useCanvasEvents(
     mode, entityType, isTimeInBounds, toSample, clearHoldTimer,
     updateTouchMovement, canvasRef, createModeRef, deleteModeRef, isDraggingCursorRef,
     deleteAtPoint, rendererRef, selectModeRef, applyEditResult, isTouchContactInterrupted,
+    abandonInteractionForPlayback, addToast,
   ]);
-
-  const handlePointerCancel = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    eraseGestureRef.current.finish();
-    if (e.pointerType === 'touch') {
-      // recognizer.feed(cancel)이 hold를 버린다(holdEnd 반환은 무시 — 취소 경로는 결말을 쓰지 않는다).
-      recognizerRef.current.feed(toSample(e, 'cancel'));
-      recognizerRef.current.clearNavigation();
-      clearHoldTimer();
-      clearTouchEmptySelectCandidate();
-      touchClickToggleRef.current = null;
-      if (touchContactRef.current?.pointerId === e.pointerId) touchContactRef.current = null;
-    }
-    rendererRef.current?.handleMinimapPointerUp();
-    rendererRef.current?.clearMoveOrigins();
-    rendererRef.current?.clearBoxSelectRect();
-    createModeRef.current?.cancelDrag();
-    selectModeRef.current?.cancel();
-  }, [clearHoldTimer, clearTouchEmptySelectCandidate, createModeRef, selectModeRef, toSample, rendererRef]);
 
   const handlePointerLeave = useCallback(() => {
     rendererRef.current?.hideGhostNote();
@@ -961,14 +1089,20 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    const hit = hitTestMarker(x, y);
+    const hit = hitTestEvent(x, y);
     if (hit) {
-      setEditingMarker(hit);
+      setEditingEvent(hit);
     }
-  }, [canvasRef, hitTestMarker, rendererRef, setEditingMarker]);
+  }, [canvasRef, hitTestEvent, rendererRef, setEditingEvent]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
+    // 오래 누른 접촉의 네이티브 메뉴도 정지 후 삭제로 해석하지 않는다. macOS처럼 뗌 전에 온 우클릭 메뉴면
+    // 그 누름의 contextmenu가 이미 왔으므로 대기를 풀어, 정지 뒤 키보드 메뉴 키를 삼키지 않게 한다.
+    if (playbackLockedPointerIdsRef.current.size > 0) {
+      rightPressPendingRef.current = false;
+      return;
+    }
 
     const decision = resolveContextMenuDelete({
       now: Date.now(),
@@ -977,6 +1111,10 @@ export function useCanvasEvents(
     });
     rightPressPendingRef.current = decision.rightPressPending;
     if (!decision.shouldDelete) return;
+    if (isEditLockedByPlayback()) {
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
 
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -985,36 +1123,8 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
     const y = e.clientY - rect.top;
 
-    // 통합 히트테스트 — 메인·보조 노트를 chart.notes 통합 인덱스로 한 경로에서 삭제 (RFD 0018 ④d)
-    const currentChart = useEditorStore.getState().chart;
-    const result = DeleteMode.deleteNoteAtPoint(currentChart, space.hitTestUnifiedNote, x, y, useEditorStore.getState().selection.notes, addToast);
-    if (result) {
-      setChart(result);
-      return;
-    }
-
-    if (space.hitTestUnifiedNote(x, y) !== null) return;
-    const zoneIdx = space.hitTestTrillZone(x, y);
-    if (zoneIdx !== null) {
-      const zoneDelete = deleteEmptyTrillZoneAtIndex(currentChart, zoneIdx);
-      if (zoneDelete.blockedReason) addToast(zoneDelete.blockedReason);
-      if (zoneDelete.chart) setChart(zoneDelete.chart);
-      return;
-    }
-
-    const markerHit = hitTestMarker(x, y);
-    if (markerHit) {
-      const evt = currentChart.events[markerHit.index];
-      if (evt && evt.beat.n === 0 && (evt.type === 'bpm' || evt.type === 'timeSignature')) {
-        addToast('Cannot delete initial event marker');
-        return;
-      }
-      setChart({
-        ...currentChart,
-        events: currentChart.events.filter((_, i) => i !== markerHit.index),
-      });
-    }
-  }, [canvasRef, space, hitTestMarker, rendererRef, setChart, addToast]);
+    deleteModeRef.current?.onPointerDown(x, y);
+  }, [canvasRef, rendererRef, deleteModeRef, addToast]);
 
   return {
     handlePointerDown,

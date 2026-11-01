@@ -196,7 +196,7 @@ trill 노트가 있는데 그 레인에 `zone`이 없으면 trill 노트 범위�
 
 에디터가 저장한 v3 차트 JSON(`serializeChart` 결과)을 그대로 사례로 넘길 수 있다. 첫 글자가 `{`이면 JSON으로 읽는다. 에디터에서 사례를 만들고 저장하면 된다.
 
-- 노트는 게임과 같은 `createChartTiming`으로, 입력은 튜토리얼 재생기와 같은 `getTutorialInputTimings`로 ms를 구한다. BPM 마커와 `offsetMs`가 반영된다.
+- 노트는 게임과 같은 `createChartTiming`으로, 입력은 튜토리얼 재생기와 같은 `getTutorialInputTimings`로 ms를 구한다. `BpmChangeEvent`와 `offsetMs`가 반영된다.
 - 키 입력은 `tutorialInput` 이벤트다. 누름 = `beat`, 뗌 = `endBeat`, 엔진 키 식별자 = `keyCode`, 표시 이름 = `keyLabel`(없으면 `KeyF` → `F`처럼 줄임)이다.
 - 제목은 `meta.title`이고, 비어 있으면 파일 이름을 쓴다.
 

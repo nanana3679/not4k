@@ -256,8 +256,8 @@ test.describe('Game Settings', () => {
             notes: [{ type: 'tap', kind: 'single', lane: 2, beat: { n: 1, d: 1 } }],
             trillZones: [],
             events: [
-              { type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120 },
-              { type: 'auto', beat: { n: 0, d: 1 }, endBeat: { n: 3, d: 1 } },
+              { type: 'bpm', beat: { n: 0, d: 1 }, bpm: 120, editorLane: 1 },
+              { type: 'auto', beat: { n: 0, d: 1 }, endBeat: { n: 3, d: 1 }, editorLane: 2 },
             ],
           };
           const audioBuffer = new AudioBuffer({ numberOfChannels: 1, length: 44100 * 1.5, sampleRate: 44100 });

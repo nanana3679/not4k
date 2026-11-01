@@ -6,7 +6,7 @@
 import { ExplicitNoteRenderer } from "./ExplicitNoteRenderer";
 import { Container, Graphics, FillGradient } from "pixi.js";
 import { beatToMs, beatEq, isGraceNote, isHoldOnlyNote, isMainLane, isExplicitNote } from "../../shared";
-import type { ChartDocument, Beat, DocumentNoteEntity, PointNote, RangeNote, BpmMarker } from "../../shared";
+import type { ChartDocument, Beat, DocumentNoteEntity, PointNote, RangeNote, BpmChange } from "../../shared";
 import {
   LANE_WIDTH,
   NOTE_HEIGHT,
@@ -19,7 +19,7 @@ import { laneToX, laneWidth } from "./laneGeometry";
 export interface NoteHost {
   readonly chart: ChartDocument | null;
   readonly selectedNotes: Set<number>;
-  readonly cachedBpmMarkers: BpmMarker[];
+  readonly cachedBpmChanges: BpmChange[];
   readonly bodyGradientCache: Map<number, FillGradient>;
   getVisibleTimeRange(): { minTimeMs: number; maxTimeMs: number };
   timeToY(timeMs: number): number;
@@ -155,9 +155,9 @@ export class NoteRenderer {
     const chart = this.host.chart;
     if (!chart) return;
 
-    const bpmMarkers = this.host.cachedBpmMarkers;
+    const bpmChanges = this.host.cachedBpmChanges;
     const meta = chart.meta;
-    const timeMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+    const timeMs = beatToMs(note.beat, bpmChanges, meta.offsetMs);
     const y = this.host.timeToY(timeMs);
     const x = (note.lane - 1) * LANE_WIDTH;
 
@@ -242,10 +242,10 @@ export class NoteRenderer {
     const chart = this.host.chart;
     if (!chart) return;
 
-    const bpmMarkers = this.host.cachedBpmMarkers;
+    const bpmChanges = this.host.cachedBpmChanges;
     const meta = chart.meta;
-    const startMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
-    const endMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
+    const startMs = beatToMs(note.beat, bpmChanges, meta.offsetMs);
+    const endMs = beatToMs(note.endBeat, bpmChanges, meta.offsetMs);
     const startY = this.host.timeToY(startMs);
     const endY = this.host.timeToY(endMs);
 
@@ -369,9 +369,9 @@ export class NoteRenderer {
    */
   renderPointNoteAt(
     x: number, laneWidth: number, noteBeat: Beat, noteType: string,
-    isSelected: boolean, bpmMarkers: BpmMarker[], meta: { offsetMs: number },
+    isSelected: boolean, bpmChanges: BpmChange[], meta: { offsetMs: number },
   ): void {
-    const timeMs = beatToMs(noteBeat, bpmMarkers, meta.offsetMs);
+    const timeMs = beatToMs(noteBeat, bpmChanges, meta.offsetMs);
     const y = this.host.timeToY(timeMs);
     const w = NOTE_HEIGHT * 5;
     const h = NOTE_HEIGHT;
@@ -413,10 +413,10 @@ export class NoteRenderer {
    */
   renderRangeNoteAt(
     x: number, laneWidth: number, startBeat: Beat, endBeat: Beat, noteType: string,
-    isSelected: boolean, bpmMarkers: BpmMarker[], meta: { offsetMs: number },
+    isSelected: boolean, bpmChanges: BpmChange[], meta: { offsetMs: number },
   ): void {
-    const startMs = beatToMs(startBeat, bpmMarkers, meta.offsetMs);
-    const endMs = beatToMs(endBeat, bpmMarkers, meta.offsetMs);
+    const startMs = beatToMs(startBeat, bpmChanges, meta.offsetMs);
+    const endMs = beatToMs(endBeat, bpmChanges, meta.offsetMs);
     const startY = this.host.timeToY(startMs);
     const endY = this.host.timeToY(endMs);
     const w = NOTE_HEIGHT * 5;
@@ -506,7 +506,7 @@ export class NoteRenderer {
 
     const { notes } = chart;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
-    const bpmMarkers = this.host.cachedBpmMarkers;
+    const bpmChanges = this.host.cachedBpmChanges;
     const meta = chart.meta;
 
     const sortedIndices = notes.map((_, i) => i).sort((a, b) =>
@@ -515,11 +515,11 @@ export class NoteRenderer {
 
     for (const index of sortedIndices) {
       const note = notes[index];
-      const noteStartMs = beatToMs(note.beat, bpmMarkers, meta.offsetMs);
+      const noteStartMs = beatToMs(note.beat, bpmChanges, meta.offsetMs);
       if (!("endBeat" in note)) {
         if (noteStartMs < minTimeMs || noteStartMs > maxTimeMs) continue;
       } else {
-        const noteEndMs = beatToMs(note.endBeat, bpmMarkers, meta.offsetMs);
+        const noteEndMs = beatToMs(note.endBeat, bpmChanges, meta.offsetMs);
         const lo = Math.min(noteStartMs, noteEndMs);
         const hi = Math.max(noteStartMs, noteEndMs);
         if (hi < minTimeMs || lo > maxTimeMs) continue;
@@ -528,7 +528,7 @@ export class NoteRenderer {
       const isSelected = this.host.selectedNotes.has(index);
       if (isExplicitNote(note)) {
         const startY = this.host.timeToY(noteStartMs);
-        const endY = 'endBeat' in note ? this.host.timeToY(beatToMs(note.endBeat, bpmMarkers, meta.offsetMs)) : startY;
+        const endY = 'endBeat' in note ? this.host.timeToY(beatToMs(note.endBeat, bpmChanges, meta.offsetMs)) : startY;
         this.explicitRenderer.render(note, laneToX(note.lane), laneWidth(note.lane), startY, endY,
           this.host.longNoteBodyLayer,
           isSelected ? this.host.selectedNoteLayer : this.host.noteLayer, isSelected);
@@ -541,9 +541,9 @@ export class NoteRenderer {
         const x = laneToX(note.lane);
         const w = laneWidth(note.lane);
         if (this.isPointNote(note)) {
-          this.renderPointNoteAt(x, w, note.beat, note.type, isSelected, bpmMarkers, meta);
+          this.renderPointNoteAt(x, w, note.beat, note.type, isSelected, bpmChanges, meta);
         } else {
-          this.renderRangeNoteAt(x, w, note.beat, note.endBeat, note.type, isSelected, bpmMarkers, meta);
+          this.renderRangeNoteAt(x, w, note.beat, note.endBeat, note.type, isSelected, bpmChanges, meta);
         }
         continue;
       }

@@ -6,7 +6,7 @@
  */
 
 import { isMainLane, toAuxIndex } from "../../shared";
-import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
+import { LANE_COUNT, LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
 
 /** lane → 칸 왼쪽 x. 메인 (lane-1)*LANE_WIDTH, 보조 TIMELINE_WIDTH + (auxIndex-1)*EXTRA_LANE_WIDTH */
 export function laneToX(lane: number): number {
@@ -27,4 +27,13 @@ export function laneWidth(lane: number): number {
  */
 export function eventLaneToX(editorLane: number): number {
   return TIMELINE_WIDTH + (editorLane - 1) * EXTRA_LANE_WIDTH;
+}
+
+/** 박스 선택의 화면 열로 투영한다. 이벤트의 저장 레인 의미는 바꾸지 않는다. */
+export function eventLaneToBoxColumn(editorLane: number): number {
+  return LANE_COUNT + editorLane;
+}
+
+export function boxColumnToEventLane(column: number): number | null {
+  return column > LANE_COUNT ? column - LANE_COUNT : null;
 }

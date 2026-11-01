@@ -1,6 +1,6 @@
 import type { Beat, Chart, ChartEvent, NoteEntity, RestZone, TrillZone, TutorialDiagramEvent, TutorialInputEvent } from '../../../shared/types';
 import { beat, beatAdd } from '../../../shared/types/beat';
-import { beatToMs, extractBpmMarkers } from '../../../shared/timing';
+import { beatToMs, extractBpmChanges } from '../../../shared/timing';
 
 export const TUTORIAL_PREVIEW_LOOP_BEATS = 8;
 export const TUTORIAL_PREVIEW_LOOP_MS = 4000;
@@ -37,7 +37,7 @@ export const TUTORIAL_OPPOSITE_HAND_BODY_LINE = '{oppositeHandPlacement}';
 function makeTimingEvents(loopBeats: number): readonly ChartEvent[] {
   return [
     { type: 'bpm', beat: beat(0), bpm: 120 },
-    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(loopBeats) },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(loopBeats), editorLane: 2 },
   ];
 }
 
@@ -529,8 +529,8 @@ function createRenderChart(chart: Chart, loopBeats: number): Chart {
 }
 
 function getLoopDurationMs(chart: Chart, loopBeats: number): number {
-  const bpmMarkers = extractBpmMarkers(chart.events);
-  return beatToMs(beat(loopBeats), bpmMarkers, chart.meta.offsetMs) - beatToMs(beat(0), bpmMarkers, chart.meta.offsetMs);
+  const bpmChanges = extractBpmChanges(chart.events);
+  return beatToMs(beat(loopBeats), bpmChanges, chart.meta.offsetMs) - beatToMs(beat(0), bpmChanges, chart.meta.offsetMs);
 }
 
 export function createTutorialPreview(
@@ -730,20 +730,20 @@ export function getTutorialDiagramEvents(chart: Chart = TUTORIAL_PREVIEW_CHART):
 }
 
 export function getTutorialInputTimings(chart: Chart = TUTORIAL_PREVIEW_CHART): TutorialInputTiming[] {
-  const bpmMarkers = extractBpmMarkers(chart.events);
+  const bpmChanges = extractBpmChanges(chart.events);
   return getTutorialInputEvents(chart).map((event) => ({
     event,
-    startMs: beatToMs(event.beat, bpmMarkers, chart.meta.offsetMs),
-    endMs: beatToMs(event.endBeat, bpmMarkers, chart.meta.offsetMs),
+    startMs: beatToMs(event.beat, bpmChanges, chart.meta.offsetMs),
+    endMs: beatToMs(event.endBeat, bpmChanges, chart.meta.offsetMs),
   }));
 }
 
 export function getTutorialDiagramTimings(chart: Chart = TUTORIAL_PREVIEW_CHART): TutorialDiagramTiming[] {
-  const bpmMarkers = extractBpmMarkers(chart.events);
+  const bpmChanges = extractBpmChanges(chart.events);
   return getTutorialDiagramEvents(chart).map((event) => ({
     event,
-    startMs: beatToMs(event.beat, bpmMarkers, chart.meta.offsetMs),
-    endMs: beatToMs(event.endBeat, bpmMarkers, chart.meta.offsetMs),
+    startMs: beatToMs(event.beat, bpmChanges, chart.meta.offsetMs),
+    endMs: beatToMs(event.endBeat, bpmChanges, chart.meta.offsetMs),
   }));
 }
 

@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { computeMinimapTrillZoneRects } from "./minimapTrillZone";
 import { beat } from "../../shared/types";
-import type { BpmMarker, TrillZone } from "../../shared/types";
+import type { BpmChange, TrillZone } from "../../shared/types";
 
 // 120 BPM, 1 beat = 500ms
-const bpmMarkers: BpmMarker[] = [{ beat: beat(0), bpm: 120 }];
+const bpmChanges: BpmChange[] = [{ beat: beat(0), bpm: 120 }];
 const offsetMs = 0;
 
 // 간단한 변환 함수: 1ms = 1px (identity)
@@ -22,7 +22,7 @@ function zone(lane: number, startBeat: number, endBeat: number): TrillZone {
 describe("computeMinimapTrillZoneRects", () => {
   it("빈 trillZones 배열이면 빈 배열 반환", () => {
     const rects = computeMinimapTrillZoneRects(
-      [], bpmMarkers, offsetMs, timeToY, toMinimapY, trackX, laneW,
+      [], bpmChanges, offsetMs, timeToY, toMinimapY, trackX, laneW,
     );
     expect(rects).toEqual([]);
   });
@@ -32,7 +32,7 @@ describe("computeMinimapTrillZoneRects", () => {
     // containerY: timeToY(0)=0, timeToY(1000)=1000
     // minimapY: 0*0.5=0, 1000*0.5=500
     const rects = computeMinimapTrillZoneRects(
-      [zone(1, 0, 2)], bpmMarkers, offsetMs, timeToY, toMinimapY, trackX, laneW,
+      [zone(1, 0, 2)], bpmChanges, offsetMs, timeToY, toMinimapY, trackX, laneW,
     );
     expect(rects).toHaveLength(1);
     expect(rects[0]).toEqual({ x: 100, y: 0, width: 10, height: 500 });
@@ -40,7 +40,7 @@ describe("computeMinimapTrillZoneRects", () => {
 
   it("lane 3 → x = trackX + 2 * laneW", () => {
     const rects = computeMinimapTrillZoneRects(
-      [zone(3, 0, 1)], bpmMarkers, offsetMs, timeToY, toMinimapY, trackX, laneW,
+      [zone(3, 0, 1)], bpmChanges, offsetMs, timeToY, toMinimapY, trackX, laneW,
     );
     expect(rects[0].x).toBe(trackX + 2 * laneW);
   });
@@ -48,7 +48,7 @@ describe("computeMinimapTrillZoneRects", () => {
   it("height가 0이 되는 경우 최소값 1로 클램핑", () => {
     // beat 0 ~ beat 0 → 둘 다 0ms → height = 0 → clamped to 1
     const rects = computeMinimapTrillZoneRects(
-      [zone(1, 0, 0)], bpmMarkers, offsetMs, timeToY, toMinimapY, trackX, laneW,
+      [zone(1, 0, 0)], bpmChanges, offsetMs, timeToY, toMinimapY, trackX, laneW,
     );
     expect(rects[0].height).toBe(1);
   });
@@ -56,7 +56,7 @@ describe("computeMinimapTrillZoneRects", () => {
   it("여러 trillZone이 각각 독립적인 rect로 변환됨", () => {
     const rects = computeMinimapTrillZoneRects(
       [zone(1, 0, 1), zone(2, 2, 4)],
-      bpmMarkers, offsetMs, timeToY, toMinimapY, trackX, laneW,
+      bpmChanges, offsetMs, timeToY, toMinimapY, trackX, laneW,
     );
     expect(rects).toHaveLength(2);
     // 첫 번째: lane 1, beat 0~1 (0~500ms → minimap 0~250)
@@ -69,7 +69,7 @@ describe("computeMinimapTrillZoneRects", () => {
     // 역방향 Y: 시간이 클수록 Y가 작아지는 경우
     const reverseTimeToY = (ms: number) => 1000 - ms;
     const rects = computeMinimapTrillZoneRects(
-      [zone(1, 0, 2)], bpmMarkers, offsetMs, reverseTimeToY, toMinimapY, trackX, laneW,
+      [zone(1, 0, 2)], bpmChanges, offsetMs, reverseTimeToY, toMinimapY, trackX, laneW,
     );
     // beat 0 = 0ms → containerY = 1000, beat 2 = 1000ms → containerY = 0
     // minimapY: 500, 0 → topY = 0, height = 500
@@ -81,6 +81,6 @@ describe("computeMinimapTrillZoneRects", () => {
 it('메인 lane 1과 보조 lane 5 구간이 함께 있어도 미니맵에는 메인 구간 하나만 그린다', () => {
   const rects = computeMinimapTrillZoneRects([
     { lane: 1, beat: beat(0), endBeat: beat(2) }, { lane: 5, beat: beat(0), endBeat: beat(2) },
-  ], bpmMarkers, offsetMs, timeToY, toMinimapY, trackX, laneW);
+  ], bpmChanges, offsetMs, timeToY, toMinimapY, trackX, laneW);
   expect(rects).toHaveLength(1); expect(rects[0].x).toBe(trackX);
 });

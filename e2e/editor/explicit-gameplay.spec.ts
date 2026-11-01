@@ -140,7 +140,7 @@ for (const auto of [false, true]) test(`${auto ? 'Auto' : '수동'} 4500ms 재�
     { type: 'tap', kind: 'single', lane: 2, beat: '11' },
     { type: 'body', holdCount: 1, lane: 3, beat: '1', endBeat: '5/2' },
     ...(!auto ? [{ type: 'tap' as const, kind: 'single' as const, lane: 2 as const, beat: '77/25', grace: true }] : []),
-  ], events: [...editorTestChart().events, ...(auto ? [{ type: 'auto' as const, beat: '0', endBeat: '12' }] : [])] };
+  ], events: [...editorTestChart().events, ...(auto ? [{ type: 'auto' as const, beat: '0', endBeat: '12', editorLane: 3 }] : [])] };
   const extra: ExtraNotesJson = { version: 3, extraLaneCount: 1,
     extraNotes: [{ type: 'single', extraLane: 1, beat: '3', grace: false }] };
   const editor = await openEditor(page, { chart, extra, audio: true });
@@ -313,7 +313,7 @@ test('legacy aux는 저장한 그대로 보존하며 explicit main만 auto 물�
     { type: 'tap', kind: 'single', lane: 1, beat: '2' },
     { type: 'body', holdCount: 1, lane: 1, beat: '2', endBeat: '4' },
     { type: 'tick', count: 1, lane: 1, beat: '3' }, { type: 'release', count: 1, lane: 1, beat: '4' },
-  ], events: [...editorTestChart().events, { type: 'auto', beat: '0', endBeat: '6' }] };
+  ], events: [...editorTestChart().events, { type: 'auto', beat: '0', endBeat: '6', editorLane: 3 }] };
   const extra: ExtraNotesJson = { version: 3, extraLaneCount: 1, extraNotes: [{ type: 'single', extraLane: 1, beat: '2', grace: false }] };
   const editor = await openEditor(page, { chart, extra, audio: true }); const before = await notes(page);
   await startExplicit(page);
@@ -348,7 +348,7 @@ test('aux의 소속 없는 틱은 새 테스트 버튼과 저장을 함께 차�
 
 test('노트 1개를 추가한 뒤 처음부터 테스트 플레이하고 돌아오면 저장 안 됨 표시가 남고 Back to Songs가 Unsaved Changes 확인을 띄우며 Cancel이면 에디터에 남는다', async ({ page }) => {
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [{ type: 'tap', kind: 'single', lane: 1, beat: '2' }],
-    events: [...editorTestChart().events, { type: 'auto', beat: '0', endBeat: '4' }] };
+    events: [...editorTestChart().events, { type: 'auto', beat: '0', endBeat: '4', editorLane: 3 }] };
   const editor = await openEditor(page, { chart, audio: true });
   await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
   const position = await canvasPosition(page, 2, 3); await page.mouse.click(position.x, position.y);

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { beat } from "../shared/types/beat";
 import type { ChartDocument, ChartEvent, DocumentNoteEntity } from "../shared/types/chart";
 import type { LegacyConversionItem, LegacyConversionReport } from "../shared/chart";
+import { cursorRangeMsOf } from "./timeline/timelineRange";
 import {
   buildLegacyConversionReviewRows,
+  conversionReviewTimeMs,
   describeLegacyConversionItem,
   formatLegacyConversionCounts,
   formatLegacyConversionReviewText,
@@ -31,6 +33,32 @@ const decrease: LegacyConversionItem = {
 const auxTrillEnd: LegacyConversionItem = {
   kind: "releaseOmittedTrillBodyEnd", lane: 6, beat: beat(1), legacyItemCount: 1, legacyNoteIndices: [7],
 };
+
+describe("conversionReviewTimeMs", () => {
+  it("120 BPM·offset 2000ms에서 −1박 검토 항목으로 이동하면 1500ms가 아니라 0박인 2000ms를 쓴다", () => {
+    expect(conversionReviewTimeMs(
+      { ...decrease, beat: beat(-1) },
+      [{ beat: beat(0), bpm: 120 }],
+      cursorRangeMsOf(2000, 10000),
+    )).toBe(2000);
+  });
+
+  it("120 BPM·offset 2000ms에서 20박 검토 항목으로 이동하면 12000ms를 타임라인 끝 10000ms로 자른다", () => {
+    expect(conversionReviewTimeMs(
+      { ...decrease, beat: beat(20) },
+      [{ beat: beat(0), bpm: 120 }],
+      cursorRangeMsOf(2000, 10000),
+    )).toBe(10000);
+  });
+
+  it("120 BPM·offset −500ms에서 0박 검토 항목으로 이동하면 음원 시작 0ms가 아니라 −500ms를 쓴다", () => {
+    expect(conversionReviewTimeMs(
+      { ...decrease, beat: beat(0) },
+      [{ beat: beat(0), bpm: 120 }],
+      cursorRangeMsOf(-500, 10000),
+    )).toBe(-500);
+  });
+});
 
 describe("formatLegacyConversionCounts", () => {
   it("탭 4·바디 3·릴리즈 2·틱 0·보고 항목 1개면 '탭 4 · 바디 3 · 릴리즈 2 · 틱 0 · 검토할 항목 1'", () => {

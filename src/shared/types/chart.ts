@@ -36,21 +36,21 @@ export interface ChartMeta {
 }
 
 // ---------------------------------------------------------------------------
-// 타이밍 마커
+// 시간 계산용 변경 데이터
 // ---------------------------------------------------------------------------
 
-/** BPM 마커 — 해당 박자 이후의 BPM을 정의. 0박에 반드시 존재 */
-export interface BpmMarker {
+/** BPM 변경 — 해당 박자 이후의 BPM을 정의. 0박에 반드시 존재 */
+export interface BpmChange {
   beat: Beat;
   bpm: number;
 }
 
 /**
- * 박자 마커 — 한 마디의 박자 수(beatPerMeasure)를 정의.
+ * 박자 변경 — 한 마디의 박자 수(beatPerMeasure)를 정의.
  * 마디 0에 반드시 존재. 마디 인덱스로 정의되며, 항상 해당 마디의 첫 박에 위치.
  * beatPerMeasure는 분수(예: 7/2 = 3.5박)를 허용한다.
  */
-export interface TimeSignatureMarker {
+export interface TimeSignatureChange {
   measure: number;       // 0-indexed 마디 번호 (정수)
   beatPerMeasure: Beat;
 }
@@ -198,7 +198,7 @@ export interface RestZone {
 // ---------------------------------------------------------------------------
 
 /** BPM 변경 — 시점 이벤트 */
-export interface BpmEvent {
+export interface BpmChangeEvent {
   type: "bpm";
   beat: Beat;
   bpm: number;
@@ -206,7 +206,7 @@ export interface BpmEvent {
 }
 
 /** 박자표 변경 — 시점 이벤트 */
-export interface TimeSignatureEvent {
+export interface TimeSignatureChangeEvent {
   type: "timeSignature";
   beat: Beat;
   beatPerMeasure: Beat;
@@ -262,8 +262,8 @@ export interface TutorialDiagramEvent {
 
 /** 차트 이벤트 유니온 */
 export type ChartEvent =
-  | BpmEvent
-  | TimeSignatureEvent
+  | BpmChangeEvent
+  | TimeSignatureChangeEvent
   | TextEvent
   | AutoEvent
   | StopEvent
@@ -272,11 +272,6 @@ export type ChartEvent =
 
 /** 구간 이벤트 (beat + endBeat를 가지는 이벤트) */
 export type RangeEvent = TextEvent | AutoEvent | StopEvent | TutorialInputEvent | TutorialDiagramEvent;
-
-/**
- * @deprecated 하위호환용 — ChartEvent를 사용할 것
- */
-export type EventMarker = ChartEvent;
 
 // ---------------------------------------------------------------------------
 // 차트 전체

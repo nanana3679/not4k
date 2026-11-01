@@ -15,18 +15,18 @@ import {
   type TimelineSpace,
   type TimelineSpaceSource,
 } from "../timeline/TimelineSpace";
-import { extractBpmMarkers } from "../../shared";
-import type { BpmMarker } from "../../shared";
+import { extractBpmChanges } from "../../shared";
+import type { BpmChange } from "../../shared";
 import { useEditorStore } from "../stores";
 
 export function useTimelineSpace(rendererRef: RefObject<TimelineRenderer | null>): {
   space: TimelineSpace;
-  bpmMarkers: BpmMarker[];
+  bpmChanges: BpmChange[];
 } {
   const chart = useEditorStore((s) => s.chart);
   // 반응형 렌더 소비자(App 등)용. space 내부의 events-identity 캐시와 용도가 다르다
   // (반응형 렌더 입력 vs 라이브 좌표 질의) — 이중 계산은 의도된 것.
-  const bpmMarkers = useMemo(() => extractBpmMarkers(chart.events), [chart.events]);
+  const bpmChanges = useMemo(() => extractBpmChanges(chart.events), [chart.events]);
 
   const space = useMemo(() => {
     const source: TimelineSpaceSource = {
@@ -42,5 +42,5 @@ export function useTimelineSpace(rendererRef: RefObject<TimelineRenderer | null>
     return createTimelineSpace(source);
   }, [rendererRef]);
 
-  return { space, bpmMarkers };
+  return { space, bpmChanges };
 }

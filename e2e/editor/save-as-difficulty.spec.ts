@@ -8,7 +8,7 @@ test('NORMAL의 Save As는 INFILTRATION을 제외하고 LIFTOFF 덮어쓰기 확
     version: 3,
     meta: { title: 'Save As alias check', artist: 'Offline', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
     notes: [], trillZones: [], restZones: [],
-    events: [{ type: 'bpm', beat: '0', bpm: 120 }, { type: 'timeSignature', beat: '0', beatPerMeasure: '4' }],
+    events: [{ type: 'bpm', beat: '0', bpm: 120, editorLane: 1 }, { type: 'timeSignature', beat: '0', beatPerMeasure: '4', editorLane: 2 }],
   };
   const writes: { method: string; path: string; body: string }[] = [];
   const unexpectedApiRequests: string[] = [];

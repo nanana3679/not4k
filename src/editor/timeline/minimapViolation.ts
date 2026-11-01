@@ -9,7 +9,7 @@
  * 뷰포트 클리핑 없이 전부 계산한다.
  */
 
-import type { DocumentNoteEntity, TrillZone, RestZone, ChartEvent, BpmMarker, Beat } from "../../shared/types";
+import type { DocumentNoteEntity, TrillZone, RestZone, ChartEvent, BpmChange, Beat } from "../../shared/types";
 import { beatToMs } from "../../shared/timing";
 
 export interface MinimapViolationRect {
@@ -33,7 +33,7 @@ export interface MinimapViolationParams {
   trillZones: readonly TrillZone[];
   restZones: readonly RestZone[];
   events: readonly ChartEvent[];
-  bpmMarkers: readonly BpmMarker[];
+  bpmChanges: readonly BpmChange[];
   offsetMs: number;
   /** ms → container-local Y */
   timeToY: (ms: number) => number;
@@ -56,7 +56,7 @@ export function computeMinimapViolationRects(params: MinimapViolationParams): Mi
   const {
     violatingNoteIndices, violatingTrillZoneIndices, violatingRestZoneIndices, violatingEventIndices,
     notes, trillZones, restZones, events,
-    bpmMarkers, offsetMs, timeToY, toMinimapY, trackX, minimapWidth,
+    bpmChanges, offsetMs, timeToY, toMinimapY, trackX, minimapWidth,
   } = params;
 
   const rects: MinimapViolationRect[] = [];
@@ -64,7 +64,7 @@ export function computeMinimapViolationRects(params: MinimapViolationParams): Mi
   const indicatorX = trackX + minimapWidth - MINIMAP_VIOLATION_INDICATOR_WIDTH;
 
   const pushIndicator = (b: Beat): void => {
-    const my = toMinimapY(timeToY(beatToMs(b, bpmMarkers, offsetMs)));
+    const my = toMinimapY(timeToY(beatToMs(b, bpmChanges, offsetMs)));
     const key = Math.round(my);
     if (seenY.has(key)) return;
     seenY.add(key);

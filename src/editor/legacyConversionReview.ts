@@ -11,7 +11,9 @@ import type { ChartDocument, ChartEvent, DocumentNoteEntity } from "../shared/ty
 import type { LegacyConversionItem, LegacyConversionReport } from "../shared/chart";
 import { convertLegacyChart, hasLegacyNotes } from "../shared/chart/legacyConversion";
 import { isAuxLane, isVisibleLane, toAuxIndex } from "../shared/chart/laneAxis";
-import { extractTimeSignatures, measureStartBeat } from "../shared/timing";
+import { beatToMs, extractTimeSignatureChanges, measureStartBeat } from "../shared/timing";
+import type { BpmChange } from "../shared";
+import { clampToCursorRange, type CursorRangeMs } from "./timeline/timelineRange";
 import { validateChartDocumentStructural, violationLabel } from "../shared/validation";
 
 /** 변환 모달이 보이는 화면. 변환 전(`offer`)과 변환 뒤 결과(`result`)가 같은 모달을 쓴다. */
@@ -43,7 +45,7 @@ export function formatReviewLane(lane: number): string {
 
 /** 박이 든 마디(0부터)와 그 마디의 시작 박. 박자표가 없거나 음수 박이면 null. */
 function measureContaining(at: Beat, events: readonly ChartEvent[]): { measure: number; start: Beat } | null {
-  const signatures = extractTimeSignatures(events);
+  const signatures = extractTimeSignatureChanges(events);
   if (signatures.length === 0 || beatLt(at, BEAT_ZERO)) return null;
   let measure = 0;
   let start = measureStartBeat(0, signatures);
@@ -133,6 +135,15 @@ export function formatLegacyConversionReviewText(rows: readonly LegacyConversion
 export function noteIndicesAtPosition(notes: readonly DocumentNoteEntity[], lane: number, at: Beat): number[] {
   return notes.flatMap((note, index) => note.lane === lane
     && (beatEq(note.beat, at) || ("endBeat" in note && beatEq(note.endBeat, at))) ? [index] : []);
+}
+
+/** 검토 행으로 이동할 때 커서와 스크롤이 함께 사용할 시각. */
+export function conversionReviewTimeMs(
+  item: LegacyConversionItem,
+  bpmChanges: readonly BpmChange[],
+  cursorRange: CursorRangeMs,
+): number {
+  return clampToCursorRange(beatToMs(item.beat, bpmChanges, cursorRange.startTimeMs), cursorRange);
 }
 
 /**

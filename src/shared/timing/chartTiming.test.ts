@@ -105,7 +105,7 @@ describe("createChartTiming", () => {
     expect(timing.noteEndTimesMs.get(0)).toBe(1000);
   });
 
-  it("BPM 마커 없는 차트에 노트가 있으면 에러", () => {
+  it("BPM 변경 없는 차트에 노트가 있으면 에러", () => {
     const notes: NoteEntity[] = [{ type: "single", lane: 1, beat: beat(1) }];
     expect(() => createChartTiming(makeSource({ notes, events: [] }))).toThrow();
   });
@@ -151,7 +151,7 @@ describe("createChartTiming", () => {
     expect(timing.measureStartsMs(4000)).toEqual([0, 2000, 4000]);
   });
 
-  it("박자표 마커 없으면 빈 배열", () => {
+  it("박자 변경 없으면 빈 배열", () => {
     const timing = createChartTiming(makeSource({}));
     expect(timing.measureStartsMs(4000)).toEqual([]);
   });

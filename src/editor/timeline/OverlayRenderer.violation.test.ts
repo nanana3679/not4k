@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { Container } from "pixi.js";
 import type { Graphics, GraphicsPath, Polygon, Rectangle } from "pixi.js";
 import { beat } from "../../shared";
-import type { ChartDocument, BpmMarker, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
+import type { ChartDocument, BpmChange, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
 import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
@@ -76,7 +76,7 @@ function makeHost(
     boxSelectRect: null,
     scrollY: 0,
     contentOffsetX: 0,
-    cachedBpmMarkers: [{ beat: beat(0), bpm: 120 }] as BpmMarker[],
+    cachedBpmChanges: [{ beat: beat(0), bpm: 120 }] as BpmChange[],
     getVisibleTimeRange: () => ({ minTimeMs: -1_000_000, maxTimeMs: 1_000_000 }),
     timeToY: (ms: number) => ms / 10,
     ghostLayer: new Container(),
@@ -89,6 +89,25 @@ function makeHost(
 }
 
 describe("OverlayRenderer.renderViolationOverlay", () => {
+  it("보조 레인2의 text [4,8)·auto [6,10) 배치 위반은 양쪽 이벤트의 실제 구간에 해칭을 그린다", () => {
+    const chart = makeChart([], [], [
+      { type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 },
+      { type: "text", beat: beat(4), endBeat: beat(8), text: "text", editorLane: 2 },
+      { type: "auto", beat: beat(6), endBeat: beat(10), editorLane: 2 },
+    ]);
+    const violating = editorChartViolationIndices(chart);
+    expect(violating.events).toEqual(new Set([1, 2]));
+    const host = makeHost(chart, violating.notes, violating.trillZones, violating.events);
+    const renderer = new OverlayRenderer(host);
+    const spy = spyHatchCore(renderer);
+    renderer.renderViolationOverlay();
+    expect(spy).toHaveBeenNthCalledWith(1, TIMELINE_WIDTH + EXTRA_LANE_WIDTH, EXTRA_LANE_WIDTH,
+      2000, 4000, expect.any(Number), expect.any(Number));
+    expect(spy).toHaveBeenNthCalledWith(2, TIMELINE_WIDTH + EXTRA_LANE_WIDTH, EXTRA_LANE_WIDTH,
+      3000, 5000, expect.any(Number), expect.any(Number));
+    expect(host.violationLayer.children).toHaveLength(2);
+  });
+
   it("위반 노트가 있으면 violationLayer에 해칭 그래픽이 추가된다", () => {
     const chart = makeChart([
       { type: "single", lane: 1, beat: beat(0) },
@@ -142,7 +161,7 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     expect(indices.notes.size).toBeGreaterThan(0);
     expect(host.violationLayer.children.length).toBeGreaterThan(0);
   });
-  it("BpmEvent 중복 위반(editorLane 없음→1)은 x=TIMELINE_WIDTH에 포인트 해칭(endMs=null) 2개 (RFD 0017 §7)", () => {
+  it("BpmChangeEvent 중복 위반(editorLane 없음→1)은 x=TIMELINE_WIDTH에 포인트 해칭(endMs=null) 2개 (RFD 0017 §7)", () => {
     const chart = makeChart([], [], [
       { type: "bpm", beat: beat(2), bpm: 120 },
       { type: "bpm", beat: beat(2), bpm: 180 }, // 같은 박 BPM 중복

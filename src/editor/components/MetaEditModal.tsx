@@ -6,6 +6,7 @@ import { supabase } from '../../supabase';
 import { PreviewRangeSelector } from './PreviewRangeSelector';
 import type { PreviewRangeState } from './PreviewRangeSelector';
 import { modalStyles } from './modalStyles';
+import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
 
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
@@ -27,6 +28,11 @@ export interface MetaEditModalProps {
   initialJacketFile?: File | null;
   jacketCacheBust?: number;
   initialGameplayRange?: PlaybackRange | null;
+  /**
+   * 에디터가 재생 중이다. 오프셋은 타이밍 값이라 입력을 비활성으로 두고 저장해도 바꾸지 않는다(RFD 0099).
+   * 제목·작곡가·난이도 같은 다른 meta는 재생 중에도 저장한다.
+   */
+  offsetLocked?: boolean;
 }
 
 export function MetaEditModal({
@@ -38,6 +44,7 @@ export function MetaEditModal({
   initialJacketFile,
   jacketCacheBust,
   initialGameplayRange,
+  offsetLocked = false,
 }: MetaEditModalProps) {
   const [values, setValues] = useState<Record<string, string>>({
     title: meta.title,
@@ -81,7 +88,7 @@ export function MetaEditModal({
       artist: values.artist,
       difficultyLabel: values.difficultyLabel,
       difficultyLevel: isNaN(level) ? meta.difficultyLevel : level,
-      offsetMs: isNaN(offset) ? meta.offsetMs : offset,
+      offsetMs: offsetLocked || isNaN(offset) ? meta.offsetMs : offset,
       audioFile: values.audioFile,
       imageFile: values.imageFile,
       previewAudioFile: values.previewAudioFile,
@@ -106,17 +113,22 @@ export function MetaEditModal({
       <div style={{ ...modalStyles.modal, width: '520px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>Chart Metadata</h3>
 
-        {fields.map((f) => (
-          <label key={f.key} style={modalStyles.field}>
-            <span>{f.label}</span>
-            <input
-              style={modalStyles.input}
-              type={f.type}
-              value={values[f.key]}
-              onChange={(e) => set(f.key, e.target.value)}
-            />
-          </label>
-        ))}
+        {fields.map((f) => {
+          const locked = offsetLocked && f.key === 'offsetMs';
+          return (
+            <label key={f.key} style={modalStyles.field}>
+              <span>{f.label}</span>
+              <input
+                style={locked ? { ...modalStyles.input, opacity: 0.5 } : modalStyles.input}
+                type={f.type}
+                value={values[f.key]}
+                onChange={(e) => set(f.key, e.target.value)}
+                disabled={locked}
+                title={locked ? PAUSE_TO_EDIT_COPY : undefined}
+              />
+            </label>
+          );
+        })}
 
         {/* Audio section */}
         <div style={{ marginBottom: '12px' }}>

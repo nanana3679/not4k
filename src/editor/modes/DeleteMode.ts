@@ -1,3 +1,4 @@
+import { deleteEvents } from '../editing/eventEditing';
 import type { ChartDocument } from "../../shared";
 import {
   deleteChartNoteAtIndex,
@@ -69,6 +70,17 @@ export class DeleteMode implements EditorMode {
 
     // 삭제 보호에 걸린 노트 뒤의 구간을 대신 지우지 않는다.
     if (this.callbacks.space.hitTestUnifiedNote(x, y) !== null) return;
+
+    const eventIndex = this.callbacks.space.hitTestEvent(x, y);
+    if (eventIndex !== null) {
+      const next = deleteEvents(this.chart, new Set([eventIndex]));
+      if (!next) this.callbacks.onWarn?.('Cannot delete initial event');
+      else {
+        this.chart = next;
+        this.callbacks.onChartUpdate(next);
+      }
+      return;
+    }
 
     const zoneResult = DeleteMode.deleteZoneAtHits(
       this.chart,
