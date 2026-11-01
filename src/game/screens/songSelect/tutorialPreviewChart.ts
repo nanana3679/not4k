@@ -7,6 +7,8 @@ export const TUTORIAL_PREVIEW_LOOP_MS = 4000;
 export const TUTORIAL_PREVIEW_RENDER_CYCLES = 3;
 export const TUTORIAL_PREVIEW_RENDER_START_MS = TUTORIAL_PREVIEW_LOOP_MS;
 export const TUTORIAL_PREVIEW_RENDER_DURATION_MS = TUTORIAL_PREVIEW_LOOP_MS * TUTORIAL_PREVIEW_RENDER_CYCLES;
+/** 마지막 노트·릴리즈(바디는 끝) 뒤 결과를 읽을 최소 시간. 시연 keyup은 반복 안에 두되 여백을 다시 시작하지 않는다. */
+export const TUTORIAL_LOOP_TRAILING_MARGIN_MS = 2000;
 
 export interface TutorialInputTiming {
   event: TutorialInputEvent;
