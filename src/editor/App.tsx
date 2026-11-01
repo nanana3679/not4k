@@ -22,6 +22,7 @@ import { hasLegacyNotes } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex } from '../shared';
 import { supabase } from '../supabase';
+import { fetchSongSharedData } from '../supabase/songSharedData';
 import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
 import type { LegacyConversionItem, PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -160,23 +161,19 @@ export default function EditorApp() {
     // 없는 보조 파일(404·Storage 400 NoSuchKey)만 별도 보조 없음이다. 다른 실패는 아래 catch의 로드 오류로 간다.
     const extraFetch = fetchEditorExtraText(extraUrl);
 
-    Promise.all([chartFetch, extraFetch])
-      .then(([chartText, extraText]) => {
+    Promise.all([chartFetch, extraFetch, fetchSongSharedData(songId)])
+      .then(([chartText, extraText, song]) => {
         // 보조 형식·내용 오류는 빈 보조 데이터로 열지 않고 아래 catch의 로드 오류로 보낸다.
         // 열린 뒤 저장이 기존 .extra.json을 지우는 유실을 막는다.
-        const asset = loadEditorChartAsset(chartText, extraText);
+        const asset = loadEditorChartAsset(chartText, extraText, song);
         // 초기 BPM·박자만 보조 레인1·2에 둔 상태가 불러온 기본 상태다(dirty·Undo 없음, 서버에 쓰지 않음).
         // 그 자리와 겹친 일반 이벤트는 옮기지 않고 배치 위반으로 남긴다.
         openEditorChart(asset);
         setActiveSongId(songId);
         setOfferLegacyConversion(hasLegacyNotes(asset.chart.notes));
 
-        // Fetch audio URL from songs table
-        return supabase.from('songs').select('audio_url').eq('id', songId).single();
-      })
-      .then((result) => {
-        if (result && result.data?.audio_url) {
-          setPendingAudioUrl(getPublicUrl(result.data.audio_url));
+        if (song?.audioUrl) {
+          setPendingAudioUrl(getPublicUrl(song.audioUrl));
         }
         setChartLoading(false);
       })

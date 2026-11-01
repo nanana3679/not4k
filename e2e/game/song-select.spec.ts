@@ -42,6 +42,7 @@ function mockSong(
     gameplay_fade_in: null,
     gameplay_fade_out: null,
     jacket_url: null,
+    timing: null, revision: 1,
     charts: charts.map(([difficultyLabel, difficultyLevel]) => ({
       id: `${id}-${difficultyLabel}`,
       song_id: id,

@@ -13,3 +13,5 @@ export {
   type SongAssetPersistenceAdapter,
   type TextAssetUpload,
 } from "./chartAssetPersistence";
+export { parseSongTiming, SongTimingError, type SongTiming } from './songTiming';
+export { resolveSongChart, type SongSharedData } from './resolveSongChart';

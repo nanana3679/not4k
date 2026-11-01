@@ -58,6 +58,7 @@ export async function openNormalSong(page: Page, document = normalDocument(), op
   page.on('pageerror', error => errors.push(error.message));
   const song: DbSong = { id: SONG_ID, title: document.meta.title, artist: document.meta.artist,
     audio_url: `songs/${SONG_ID}/audio.wav`, preview_url: `songs/${SONG_ID}/preview.wav`,
+    timing: null, revision: 1,
     duration, preview_start: null, preview_end: null, jacket_url: null,
     gameplay_start: options.range?.startTime ?? null, gameplay_end: options.range?.endTime ?? null,
     gameplay_fade_in: options.range?.fadeInTime ?? null, gameplay_fade_out: options.range?.fadeOutTime ?? null,

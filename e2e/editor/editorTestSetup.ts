@@ -121,6 +121,8 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     }
     if (method === 'GET' && path === '/rest/v1/songs') {
       await route.fulfill({ json: {
+        title: chart.meta.title, artist: chart.meta.artist, jacket_url: chart.meta.imageFile,
+        timing: null, revision: 1,
         audio_url: audio ? AUDIO_PATH : null,
         duration: null, gameplay_start: null, gameplay_end: null, gameplay_fade_in: null, gameplay_fade_out: null,
       } });

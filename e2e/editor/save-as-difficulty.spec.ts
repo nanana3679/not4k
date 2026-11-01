@@ -31,7 +31,8 @@ test('NORMAL의 Save As는 INFILTRATION을 제외하고 LIFTOFF 덮어쓰기 확
         await route.fulfill({ status: 404, json: { error: 'No extra chart' } }); return;
       }
       if (method === 'GET' && path === '/rest/v1/songs') {
-        await route.fulfill({ json: { audio_url: null, duration: null, gameplay_start: null, gameplay_end: null } }); return;
+        await route.fulfill({ json: { title: chart.meta.title, artist: chart.meta.artist,
+          jacket_url: chart.meta.imageFile, timing: null, revision: 1, audio_url: null, duration: null, gameplay_start: null, gameplay_end: null } }); return;
       }
       if (method === 'GET' && path === '/rest/v1/charts') {
         await route.fulfill({ json: [{ difficulty_label: 'normal' }, { difficulty_label: 'easy' }] }); return;

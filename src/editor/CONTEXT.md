@@ -40,7 +40,9 @@ _Avoid_: 그리드
 곡의 표시 정보·공통 타이밍·음원·프리뷰 구간·플레이 구간을 함께 저장하며, 개별 차트 저장과 범위를 분리한다. 두 저장은 DB 함수 하나로 한 번에 확정하고, 공통 타이밍의 정본은 `songs` 행이다([RFD 0107](../../docs/rfd/0107-song-timing-storage-and-atomic-saves.md)). Undo·Redo 이력은 곡 정보와 차트 편집을 시간순으로 통합한다. 왼쪽 곡 정보 드로어와 저장 분리는 채택 규칙이며 후속 구현이다([glossary](../../docs/context/glossary.md#곡-저장)).
 
 **곡 타이밍**:
-같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 곡 단위 공유는 채택 규칙이며 런타임 반영은 후속 작업이다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 게임·에디터 공용 로더는 곡 행의 표시 정보·타이밍을 우선하며, 타이밍 NULL 또는 곡 행 없음일 때 파일 타이밍을 유지한다. 저장 연결·데이터 이행은 후속 작업이다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+
+곡 행 우선 해석 뒤 `openEditorChart`가 RFD 0082 배치를 적용하고 `savedChartJson`을 정하므로, 이행된 곡을 열어도 dirty·Undo·Redo가 생기지 않는다. 테스트 재생에서 복귀할 때는 이미 열린 편집 초안과 저장 기준을 유지한다.
 
 **박자 그리드**:
 `BpmChangeEvent`와 `TimeSignatureChangeEvent`를 기준으로 계산되는 시간 눈금이다.
