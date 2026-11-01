@@ -56,8 +56,8 @@ export function createExplicitTutorialInput(
   let boundaryStopped = false;
   let iteration = 0;
   let lastElapsedMs = 0;
-  // 준비 중 0ms로 고정된 시각과 실제 루프 0ms를 구별한다. rebase는 같은 재생을 이어간다.
-  let loopStarted = false;
+  // 첫 4박 준비는 시작 전이다. 시작 후 pause·도식·오디오 재개 대기와 rebase는 같은 패턴을 이어간다.
+  let firstPatternStarted = false;
   // 보정 판정·reducer의 정산 순서와 별개인 물리 반복별 전환 이력이다.
   let switchedIterations = new Set<number>();
   const takeModeSwitched = () => {
@@ -238,7 +238,7 @@ export function createExplicitTutorialInput(
   };
   const setMode = (next: TutorialInputMode) => {
     if (mode === next) return;
-    if (loopStarted && !getClock().blocked) switchedIterations.add(Math.floor(lastElapsedMs / loopMs));
+    if (firstPatternStarted) switchedIterations.add(Math.floor(lastElapsedMs / loopMs));
     finishPendingBoundary();
     // 음수 offset 때문에 이전 세션이 경계 전이어도 토글은 현재 물리 반복에만 적용한다.
     const physicalIteration = Math.floor(lastElapsedMs / loopMs);
@@ -299,7 +299,7 @@ export function createExplicitTutorialInput(
       const blocked = frame?.blocked ?? getClock().blocked;
       syncJudging(blocked);
       if (blocked) return finished;
-      loopStarted = true;
+      firstPatternStarted = true;
       if (frame) {
         elapsedMs = Math.floor(Math.max(0, elapsedMs) / loopMs) * loopMs + frame.loopTimeMs;
       }

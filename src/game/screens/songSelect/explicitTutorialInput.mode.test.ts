@@ -9,7 +9,8 @@ import type { ExplicitTutorialInputPlan } from './explicitTutorialPreviewSession
 
 function setup(inputOffsetMs = 0, initialMode: TutorialInputMode = 'directInput', demoPlan: ExplicitTutorialInputPlan = {
   kind: 'timings', timings: [{ lane: 2, key: 'KeyE', startMs: 500, endMs: 2000 }],
-}) {
+}, initiallyBlocked = false) {
+  // 공개 레슨은 마지막 판정 뒤 2000ms 여백을 둔다. closing 경계는 끝 릴리즈가 반복 경계인 합성 차트로 검증한다.
   const preview = createExplicitTutorialPreview('mode-ownership', '모드 전환', [], 4, {
     ...tutorialExplicitPlayerPreviews[0].preview.chart,
     notes: [
@@ -24,9 +25,12 @@ function setup(inputOffsetMs = 0, initialMode: TutorialInputMode = 'directInput'
     conditions: [{ kind: 'maxGreatOrWorseCount', count: 0 }], playingMethods: [{ id: 'practice' }],
   }));
   state = reduceTutorialPractice(state, { type: 'modeSelected', mode: initialMode });
-  state = reduceTutorialPractice(state, { type: 'patternStarted', patternId: 0 });
+  const startFirstPattern = () => {
+    state = reduceTutorialPractice(state, { type: 'patternStarted', patternId: 0 });
+  };
+  if (!initiallyBlocked) startFirstPattern();
   const finished: (ExplicitTutorialPatternResult & { successCount: number; countable: boolean })[] = [];
-  const clock = { loopStartNow: 0, blocked: false, inputOffsetMs };
+  const clock = { loopStartNow: 0, blocked: initiallyBlocked, inputOffsetMs };
   const input = createExplicitTutorialInput(playback, [{ lane: 2, key: 'KeyE' }], preview.loopMs, () => clock, pattern => {
     state = reduceTutorialPractice(state, { type: 'patternFinished', patternId: pattern.iteration,
       score: pattern.result.score, modeSwitchedDuringPattern: pattern.modeSwitchedDuringPattern });
@@ -52,7 +56,7 @@ function setup(inputOffsetMs = 0, initialMode: TutorialInputMode = 'directInput'
     key('keyup', start + 2005 - inputOffsetMs);
     input.advanceTo(start + 2120 - Math.min(0, inputOffsetMs));
   };
-  return { input, playback, finished, clock, key, mode, play };
+  return { input, playback, finished, clock, key, mode, play, startFirstPattern };
 }
 
 it('루프 0ms를 시작한 뒤 같은 0ms에 시연을 왕복하면 첫 직접 입력 패턴은 Perfect여도 집계에서 제외한다', () => {
@@ -66,6 +70,77 @@ it('루프 0ms를 시작한 뒤 같은 0ms에 시연을 왕복하면 첫 직접 
       modeSwitchedDuringPattern: true, countable: false, successCount: 0,
       result: { score: { achievementRate: 100 } },
     });
+  } finally { input.stop(); }
+});
+
+it.each([0, 1000])('직접 입력 패턴을 %ims에 일시정지하고 시연으로 바꾸면 재개 후 Perfect 2개여도 전환 이력으로 성공 0회다', pausedAtMs => {
+  const { input, finished, clock, key, mode } = setup();
+  try {
+    if (pausedAtMs > 500) key('keydown', 500);
+    input.advanceTo(pausedAtMs);
+    clock.blocked = true;
+    input.syncJudging();
+    mode('demonstration', pausedAtMs + 300);
+    expect(finished).toHaveLength(0);
+
+    // 500ms 동안 설정을 열었다 닫은 것처럼 물리 시계만 보정한다.
+    clock.loopStartNow += 500;
+    clock.blocked = false;
+    input.syncJudging();
+    input.advanceTo(2000);
+    expect(finished[0].result.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
+    expect(finished[0]).toMatchObject({
+      iteration: 0, modeSwitchedDuringPattern: true, countable: false, successCount: 0,
+    });
+  } finally { input.stop(); }
+});
+
+it('패턴 1의 1000ms 도식에서 시연으로 바꾸면 도식 재개의 rebase 뒤에도 패턴 1만 제외하고 성공 1회를 유지한다', () => {
+  const { input, finished, clock, key, mode, play } = setup();
+  try {
+    play(0);
+    key('keydown', 2500);
+    input.advanceTo(2600);
+    // 도식이 새로 열린 프레임은 도식 시작점까지 진행한 뒤 입력을 막는다.
+    clock.blocked = true;
+    input.advanceTo(3050, { loopTimeMs: 1000, blocked: false });
+    mode('demonstration', 3500);
+
+    // 도식 확인 후 현재 반복의 1200ms로 옮기며 누적 반복 차수는 0으로 바뀐다.
+    clock.loopStartNow = 5000 - 1200;
+    input.rebase(5000);
+    clock.blocked = false;
+    input.advanceTo(2000);
+    expect(finished.map(pattern => [pattern.iteration, pattern.modeSwitchedDuringPattern,
+      pattern.countable, pattern.successCount])).toEqual([
+      [0, false, true, 1], [1, true, false, 1],
+    ]);
+    expect(finished[1].result.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
+  } finally { input.stop(); }
+});
+
+it.each(['directInput', 'demonstration'] as const)('첫 입력 전 0ms 도식에서 %s로 바꾸면 패턴 0에는 전환 이력이 없고 선택한 모드로만 집계한다', chosenMode => {
+  const initialMode = chosenMode === 'directInput' ? 'demonstration' : 'directInput';
+  const { input, finished, clock, key, mode, startFirstPattern } = setup(0, initialMode, undefined, true);
+  try {
+    input.advanceTo(0);
+    mode(chosenMode, 300);
+    // 초기 도식을 닫아 200ms부터 시작해도, 준비 중의 모드 선택은 패턴 0의 전환이 아니다.
+    clock.loopStartNow = 1000 - 200;
+    input.rebase(1000);
+    clock.blocked = false;
+    startFirstPattern();
+    input.advanceTo(200);
+    if (chosenMode === 'directInput') key('keydown', clock.loopStartNow + 500);
+    input.advanceTo(2000);
+    if (chosenMode === 'directInput') key('keyup', clock.loopStartNow + 2005);
+    input.advanceTo(2120);
+
+    expect(finished).toHaveLength(1);
+    expect(finished[0].result.score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
+    expect(finished[0]).toMatchObject({ iteration: 0, modeSwitchedDuringPattern: false });
+    expect([finished[0].countable, finished[0].successCount])
+      .toEqual(chosenMode === 'directInput' ? [true, 1] : [false, 0]);
   } finally { input.stop(); }
 });
 

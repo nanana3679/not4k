@@ -448,6 +448,8 @@ const verticalMovementChart = makeBasicChart(
 
 /**
  * Basic 17개의 명시 노트 원본. RFD 0105에 따라 일회성 변환 결과를 소스에 고정했다.
+ * loopBeats는 원본 시간 맵에서 마지막 노트·바디 끝 뒤 2000ms를 확보하는 최소 정수 박이다.
+ * 원본 박자표·노트·시연·도식의 시각은 유지하며, 여백과 최소 길이는 테스트에서 시간 맵으로 검증한다.
  * 공개 목록 연결은 후속 작업이며, 실행 중 구형 노트를 변환하지 않는다(RFD 0037 §8).
  */
 export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewDefinition[] = [
@@ -459,7 +461,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       TUTORIAL_OPPOSITE_HAND_BODY_LINE,
       '키 배치는 옵션에서 언제든 바꿀 수 있습니다',
     ],
-    8,
+    11,
     handPlacementChart,
   ),
   createExplicitTutorialPreview(
@@ -469,7 +471,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '한 레인에는 여러 키를 바인딩할 수 있습니다',
       '같은 노트를 다양한 키로 처리해 보세요',
     ],
-    3,
+    7,
     singleNoteChart,
   ),
   createExplicitTutorialPreview(
@@ -479,7 +481,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '더블 노트는 같은 레인의 서로 다른 두 키로 처리합니다',
       '정확히 동시에 누르지 않아도 각 입력이 Good 윈도우 안이면 됩니다',
     ],
-    4,
+    8,
     doubleNoteChart,
   ),
   createExplicitTutorialPreview(
@@ -489,7 +491,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '트릴 구간에서는 앞 트릴 노트를 처리한 키와 다른 키로 다음 트릴 노트를 쳐야 합니다',
       '같은 키를 연속으로 누르면 GOOD◇으로 강등됩니다',
     ],
-    9,
+    12,
     trillNoteChart,
   ),
   createExplicitTutorialPreview(
@@ -500,7 +502,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '더블 롱노트는 두 키를 끝까지 유지합니다',
       '트릴 롱노트는 끝까지 유지하면 됩니다. 끝에서 떼는 타이밍은 판정하지 않습니다',
     ],
-    7,
+    11,
     longNoteChart,
   ),
   createExplicitTutorialPreview(
@@ -511,7 +513,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '떼는 순간에 다른 키를 함께 누르세요',
       '이 롱노트 끝에는 릴리즈 노트가 없어 떼는 타이밍을 판정하지 않습니다',
     ],
-    5,
+    8,
     releaseTapChart,
   ),
   createExplicitTutorialPreview(
@@ -522,7 +524,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '연결 지점에서 이전 키를 떼며 다음 키로 갈아탈 수 있습니다',
       '릴리즈 노트가 없는 연결 지점에서는 떼는 타이밍을 따로 판정하지 않습니다',
     ],
-    8,
+    12,
     connectedLongNoteSwitchChart,
   ),
   createExplicitTutorialPreview(
@@ -533,7 +535,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '기존 키를 누른 채 새 키를 더 눌러 연결을 처리할 수 있습니다',
       '릴리즈 노트가 없는 연결 지점에서는 떼는 타이밍을 따로 판정하지 않습니다',
     ],
-    8,
+    12,
     connectedLongNoteOverlapChart,
   ),
   createExplicitTutorialPreview(
@@ -543,7 +545,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '이어진 트릴 롱노트도 갈아타기·겹쳐 누르기로 이어진 롱노트와 동일하게 처리할 수 있습니다',
       '트릴 롱노트는 끝까지 유지하면 됩니다. 끝에서 떼는 타이밍은 판정하지 않습니다',
     ],
-    8,
+    11,
     connectedTrillLongChart,
   ),
   createExplicitTutorialPreview(
@@ -553,35 +555,35 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '롱노트가 탭 노트 없이 시작될 수 있습니다',
       '미리 누르거나 시작 근처에서 누른 뒤 유지하세요. 누르는 타이밍은 점수에 반영되지 않습니다',
     ],
-    5,
+    9,
     headlessLongNoteChart,
   ),
   createExplicitTutorialPreview(
     'zero-length-long-note',
     '릴리즈 노트',
     ['미리 누르고 있다가 노트에 맞춰 떼세요. 떼는 타이밍만 판정합니다'],
-    3,
+    6,
     standaloneReleaseChart,
   ),
   createExplicitTutorialPreview(
     'grace-note',
     'grace 노트',
     ['Good 윈도우 안에 치면 타이밍 등급은 Perfect가 됩니다. 트릴 노트라면 키를 바꿔 치는 조건은 그대로입니다'],
-    5,
+    7,
     graceNoteChart,
   ),
   createExplicitTutorialPreview(
     'hold-only-long-note',
     '릴리즈 없는 롱노트',
     ['바디 끝까지 유지하세요. 끝에 릴리즈 노트가 없어 그때 떼지 않아도 됩니다'],
-    5,
+    8,
     bodyWithoutReleaseChart,
   ),
   createExplicitTutorialPreview(
     'zero-length-hold-only-long-note',
     '길이가 0인 바디와 틱 노트',
     ['틱 노트가 오는 순간 키를 누르고만 있으면 됩니다'],
-    5,
+    7,
     zeroLengthBodyTickChart,
   ),
   createExplicitTutorialPreview(
@@ -592,7 +594,7 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '한 손이 트릴을 처리하는 동안 쉬는 레인을 미리 알려줍니다',
       '휴지 구간을 이용해 다음 패턴을 위한 손 위치를 준비하세요',
     ],
-    8,
+    11,
     restZoneChart,
   ),
   createExplicitTutorialPreview(
@@ -602,14 +604,14 @@ export const BASIC_TUTORIAL_EXPLICIT_PREVIEWS: readonly ExplicitTutorialPreviewD
       '표시된 키를 따라 손 위치를 옆 레인으로 옮깁니다',
       '고정된 손배치로 처리하기 어려운 패턴을 유동적인 손배치로 처리해 보세요',
     ],
-    8,
+    12,
     horizontalMovementChart,
   ),
   createExplicitTutorialPreview(
     'vertical-movement',
     '수직 이동',
     ['수직으로 이동해서 노트를 처리할 수 있습니다'],
-    8,
+    12,
     verticalMovementChart,
   ),
 ];
