@@ -158,13 +158,11 @@ export interface TutorialPracticeState {
   readonly playingMethodIndex: number;
   /** 현재 연주 방법의 누적 성공 횟수. 방법을 넘어가면 0부터 다시 센다 */
   readonly successCount: number;
-  /** 지금 재생에 적용한 모드 */
+  /** 지금 재생에 적용한 모드. 토글은 어느 방향이든 현재 재생 위치에서 즉시 적용한다(RFD 0105) */
   readonly mode: TutorialPracticeMode;
-  /** 직접 입력 패턴 재생 중 시연을 골랐을 때, 다음 패턴 시작부터 적용할 시연 */
-  readonly pendingMode: 'demonstration' | null;
   /** 재생 중인 패턴의 id. 재생 중이 아니면 null이다. 연주 방법을 완료한 뒤에는 시연으로 시작한 패턴만 받는다(도중에 직접 입력으로 바꿔도 집계하지 않는다) */
   readonly currentPatternId: number | null;
-  /** 재생 중인 패턴을 처음부터 끝까지 직접 입력으로 연주해 성공 집계 대상인지 */
+  /** 재생 중인 패턴을 처음부터 끝까지 직접 입력으로 연주해 성공 집계 대상인지. 재생 도중 모드를 바꾸면 그 패턴은 false가 된다 */
   readonly currentPatternCountable: boolean;
   /**
    * 지금까지 받은 patternStarted id 중 가장 큰 값. 이 값 이하의 시작은 중복이거나 지난 패턴이라 무시한다.
@@ -195,8 +193,7 @@ export interface TutorialFinishedPattern {
  * - 패턴 N의 `patternFinished`를 패턴 N+1의 `patternStarted`보다 먼저 보낸다. 순서가 바뀌면 N은 끝 통지를 놓친 것으로 버려진다.
  * - `patternFinished.score`는 해당 패턴의 `ExplicitJudgmentSession.finalize().score`를 넘긴다. 모든 점수 항목을
  *   정산했어도 바디 Miss가 뒤늦게 추가될 수 있으므로 live 점수를 최종 결과로 재사용하지 않는다.
- * - 패턴의 자동 입력(시연) 여부는 `patternStarted`를 처리한 뒤의 `state.mode`로 정한다. 토글 표시용
- *   `getSelectedTutorialPracticeMode`로 정하면 직접 입력 패턴 도중 예약한 시연이 그 패턴에 자동 입력을 섞는다.
+ * - 자동 입력(시연) 여부는 언제나 `state.mode`를 따른다. 패턴 도중 모드가 바뀌면 현재 재생 위치에서 바로 입력 방식을 바꾼다.
  */
 export type TutorialPracticeEvent =
   /** 플레이어가 토글에서 모드를 고름 */
@@ -211,7 +208,7 @@ export type TutorialPracticeEvent =
 /** 실습 진입·재진입·재실습의 시작 상태: 첫 연주 방법, 성공 0회, 시연 */
 export function createTutorialPracticeState(spec: TutorialPracticeSpec): TutorialPracticeState {
   return {
-    spec, playingMethodIndex: 0, successCount: 0, mode: 'demonstration', pendingMode: null,
+    spec, playingMethodIndex: 0, successCount: 0, mode: 'demonstration',
     currentPatternId: null, currentPatternCountable: false, highestPatternStartId: null, lastFinishedPattern: null,
   };
 }
@@ -225,14 +222,14 @@ export function reduceTutorialPractice(state: TutorialPracticeState, event: Tuto
       // 이미 받은 id 이하의 시작은 재생 중인 패턴의 중복 통지이거나 지난 패턴이다.
       if (state.highestPatternStartId !== null && event.patternId <= state.highestPatternStartId) return state;
       // 아래 두 경우 모두 재생 중이던 다른 패턴은 끝 통지를 놓친 것으로 보고 결과 없이 버린다.
-      const mode = state.pendingMode ?? state.mode;
+      const mode = state.mode;
       if (isTutorialPlayingMethodComplete(state) && mode === 'directInput') {
         // 방법을 완료하면 실습 반복은 멈추므로 직접 입력 패턴을 재생하지 않는다. id는 지난 id로 소비한다.
         return { ...state, currentPatternId: null, currentPatternCountable: false, highestPatternStartId: event.patternId };
       }
       // 방법 완료 뒤에도 시연은 볼 수 있으며, 시연 패턴은 집계 대상이 아니다.
       return {
-        ...state, mode, pendingMode: null, currentPatternId: event.patternId,
+        ...state, currentPatternId: event.patternId,
         currentPatternCountable: mode === 'directInput', highestPatternStartId: event.patternId,
       };
     }
@@ -241,9 +238,8 @@ export function reduceTutorialPractice(state: TutorialPracticeState, event: Tuto
       if (event.patternId !== state.currentPatternId) return state;
       const countable = state.currentPatternCountable;
       const succeeded = isTutorialPatternSuccess(state.spec.conditions, event.score, 'final');
-      // 재생이 끝났으므로 예약한 시연은 지금 적용해도 다음 패턴 시작부터 적용한 것과 같다.
       return {
-        ...state, mode: state.pendingMode ?? state.mode, pendingMode: null, currentPatternId: null,
+        ...state, currentPatternId: null,
         currentPatternCountable: false, successCount: countable && succeeded ? state.successCount + 1 : state.successCount,
         lastFinishedPattern: { patternId: event.patternId, score: event.score, countable, succeeded },
       };
@@ -260,26 +256,15 @@ export function reduceTutorialPractice(state: TutorialPracticeState, event: Tuto
 }
 
 function selectMode(state: TutorialPracticeState, mode: TutorialPracticeMode): TutorialPracticeState {
-  if (mode === 'directInput') {
-    // 시연 예약을 취소하면 재생 중인 직접 입력 패턴은 그대로 집계 대상이다.
-    if (state.mode === 'directInput') return state.pendingMode === null ? state : { ...state, pendingMode: null };
-    // 시연 → 직접 입력은 현재 재생 위치에서 바로 적용한다. 시연으로 시작한 패턴은 patternStarted에서 이미 집계 대상이 아니다.
-    return { ...state, mode: 'directInput' };
-  }
-  if (state.mode === 'demonstration') return state;
-  // 직접 입력 → 시연: 재생 중이면 그 패턴을 직접 입력으로 마치고 다음 패턴부터, 아니면 바로 적용한다.
-  if (isTutorialPatternPlaying(state)) return { ...state, pendingMode: 'demonstration' };
-  return { ...state, mode: 'demonstration' };
+  if (state.mode === mode) return state;
+  // 어느 방향이든 현재 재생 위치에서 바로 적용한다(RFD 0105). 재생 도중 바꾼 패턴은 한 모드로 끝까지 연주하지 않았으므로
+  // 집계에서 뺀다. 시연으로 시작한 패턴은 patternStarted에서 이미 집계 대상이 아니다.
+  return { ...state, mode, currentPatternCountable: false };
 }
 
-/** 패턴이 재생 중인지. 토글 적용 시점을 정한다 */
+/** 패턴이 재생 중인지(patternStarted를 받고 아직 patternFinished를 받지 않음) */
 export function isTutorialPatternPlaying(state: TutorialPracticeState): boolean {
   return state.currentPatternId !== null;
-}
-
-/** 토글에 표시할 선택: 예약한 시연이 있으면 그 선택을 보여준다 */
-export function getSelectedTutorialPracticeMode(state: TutorialPracticeState): TutorialPracticeMode {
-  return state.pendingMode ?? state.mode;
 }
 
 /** 조건 목록 아래의 `현재 성공 횟수/요구 성공 횟수` 진행도(예: 1/3) */

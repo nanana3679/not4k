@@ -18,8 +18,8 @@ export function TutorialPracticePanel({ practice, onNextItem, unmetKeyRequiremen
         {(['directInput', 'demonstration'] as const).map(mode => (
           <button disabled={mode === 'directInput' && unmetKeyRequirements.length > 0}
             aria-describedby={mode === 'directInput' && unmetKeyRequirements.length ? 'tutorial-key-shortage' : undefined}
-            key={mode} type="button" aria-pressed={practice.selectedMode === mode}
-            style={{ ...styles.toggle, ...(practice.selectedMode === mode ? styles.selected : {}),
+            key={mode} type="button" aria-pressed={state.mode === mode}
+            style={{ ...styles.toggle, ...(state.mode === mode ? styles.selected : {}),
               ...(mode === 'directInput' && unmetKeyRequirements.length ? styles.disabled : {}) }}
             onClick={() => practice.dispatch({ type: 'modeSelected', mode })}>
             {mode === 'directInput' ? '직접 입력' : '시연'}
