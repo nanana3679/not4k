@@ -6,14 +6,14 @@
  */
 
 import { supabase } from "./client";
-import { fetchSongSharedData } from './songSharedData';
+import { fetchSongChartSource } from './songSharedData';
 import { resolveSongChart } from '../shared/songAssets/resolveSongChart';
 import {
   STORAGE_BUCKET,
   songAudioPath,
   songJacketPath,
   songChartPath,
-  songChartExtraPath,
+  resolveChartAssetPaths,
 } from "../shared";
 import { ChartFormatError, deserializeChart, deserializeChartDocument, extraToNote, isAuxLane, parseExtraNotesDocument } from "../shared";
 import type { Chart, ChartDocument } from "../shared";
@@ -29,22 +29,28 @@ function getPublicUrl(path: string): string {
 }
 
 /**
- * 차트 JSON을 로드하고 파싱한다.
+ * 차트 JSON을 로드하고 파싱한다. 파일 경로는 `charts` 행의 `chart_path`이며 NULL이거나 행이 없으면
+ * 기존 결정적 경로다(RFD 0107).
  */
 export async function fetchChart(
   songId: string,
   difficulty: string,
 ): Promise<Chart> {
-  const [text, song] = await Promise.all([fetchChartText(songId, difficulty), fetchSongSharedData(songId)]);
-  return resolveSongChart(deserializeChart(text), song);
+  const { song, chartRow } = await fetchSongChartSource(songId, difficulty);
+  const { chartPath } = resolveChartAssetPaths(songId, difficulty, chartRow);
+  return resolveSongChart(deserializeChart(await fetchChartText(songId, difficulty, chartPath)), song);
 }
 
-/** main/aux의 구형·명시 항목과 메타데이터를 보존하는 문서 읽기 경계. */
+/**
+ * main/aux의 구형·명시 항목과 메타데이터를 보존하는 문서 읽기 경계.
+ * 곡 행과 `charts` 행을 먼저 한 번에 읽어 행의 저장 경로(NULL이면 결정적 경로)로 메인·보조 JSON을 받는다.
+ */
 export async function fetchChartDocument(songId: string, difficulty: string): Promise<ChartDocument> {
-  const [chartText, extraText, song] = await Promise.all([
-    fetchChartText(songId, difficulty),
-    fetchExtraChartText(songId, difficulty),
-    fetchSongSharedData(songId),
+  const { song, chartRow } = await fetchSongChartSource(songId, difficulty);
+  const paths = resolveChartAssetPaths(songId, difficulty, chartRow);
+  const [chartText, extraText] = await Promise.all([
+    fetchChartText(songId, difficulty, paths.chartPath),
+    fetchExtraChartText(paths.extraPath, chartRow?.chartExtraPath != null),
   ]);
   let chart = deserializeChartDocument(chartText);
   const extra = parseExtraNotesDocument(extraText === null ? JSON.parse(chartText) : parseAuxJson(extraText));
@@ -66,10 +72,10 @@ function parseAuxJson(text: string): unknown {
   }
 }
 
-async function fetchExtraChartText(songId: string, difficulty: string): Promise<string | null> {
-  const response = await fetch(getPublicUrl(songChartExtraPath(songId, difficulty)), { cache: 'no-cache' });
+async function fetchExtraChartText(path: string, required: boolean): Promise<string | null> {
+  const response = await fetch(getPublicUrl(path), { cache: 'no-cache' });
   if (response.ok) return response.text();
-  if (await isMissingObjectResponse(response)) return null;
+  if (!required && await isMissingObjectResponse(response)) return null;
   throw new Error(`Failed to fetch chart extras: ${response.status}`);
 }
 

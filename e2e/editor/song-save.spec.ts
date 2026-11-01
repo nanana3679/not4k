@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { EDITOR_TEST_AUDIO_FILE, EDITOR_TEST_CHART_UPLOAD_PATH, editorTestChart, openEditor, type OpenedEditor } from './editorTestSetup';
+import { EDITOR_TEST_AUDIO_FILE, editorTestChart, isChartUploadPath, isExtraUploadPath, openEditor, type OpenedEditor } from './editorTestSetup';
 
 const timing = { bpmChanges: [{ beat: '0', bpm: 120 }],
   timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 };
@@ -26,11 +26,25 @@ async function startSave(page: Page, action: 'Save' | 'Save As') {
   await page.getByRole('heading', { name: 'Save As (다른 이름으로 저장)', exact: true }).locator('..')
     .getByRole('button', { name: 'Save', exact: true }).click();
 }
-function expectSongBeforeChart(editor: OpenedEditor, path = EDITOR_TEST_CHART_UPLOAD_PATH) {
-  const rpcIndex = editor.supabaseWrites.findIndex(write => write.path === '/rest/v1/rpc/save_song');
-  const chartIndex = editor.supabaseWrites.findIndex(write => write.path === path);
+/** save_song → 차트 JSON 새 경로 업로드 → 차트 행 확정 RPC(save_chart·create_chart) 순서인지 본다. */
+/** 곡 RPC·미디어 업로드 없이 차트 메인·보조 JSON을 새 경로에 올리고 행 RPC 하나로 확정했는가(Save=save_chart, Save As LIFTOFF=create_chart). */
+function expectChartOnlySave(editor: OpenedEditor, action: 'Save' | 'Save As') {
+  const difficulty = action === 'Save' ? 'normal' : 'liftoff';
+  const rowRpc = action === 'Save' ? '/rest/v1/rpc/save_chart' : '/rest/v1/rpc/create_chart';
+  const paths = editor.supabaseWrites.map(write => write.path);
+  expect(paths).toHaveLength(3);
+  expect(paths.filter(path => isChartUploadPath(path, difficulty))).toHaveLength(1);
+  expect(paths.filter(path => isExtraUploadPath(path, difficulty))).toHaveLength(1);
+  expect(paths.filter(path => path === rowRpc)).toHaveLength(1);
+}
+
+function expectSongBeforeChart(editor: OpenedEditor, difficulty = 'normal', chartRowRpc = '/rest/v1/rpc/save_chart') {
+  const paths = editor.supabaseWrites.map(write => write.path);
+  const rpcIndex = paths.indexOf('/rest/v1/rpc/save_song');
+  const chartIndex = paths.findIndex(path => isChartUploadPath(path, difficulty));
   expect(rpcIndex).toBeGreaterThanOrEqual(0);
   expect(chartIndex).toBeGreaterThan(rpcIndex);
+  expect(paths.indexOf(chartRowRpc)).toBeGreaterThan(chartIndex);
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 }
 
@@ -97,7 +111,7 @@ test('timing NULL에서 Title·Offset 45ms·자켓·음원을 바꿔 Save하면 
     expect(uploadIndex).toBeGreaterThanOrEqual(0);
     expect(uploadIndex).toBeLessThan(editor.supabaseWrites.indexOf(rpc));
   }
-  expect(editor.supabaseWrites.some(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)).toBe(false);
+  expect(editor.supabaseWrites.some(write => isChartUploadPath(write.path))).toBe(false);
   expect(editor.supabaseWrites.some(write => write.path === '/rest/v1/songs')).toBe(false);
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
@@ -113,7 +127,8 @@ for (const action of ['Save', 'Save As'] as const) {
     await expect(page.getByText(action === 'Save' ? 'Chart saved' : 'Chart saved as LIFTOFF Lv.6', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
     expect(dialogs).toHaveLength(1); expect(dialogs[0]).toContain('다른 차트 2개');
-    expectSongBeforeChart(editor, action === 'Save' ? EDITOR_TEST_CHART_UPLOAD_PATH : EDITOR_TEST_CHART_UPLOAD_PATH.replace('/normal.json', '/liftoff.json'));
+    if (action === 'Save') expectSongBeforeChart(editor);
+    else expectSongBeforeChart(editor, 'liftoff', '/rest/v1/rpc/create_chart');
     if (action === 'Save As') await expect(page).toHaveURL(/difficulty=liftoff$/);
   });
 
@@ -168,10 +183,7 @@ for (const action of ['Save', 'Save As'] as const) {
     await expect(save(page)).toBeEnabled();
     expect(dialogs).toHaveLength(1); expect(dialogs[0]).toContain('타이밍이 다른 차트: hard');
     expect(dialogs[0]).toContain('취소하면 곡 변경은 저장하지 않고 차트만 저장합니다.');
-    const chartPath = action === 'Save' ? EDITOR_TEST_CHART_UPLOAD_PATH : EDITOR_TEST_CHART_UPLOAD_PATH.replace('/normal.json', '/liftoff.json');
-    expect(editor.supabaseWrites.map(write => write.path).sort()).toEqual([
-      chartPath, chartPath.replace('.json', '.extra.json'), '/rest/v1/charts',
-    ].sort());
+    expectChartOnlySave(editor, action);
     await openMeta(page);
     await expect(page.getByLabel('Title', { exact: true })).toHaveValue('새 제목');
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
@@ -192,15 +204,13 @@ for (const action of ['Save', 'Save As'] as const) {
       expect(dialogs[0]).toContain('곡 공통 타이밍으로 올리며');
       const requests = editor.supabaseWrites.filter(write => write.path === '/rest/v1/rpc/save_song');
       expect(requests).toHaveLength(accepted ? 1 : 0);
-      const chartPath = action === 'Save' ? EDITOR_TEST_CHART_UPLOAD_PATH : EDITOR_TEST_CHART_UPLOAD_PATH.replace('/normal.json', '/liftoff.json');
-      expect(editor.supabaseWrites.filter(write => write.path === chartPath)).toHaveLength(1);
+      const difficulty = action === 'Save' ? 'normal' : 'liftoff';
+      expect(editor.supabaseWrites.filter(write => isChartUploadPath(write.path, difficulty))).toHaveLength(1);
       if (accepted) {
         expect(JSON.parse(requests[0].body!)).toMatchObject({ p_expected_revision: 1, p_timing: timing });
-        expectSongBeforeChart(editor, chartPath);
+        expectSongBeforeChart(editor, difficulty, action === 'Save' ? '/rest/v1/rpc/save_chart' : '/rest/v1/rpc/create_chart');
       } else {
-        expect(editor.supabaseWrites.map(write => write.path).sort()).toEqual([
-          chartPath, chartPath.replace('.json', '.extra.json'), '/rest/v1/charts',
-        ].sort());
+        expectChartOnlySave(editor, action);
       }
       expect(editor.unexpectedSupabaseRequests).toEqual([]);
     });

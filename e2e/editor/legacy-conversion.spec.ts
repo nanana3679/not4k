@@ -5,8 +5,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { ChartJsonV3, ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
 import {
-  EDITOR_TEST_CHART_UPLOAD_PATH,
-  EDITOR_TEST_EXTRA_UPLOAD_PATH,
+  isChartUploadPath,
+  isExtraUploadPath,
   editorTestChart,
   legacyConversionOffer,
   legacyConversionResult,
@@ -125,8 +125,8 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
 
   await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-  const savedMain = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
-  const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
+  const savedMain = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
+  const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
   expect(savedMain.version).toBe(4);
   expect(savedMain.notes).toEqual([
     { type: 'tap', kind: 'single', lane: 1, beat: '0' },

@@ -17,12 +17,11 @@ import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
+import { STORAGE_BUCKET } from '../shared';
 import { hasLegacyNotes } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex } from '../shared';
 import { supabase } from '../supabase';
-import { fetchSongSharedData } from '../supabase/songSharedData';
 import { findExistingChartDifficulty, formatDifficultyLabel } from '../shared/chartDifficulty';
 import type { LegacyConversionItem, PlaybackRange, ValidationError } from '../shared';
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
@@ -50,7 +49,8 @@ import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
 import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
-import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
+import { loadEditorChartAsset } from './chartAssetLoad';
+import { fetchEditorChart } from './fetchEditorChart';
 import { editorChartViolationIndices } from './documentValidation';
 import { isChartDirty } from './savedChart';
 import { openEditorChart } from './openEditorChart';
@@ -130,24 +130,15 @@ export default function EditorApp() {
       return;
     }
 
-    // Fetch chart + extra data in parallel
-    const chartUrl = getPublicUrl(songChartPath(songId, difficulty));
-    const extraUrl = getPublicUrl(songChartExtraPath(songId, difficulty));
-    const chartFetch = fetch(chartUrl, { cache: 'no-store' }).then((res) => {
-      if (!res.ok) throw new Error(`Chart fetch failed: ${res.status}`);
-      return res.text();
-    });
-    // 없는 보조 파일(404·Storage 400 NoSuchKey)만 별도 보조 없음이다. 다른 실패는 아래 catch의 로드 오류로 간다.
-    const extraFetch = fetchEditorExtraText(extraUrl);
-
-    Promise.all([chartFetch, extraFetch, fetchSongSharedData(songId)])
-      .then(([chartText, extraText, song]) => {
+    // 곡 행·charts 행을 읽은 뒤 행의 저장 경로(NULL이면 결정적 경로)로 메인·보조 JSON을 받는다(RFD 0107).
+    fetchEditorChart(songId, difficulty)
+      .then(({ chartText, extraText, song, chartRow }) => {
         // 보조 형식·내용 오류는 빈 보조 데이터로 열지 않고 아래 catch의 로드 오류로 보낸다.
-        // 열린 뒤 저장이 기존 .extra.json을 지우는 유실을 막는다.
+        // 열린 뒤 저장이 보조 정보를 비운 새 보조 파일을 올리는 유실을 막는다.
         const asset = loadEditorChartAsset(chartText, extraText, song);
         // 초기 BPM·박자만 보조 레인1·2에 둔 상태가 불러온 기본 상태다(dirty·Undo 없음, 서버에 쓰지 않음).
         // 그 자리와 겹친 일반 이벤트는 옮기지 않고 배치 위반으로 남긴다.
-        openEditorChart(asset, song);
+        openEditorChart(asset, song, chartRow);
         setActiveSongId(songId);
         // Save·Delete는 Meta의 난이도명이 아니라 연 차트의 난이도 경로를 쓴다. Save As만 바꾼다.
         setActiveDifficulty(difficulty);
@@ -928,7 +919,8 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
               addToast('기존 차트를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.', 'error');
               return;
             }
-            const storedDifficulty = findExistingChartDifficulty(
+            const storedDifficulty = (existing ?? []).find(row => row.difficulty_label === targetDifficulty)?.difficulty_label
+              ?? findExistingChartDifficulty(
               (existing ?? []).map(row => row.difficulty_label), targetDifficulty,
             );
             if (storedDifficulty) {
@@ -952,7 +944,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
               <span style={{ color: '#ff9966', fontSize: '13px' }}>덮어쓰시겠습니까? 이 작업은 되돌릴 수 없습니다.</span>
             </p>
             <div style={modalStyles.buttons}>
-              <button style={modalStyles.deleteBtn} onClick={() => fileOps.handleSaveAs(saveAsOverwriteTarget.difficulty, saveAsOverwriteTarget.level)}>Overwrite</button>
+              <button style={modalStyles.deleteBtn} onClick={() => fileOps.handleSaveAs(saveAsOverwriteTarget.difficulty, saveAsOverwriteTarget.level, true)}>Overwrite</button>
               <button style={modalStyles.cancelBtn} onClick={() => setSaveAsOverwriteTarget(null)}>Cancel</button>
             </div>
           </div>

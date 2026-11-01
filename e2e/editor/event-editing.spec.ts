@@ -2,8 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 import type { ChartJsonV3, ExtraNotesJson } from '../../src/shared/chart';
 import { canvasPosition } from './explicitEditorTestHelpers';
 import {
-  EDITOR_TEST_CHART_UPLOAD_PATH,
-  EDITOR_TEST_EXTRA_UPLOAD_PATH,
+  isChartUploadPath,
+  isExtraUploadPath,
   editorTestChart,
   openEditor,
   readUploadedJson,
@@ -135,7 +135,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     expect(JSON.parse(rpc.body!).p_timing.bpmChanges).toEqual([
       { beat: '0', bpm: 120 }, { beat: '4', bpm: 150 },
     ]);
-    expect(editor.supabaseWrites.some(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)).toBe(false);
+    expect(editor.supabaseWrites.some(write => isChartUploadPath(write.path))).toBe(false);
 
     // BPM을 바꾸면 전체 타임라인 높이가 달라질 수 있으므로 현재 투영으로 다시 찾는다.
     const canvas = page.locator('canvas');
@@ -170,7 +170,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
     expect(dialogs).toHaveLength(1);
     expect(dialogs[0]).toContain('곡 공통 타이밍으로 올리며');
-    const uploaded = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV3;
+    const uploaded = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV3;
     expect(uploaded.events[2]).toMatchObject({ type: 'bpm', beat: '4', bpm: 180, editorLane: 2 });
     expect(editor.supabaseWrites.some(write => write.path === '/rest/v1/rpc/save_song')).toBe(false);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
@@ -192,7 +192,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
 
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-    const upload = editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH);
+    const upload = editor.supabaseWrites.find(write => isChartUploadPath(write.path));
     expect(upload).toBeDefined();
     const saved = readUploadedJson(upload!) as ChartJsonV3;
     // editorLane 없는 BPM은 이미 보조 레인1이라 editorLane을 새로 쓰지 않는다. 옮긴 박자만 editorLane 2를 적는다.
@@ -200,7 +200,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
       { type: 'bpm', beat: '0', bpm: 120 },
       { type: 'timeSignature', beat: '0', beatPerMeasure: '4', editorLane: 2 },
     ]);
-    const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!);
+    const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!);
 
     // 저장한 배치를 다시 열면 옮길 것이 없어 그대로 깨끗하고 아무것도 쓰지 않는다.
     const reopened = await openEditor(page, { chart: saved, extra: savedExtra as ExtraNotesJson, audio: true });
@@ -302,13 +302,13 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
 
     await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
     await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-    expect(readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!)).toMatchObject({ events: [
+    expect(readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!)).toMatchObject({ events: [
       { type: 'bpm', beat: '0', bpm: 120, editorLane: 1 },
       { type: 'timeSignature', beat: '0', beatPerMeasure: '4', editorLane: 2 },
       { type: 'text', beat: '0', endBeat: '4', text: 'hello', editorLane: 3 },
       { type: 'auto', beat: '0', endBeat: '4', editorLane: 4 },
     ] });
-    expect(readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!))
+    expect(readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!))
       .toMatchObject({ extraLaneCount: 4 });
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });

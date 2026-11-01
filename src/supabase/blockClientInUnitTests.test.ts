@@ -54,7 +54,7 @@ describe("vi.mock 없이 src/supabase/client를 쓰는 단위 테스트", () => 
   });
 
   it("실제 저장 경로 saveChartAsset({ songId: \"song-1\", difficulty: \"NORMAL\" })은 fetch를 한 번도 부르지 않고 차단 오류로 reject한다", async () => {
-    await expect(saveChartAsset({ songId: "song-1", difficulty: "NORMAL", chart, extraLaneCount: 0 })).rejects.toThrow(BLOCKED);
+    await expect(saveChartAsset({ songId: "song-1", difficulty: "NORMAL", chart, extraLaneCount: 0, row: { chartId: "chart-1", revision: 0 } })).rejects.toThrow(BLOCKED);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

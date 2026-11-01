@@ -198,6 +198,58 @@ describe('일반 곡 문서 Storage 읽기', () => {
   });
 });
 
+describe('charts 행의 저장 경로 읽기 (RFD 0107)', () => {
+  const storedRow = { id: 'chart-1', difficulty_label: 'normal', revision: 4,
+    chart_path: 'songs/song-1/normal-t1.json', chart_extra_path: 'songs/song-1/normal-t1.extra.json' };
+  /** 저장 경로의 파일만 응답하고 결정적 경로 요청은 404로 끝낸다. */
+  function serveStored(chart: ChartDocument, extra: string) {
+    const fetch = vi.fn(async (url: string) => {
+      if (url === 'https://storage.test/songs/song-1/normal-t1.json') return new Response(serializeChart(chart));
+      if (url === 'https://storage.test/songs/song-1/normal-t1.extra.json') return new Response(extra);
+      return new Response(null, { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetch);
+    return fetch;
+  }
+
+  it('게임 문서 reader는 normal 행의 chart_path·chart_extra_path가 있으면 결정적 normal.json 대신 그 두 경로를 읽는다', async () => {
+    const chart = structuredClone(explicitPlaytestCharts[0].chart);
+    const aux: ChartDocument['notes'] = [{ type: 'tap', kind: 'single', lane: 5, beat: beat(0) }];
+    const fetch = serveStored(chart, serializeExtraNotes(auxNotesAsExtra(aux), 1));
+    songQuery.maybeSingle.mockResolvedValue({ data: { title: '곡', artist: '', jacket_url: null, timing: null, revision: 1,
+      charts: [storedRow] }, error: null });
+
+    const loaded = await fetchChartDocument('song-1', 'NORMAL');
+
+    expect(loaded.notes).toEqual([...chart.notes, ...aux]);
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      'https://storage.test/songs/song-1/normal-t1.json', 'https://storage.test/songs/song-1/normal-t1.extra.json',
+    ]);
+  });
+
+  it('구형 fetchChart도 normal 행의 chart_path가 있으면 그 경로의 메인 JSON만 읽는다', async () => {
+    const chart: ChartDocument = { ...explicitPlaytestCharts[0].chart, notes: [{ type: 'single', lane: 1, beat: beat(0) }] };
+    const fetch = serveStored(chart, '{"extraNotes":[]}');
+    songQuery.maybeSingle.mockResolvedValue({ data: { title: '곡', artist: '', jacket_url: null, timing: null, revision: 1,
+      charts: [storedRow] }, error: null });
+
+    expect((await fetchChart('song-1', 'normal')).notes).toEqual(chart.notes);
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(['https://storage.test/songs/song-1/normal-t1.json']);
+  });
+
+  it('normal 행의 경로가 NULL이면 기존 결정적 경로 normal.json·normal.extra.json을 읽는다', async () => {
+    const { fetch } = serve(explicitPlaytestCharts[0].chart);
+    songQuery.maybeSingle.mockResolvedValue({ data: { title: '곡', artist: '', jacket_url: null, timing: null, revision: 1,
+      charts: [{ ...storedRow, chart_path: null, chart_extra_path: null }] }, error: null });
+
+    await fetchChartDocument('song-1', 'NORMAL');
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      'https://storage.test/songs/song-1/normal.json', 'https://storage.test/songs/song-1/normal.extra.json',
+    ]);
+  });
+});
+
 describe('일반 곡의 보조 trillZone 읽기', () => {
   it('별도 보조 구간과 트릴 탭·바디를 합쳐 전체 검증하되 main 점수·분모는 그대로다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
@@ -231,4 +283,17 @@ describe('일반 곡의 보조 trillZone 읽기', () => {
     serve(explicitPlaytestCharts[0].chart, '{"extraTrillZones":[{"extraLane":0,"beat":"0","endBeat":"4"}]}');
     await expect(fetchChartDocument('song-1', 'normal')).rejects.toThrow(ChartFormatError);
   });
+});
+
+
+it.each(missingAuxResponses)('chart_extra_path가 지정된 normal-t1.extra.json이 %s로 없으면 게임 로딩을 거부한다', async (_name, response) => {
+  serve(explicitPlaytestCharts[0].chart, response);
+  songQuery.maybeSingle.mockResolvedValue({ data: {
+    title: '곡', artist: '', jacket_url: null, timing: null, revision: 1,
+    charts: [{ id: 'chart-1', difficulty_label: 'normal', revision: 6,
+      chart_path: 'songs/song-1/normal-t1.json', chart_extra_path: 'songs/song-1/normal-t1.extra.json' }],
+  }, error: null });
+  await expect(loadSongDocumentData('song-1', 'normal', {
+    decodeAudioData: async () => ({ duration: 4 }),
+  } as unknown as AudioContext)).rejects.toThrow(`Failed to fetch chart extras: ${response().status}`);
 });

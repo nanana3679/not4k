@@ -1,62 +1,19 @@
 import { test, expect } from '@playwright/test';
+import { EDITOR_TEST_SONG_ID, EDITOR_TEST_CHART_REVISION, editorTestChartId, editorTestChart, isChartUploadPath, isExtraUploadPath, openEditor } from './editorTestSetup';
 
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 
-test('NORMAL의 Save As는 INFILTRATION을 제외하고 LIFTOFF 덮어쓰기 확인 후 기존 easy 키를 유지한다', async ({ page, baseURL }) => {
-  const songId = 'save-as-alias-check';
-  const chart = {
-    version: 3,
-    meta: { title: 'Save As alias check', artist: 'Offline', difficultyLabel: 'NORMAL', difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
-    notes: [], trillZones: [], restZones: [],
-    events: [{ type: 'bpm', beat: '0', bpm: 120, editorLane: 1 }, { type: 'timeSignature', beat: '0', beatPerMeasure: '4', editorLane: 2 }],
-  };
-  const writes: { method: string; path: string; body: string }[] = [];
-  const unexpectedApiRequests: string[] = [];
+test('NORMAL의 Save As는 INFILTRATION을 제외하고 LIFTOFF 덮어쓰기 확인 후 기존 easy 행(UUID·리비전 3)에 save_chart로 저장한다', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', error => pageErrors.push(error.message));
-
-  // 모든 Supabase 요청은 로컬 응답으로 종료한다. 실제 DB/Storage 쓰기는 허용하지 않는다.
-  await page.route('**/*', async route => {
-    const request = route.request();
-    const url = new URL(request.url());
-    const path = url.pathname;
-    const method = request.method();
-    if (/^\/(rest|storage|auth)\/v1\//.test(path)) {
-      if (method === 'OPTIONS') { await route.fulfill({ status: 204 }); return; }
-      if (method !== 'GET') writes.push({ method, path, body: request.postData() ?? '' });
-      if (method === 'GET' && path.endsWith(`/songs/${songId}/normal.json`)) {
-        await route.fulfill({ json: chart }); return;
-      }
-      if (method === 'GET' && path.endsWith(`/songs/${songId}/normal.extra.json`)) {
-        await route.fulfill({ status: 404, json: { error: 'No extra chart' } }); return;
-      }
-      if (method === 'GET' && path === '/rest/v1/songs') {
-        await route.fulfill({ json: { title: chart.meta.title, artist: chart.meta.artist,
-          jacket_url: chart.meta.imageFile, timing: { bpmChanges: [{ beat: '0', bpm: 120 }],
-            timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 }, revision: 1, audio_url: null, duration: null, gameplay_start: null, gameplay_end: null } }); return;
-      }
-      if (method === 'GET' && path === '/rest/v1/charts') {
-        await route.fulfill({ json: [{ difficulty_label: 'normal' }, { difficulty_label: 'easy' }] }); return;
-      }
-      if (method === 'POST' && [
-        `/storage/v1/object/assets/songs/${songId}/easy.json`,
-        `/storage/v1/object/assets/songs/${songId}/easy.extra.json`,
-      ].includes(path)) {
-        await route.fulfill({ json: { Key: path.replace('/storage/v1/object/', '') } }); return;
-      }
-      if (method === 'POST' && path === '/rest/v1/charts') {
-        await route.fulfill({ status: 201, json: [] }); return;
-      }
-      unexpectedApiRequests.push(`${method} ${path}`);
-      await route.fulfill({ status: 500, json: { error: 'Unexpected offline test request' } }); return;
-    }
-    if (url.origin === new URL(baseURL!).origin && method === 'GET') {
-      await route.continue(); return;
-    }
-    await route.abort();
+  const dialogs: string[] = [];
+  page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
+  const editor = await openEditor(page, {
+    otherCharts: { easy: editorTestChart() },
+    songTiming: { bpmChanges: [{ beat: '0', bpm: 120 }],
+      timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 },
   });
-
-  await page.goto(`/editor?songId=${songId}&difficulty=normal`);
+  const writes = editor.supabaseWrites;
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
   await page.getByRole('button', { name: 'Save As', exact: true }).click();
   const target = page.getByLabel('Target Difficulty');
@@ -69,19 +26,17 @@ test('NORMAL의 Save As는 INFILTRATION을 제외하고 LIFTOFF 덮어쓰기 확
   expect(writes).toEqual([]);
 
   await page.getByRole('button', { name: 'Overwrite', exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`songId=${songId}&difficulty=easy$`));
-  expect(writes.map(write => `${write.method} ${write.path}`).sort()).toEqual([
-    'POST /rest/v1/charts',
-    `POST /storage/v1/object/assets/songs/${songId}/easy.extra.json`,
-    `POST /storage/v1/object/assets/songs/${songId}/easy.json`,
-  ]);
-  expect(JSON.parse(writes.find(write => write.path === '/rest/v1/charts')!.body)).toMatchObject({
-    song_id: songId, difficulty_label: 'easy', difficulty_level: 5,
-  });
+  await expect(page).toHaveURL(new RegExp(`songId=${EDITOR_TEST_SONG_ID}&difficulty=easy$`));
+  // 새 경로 두 곳에 올린 뒤 덮어쓰기 대상 행을 save_chart로 확정한다. create_chart·결정적 경로 덮어쓰기는 없다.
+  await expect.poll(() => writes.length).toBe(3);
+  expect(writes.slice(0, 2).every(write => write.method === 'POST' && (isChartUploadPath(write.path, 'easy') || isExtraUploadPath(write.path, 'easy')))).toBe(true);
+  expect(writes[2].path).toBe('/rest/v1/rpc/save_chart');
+  expect(JSON.parse(writes[2].body!)).toMatchObject({ p_chart_id: editorTestChartId('easy'), p_expected_revision: EDITOR_TEST_CHART_REVISION, p_difficulty_level: 5 });
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
   await page.getByRole('button', { name: 'Save As', exact: true }).click();
   await expect(target.locator('option[value="LIFTOFF"]')).toHaveJSProperty('disabled', true);
   await expect(target).toHaveValue('INFILTRATION');
-  expect(unexpectedApiRequests).toEqual([]);
+  expect(dialogs).toEqual([]);
+  expect(editor.unexpectedSupabaseRequests).toEqual([]);
   expect(pageErrors).toEqual([]);
 });

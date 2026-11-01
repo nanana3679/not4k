@@ -6,7 +6,8 @@
  * storage/
  * ├── songs/{song_id}/audio.ogg
  * ├── songs/{song_id}/jacket.jpg
- * ├── songs/{song_id}/{difficulty}.json
+ * ├── songs/{song_id}/{difficulty}.json             (charts 행의 경로가 NULL일 때)
+ * ├── songs/{song_id}/{difficulty}-{token}.json     (차트 저장이 올린 새 경로, RFD 0107)
  * └── tutorials/{phase}.ogg / {phase}.json
  */
 
@@ -44,6 +45,38 @@ export function songChartPath(songId: string, difficulty: string): string {
 
 export function songChartExtraPath(songId: string, difficulty: string): string {
   return `songs/${sanitize(songId, 'songId')}/${sanitize(difficulty, 'difficulty')}.extra.json`;
+}
+
+/** `charts` 행의 메인·보조 JSON 경로 열. NULL이면 기존 결정적 경로를 쓴다(RFD 0107). */
+export interface StoredChartAssetPaths {
+  chartPath: string | null;
+  chartExtraPath: string | null;
+}
+
+/** 읽을 메인·보조 JSON 경로. 행이 없거나 경로 열이 NULL이면 `songChartPath`·`songChartExtraPath`다. */
+export function resolveChartAssetPaths(
+  songId: string,
+  difficulty: string,
+  stored: StoredChartAssetPaths | null,
+): { chartPath: string; extraPath: string } {
+  return {
+    chartPath: stored?.chartPath ?? songChartPath(songId, difficulty),
+    extraPath: stored?.chartExtraPath ?? songChartExtraPath(songId, difficulty),
+  };
+}
+
+/**
+ * 차트 저장이 올릴 새 메인·보조 JSON 경로. 기존 객체를 덮지 않도록 저장마다 다른 토큰을 붙이며,
+ * 두 파일이 같은 저장에서 왔음을 알 수 있게 같은 토큰을 쓴다. 곡 삭제가 `songs/{song_id}`의 파일 목록으로
+ * 지우므로 하위 폴더를 만들지 않는다.
+ */
+export function newChartAssetPaths(
+  songId: string,
+  difficulty: string,
+  token: string,
+): { chartPath: string; extraPath: string } {
+  const base = `songs/${sanitize(songId, 'songId')}/${sanitize(difficulty, 'difficulty')}-${sanitize(token, 'token')}`;
+  return { chartPath: `${base}.json`, extraPath: `${base}.extra.json` };
 }
 
 export function songPreviewPath(songId: string, ext = 'wav'): string {

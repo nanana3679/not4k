@@ -40,6 +40,7 @@
 - `uploaded_by uuid` 컬럼 있음 (migration 200000, default `auth.uid()`)
 - `chart_path text`·`chart_extra_path text`는 nullable이다. NULL이면 기존 `songChartPath`·`songChartExtraPath`의 `songs/{소문자 song_id}/{소문자 difficulty_label}.json`·`.extra.json`을 쓴다. NULL은 보조 정보 없음 표시가 아니므로, 새 저장에서 보조 정보가 없으면 새 경로에 빈 보조 JSON을 올린다.
 - `revision bigint NOT NULL DEFAULT 0`은 저장 충돌 검사에 쓴다. 기존 `offset_ms` 열과 값은 유지하고 새 저장 함수는 이 사본을 쓰지 않는다(migration `20261101000000`).
+- 에디터 Save·Save As와 곡 선택의 새 차트 만들기(RFD 0107 PR4b)는 메인·보조 JSON을 새 경로에 먼저 올리고 `save_chart`·`create_chart`로 확정하며, 기존 `charts` 직접 upsert를 제거했다. `charts_insert_admin`·`charts_update_admin` 정책은 바꾸지 않았다. 차트 삭제는 기존 `charts_delete_admin`으로 행을 지운다.
 
 ## 곡·차트 저장 함수 (RFD 0107)
 
@@ -90,7 +91,9 @@ public.create_chart(
 | Save As의 기존 키 충돌 | `23505` | `charts_song_id_difficulty_label_key` (PostgreSQL 메시지는 고정하지 않음) |
 | 객체가 아닌 타이밍 | `23514` | `songs_timing_object` |
 
-`anon`은 함수 본문 진입 전 EXECUTE 권한 검사에서 `42501`로 거부되므로 메시지는 `admin_required`가 아니다. 직접 테이블을 갱신하는 기존 코드·정책은 리비전 증가를 강제하지 않는다. 곡 INSERT는 리비전 기본값을 사용해야 하며, 관리자 SQL로 과거 리비전·차트 UUID를 명시적으로 재사용하거나 시퀀스를 초기화하는 작업은 이 충돌 보호의 계약 밖이다. 이 PR은 DB 계약만 추가하며 앱 로더·저장 연결은 후속 PR이다. 연결 전에는 새 경로 저장과 기존 결정적 경로 로더를 함께 사용하지 않는다. 곡 타이밍이 NULL인 행은 후속 로더에서도 차트 JSON으로 폴백한다.
+`anon`은 함수 본문 진입 전 EXECUTE 권한 검사에서 `42501`로 거부되므로 메시지는 `admin_required`가 아니다. 직접 테이블을 갱신하는 기존 코드·정책은 리비전 증가를 강제하지 않는다. 곡 INSERT는 리비전 기본값을 사용해야 하며, 관리자 SQL로 과거 리비전·차트 UUID를 명시적으로 재사용하거나 시퀀스를 초기화하는 작업은 이 충돌 보호의 계약 밖이다. 앱 연결은 후속 PR에서 했다. 공용 로더(PR2)·곡 저장(PR4a)에 이어 PR4b에서 게임·에디터 로더가 `chart_path`·`chart_extra_path`를 읽게 한 뒤 차트 저장을 새 경로 업로드와 `save_chart`·`create_chart`로 바꿨다. 경로 열을 읽지 않는 이전 앱 빌드는 새 경로에 저장된 차트를 결정적 경로(이전 파일)로 읽으므로, 새 앱 배포 뒤에 차트를 저장한다. 곡 타이밍이 NULL인 행은 후속 로더에서도 차트 JSON으로 폴백한다.
+
+배포 시 새 앱을 배포하는 것만으로 열린 이전 빌드 탭의 쓰기가 차단되지는 않는다. 이전 탭은 결정적 경로 파일을 덮어쓰고 `charts_insert_admin`·`charts_update_admin` 정책으로 행을 직접 upsert할 수 있다. 행의 `chart_path`가 이미 새 경로를 가리키면 새 로더는 이 고정 경로 쓰기를 읽지 않아 이전 탭의 저장 내용이 보이지 않을 수 있으며, 직접 upsert는 리비전 충돌 검사도 거치지 않는다. 저장 전에 열린 에디터 탭을 모두 새 빌드로 다시 불러와야 한다. 최소 클라이언트 버전으로 쓰기를 차단하는 장치는 이번 변경에 없다.
 
 ## play_records
 
