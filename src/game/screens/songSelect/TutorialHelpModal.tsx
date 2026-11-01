@@ -10,17 +10,13 @@ import { TUTORIAL_OPPOSITE_HAND_BODY_LINE, getTutorialInputTimings } from './tut
 import type { TutorialPreviewPlayerProps } from './TutorialPreviewPlayer';
 import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, getTutorialSection, type TutorialSectionId } from './tutorialCatalog';
 import { findUnmetTutorialPracticeKeyRequirements, getTutorialKeyboardLabel, type TutorialKeyBindings } from './tutorialKeyboardLayout';
-import {
-  clearTutorialPassedIds,
-  addTutorialPassedId,
-  readTutorialPassedIdsFromStorage,
-  TUTORIAL_PASSED_STORAGE_KEY,
-} from './tutorialPassRecords';
+import type { TutorialPassRecordsView } from './useTutorialPassRecords';
 
 interface TutorialHelpModalProps {
   onClose: () => void;
   isAdmin?: boolean;
-  /** 이번 실습에서 항목 전체가 false → true로 통과했음을 브라우저 저장 시도 후 알린다. */
+  passRecords: TutorialPassRecordsView;
+  /** 이번 실습에서 항목 전체가 false → true로 통과했음을 기록 저장을 요청한 뒤 알린다. */
   onItemPassed?: (itemId: string) => void;
 }
 
@@ -42,17 +38,7 @@ interface TutorialPlayerTransition {
   phase: TutorialPageTransitionPhase;
 }
 
-function getTutorialPassStorage(): Storage | null {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: TutorialHelpModalProps) {
+export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed, passRecords }: TutorialHelpModalProps) {
   const [tutorialIndex, setTutorialIndex] = useState(0);
   const lastSectionIndexesRef = useRef<Record<TutorialSectionId, number>>({ basic: 0, advanced: TUTORIAL_SECTIONS[1].startIndex });
   const [visiblePlayerIndex, setVisiblePlayerIndex] = useState(0);
@@ -68,30 +54,12 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
   const nextPreviewSlotInstanceIdRef = useRef(1);
   const [textTransitionDirection, setTextTransitionDirection] =
     useState<TutorialPageTransitionDirection>('forward');
-  const [passedTutorialIds, setPassedTutorialIds] = useState<ReadonlySet<string>>(
-    () => readTutorialPassedIdsFromStorage(getTutorialPassStorage()),
-  );
-  const passedTutorialIdsRef = useRef(passedTutorialIds);
+  const passedTutorialIds = useMemo(() => new Set(passRecords.passedIds), [passRecords.passedIds]);
+  const { recordPass, resetGuest: resetPassedTutorials } = passRecords;
   const recordItemPassed = useCallback((itemId: string) => {
-    if (!passedTutorialIdsRef.current.has(itemId)) {
-      // React commit 전 완료 통지에도 같은 집합을 쓰며 통과한 순간에만 저장한다. 다른 탭의 통과를 지우지 않도록 최신 저장값과 합친다.
-      const next = addTutorialPassedId(getTutorialPassStorage(), passedTutorialIdsRef.current, itemId);
-      passedTutorialIdsRef.current = next;
-      setPassedTutorialIds(next);
-    }
+    recordPass(itemId);
     onItemPassed?.(itemId);
-  }, [onItemPassed]);
-  // 다른 탭에서 통과하거나 기록을 지우면 이 모달의 표시도 맞춘다.
-  useEffect(() => {
-    const syncFromOtherTab = (event: StorageEvent) => {
-      if (event.key !== null && event.key !== TUTORIAL_PASSED_STORAGE_KEY) return;
-      const latest = readTutorialPassedIdsFromStorage(getTutorialPassStorage());
-      passedTutorialIdsRef.current = latest;
-      setPassedTutorialIds(latest);
-    };
-    window.addEventListener('storage', syncFromOtherTab);
-    return () => window.removeEventListener('storage', syncFromOtherTab);
-  }, []);
+  }, [onItemPassed, recordPass]);
   const settings = useGameStore((state) => state.settings);
   const settingsOpen = useGameStore((state) => state.settingsOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
@@ -121,7 +89,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
     getTutorialPreviewSlotReadyKey(activePlayerSlot, visiblePlayerIndex, activePreviewInstanceId),
   );
   const isPlayerDriverVisible = activePreviewReady && !isClosing;
-  const canResetPassed = import.meta.env.DEV || isAdmin;
+  const canResetPassed = passRecords.isGuest && (import.meta.env.DEV || isAdmin);
 
   const cancelScheduledTransitionStart = useCallback(() => {
     for (const frameId of transitionFrameIdsRef.current) {
@@ -208,12 +176,6 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
       onClose();
     }, TUTORIAL_MODAL_CLOSE_MS);
   }, [cancelScheduledTransitionStart, isClosing, onClose]);
-
-  const resetPassedTutorials = useCallback(() => {
-    clearTutorialPassedIds(getTutorialPassStorage());
-    passedTutorialIdsRef.current = new Set();
-    setPassedTutorialIds(passedTutorialIdsRef.current);
-  }, []);
 
   const handlePreviewSlotReady = useCallback((
     readySlotId: TutorialPreviewSlotId,

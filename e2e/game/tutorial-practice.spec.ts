@@ -81,7 +81,7 @@ for (const inputOffsetMs of [0, -200, 200]) {
     await expect(condition.getByLabel('충족')).toHaveText('✓');
     await expect(player).toHaveAttribute('data-tutorial-paused', 'true');
     await expect(item.getByLabel('Passed tutorial')).toHaveText('✓');
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-tutorial-passed-ids') ?? '[]')))
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-tutorial-pass-state')!).guestIds))
       .toEqual(['single-note']);
     await expect(dialog.locator('[data-tutorial-index-item="single-note"]')).toHaveAttribute('aria-current', 'step');
     await dialog.getByRole('button', { name: '다음', exact: true }).click();

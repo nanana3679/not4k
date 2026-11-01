@@ -10,6 +10,7 @@ const test = base.extend<{ previewErrors: string[] }>({
 });
 
 const PASSED_KEY = 'not4k-tutorial-passed-ids';
+const PASS_STATE_KEY = 'not4k-tutorial-pass-state';
 const BASIC_IDS = [
   'hand-placement',
   'single-note',
@@ -230,7 +231,7 @@ test.describe('Tutorial level tabs', () => {
     await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(0);
     await selectTab(dialog, 'Basic');
     await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(0);
-    expect(await page.evaluate(key => localStorage.getItem(key), PASSED_KEY)).toBeNull();
+    expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).guestIds, PASS_STATE_KEY)).toEqual([]);
     expect(await page.evaluate(() => localStorage.getItem('not4k-tutorial-viewed-ids'))).toBe('["hand-placement"]');
     expect(await page.evaluate(() => localStorage.getItem('not4k-settings'))).toBe(settingsBeforeReset);
     await dialog.getByRole('button', { name: 'Close tutorial help' }).click();
@@ -248,8 +249,10 @@ test.describe('Tutorial level tabs', () => {
     await initial.getByRole('button', { name: 'Close tutorial help' }).click();
     await expect(initial).toBeHidden();
     const passedIds = ['single-note', ...removedIds, 'advanced-recovery'];
-    await page.evaluate(({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)), {
-      key: PASSED_KEY, ids: passedIds,
+    await page.evaluate(({ key, ids }) => localStorage.setItem(key, JSON.stringify({
+      guestIds: ids, accountPassedIdsByUser: {}, pendingHandoff: null,
+    })), {
+      key: PASS_STATE_KEY, ids: passedIds,
     });
     await page.getByRole('button', { name: 'Open tutorial help' }).click();
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
@@ -259,7 +262,7 @@ test.describe('Tutorial level tabs', () => {
     for (const id of removedIds) await expect(dialog.locator(`[data-tutorial-index-item="${id}"]`)).toHaveCount(0);
     await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(1);
     await expect(dialog.locator('[data-tutorial-index-item="advanced-recovery"]')).toHaveAttribute('data-tutorial-index-passed', 'true');
-    expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? '[]'), PASSED_KEY)).toEqual(passedIds);
+    expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).guestIds, PASS_STATE_KEY)).toEqual(passedIds);
   });
 
   test('탭 키보드 화살표는 lesson window handler와 중복되지 않고 탭 내부 포커스를 이동한다', async ({ page }) => {
