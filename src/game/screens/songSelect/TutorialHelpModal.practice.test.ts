@@ -665,6 +665,10 @@ it('준비 중 직접 입력을 고르면 실제 player가 재생을 시작할 �
   }
   vi.advanceTimersByTime(300);
   practice = render();
+  expect(practice.state?.lastFinishedPattern).toBeNull();
+  expect(practice.progress).toEqual({ current: 0, required: 3 });
+  vi.advanceTimersByTime(lesson.loopMs - 1550 + 50);
+  practice = render();
   expect(practice.state?.lastFinishedPattern).toMatchObject({ countable: true, succeeded: true });
   expect(practice.progress).toEqual({ current: 1, required: 3 });
 });
@@ -699,10 +703,10 @@ it.each([
     const down = new Event('keydown', { cancelable: true });
     Object.defineProperties(down, { code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false } });
     window.dispatchEvent(down);
-    vi.advanceTimersByTime(850);
-  } else vi.advanceTimersByTime(1000);
+    vi.advanceTimersByTime(props.preview.loopMs - 750 + 100);
+  } else vi.advanceTimersByTime(props.preview.loopMs - 600 + 100);
   expect(onPatternFinished).toHaveBeenCalledTimes(1);
-  expect(onPatternFinished.mock.calls[0][0]).toMatchObject({ iteration: 0, result: {
+  expect(onPatternFinished.mock.calls[0][0]).toMatchObject({ iteration: 0, modeSwitchedDuringPattern: true, result: {
     score: { judgmentCounts: { perfect: 2, miss: 1 } },
   } });
   expect(onPatternStarted.mock.calls).toEqual([[0], [1]]);
@@ -736,7 +740,7 @@ it('실제 player는 +100ms offset으로 150ms E를 Perfect로 판정하고 완�
   window.dispatchEvent(down);
   vi.advanceTimersByTime(150);
   expect(onScoreChanged).toHaveBeenCalledWith(expect.objectContaining({ processedNotes: 1, judgmentCounts: expect.objectContaining({ perfect: 1 }) }), 1);
-  vi.advanceTimersByTime(1400);
+  vi.advanceTimersByTime(props.preview.loopMs - 300 + 100);
   expect(onPatternFinished).toHaveBeenCalledTimes(1);
   expect(onPatternStarted).toHaveBeenCalledTimes(1);
   vi.advanceTimersByTime(5000);
