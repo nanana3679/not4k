@@ -24,7 +24,7 @@ export type ObserverPlayPhase = 'loading' | 'playing' | 'paused' | 'error';
 export interface ObserverPlayState {
   readonly autoEnabled: boolean;
   readonly manualStats: ObserverManualStats | null;
-  /** 구간 편집 후 재생 대기 중에는 A 위치. 그 밖에는 출력 지연을 반영한 곡 시각(첫 출력 전 음수 허용). */
+  /** 표시 위치: 구간 편집 뒤에는 A, 정지 스크롤 중에는 이동한 시각. 재생 중 첫 출력 전 음수 허용. */
   readonly songTimeMs: number;
   readonly range: ObserverRange | null;
   /** playbackRange를 적용한 실제 재생 음원의 길이. 원본 AudioBuffer 길이와 다를 수 있다. */
@@ -63,6 +63,8 @@ export class ObserverPlayRuntime {
   /** 전곡의 미판정 상태를 한 번 보관한다. 모든 선택 범위가 같은 source id를 쓰므로 정지 미리보기에 재사용한다. */
   private initialSnapshot: ExplicitJudgmentSnapshot | null = null;
   private rangePreview: { chart: ExplicitCompiledChart; songTimeMs: number; autoEnabled: boolean } | null = null;
+  /** 정지한 곡 시각(구간 편집 뒤에는 A) 기준의 표시 전용 이동량. 세션과 오디오는 움직이지 않는다. */
+  private viewOffsetMs = 0;
   private lastFrame: number | null = null;
   private readonly onPausedKey = () => {
     if (this.closed || !this.paused || !this.repetition) return;
@@ -84,6 +86,24 @@ export class ObserverPlayRuntime {
   /** 음원 로딩 완료 전에는 null. 로딩 뒤에는 마지막으로 선택한 불변 구간(ms)이다. */
   get range(): ObserverRange | null { return this.selectedRange; }
 
+  /** 현재 렌더러의 논리 px/ms. 화면은 CSS 높이를 논리 높이로 환산한 뒤 이 값으로 나눈다. */
+  get viewPixelsPerMs(): number { return (this.renderer?.scrollSpeed ?? 0) / 1000; }
+
+  private get displayedSongTimeMs(): number {
+    return (this.rangePreview?.songTimeMs ?? this.clock!.judgmentTimeMs()) + this.viewOffsetMs;
+  }
+
+  /** 정지 중 표시만 이동한다. 양수는 나중 시각이며 드래그 중에는 A 미리보기가 우선한다. */
+  scrollView(deltaMs: number): void {
+    if (this.closed || !this.paused || this.editingRange || !this.clock || !this.audio
+      || !Number.isFinite(deltaMs) || deltaMs === 0) return;
+    try {
+      const baseMs = this.rangePreview?.songTimeMs ?? this.clock.judgmentTimeMs();
+      this.viewOffsetMs = Math.max(0, Math.min(this.audio.duration, this.displayedSongTimeMs + deltaMs)) - baseMs;
+      this.render(0, true);
+    } catch (error) { this.fail(error); }
+  }
+
   async start(): Promise<void> {
     if (this.closed || this.started) return;
     this.started = true;
@@ -97,7 +117,8 @@ export class ObserverPlayRuntime {
       this.replaceRepetition();
       this.initialSnapshot = this.repetition!.session.snapshot;
       renderer.setExplicitChart(this.repetition!.playbackChart, explicitSkin,
-        () => this.rangePreview ? { ...this.initialSnapshot!, atMs: this.rangePreview.songTimeMs }
+        // 스크롤로 이미 처리한 패턴도 살펴볼 수 있게 표시만 미판정 상태로 바꾼다.
+        () => this.rangePreview || this.viewOffsetMs !== 0 ? { ...this.initialSnapshot!, atMs: this.displayedSongTimeMs }
           : this.repetition!.session.snapshot, this.options.request.document, audio.duration);
       const { settings } = this.options;
       renderer.scrollSpeed = settings.scrollSpeed;
@@ -142,6 +163,7 @@ export class ObserverPlayRuntime {
   togglePause(): void {
     if (this.closed || this.editingRange || !this.input || !this.audio || !this.clock || !this.repetition) return;
     try {
+      this.viewOffsetMs = 0;
       if (this.paused && this.rangePreview) {
         if (this.hasRangeChanged()) {
           this.restartRepetition();
@@ -180,6 +202,7 @@ export class ObserverPlayRuntime {
   beginRangeEdit(): void {
     if (this.closed || this.editingRange || !this.input || !this.audio || !this.clock || !this.repetition) return;
     try {
+      this.viewOffsetMs = 0;
       if (!this.paused) {
         const timestamp = performance.now();
         this.audio.pause();
@@ -209,8 +232,13 @@ export class ObserverPlayRuntime {
     if (!this.paused) throw new Error('구간은 편집 또는 일시정지 중에만 변경할 수 있습니다');
     planObserverFadedSpan(range, this.audio.duration, this.audio.playbackRate);
     const previous = this.selectedRange!;
-    if (range.startMs === previous.startMs && range.endMs === previous.endMs) return;
     try {
+      const hadOffset = this.viewOffsetMs !== 0;
+      this.viewOffsetMs = 0;
+      if (range.startMs === previous.startMs && range.endMs === previous.endMs) {
+        if (hadOffset) this.render(0, true);
+        return;
+      }
       const chart = selectExplicitRangePlaybackChart(this.options.request.compiled, range.startMs, range.endMs);
       // 끝 핸들만 바꾼 첫 드래그도 선택 시작점을 본다. 직전 재생 위치를 미리보기 기준으로 남기지 않는다.
       const songTimeMs = range.startMs;
@@ -231,9 +259,14 @@ export class ObserverPlayRuntime {
   }
 
   setAuto(enabled: boolean): void {
-    if (this.closed || !this.input || !this.clock || !this.repetition
-      || (this.rangePreview?.autoEnabled ?? this.repetition.autoEnabled) === enabled) return;
+    if (this.closed || !this.input || !this.clock || !this.repetition) return;
     try {
+      const hadOffset = this.viewOffsetMs !== 0;
+      this.viewOffsetMs = 0;
+      if ((this.rangePreview?.autoEnabled ?? this.repetition.autoEnabled) === enabled) {
+        if (hadOffset) this.render(0, true);
+        return;
+      }
       if (this.rangePreview) {
         this.rangePreview.autoEnabled = enabled;
         this.render(0, true);
@@ -257,6 +290,7 @@ export class ObserverPlayRuntime {
   }
 
   private restartRepetition(): void {
+    this.viewOffsetMs = 0;
     this.input!.setJudging(false); // 이전 반복의 미처리 입력은 새 시간축으로 넘기지 않는다.
     this.replaceRepetition();
     this.rangePreview = null;
@@ -335,7 +369,7 @@ export class ObserverPlayRuntime {
         : repetition.manualStats;
     renderer.updateCombo(manualStats?.combo ?? 0);
     renderer.updateAccuracy(manualStats?.achievementRate ?? null);
-    const songTimeMs = preview?.songTimeMs ?? this.clock!.judgmentTimeMs();
+    const songTimeMs = this.displayedSongTimeMs;
     renderer.renderFrame(songTimeMs + this.options.settings.visualOffsetMs * this.audio!.playbackRate, deltaMs);
     const timestamp = performance.now();
     const stateChanged = autoEnabled !== this.lastState?.autoEnabled

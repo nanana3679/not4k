@@ -187,6 +187,56 @@ test('1.2초 이후 Esc로 일시정지하고 다시 Esc를 누르면 되감기 
   await exitObserver(page, fixture);
 });
 
+test('수동 연습을 3초 이후 멈추고 휠로 2초 뒤를 보면 음원은 정지하며 Play는 원래 위치에서 집계를 이어간다', async ({ page }) => {
+  const fixture = await openObserverSong(page, {}, minimapDocument());
+  await enterObserver(page);
+  const manualSpan = await startManualHold(page);
+  try {
+    await waitAt(page, 3000);
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await expect(page.getByTestId('observer-screen')).toHaveAttribute('data-phase', 'paused');
+    const paused = await probe(page);
+    const minimap = await readMinimap(page);
+    expect(paused.audioPlaying).toBe(false);
+    expect(paused.audioPositionMs).toBeGreaterThanOrEqual(3000);
+    expect(paused.hud.at(-1)!.span).toBe(manualSpan);
+    expect(paused.hud.at(-1)!.combo).toBeGreaterThan(0);
+    expect(paused.hud.at(-1)!.accuracy).toBeGreaterThan(0);
+
+    // openNormalSong은 scrollSpeed=200 논리 px/s, 논리 높이=600을 사용한다.
+    // 노트 필드 중앙에서 실제 휠을 위로 돌려 400 논리 px(곡 시간 2000ms)를 이동한다.
+    const field = page.locator('.observer-screen__field');
+    const height = await field.evaluate(element => element.clientHeight);
+    const box = (await field.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, -400 * height / 600);
+    // mouse.wheel은 이벤트 처리를 기다리지 않으므로 실제 렌더 호출을 관찰한다.
+    await expect.poll(async () => Math.abs((await probe(page)).renderedTimeMs - paused.renderedTimeMs - 2000)).toBeLessThan(1);
+    await expect.poll(async () => Math.abs((await readMinimap(page)).positionMs - minimap.positionMs - 2000)).toBeLessThan(1);
+    await waitFrames(page);
+    const scrolled = await probe(page);
+    expect(scrolled).toMatchObject({ audioPlaying: false, audioPositionMs: paused.audioPositionMs,
+      fadedSpans: paused.fadedSpans, resumes: paused.resumes, sourceStarts: paused.sourceStarts, hud: paused.hud });
+    expect(await readMinimap(page)).toMatchObject({ startMs: minimap.startMs, endMs: minimap.endMs });
+
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await expectObserverPlaying(page);
+    const resumed = await probe(page);
+    expect(resumed.resumes).toEqual([...paused.resumes, paused.audioPositionMs]);
+    expect(resumed.fadedSpans).toEqual(paused.fadedSpans);
+    expect(resumed.preparations).toEqual(paused.preparations);
+    expect(resumed.sourceStarts).toHaveLength(paused.sourceStarts.length + 1);
+    expect(resumed.sourceStarts.at(-1)!.offset).toBeCloseTo(paused.audioPositionMs / 1000, 6);
+    await expect.poll(async () => (await probe(page)).hud.some(update =>
+      update.span === manualSpan && update.combo > paused.hud.at(-1)!.combo)).toBe(true);
+    const continued = await probe(page);
+    expect(continued.hud.slice(paused.hud.length).every(update =>
+      update.span === manualSpan && update.combo >= paused.hud.at(-1)!.combo && (update.accuracy ?? 0) > 0)).toBe(true);
+    expect(continued.rendererDisposals).toBe(paused.rendererDisposals);
+  } finally { await page.keyboard.up('KeyQ'); }
+  await exitObserver(page, fixture);
+});
+
 test('Exit는 선택한 2번째 곡·normal 난이도로 리절트·Supabase 쓰기 없이 복귀하고 재진입은 Auto On이다', async ({ page }) => {
   const fixture = await openObserverSong(page);
   // 첫 곡·첫 난이도로 돌아가는 잘못된 복원을 잡기 위해 선택 대상을 각각 2번째에 둔다.

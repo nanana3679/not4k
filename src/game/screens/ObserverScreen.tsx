@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { color, primitives } from '../../shared/theme';
 import { useGameStore } from '../stores';
+import { GAME_HEIGHT } from '../renderer/constants';
 import { OBSERVER_MINIMAP_EDGE_MARGIN, OBSERVER_MINIMAP_WIDTH } from '../observer/observerMinimapGeometry';
 import { ObserverPlayRuntime } from './ObserverPlayRuntime';
 import type { ObserverPlayPhase, ObserverPlayState } from './ObserverPlayRuntime';
@@ -23,6 +24,7 @@ export function ObserverScreen() {
 
   useEffect(() => {
     if (!request || !canvas.current || !field.current) return;
+    const noteField = field.current;
     // Esc는 React의 다음 render를 기다리지 않고 실제 runtime phase로 판단한다(#276).
     let currentPhase: ObserverPlayPhase = 'loading';
     const settings = useGameStore.getState().settings;
@@ -48,11 +50,25 @@ export function ObserverScreen() {
       event.preventDefault();
       player.togglePause();
     };
+    const onWheel = (event: WheelEvent) => {
+      if (runtime.current !== player || currentPhase !== 'paused') return;
+      event.preventDefault();
+      const height = noteField.clientHeight;
+      const pixelsPerMs = player.viewPixelsPerMs;
+      if (height <= 0 || pixelsPerMs <= 0) return;
+      // 픽셀 입력은 화면과 1:1, 줄은 16 CSS px, 페이지는 필드 높이로 환산한다.
+      // 100px 휠은 600px 화면의 약 1/6 이동. 에디터처럼 위(deltaY<0)가 나중 시각이다.
+      const unitPx = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? height : 1;
+      player.scrollView(-event.deltaY * unitPx * GAME_HEIGHT / height / pixelsPerMs);
+    };
     runtime.current = player;
     window.addEventListener('keydown', onKeyDown);
+    // 버튼·미니맵은 field의 형제이므로 이 리스너를 거치지 않는다.
+    noteField.addEventListener('wheel', onWheel, { passive: false });
     void player.start();
     return () => {
       window.removeEventListener('keydown', onKeyDown);
+      noteField.removeEventListener('wheel', onWheel);
       if (runtime.current === player) { runtime.current = null; laneKeys.current = null; player.dispose(); }
     };
   }, [request]);

@@ -137,6 +137,151 @@ function expectKeys(pressed: boolean) {
   expect(renderer.setKeyBeam.mock.calls.filter(call => call[0] === 1).at(-1)).toEqual([1, pressed]);
 }
 
+describe('ObserverPlayRuntime 정지 자유 스크롤', () => {
+  it('1000ms 정지에서 +1500ms 스크롤은 즉시 2500ms를 표시·알림하고 양끝은 0·4000ms로 제한한다', async () => {
+    const run = create(); await run.player.start(); frame(1000); run.player.togglePause();
+    const audio = fixture.audio[0]; const renderer = fixture.renderers[0];
+    const range = run.player.range;
+    expect(run.player.viewPixelsPerMs).toBe(run.config.scrollSpeed / 1000);
+    renderer.scrollSpeed = 1200;
+    expect(run.player.viewPixelsPerMs).toBe(1.2);
+    for (const [delta, expected] of [[1500, 2500], [10000, 4000], [-10000, 0], [250, 250]]) {
+      run.onState.mockClear();
+      run.player.scrollView(delta);
+      expect(renderer.renderFrame).toHaveBeenLastCalledWith(expected, 0);
+      expect(run.onState).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ songTimeMs: expected }));
+      expect(audio.currentTimeMs).toBe(1000); expect(audio.running).toBe(false);
+      expect(run.player.range).toBe(range);
+    }
+    // 같은 벽시각의 연속 조작도 100ms throttle을 기다리지 않는다.
+    expect(audio.playFadedSpan).toHaveBeenCalledOnce(); expect(audio.resume).not.toHaveBeenCalled();
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('재생 중·구간 드래그 중 +2000ms 스크롤은 화면·알림·오디오를 바꾸지 않는다', async () => {
+    const run = create(); run.player.scrollView(2000); await run.player.start(); frame(1000);
+    const renderer = fixture.renderers[0]; const audio = fixture.audio[0];
+    for (const dragging of [false, true]) {
+      if (dragging) run.player.beginRangeEdit();
+      const state = run.state(); const rendered = renderer.renderFrame.mock.calls.length;
+      run.onState.mockClear(); run.player.scrollView(2000);
+      expect(run.onState).not.toHaveBeenCalled();
+      expect(renderer.renderFrame).toHaveBeenCalledTimes(rendered);
+      expect(audio.currentTimeMs).toBe(1000); expect(audio.running).toBe(!dragging);
+      expect(state.songTimeMs).toBe(dragging ? 0 : 1000);
+    }
+    run.player.endRangeEdit(); run.onState.mockClear();
+    for (const delta of [NaN, Infinity, -Infinity, 0]) run.player.scrollView(delta);
+    expect(run.onState).not.toHaveBeenCalled();
+    run.player.dispose(); run.player.scrollView(2000);
+    expect(run.onState).not.toHaveBeenCalled(); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('수동 콤보 1의 1500ms 정지에서 +2000ms 스크롤 후 Play는 같은 세션·집계로 1500ms를 재개하고 2000ms 입력은 콤보 2다', async () => {
+    const advance = vi.spyOn(ExplicitJudgmentSession.prototype, 'advance');
+    const attach = vi.spyOn(ExplicitSessionRendererAdapter.prototype, 'attach');
+    const run = create(); await run.player.start(); run.player.setAuto(false);
+    at(1000); key(run.target, 'keydown'); frame(1000); key(run.target, 'keyup');
+    frame(1500); run.player.togglePause();
+    const session = advance.mock.contexts.at(-1) as ExplicitJudgmentSession;
+    const paused = session.snapshot; const facts = [...session.facts]; const stats = run.state().manualStats;
+    expect(stats).toEqual({ combo: 1, achievementRate: 100 });
+    advance.mockClear();
+    run.player.scrollView(2000); wallFrame(10000);
+    expect(advance).not.toHaveBeenCalled(); expect(session.snapshot).toEqual(paused); expect(session.facts).toEqual(facts);
+    expect(run.state().manualStats).toEqual(stats);
+    run.player.togglePause();
+    const audio = fixture.audio[0];
+    expect(audio.resume).toHaveBeenCalledOnce(); expect(audio.currentTimeMs).toBe(1500);
+    expect(audio.playFadedSpan).toHaveBeenCalledOnce(); expect(attach).toHaveBeenCalledOnce();
+    expect(run.state()).toMatchObject({ songTimeMs: 1500, manualStats: stats });
+    expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(1500, 0);
+    at(2000); key(run.target, 'keydown'); frame(2000);
+    expect(advance.mock.contexts.at(-1)).toBe(session);
+    expect(run.state().manualStats).toEqual({ combo: 2, achievementRate: 100 });
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('1000ms Perfect 뒤 500ms로 되돌려 보면 처리된 노트가 보이고 Play는 원래 성공 판정을 유지한다', async () => {
+    const run = create(); await run.player.start(); frame(1000); run.player.togglePause();
+    expect(snapshot().items[0].state).toBe('success');
+    run.player.scrollView(-500);
+    const notes = new ExplicitNotePresenter(run.request.compiled, buildExplicitSkinView('/')).present(snapshot(),
+      { judgmentLineY: 426, scrollSpeed: 200, laneAreaX: 20, height: 600 }, 500);
+    expect(notes[0].layers.every(layer => layer.visible && layer.inViewport)).toBe(true);
+    run.player.togglePause();
+    expect(snapshot().items[0].state).toBe('success');
+    expect(run.state().songTimeMs).toBe(1000); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('5000～8000ms 편집 후 +2000ms 스크롤은 7000ms를 보여도 Play는 준비 시작 2000ms에서 새 시도를 연다', async () => {
+    const run = create([p(6000)], {}, 12); await run.player.start();
+    run.player.beginRangeEdit(); run.player.setRange({ startMs: 5000, endMs: 8000 }); run.player.endRangeEdit();
+    run.player.scrollView(2000);
+    expect(run.state().songTimeMs).toBe(7000);
+    expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(7000, 0);
+    expect(snapshot().atMs).toBe(7000);
+    run.player.togglePause();
+    expect(fixture.audio[0].playFadedSpan).toHaveBeenLastCalledWith(
+      { fromMs: 2000, fadeInUntilMs: 5000, fadeOutFromMs: 8000, toMs: 11000 }, 2000);
+    expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledTimes(2);
+    expect(fixture.audio[0].resume).not.toHaveBeenCalled();
+    expect(run.state().songTimeMs).toBe(2000); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('1500ms 정지에서 +2000ms 스크롤 후 Retry는 0ms, 다음 4000ms 자연 반복도 0ms를 표시한다', async () => {
+    const run = create(); await run.player.start(); frame(1500); run.player.togglePause(); run.player.scrollView(2000);
+    run.player.retry();
+    expect(run.state().songTimeMs).toBe(0);
+    expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(0, 0);
+    frame(4000);
+    expect(run.state().songTimeMs).toBe(0);
+    expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(0, 0);
+    expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledTimes(3);
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('1500ms 정지·5000ms 구간 미리보기에서 +2000ms 스크롤 후 setAuto(false)는 각각 1500·5000ms로 돌아간다', async () => {
+    const run = create([p(6000)], {}, 12); await run.player.start(); frame(1500); run.player.togglePause();
+    for (const preview of [false, true]) {
+      if (preview) run.player.setRange({ startMs: 5000, endMs: 8000 });
+      // 같은 Auto 값으로 다시 호출해도 표시만 복귀하며 새 시도를 만들지 않는다.
+      for (const enabled of [false, false, true]) {
+        run.player.scrollView(2000); run.player.setAuto(enabled);
+        expect(run.state().songTimeMs).toBe(preview ? 5000 : 1500);
+        expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(preview ? 5000 : 1500, 0);
+        expect(fixture.audio[0].running).toBe(false);
+        expect(fixture.audio[0].currentTimeMs).toBe(1500);
+      }
+    }
+    expect(fixture.audio[0].playFadedSpan).toHaveBeenCalledOnce(); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('1500ms 정지에서 +2000ms 스크롤 후 구간 편집은 A=0ms로, 새 5000～8000ms 선택은 A=5000ms로 돌아간다', async () => {
+    const run = create([p(6000)], {}, 12); await run.player.start(); frame(1500); run.player.togglePause();
+    run.player.scrollView(2000); run.player.beginRangeEdit(); run.player.endRangeEdit();
+    expect(run.state().songTimeMs).toBe(0);
+    run.player.scrollView(2000); run.player.setRange({ startMs: 5000, endMs: 8000 });
+    expect(run.state().songTimeMs).toBe(5000);
+    run.player.scrollView(2000); run.player.setRange({ startMs: 5000, endMs: 8000 });
+    expect(run.state().songTimeMs).toBe(5000);
+    expect(fixture.audio[0].currentTimeMs).toBe(1500); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('출력 지연 30ms·시각 +70ms에서 +2000ms 스크롤하면 알림은 3500ms·화면은 3570ms이고 Play는 1570ms로 돌아간다', async () => {
+    fixture.latency = 30;
+    const run = create(undefined, { visualOffsetMs: 70 }); await run.player.start(); frame(1500); run.player.togglePause();
+    run.player.scrollView(2000);
+    expect(run.state().songTimeMs).toBe(3500);
+    expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(3570, 0);
+    expect(fixture.audio[0].currentTimeMs).toBe(1530);
+    run.player.togglePause();
+    expect(run.state().songTimeMs).toBe(1500);
+    expect(fixture.renderers[0].renderFrame).toHaveBeenLastCalledWith(1570, 0);
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+});
+
 describe('ObserverPlayRuntime 전곡 반복', () => {
   it('설정 1.5배속·원본 16초의 8～12초 구간에 진입하면 Auto·1배속으로 {0,0,4000,4000}을 즉시 재생한다', async () => {
     const range = { startTime: 8, endTime: 12, fadeInTime: .2, fadeOutTime: .3 };

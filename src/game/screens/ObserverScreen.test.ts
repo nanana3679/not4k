@@ -13,6 +13,7 @@ const harness = vi.hoisted(() => ({ cursor: 0, slots: [] as unknown[], effects: 
 class FakeRuntime {
   start = vi.fn(async () => { this.options.onPhase('loading'); });
   dispose = vi.fn(); togglePause = vi.fn(); retry = vi.fn(); setAuto = vi.fn();
+  scrollView = vi.fn(); viewPixelsPerMs = .8;
   constructor(readonly options: ObserverPlayRuntimeOptions) { harness.players.push(this); }
 }
 
@@ -59,8 +60,14 @@ function render() {
   const tree = ObserverScreen();
   const html = renderToStaticMarkup(tree);
   const buttons = new Map<string, ElementProps>();
+  let field!: EventTarget & { clientHeight: number };
+  const fieldChildren: unknown[] = [];
   visit(tree, (type, props) => {
-    if (props.ref) props.ref.current = { clientWidth: 1200, clientHeight: 650 };
+    if (props.ref) props.ref.current ??= Object.assign(new EventTarget(), { clientWidth: 1200, clientHeight: 650 });
+    if (props.className === 'observer-screen__field') {
+      field = props.ref!.current as typeof field;
+      visit(props.children, childType => fieldChildren.push(childType));
+    }
     if (type === 'button') buttons.set(props['aria-label'] ?? String(props.children), props);
   });
   for (const commit of harness.effects.splice(0)) commit();
@@ -68,7 +75,7 @@ function render() {
     expect(buttons.has(name), `button ${name}`).toBe(true);
     return buttons.get(name)!;
   };
-  return { html, button, click(name: string) {
+  return { html, button, field, fieldChildren, click(name: string) {
     const props = button(name);
     expect(props.disabled).not.toBe(true);
     props.onClick!({} as Parameters<NonNullable<typeof props.onClick>>[0]);
@@ -88,6 +95,9 @@ function playing() {
 function key(type: 'keydown' | 'keyup', code: string, repeat = false) {
   return Object.assign(new Event(type, { cancelable: true }), { code, repeat });
 }
+function wheel(deltaY: number, deltaMode = 0) {
+  return Object.assign(new Event('wheel', { cancelable: true, bubbles: true }), { deltaY, deltaMode });
+}
 function unmount() {
   for (const cleanup of harness.cleanups.values()) cleanup();
   harness.cleanups.clear();
@@ -100,6 +110,71 @@ beforeEach(() => {
   openObserver();
 });
 afterEach(() => { unmount(); vi.unstubAllGlobals(); useGameStore.setState(useGameStore.getInitialState(), true); });
+
+describe('ObserverScreen 정지 휠', () => {
+  it('loading·playing·error에서는 −130px 휠을 무시하고 paused 콜백 직후에는 +150ms 이동과 preventDefault를 실행한다', () => {
+    const page = render(); const player = harness.players[0];
+    for (const phase of ['loading', 'playing', 'error', 'paused', 'playing'] as const) {
+      player.options.onPhase(phase);
+      const event = wheel(-130);
+      player.scrollView.mockClear(); page.field.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(phase === 'paused');
+      if (phase === 'paused') expect(player.scrollView).toHaveBeenCalledExactlyOnceWith(150);
+      else expect(player.scrollView).not.toHaveBeenCalled();
+    }
+  });
+
+  it('높이 650px에서 +130px 휠은 800px/s일 때 −150ms·1200px/s일 때 −100ms이고 높이 1300px에서는 −50ms다', () => {
+    const player = playing(); const page = render(); player.options.onPhase('paused');
+    page.field.dispatchEvent(wheel(130));
+    expect(player.scrollView).toHaveBeenLastCalledWith(-150);
+    player.viewPixelsPerMs = 1.2;
+    page.field.dispatchEvent(wheel(130));
+    expect(player.scrollView).toHaveBeenLastCalledWith(-100);
+    page.field.clientHeight = 1300;
+    page.field.dispatchEvent(wheel(130));
+    expect(player.scrollView).toHaveBeenLastCalledWith(-50);
+  });
+
+  it('높이 600px·800px/s에서 −3줄 휠은 +60ms, +1페이지 휠은 −750ms로 환산한다', () => {
+    const player = playing(); const page = render(); player.options.onPhase('paused'); page.field.clientHeight = 600;
+    page.field.dispatchEvent(wheel(-3, 1));
+    expect(player.scrollView).toHaveBeenLastCalledWith(60);
+    page.field.dispatchEvent(wheel(1, 2));
+    expect(player.scrollView).toHaveBeenLastCalledWith(-750);
+  });
+
+  it('휠은 canvas 필드에만 연결하고 미니맵·버튼·window를 제외하며 unmount 뒤 −130px 입력은 무시한다', () => {
+    const player = playing(); player.options.onPhase('paused');
+    player.options.onState!({ autoEnabled: true, manualStats: null, songTimeMs: 1000,
+      range: { startMs: 0, endMs: 4000 }, durationMs: 4000 });
+    const page = render();
+    expect(page.fieldChildren).toEqual(['canvas']);
+    expect(page.html).toContain('</canvas></div><div class="observer-minimap"');
+    for (const name of ['Auto', 'Play', 'Retry', 'Exit']) expect(page.button(name).onWheel).toBeUndefined();
+    const outside = wheel(-130); window.dispatchEvent(outside);
+    expect(outside.defaultPrevented).toBe(false); expect(player.scrollView).not.toHaveBeenCalled();
+    page.field.dispatchEvent(wheel(-130)); expect(player.scrollView).toHaveBeenCalledOnce();
+    unmount(); player.scrollView.mockClear();
+    const detached = wheel(-130); page.field.dispatchEvent(detached);
+    expect(detached.defaultPrevented).toBe(false); expect(player.scrollView).not.toHaveBeenCalled();
+  });
+
+  it('정지 중 휠로 표시 위치가 1000→3000ms로 바뀌면 미니맵 재생선은 y=444→156으로 이동하고 구간은 0～4000ms다', () => {
+    const player = playing(); player.options.onPhase('paused');
+    const state = { autoEnabled: true, manualStats: null, songTimeMs: 1000,
+      range: { startMs: 0, endMs: 4000 }, durationMs: 4000 };
+    player.options.onState!(state);
+    const page = render();
+    expect(page.html).toContain('data-testid="observer-minimap-playhead" d="M0,444h60"');
+    player.scrollView.mockImplementation(deltaMs => player.options.onState!({ ...state, songTimeMs: state.songTimeMs + deltaMs }));
+    page.field.dispatchEvent(wheel(-5200 / 3));
+    const after = render().html;
+    expect(after).toContain('data-range-start-ms="0" data-range-end-ms="4000" data-position-ms="3000"');
+    expect(after).toContain('data-testid="observer-minimap-playhead" d="M0,156h60"');
+    expect(harness.players).toHaveLength(1);
+  });
+});
 
 describe('ObserverScreen 조작과 수명', () => {
   it('onState의 1000～3000ms·현재 1000ms를 미니맵에 전달하고 끝 3200ms 갱신에도 runtime은 1개다', () => {
