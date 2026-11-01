@@ -144,13 +144,13 @@ export interface TutorialPreviewPlayerProps {
   onBombEffect?: (lane: number, position: TutorialBombPosition) => void;
   /** true면 판정 진행과 렌더를 멈추고 마지막 장면을 유지한다. false로 돌아오면 멈춘 지점부터 이어서 재생한다. */
   paused?: boolean;
-  /** 명시 정의 전용. 적용된 모드이며 prop 변경 즉시 전환한다. 시연 복귀를 다음 패턴까지 미루는 것은 호출자 책임이다.
+  /** 명시 정의 전용. 어느 방향이든 prop 변경 즉시 현재 재생 위치에서 전환한다.
    * 직접 입력 레인 키는 window capture에서 소비하므로 모달 탐색은 bubble 단계에 둔다. Escape는 항상 통과한다. */
   inputMode?: TutorialInputMode;
   /** 설정 키 캡처 등 다른 UI가 키보드를 소유하면 false. 기존 held 키의 up은 계속 추적한다. */
   ownsKeyboardInput?: (event: KeyboardEvent) => boolean;
   /** 최초 준비와 각 반복 시작에 0부터 알린다. 이전 패턴의 finish 뒤에만 통지하며 직접 입력의 물리 세션 시작보다 늦을 수 있다. 중간 전환은 새 시작이 아니다. */
-  onPatternStarted?: (iteration: number) => TutorialInputMode | void;
+  onPatternStarted?: (iteration: number) => void;
   /**
    * 명시 정의를 재생할 때만 부른다. 시연은 반복 경계, 직접 입력은 경계와 마지막 판정 기한을 모두 지난 뒤 finalize한 결과이며,
    * false를 반환하면 다음 패턴 시작 통지·입력·진행을 멈춘다. 그 밖에는 다음 패턴을 시작한다. 레슨을 넘기거나 렌더러를 다시 걸어 중간에 버린 패턴은 알리지 않는다.
@@ -810,9 +810,7 @@ export function TutorialPreviewPlayer({
                 return false;
               }
               // 직접 입력은 다음 물리 세션이 이미 열렸어도 이전 결과 뒤에만 reducer의 패턴을 교체한다.
-              const appliedMode = onPatternStartedRef.current?.(pattern.iteration + 1);
-              if (appliedMode) inputModeRef.current = appliedMode;
-              return appliedMode;
+              onPatternStartedRef.current?.(pattern.iteration + 1);
             }, event => ownsKeyboardInputRef.current?.(event) ?? true);
           explicitInput.attach(window);
           explicitInput.setMode(inputModeRef.current);
@@ -835,9 +833,8 @@ export function TutorialPreviewPlayer({
               advanceExplicit(loopTimeMs, diagramHeldBeforeFrame);
             }
             if (pendingPatternStart !== null && !pausedRef.current && inputModeRef.current === 'demonstration') {
-              const appliedMode = onPatternStartedRef.current?.(pendingPatternStart);
+              onPatternStartedRef.current?.(pendingPatternStart);
               pendingPatternStart = null;
-              if (appliedMode) inputModeRef.current = appliedMode;
             }
             explicitInput?.setMode(inputModeRef.current);
             explicitInput?.syncJudging();
@@ -938,13 +935,7 @@ export function TutorialPreviewPlayer({
           renderer.updateTutorialKeyboardKeys(directKeyboardKeys);
           renderer.setLaneKeyLabels([], false);
         }
-        if (explicitInput) {
-          const appliedMode = onPatternStartedRef.current?.(0);
-          if (appliedMode) {
-            inputModeRef.current = appliedMode;
-            explicitInput.setMode(appliedMode);
-          }
-        }
+        if (explicitInput) onPatternStartedRef.current?.(0);
         setRendererInputState(renderer, getActiveTutorialInputTimings(0, timings));
         if (!clickTrack) previewJudgment.advanceTo(0);
         renderer.renderFrame(preview.renderStartMs, 0);

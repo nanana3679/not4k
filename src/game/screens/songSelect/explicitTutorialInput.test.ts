@@ -1,5 +1,6 @@
 import { createExplicitTutorialInput } from './explicitTutorialInput';
 import { createExplicitTutorialPreviewPlayback, createTutorialTimingsInputPlan } from './explicitTutorialPreviewPlayback';
+import type { ExplicitTutorialPatternResult } from './explicitTutorialPreviewPlayback';
 import { tutorialExplicitPlayerPreviews } from '../../../lab/tutorialExplicitPlayerPreviews';
 import { getTutorialInputTimings } from './tutorialPreviewChart';
 
@@ -505,6 +506,71 @@ it('KeyE를 1900ms부터 유지하고 다음 반복 700ms에 뗄 예정이면 �
   input.stop();
 });
 
+it('바디 유지 중 1000ms에 시연으로 바꾸면 keyup 점수 없이 2000ms 자동 입력을 처리하고 전환·다음 시연 패턴은 성공 0회다', () => {
+  const preview = createExplicitTutorialPreview('switch-mid-body', '바디 도중 전환', [], 6, {
+    ...tutorialExplicitPlayerPreviews[0].preview.chart,
+    notes: [
+      { type: 'tap', kind: 'single', lane: 2, beat: beat(1) },
+      { type: 'body', lane: 2, holdCount: 1, beat: beat(1), endBeat: beat(3) },
+      { type: 'release', lane: 2, count: 1, beat: beat(3) },
+      { type: 'tap', kind: 'single', lane: 2, beat: beat(4) },
+    ],
+    events: [
+      { type: 'bpm', beat: beat(0), bpm: 120 },
+      { type: 'tutorialInput', lane: 2, keyCode: 'KeyE', keyLabel: 'E',
+        beat: beat(1), endBeat: beat(3), editorLane: 3 },
+      { type: 'tutorialInput', lane: 2, keyCode: 'KeyD', keyLabel: 'D',
+        beat: beat(4), endBeat: beat(9, 2), editorLane: 4 },
+    ],
+  });
+  let state = createTutorialPracticeState(createTutorialPracticeSpec({
+    conditions: [{ kind: 'maxGreatOrWorseCount', count: 1 }], playingMethods: [{ id: 'default' }],
+  }));
+  state = reduceTutorialPractice(state, { type: 'modeSelected', mode: 'directInput' });
+  state = reduceTutorialPractice(state, { type: 'patternStarted', patternId: 0 });
+  const onScoreChanged = vi.fn();
+  const playback = createExplicitTutorialPreviewPlayback(preview,
+    createTutorialTimingsInputPlan(getTutorialInputTimings(preview.chart)), {
+      showJudgmentGroup() {}, recordFlightJudgment() {}, showBombEffect() {},
+    }, { onScoreChanged });
+  const finished = vi.fn((pattern: ExplicitTutorialPatternResult) => {
+    state = reduceTutorialPractice(state, { type: 'patternFinished', patternId: pattern.iteration, score: pattern.result.score });
+    state = reduceTutorialPractice(state, { type: 'patternStarted', patternId: pattern.iteration + 1 });
+  });
+  const input = createExplicitTutorialInput(playback, [{ lane: 2, key: 'KeyE' }], preview.loopMs,
+    () => ({ loopStartNow: 0, blocked: false }), finished);
+  const target = new EventTarget();
+  input.attach(target);
+  input.setMode(state.mode);
+  keyboard(target, 'keydown', 'KeyE', 500);
+  input.advanceTo(1000);
+  expect(input.heldKeys).toEqual([{ lane: 2, key: 'KeyE' }]);
+  expect(playback.renderSnapshot(0).bodyUnits[0].state).toBe('active');
+  state = reduceTutorialPractice(state, { type: 'modeSelected', mode: 'demonstration' });
+  expect(() => input.setMode(state.mode)).not.toThrow();
+  expect(playback.renderSnapshot(0).atMs).toBe(1000);
+  expect(state.currentPatternCountable).toBe(false);
+  input.advanceTo(1490);
+  expect(onScoreChanged.mock.lastCall?.[0].judgmentCounts.perfect).toBe(1);
+  onScoreChanged.mockClear();
+  keyboard(target, 'keyup', 'KeyE', 1490);
+  input.advanceTo(1490);
+  expect(input.heldKeys).toEqual([]);
+  expect(onScoreChanged).not.toHaveBeenCalled();
+  input.advanceTo(2000);
+  expect(playback.renderSnapshot(0).items[2]).toMatchObject({ state: 'success', grade: 'perfect' });
+  input.advanceTo(3000);
+  expect(finished).toHaveBeenCalledTimes(1);
+  expect(state.lastFinishedPattern).toMatchObject({ patternId: 0, countable: false, succeeded: true });
+  expect(state.successCount).toBe(0);
+  input.advanceTo(6000);
+  expect(finished).toHaveBeenCalledTimes(2);
+  expect(finished.mock.calls[1][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  expect(state.lastFinishedPattern).toMatchObject({ patternId: 1, countable: false, succeeded: true });
+  expect(state.successCount).toBe(0);
+  input.stop();
+});
+
 it('직접 입력의 반복 0은 Miss 3이고 경계에서 시연으로 전환한 반복 1은 Perfect 3', () => {
   const { input } = setup();
   input.setMode('directInput');
@@ -807,7 +873,7 @@ it('완료 콜백이 false를 반환하면 다음 패턴의 0ms 탭도 시작하
   input.stop();
 });
 
-it('반복 종료 콜백이 demonstration을 반환하면 다음 0ms 탭은 같은 프레임에 시연 Perfect로 처리한다', () => {
+it('직접 입력 반복을 끝내면 다음 0ms 탭도 시연 없이 직접 입력을 기다려 Miss 2개로 정산한다', () => {
   const preview = createExplicitTutorialPreview('start-tap', '시작 탭', [], 4, {
     ...tutorialExplicitPlayerPreviews[0].preview.chart,
     notes: [{ type: 'tap', kind: 'single', lane: 2, beat: beat(0) }],
@@ -815,11 +881,14 @@ it('반복 종료 콜백이 demonstration을 반환하면 다음 0ms 탭은 같�
   });
   const effects = { showJudgmentGroup: vi.fn(), recordFlightJudgment: vi.fn(), showBombEffect: vi.fn() };
   const playback = createExplicitTutorialPreviewPlayback(preview, { kind: 'auto' }, effects);
-  const input = createExplicitTutorialInput(playback, [], 2000, () => ({ loopStartNow: 1000, blocked: false }), () => 'demonstration');
+  const input = createExplicitTutorialInput(playback, [], 2000, () => ({ loopStartNow: 1000, blocked: false }));
   input.setMode('directInput');
   input.advanceTo(2000);
   input.advanceTo(2016);
-  expect(effects.recordFlightJudgment.mock.calls.map(([grade]) => grade)).toEqual(['miss', 'perfect']);
+  expect(effects.recordFlightJudgment.mock.calls.map(([grade]) => grade)).toEqual(['miss']);
+  input.advanceTo(4000);
+  input.advanceTo(4016);
+  expect(effects.recordFlightJudgment.mock.calls.map(([grade]) => grade)).toEqual(['miss', 'miss']);
   input.stop();
 });
 

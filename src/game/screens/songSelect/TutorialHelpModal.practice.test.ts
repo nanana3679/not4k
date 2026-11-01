@@ -481,19 +481,30 @@ it.each(['connected-long-note-switch', 'connected-long-note-overlap'])('%s에서
   expect(page.player(id).diagramModalVisible).toBe(true);
 });
 
-it('직접 입력 패턴 도중 시연을 골라도 종료까지 inputMode는 directInput이며 종료 뒤 다음 패턴만 demonstration이다', () => {
+it('직접 입력 패턴 도중 시연을 고르면 즉시 demonstration이고 전환 패턴과 다음 시연 패턴은 성공 0/3이다', () => {
   openLesson().click('직접 입력');
   let page = renderModal();
   page.player().onPatternStarted?.(1);
   page.click('시연');
   page = renderModal();
   expect(page.button('시연').props['aria-pressed']).toBe(true);
-  expect(page.player().inputMode).toBe('directInput');
+  expect(page.player().inputMode).toBe('demonstration');
   page.player().onPatternFinished?.(result());
-  expect(page.player().onPatternStarted?.(2)).toBe('demonstration');
+  expect(renderModal().progress).toBe('0/3');
+  page.player().onPatternStarted?.(2);
+  page.player().onPatternFinished?.(result());
   page = renderModal();
   expect(page.player().inputMode).toBe('demonstration');
-  expect(page.progress).toBe('1/3');
+  expect(page.progress).toBe('0/3');
+  page.player().onPatternStarted?.(3);
+  page.click('직접 입력');
+  page = renderModal();
+  expect(page.player().inputMode).toBe('directInput');
+  page.player().onPatternFinished?.(result());
+  expect(renderModal().progress).toBe('0/3');
+  page.player().onPatternStarted?.(4);
+  page.player().onPatternFinished?.(result());
+  expect(renderModal().progress).toBe('1/3');
 });
 
 it('성공 정산의 met·1/3은 다음 첫 판정까지 유지하며 Miss 1개면 neutral, 2개면 failed로 바뀐다', () => {
@@ -819,11 +830,51 @@ vi.mock('../../renderer', () => ({ GameRenderer: class {
 vi.mock('../../skin', () => ({ SkinManager: class { async loadSkin() {} dispose() {} } }));
 vi.mock('../../skin/ExplicitSkinLoader', () => ({ ExplicitSkinLoader: class { async load() {} dispose() {} } }));
 
+it.each([
+  ['directInput', 'demonstration'], ['demonstration', 'directInput'],
+] as const)('실제 player에서 %s→%s를 600ms에 적용하면 재시작 없이 남은 입력으로 Perfect 2·Miss 1을 정산한다', async (initialMode, nextMode) => {
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  const onPatternStarted = vi.fn();
+  const onPatternFinished = vi.fn();
+  const onReady = vi.fn();
+  const props = { preview: ALL_TUTORIAL_PREVIEWS[1], inputMode: initialMode,
+    onPatternStarted, onPatternFinished, onReady };
+  hooks.cursor = 0;
+  const nodes = elements(TutorialPreviewPlayer(props));
+  for (const node of nodes) {
+    const ref = (node.props as { ref?: { current: unknown } }).ref;
+    if (ref) ref.current = node.type === 'canvas' ? {} : { dataset: {} };
+  }
+  hooks.effects.splice(0).forEach(effect => effect());
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(600);
+  hooks.cursor = 0;
+  TutorialPreviewPlayer({ ...props, inputMode: nextMode });
+  hooks.effects.splice(0).forEach(effect => effect());
+  expect(onReady).toHaveBeenCalledTimes(1);
+  expect(onPatternStarted).toHaveBeenCalledExactlyOnceWith(0);
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  if (nextMode === 'directInput') {
+    vi.advanceTimersByTime(150);
+    const down = new Event('keydown', { cancelable: true });
+    Object.defineProperties(down, { code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false } });
+    window.dispatchEvent(down);
+    vi.advanceTimersByTime(850);
+  } else vi.advanceTimersByTime(1000);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0]).toMatchObject({ iteration: 0, result: {
+    score: { judgmentCounts: { perfect: 2, miss: 1 } },
+  } });
+  expect(onPatternStarted.mock.calls).toEqual([[0], [1]]);
+  expect(onReady).toHaveBeenCalledTimes(1);
+});
+
 it('실제 player는 +100ms offset으로 150ms E를 Perfect로 판정하고 완료 후 시연을 선택해야 다음 시작을 알린다', async () => {
   useGameStore.setState({ settings: { ...initialSettings, inputOffsetMs: 100 } });
   vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
   vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
-  const onPatternStarted = vi.fn(() => 'directInput' as const);
+  const onPatternStarted = vi.fn();
   const onPatternFinished = vi.fn(() => false as const);
   const onScoreChanged = vi.fn();
   const onReady = vi.fn();
@@ -854,7 +905,7 @@ it('실제 player는 +100ms offset으로 150ms E를 Perfect로 판정하고 완�
   hooks.cursor = 0;
   TutorialPreviewPlayer({ ...props, paused: true });
   hooks.effects.splice(0).forEach(effect => effect());
-  const onDemonstrationStarted = vi.fn(() => 'demonstration' as const);
+  const onDemonstrationStarted = vi.fn();
   hooks.cursor = 0;
   TutorialPreviewPlayer({ ...props, inputMode: 'demonstration', paused: false, onPatternStarted: onDemonstrationStarted });
   hooks.effects.splice(0).forEach(effect => effect());
@@ -862,7 +913,7 @@ it('실제 player는 +100ms offset으로 150ms E를 Perfect로 판정하고 완�
   expect(onDemonstrationStarted).toHaveBeenCalledExactlyOnceWith(1);
 });
 
-it('0ms 탭이 있는 player에서 시작 콜백이 directInput을 반환하면 첫 프레임에 시연 점수를 만들지 않는다', async () => {
+it('0ms 탭이 있는 player에 directInput을 넘기면 시작 콜백의 반환값과 관계없이 첫 프레임에 시연 점수를 만들지 않는다', async () => {
   vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
   vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
   const onScoreChanged = vi.fn();
@@ -873,7 +924,8 @@ it('0ms 탭이 있는 player에서 시작 콜백이 directInput을 반환하면 
       beat: beat(0), endBeat: beat(1), editorLane: 3 }],
   });
   hooks.cursor = 0;
-  const nodes = elements(TutorialPreviewPlayer({ preview, onPatternStarted: () => 'directInput', onScoreChanged }));
+  const nodes = elements(TutorialPreviewPlayer({ preview, inputMode: 'directInput',
+    onPatternStarted: () => 'demonstration', onScoreChanged }));
   for (const node of nodes) {
     const ref = (node.props as { ref?: { current: unknown } }).ref;
     if (ref) ref.current = node.type === 'canvas' ? {} : { dataset: {} };
@@ -889,7 +941,8 @@ it('실습 중 설정을 4키에서 2키로 줄이면 다음 차트 시작은 �
   settle().click('직접 입력');
   useGameStore.setState({ settings: { ...initialSettings, keyBindings: { ...initialSettings.keyBindings, lane1: ['KeyQ', 'KeyW'] } } });
   let page = renderModal();
-  expect(page.player('advanced-double-hold').onPatternStarted?.(0)).toBe('demonstration');
+  page.player('advanced-double-hold').onPatternStarted?.(0);
+  expect(renderModal().player('advanced-double-hold').inputMode).toBe('demonstration');
   useGameStore.setState({ settings: initialSettings });
   page = renderModal();
   expect(page.player('advanced-double-hold').inputMode).toBe('demonstration');

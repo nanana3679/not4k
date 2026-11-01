@@ -49,7 +49,7 @@ export function createExplicitTutorialInput(
   loopMs: number,
   getClock: (timestamp?: number) => { loopStartNow: number; blocked: boolean; inputOffsetMs?: number },
   // 정산 뒤 다음 UI 패턴을 알린다. 경계의 물리 세션은 이미 열렸을 수 있으며 false면 이후 진행을 멈춘다.
-  onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => TutorialInputMode | false | void,
+  onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => false | void,
   ownsKeyboardInput: (event: KeyboardEvent) => boolean = () => true,
 ) {
   let mode: TutorialInputMode = 'demonstration';
@@ -154,7 +154,7 @@ export function createExplicitTutorialInput(
     if (continuation === false) {
       boundaryStopped = true;
       syncJudging();
-    } else if (continuation) setMode(continuation);
+    }
   };
   const advanceClosingPattern = (elapsedMs: number) => {
     if (!closingPattern) return;

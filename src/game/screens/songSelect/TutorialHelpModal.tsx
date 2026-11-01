@@ -83,12 +83,13 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed, pass
   const unmetKeyRequirements = useMemo(() => findUnmetTutorialPracticeKeyRequirements(
     getTutorialInputTimings(currentTutorial.chart), settings.keyBindings,
   ), [currentTutorial, settings.keyBindings]);
-  const { dispatch: dispatchPractice, selectedMode: selectedPracticeMode, reset: resetPractice } = practice;
+  const { dispatch: dispatchPractice, reset: resetPractice } = practice;
+  const practiceMode = practice.state?.mode;
   useEffect(() => {
-    if (unmetKeyRequirements.length && selectedPracticeMode === 'directInput') {
+    if (unmetKeyRequirements.length && practiceMode === 'directInput') {
       dispatchPractice({ type: 'modeSelected', mode: 'demonstration' });
     }
-  }, [dispatchPractice, selectedPracticeMode, unmetKeyRequirements.length]);
+  }, [dispatchPractice, practiceMode, unmetKeyRequirements.length]);
   const isPracticeLaneKey = useCallback((code: string) => practice.state?.mode === 'directInput'
     && Object.values(settings.keyBindings).some(keys => keys.includes(code)), [practice.state?.mode, settings.keyBindings]);
   const bodyLines = currentTutorial.bodyLines.map((line) =>

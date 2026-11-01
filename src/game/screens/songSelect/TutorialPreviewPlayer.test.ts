@@ -620,7 +620,7 @@ describe('명시 재생기 직접 입력 표시', () => {
     expect(tutorialPreviewPlayerSource).toContain('!directInput && bindingNotice');
     expect(tutorialPreviewPlayerSource).toContain('!diagramDisplay && !directInput');
     expect(tutorialPreviewPlayerSource).toContain('inputMode?: TutorialInputMode;');
-    expect(tutorialPreviewPlayerSource).toContain('onPatternStarted?: (iteration: number) => TutorialInputMode | void;');
+    expect(tutorialPreviewPlayerSource).toContain('onPatternStarted?: (iteration: number) => void;');
   });
 });
 
