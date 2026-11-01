@@ -60,7 +60,10 @@ function run(state: TutorialPracticeState, ...events: TutorialPracticeEvent[]): 
   return events.reduce(reduceTutorialPractice, state);
 }
 const started = (patternId: number): TutorialPracticeEvent => ({ type: 'patternStarted', patternId });
-const finished = (patternId: number, score: Readonly<ScoreState>): TutorialPracticeEvent => ({ type: 'patternFinished', patternId, score });
+/** modeSwitched는 재생기가 그 물리 패턴 도중 모드가 바뀌었다고 알린 경우다. */
+const finished = (patternId: number, score: Readonly<ScoreState>, modeSwitched = false): TutorialPracticeEvent => ({
+  type: 'patternFinished', patternId, score, modeSwitchedDuringPattern: modeSwitched,
+});
 const select = (mode: 'demonstration' | 'directInput'): TutorialPracticeEvent => ({ type: 'modeSelected', mode });
 const nextPressed: TutorialPracticeEvent = { type: 'nextPressed' };
 /**
@@ -460,13 +463,12 @@ describe('튜토리얼 실습 상태: 누적 성공', () => {
     expect(run(dropped, finished(demoId, SUCCESS)).lastFinishedPattern).toEqual(complete.lastFinishedPattern);
   });
 
-  it('2/3에서 셋째 직접 입력 패턴 도중 시연으로 바꾸면 바로 시연이 되고 그 패턴은 조건을 만족해도 집계 제외되어 2/3에 머문다', () => {
+  it('2/3에서 셋째 직접 입력 패턴 도중 시연으로 바꾸면 바로 시연이 되고, 재생기가 전환을 알린 그 패턴은 조건을 만족해도 집계 제외되어 2/3에 머문다', () => {
     const twoDone = run(directInputState(), ...pattern(SUCCESS), ...pattern(SUCCESS));
     const lastId = nextPatternId();
     const switched = run(twoDone, started(lastId), select('demonstration'));
     expect(switched.mode).toBe('demonstration');
-    expect(switched.currentPatternCountable).toBe(false);
-    const state = run(switched, finished(lastId, SUCCESS));
+    const state = run(switched, finished(lastId, SUCCESS, true));
     expect(getTutorialPracticeProgress(state)).toEqual({ current: 2, required: 3 });
     expect(state.lastFinishedPattern).toEqual({ patternId: lastId, score: SUCCESS, countable: false, succeeded: true });
   });
@@ -496,11 +498,11 @@ describe('튜토리얼 실습 상태: 패턴 id', () => {
     expect(state.lastFinishedPattern?.countable).toBe(false);
   });
 
-  it('직접 입력 패턴 1 재생 중 시연으로 바꾼 뒤 같은 패턴 1의 patternStarted가 다시 와도 무시해 그 패턴은 집계 제외되고 0/3·시연', () => {
+  it('직접 입력 패턴 1 재생 중 시연으로 바꾼 뒤 같은 패턴 1의 patternStarted가 다시 와도 무시하고, 전환을 알린 패턴 1은 집계 제외되어 0/3·시연', () => {
     const duplicated = run(directInputState(), started(1), select('demonstration'), started(1));
     expect(duplicated.mode).toBe('demonstration');
-    expect(duplicated.currentPatternCountable).toBe(false);
-    const state = run(duplicated, finished(1, SUCCESS));
+    expect(duplicated.currentPatternId).toBe(1);
+    const state = run(duplicated, finished(1, SUCCESS, true));
     expect(getTutorialPracticeProgress(state).current).toBe(0);
   });
 
@@ -600,11 +602,10 @@ describe('튜토리얼 실습 상태: 토글 적용 시점', () => {
     expect(getTutorialPracticeProgress(state).current).toBe(1);
   });
 
-  it('직접 입력에서 패턴 재생 중 시연으로 바꾸면 그 위치에서 바로 시연이 되고, 그 패턴은 조건을 만족해도 집계 제외되며 다음 시연 패턴도 0/3', () => {
+  it('직접 입력에서 패턴 재생 중 시연으로 바꾸면 그 위치에서 바로 시연이 되고, 전환을 알린 그 패턴은 조건을 만족해도 집계 제외되며 다음 시연 패턴도 0/3', () => {
     const switched = run(directInputState(), started(1), select('demonstration'));
     expect(switched.mode).toBe('demonstration');
-    expect(switched.currentPatternCountable).toBe(false);
-    const afterPattern1 = run(switched, finished(1, SUCCESS));
+    const afterPattern1 = run(switched, finished(1, SUCCESS, true));
     expect(getTutorialPracticeProgress(afterPattern1).current).toBe(0);
     expect(afterPattern1.lastFinishedPattern).toEqual({ patternId: 1, score: SUCCESS, countable: false, succeeded: true });
     expect(getTutorialPracticeProgress(run(afterPattern1, ...pattern(SUCCESS))).current).toBe(0);
@@ -617,7 +618,7 @@ describe('튜토리얼 실습 상태: 토글 적용 시점', () => {
   });
 
   it('직접 입력 패턴 재생 중 시연으로 바꿨다가 같은 패턴 안에서 다시 직접 입력을 고르면 그 패턴은 집계 제외되고 다음 패턴부터 집계해 1/3', () => {
-    const state = run(directInputState(), started(1), select('demonstration'), select('directInput'), finished(1, SUCCESS),
+    const state = run(directInputState(), started(1), select('demonstration'), select('directInput'), finished(1, SUCCESS, true),
       ...pattern(SUCCESS));
     expect(state.mode).toBe('directInput');
     expect(getTutorialPracticeProgress(state).current).toBe(1);
@@ -628,6 +629,14 @@ describe('튜토리얼 실습 상태: 토글 적용 시점', () => {
       finished(1, SUCCESS), started(2));
     expect(state.mode).toBe('demonstration');
     expect(getTutorialPracticeProgress(state).current).toBe(0);
+  });
+
+  it('직접 입력 패턴 1의 결과가 오기 전에 시연·직접 입력을 오가도 재생기가 패턴 1에 전환을 알리지 않으면 패턴 1은 1/3으로 집계하고, 전환을 알린 패턴 2는 제외', () => {
+    // 반복 경계 직후에는 물리 재생이 패턴 2인데 패턴 1의 늦은 릴리즈를 아직 판정 중일 수 있다. 어느 패턴에서 전환했는지는 재생기가 안다.
+    const state = run(directInputState(), started(1), select('demonstration'), select('directInput'), finished(1, SUCCESS, false),
+      started(2), finished(2, SUCCESS, true));
+    expect(getTutorialPracticeProgress(state).current).toBe(1);
+    expect(state.lastFinishedPattern).toEqual({ patternId: 2, score: SUCCESS, countable: false, succeeded: true });
   });
 
   it('성공 2회 뒤 시연을 다녀와도 같은 방법의 2/3을 유지하고 직접 입력 성공 1회를 더해 3/3', () => {

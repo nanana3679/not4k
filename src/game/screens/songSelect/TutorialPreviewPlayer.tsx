@@ -749,11 +749,19 @@ export function TutorialPreviewPlayer({
             }, event => ownsKeyboardInputRef.current?.(event) ?? true);
           explicitInput.attach(window);
           explicitInput.setMode(inputModeRef.current);
-          const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) =>
-            explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {
+          let firstPatternStarted = false;
+          const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) => {
+            const blocked = pausedRef.current || diagramHeldBeforeFrame;
+            // 렌더러 준비·캐러셀 대기는 패턴 재생이 아니다. 실제 시작 때 선택된 모드로 집계를 연다.
+            if (!firstPatternStarted && !blocked) {
+              firstPatternStarted = true;
+              onPatternStartedRef.current?.(0);
+            }
+            return explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {
               loopTimeMs,
-              blocked: pausedRef.current || diagramHeldBeforeFrame,
+              blocked,
             });
+          };
           syncExplicitControlRef.current = () => {
             const now = performance.now();
             const clock = stepTutorialLoopClock({ loopStartNow, pausedAtNow, previousNow }, now, pausedRef.current);
@@ -866,7 +874,6 @@ export function TutorialPreviewPlayer({
           renderer.updateTutorialKeyboardKeys(directKeyboardKeys);
           renderer.setLaneKeyLabels([], false);
         }
-        if (explicitInput) onPatternStartedRef.current?.(0);
         setRendererInputState(renderer, getActiveTutorialInputTimings(0, timings));
         previewJudgment.advanceTo(0);
         renderer.renderFrame(preview.renderStartMs, 0);

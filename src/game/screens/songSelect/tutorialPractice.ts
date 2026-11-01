@@ -162,7 +162,10 @@ export interface TutorialPracticeState {
   readonly mode: TutorialPracticeMode;
   /** 재생 중인 패턴의 id. 재생 중이 아니면 null이다. 연주 방법을 완료한 뒤에는 시연으로 시작한 패턴만 받는다(도중에 직접 입력으로 바꿔도 집계하지 않는다) */
   readonly currentPatternId: number | null;
-  /** 재생 중인 패턴을 처음부터 끝까지 직접 입력으로 연주해 성공 집계 대상인지. 재생 도중 모드를 바꾸면 그 패턴은 false가 된다 */
+  /**
+   * 재생 중인 패턴이 직접 입력으로 시작해 집계 후보인지. 패턴 도중 모드가 바뀌었는지는 재생기가
+   * `patternFinished.modeSwitchedDuringPattern`으로 알리며, 둘 다 만족해야 집계한다
+   */
   readonly currentPatternCountable: boolean;
   /**
    * 지금까지 받은 patternStarted id 중 가장 큰 값. 이 값 이하의 시작은 중복이거나 지난 패턴이라 무시한다.
@@ -194,6 +197,9 @@ export interface TutorialFinishedPattern {
  * - `patternFinished.score`는 해당 패턴의 `ExplicitJudgmentSession.finalize().score`를 넘긴다. 모든 점수 항목을
  *   정산했어도 바디 Miss가 뒤늦게 추가될 수 있으므로 live 점수를 최종 결과로 재사용하지 않는다.
  * - 자동 입력(시연) 여부는 언제나 `state.mode`를 따른다. 패턴 도중 모드가 바뀌면 현재 재생 위치에서 바로 입력 방식을 바꾼다.
+ * - `patternFinished.modeSwitchedDuringPattern`은 그 물리 패턴의 시작부터 반복 경계까지 모드가 한 번이라도 바뀌었는지다.
+ *   반복 경계 직후에는 물리 재생이 다음 패턴인데 이전 패턴의 늦은 판정이 남아 reducer의 현재 패턴과 어긋나므로,
+ *   reducer는 `modeSelected` 시점으로 어느 패턴을 제외할지 정하지 않는다.
  */
 export type TutorialPracticeEvent =
   /** 플레이어가 토글에서 모드를 고름 */
@@ -201,7 +207,11 @@ export type TutorialPracticeEvent =
   /** 패턴 한 차례의 재생 시작 */
   | { readonly type: 'patternStarted'; readonly patternId: number }
   /** 패턴 한 차례의 결과 확정. score는 무점수 바디 Miss까지 포함해 세션을 finalize한 최종 점수 */
-  | { readonly type: 'patternFinished'; readonly patternId: number; readonly score: Readonly<ScoreState> }
+  | {
+    readonly type: 'patternFinished'; readonly patternId: number; readonly score: Readonly<ScoreState>;
+    /** 재생기가 기록한, 이 패턴 재생 도중 모드 전환 여부. 참이면 방향과 관계없이 집계하지 않는다(RFD 0105) */
+    readonly modeSwitchedDuringPattern: boolean;
+  }
   /** `다음` 버튼 */
   | { readonly type: 'nextPressed' };
 
@@ -236,7 +246,7 @@ export function reduceTutorialPractice(state: TutorialPracticeState, event: Tuto
     case 'patternFinished': {
       // 재생 중인 패턴이 아닌 결과(늦게 온 이전 패턴, 이미 끝난 패턴, 시작을 받지 않은 패턴)는 무시한다.
       if (event.patternId !== state.currentPatternId) return state;
-      const countable = state.currentPatternCountable;
+      const countable = state.currentPatternCountable && !event.modeSwitchedDuringPattern;
       const succeeded = isTutorialPatternSuccess(state.spec.conditions, event.score, 'final');
       return {
         ...state, currentPatternId: null,
@@ -257,9 +267,9 @@ export function reduceTutorialPractice(state: TutorialPracticeState, event: Tuto
 
 function selectMode(state: TutorialPracticeState, mode: TutorialPracticeMode): TutorialPracticeState {
   if (state.mode === mode) return state;
-  // 어느 방향이든 현재 재생 위치에서 바로 적용한다(RFD 0105). 재생 도중 바꾼 패턴은 한 모드로 끝까지 연주하지 않았으므로
-  // 집계에서 뺀다. 시연으로 시작한 패턴은 patternStarted에서 이미 집계 대상이 아니다.
-  return { ...state, mode, currentPatternCountable: false };
+  // 어느 방향이든 현재 재생 위치에서 바로 적용한다(RFD 0105). 재생 도중 바꾼 패턴의 집계 제외는 재생기가 알린
+  // modeSwitchedDuringPattern으로 정한다. 시연으로 시작한 패턴은 patternStarted에서 이미 집계 후보가 아니다.
+  return { ...state, mode };
 }
 
 /** 패턴이 재생 중인지(patternStarted를 받고 아직 patternFinished를 받지 않음) */

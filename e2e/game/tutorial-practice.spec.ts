@@ -141,6 +141,37 @@ test('single-note 패턴의 600ms에 양방향 전환하면 같은 반복에서 
   expect(errors).toEqual([]);
 });
 
+test('headless-long-note offset -200ms에서 경계 직후 시연 왕복은 이전 릴리즈를 보존하고 다음 패턴만 제외한다', async ({ page }) => {
+  test.setTimeout(60_000);
+  const dialog = await openTutorial(page, false, KEY_BINDINGS, -200);
+  await dialog.locator('[data-tutorial-index-item="headless-long-note"]').click();
+  const selector = '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="headless-long-note"] [data-tutorial-engine]';
+  const player = page.locator(selector);
+  await expect(player).toHaveAttribute('data-tutorial-elapsed-ms', /\d/);
+  await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
+  const loopMs = Number(await player.getAttribute('data-tutorial-loop-ms'));
+  const elapsed = Number(await player.getAttribute('data-tutorial-elapsed-ms'));
+  const firstStart = (Math.floor(elapsed / loopMs) + 1) * loopMs;
+  const progress = dialog.locator('[data-tutorial-progress]');
+  for (const [attempt, expectedProgress] of ['1/3', '1/3', '2/3'].entries()) {
+    const start = firstStart + attempt * loopMs;
+    await waitForElapsed(page, start + 1100 - 12, selector);
+    await page.keyboard.down('KeyE');
+    if (attempt === 0) {
+      // 화면은 N+1이지만 -200ms 보정의 N은 아직 끝나지 않았다.
+      await waitForElapsed(page, start + loopMs + 5, selector);
+      await dialog.getByRole('button', { name: '시연', exact: true }).click();
+      await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
+    }
+    await waitForElapsed(page, start + loopMs + 200 - 12, selector);
+    await page.keyboard.up('KeyE');
+    await waitForElapsed(page, start + loopMs + 200 + 150 + 32, selector);
+    await expect(player).toHaveAttribute('data-tutorial-last-perfect', '1');
+    await expect(player).toHaveAttribute('data-tutorial-last-miss', '0');
+    await expect(progress).toHaveText(expectedProgress);
+  }
+});
+
 test('1레인 Q·W 2키로 advanced-double-hold를 열면 직접 입력을 막고 4키 필요 안내에서 Controls 설정을 연다', async ({ page }) => {
   const dialog = await openTutorial(page, true);
   await dialog.getByRole('tab', { name: 'Advanced', exact: true }).click();
