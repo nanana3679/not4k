@@ -59,6 +59,20 @@ function setup(inputOffsetMs = 0, initialMode: TutorialInputMode = 'directInput'
   return { input, playback, finished, clock, key, mode, play, startFirstPattern };
 }
 
+it('루프 0ms를 시작한 뒤 같은 0ms에 시연을 왕복하면 첫 직접 입력 패턴은 Perfect여도 집계에서 제외한다', () => {
+  const { input, finished, mode, play } = setup();
+  try {
+    input.advanceTo(0);
+    mode('demonstration', 0);
+    mode('directInput', 0);
+    play(0);
+    expect(finished[0]).toMatchObject({
+      modeSwitchedDuringPattern: true, countable: false, successCount: 0,
+      result: { score: { achievementRate: 100 } },
+    });
+  } finally { input.stop(); }
+});
+
 it.each([0, 1000])('직접 입력 패턴을 %ims에 일시정지하고 시연으로 바꾸면 재개 후 Perfect 2개여도 전환 이력으로 성공 0회다', pausedAtMs => {
   const { input, finished, clock, key, mode } = setup();
   try {

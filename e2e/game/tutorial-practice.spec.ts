@@ -111,6 +111,24 @@ for (const inputOffsetMs of [0, -200, 200]) {
   });
 }
 
+test('single-note의 4박 준비 중 직접 입력을 고르면 첫 실제 패턴의 3개 입력으로 성공 1/3을 표시한다', async ({ page }) => {
+  const dialog = await openTutorial(page);
+  await dialog.locator('[data-tutorial-index-item="single-note"]').click();
+  const player = page.locator(ACTIVE_PLAYER);
+  await expect(player).toHaveAttribute('data-tutorial-paused', 'false');
+  await expect(player).toHaveAttribute('data-tutorial-count-in', 'true');
+  await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
+  await expect(player).toHaveAttribute('data-tutorial-input-mode', 'directInput');
+  await expect(player).toHaveAttribute('data-tutorial-count-in', 'true');
+  await expect(dialog.locator('[data-tutorial-pattern-id]')).toHaveAttribute('data-tutorial-pattern-id', '0');
+  for (const at of [250, 750, 1250]) {
+    await waitForElapsed(page, at - 12);
+    await page.keyboard.press('KeyE');
+  }
+  await expect(player).toHaveAttribute('data-tutorial-last-iteration', '0');
+  await expect(dialog.locator('[data-tutorial-progress]')).toHaveText('1/3');
+});
+
 test('single-note 패턴의 600ms에 양방향 전환하면 같은 반복에서 모드가 바뀌고 전환·시연 패턴은 성공 0/3이다', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -168,13 +186,15 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
     const dialog = await openTutorial(page);
     await dialog.locator(`[data-tutorial-index-item="${id}"]`).click();
     const diagram = page.locator('[data-tutorial-diagram-modal="true"]');
-    await expect(diagram).toBeVisible();
-    await diagram.locator('[data-tutorial-diagram-ok="true"]').click();
-    await expect(diagram).toHaveCount(0);
+    // 처음 시작은 메트로놈 4박 준비(2초)와 출력 안정 대기 뒤에 0ms 도식을 연다.
+    await expect(diagram).toBeVisible({ timeout: 15_000 });
     const selector = `[data-tutorial-preview-slot="active"][data-tutorial-preview-id="${id}"] [data-tutorial-engine]`;
     const player = page.locator(selector);
-    await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
+    // 도식의 짧은 숨김 구간을 기다리지 않고 기존 버튼의 키보드 동작으로 실습에 진입한다.
+    await dialog.getByRole('button', { name: '직접 입력', exact: true }).focus();
+    await page.keyboard.press('Enter');
     await expect(player).toHaveAttribute('data-tutorial-input-mode', 'directInput');
+    await expect(diagram).toHaveCount(0);
     const loopMs = Number(await player.getAttribute('data-tutorial-loop-ms'));
     expect(loopMs).toBe(6000);
     const lastReleaseMs = 4000;

@@ -12,8 +12,8 @@ export type ExplicitTutorialRenderSnapshotQuery = (
   activeRenderCycle: number,
   /** 화면 반복 대비 세션 차수 차이. -1이면 이전 반복의 상태이며, 생략하면 같은 반복이다. */
   sessionIterationOffset?: number,
-  /** 경계 뒤에도 판정 창이 열린 이전 세션. live 바로 앞 복사본에 같은 시각 이동을 적용한다. */
-  previous?: ExplicitJudgmentSnapshot,
+  /** 아직 열린 이전 세션과 표시 수명이 남은 종료 반복의 복사본별 상태. */
+  retainedByCycle?: ReadonlyMap<number, ExplicitJudgmentSnapshot>,
 ) => ExplicitJudgmentSnapshot;
 
 const itemKey = (sourceNoteIndex: number, kind: string, ordinal: number) => `${sourceNoteIndex}:${kind}:${ordinal}`;
@@ -30,7 +30,7 @@ const shiftTime = (timeMs: number | null, offsetMs: number) => timeMs === null ?
 
 /**
  * `ExplicitNotePresenter`는 compile된 항목마다 공개 상태를 요구하므로, 3벌 표시 compile의 모든 항목에 상태를 채운다.
- * 세션이 속한 복사본은 live, 아직 열린 이전 복사본은 previous, 나머지는 판정 전 상태로 그린다. 음수 입력 오프셋·경계 정산 대기로 세션이 늦으면
+ * 세션이 속한 복사본은 live, 이전 복사본은 보존한 상태, 나머지는 판정 전 상태로 그린다. 음수 입력 오프셋·경계 정산 대기로 세션이 늦으면
  * 이전 복사본에 적용한다. 표시 note index는 복사본 × 원본 노트 수 + 원본 index이며 id·ref는 표시 compile의 것을 쓴다.
  * live 시각 필드는 원본 시각에 세션 복사본 × loopMs를 더한 표시 시각이다.
  *
@@ -64,16 +64,16 @@ export function createExplicitTutorialRenderSnapshotQuery(
     return value;
   };
 
-  return (live, activeRenderCycle, sessionIterationOffset = 0, previous) => {
+  return (live, activeRenderCycle, sessionIterationOffset = 0, retainedByCycle) => {
     if (!Number.isInteger(activeRenderCycle) || activeRenderCycle < 0 || activeRenderCycle >= TUTORIAL_PREVIEW_RENDER_CYCLES) {
       throw new RangeError(`표시 복사본 번호는 0～${TUTORIAL_PREVIEW_RENDER_CYCLES - 1}이어야 합니다: ${activeRenderCycle}`);
     }
     const liveIndex = indexSnapshot(live);
-    const previousIndex = previous && indexSnapshot(previous);
+    const retainedIndexByCycle = new Map([...(retainedByCycle ?? [])].map(([cycle, snapshot]) => [cycle, indexSnapshot(snapshot)]));
     const sessionRenderCycle = activeRenderCycle + sessionIterationOffset;
     const offsetMs = sessionRenderCycle * loopMs;
     const stateForCycle = (cycle: number) => cycle === sessionRenderCycle ? liveIndex
-      : cycle === sessionRenderCycle - 1 && previousIndex ? previousIndex : unjudgedIndex;
+      : retainedIndexByCycle.get(cycle) ?? unjudgedIndex;
     const bodyUnits = renderUnits.map(({ unit, cycle, key }): ExplicitBodyUnitSnapshot => {
       const index = stateForCycle(cycle);
       const state = required(index.unitsByKey.get(key), unit.id);

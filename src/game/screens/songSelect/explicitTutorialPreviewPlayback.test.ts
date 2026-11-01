@@ -131,7 +131,9 @@ describe('명시 튜토리얼 재생의 반복', () => {
         const notes = presenter.present(snapshot, layout);
         expect(notes.map(note => note.sourceNoteIndex)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
         expect(notes.filter(note => note.kind === 'tap').map(note => note.layers[0].visible))
-          .toEqual([cycle !== 0, cycle !== 1, cycle !== 2]);
+          .toEqual(iteration === 0
+            ? [[false, true, true], [true, false, true], [true, true, false]][cycle]
+            : [[false, true, true], [false, false, true], [true, false, false]][cycle]);
       }
       const finished = playback.finishPattern();
       expect(finished.iteration).toBe(iteration);
@@ -286,5 +288,23 @@ it('이전 릴리즈의 2120ms 정산 전에는 HUD에 이전 점수만 보내�
   onScoreChanged.mockClear();
   playback.advanceTo(120);
   expect(onScoreChanged).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ earnedScore: 3 }), 1);
+  playback.stop();
+});
+
+it('종료한 반복 0·1이 화면 복사본 1·2에 남아 있으면 두 결과와 바디 완료 시각을 보존하고 도식 OK 재기준화에도 유지한다', () => {
+  const { playback } = createDemo(boundaryChart());
+  playback.finishPattern();
+  playback.finishPattern();
+  const before = playback.renderSnapshot(1, 2, false);
+  expect(before.items.map(item => item.state)).toEqual([
+    'pending', 'pending', 'success', 'success', 'success', 'success',
+  ]);
+  expect(before.bodyUnits.map(unit => unit.completedAtMs)).toEqual([null, 4000, 6000]);
+  playback.rebaseIteration();
+  const after = playback.renderSnapshot(1, 2, false);
+  expect(after.items).toEqual(before.items);
+  expect(after.bodyUnits).toEqual(before.bodyUnits);
+  // 재기준화 뒤 음수 차수인 실제 이전 반복을 가짜 준비 복사본으로 숨기지 않는다.
+  expect([...after.hiddenSourceNoteIndices!]).toEqual([0, 1, 2]);
   playback.stop();
 });

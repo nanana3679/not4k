@@ -77,7 +77,7 @@ function setup(preview = tutorialExplicitPlayerPreviews[0].preview, key: string 
   return { input, playback, target, effects, clock, onPatternFinished };
 }
 
-it('4005ms down은 새 패턴의 0ms 탭만 Perfect로 만들고 4120ms까지 이전 복사본의 판정 상태도 유지한다', () => {
+it('4005ms down은 새 패턴의 0ms 탭만 Perfect로 만들고 4120ms 판정 기한 뒤에도 이전 복사본의 성공을 유지한다', () => {
   const preview = createExplicitTutorialPreview('overlapping-sessions', '겹친 판정 세션', [], 8, {
     ...tutorialExplicitPlayerPreviews[0].preview.chart,
     notes: [
@@ -104,6 +104,10 @@ it('4005ms down은 새 패턴의 0ms 탭만 Perfect로 만들고 4120ms까지 �
   expect(onPatternFinished).not.toHaveBeenCalled();
   input.advanceTo(4120);
   expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 1, miss: 2 });
+  // 판정 기한 뒤에도 음수/양수 시각 오프셋으로 보이는 이전 복사본은 최종 상태를 유지한다.
+  for (const [offset, noteIndex] of [[1, 5], [0, 1]]) {
+    expect(playback.renderSnapshot(1, offset).items.find(item => item.sourceNoteIndex === noteIndex)?.state).toBe('success');
+  }
   input.stop();
 });
 
@@ -314,7 +318,11 @@ it('single-note offset -200ms에서 화면은 3500ms에 반복 1로 가지만 �
     input.advanceTo(startMs + preview.loopMs + 216);
     expect(input.sessionIteration).toBe(iteration + 1);
     const settled = playback.renderSnapshot(1, input.sessionIteration - (iteration + 1));
-    expect(settled.items.every(item => item.state === 'pending')).toBe(true);
+    expect(settled.items.map(item => item.state)).toEqual([
+      'success', 'success', 'success',
+      'pending', 'pending', 'pending',
+      'pending', 'pending', 'pending',
+    ]);
     expect(settled.atMs).toBe(preview.loopMs + 16);
     expect(onPatternFinished).toHaveBeenCalledTimes(iteration + 1);
     expect(onPatternFinished.mock.calls[iteration][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
@@ -351,14 +359,18 @@ it.each([
   expect(onPatternFinished).toHaveBeenCalledTimes(mode === 'demonstration' ? 1 : 0);
   input.advanceTo(preview.loopMs + 16);
   expect(input.sessionIteration).toBe(1);
-  expect(playback.renderSnapshot(1, 0).items.every(item => item.state === 'pending')).toBe(true);
+  expect(playback.renderSnapshot(1, 0).items.map(item => item.state)).toEqual([
+    'success', 'success', 'success',
+    'pending', 'pending', 'pending',
+    'pending', 'pending', 'pending',
+  ]);
   expect(onPatternFinished).toHaveBeenCalledTimes(1);
   expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
 
   if (mode === 'directInput') keyboard(target, 'keydown', 'KeyE', clock.loopStartNow + preview.loopMs + 250 - inputOffsetMs);
   input.advanceTo(preview.loopMs + 250);
   expect(playback.renderSnapshot(1, input.sessionIteration - 1).items.map(item => item.state)).toEqual([
-    'pending', 'pending', 'pending',
+    'success', 'success', 'success',
     'success', 'pending', 'pending',
     'pending', 'pending', 'pending',
   ]);
@@ -882,5 +894,15 @@ it('직접 입력 반복을 끝내면 다음 0ms 탭도 시연 없이 직접 입
   input.advanceTo(4000);
   input.advanceTo(4016);
   expect(effects.recordFlightJudgment.mock.calls.map(([grade]) => grade)).toEqual(['miss', 'miss']);
+  input.stop();
+});
+
+it('single-note 반복 0을 정산하며 14010ms로 건너뛰면 표시 반복 3에 반복 0의 성공을 붙이지 않는다', () => {
+  const preview = BASIC_TUTORIAL_EXPLICIT_PREVIEWS.find(preview => preview.id === 'single-note')!;
+  const { input, playback } = setup(preview);
+  input.advanceTo(1250);
+  input.advanceTo(4 * preview.loopMs + 10);
+  expect(input.sessionIteration).toBe(4);
+  expect(playback.renderSnapshot(1, 0).items.every(item => item.state === 'pending')).toBe(true);
   input.stop();
 });

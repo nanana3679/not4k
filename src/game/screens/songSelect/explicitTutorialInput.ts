@@ -47,7 +47,7 @@ export function createExplicitTutorialInput(
   playback: ExplicitTutorialPreviewPlayback,
   bindings: readonly KeyBinding[],
   loopMs: number,
-  getClock: () => { loopStartNow: number; blocked: boolean; inputOffsetMs?: number },
+  getClock: (timestamp?: number) => { loopStartNow: number; blocked: boolean; inputOffsetMs?: number },
   // 정산 뒤 다음 UI 패턴을 알린다. 경계의 물리 세션은 이미 열렸을 수 있으며 false면 이후 진행을 멈춘다.
   onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => false | void,
   ownsKeyboardInput: (event: KeyboardEvent) => boolean = () => true,
@@ -56,7 +56,7 @@ export function createExplicitTutorialInput(
   let boundaryStopped = false;
   let iteration = 0;
   let lastElapsedMs = 0;
-  // 최초 준비와 재생 중 일시정지를 구별한다. 도식 재개의 rebase로도 시작 이력은 지우지 않는다.
+  // 첫 4박 준비는 시작 전이다. 시작 후 pause·도식·오디오 재개 대기와 rebase는 같은 패턴을 이어간다.
   let firstPatternStarted = false;
   // 보정 판정·reducer의 정산 순서와 별개인 물리 반복별 전환 이력이다.
   let switchedIterations = new Set<number>();
@@ -91,7 +91,7 @@ export function createExplicitTutorialInput(
       unownedReleases.push({ at: inputTime(timestamp), key });
       unownedReleases.sort((a, b) => a.at - b.at);
     },
-    beforeInput: () => syncJudging(),
+    beforeInput: timestamp => syncJudging(getClock(timestamp).blocked),
     onLatePreparationHoldChange: () => syncPhysicalHeld(),
   });
   source.setJudging(false);
@@ -189,7 +189,7 @@ export function createExplicitTutorialInput(
     flush((iteration + 1) * loopMs);
     // 긴 프레임 공백에도 이미 재생하던 패턴만 정산한다. 생략한 반복의 입력은 hold만 옮긴다.
     flush(nextIteration * loopMs, false);
-    const finished = playback.finishPattern(mode === 'directInput' ? [...heldByKey.values()] : undefined, takeModeSwitched());
+    const finished = playback.finishPattern(mode === 'directInput' ? [...heldByKey.values()] : undefined, nextIteration, takeModeSwitched());
     iteration = nextIteration;
     reportFinished(finished);
     if (boundaryStopped) return finished;
@@ -217,7 +217,7 @@ export function createExplicitTutorialInput(
       deadlineMs: startMs + playback.latestJudgmentDeadlineMs,
       inputOffsetMs: getClock().inputOffsetMs ?? 0,
       heldByKey: new Map(heldByKey),
-      session: playback.startNextPattern([...heldByKey.values()], takeModeSwitched()),
+      session: playback.startNextPattern([...heldByKey.values()], nextIteration, takeModeSwitched()),
     };
     iteration = nextIteration;
   };
@@ -226,7 +226,7 @@ export function createExplicitTutorialInput(
   const reserveLaneKey = (event: Event) => {
     const { code } = event as KeyboardEvent;
     const closingRelease = event.type === 'keyup' && closingPattern?.heldByKey.has(code);
-    if ((mode !== 'directInput' && !closingRelease) || getClock().blocked || !ownsEvent(event as KeyboardEvent)
+    if ((mode !== 'directInput' && !closingRelease) || getClock((event as KeyboardEvent).timeStamp).blocked || !ownsEvent(event as KeyboardEvent)
       || code === 'Escape' || !bindings.some(binding => binding.key === code)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -273,6 +273,7 @@ export function createExplicitTutorialInput(
         closingPattern.startMs -= iteration * loopMs;
         closingPattern.deadlineMs -= iteration * loopMs;
       }
+      playback.rebaseIteration();
       iteration = 0;
       lastElapsedMs = Math.max(0, resumeTimestamp - getClock().loopStartNow);
       judging = false;

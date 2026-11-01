@@ -230,3 +230,12 @@ describe("G1 공개 snapshot 표시 presenter", () => {
     expect(bodyAt(3100).bottom).toBeCloseTo(852.25);
   });
 });
+
+it('표시에서 제외한 릴리즈·바디·틱은 모든 레이어를 숨기고 나머지 탭과 판정 상태는 유지한다', () => {
+  const snapshot = explicitRenderSnapshot(chart);
+  const notes = presenter.present({ ...snapshot, hiddenSourceNoteIndices: new Set([0, 1, 2]) }, layout);
+  expect(notes.slice(0, 3).flatMap(note => note.layers).every(layer => !layer.visible)).toBe(true);
+  expect(notes[3].layers.every(layer => layer.visible)).toBe(true);
+  expect(snapshot.items.every(item => item.state === 'pending')).toBe(true);
+  expect(snapshot.bodyUnits.every(unit => unit.state === 'waiting')).toBe(true);
+});

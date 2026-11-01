@@ -7,13 +7,20 @@ import { createExplicitTutorialPreviewPlayback, createTutorialTimingsInputPlan }
 import { useTutorialPractice } from './useTutorialPractice';
 import { beat } from '../../../shared/types/beat';
 import { createExplicitTutorialPreview } from './explicitTutorialPreviewChart';
-import { DEFAULT_MAX_GREAT_OR_WORSE_COUNT, createTutorialPracticeSpec } from './tutorialPractice';
+import { DEFAULT_MAX_GREAT_OR_WORSE_COUNT, createTutorialPracticeSpec, createTutorialPracticeState, reduceTutorialPractice } from './tutorialPractice';
 import { ALL_TUTORIAL_PREVIEWS } from './tutorialCatalog';
 import { getTutorialInputTimings } from './tutorialPreviewChart';
 import { useTutorialPassRecords } from './useTutorialPassRecords';
 import { createExplicitTutorialPreviewSessionController } from './explicitTutorialPreviewSession';
 import { createTutorialPassSync } from './tutorialPassSync';
 import { useAuth } from '../../../shared/hooks/useAuth';
+import { ExplicitNotePresenter, type ExplicitPresentedNote } from '../../renderer/ExplicitNotePresenter';
+import { buildExplicitSkinView } from '../../skin/explicitSkin';
+import type { ExplicitCompiledChart } from '../../judgment/explicitCompiledChart';
+import type { ExplicitJudgmentSnapshot } from '../../judgment/ExplicitJudgmentState';
+
+vi.mock('react-dom', () => ({ createPortal: (children: ReactNode) => children }));
+vi.mock('./TutorialPatternDiagram', () => ({ TutorialPatternDiagram: () => null }));
 
 const client = vi.hoisted(() => ({
   from: vi.fn(), select: vi.fn(), eq: vi.fn(), upsert: vi.fn(), rpc: vi.fn(),
@@ -137,6 +144,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   hooks.cursor = 0; hooks.slots = []; hooks.effects = []; hooks.cleanups = [];
   onClose = vi.fn(); onItemPassed = vi.fn();
+  rendered.frames = [];
   authUserId = null; authLoading = false; modalOpen = true;
   client.from.mockReset().mockReturnValue(client);
   client.select.mockReset().mockReturnValue(client);
@@ -790,6 +798,8 @@ it('방법이 2개인 항목에서 첫 방법 3/3은 통과를 알리지 않고 
   expect(onItemPassed).toHaveBeenCalledTimes(1);
 });
 
+const rendered = vi.hoisted(() => ({ frames: [] as { timeMs: number; snapshot?: ExplicitJudgmentSnapshot; notes?: readonly ExplicitPresentedNote[] }[] }));
+
 // 이 테스트 파일의 player 경로에서는 GPU·에셋 I/O만 대체하고 입력·세션·반복은 실제 구현을 쓴다.
 vi.mock('../../renderer', () => ({ GameRenderer: class {
   init = async () => {};
@@ -797,12 +807,22 @@ vi.mock('../../renderer', () => ({ GameRenderer: class {
   resetTransientState() {}
   updateAccuracy() {}
   setPerfectWindow() {}
-  setExplicitChart() {}
+  snapshot?: () => ExplicitJudgmentSnapshot;
+  presenter?: ExplicitNotePresenter;
+  setExplicitChart(chart: ExplicitCompiledChart, _skin: unknown, snapshot: () => ExplicitJudgmentSnapshot) {
+    this.snapshot = snapshot;
+    this.presenter = new ExplicitNotePresenter(chart, buildExplicitSkinView('/'));
+  }
   updateTutorialKeyboardKeys() {}
   setLaneKeyLabels() {}
   setKeyBeam() {}
   setKeyState() {}
-  renderFrame() {}
+  renderFrame(timeMs: number) {
+    const snapshot = this.snapshot?.();
+    const notes = snapshot && this.presenter?.present(snapshot,
+      { judgmentLineY: 280, scrollSpeed: 520, laneAreaX: 0, height: 360 }, timeMs);
+    rendered.frames.push({ timeMs, snapshot, notes });
+  }
   showJudgmentGroup() {}
   recordFlightJudgment() {}
   showBombEffect() {}
@@ -971,4 +991,601 @@ it('실습 중 설정을 4키에서 2키로 줄이면 다음 차트 시작은 �
   useGameStore.setState({ settings: initialSettings });
   page = renderModal();
   expect(page.player('advanced-double-hold').inputMode).toBe('demonstration');
+});
+
+function mockMetronomeAudio(state: AudioContextState = 'running') {
+  const starts: number[] = [];
+  const stop = vi.fn();
+  const gain = { value: 1, setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() };
+  const gains: { value: number }[] = [];
+  let runningSince = state === 'running' ? performance.now() : null;
+  const audio = { state, baseLatency: 0.01, outputLatency: 0.07, destination: {},
+    get currentTime() { return runningSince === null ? 0 : (performance.now() - runningSince) / 1000; },
+    createGain: () => { const next = { ...gain }; gains.push(next); return { gain: next, connect() {}, disconnect() {} }; },
+    createOscillator: () => ({ frequency: { value: 0 }, start: (at: number) => starts.push(at), stop,
+      connect() {}, disconnect() {}, onended: null }),
+    resume: vi.fn(async () => { runningSince ??= performance.now(); audio.state = 'running'; }), close: vi.fn(async () => {}),
+  };
+  const create = vi.fn(function () { return audio; });
+  vi.stubGlobal('AudioContext', create);
+  return { audio, starts, stop, create, gains };
+}
+
+function renderMetronomePlayer(props: ComponentProps<typeof TutorialPreviewPlayer>) {
+  hooks.cursor = 0;
+  const nodes = elements(TutorialPreviewPlayer(props));
+  let dataset: Record<string, string> = {};
+  for (const node of nodes) {
+    const ref = (node.props as { ref?: { current: unknown } }).ref;
+    if (ref) {
+      ref.current ??= node.type === 'canvas' ? {} : { dataset: {} };
+      if (node.type !== 'canvas') dataset = (ref.current as { dataset: typeof dataset }).dataset;
+    }
+  }
+  hooks.effects.splice(0).forEach(effect => effect());
+  return { dataset, nodes };
+}
+
+it('모달의 4박 준비 중 직접 입력을 고르면 루프 0ms에 첫 패턴을 열고 Perfect 3회를 1/3으로 집계한다', async () => {
+  mockMetronomeAudio();
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  renderModal().select('single-note');
+  settle();
+  const onPatternStarted = vi.fn();
+  const onPatternFinished = vi.fn();
+  const render = () => {
+    const page = renderModal();
+    const props = page.player();
+    const nodes = elements(TutorialPreviewPlayer({ ...props,
+      onPatternStarted: iteration => {
+        onPatternStarted(iteration);
+        props.onPatternStarted?.(iteration);
+      },
+      onPatternFinished: pattern => {
+        onPatternFinished(pattern);
+        return props.onPatternFinished?.(pattern);
+      },
+    }));
+    let dataset: Record<string, string> = {};
+    for (const node of nodes) {
+      const ref = (node.props as { ref?: { current: unknown } }).ref;
+      if (!ref) continue;
+      ref.current ??= node.type === 'canvas' ? {} : { dataset: {} };
+      if (node.type !== 'canvas') dataset = (ref.current as { dataset: typeof dataset }).dataset;
+    }
+    hooks.effects.splice(0).forEach(effect => effect());
+    return { page, dataset };
+  };
+  const { dataset } = render();
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(500);
+  render().page.click('직접 입력');
+  render();
+  const origin = Number(dataset.tutorialLoopOriginNow);
+  expect(origin).toBeGreaterThan(performance.now());
+  vi.advanceTimersByTime(origin - 1 - performance.now());
+  expect(dataset.tutorialCountIn).toBe('true');
+  expect(onPatternStarted).not.toHaveBeenCalled();
+  expect(render().page.patternId).toBe(0);
+  vi.advanceTimersByTime(1);
+  // 루프 0ms를 지난 첫 프레임에 시작을 알린다(프레임 간격 16ms).
+  vi.advanceTimersByTime(16);
+  expect(onPatternStarted).toHaveBeenCalledExactlyOnceWith(0);
+  for (const at of [250, 750, 1250]) {
+    vi.advanceTimersByTime(origin + at - performance.now());
+    for (const type of ['keydown', 'keyup']) {
+      const event = new Event(type, { cancelable: true });
+      Object.defineProperties(event, {
+        code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false },
+      });
+      window.dispatchEvent(event);
+    }
+  }
+  vi.advanceTimersByTime(origin + ALL_TUTORIAL_PREVIEWS[1].loopMs + 32 - performance.now());
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0]).toMatchObject({ iteration: 0, modeSwitchedDuringPattern: false,
+    result: { score: { judgmentCounts: { perfect: 3, miss: 0 } } },
+  });
+  expect(render().page.progress).toBe('1/3');
+  expect(onPatternStarted.mock.calls).toEqual([[0], [1]]);
+});
+
+it('120 BPM의 직접 입력은 준비 4박 동안 0ms에 멈추고 E를 채점하지 않다가 출력 원점 기준 입력을 Perfect로 판정한다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  const { starts } = mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  useGameStore.setState({ settings: { ...initialSettings, inputOffsetMs: 100 } });
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  const onScoreChanged = vi.fn();
+  const { dataset } = renderMetronomePlayer({ preview: ALL_TUTORIAL_PREVIEWS[1],
+    inputMode: 'directInput', metronome, onScoreChanged });
+  await vi.dynamicImportSettled();
+  const key = (type: string) => {
+    const event = new Event(type, { cancelable: true });
+    Object.defineProperties(event, { code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false } });
+    window.dispatchEvent(event);
+  };
+  vi.advanceTimersByTime(500);
+  key('keydown'); key('keyup');
+  vi.advanceTimersByTime(1500);
+  expect(dataset.tutorialElapsedMs).toBe('0');
+  expect(starts.filter(at => at + 0.08 <= 2)).toHaveLength(4);
+  expect(onScoreChanged.mock.calls.every(([score]) => score.processedNotes === 0)).toBe(true);
+  vi.advanceTimersByTime(Number(dataset.tutorialLoopOriginNow) + 150 - performance.now());
+  key('keydown');
+  vi.advanceTimersByTime(150);
+  expect(onScoreChanged).toHaveBeenCalledWith(expect.objectContaining({ judgmentCounts: expect.objectContaining({ perfect: 1 }) }), 1);
+  metronome.dispose();
+});
+
+it.each(['pointerdown', 'keydown'])('모달의 두 슬롯은 같은 메트로놈을 공유하고 첫 %s으로 suspended 출력을 재개하며 닫으면 context를 해제한다', gesture => {
+  const { audio, create } = mockMetronomeAudio('suspended');
+  const players = renderModal().nodes.filter(node => node.type === TutorialPreviewPlayer)
+    .map(node => node.props as ComponentProps<typeof TutorialPreviewPlayer>);
+  expect(players).toHaveLength(2);
+  expect(players[0].metronome).toBeDefined();
+  expect(players[0].metronome).toBe(players[1].metronome);
+  expect(players.map(player => player.metronomeActive)).toEqual([true, false]);
+  expect(create).not.toHaveBeenCalled();
+  window.dispatchEvent(new Event(gesture));
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(audio.resume).toHaveBeenCalledTimes(1);
+  hooks.cleanups.forEach(cleanup => cleanup?.());
+  hooks.cleanups = [];
+  expect(audio.close).toHaveBeenCalledTimes(1);
+  window.dispatchEvent(new Event('keydown'));
+  expect(create).toHaveBeenCalledTimes(1);
+});
+
+it('대기 슬롯을 5초 뒤 활성화하면 그때 4박을 시작하고 반복·모드 전환·2초 일시정지 재개에는 준비를 반복하지 않는다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  const { starts, create, stop } = mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  const onPatternStarted = vi.fn();
+  const props = { preview: ALL_TUTORIAL_PREVIEWS[1], metronome, onPatternStarted };
+  const { dataset } = renderMetronomePlayer({ ...props, paused: true, metronomeActive: false });
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(5000);
+  expect(create).not.toHaveBeenCalled();
+  renderMetronomePlayer({ ...props, paused: false, metronomeActive: true });
+  vi.advanceTimersByTime(2306);
+  expect(starts.slice(0, 5).map(at => Math.round(at * 1000))).toEqual([5225, 5725, 6225, 6725, 7225]);
+  vi.advanceTimersByTime(2 * props.preview.loopMs + 200);
+  expect(onPatternStarted).toHaveBeenCalledTimes(3);
+  expect(dataset.tutorialCountIn).toBe('false');
+  renderMetronomePlayer({ ...props, inputMode: 'directInput' });
+  renderMetronomePlayer({ ...props, inputMode: 'demonstration' });
+  const elapsed = Number(dataset.tutorialElapsedMs);
+  renderMetronomePlayer({ ...props, paused: true });
+  const count = starts.length;
+  expect(stop).toHaveBeenCalled();
+  vi.advanceTimersByTime(2000);
+  expect(starts).toHaveLength(count);
+  renderMetronomePlayer({ ...props, paused: false });
+  vi.advanceTimersByTime(32);
+  expect(Number(dataset.tutorialElapsedMs) - elapsed).toBeLessThan(60);
+  expect(dataset.tutorialCountIn).toBe('false');
+  vi.advanceTimersByTime(600);
+  expect(starts.length).toBeGreaterThan(count);
+  // 재방문은 같은 렌더러를 재사용해도 준비를 새로 시작한다.
+  renderMetronomePlayer({ ...props, previewInstanceId: 1 });
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(1000);
+  expect(dataset.tutorialCountIn).toBe('true');
+  expect(dataset.tutorialElapsedMs).toBe('0');
+  metronome.dispose();
+});
+
+it('0박 도식은 4박 준비 뒤 소리를 멈추고 OK 뒤에는 새 준비 없이 도식 끝 1000ms에서 이어진다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  const { starts } = mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  vi.stubGlobal('document', { body: {} });
+  const props = { preview: ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!, metronome };
+  const { dataset } = renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(2400);
+  expect(starts).toHaveLength(4);
+  vi.advanceTimersByTime(5000);
+  expect(starts).toHaveLength(4);
+  // createPortal은 테스트에서 DOM 없이 React 트리만 돌려준다.
+  renderMetronomePlayer(props);
+  const { nodes } = renderMetronomePlayer(props);
+  const ok = nodes.find(node => (node.props as Record<string, unknown>)['data-tutorial-diagram-ok']);
+  expect(ok).toBeDefined();
+  const resumeNow = performance.now();
+  ok!.props.onClick!();
+  vi.advanceTimersByTime(100);
+  expect(starts).toHaveLength(5);
+  expect(starts[4] * 1000 + 80).toBeCloseTo(resumeNow + 105);
+  expect(Number(dataset.tutorialLoopTimeMs)).toBe(0);
+  vi.advanceTimersByTime(20);
+  expect(dataset.tutorialCountIn).toBe('false');
+  expect(Number(dataset.tutorialLoopTimeMs)).toBeGreaterThanOrEqual(1000);
+  vi.advanceTimersByTime(500);
+  expect(starts.length).toBeGreaterThan(4);
+  metronome.dispose();
+});
+
+it('suspended 자동 시작은 무음으로 진행하고 3초 뒤 제스처로 재개하면 다음 루프 박자에 합류하며 볼륨 0도 즉시 반영한다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  const { audio, starts, gains } = mockMetronomeAudio('suspended');
+  const metronome = new TutorialMetronome();
+  metronome.setMasterVolume(0.4);
+  vi.stubGlobal('requestAnimationFrame', window.requestAnimationFrame);
+  vi.stubGlobal('cancelAnimationFrame', window.cancelAnimationFrame);
+  const props = { preview: ALL_TUTORIAL_PREVIEWS[1], metronome };
+  const { dataset } = renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  vi.advanceTimersByTime(3000);
+  expect(starts).toHaveLength(0);
+  expect(dataset.tutorialCountIn).toBe('false');
+  expect(Number(dataset.tutorialElapsedMs)).toBeGreaterThan(800);
+  const origin = Number(dataset.tutorialLoopOriginNow);
+  expect(audio.currentTime).toBe(0);
+  metronome.resumeFromGesture();
+  expect(audio.resume).toHaveBeenCalledTimes(1);
+  vi.advanceTimersByTime(600);
+  expect(starts).toHaveLength(1);
+  expect(starts[0]).toBeCloseTo(0.525);
+  expect(starts[0] * 1000 + 3000 + 80).toBeCloseTo(origin + 1500);
+  expect(Number(dataset.tutorialLoopOriginNow)).toBe(origin);
+  expect(Number(dataset.tutorialElapsedMs)).toBeGreaterThan(1400);
+  expect(gains[0].value).toBe(0.4);
+  metronome.setMasterVolume(0);
+  expect(gains[0].value).toBe(0);
+  metronome.dispose();
+});
+
+it('active 슬롯도 로딩 가림막이 보일 때는 멈추고 onReady로 실제 재생기가 보인 뒤에만 준비를 시작한다', () => {
+  let page = renderModal();
+  const first = page.player('hand-placement');
+  expect(first.paused).toBe(true);
+  first.onReady?.();
+  page = renderModal();
+  expect(page.player('hand-placement').paused).toBe(false);
+});
+
+function manualFrames() {
+  let callback: FrameRequestCallback;
+  vi.stubGlobal('requestAnimationFrame', (next: FrameRequestCallback) => { callback = next; return 1; });
+  vi.stubGlobal('cancelAnimationFrame', () => {});
+  return (ms: number, callbackDelayMs = 0) => {
+    vi.advanceTimersByTime(ms);
+    callback(performance.now() - callbackDelayMs);
+  };
+}
+
+it.each(['일시정지 해제', '도식 OK'])('%s 뒤 105ms 재개 대기 중 시연을 왕복하면 Perfect 3개인 패턴 0은 제외하고 다음 직접 입력 패턴부터 성공 1회다', async resume => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  vi.stubGlobal('document', { body: {} });
+  const preview = ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!;
+  let practice = createTutorialPracticeState(createTutorialPracticeSpec({
+    conditions: [{ kind: 'maxGreatOrWorseCount', count: 0 }], playingMethods: [{ id: 'practice' }],
+  }));
+  practice = reduceTutorialPractice(practice, { type: 'modeSelected', mode: 'directInput' });
+  const finished = vi.fn<NonNullable<ComponentProps<typeof TutorialPreviewPlayer>['onPatternFinished']>>(pattern => {
+    practice = reduceTutorialPractice(practice, { type: 'patternFinished', patternId: pattern.iteration,
+      score: pattern.result.score, modeSwitchedDuringPattern: pattern.modeSwitchedDuringPattern });
+  });
+  const started = vi.fn((patternId: number) => {
+    practice = reduceTutorialPractice(practice, { type: 'patternStarted', patternId });
+  });
+  const props = { preview, metronome, inputMode: 'directInput' as const,
+    diagramModalEnabled: resume === '도식 OK', onPatternStarted: started, onPatternFinished: finished };
+  const { dataset } = renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  frame(200);
+  frame(2105); // 루프 0ms의 첫 패턴은 이미 시작했다.
+  expect(started).toHaveBeenCalledExactlyOnceWith(0);
+  if (resume === '일시정지 해제') {
+    frame(100);
+    renderMetronomePlayer({ ...props, paused: true });
+    frame(2000);
+    renderMetronomePlayer({ ...props, paused: false });
+  } else {
+    renderMetronomePlayer(props);
+    const { nodes } = renderMetronomePlayer(props);
+    nodes.find(node => (node.props as Record<string, unknown>)['data-tutorial-diagram-ok'])!.props.onClick!();
+  }
+  const heldAtMs = Number(dataset.tutorialElapsedMs);
+  frame(50);
+  for (const inputMode of ['demonstration', 'directInput'] as const) {
+    practice = reduceTutorialPractice(practice, { type: 'modeSelected', mode: inputMode });
+    renderMetronomePlayer({ ...props, inputMode, diagramModalEnabled: false });
+  }
+  expect(Number(dataset.tutorialElapsedMs)).toBe(heldAtMs);
+  expect(started).toHaveBeenCalledTimes(1);
+  expect(finished).not.toHaveBeenCalled();
+  frame(55);
+  const origin = Number(dataset.tutorialLoopOriginNow);
+  // 시연의 KeyF는 현재 바인딩의 첫 키 KeyE로 옮겨진다.
+  const actions = [
+    { type: 'keydown', key: 'KeyE', at: 3000 },
+    { type: 'keyup', key: 'KeyE', at: 3500 },
+    { type: 'keydown', key: 'KeyD', at: 3500 },
+    { type: 'keyup', key: 'KeyD', at: 4005 },
+  ];
+  for (const iteration of [0, 1]) {
+    for (const action of actions) {
+      frame(origin + iteration * preview.loopMs + action.at - performance.now());
+      const event = new Event(action.type, { cancelable: true });
+      Object.defineProperties(event, { code: { value: action.key }, timeStamp: { value: performance.now() }, repeat: { value: false } });
+      window.dispatchEvent(event);
+    }
+    frame(origin + (iteration + 1) * preview.loopMs - performance.now());
+    frame(16);
+    expect(finished.mock.calls[iteration][0]).toMatchObject({ iteration,
+      modeSwitchedDuringPattern: iteration === 0,
+      result: { score: { judgmentCounts: { perfect: 3, miss: 0 } } },
+    });
+    expect(practice.lastFinishedPattern?.countable).toBe(iteration === 1);
+    expect(practice.successCount).toBe(iteration);
+  }
+  metronome.dispose();
+});
+
+it('connected-long-note-switch에서 visualOffsetMs=-1000으로 첫 반복을 마치고 다음 도식을 9000ms 기다려도 OK 뒤 완료한 릴리즈는 pending으로 돌아오지 않는다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  vi.stubGlobal('document', { body: {} });
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: -1000 } });
+  const preview = ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!;
+  const onPatternFinished = vi.fn();
+  const props = { preview, metronome, onPatternFinished };
+  renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  const clickOk = () => {
+    renderMetronomePlayer(props);
+    const { nodes } = renderMetronomePlayer(props);
+    const ok = nodes.find(node => (node.props as Record<string, unknown>)['data-tutorial-diagram-ok']);
+    expect(ok).toBeDefined();
+    ok!.props.onClick!();
+  };
+  frame(200);
+  frame(2105); // 첫 도식: J=0ms
+  clickOk();
+  frame(105); // 재개 대기 뒤 J=1000ms
+  frame(preview.loopMs - 1000); // 6000ms 경계 정산과 반복 1의 도식 진입
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  const frozen = rendered.frames.at(-1)!;
+  frame(4500);
+  frame(4500);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(rendered.frames.at(-1)?.timeMs).toBe(frozen.timeMs);
+  expect(rendered.frames.at(-1)?.snapshot).toEqual(frozen.snapshot);
+  clickOk();
+  const frameCount = rendered.frames.length;
+  frame(100); // 105ms의 재개 대기 중에는 마지막 화면 유지
+  expect(rendered.frames).toHaveLength(frameCount);
+  frame(6); // J=1001ms, V=1ms: 이전 반복의 릴리즈는 이전 표시 복사본에 남는다.
+
+  const last = rendered.frames.at(-1)!;
+  expect(last.timeMs).toBeCloseTo(preview.loopMs + 1);
+  const releaseIndex = preview.chart.notes.findIndex(note => note.type === 'release');
+  expect(last.snapshot?.items.find(item => item.sourceNoteIndex === releaseIndex)?.state).toBe('success');
+  expect(last.notes?.find(note => note.sourceNoteIndex === releaseIndex)?.layers.every(layer => !layer.visible)).toBe(true);
+  expect(last.snapshot?.items.find(item => item.sourceNoteIndex === releaseIndex + preview.chart.notes.length)?.state).toBe('pending');
+  metronome.dispose();
+});
+
+it('connected-long-note-switch에서 visualOffsetMs=-1000으로 첫 반복을 마치고 paused로 9000ms 기다려도 재개 뒤 완료한 릴리즈는 숨김을 유지한다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: -1000 } });
+  const preview = ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!;
+  const onPatternFinished = vi.fn();
+  const props = { preview, metronome, onPatternFinished, diagramModalEnabled: false };
+  renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  frame(200);
+  frame(2105);
+  frame(preview.loopMs + 100); // J=6100ms, V=5100ms: 완료한 릴리즈는 가운데 표시 복사본에 남는다.
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  expect(onPatternFinished.mock.calls[0][0].result.score.judgmentCounts).toMatchObject({ perfect: 3, miss: 0 });
+  const frameCount = rendered.frames.length;
+  renderMetronomePlayer({ ...props, paused: true });
+  frame(4500);
+  frame(4500);
+  expect(rendered.frames).toHaveLength(frameCount);
+  renderMetronomePlayer({ ...props, paused: false });
+  frame(100);
+  expect(rendered.frames).toHaveLength(frameCount);
+  frame(6);
+
+  const last = rendered.frames.at(-1)!;
+  expect(last.timeMs).toBeCloseTo(2 * preview.loopMs - 899);
+  expect(onPatternFinished).toHaveBeenCalledTimes(1);
+  const releaseIndex = preview.chart.notes.length + preview.chart.notes.findIndex(note => note.type === 'release');
+  expect(last.snapshot?.items.find(item => item.sourceNoteIndex === releaseIndex)?.state).toBe('success');
+  expect(last.notes?.find(note => note.sourceNoteIndex === releaseIndex)?.layers.every(layer => !layer.visible)).toBe(true);
+  expect(last.snapshot?.items.find(item => item.sourceNoteIndex === releaseIndex + preview.chart.notes.length)?.state).toBe('pending');
+  metronome.dispose();
+});
+
+it('OK 뒤 재개 예정 10105ms보다 이른 rAF 10100ms가 실제 10110ms에 실행돼도 도식을 다시 열지 않는다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  vi.stubGlobal('document', { body: {} });
+  const props = { preview: ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'connected-long-note-switch')!, metronome };
+  const { dataset } = renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  frame(200);
+  frame(2105);
+  frame(10000 - performance.now());
+  renderMetronomePlayer(props);
+  const { nodes } = renderMetronomePlayer(props);
+  nodes.find(node => (node.props as Record<string, unknown>)['data-tutorial-diagram-ok'])!.props.onClick!();
+  const frameCount = rendered.frames.length;
+
+  frame(110, 10);
+  expect(rendered.frames).toHaveLength(frameCount);
+  frame(10);
+  expect(Number(dataset.tutorialLoopTimeMs)).toBeCloseTo(1015);
+  metronome.dispose();
+});
+
+it('출력 지연 80ms에서 480ms에 멈췄다가 재개하면 105ms 동안 시계도 기다린 뒤 500ms 클릭을 들려준다', async () => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  const { starts } = mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  const base = ALL_TUTORIAL_PREVIEWS[1];
+  const preview = createExplicitTutorialPreview('resume-tap', '500ms 탭', [], 3, {
+    ...base.chart, notes: [{ type: 'tap', kind: 'single', lane: 2, beat: beat(1) }],
+  });
+  const onScoreChanged = vi.fn();
+  const props = { preview, metronome, inputMode: 'directInput' as const, onScoreChanged };
+  const { dataset } = renderMetronomePlayer(props);
+  await vi.dynamicImportSettled();
+  frame(200);
+  frame(2105);
+  frame(480);
+  expect(Number(dataset.tutorialElapsedMs)).toBeCloseTo(480);
+  renderMetronomePlayer({ ...props, paused: true });
+  frame(2000);
+  const count = starts.length;
+  renderMetronomePlayer({ ...props, paused: false });
+  const resumeNow = performance.now();
+  const renderedBeforeResume = rendered.frames.length;
+  const scoresBeforeResume = onScoreChanged.mock.calls.length;
+  const key = (type: string, timestamp = performance.now()) => {
+    const event = new Event(type, { cancelable: true });
+    Object.defineProperties(event, { code: { value: 'KeyE' }, timeStamp: { value: timestamp }, repeat: { value: false } });
+    window.dispatchEvent(event);
+  };
+  frame(80);
+  key('keydown'); key('keyup');
+  expect(rendered.frames).toHaveLength(renderedBeforeResume);
+  expect(onScoreChanged).toHaveBeenCalledTimes(scoresBeforeResume);
+  expect(Number(dataset.tutorialElapsedMs)).toBeCloseTo(480);
+  frame(45);
+  expect(Number(dataset.tutorialElapsedMs)).toBeCloseTo(500);
+  expect(starts.slice(count)).toHaveLength(1);
+  expect(starts[count] * 1000 + 80).toBeCloseTo(resumeNow + 125);
+  // 콜백 시각은 재개 뒤라도 이벤트 자체가 105ms 대기 안에서 발생했으면 채점하지 않는다.
+  key('keydown', resumeNow + 100); key('keyup', resumeNow + 101);
+  frame(1);
+  expect(onScoreChanged).toHaveBeenCalledTimes(scoresBeforeResume);
+  key('keydown');
+  // 재개 뒤 수집한 입력보다 늦게 실행된 이전 rAF는 수집한 입력을 지우지 않는다.
+  frame(0, 26);
+  expect(onScoreChanged).toHaveBeenCalledTimes(scoresBeforeResume);
+  frame(1);
+  expect(onScoreChanged).toHaveBeenCalledWith(expect.objectContaining({
+    judgmentCounts: expect.objectContaining({ perfect: 1 }),
+  }), 1);
+  metronome.dispose();
+});
+
+it.each([
+  { offset: 100, countInRender: 1550, elapsed: 1450, renderTime: 1550, successIndices: [0], finished: 0 },
+  { offset: -100, countInRender: 2850, elapsed: 1550, renderTime: 2950, successIndices: [1, 2], finished: 1 },
+])('visualOffsetMs=$offset이면 준비 중 V와 반복 경계 표시를 옮기되 $elapsed ms의 세션 판정은 J를 따른다', async ({ offset, countInRender, elapsed, renderTime, successIndices, finished }) => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: offset } });
+  const base = ALL_TUTORIAL_PREVIEWS[1];
+  const preview = createExplicitTutorialPreview('offset-tap', '0ms 탭', [], 3, {
+    ...base.chart, notes: [{ type: 'tap', kind: 'single', lane: 2, beat: beat(0) }],
+    events: [base.chart.events[0], { type: 'tutorialInput', lane: 2, keyCode: 'KeyE', keyLabel: 'E',
+      beat: beat(0), endBeat: beat(1), editorLane: 3 }],
+  });
+  const onPatternFinished = vi.fn();
+  const { dataset } = renderMetronomePlayer({ preview, metronome, onPatternFinished });
+  await vi.dynamicImportSettled();
+  frame(200);
+  frame(2055); // J=-50ms, V=50ms 또는 -150ms
+  expect(rendered.frames.at(-1)?.timeMs).toBeCloseTo(countInRender);
+  expect(rendered.frames.at(-1)?.snapshot?.items.every(item => item.state === 'pending')).toBe(true);
+  expect(dataset.tutorialElapsedMs).toBe('0');
+  expect(onPatternFinished).not.toHaveBeenCalled();
+  frame(elapsed + 50);
+  expect(rendered.frames.at(-1)?.timeMs).toBeCloseTo(renderTime);
+  expect(rendered.frames.at(-1)?.snapshot?.items.filter(item => item.state === 'success')
+    .map(item => item.sourceNoteIndex)).toEqual(successIndices);
+  expect(onPatternFinished).toHaveBeenCalledTimes(finished);
+  expect(Number(dataset.tutorialElapsedMs)).toBeCloseTo(elapsed);
+  metronome.dispose();
+});
+
+it.each([-100, 100])('무음 Lab에서 visualOffsetMs=%i여도 250ms를 3750ms에 표시하고 시연 Perfect는 현재 복사본에 둔다', async offset => {
+  const frame = manualFrames();
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: offset } });
+  renderMetronomePlayer({ preview: ALL_TUTORIAL_PREVIEWS[1] });
+  await vi.dynamicImportSettled();
+  frame(250);
+  expect(rendered.frames.at(-1)?.timeMs).toBeCloseTo(3750);
+  expect(rendered.frames.at(-1)?.snapshot?.items.filter(item => item.state === 'success')
+    .map(item => item.sourceNoteIndex)).toEqual([3]);
+});
+
+it.each([
+  { offset: -400, inputMode: 'demonstration' }, { offset: 400, inputMode: 'demonstration' },
+  { offset: -400, inputMode: 'directInput' }, { offset: 400, inputMode: 'directInput' },
+] as const)('single-note $inputMode에서 visualOffsetMs=$offset이면 J=3510ms 뒤에도 반복 0의 1250ms 성공 노트를 다시 표시하지 않는다', async ({ offset, inputMode }) => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: offset } });
+  renderMetronomePlayer({ preview: ALL_TUTORIAL_PREVIEWS[1], metronome, inputMode });
+  await vi.dynamicImportSettled();
+  frame(200);
+  frame(2105);
+  frame(1250);
+  if (inputMode === 'directInput') {
+    const down = new Event('keydown', { cancelable: true });
+    Object.defineProperties(down, { code: { value: 'KeyE' }, timeStamp: { value: performance.now() }, repeat: { value: false } });
+    window.dispatchEvent(down);
+  }
+  frame(ALL_TUTORIAL_PREVIEWS[1].loopMs + 10 - 1250);
+  frame(1); // 직접 입력의 경계 정산을 위한 다음 프레임
+
+  const snapshot = rendered.frames.at(-1)!.snapshot!;
+  // V=3111ms의 가운데 복사본 또는 V=3911ms의 이전 복사본이 반복 0이다.
+  const noteIndex = offset < 0 ? 5 : 2;
+  expect(snapshot.items.find(item => item.sourceNoteIndex === noteIndex)?.state).toBe('success');
+  expect(snapshot.items.find(item => item.sourceNoteIndex === noteIndex + 3)?.state).toBe('pending');
+  metronome.dispose();
+});
+
+it.each([-400, 0, 400])('single-note 준비 J=-250ms·visualOffsetMs=%i에서 첫 실제 반복만 표시하고 가짜 이전 반복은 숨긴다', async offset => {
+  const { TutorialMetronome } = await import('../../audio/TutorialMetronome');
+  mockMetronomeAudio();
+  const metronome = new TutorialMetronome();
+  const frame = manualFrames();
+  useGameStore.setState({ settings: { ...initialSettings, visualOffsetMs: offset } });
+  renderMetronomePlayer({ preview: ALL_TUTORIAL_PREVIEWS[1], metronome });
+  await vi.dynamicImportSettled();
+  expect(rendered.frames.at(-1)!.notes?.filter(note => note.layers.some(layer => layer.visible))
+    .map(note => note.sourceNoteIndex)).toEqual([3, 4, 5]);
+  frame(200);
+  frame(1855);
+  const last = rendered.frames.at(-1)!;
+  expect(last.notes?.filter(note => note.layers.some(layer => layer.visible)).map(note => note.sourceNoteIndex))
+    .toEqual(offset <= 0 ? [6, 7, 8] : [3, 4, 5]);
+  expect(last.snapshot?.items.every(item => item.state === 'pending')).toBe(true);
+  frame(250); // J=0ms에서도 가짜 이전 반복은 생기지 않는다.
+  expect(rendered.frames.at(-1)!.notes?.filter(note => note.layers.some(layer => layer.visible))
+    .map(note => note.sourceNoteIndex)).toEqual(offset < 0 ? [6, 7, 8] : [3, 4, 5, 6, 7, 8]);
+  metronome.dispose();
 });

@@ -16,6 +16,8 @@ import {
   type ExplicitTutorialPatternResult,
   type TutorialInputMode,
 } from './explicitTutorialPreviewPlayback';
+import type { TutorialMetronome } from '../../audio/TutorialMetronome';
+import { createTutorialMetronomePattern } from '../../audio/tutorialMetronomeTiming';
 import { stepTutorialLoopClock } from './tutorialLoopClock';
 import { createExplicitTutorialInput, getExplicitTutorialInputTime } from './explicitTutorialInput';
 import type { KeyBinding } from '../../input/InputSystem';
@@ -123,6 +125,10 @@ export interface TutorialPreviewPlayerProps {
    * 렌더러를 새로 만들려면 부모가 key를 바꿔 재생기를 다시 마운트한다(Lab의 처음부터 재생).
    */
   previewInstanceId?: number;
+  /** 모달이 소유하는 공유 출력. 생략한 Lab 재생기는 기존 무음 경로를 쓴다. */
+  metronome?: TutorialMetronome;
+  /** 캐러셀의 안착한 active 슬롯만 소리를 낸다. */
+  metronomeActive?: boolean;
   /** 같은 레슨 안에서 다음 연주 방법으로 넘어갈 때 차트·시계만 새로 시작한다. */
   playbackRevision?: number;
   onReady?: () => void;
@@ -143,7 +149,7 @@ export interface TutorialPreviewPlayerProps {
   inputMode?: TutorialInputMode;
   /** 설정 키 캡처 등 다른 UI가 키보드를 소유하면 false. 기존 held 키의 up은 계속 추적한다. */
   ownsKeyboardInput?: (event: KeyboardEvent) => boolean;
-  /** 최초 준비와 각 반복 시작에 0부터 알린다. 이전 패턴의 finish 뒤에만 통지하며 직접 입력의 물리 세션 시작보다 늦을 수 있다. 중간 전환은 새 시작이 아니다. */
+  /** 첫 준비가 끝난 루프 0ms부터 알린다. 이후는 이전 패턴의 finish 뒤에만 통지하며 직접 입력의 물리 세션 시작보다 늦을 수 있다. 중간 전환은 새 시작이 아니다. */
   onPatternStarted?: (iteration: number) => void;
   /**
    * 명시 정의를 재생할 때만 부른다. 시연은 반복 경계, 직접 입력은 경계와 마지막 판정 기한을 모두 지난 뒤 finalize한 결과이며,
@@ -254,6 +260,8 @@ export function buildTutorialKeyboardKeys(
 export function TutorialPreviewPlayer({
   preview = TUTORIAL_PREVIEWS[0],
   previewInstanceId,
+  metronome,
+  metronomeActive = true,
   playbackRevision,
   onReady,
   diagramModalEnabled = true,
@@ -284,6 +292,8 @@ export function TutorialPreviewPlayer({
   const showRendererBombRef = useRef(showRendererBomb);
   const onBombEffectRef = useRef(onBombEffect);
   const pausedRef = useRef(paused);
+  const metronomeActiveRef = useRef(metronomeActive);
+  const syncMetronomeRef = useRef<(() => void) | null>(null);
   const onPatternFinishedRef = useRef(onPatternFinished);
   const onPatternStartedRef = useRef(onPatternStarted);
   const onScoreChangedRef = useRef(onScoreChanged);
@@ -293,6 +303,8 @@ export function TutorialPreviewPlayer({
   const directInput = isExplicitTutorialPreview(preview) && inputMode === 'directInput';
   const settings = useGameStore((state) => state.settings);
   const inputOffsetMsRef = useRef(settings.inputOffsetMs);
+  const visualOffsetMsRef = useRef(settings.visualOffsetMs);
+  useEffect(() => { visualOffsetMsRef.current = settings.visualOffsetMs; }, [settings.visualOffsetMs]);
   useEffect(() => { inputOffsetMsRef.current = settings.inputOffsetMs; }, [settings.inputOffsetMs]);
   // 판정 모드는 명시 정의만 따른다. 구형 정의(노트 에셋 시연실)는 고정 Normal이라 모드가 바뀌어도 다시 걸지 않는다.
   const explicitJudgmentMode = preview && isExplicitTutorialPreview(preview) ? settings.judgmentMode : 'normal';
@@ -370,7 +382,13 @@ export function TutorialPreviewPlayer({
   useEffect(() => {
     pausedRef.current = paused;
     syncExplicitControlRef.current?.();
+    syncMetronomeRef.current?.();
   }, [paused]);
+
+  useEffect(() => {
+    metronomeActiveRef.current = metronomeActive;
+    syncMetronomeRef.current?.();
+  }, [metronomeActive]);
 
   useEffect(() => {
     onPatternFinishedRef.current = onPatternFinished;
@@ -573,9 +591,50 @@ export function TutorialPreviewPlayer({
     let explicitInput: ReturnType<typeof createExplicitTutorialInput> | null = null;
     let loopStartNow = previousNow;
     let pausedAtNow: number | null = null;
+    let resumeAtNow = -Infinity;
     let activeDiagramPause: TutorialDiagramPause | null = null;
     let activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
     let screenIteration = 0;
+    let renderIteration = 0;
+    const clickTrack = metronome?.createTrack(createTutorialMetronomePattern(preview.chart, preview.loopMs));
+    /**
+     * 첫 시작은 보이는 슬롯에서 레슨을 처음부터 재생하는 매회(열기·레슨 변경·재진입·재시작)다.
+     * 반복·시연↔직접 입력·도식 OK·일시정지 재개는 새 시작이 아니므로 4박을 다시 넣지 않는다.
+     * 준비 중에는 음수 루프 시각을 사용한다. 시각 오프셋은 적용하되 입력은 채점하지 않는다.
+     */
+    let firstStartPending = !!clickTrack;
+    let renderCountIn = !!clickTrack;
+    const countingIn = (now: number) => !!clickTrack && (firstStartPending || now < loopStartNow);
+    const waitingForResume = (now: number) => now < resumeAtNow;
+    const holdForAudioResume = (now: number) => {
+      const leadMs = clickTrack?.resumeDelayMs(now) ?? 0;
+      loopStartNow += leadMs;
+      resumeAtNow = now + leadMs;
+      previousNow = resumeAtNow;
+    };
+    const syncMetronome = (now: number) => {
+      if (!clickTrack) return;
+      if (firstStartPending && attachedRenderer && metronomeActiveRef.current && !pausedRef.current) {
+        const start = clickTrack.start(now);
+        if (start === null) return;
+        loopStartNow = start;
+        previousNow = now;
+        pausedAtNow = null;
+        firstStartPending = false;
+        explicitInput?.rebase(now);
+      }
+      if (firstStartPending) return;
+      if (shellRef.current) shellRef.current.dataset.tutorialLoopOriginNow = String(loopStartNow);
+      const elapsed = Math.max(0, Math.max(now, resumeAtNow) - loopStartNow);
+      const iteration = Math.floor(elapsed / preview.loopMs);
+      const nextDiagram = diagramModalEnabledRef.current
+        ? diagramTimings.flatMap(timing => [iteration, iteration + 1].map(cycle => cycle * preview.loopMs + timing.startMs))
+          .filter(at => at >= elapsed).sort((a, b) => a - b)[0]
+        : undefined;
+      clickTrack.sync(loopStartNow, !firstStartPending && metronomeActiveRef.current
+        && !pausedRef.current && !activeDiagramPause, nextDiagram);
+    };
+    syncMetronomeRef.current = () => syncMetronome(performance.now());
 
     const notifyReady = () => {
       if (!readyNotifiedRef.current) {
@@ -644,6 +703,7 @@ export function TutorialPreviewPlayer({
     };
 
     dismissDiagramRef.current = () => {
+      if (clickTrack && activeDiagramPause) resumeDiagramRef.current?.();
       activeDiagramPause = null;
       setActiveDiagramTimingIfChanged(null);
       setDiagramDisplay(null);
@@ -679,14 +739,17 @@ export function TutorialPreviewPlayer({
       // 경계 정산 대기가 남아 있으면 마친 뒤 실제 OK 시각부터 새 입력을 받는다.
       explicitInput?.rebase(resumeNow);
       screenIteration = 0;
+      renderIteration = 0;
       previousNow = resumeNow;
+      if (pausedAtNow === null) holdForAudioResume(resumeNow);
       // 멈춘(paused) 상태에서 재개하면 멈춘 시각을 지금으로 옮겨, 나중에 일시정지가 풀릴 때 도식 끝 시점에서 그대로 잇는다.
       if (pausedAtNow !== null) pausedAtNow = resumeNow;
       activeDiagramPause = null;
       setActiveDiagramTimingIfChanged(null);
+      syncMetronome(resumeNow);
     };
 
-    resolveDiagramPauseTime(0);
+    if (!clickTrack) resolveDiagramPauseTime(0);
     if (activeDiagramPause) {
       notifyReady();
     }
@@ -696,6 +759,7 @@ export function TutorialPreviewPlayer({
         cancelAnimationFrame(animationFrameId);
         animationFrameId = null;
       }
+      clickTrack?.sync(loopStartNow, false);
       attachedJudgment?.stop();
       attachedJudgment = null;
       explicitInput = null;
@@ -715,6 +779,7 @@ export function TutorialPreviewPlayer({
       setFinishedPattern(null);
       pendingPatternStart = null;
       screenIteration = 0;
+      renderIteration = 0;
       try {
         // 이전 차트가 남긴 봄·판정 텍스트·키 눌림을 지운 뒤 이 차트를 건다.
         renderer.resetTransientState();
@@ -736,7 +801,7 @@ export function TutorialPreviewPlayer({
             onScoreChanged: (score, combo) => onScoreChangedRef.current?.(score, combo),
           });
           explicitInput = createExplicitTutorialInput(explicitPlayback, directBindings, preview.loopMs,
-            () => ({ loopStartNow, blocked: pausedRef.current || activeDiagramPause !== null, inputOffsetMs: inputOffsetMsRef.current }),
+            (now = performance.now()) => ({ loopStartNow, blocked: pausedRef.current || activeDiagramPause !== null || countingIn(now) || waitingForResume(now), inputOffsetMs: inputOffsetMsRef.current }),
             pattern => {
               setFinishedPattern(pattern);
               if (onPatternFinishedRef.current?.(pattern) === false) {
@@ -751,8 +816,9 @@ export function TutorialPreviewPlayer({
           explicitInput.setMode(inputModeRef.current);
           let firstPatternStarted = false;
           const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) => {
-            const blocked = pausedRef.current || diagramHeldBeforeFrame;
-            // 렌더러 준비·캐러셀 대기는 패턴 재생이 아니다. 실제 시작 때 선택된 모드로 집계를 연다.
+            const blocked = pausedRef.current || diagramHeldBeforeFrame
+              || countingIn(previousNow) || waitingForResume(previousNow);
+            // 렌더러·캐러셀·4박 준비는 패턴 재생이 아니다. 루프 0ms에 선택된 모드로 집계를 연다.
             if (!firstPatternStarted && !blocked) {
               firstPatternStarted = true;
               onPatternStartedRef.current?.(0);
@@ -764,9 +830,12 @@ export function TutorialPreviewPlayer({
           };
           syncExplicitControlRef.current = () => {
             const now = performance.now();
+            const resuming = pausedAtNow !== null && !pausedRef.current;
             const clock = stepTutorialLoopClock({ loopStartNow, pausedAtNow, previousNow }, now, pausedRef.current);
             ({ loopStartNow, pausedAtNow } = clock.next);
-            if (!clock.frozen) {
+            if (resuming && !firstStartPending) holdForAudioResume(now);
+            syncMetronome(now);
+            if (!clock.frozen && !countingIn(now) && !waitingForResume(now)) {
               previousNow = now;
               const diagramHeldBeforeFrame = activeDiagramPause !== null;
               const loopTimeMs = resolveDiagramPauseTime(Math.max(0, now - loopStartNow) % preview.loopMs);
@@ -792,7 +861,8 @@ export function TutorialPreviewPlayer({
             explicitSkin,
             () => explicitPlayback.renderSnapshot(
               activeRenderCycle,
-              (explicitInput?.sessionIteration ?? screenIteration) - screenIteration,
+              (explicitInput?.sessionIteration ?? screenIteration) - renderIteration,
+              clickTrack ? renderCountIn : undefined,
             ),
             preview.renderChart,
             preview.renderDurationMs,
@@ -875,15 +945,18 @@ export function TutorialPreviewPlayer({
           renderer.setLaneKeyLabels([], false);
         }
         setRendererInputState(renderer, getActiveTutorialInputTimings(0, timings));
-        previewJudgment.advanceTo(0);
+        if (!clickTrack) previewJudgment.advanceTo(0);
         renderer.renderFrame(preview.renderStartMs, 0);
-        // 시계는 첫 프레임을 그린 지금을 루프 시간 0으로 삼는다. 멈춘 슬롯은 렌더 루프가 이 시각을 멈춘 시각으로 기록해,
-        // 재생이 풀리는 순간 루프 시간 0부터 시작한다.
+        // 무음 Lab은 첫 프레임을 루프 0으로 삼는다. 메트로놈은 아래 syncMetronome에서
+        // active 슬롯의 첫 클릭 출력 시각 + 4박으로 시작점을 옮긴다. 대기 슬롯은 준비를 소진하지 않는다.
         previousNow = performance.now();
         loopStartNow = previousNow;
         pausedAtNow = null;
+        resumeAtNow = -Infinity;
         previousLoopTime = 0;
         if (shellRef.current) {
+          delete shellRef.current.dataset.tutorialLoopOriginNow;
+          shellRef.current.dataset.tutorialCountIn = String(!!clickTrack);
           shellRef.current.dataset.tutorialElapsedMs = '0';
           shellRef.current.dataset.tutorialLoopTimeMs = '0';
         }
@@ -891,37 +964,58 @@ export function TutorialPreviewPlayer({
         activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
         attachedRenderer = renderer;
         rendererRef.current = renderer;
+        syncMetronome(previousNow);
         notifyReady();
         setRendererReady(true);
 
         const renderLoop = (now: number) => {
           if (disposed || attachedRenderer !== renderer) return;
+          const resuming = pausedAtNow !== null && !pausedRef.current;
           const clock = stepTutorialLoopClock({ loopStartNow, pausedAtNow, previousNow }, now, pausedRef.current);
           ({ loopStartNow, pausedAtNow, previousNow } = clock.next);
-          explicitInput?.syncJudging();
-          if (clock.frozen) {
-            // 일시정지 중에는 판정·렌더를 진행하지 않고 마지막 장면을 유지한다.
+          if (resuming && !firstStartPending) holdForAudioResume(now);
+          syncMetronome(now);
+          if (clock.frozen || waitingForResume(now)) {
+            // 입력은 이벤트 시각으로 수집한다. 늦게 실행된 대기 프레임이 재개 뒤 받은 입력을 지우면 안 된다.
+            // 판정·렌더를 진행하지 않고 마지막 장면을 유지한다.
             animationFrameId = requestAnimationFrame(renderLoop);
             return;
           }
 
           const deltaMs = Math.min(48, now - previousNow);
           previousNow = now;
+          if (firstStartPending) {
+            if (shellRef.current) shellRef.current.dataset.tutorialCountIn = 'true';
+            animationFrameId = requestAnimationFrame(renderLoop);
+            return;
+          }
+          const inCountIn = !!clickTrack && now < loopStartNow;
+          renderCountIn = inCountIn;
+          if (shellRef.current) shellRef.current.dataset.tutorialCountIn = String(inCountIn);
+          const diagramHeldBeforeFrame = activeDiagramPause !== null;
           // rAF 타임스탬프는 프레임 시작 시각이라 첫 프레임 직후 잰 loopStartNow보다 앞설 수 있다. 음수면 루프 경계로 오인하므로 0으로 막는다.
           const screenTime = getExplicitTutorialInputTime(now, loopStartNow, preview.loopMs);
-          screenIteration = screenTime.iteration;
+          // 도식 대기 중에는 표시 차수도 고정해, OK 뒤에도 필요한 종료 snapshot을 화면 밖 이력으로 지우지 않는다.
+          if (!diagramHeldBeforeFrame) screenIteration = screenTime.iteration;
           let loopTimeMs = screenTime.loopTimeMs;
           // 새 도식은 이미 지난 경계의 정산을 막지 않는다. 직접 입력은 늦은 이벤트를 위해 다음 프레임까지 기다린다.
-          const diagramHeldBeforeFrame = activeDiagramPause !== null;
-          loopTimeMs = resolveDiagramPauseTime(loopTimeMs);
-          activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs + loopTimeMs, preview.loopMs);
-          const renderTimeMs = preview.renderStartMs + loopTimeMs;
+          if (!inCountIn) loopTimeMs = resolveDiagramPauseTime(loopTimeMs);
+          syncMetronome(now);
+          // J는 세션·도식·반복 경계를 유지하고, 표시만 V=J+visualOffsetMs로 옮긴다.
+          // V의 반복 차수에 맞춰 live 세션이 속한 3벌 표시 복사본도 함께 이동한다.
+          const visualElapsedMs = (inCountIn ? now - loopStartNow : screenIteration * preview.loopMs + loopTimeMs)
+            + (clickTrack ? visualOffsetMsRef.current : 0);
+          renderIteration = Math.floor(visualElapsedMs / preview.loopMs);
+          const visualLoopTimeMs = visualElapsedMs - renderIteration * preview.loopMs;
+          const renderTimeMs = preview.renderStartMs + visualLoopTimeMs;
+          activeRenderCycle = getTutorialRenderCycleIndex(renderTimeMs, preview.loopMs);
           const activeTimings = getActiveTutorialInputTimings(loopTimeMs, timings);
 
           if (!isExplicitTutorialPreview(preview) && loopTimeMs < previousLoopTime) {
             previewJudgment.finishLoop();
           }
-          previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);
+          if (!inCountIn) previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);
+          syncMetronome(now);
           previousLoopTime = loopTimeMs;
           // 브라우저 진단용 시계. React를 프레임마다 다시 그리지 않고 실제 재생 시각만 공개한다.
           if (shellRef.current) {
@@ -961,6 +1055,7 @@ export function TutorialPreviewPlayer({
 
       detachRenderer();
       if (state.status === 'failed') {
+        resolveDiagramPauseTime(0);
         // 렌더러가 실패해도 스피너가 무한 대기하지 않도록 준비 완료로 처리해 OK를 노출한다.
         notifyReady();
         setRendererReady(true);
@@ -981,9 +1076,11 @@ export function TutorialPreviewPlayer({
       resumeDiagramRef.current = null;
       dismissDiagramRef.current = null;
       detachRenderer();
+      clickTrack?.stop();
+      syncMetronomeRef.current = null;
     };
     // previewInstanceId는 본문에서 읽지 않지만, 같은 레슨을 다시 방문했을 때 차트를 처음부터 다시 걸기 위한 의존성이다.
-  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, playbackRevision, timings, tutorialKeyboardKeys]);
+  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, metronome, preview, previewInstanceId, playbackRevision, timings, tutorialKeyboardKeys]);
 
   // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
   // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
