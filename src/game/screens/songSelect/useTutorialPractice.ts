@@ -3,7 +3,7 @@ import type { ScoreState } from '../../scoring/ScoreManager';
 import type { TutorialLesson } from './tutorialCatalog';
 import type { TutorialPreviewPlayerProps } from './TutorialPreviewPlayer';
 import {
-  createTutorialPracticeState, getSelectedTutorialPracticeMode, getTutorialPracticeProgress,
+  createTutorialPracticeState, getTutorialPracticeProgress,
   isTutorialPlayingMethodComplete, isTutorialPracticeItemPassed, reduceTutorialPractice,
   type TutorialPracticeEvent, type TutorialPracticeState,
 } from './tutorialPractice';
@@ -20,7 +20,7 @@ function createView(lesson: TutorialLesson, generation: number): PracticeView {
     liveScore: null, combo: 0 };
 }
 
-/** React commit보다 먼저 오는 반복 경계에도 reducer 결과를 즉시 반환한다. 카운터는 모달 수명 동안 유지한다. */
+/** React commit보다 먼저 오는 반복 경계에도 최신 상태로 정산한다. 카운터는 모달 수명 동안 유지한다. */
 export function useTutorialPractice(initialLesson: TutorialLesson, onItemPassed?: (itemId: string) => void) {
   const [view, setView] = useState(() => createView(initialLesson, 0));
   const viewRef = useRef(view);
@@ -52,7 +52,7 @@ export function useTutorialPractice(initialLesson: TutorialLesson, onItemPassed?
     onPatternStarted: () => {
       if (!isCurrent()) return;
       publish({ ...viewRef.current, liveScore: null, combo: 0 });
-      return dispatch({ type: 'patternStarted', patternId: nextPatternId.current++ })?.mode;
+      dispatch({ type: 'patternStarted', patternId: nextPatternId.current++ });
     },
     onPatternFinished: pattern => {
       if (!isCurrent()) return false;
@@ -74,7 +74,6 @@ export function useTutorialPractice(initialLesson: TutorialLesson, onItemPassed?
     score: view.liveScore && view.liveScore.processedNotes > 0
       ? view.liveScore : view.state?.lastFinishedPattern?.score ?? view.liveScore,
     combo: view.combo,
-    selectedMode: view.state ? getSelectedTutorialPracticeMode(view.state) : 'demonstration',
     progress: view.state ? getTutorialPracticeProgress(view.state) : null,
     stopped: !!view.state && isTutorialPlayingMethodComplete(view.state) && view.state.mode === 'directInput',
     reset, dispatch, playerProps,

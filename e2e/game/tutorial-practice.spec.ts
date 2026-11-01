@@ -106,6 +106,41 @@ for (const inputOffsetMs of [0, -200, 200]) {
   });
 }
 
+test('single-note 패턴의 600ms에 양방향 전환하면 같은 반복에서 모드가 바뀌고 전환·시연 패턴은 성공 0/3이다', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const dialog = await openTutorial(page);
+  await dialog.locator('[data-tutorial-index-item="single-note"]').click();
+  const player = page.locator(ACTIVE_PLAYER);
+  await expect(player).toHaveAttribute('data-tutorial-elapsed-ms', /\d/);
+  await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
+  await expect(player).toHaveAttribute('data-tutorial-input-mode', 'directInput');
+  const loopMs = Number(await player.getAttribute('data-tutorial-loop-ms'));
+  const elapsed = Number(await player.getAttribute('data-tutorial-elapsed-ms'));
+  const startMs = (Math.floor(elapsed / loopMs) + 1) * loopMs;
+  await waitForElapsed(page, startMs + 600);
+  await dialog.getByRole('button', { name: '시연', exact: true }).click();
+  await expect(player).toHaveAttribute('data-tutorial-input-mode', 'demonstration');
+  expect(Number(await player.getAttribute('data-tutorial-elapsed-ms'))).toBeGreaterThanOrEqual(startMs + 600);
+  expect(Number(await player.getAttribute('data-tutorial-elapsed-ms'))).toBeLessThan(startMs + loopMs);
+  const progress = dialog.locator('[data-tutorial-progress]');
+  // 전환 패턴과 다음 전체 시연 패턴의 정산을 모두 지난다.
+  await waitForElapsed(page, startMs + 2 * loopMs + 600);
+  await expect(progress).toHaveText('0/3');
+  await dialog.getByRole('button', { name: '직접 입력', exact: true }).click();
+  await expect(player).toHaveAttribute('data-tutorial-input-mode', 'directInput');
+  expect(Number(await player.getAttribute('data-tutorial-elapsed-ms'))).toBeGreaterThanOrEqual(startMs + 2 * loopMs + 600);
+  expect(Number(await player.getAttribute('data-tutorial-elapsed-ms'))).toBeLessThan(startMs + 3 * loopMs);
+  // 이 패턴의 남은 두 탭을 성공시켜도 도중 전환했으므로 집계하지 않는다.
+  for (const tapMs of [750, 1250]) {
+    await waitForElapsed(page, startMs + 2 * loopMs + tapMs - 12);
+    await page.keyboard.press('KeyE');
+  }
+  await waitForElapsed(page, startMs + 3 * loopMs + 32);
+  await expect(progress).toHaveText('0/3');
+  expect(errors).toEqual([]);
+});
+
 test('1레인 Q·W 2키로 advanced-double-hold를 열면 직접 입력을 막고 4키 필요 안내에서 Controls 설정을 연다', async ({ page }) => {
   const dialog = await openTutorial(page, true);
   await dialog.getByRole('tab', { name: 'Advanced', exact: true }).click();
