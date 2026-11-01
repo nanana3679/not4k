@@ -1,0 +1,54 @@
+.observer-slowdown-page {
+  height: 100%;
+  overflow: auto;
+  padding: 32px;
+  color: #e0e0e0;
+  background: #1a1a1a;
+  font: 14px/1.65 system-ui, sans-serif;
+}
+
+.observer-slowdown-content { max-width: 1200px; margin: 0 auto; }
+.observer-slowdown-page h1 { font-size: 28px; margin: 4px 0 8px; }
+.observer-slowdown-page h2 { font-size: 16px; line-height: 1.5; margin-bottom: 8px; }
+.observer-slowdown-eyebrow { color: #a2b8ff; font-size: 12px; margin-top: 16px; }
+.observer-slowdown-panel, .observer-slowdown-methods article {
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 20px;
+  background: #232323;
+}
+.observer-slowdown-panel { margin: 24px 0; }
+.observer-slowdown-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 8px 0; }
+.observer-slowdown-page button, .observer-slowdown-file {
+  border: 1px solid #555;
+  border-radius: 6px;
+  background: #2c2c2c;
+  color: #fff;
+  padding: 8px 16px;
+  cursor: pointer;
+  min-height: 40px;
+  font: inherit;
+}
+.observer-slowdown-page button:hover:not(:disabled), .observer-slowdown-file:hover { background: #3a3a3a; }
+.observer-slowdown-page button[aria-pressed="true"] { background: #304cad; border-color: #9fb3ff; }
+.observer-slowdown-page button:disabled { opacity: 0.45; cursor: default; }
+.observer-slowdown-page :focus-visible { outline: 2px solid #b6c6ff; outline-offset: 3px; }
+.observer-slowdown-file input { display: block; max-width: 220px; margin-top: 4px; font-size: 12px; }
+.observer-slowdown-start { display: grid; gap: 4px; margin: 12px 0; font-variant-numeric: tabular-nums; }
+.observer-slowdown-start input { width: 100%; }
+.observer-slowdown-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.observer-slowdown-note { color: #a8a8a8; font-size: 12px; margin-top: 8px; }
+.observer-slowdown-error { color: #ffb1b1; }
+.observer-slowdown-methods { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.observer-slowdown-methods article[data-playing="true"] { border-color: #9fb3ff; }
+.observer-slowdown-methods article > p:first-of-type { color: #c8c8c8; min-height: 4.95em; }
+.observer-slowdown-methods button { margin: 12px 0 4px; width: 100%; }
+.observer-slowdown-page dt { color: #b8b8b8; font-size: 12px; margin-top: 10px; }
+.observer-slowdown-page dd { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 860px) {
+  .observer-slowdown-page { padding: 20px 16px; }
+  .observer-slowdown-methods { grid-template-columns: 1fr; }
+  .observer-slowdown-methods article > p:first-of-type { min-height: 0; }
+  .observer-slowdown-panel, .observer-slowdown-methods article { padding: 16px; }
+}

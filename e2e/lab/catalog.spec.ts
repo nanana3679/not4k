@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Lab preview catalog", () => {
-  test("/lab에서 시설 통과·에셋 시연실·Gear를 포함한 9개 미리보기와 이미지 갤러리 7개를 찾고 비행 시연을 연다", async ({ page }) => {
+  test("/lab에서 시설 통과·에셋 시연실·Gear·옵저버 감속 청음 비교를 포함한 10개 미리보기와 이미지 갤러리 7개를 찾고 비행 시연을 연다", async ({ page }) => {
     await page.goto("/lab");
 
     await expect(page.getByRole("heading", { name: "Preview Archive" })).toBeVisible();
-    await expect(page.locator(".lab-index-group li")).toHaveCount(16);
+    await expect(page.locator(".lab-index-group li")).toHaveCount(17);
     await expect(page.getByRole("link", { name: /^노트 에셋 시연실/ })).toBeVisible();
     await page.getByRole("link", { name: /Open preview/ }).click();
 
@@ -23,7 +23,7 @@ test.describe("Lab preview catalog", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/lab");
 
-    await expect(page.locator(".lab-index-group li")).toHaveCount(16);
+    await expect(page.locator(".lab-index-group li")).toHaveCount(17);
     const overflow = await page.locator(".lab-index").evaluate((catalog) => catalog.scrollWidth > catalog.clientWidth + 1);
     expect(overflow).toBe(false);
     const scrollTop = await page.locator(".lab-index").evaluate((catalog) => {

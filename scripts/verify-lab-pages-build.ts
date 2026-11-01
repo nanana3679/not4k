@@ -16,6 +16,7 @@ const requiredPaths = [
   "lab/images/frame-keywords-six-20260929/54-ambient-motion-v19.svg",
   "lab/tutorial-pattern-diagram/index.html",
   "lab/judgment-playtest/index.html",
+  "lab/observer-slowdown/index.html",
   "lab/images/module-size-distance-20260910/index.html",
   "lab/images/size-distance-altitude-eight-20260910/index.html",
   "__lab/flight-background-preview/index.html",
@@ -96,6 +97,20 @@ const javascriptFiles = (await readdir(resolve(outputRoot, "assets"))).filter((n
 const javascriptSource = (
   await Promise.all(javascriptFiles.map((name) => readFile(resolve(outputRoot, "assets", name), "utf8")))
 ).join("\n");
+// 옵저버 감속 Lab의 AudioWorklet 모듈은 ?url로 복사되어 GitHub Pages base 아래 주소로 읽힌다.
+// Signalsmith Stretch는 워크릿 안에서 WASM을 컴파일하므로 Lab 문서 CSP가 'wasm-unsafe-eval'을 허용해야 한다.
+const assetNames = await readdir(resolve(outputRoot, "assets"));
+for (const workletPattern of [/^soundtouch-processor-[\w-]+\.js$/, /^SignalsmithStretch-[\w-]+\.mjs$/]) {
+  const workletFile = assetNames.find((name) => workletPattern.test(name));
+  if (!workletFile) throw new Error(`Observer slowdown worklet module is missing: ${workletPattern}`);
+  if (!javascriptSource.includes(`"/not4k/assets/${workletFile}"`)) {
+    throw new Error(`Observer slowdown worklet is not loaded from the GitHub Pages base: ${workletFile}`);
+  }
+}
+if (!labDocument.includes("script-src 'self' 'wasm-unsafe-eval';")) {
+  throw new Error("Lab document CSP must allow WebAssembly for the observer slowdown worklet");
+}
+
 if (javascriptSource.includes("VITE_SUPABASE_URL") || javascriptSource.includes("supabase.co")) {
   throw new Error("The public Lab bundle must not initialize Supabase");
 }
