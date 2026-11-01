@@ -178,8 +178,8 @@ function EventFields({ evt, values, setValues }: {
 export interface EventEditModalProps {
   editingEvent: NonNullable<EditingEvent>;
   chart: ChartDocument;
+  /** 0박 초기 BPM·박자다. 값만 편집하고 삭제는 막는다. 보조 레인은 BPM 1·박자 2로 고정이라 고를 수 없다(RFD 0082). */
   isBeatZero: boolean;
-  extraLaneCount: number;
   /** 에디터가 재생 중이다. 값 입력·Save·Delete를 비활성으로 두고 Cancel만 쓴다(RFD 0099). */
   editLocked?: boolean;
   onSave: (values: Record<string, string>) => void;
@@ -190,11 +190,9 @@ export interface EventEditModalProps {
 /** 값 입력 묶음. 잠기면 안의 입력을 한꺼번에 비활성으로 두며 모양은 바꾸지 않는다. */
 const fieldsetStyle = { border: 0, padding: 0, margin: 0, minWidth: 0 } as const;
 
-export function EventEditModal({ editingEvent, chart, isBeatZero, extraLaneCount, editLocked = false, onSave, onDelete, onClose }: EventEditModalProps) {
+export function EventEditModal({ editingEvent, chart, isBeatZero, editLocked = false, onSave, onDelete, onClose }: EventEditModalProps) {
   const evt = chart.events[editingEvent.index];
-  const [values, setValues] = useState<Record<string, string>>(() =>
-    evt ? { ...getInitialValues(evt), editorLane: String(evt.editorLane ?? 1) } : {},
-  );
+  const [values, setValues] = useState<Record<string, string>>(() => (evt ? getInitialValues(evt) : {}));
 
   useEffect(() => {
     if (!evt) onClose();
@@ -211,21 +209,6 @@ export function EventEditModal({ editingEvent, chart, isBeatZero, extraLaneCount
 
         <fieldset style={fieldsetStyle} disabled={editLocked} title={editLocked ? PAUSE_TO_EDIT_COPY : undefined}>
           <EventFields evt={evt} values={values} setValues={setValues} />
-
-          {isBeatZero && (
-            <label style={modalStyles.field}>
-              <span>Editor lane</span>
-              <select
-                style={modalStyles.input}
-                value={values.editorLane}
-                onChange={(event) => setValues({ ...values, editorLane: event.target.value })}
-              >
-                {Array.from({ length: extraLaneCount }, (_, index) => (
-                  <option key={index + 1} value={index + 1}>{index + 1}</option>
-                ))}
-              </select>
-            </label>
-          )}
         </fieldset>
 
         <div style={modalStyles.buttons}>

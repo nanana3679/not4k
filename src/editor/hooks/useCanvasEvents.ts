@@ -572,10 +572,10 @@ export function useCanvasEvents(
       );
 
       if (mode === 'create' && createModeRef.current) {
-        if (createModeRef.current.isPlacementBlocked(x, y)) return;
         // 범위 엔티티(single/double 롱프레스)는 hold가 처리 — down에서 점노트를 배치하지 않는다.
         if (getLongPressRangeType(entityType as EntityType)) return;
-        // 점노트는 아래 다형 디스패치로 폴스루(down 즉시 배치).
+        // 점노트·BPM·박자는 아래 다형 디스패치로 폴스루(down 즉시 배치). 배치 제약과 초기 설정 중복 안내는
+        // 마우스와 같이 CreateMode.handlePointerDown이 검사한다.
       } else if (mode === 'select' && selectModeRef.current) {
         // grab 우선순위 사다리는 SelectMode.resolveGrabAt(마우스 down과 공유)이 단독 소유한다(#143).
         // 터치는 그 GrabTarget을 2택 스케줄로 접기만 한다 — 존끝 선택게이트(RFD 0016 §6-6)를

@@ -1,6 +1,7 @@
 import { editorChartErrors } from '../documentValidation';
 import { describe, it, expect, vi } from "vitest";
 import { CreateMode, isEventEntityType } from "./CreateMode";
+import { INITIAL_TIMING_EXISTS_COPY } from "../editorCopy";
 import { beat, violationsInvolving } from "../../shared";
 import { hitTestNoteAt } from "../timeline/hitTest";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
@@ -330,6 +331,60 @@ describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
       diagramId: "connected-switch",
       editorLane: 2,
     });
+  });
+
+  it("0박 BPM 120이 보조 레인1에 있을 때 보조 레인3의 0박을 BPM 도구로 누르면 만들지 않고 INITIAL_TIMING_EXISTS_COPY 경고를 한 번 띄운다", () => {
+    const chart = makeChart({ events: [
+      { type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 },
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    ] });
+    const callbacks = { ...makeEventCallbacks(chart), onWarn: vi.fn() };
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "bpm";
+
+    mode.onPointerDown(12, 0); // extraLane 3, beat(0)
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).toHaveBeenCalledTimes(1);
+    expect(callbacks.onWarn).toHaveBeenCalledWith(INITIAL_TIMING_EXISTS_COPY);
+  });
+
+  it("0박 박자가 없을 때 보조 레인1의 0박을 박자 도구로 누르면 고정 자리인 보조 레인2에 박자 4/4를 만든다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(0), bpm: 120, editorLane: 3 }] });
+    const callbacks = { ...makeEventCallbacks(chart), onWarn: vi.fn() };
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "timeSignature";
+
+    mode.onPointerDown(10, 0); // extraLane 1, beat(0)
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as ChartDocument;
+    expect(updated.events[1]).toEqual({ type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 });
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("0박 BPM이 없을 때 보조 레인3의 0박을 BPM 도구로 누르면 고정 자리인 보조 레인1에 BPM 120을 만든다", () => {
+    const chart = makeChart({ events: [{ type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }] });
+    const callbacks = makeEventCallbacks(chart);
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "bpm";
+
+    mode.onPointerDown(12, 0); // extraLane 3, beat(0)
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as ChartDocument;
+    expect(updated.events[1]).toEqual({ type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 });
+  });
+
+  it("0박 BPM이 있어도 보조 레인3의 4박을 BPM 도구로 누르면 보조 레인3에 그대로 만든다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 }] });
+    const callbacks = { ...makeEventCallbacks(chart), onWarn: vi.fn() };
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "bpm";
+
+    mode.onPointerDown(12, 4); // extraLane 3, beat(4)
+
+    const updated = callbacks.onChartUpdate.mock.calls[0][0] as ChartDocument;
+    expect(updated.events[1]).toEqual({ type: "bpm", beat: beat(4), bpm: 120, editorLane: 3 });
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
   });
 
   it("이벤트 타입 선택 시 노트 레인 클릭하면 아무것도 생성되지 않음", () => {

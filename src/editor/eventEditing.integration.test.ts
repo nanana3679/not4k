@@ -4,10 +4,12 @@ import { EraseGesture } from './editing/EraseGesture';
 import { editorChartErrors, editorChartViolationIndices } from './documentValidation';
 import { DeleteMode } from './modes/DeleteMode';
 import { SelectMode } from './modes/SelectMode';
-import { useEditorStore } from './stores/editorStore';
+import { INITIAL_TIMING_EXISTS_COPY } from './editorCopy';
+import { openEditorChart } from './openEditorChart';
+import { selectCanUndo, useEditorStore } from './stores/editorStore';
 import { emptySelection } from './stores/selectionSlice';
 import { createTimelineSpace } from './timeline/TimelineSpace';
-import { EXTRA_LANE_WIDTH, TIMELINE_WIDTH } from './timeline/constants';
+import { EXTRA_LANE_WIDTH, LANE_WIDTH, TIMELINE_WIDTH } from './timeline/constants';
 
 function chartFixture(): ChartDocument {
   return {
@@ -24,13 +26,21 @@ function chartFixture(): ChartDocument {
   };
 }
 
-function editor() {
+/** 0박 박자 없이 4박 박자 4/4가 보조 레인3에 있는 차트. 이벤트 0=0박 BPM, 1=4박 BPM, 2=text, 3=4박 박자. */
+function chartWithoutInitialSignature(): ChartDocument {
+  const chart = chartFixture();
+  return { ...chart, events: [chart.events[0], chart.events[2], chart.events[3],
+    { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(4), editorLane: 3 }] };
+}
+
+function editor(extraLaneCount = 3) {
   const store = () => useEditorStore.getState();
+  const warnings: string[] = [];
   const space = createTimelineSpace({
     getChart: () => store().chart,
     getSnapDivision: () => 4,
     getSelectedNotes: () => store().selection.notes,
-    getExtraLaneCount: () => 3,
+    getExtraLaneCount: () => extraLaneCount,
     yToTime: y => y,
     getTotalTimelineMs: () => 60_000,
   });
@@ -43,15 +53,16 @@ function editor() {
       store().setChart(chart, { transaction });
       mode.setChart(store().chart);
     },
-    getExtraLaneCount: () => 3,
+    getExtraLaneCount: () => extraLaneCount,
     beginTransaction: onInterrupt => store().beginEditTransaction('selectModeEdit', onInterrupt),
     commitTransaction: token => store().commitEditTransaction(token),
     cancelTransaction: token => store().cancelEditTransaction(token),
+    onWarn: message => warnings.push(message),
   });
   function selectEvents(...indices: number[]) {
     store().setSelection(Object.assign(emptySelection(), { events: new Set(indices) }));
   }
-  return { mode, space, store, selectEvents };
+  return { mode, space, store, selectEvents, warnings };
 }
 
 beforeEach(() => {
@@ -114,7 +125,8 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
     expect(store().selection.events).toEqual(new Set([2]));
   });
 
-  it('editorLane 없는 초기 BPM·박자는 자동 이동 없이 열어 위반을 표시하고 선택에서는 제외한다', () => {
+  it('editorLane 없는 초기 BPM·박자가 store에서 보조 레인1에 겹쳐 있으면 선택·레인 이동이 둘 다 제외해 위반 0·1이 그대로 남는다', () => {
+    // 파일을 열 때 고정 레인(BPM 1·박자 2)에 두는 일은 openEditorChart가 맡는다. 이 테스트는 그 경로 없이 loadChart로 넣은 store 상태를 본다.
     const chart = chartFixture();
     chart.events = chart.events.slice(0, 2).map(({ editorLane: _editorLane, ...event }) => event);
     useEditorStore.getState().loadChart(chart);
@@ -354,5 +366,167 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
     expect(store().chart.events[3]).toMatchObject({ beat: beat(9), endBeat: beat(13) });
     mode.cancel();
     expect(store().chart.events).toEqual(chartFixture().events);
+  });
+
+  it('4박 BPM 180을 1박을 거쳐 0박까지 드래그하면 초기 BPM이 있어 1박에 남고 INITIAL_TIMING_EXISTS_COPY 경고는 드래그 한 번에 한 번만 띄운다', () => {
+    const { mode, store, warnings } = editor();
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+    mode.onPointerDown(x, 2000, false, false);
+    mode.onPointerMove(x, 500);
+    mode.onPointerMove(x, 0);
+    mode.onPointerMove(x, 100);
+    mode.onPointerUp(x, 100);
+
+    expect(store().chart.events[2]).toEqual({ type: 'bpm', beat: beat(1), bpm: 180, editorLane: 1 });
+    expect(store().chart.events.filter(event => event.beat.n === 0)).toEqual(chartFixture().events.slice(0, 2));
+    expect(warnings).toEqual([INITIAL_TIMING_EXISTS_COPY]);
+  });
+
+  it('0박 박자가 없을 때 보조 레인3의 4박 박자를 0박으로 드래그하면 고정 자리인 보조 레인2에 두고 초기 설정이라 선택에서 빠진다', () => {
+    useEditorStore.getState().loadChart(chartWithoutInitialSignature());
+    const { mode, store, warnings } = editor();
+    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH * 2.5;
+    mode.onPointerDown(x, 2000, false, false);
+    expect(store().selection.events).toEqual(new Set([3]));
+    mode.onPointerMove(x, 0);
+    mode.onPointerUp(x, 0);
+
+    expect(store().chart.events[3]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 });
+    expect(editorChartErrors(store().chart)).toEqual([]);
+    expect(store().selection.events).toEqual(new Set());
+    expect(warnings).toEqual([]);
+  });
+
+  it('선택한 4박 BPM 180을 ↓로 네 번 옮기면 1박까지 가고 0박이 되는 네 번째는 초기 BPM이 있어 거부하고 경고를 한 번 띄운다', () => {
+    const { mode, store, selectEvents, warnings } = editor();
+    selectEvents(2);
+    for (let i = 0; i < 4; i++) mode.moveBySnap('down');
+
+    expect(store().chart.events[2]).toEqual({ type: 'bpm', beat: beat(1), bpm: 180, editorLane: 1 });
+    expect(store().selection.events).toEqual(new Set([2]));
+    expect(warnings).toEqual([INITIAL_TIMING_EXISTS_COPY]);
+  });
+
+  it('0박 박자가 없을 때 선택한 보조 레인3의 4박 박자를 ↓로 네 번 옮기면 0박 보조 레인2에 두고 위반이 없다', () => {
+    useEditorStore.getState().loadChart(chartWithoutInitialSignature());
+    const { mode, store, selectEvents, warnings } = editor();
+    selectEvents(3);
+    for (let i = 0; i < 4; i++) mode.moveBySnap('down');
+
+    expect(store().chart.events[3]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 });
+    expect(editorChartErrors(store().chart)).toEqual([]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('보조 레인 2개·0박 박자 없는 차트에서 레인3의 4박 노트와 보조 레인2의 4박 박자 3/4를 함께 0박·한 레인 오른쪽으로 끌면 노트는 레인4로 가고 박자는 보조 레인2의 0박에 남는다', () => {
+    useEditorStore.getState().loadChart({ ...chartFixture(), notes: [{ type: 'single', lane: 3, beat: beat(4) }],
+      events: [chartFixture().events[0], { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(3), editorLane: 2 }] });
+    const { mode, store, warnings } = editor(2);
+    store().setSelection({ ...emptySelection(), notes: new Set([0]), events: new Set([1]) });
+    mode.onPointerDown(LANE_WIDTH * 2.5, 2000, false, false);
+    mode.onPointerMove(LANE_WIDTH * 3.5, 0);
+    mode.onPointerUp(LANE_WIDTH * 3.5, 0);
+
+    expect(store().chart.notes).toEqual([{ type: 'single', lane: 4, beat: beat(0) }]);
+    expect(store().chart.events[1]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(3), editorLane: 2 });
+    expect(warnings).toEqual([]);
+  });
+
+  it('4박 BPM 180을 복사해 0박에 붙이면 초기 BPM이 있어 0개를 붙이고 차트·Undo가 그대로며 경고를 한 번 띄운다', () => {
+    const { mode, store, selectEvents, warnings } = editor();
+    selectEvents(2);
+    mode.copy();
+
+    expect(mode.paste(beat(0))).toBe(0);
+
+    expect(store().chart).toEqual(chartFixture());
+    expect(mode.isPendingPaste).toBe(false);
+    expect(selectCanUndo(store())).toBe(false);
+    expect(warnings).toEqual([INITIAL_TIMING_EXISTS_COPY]);
+  });
+});
+
+/**
+ * 보조 레인1의 0박에 text와 초기 BPM이 겹친 파일 [text, 초기 BPM, 초기 박자]를 연다(배치 위반, RFD 0082).
+ * 열면 초기 BPM·박자가 이벤트 목록 맨 앞으로 와 [초기 BPM 0, 초기 박자 1, text 2]가 되고, text가 맨 위에 그려진다.
+ */
+function openChartWithTextOnInitialBpm(endBeat = beat(4)) {
+  const [initialBpm, initialSignature] = chartFixture().events;
+  const text: ChartDocument['events'][number] = { type: 'text', beat: beat(0), endBeat, text: 'intro', editorLane: 1 };
+  openEditorChart({ chart: { ...chartFixture(), events: [text, initialBpm, initialSignature] }, extraLaneCount: 3, hasExtraLaneCount: true });
+  expect(useEditorStore.getState().chart.events).toEqual([initialBpm, initialSignature, text]);
+  return { initialBpm, initialSignature };
+}
+
+describe('[text, 초기 BPM, 초기 박자] 순서 파일을 연 뒤 0박에서 초기 BPM과 겹친 text 잡기(RFD 0082)', () => {
+  const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+
+  it('보조 레인1의 0박을 클릭하면 맨 위에 그린 text 2를 선택하고 차트와 경고는 그대로다', () => {
+    openChartWithTextOnInitialBpm();
+    const { mode, store, warnings } = editor();
+    const opened = store().chart;
+    mode.onPointerDown(x, 0, false, false);
+    mode.onPointerUp(x, 0);
+
+    expect(store().selection.events).toEqual(new Set([2]));
+    expect(store().chart).toBe(opened);
+    expect(warnings).toEqual([]);
+  });
+
+  it('보조 레인1의 0박을 잡아 1박으로 끌면 text 2는 1～5박이 되고 초기 BPM 0은 0박에 남아 위반이 없다', () => {
+    const { initialBpm } = openChartWithTextOnInitialBpm();
+    const { mode, store } = editor();
+    mode.onPointerDown(x, 0, false, false);
+    mode.onPointerMove(x, 500);
+    mode.onPointerUp(x, 500);
+
+    expect(store().chart.events[2]).toMatchObject({ type: 'text', beat: beat(1), endBeat: beat(5), editorLane: 1 });
+    expect(store().chart.events[0]).toBe(initialBpm);
+    expect(editorChartErrors(store().chart)).toEqual([]);
+  });
+
+  it('0～1/8박 text를 0박에서 잡아 1박으로 끌면 1～9/8박이 되고 위반이 없다', () => {
+    openChartWithTextOnInitialBpm(beat(1, 8));
+    const { mode, store } = editor();
+    mode.onPointerDown(x, 0, false, false);
+    mode.onPointerMove(x, 500);
+    mode.onPointerUp(x, 500);
+
+    expect(store().chart.events[2]).toMatchObject({ type: 'text', beat: beat(1), endBeat: beat(9, 8) });
+    expect(editorChartErrors(store().chart)).toEqual([]);
+  });
+
+  it('Delete 모드로 보조 레인1의 0박을 클릭하면 text만 지우고 Cannot delete initial event 경고가 없다', () => {
+    const { initialBpm, initialSignature } = openChartWithTextOnInitialBpm();
+    const { store, space } = editor();
+    const warnings: string[] = [];
+    const mode = new DeleteMode(store().chart, { space,
+      onChartUpdate: chart => store().setChart(chart),
+      onWarn: message => warnings.push(message),
+    });
+    mode.onPointerDown(x, 0);
+
+    expect(store().chart.events).toEqual([initialBpm, initialSignature]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('드래그 삭제가 보조 레인1(통합 레인5)의 0박을 지나면 text만 지우고 경고가 없다', () => {
+    const { initialBpm, initialSignature } = openChartWithTextOnInitialBpm();
+    const { store } = editor();
+    const warnings: string[] = [];
+    const gesture = new EraseGesture({ getChart: () => store().chart,
+      getSelectedNotes: () => store().selection.notes,
+      beginTransaction: onInterrupt => store().beginEditTransaction('erase', onInterrupt),
+      commitTransaction: token => store().commitEditTransaction(token),
+      cancelTransaction: token => store().cancelEditTransaction(token),
+      onChartUpdate: (chart, transaction) => store().setChart(chart, { transaction }),
+      onWarn: message => warnings.push(message),
+    });
+    gesture.begin();
+    expect(gesture.erase(5, 0)).toBe(true);
+    gesture.finish();
+
+    expect(store().chart.events).toEqual([initialBpm, initialSignature]);
+    expect(warnings).toEqual([]);
   });
 });
