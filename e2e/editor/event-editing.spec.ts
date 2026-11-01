@@ -69,7 +69,7 @@ function recordLoadViolationLogs(page: Page): string[] {
 /** 불러온 기본 상태: 위반 표시·미저장 표시·Undo가 없다. */
 async function expectCleanLoadBaseline(page: Page) {
   await expect(page.getByRole('button', { name: /배치 제약 위반.*목록 열기/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
 }
 
@@ -115,7 +115,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     });
   }
 
-  test('4박 BPM 180 이벤트를 150으로 편집해 저장하면 JSON type bpm을 유지하고 재편집·삭제할 수 있다', async ({ page }) => {
+  test('4박 BPM 180을 150으로 바꿔 Save하면 이행 확인 뒤 곡 타이밍만 저장하고 재편집·삭제할 수 있다', async ({ page }) => {
     const editor = await openEditor(page, { chart: eventChart() });
     const position = await canvasPosition(page, 5, 4);
     await page.mouse.dblclick(position.x, position.y);
@@ -123,25 +123,17 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     await expect(page.getByRole('heading', { name: 'Edit BPM Change Event', exact: true })).toBeVisible();
     await page.getByLabel('BPM', { exact: true }).fill('150');
     await expect(page.getByTitle('Delete event', { exact: true })).toBeEnabled();
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Save song, unsaved changes', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Save chart', exact: true }).click();
-    await expect(page.getByText('곡 타이밍에 미저장 변경이 있습니다. Save Song으로 곡을 먼저 저장해주세요.')).toBeVisible();
+    await page.getByRole('heading', { name: 'Edit BPM Change Event', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save, unsaved changes', exact: true })).toBeVisible();
     page.once('dialog', dialog => dialog.accept());
-    await page.getByRole('button', { name: 'Save song, unsaved changes', exact: true }).click();
+    await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
     await expect(page.getByText('Song saved', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Save chart', exact: true }).click();
-    await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-
-    const upload = editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH);
-    expect(upload).toBeDefined();
-    expect(readUploadedJson(upload!)).toMatchObject({
-      events: [
-        { type: 'bpm', beat: '0', bpm: 120 },
-        { type: 'timeSignature', beat: '0', beatPerMeasure: '4' },
-        { type: 'bpm', beat: '4', bpm: 150 },
-      ],
-    });
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+    const rpc = editor.supabaseWrites.find(write => write.path === '/rest/v1/rpc/save_song')!;
+    expect(JSON.parse(rpc.body!).p_timing.bpmChanges).toEqual([
+      { beat: '0', bpm: 120 }, { beat: '4', bpm: 150 },
+    ]);
+    expect(editor.supabaseWrites.some(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)).toBe(false);
 
     // BPM을 바꾸면 전체 타임라인 높이가 달라질 수 있으므로 현재 투영으로 다시 찾는다.
     const canvas = page.locator('canvas');
@@ -174,7 +166,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     expect(editor.supabaseWrites).toEqual([]);
 
-    await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
     const upload = editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH);
     expect(upload).toBeDefined();
@@ -219,7 +211,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     await page.mouse.up();
     await expect.poll(() => eventLanes(page)).toEqual([1, 2, 1]);
     await expect(page.getByRole('button', { name: '배치 제약 위반 1건 목록 열기', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save, unsaved changes', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
 
     await page.keyboard.press('Control+z');
@@ -227,11 +219,11 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     expect(await eventLanes(page)).toEqual([1, 2, 3]);
     await page.keyboard.press('Control+y');
     await expect(page.getByRole('button', { name: '배치 제약 위반 1건 목록 열기', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save, unsaved changes', exact: true })).toBeVisible();
     expect(await eventLanes(page)).toEqual([1, 2, 1]);
 
     // 편집 중에 만든 겹침은 자동으로 옮기지 않고 저장을 막는다.
-    await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+    await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
     await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
     await expect(page.getByText('[eventOverlap]', { exact: true })).toBeVisible();
     expect(await eventLanes(page)).toEqual([1, 2, 1]);
@@ -253,13 +245,13 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     // 열 때는 초기 설정만 고정 자리에 두고 일반 이벤트는 옮기지 않는다. 위반 표시와 경고만 있고 미저장 표시·Undo는 없다.
     await expect.poll(() => loadViolationLogs.length).toBeGreaterThan(0);
     await expect(page.getByRole('button', { name: '배치 제약 위반 2건 목록 열기', exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
     expect(await eventLanes(page)).toEqual([1, 2, 1, 2]);
     expect(await extraLaneCount(page)).toBe(2);
     expect(editor.supabaseWrites).toEqual([]);
 
-    await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
     await expect(page.getByText('[eventOverlap]', { exact: true })).toHaveCount(2);
     await page.getByRole('button', { name: '닫기', exact: true }).click();
@@ -284,7 +276,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     await expect(page.getByRole('button', { name: /배치 제약 위반.*목록 열기/ })).toHaveCount(0);
     expect(editor.supabaseWrites).toEqual([]);
 
-    await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+    await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
     await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
     expect(readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!)).toMatchObject({ events: [
       { type: 'bpm', beat: '0', bpm: 120, editorLane: 1 },

@@ -62,7 +62,7 @@ test('NORMAL의 Save As는 INFILTRATION을 제외하고 LIFTOFF 덮어쓰기 확
   await expect(target.locator('option')).toHaveText(['LIFTOFF', 'INFILTRATION (current)', 'BREAKTHROUGH']);
   await expect(target.locator('option[value="INFILTRATION"]')).toHaveJSProperty('disabled', true);
   await target.selectOption('LIFTOFF');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('heading', { name: 'Save As (다른 이름으로 저장)', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Overwrite Existing Chart', exact: true })).toBeVisible();
   await expect(page.getByText('LIFTOFF 난이도에 이미 차트가 존재합니다.')).toBeVisible();
   expect(writes).toEqual([]);

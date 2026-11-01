@@ -1,4 +1,6 @@
-import { isSongTimingDirty } from '../songState';
+import { isSongDirty } from '../songState';
+import { saveEditorSong } from '../saveEditorSong';
+import { isChartDirty } from '../savedChart';
 import { deleteEvents } from '../editing/eventEditing';
 /**
  * useFileOperations — 파일 저장/삭제 핸들러
@@ -21,9 +23,32 @@ import { useGameStore } from '../../game/stores';
 import { performPlayTest } from '../playtest/performPlayTest';
 import { editorChartErrors } from '../documentValidation';
 import type { SavedChartJson } from '../savedChart';
-import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY, SONG_SAVE_COPY } from '../editorCopy';
+import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 export { performPlayTest } from '../playtest/performPlayTest';
 export type { PerformPlayTestParams, PlayTestGameActions } from '../playtest/performPlayTest';
+
+/** Save·Save As는 같은 시작 초안을 사용한다. 기다리는 동안 추가한 편집은 저장 기준에 넣지 않는다. */
+async function prepareSave(audioBuffer: AudioBuffer | null) {
+  const start = useEditorStore.getState();
+  if (start.isSavingSong || start.isSavingChart) {
+    start.addToast(SAVE_IN_PROGRESS_COPY.secondSave, 'error');
+    return null;
+  }
+  const songDirty = isSongDirty(start.chart, start.song);
+  const chartDirty = isChartDirty(start.chart, start.extraLaneCount, start.savedChartJson, start.song !== null);
+  if (songDirty && !await saveEditorSong(audioBuffer, message => window.confirm(message))) return null;
+  const current = useEditorStore.getState();
+  if (current.chartLoadGeneration !== start.chartLoadGeneration) return null;
+  // 업로드로 확정된 곡 경로만 사본에 반영한다. 저장 중의 노트·타이밍 편집은 다음 저장에 남긴다.
+  const savedSong = songDirty ? current.song?.baseline : null;
+  const chart = savedSong ? { ...start.chart, meta: { ...start.chart.meta,
+    imageFile: savedSong.jacketUrl ?? '', audioFile: savedSong.audioUrl, previewAudioFile: savedSong.previewUrl ?? '',
+  } } : start.chart;
+  return { chart, activeSongId: start.activeSongId, extraLaneCount: start.extraLaneCount,
+    chartLoadGeneration: start.chartLoadGeneration,
+    // 아무 변경도 없으면 기존처럼 현재 차트를 저장한다.
+    saveChart: chartDirty || !songDirty };
+}
 
 export interface FileOperationHandlers {
   handleSaveChart: () => Promise<void>;
@@ -49,18 +74,16 @@ export function useFileOperations(
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
   const activeSongId = useEditorStore((s) => s.activeSongId);
-  const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const addToast = useEditorStore((s) => s.addToast);
   const beginChartSave = useEditorStore((s) => s.beginChartSave);
   const finishChartSave = useEditorStore((s) => s.finishChartSave);
   const editingEvent = useEditorStore((s) => s.editingEvent);
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const handleSaveChart = useCallback(async () => {
-    const current = useEditorStore.getState();
-    if (isSongTimingDirty(current.chart, current.song)) {
-      addToast(SONG_SAVE_COPY.timingFirst, 'warn');
-      return;
-    }
+    const prepared = await prepareSave(playbackRef.current?.audioBufferData ?? null);
+    if (!prepared || !prepared.saveChart
+      || useEditorStore.getState().chartLoadGeneration !== prepared.chartLoadGeneration) return;
+    const { chart, activeSongId, extraLaneCount } = prepared;
     if (!activeSongId) {
       addToast('No song selected — cannot save to server', 'error');
       return;
@@ -108,14 +131,12 @@ export function useFileOperations(
       // 실패(uploadedJson null)면 savedChartJson을 그대로 둬 dirty가 남는다. 그 사이 차트를 새로 불러왔으면 store가 무시한다.
       finishChartSave(saveGeneration, uploadedJson);
     }
-  }, [chart, activeSongId, addToast, extraLaneCount, beginChartSave, finishChartSave, setValidationErrors]);
+  }, [playbackRef, addToast, beginChartSave, finishChartSave, setValidationErrors]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
-    const current = useEditorStore.getState();
-    if (isSongTimingDirty(current.chart, current.song)) {
-      addToast(SONG_SAVE_COPY.timingFirst, 'warn');
-      return;
-    }
+    const prepared = await prepareSave(playbackRef.current?.audioBufferData ?? null);
+    if (!prepared || useEditorStore.getState().chartLoadGeneration !== prepared.chartLoadGeneration) return;
+    const { chart, activeSongId, extraLaneCount } = prepared;
     if (!activeSongId) {
       addToast('No song selected — cannot save', 'error');
       return;
@@ -182,7 +203,7 @@ export function useFileOperations(
     } finally {
       finishChartSave(saveGeneration, uploadedJson);
     }
-  }, [chart, activeSongId, addToast, extraLaneCount, setChart, beginChartSave, finishChartSave, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget]);
+  }, [playbackRef, addToast, setChart, beginChartSave, finishChartSave, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget]);
 
   const handlePlayTest = useCallback((fromCursor: boolean) => {
     // 곡·차트 저장 완료 전에 테스트 플레이로 이동하지 않는다. 툴바 밖 호출도 같은 조건을 적용한다.

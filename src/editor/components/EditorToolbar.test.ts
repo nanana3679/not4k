@@ -25,7 +25,7 @@ const chart = (): ChartDocument => ({
   events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) }],
 });
 
-const render = (props: { compact?: boolean; showOffsetToolbar?: boolean } = {}) => renderToStaticMarkup(createElement(EditorToolbar, {
+const render = (props: { compact?: boolean; showOffsetToolbar?: boolean; saving?: boolean } = {}) => renderToStaticMarkup(createElement(EditorToolbar, {
   compact: props.compact ?? false,
   playbackRef: { current: null },
   autoScroll: true,
@@ -34,13 +34,12 @@ const render = (props: { compact?: boolean; showOffsetToolbar?: boolean } = {}) 
   setShowOffsetToolbar() {},
   showPlayTestMenu: false,
   setShowPlayTestMenu() {},
-  saving: false,
+  saving: props.saving ?? false,
   deleting: false,
   pendingPreviewRange: null,
   pendingGameplayRange: null,
   onPlayTest() {},
   onSaveChart() {},
-  onSaveSong() {},
   onSaveAs() {},
   onDeleteChart() {},
   onDeleteSelected() {},
@@ -53,7 +52,7 @@ const buttonTag = (markup: string, name: string) => markup.match(new RegExp(`<bu
 
 beforeEach(() => {
   useEditorStore.setState({
-    song: null, isSavingSong: false,
+    song: null, isSavingSong: false, savedChartJson: toSavedChartJson(chart(), 2),
     chart: chart(), extraLaneCount: 2, selection: emptySelection(), mode: 'select', isPlaying: false, editTransaction: null,
     historyPast: [{ chart: chart(), extraLaneCount: 2 }], historyFuture: [{ chart: chart(), extraLaneCount: 2 }],
   });
@@ -96,8 +95,8 @@ describe('툴바의 재생 중 잠금', () => {
   });
 });
 
-describe('곡·차트 저장 표시', () => {
-  it.each([false, true])('곡 제목만 바꾸면 compact=%s에서 Save Song만 미저장이고 Save chart는 깨끗하다', compact => {
+describe('저장 버튼 하나의 표시', () => {
+  it.each([false, true])('곡 제목을 새 제목으로 바꾸면 compact=%s에서 Save 1개만 미저장이고 곡 저장 중 비활성이다', compact => {
     const document = chart();
     const song = createEditorSong({ title: '툴바', artist: '', jacketUrl: null, audioUrl: '', duration: null,
       previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
@@ -105,13 +104,33 @@ describe('곡·차트 저장 표시', () => {
     useEditorStore.setState({ song, savedChartJson: toSavedChartJson(document, 2),
       chart: { ...document, meta: { ...document.meta, title: '새 제목' } } });
     const markup = render({ compact });
-    expect(buttonTag(markup, 'Save song, unsaved changes')).not.toBe('');
-    expect(buttonTag(markup, 'Save chart')).not.toBe('');
-    expect(markup).toContain('Save Song');
+    expect(buttonTag(markup, 'Save, unsaved changes')).not.toBe('');
+    expect(markup.match(/aria-label="Save[^"]*"/g)).toHaveLength(1);
+    expect(markup).not.toContain('Save Song');
     useEditorStore.setState({ isSavingSong: true });
-    expect(buttonTag(render({ compact }), 'Saving song')).toContain('disabled=""');
+    expect(buttonTag(render({ compact }), 'Saving')).toContain('disabled=""');
   });
-  it('곡 행이 없으면 Save Song 버튼 0개로 기존 차트 저장만 표시한다', () => {
+  it('곡 행 없이 1박 노트를 열면 Save 1개로 차트를 저장한다', () => {
     expect(render()).not.toContain('Save Song');
+    expect(render().match(/aria-label="Save[^"]*"/g)).toHaveLength(1);
   });
+});
+
+const saveIndicatorCases = [false, true].flatMap(compact =>
+  [false, true].flatMap(songDirty =>
+    [false, true].map(chartDirty => ({ compact, songDirty, chartDirty }))),
+);
+it.each(saveIndicatorCases)('compact=$compact·곡 변경=$songDirty·차트 변경=$chartDirty에서 Save 표시는 OR이고 저장 버튼은 1개다', ({ compact, songDirty, chartDirty }) => {
+  const document = chart();
+  const song = createEditorSong({ title: '툴바', artist: '', jacketUrl: null, audioUrl: '', duration: null,
+    previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
+    gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 }, document);
+  useEditorStore.setState({ song, chart: { ...document,
+    meta: { ...document.meta, title: songDirty ? '새 제목' : document.meta.title },
+    notes: chartDirty ? [...document.notes, { type: 'tap', kind: 'single', lane: 2, beat: beat(2) }] : document.notes,
+  } });
+  const markup = render({ compact });
+  expect(buttonTag(markup, songDirty || chartDirty ? 'Save, unsaved changes' : 'Save')).not.toBe('');
+  expect(markup.match(/aria-label="Save[^"]*"/g)).toHaveLength(1);
+  expect(buttonTag(render({ compact, saving: true }), 'Saving')).toContain('disabled=""');
 });

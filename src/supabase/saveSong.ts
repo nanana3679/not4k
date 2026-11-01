@@ -37,7 +37,14 @@ export async function uploadSongMedia(songId: string, kind: 'jacket' | 'audio' |
   return path;
 }
 
-/** 곡 정본을 덮어씌우기 전 파일 타이밍끼리 비교한다. 읽기 실패는 조용히 동의로 처리하지 않는다. */
+/** 공통 타이밍 변경의 영향 범위. 열린 차트는 대소문자와 관계없이 제외한다. */
+export async function countOtherSongCharts(songId: string, openDifficulty: string): Promise<number> {
+  const { data, error } = await supabase.from('charts').select('difficulty_label').eq('song_id', songId);
+  if (error) throw error;
+  return (data ?? []).filter(row => row.difficulty_label.toLowerCase() !== openDifficulty.toLowerCase()).length;
+}
+
+/** 이행 확인에서만 다른 차트 파일을 읽어 타이밍을 비교한다. */
 export async function findDifferingSongCharts(songId: string, openDifficulty: string, timing: SongTiming): Promise<string[]> {
   const { data, error } = await supabase.from('charts').select('difficulty_label,chart_path').eq('song_id', songId);
   if (error) throw error;

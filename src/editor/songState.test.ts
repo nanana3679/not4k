@@ -86,7 +86,7 @@ it('1레인 2박 노트를 3박으로 옮기면 차트만 dirty이고 Undo로 �
   expect(dirty()).toBe(false); expect(isSongDirty(store().chart, store().song)).toBe(false);
 });
 
-it('0박 박자표 4→3 변경은 곡만 dirty이며 Undo하면 타이밍 차단도 풀린다', () => {
+it('0박 박자표 4→3 변경은 곡만 dirty이며 Undo하면 곡 타이밍도 깨끗해진다', () => {
   const chart = store().chart;
   store().setChart({ ...chart, events: chart.events.map(e => e.type === 'timeSignature' ? { ...e, beatPerMeasure: beat(3) } : e) });
   expect(dirty()).toBe(false); expect(isSongTimingDirty(store().chart, store().song)).toBe(true);

@@ -1,22 +1,22 @@
 import { parseSongTiming } from '../shared/songAssets/songTiming';
 import { encodeWavBlob } from '../shared';
-import { findDifferingSongCharts, saveSong, uploadSongMedia } from '../supabase/saveSong';
-import { songValues } from './songState';
+import { countOtherSongCharts, findDifferingSongCharts, saveSong, uploadSongMedia } from '../supabase/saveSong';
+import { isSongTimingDirty, songValues } from './songState';
 import { useEditorStore } from './stores/editorStore';
 import { SONG_SAVE_COPY, SAVE_IN_PROGRESS_COPY } from './editorCopy';
 
 const extension = (file: File, fallback: string) => file.name.includes('.') ? file.name.split('.').pop() || fallback : fallback;
 
-/** 저장 시작 시 초안을 캡처한다. 성공 기준은 그 초안이며 기다리는 동안의 편집은 남긴다. */
+/** 시작 초안을 저장하고 기준 반영 성공 여부를 반환한다. 취소·실패·차트 전환이면 후속 차트 저장을 막는다. */
 export async function saveEditorSong(
   audioBuffer: AudioBuffer | null,
-  confirmMigration: (message: string) => boolean,
-): Promise<void> {
+  confirm: (message: string) => boolean,
+): Promise<boolean> {
   const start = useEditorStore.getState();
-  if (!start.song || !start.activeSongId) return;
+  if (!start.song || !start.activeSongId) return false;
   if (start.isSavingSong || start.isSavingChart) {
     start.addToast(SAVE_IN_PROGRESS_COPY.secondSave, 'error');
-    return;
+    return false;
   }
   const song = start.song;
   useEditorStore.setState({ isSavingSong: true });
@@ -25,10 +25,14 @@ export async function saveEditorSong(
     parseSongTiming(values.timing);
     if (song.needsTimingMigration) {
       const differing = await findDifferingSongCharts(start.activeSongId, song.sourceDifficulty, values.timing);
-      if (useEditorStore.getState().chartLoadGeneration !== start.chartLoadGeneration) return;
+      if (useEditorStore.getState().chartLoadGeneration !== start.chartLoadGeneration) return false;
       const message = SONG_SAVE_COPY.migration + (differing.length
         ? `\n\n${SONG_SAVE_COPY.differingCharts}: ${differing.join(', ')}` : '');
-      if (!confirmMigration(message)) return;
+      if (!confirm(message)) return false;
+    } else if (isSongTimingDirty(start.chart, song)) {
+      const count = await countOtherSongCharts(start.activeSongId, song.sourceDifficulty);
+      if (useEditorStore.getState().chartLoadGeneration !== start.chartLoadGeneration) return false;
+      if (!confirm(SONG_SAVE_COPY.sharedTiming(count))) return false;
     }
     const previewChanged = values.previewStart !== song.baseline.previewStart || values.previewEnd !== song.baseline.previewEnd;
     const previewRange = (previewChanged || song.pendingAudioFile) && values.previewStart != null && values.previewEnd != null
@@ -44,7 +48,7 @@ export async function saveEditorSong(
     }
     const revision = await saveSong(start.activeSongId, song.revision, values);
     const current = useEditorStore.getState();
-    if (current.chartLoadGeneration !== start.chartLoadGeneration || !current.song) return;
+    if (current.chartLoadGeneration !== start.chartLoadGeneration || !current.song) return false;
     const sameJacket = current.song.pendingJacketFile === song.pendingJacketFile;
     const sameAudio = current.song.pendingAudioFile === song.pendingAudioFile;
     const samePreview = current.song.pendingPreviewRange === song.pendingPreviewRange && sameAudio;
@@ -62,10 +66,12 @@ export async function saveEditorSong(
       pendingPreviewRange: samePreview ? null : current.song.pendingPreviewRange,
     });
     current.addToast(SONG_SAVE_COPY.saved, 'info');
+    return true;
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
     start.addToast(code === 'PT409' ? SONG_SAVE_COPY.conflict : code === '42501' ? SONG_SAVE_COPY.permission
       : code === 'PT404' ? SONG_SAVE_COPY.missing : SONG_SAVE_COPY.failed, 'error');
+    return false;
   } finally {
     if (useEditorStore.getState().chartLoadGeneration === start.chartLoadGeneration) {
       useEditorStore.setState({ isSavingSong: false });

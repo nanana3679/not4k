@@ -28,7 +28,7 @@ _Avoid_: 개발자 모드
 제목·아티스트·자켓은 같은 곡의 모든 차트가 공유하며, 이 표시 정보만 수정하면 기존 기록과 랭킹을 유지한다([glossary](../../docs/context/glossary.md#곡-메타데이터)).
 
 **곡 타이밍**:
-같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 게임·에디터 공용 로더는 곡 행의 표시 정보·타이밍을 우선하며, 타이밍 NULL 또는 곡 행 없음일 때 파일 타이밍을 유지한다. 에디터 곡 저장은 `save_song`으로 확정하며, 타이밍 NULL 곡은 첫 저장 확인 후 열린 차트의 타이밍으로 이행한다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 게임·에디터 공용 로더는 곡 행의 표시 정보·타이밍을 우선하며, 타이밍 NULL 또는 곡 행 없음일 때 파일 타이밍을 유지한다. 에디터 Save는 변경된 곡을 `save_song`으로 먼저 확정하며, 타이밍 NULL 곡은 첫 곡 저장 확인 후 열린 차트의 타이밍으로 이행한다([glossary](../../docs/context/glossary.md#곡-타이밍)).
 
 **곡 저장**:
 곡의 표시 정보·공통 타이밍·음원·프리뷰 및 플레이 구간을 함께 확정하며 차트 저장과 범위를 분리한다. `songs.timing` 정본과 리비전 기반 저장 함수의 DB 계약은 [RFD 0107](../../docs/rfd/0107-song-timing-storage-and-atomic-saves.md), 의미는 [glossary](../../docs/context/glossary.md#곡-저장)를 따른다.
@@ -80,7 +80,7 @@ _Avoid_: 로컬 설정 저장
 
 ## 저장 구현 경계
 
-`20261101000000_song_timing_and_atomic_saves.sql`은 `songs.timing`·`songs.revision`, `charts.chart_path`·`charts.chart_extra_path`·`charts.revision`과 `save_song`·`save_chart`·`create_chart`를 추가한다. 타이밍 NULL은 미이행으로 차트 JSON 폴백 대상이며, 경로 NULL은 기존 결정적 경로를 뜻한다. 새 차트의 리비전은 0, 덮어쓰기 성공 시 1 증가한다. 공용 로더는 `songs.timing`·`revision`을 조회해 게임 시간 계산·에디터 기본 상태 확정 전에 곡 행을 적용한다. 에디터는 곡 소유 값 전체를 같은 응답에서 읽고 반환 리비전으로 기준을 갱신한다. 에디터 곡 저장은 바뀐 미디어를 고유한 새 경로에 먼저 올리고 `save_song`으로 확정한다. `findDifferingSongCharts`는 이행 확인을 위해 다른 차트 파일의 타이밍을 읽는다. 차트 원자적 저장·일반 로더의 새 차트 경로 연결은 PR4b 범위다. 앱 배포 전에 PR1 마이그레이션을 적용해야 한다. 열이 없으면 조회 오류로 로드가 실패하며, 누락 열을 NULL로 간주하지 않는다. 이 문서는 운영 DB 적용 완료를 뜻하지 않는다.
+`20261101000000_song_timing_and_atomic_saves.sql`은 `songs.timing`·`songs.revision`, `charts.chart_path`·`charts.chart_extra_path`·`charts.revision`과 `save_song`·`save_chart`·`create_chart`를 추가한다. 타이밍 NULL은 미이행으로 차트 JSON 폴백 대상이며, 경로 NULL은 기존 결정적 경로를 뜻한다. 새 차트의 리비전은 0, 덮어쓰기 성공 시 1 증가한다. 공용 로더는 `songs.timing`·`revision`을 조회해 게임 시간 계산·에디터 기본 상태 확정 전에 곡 행을 적용한다. 에디터는 곡 소유 값 전체를 같은 응답에서 읽고 반환 리비전으로 기준을 갱신한다. 에디터 곡 저장은 바뀐 미디어를 고유한 새 경로에 먼저 올리고 `save_song`으로 확정한다. `countOtherSongCharts`는 공유 타이밍 변경 확인에 쓸 다른 차트 수를 읽고, `findDifferingSongCharts`는 이행 확인을 위해 다른 차트 파일의 타이밍을 읽는다. Save·Save As는 변경된 곡을 먼저 저장하며, 확인 취소·곡 저장 실패 시 차트 저장을 실행하지 않는다. 차트 원자적 저장·일반 로더의 새 차트 경로 연결은 PR4b 범위다. 앱 배포 전에 PR1 마이그레이션을 적용해야 한다. 열이 없으면 조회 오류로 로드가 실패하며, 누락 열을 NULL로 간주하지 않는다. 이 문서는 운영 DB 적용 완료를 뜻하지 않는다.
 
 `save_chart(p_chart_id uuid, p_expected_revision bigint, p_difficulty_level integer, p_chart_path text, p_chart_extra_path text)`는 UUID·리비전으로 저장하며 곡·난이도명은 바꾸지 않는다. 같은 곡·난이도로 재생성한 차트는 다른 UUID라 옛 저장은 PT404다. 차트 없는 곡은 삭제·같은 text ID 재등록이 가능하므로 곡의 기존 행·신규 행·`save_song`은 공유 `song_revision_seq`를 써서 옛 리비전을 재사용하지 않는다. `save_song` 서명은 유지하며 호출자는 결번이 가능한 반환 리비전을 보관한다.
 

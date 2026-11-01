@@ -61,7 +61,7 @@ test('틱 제외 Cut은 clipboard·chart·selection·history를 보존하고 cop
   await click(page, 2); await page.keyboard.press('Control+c'); await page.keyboard.press('Control+v'); await page.keyboard.press('Enter');
   expect((await notes(page)).at(-1)).toMatchObject({ type: 'tick', beat: { n: 0, d: 1 } });
   await click(page, 1.5, 3); expect((await state(page)).selection).toEqual([]);
-  await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
   expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });

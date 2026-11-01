@@ -23,6 +23,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import type { SongTiming } from '../../src/shared/songAssets/songTiming';
 import type { ChartJsonV3, ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
 
 export const EDITOR_TEST_SONG_ID = 'e2e-editor-song';
@@ -35,9 +36,9 @@ const SONG_DIR = `songs/${EDITOR_TEST_SONG_ID}`;
 const PUBLIC_SONG_DIR = `/storage/v1/object/public/assets/${SONG_DIR}`;
 const UPLOAD_SONG_DIR = `/storage/v1/object/assets/${SONG_DIR}`;
 const AUDIO_PATH = `${SONG_DIR}/audio.wav`;
-/** Save chart가 차트 JSON(`songs/{songId}/{difficulty}.json`)을 업로드하는 요청 경로. */
+/** Save가 차트 JSON(`songs/{songId}/{difficulty}.json`)을 업로드하는 요청 경로. */
 export const EDITOR_TEST_CHART_UPLOAD_PATH = `${UPLOAD_SONG_DIR}/${EDITOR_TEST_DIFFICULTY}.json`;
-/** Save chart가 보조 레인 JSON을 업로드하는 요청 경로. */
+/** Save가 보조 레인 JSON을 업로드하는 요청 경로. */
 export const EDITOR_TEST_EXTRA_UPLOAD_PATH = `${UPLOAD_SONG_DIR}/${EDITOR_TEST_DIFFICULTY}.extra.json`;
 
 /** 0박 120 BPM·4/4 이벤트만 있는 v3 차트. 노트를 넘기면 그대로 담는다. */
@@ -76,6 +77,11 @@ export interface OpenEditorOptions {
   audio?: boolean;
   /** false면 songs 조회에 null을 반환해 곡 행 없이 남은 차트 파일을 연다. */
   songRow?: boolean;
+  /** 생략하면 timing NULL인 미이행 곡. 지정하면 공유 타이밍 변경 확인을 검증한다. */
+  songTiming?: SongTiming | null;
+  /** 같은 곡의 다른 차트. 타이밍 이행 비교용 파일도 이 로컬 응답에서 제공한다. */
+  otherCharts?: Record<string, ChartJsonV3 | ChartJsonV4>;
+  songSaveError?: 'PT409' | '42501';
   /**
    * 구형 차트 변환 모달 처리. 기본 `decline`은 모달이 뜨면 "구형 그대로 열기"를 눌러 구형 그대로 연다(뜨지 않으면 아무것도 안 함).
    * `convert`는 모달이 떠야 하며 "변환"을 누른 뒤 결과 화면을 닫는다. `manual`은 모달을 그대로 두어 spec이 직접 다룬다.
@@ -115,6 +121,11 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     if (method === 'GET' && path === `${PUBLIC_SONG_DIR}/${EDITOR_TEST_DIFFICULTY}.json`) {
       await route.fulfill({ json: chart }); return;
     }
+    for (const [difficulty, otherChart] of Object.entries(options.otherCharts ?? {})) {
+      if (method === 'GET' && path === `${PUBLIC_SONG_DIR}/${difficulty}.json`) {
+        await route.fulfill({ json: otherChart }); return;
+      }
+    }
     if (method === 'GET' && path === `${PUBLIC_SONG_DIR}/${EDITOR_TEST_DIFFICULTY}.extra.json`) {
       await route.fulfill(options.extra === undefined
         ? { status: 404, json: { error: 'not_found' } }
@@ -125,7 +136,7 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
       if (options.songRow === false) { await route.fulfill({ json: null }); return; }
       await route.fulfill({ json: {
         title: chart.meta.title, artist: chart.meta.artist, jacket_url: chart.meta.imageFile,
-        timing: null, revision: 1,
+        timing: options.songTiming ?? null, revision: 1,
         audio_url: audio ? AUDIO_PATH : chart.meta.audioFile,
         preview_url: chart.meta.previewAudioFile || null, preview_start: chart.meta.previewStart ?? null, preview_end: chart.meta.previewEnd ?? null,
         duration: null, gameplay_start: null, gameplay_end: null, gameplay_fade_in: null, gameplay_fade_out: null,
@@ -135,14 +146,19 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     if (audio && method === 'GET' && path === `/storage/v1/object/public/assets/${AUDIO_PATH}`) {
       await route.fulfill({ contentType: 'audio/wav', body: readFileSync(EDITOR_TEST_AUDIO_FILE) }); return;
     }
-    // Save chart: 차트·보조 레인 JSON 업로드와 charts 행 upsert
+    // Save: 차트·보조 레인 JSON 업로드와 charts 행 upsert
     if (method === 'POST' && path.startsWith(`${UPLOAD_SONG_DIR}/`)) {
       await route.fulfill({ json: { Key: path.replace('/storage/v1/object/', '') } }); return;
     }
     if (method === 'GET' && path === '/rest/v1/charts') {
-      await route.fulfill({ json: [{ difficulty_label: EDITOR_TEST_DIFFICULTY, chart_path: null }] }); return;
+      await route.fulfill({ json: [EDITOR_TEST_DIFFICULTY, ...Object.keys(options.otherCharts ?? {})]
+        .map(difficulty_label => ({ difficulty_label, chart_path: null })) }); return;
     }
     if (method === 'POST' && path === '/rest/v1/rpc/save_song') {
+      if (options.songSaveError) {
+        await route.fulfill({ status: options.songSaveError === 'PT409' ? 409 : 403,
+          json: { code: options.songSaveError, message: 'offline save rejected' } }); return;
+      }
       await route.fulfill({ json: 7 }); return;
     }
     if (method === 'POST' && path === '/rest/v1/charts') {

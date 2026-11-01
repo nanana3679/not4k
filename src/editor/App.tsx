@@ -48,9 +48,7 @@ import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
-import { saveEditorSong } from './saveEditorSong';
-import { isSongTimingDirty } from './songState';
-import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY, SONG_SAVE_COPY } from './editorCopy';
+import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
 import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
 import { editorChartViolationIndices } from './documentValidation';
 import { isChartDirty } from './savedChart';
@@ -784,11 +782,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         pendingGameplayRange={pendingGameplayRange}
         onPlayTest={fileOps.handlePlayTest}
         onSaveChart={fileOps.handleSaveChart}
-        onSaveSong={() => void saveEditorSong(playbackRef.current?.audioBufferData ?? null, message => window.confirm(message))}
-        onSaveAs={() => {
-          if (isSongTimingDirty(chart, song)) addToast(SONG_SAVE_COPY.timingFirst, 'warn');
-          else setShowSaveAsModal(true);
-        }}
+        onSaveAs={() => setShowSaveAsModal(true)}
         onDeleteChart={() => setShowDeleteConfirm(true)}
         onDeleteSelected={handleDeleteSelected}
         onOpenMeta={() => setShowMetaModal(true)}

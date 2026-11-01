@@ -40,6 +40,27 @@ beforeEach(() => {
 });
 
 describe('saveEditorSong', () => {
+  it('Offset 25→45에서 다른 차트 2개 안내를 취소하면 RPC·자켓 업로드 0회이고 리비전 42와 편집을 유지한다', async () => {
+    state().setChart({ ...state().chart, meta: { ...state().chart.meta, offsetMs: 45 } });
+    state().setSong({ ...state().song!, pendingJacketFile: new File(['A'], 'A.png') });
+    const before = state();
+    api.eq.mockResolvedValue({ data: [
+      { difficulty_label: base.meta.difficultyLabel.toLowerCase() },
+      { difficulty_label: 'easy' }, { difficulty_label: 'hard' },
+    ], error: null });
+    const confirm = vi.fn(() => false);
+
+    expect(await saveEditorSong(null, confirm)).toBe(false);
+
+    expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('다른 차트 2개'));
+    expect(api.eq).toHaveBeenCalledWith('song_id', 'song');
+    expect(api.rpc).not.toHaveBeenCalled();
+    expect(api.upload).not.toHaveBeenCalled();
+    expect(state().chart).toBe(before.chart);
+    expect(state().song).toBe(before.song);
+    expect(dirty()).toBe(true);
+  });
+
   it('리비전 42로 제목을 바꿔 저장하면 전체 곡 값으로 save_song을 호출하고 반환 리비전 57을 새 기준으로 삼는다', async () => {
     editTitle('새 제목');
     await saveEditorSong(null, vi.fn());
@@ -110,6 +131,7 @@ it('자켓 업로드가 실패하면 RPC 0회이고 대기 파일·기준 리비
 
 it.each([false, true])('timing NULL에서 확인=%s이면 BPM 180인 hard만 목록에 보이고 취소 시 RPC·업로드 0회다', async accepted => {
   open(null);
+  state().setSong({ ...state().song!, pendingJacketFile: new File(['A'], 'A.png') });
   const before = state();
   const raw = JSON.parse(toSavedChartJson(state().chart, 2).chartJson);
   api.eq.mockResolvedValue({ data: [
@@ -123,7 +145,7 @@ it.each([false, true])('timing NULL에서 확인=%s이면 BPM 180인 hard만 목
     return new Response(JSON.stringify(file));
   }));
   const confirm = vi.fn<(message: string) => boolean>(() => accepted);
-  await saveEditorSong(null, confirm);
+  expect(await saveEditorSong(null, confirm)).toBe(accepted);
   expect(api.from).toHaveBeenCalledWith('charts');
   expect(api.eq).toHaveBeenCalledWith('song_id', 'song');
   expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('hard'));
@@ -195,7 +217,7 @@ it('곡 저장 응답 전에 새 차트를 열면 늦은 리비전 57이 새 차
   expect(dirty()).toBe(false);
 });
 
-it('곡 행이 없으면 Save Song을 호출해도 RPC·업로드·확인 모두 0회다', async () => {
+it('곡 행이 없으면 saveEditorSong을 호출해도 RPC·업로드·확인 모두 0회다', async () => {
   state().setSong(null);
   const confirm = vi.fn(); await saveEditorSong(null, confirm);
   expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled(); expect(confirm).not.toHaveBeenCalled();
@@ -233,11 +255,54 @@ it('프리뷰를 0～8초·페이드 1초로 바꾸면 자켓·음원 업로드 
   expect(dirty()).toBe(false);
 });
 
-it('0박 BPM 2개가 있는 미이행 곡도 깨끗하게 열리지만 Save Song은 업로드·RPC 전에 거부한다', async () => {
+it('0박 BPM 2개가 있는 미이행 곡도 깨끗하게 열리지만 saveEditorSong은 업로드·RPC 전에 거부한다', async () => {
   const loaded = { ...song, timing: null };
   const chart = { ...base, events: [...base.events, base.events.find(e => e.type === 'bpm')!] };
   openEditorChart(loadEditorChartAsset(toSavedChartJson(chart, 2).chartJson, null, loaded), loaded);
   expect(dirty()).toBe(false);
   await saveEditorSong(null, vi.fn());
   expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled();
+});
+
+it.each(['BPM 120→180', '박자표 4→3', 'Offset 25→45'])('%s 변경을 승인하면 다른 차트 0개 확인 1회 뒤 save_song 1회로 저장한다', async change => {
+  const chart = state().chart;
+  state().setChart({ ...chart, meta: { ...chart.meta, offsetMs: change.startsWith('Offset') ? 45 : 25 },
+    events: chart.events.map(event => event.type === 'bpm' && change.startsWith('BPM') ? { ...event, bpm: 180 }
+      : event.type === 'timeSignature' && change.startsWith('박자표') ? { ...event, beatPerMeasure: { n: 3, d: 1 } } : event) });
+  const confirm = vi.fn(() => true);
+  expect(await saveEditorSong(null, confirm)).toBe(true);
+  expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('다른 차트 0개'));
+  expect(api.rpc).toHaveBeenCalledOnce();
+  expect(dirty()).toBe(false);
+});
+
+it.each(['title', 'artist', 'gameplayRange'] as const)('%s만 새 값 또는 5～100초로 변경하면 확인·다른 차트 조회 0회로 리비전 57을 저장한다', async field => {
+  if (field === 'gameplayRange') state().setSong({ ...state().song!, gameplayRange: { startTime: 5, endTime: 100, fadeInTime: 1, fadeOutTime: 3 } });
+  else state().setChart({ ...state().chart, meta: { ...state().chart.meta, [field]: '새 값' } });
+  const confirm = vi.fn(() => true);
+  expect(await saveEditorSong(null, confirm)).toBe(true);
+  expect(confirm).not.toHaveBeenCalled(); expect(api.from).not.toHaveBeenCalled();
+  expect(state().song?.revision).toBe(57); expect(dirty()).toBe(false);
+});
+
+it('Offset 25→45의 다른 차트 수 조회가 실패하면 확인·RPC·업로드 0회로 리비전 42를 유지한다', async () => {
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, offsetMs: 45 } });
+  api.eq.mockResolvedValue({ data: null, error: { message: 'read failed' } });
+  const confirm = vi.fn(() => true);
+  expect(await saveEditorSong(null, confirm)).toBe(false);
+  expect(confirm).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled();
+  expect(state().song?.revision).toBe(42); expect(dirty()).toBe(true);
+});
+
+it('Offset 25→45의 차트 수 조회 중 새 차트를 열면 늦은 응답은 확인·RPC 0회로 끝난다', async () => {
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, offsetMs: 45 } });
+  let finish!: (value: { data: { difficulty_label: string }[]; error: null }) => void;
+  api.eq.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const confirm = vi.fn(() => true);
+  const saving = saveEditorSong(null, confirm);
+  open(); const next = state();
+  finish({ data: [{ difficulty_label: 'hard' }], error: null });
+  expect(await saving).toBe(false);
+  expect(confirm).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
+  expect(state().chart).toBe(next.chart); expect(state().song).toBe(next.song);
 });

@@ -13,7 +13,7 @@ import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
 import { isChartDirty } from '../savedChart';
-import { SONG_SAVE_COPY, PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 import { color, edge } from '../../shared/theme';
 
 const styles = {
@@ -573,7 +573,6 @@ interface EditorToolbarProps {
   pendingGameplayRange: PlaybackRange | null;
   onPlayTest: (fromCursor: boolean) => void;
   onSaveChart: () => void;
-  onSaveSong: () => void;
   onSaveAs: () => void;
   onDeleteChart: () => void;
   onDeleteSelected: () => void;
@@ -621,7 +620,6 @@ export function EditorToolbar({
   pendingGameplayRange,
   onPlayTest,
   onSaveChart,
-  onSaveSong,
   onSaveAs,
   onDeleteChart,
   onDeleteSelected,
@@ -696,8 +694,8 @@ export function EditorToolbar({
     () => isChartDirty(chart, extraLaneCount, savedChartJson, song !== null),
     [chart, extraLaneCount, savedChartJson, song],
   );
-  const isDirty = chartDirty || (!song && (pendingPreviewRange != null || pendingGameplayRange != null));
   const songDirty = useMemo(() => isSongDirty(chart, song), [chart, song]);
+  const isDirty = chartDirty || songDirty || (!song && (pendingPreviewRange != null || pendingGameplayRange != null));
   const saveLocked = saving || savingSong || deleting;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
@@ -733,19 +731,6 @@ export function EditorToolbar({
     ...(disabled ? styles.compactButtonDisabled : {}),
   });
 
-  const renderSaveSong = () => song && (
-    <button
-      style={{ ...styles.compactButton, ...(saveLocked ? styles.compactButtonDisabled : {}), position: 'relative' }}
-      onClick={onSaveSong}
-      disabled={saveLocked}
-      title={savingSong ? 'Saving song' : songDirty ? 'Save song (unsaved changes)' : 'Save song'}
-      aria-label={savingSong ? 'Saving song' : songDirty ? 'Save song, unsaved changes' : 'Save song'}
-    >
-      {SONG_SAVE_COPY.label}
-      {songDirty && <span style={styles.compactDirtyBadge} />}
-    </button>
-  );
-
   const runUndo = () => {
     if (!canUndo) return;
     undo();
@@ -759,7 +744,7 @@ export function EditorToolbar({
   };
 
   const requestBackToSongs = () => {
-    if (isDirty || songDirty) {
+    if (isDirty) {
       window.dispatchEvent(new CustomEvent('editor:requestLeave'));
     } else {
       window.location.href = '/game';
@@ -1127,7 +1112,6 @@ export function EditorToolbar({
             >
               <ToolbarIcon name={isPlaying ? 'pause' : 'play'} />
             </button>
-            {renderSaveSong()}
             <button
               style={{
                 ...compactIconStyle,
@@ -1137,8 +1121,8 @@ export function EditorToolbar({
               }}
               onClick={onSaveChart}
               disabled={saveLocked}
-              title={saving ? 'Saving chart' : isDirty ? 'Save chart (unsaved changes)' : 'Save chart'}
-              aria-label={saving ? 'Saving chart' : isDirty ? 'Save chart, unsaved changes' : 'Save chart'}
+              title={saving || savingSong ? 'Saving' : isDirty ? 'Save (unsaved changes)' : 'Save'}
+              aria-label={saving || savingSong ? 'Saving' : isDirty ? 'Save, unsaved changes' : 'Save'}
             >
               <ToolbarIcon name="save" />
               {isDirty && <span style={styles.compactDirtyBadge} />}
@@ -1419,8 +1403,7 @@ export function EditorToolbar({
       {renderConversionReviewButton()}
       {renderViolationBadge()}
 
-      {renderSaveSong()}
-      {/* Save ChartDocument (아이콘 + 변경사항 칩) */}
+      {/* Save (곡·차트 공통 변경사항 표시) */}
       <button
         style={{
           ...getIconButtonStyle(false, saveLocked),
@@ -1429,8 +1412,8 @@ export function EditorToolbar({
         }}
         onClick={onSaveChart}
         disabled={saveLocked}
-        title={saving ? 'Saving chart' : isDirty ? 'Save chart (unsaved changes)' : 'Save chart'}
-        aria-label={saving ? 'Saving chart' : isDirty ? 'Save chart, unsaved changes' : 'Save chart'}
+        title={saving || savingSong ? 'Saving' : isDirty ? 'Save (unsaved changes)' : 'Save'}
+        aria-label={saving || savingSong ? 'Saving' : isDirty ? 'Save, unsaved changes' : 'Save'}
       >
         <ToolbarIcon name="save" />
         {isDirty && <span style={styles.compactDirtyBadge} />}
