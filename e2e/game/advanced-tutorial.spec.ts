@@ -9,7 +9,7 @@ const test = base.extend<{ previewErrors: string[] }>({
   }, { auto: true }],
 });
 
-const VIEWED_KEY = 'not4k-tutorial-viewed-ids';
+const PASSED_KEY = 'not4k-tutorial-passed-ids';
 const BASIC_IDS = [
   'hand-placement',
   'single-note',
@@ -115,7 +115,6 @@ test.describe('Tutorial level tabs', () => {
 
   test.beforeEach(async ({ page }) => {
     page.setDefaultTimeout(10_000);
-    await page.addInitScript((key) => localStorage.removeItem(key), VIEWED_KEY);
   });
 
   test('Basic 17개와 Advanced 8개가 실제 preview·본문과 함께 탭별로 순환한다', async ({ page }) => {
@@ -207,28 +206,40 @@ test.describe('Tutorial level tabs', () => {
     const reopened = page.getByRole('dialog', { name: 'Tutorial' });
     await expectActive(reopened, BASIC_IDS[0]);
     await selectTab(reopened, 'Advanced');
-    await expect(reopened.locator('[data-tutorial-index-item="' + ADVANCED_IDS[5] + '"]')).toHaveAttribute('data-tutorial-index-seen', 'true');
+    await expect(reopened.locator('[data-tutorial-index-item="' + ADVANCED_IDS[5] + '"]')).toHaveAttribute('data-tutorial-index-passed', 'false');
     await expect(indexItems(reopened)).toHaveCount(ADVANCED_IDS.length);
   });
 
-  test('Advanced 항목을 모두 보면 25개 viewed를 저장하고 Reset Viewed는 Basic 첫 항목만 남긴다', async ({ page }) => {
-    await page.addLocatorHandler(page.locator('[data-tutorial-diagram-ok="true"]:visible').first(), async button => {
-      await button.click();
-    });
+  test('실습 가능한 Basic 16개·Advanced 8개의 통과 기록을 복원하면 24개만 체크하고 Reset Passed는 모두 지운다', async ({ page }) => {
+    const passedIds = [...BASIC_IDS.slice(1), ...ADVANCED_IDS];
+    await page.addInitScript(({ key, ids }) => {
+      localStorage.setItem(key, JSON.stringify(ids));
+      localStorage.setItem('not4k-tutorial-viewed-ids', '["hand-placement"]');
+    }, { key: PASSED_KEY, ids: passedIds });
     const dialog = await openTutorial(page);
-    for (const id of BASIC_IDS) await choose(dialog, id);
+    await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(16);
+    await expect(dialog.locator('[data-tutorial-index-item="hand-placement"]')).toHaveAttribute('data-tutorial-index-passed', 'false');
+    await expect(dialog.getByLabel('Viewed tutorial', { exact: true })).toHaveCount(0);
     await selectTab(dialog, 'Advanced');
-    for (const id of ADVANCED_IDS) await choose(dialog, id);
-
-    const viewed = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '[]') as string[], VIEWED_KEY);
-    expect(viewed).toEqual([...BASIC_IDS, ...ADVANCED_IDS]);
-    expect(viewed).toHaveLength(25);
-    await dialog.getByRole('button', { name: 'Reset tutorial viewed cache' }).click();
-    const resetViewed = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '[]') as string[], VIEWED_KEY);
-    expect(resetViewed).toEqual([BASIC_IDS[0]]);
+    await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(8);
+    for (const id of ADVANCED_IDS) {
+      await expect(dialog.locator(`[data-tutorial-index-item="${id}"]`).getByLabel('Passed tutorial')).toHaveText('✓');
+    }
+    const settingsBeforeReset = await page.evaluate(() => localStorage.getItem('not4k-settings'));
+    await dialog.getByRole('button', { name: 'Reset tutorial pass records' }).click();
+    await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(0);
+    await selectTab(dialog, 'Basic');
+    await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(0);
+    expect(await page.evaluate(key => localStorage.getItem(key), PASSED_KEY)).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('not4k-tutorial-viewed-ids'))).toBe('["hand-placement"]');
+    expect(await page.evaluate(() => localStorage.getItem('not4k-settings'))).toBe(settingsBeforeReset);
+    await dialog.getByRole('button', { name: 'Close tutorial help' }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole('button', { name: 'Open tutorial help' }).click();
+    await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(0);
   });
 
-  test('제거된 Advanced holdOnly 4개가 저장되어 있어도 팝업은 8개만 표시하고 viewed에서 제외한다', async ({ page }) => {
+  test('제거된 Advanced holdOnly 4개의 통과 ID가 있어도 목록은 8개만 표시하고 저장된 ID는 삭제하지 않는다', async ({ page }) => {
     const removedIds = [
       'advanced-holdonly-decrease', 'advanced-independent-holdonly',
       'advanced-short-holdonly', 'advanced-zero-holdonly',
@@ -236,17 +247,19 @@ test.describe('Tutorial level tabs', () => {
     const initial = await openTutorial(page);
     await initial.getByRole('button', { name: 'Close tutorial help' }).click();
     await expect(initial).toBeHidden();
+    const passedIds = ['single-note', ...removedIds, 'advanced-recovery'];
     await page.evaluate(({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)), {
-      key: VIEWED_KEY, ids: ['single-note', ...removedIds, 'advanced-recovery'],
+      key: PASSED_KEY, ids: passedIds,
     });
     await page.getByRole('button', { name: 'Open tutorial help' }).click();
     const dialog = page.getByRole('dialog', { name: 'Tutorial' });
+    await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(1);
     await selectTab(dialog, 'Advanced');
     await expect(indexItems(dialog)).toHaveCount(8);
     for (const id of removedIds) await expect(dialog.locator(`[data-tutorial-index-item="${id}"]`)).toHaveCount(0);
-    await expect(dialog.locator('[data-tutorial-index-item="advanced-recovery"]')).toHaveAttribute('data-tutorial-index-seen', 'true');
-    await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? '[]'), VIEWED_KEY))
-      .toEqual(['hand-placement', 'single-note', 'advanced-double-hold', 'advanced-recovery']);
+    await expect(dialog.getByLabel('Passed tutorial', { exact: true })).toHaveCount(1);
+    await expect(dialog.locator('[data-tutorial-index-item="advanced-recovery"]')).toHaveAttribute('data-tutorial-index-passed', 'true');
+    expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? '[]'), PASSED_KEY)).toEqual(passedIds);
   });
 
   test('탭 키보드 화살표는 lesson window handler와 중복되지 않고 탭 내부 포커스를 이동한다', async ({ page }) => {

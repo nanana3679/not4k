@@ -11,16 +11,16 @@ import type { TutorialPreviewPlayerProps } from './TutorialPreviewPlayer';
 import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, getTutorialSection, type TutorialSectionId } from './tutorialCatalog';
 import { findUnmetTutorialPracticeKeyRequirements, getTutorialKeyboardLabel, type TutorialKeyBindings } from './tutorialKeyboardLayout';
 import {
-  canShowTutorialCacheInvalidationButton,
-  clearTutorialViewedIds,
-  persistTutorialViewedIds,
-  readTutorialViewedIdsFromStorage,
-} from './tutorialViewedCache';
+  clearTutorialPassedIds,
+  addTutorialPassedId,
+  readTutorialPassedIdsFromStorage,
+  TUTORIAL_PASSED_STORAGE_KEY,
+} from './tutorialPassRecords';
 
 interface TutorialHelpModalProps {
   onClose: () => void;
   isAdmin?: boolean;
-  /** 항목 전체가 이번 실습에서 false → true로 통과한 순간. 기록 저장은 후속 연결한다. */
+  /** 이번 실습에서 항목 전체가 false → true로 통과했음을 브라우저 저장 시도 후 알린다. */
   onItemPassed?: (itemId: string) => void;
 }
 
@@ -42,7 +42,7 @@ interface TutorialPlayerTransition {
   phase: TutorialPageTransitionPhase;
 }
 
-function getTutorialViewedStorage(): Storage | null {
+function getTutorialPassStorage(): Storage | null {
   if (typeof window === 'undefined') return null;
 
   try {
@@ -68,16 +68,37 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
   const nextPreviewSlotInstanceIdRef = useRef(1);
   const [textTransitionDirection, setTextTransitionDirection] =
     useState<TutorialPageTransitionDirection>('forward');
-  const [viewedTutorialIds, setViewedTutorialIds] = useState<ReadonlySet<string>>(
-    () => readTutorialViewedIdsFromStorage(getTutorialViewedStorage()),
+  const [passedTutorialIds, setPassedTutorialIds] = useState<ReadonlySet<string>>(
+    () => readTutorialPassedIdsFromStorage(getTutorialPassStorage()),
   );
+  const passedTutorialIdsRef = useRef(passedTutorialIds);
+  const recordItemPassed = useCallback((itemId: string) => {
+    if (!passedTutorialIdsRef.current.has(itemId)) {
+      // React commit 전 완료 통지에도 같은 집합을 쓰며 통과한 순간에만 저장한다. 다른 탭의 통과를 지우지 않도록 최신 저장값과 합친다.
+      const next = addTutorialPassedId(getTutorialPassStorage(), passedTutorialIdsRef.current, itemId);
+      passedTutorialIdsRef.current = next;
+      setPassedTutorialIds(next);
+    }
+    onItemPassed?.(itemId);
+  }, [onItemPassed]);
+  // 다른 탭에서 통과하거나 기록을 지우면 이 모달의 표시도 맞춘다.
+  useEffect(() => {
+    const syncFromOtherTab = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== TUTORIAL_PASSED_STORAGE_KEY) return;
+      const latest = readTutorialPassedIdsFromStorage(getTutorialPassStorage());
+      passedTutorialIdsRef.current = latest;
+      setPassedTutorialIds(latest);
+    };
+    window.addEventListener('storage', syncFromOtherTab);
+    return () => window.removeEventListener('storage', syncFromOtherTab);
+  }, []);
   const settings = useGameStore((state) => state.settings);
   const settingsOpen = useGameStore((state) => state.settingsOpen);
   const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
   const currentSection = getTutorialSection(tutorialIndex);
   const sectionTutorialIndex = tutorialIndex - currentSection.startIndex;
   const currentTutorial = ALL_TUTORIAL_PREVIEWS[tutorialIndex] ?? ALL_TUTORIAL_PREVIEWS[0];
-  const practice = useTutorialPractice(ALL_TUTORIAL_PREVIEWS[0], onItemPassed);
+  const practice = useTutorialPractice(ALL_TUTORIAL_PREVIEWS[0], recordItemPassed);
   const unmetKeyRequirements = useMemo(() => findUnmetTutorialPracticeKeyRequirements(
     getTutorialInputTimings(currentTutorial.chart), settings.keyBindings,
   ), [currentTutorial, settings.keyBindings]);
@@ -100,10 +121,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
     getTutorialPreviewSlotReadyKey(activePlayerSlot, visiblePlayerIndex, activePreviewInstanceId),
   );
   const isPlayerDriverVisible = activePreviewReady && !isClosing;
-  const canInvalidateViewedCache = canShowTutorialCacheInvalidationButton({
-    isAdmin,
-    isDev: import.meta.env.DEV,
-  });
+  const canResetPassed = import.meta.env.DEV || isAdmin;
 
   const cancelScheduledTransitionStart = useCallback(() => {
     for (const frameId of transitionFrameIdsRef.current) {
@@ -116,12 +134,6 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
     const normalizedIndex = normalizeTutorialIndex(nextIndex);
     const nextTutorial = ALL_TUTORIAL_PREVIEWS[normalizedIndex] ?? ALL_TUTORIAL_PREVIEWS[0];
     lastSectionIndexesRef.current[getTutorialSection(normalizedIndex).id] = normalizedIndex;
-    setViewedTutorialIds((previous) => {
-      if (previous.has(nextTutorial.id)) return previous;
-      const next = new Set(previous);
-      next.add(nextTutorial.id);
-      return next;
-    });
     // Clicking the selected tab must not cancel the two-frame preparation
     // of a preview that is still becoming ready.
     if (normalizedIndex === tutorialIndex) return;
@@ -197,14 +209,11 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
     }, TUTORIAL_MODAL_CLOSE_MS);
   }, [cancelScheduledTransitionStart, isClosing, onClose]);
 
-  const resetViewedTutorialCache = useCallback(() => {
-    clearTutorialViewedIds(getTutorialViewedStorage());
-    setViewedTutorialIds(new Set([ALL_TUTORIAL_PREVIEWS[0].id]));
+  const resetPassedTutorials = useCallback(() => {
+    clearTutorialPassedIds(getTutorialPassStorage());
+    passedTutorialIdsRef.current = new Set();
+    setPassedTutorialIds(passedTutorialIdsRef.current);
   }, []);
-
-  useEffect(() => {
-    persistTutorialViewedIds(getTutorialViewedStorage(), viewedTutorialIds);
-  }, [viewedTutorialIds]);
 
   const handlePreviewSlotReady = useCallback((
     readySlotId: TutorialPreviewSlotId,
@@ -386,16 +395,16 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
             >
               <span aria-hidden="true">→</span>
             </button>
-            {canInvalidateViewedCache && (
+            {canResetPassed && (
               <button
                 type="button"
-                style={tutorialHelpStyles.resetCacheButton}
-                onClick={resetViewedTutorialCache}
-                data-tutorial-reset-viewed-cache="true"
-                aria-label="Reset tutorial viewed cache"
-                title="Reset tutorial viewed cache"
+                style={tutorialHelpStyles.resetPassedButton}
+                onClick={resetPassedTutorials}
+                data-tutorial-reset-passed="true"
+                aria-label="Reset tutorial pass records"
+                title="Reset tutorial pass records"
               >
-                Reset Viewed
+                Reset Passed
               </button>
             )}
             <button
@@ -458,7 +467,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
             {currentSection.previews.map((tutorial, localIndex) => {
               const index = currentSection.startIndex + localIndex;
               const isCurrent = index === tutorialIndex;
-              const isSeen = viewedTutorialIds.has(tutorial.id);
+              const isPassed = passedTutorialIds.has(tutorial.id);
               return (
                 <button
                   key={tutorial.id}
@@ -472,13 +481,13 @@ export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: Tu
                   aria-current={isCurrent ? 'step' : undefined}
                   data-tutorial-index-item={tutorial.id}
                   data-tutorial-index-current={isCurrent ? 'true' : 'false'}
-                  data-tutorial-index-seen={isSeen ? 'true' : 'false'}
+                  data-tutorial-index-passed={isPassed ? 'true' : 'false'}
                 >
                   <span style={tutorialHelpStyles.indexNumber}>{localIndex}</span>
                   <span style={tutorialHelpStyles.indexTitle}>{tutorial.title}</span>
-                  {isSeen && (
+                  {isPassed && (
                     <span
-                      aria-label="Viewed tutorial"
+                      aria-label="Passed tutorial"
                       data-tutorial-index-check="true"
                       style={tutorialHelpStyles.indexCheck}
                     >
@@ -1081,7 +1090,7 @@ const tutorialHelpStyles: Record<string, CSSProperties> = {
     flexShrink: 0,
     fontSize: '13px',
   },
-  resetCacheButton: {
+  resetPassedButton: {
     ...primitives.neonButton,
     minWidth: '104px',
     minHeight: '32px',

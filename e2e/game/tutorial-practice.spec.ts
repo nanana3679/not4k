@@ -38,12 +38,14 @@ async function waitForElapsed(page: Page, target: number, selector = ACTIVE_PLAY
 }
 
 for (const inputOffsetMs of [0, -200, 200]) {
-  test(`Basic single-note offset ${inputOffsetMs}ms에서 실제 바인딩 키로 누적 3회 성공하면 초록 체크·3/3·다음을 표시하고 실습을 멈춘다`, async ({ page }) => {
+  test(`Basic single-note offset ${inputOffsetMs}ms에서 실제 바인딩 키로 누적 3회 성공하면 실습을 멈추고 3/3·다음·통과 체크를 표시하며 재개방·새로고침 뒤에도 체크가 남는다`, async ({ page }) => {
     test.setTimeout(90_000);
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     const dialog = await openTutorial(page, false, KEY_BINDINGS, inputOffsetMs);
-    await dialog.locator('[data-tutorial-index-item="single-note"]').click();
+    const item = dialog.locator('[data-tutorial-index-item="single-note"]');
+    await expect(item.getByLabel('Passed tutorial')).toHaveCount(0);
+    await item.click();
     const player = page.locator(ACTIVE_PLAYER);
     await expect(player).toHaveAttribute('data-tutorial-paused', 'false');
     await expect(player).toHaveAttribute('data-tutorial-elapsed-ms', /\d/);
@@ -78,11 +80,33 @@ for (const inputOffsetMs of [0, -200, 200]) {
     await expect(condition).toHaveCSS('color', 'rgb(142, 230, 168)');
     await expect(condition.getByLabel('충족')).toHaveText('✓');
     await expect(player).toHaveAttribute('data-tutorial-paused', 'true');
+    await expect(item.getByLabel('Passed tutorial')).toHaveText('✓');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('not4k-tutorial-passed-ids') ?? '[]')))
+      .toEqual(['single-note']);
     await expect(dialog.locator('[data-tutorial-index-item="single-note"]')).toHaveAttribute('aria-current', 'step');
     await dialog.getByRole('button', { name: '다음', exact: true }).click();
     await expect(dialog.locator('[data-tutorial-preview-slot="active"]')).toHaveAttribute('data-tutorial-preview-id', 'double-note');
     await expect(progress).toHaveText('0/3');
     await expect(dialog.getByRole('button', { name: '시연', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(item.getByLabel('Passed tutorial')).toHaveText('✓');
+    await dialog.getByRole('button', { name: 'Close tutorial help' }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole('button', { name: 'Open tutorial help' }).click();
+    await expect(item.getByLabel('Passed tutorial')).toHaveText('✓');
+    await item.click();
+    await expect(progress).toHaveText('0/3');
+    await expect(item.getByLabel('Passed tutorial')).toHaveText('✓');
+
+    await page.reload();
+    const start = page.getByRole('button', { name: 'Start', exact: true });
+    const help = page.getByRole('button', { name: 'Open tutorial help' });
+    await expect(start.or(help).first()).toBeVisible();
+    if (await start.isVisible()) await start.click();
+    await help.click();
+    await expect(item.getByLabel('Passed tutorial')).toHaveText('✓');
+    await item.click();
+    await expect(progress).toHaveText('0/3');
+    await expect(item.getByLabel('Passed tutorial')).toHaveText('✓');
     expect(errors).toEqual([]);
   });
 }
