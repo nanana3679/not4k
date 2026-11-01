@@ -113,13 +113,16 @@ describe('toSavedChartJson', () => {
     const adapter: SongAssetPersistenceAdapter = {
       uploadText: async ({ path, content }) => { uploads.set(path, content); },
       remove: async () => {},
-      upsertChartRow: async () => {},
+      saveChartRow: async (row) => row.expectedRevision + 1,
+      createChartRow: async () => ({ chartId: 'created', revision: 0 }),
       deleteChartRow: async () => {},
       listSongFiles: async () => [],
       deleteSongRow: async () => {},
+      newPathToken: () => 'token',
     };
 
-    const written = await saveChartAsset(adapter, { songId: 'song', difficulty: 'normal', chart, extraLaneCount: 3 });
+    const written = await saveChartAsset(adapter, { songId: 'song', difficulty: 'normal', chart, extraLaneCount: 3,
+      row: { chartId: 'chart-1', revision: 0 } });
 
     expect(deserializeChartDocument(written.chartJson).trillZones).toEqual([chart.trillZones[0]]);
     expect(JSON.parse(written.extraJson).extraTrillZones).toEqual([{ extraLane: 3, beat: '2', endBeat: '4' }]);

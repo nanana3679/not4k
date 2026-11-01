@@ -1,4 +1,5 @@
 import type { LoadedSongSharedData } from '../supabase/songSharedData';
+import type { StoredChartRow } from '../supabase/chartRows';
 import { createEditorSong } from './songState';
 import type { LoadedEditorChartAsset } from './chartAssetLoad';
 import { placeInitialTimingEvents } from './editing/initialTimingPlacement';
@@ -14,9 +15,13 @@ import { useEditorStore } from './stores/editorStore';
  * 레인1·2가 보이도록 적어도 2로 연다. `setChart`를 거치지 않으므로 이 배치는 편집 이력이 아니다. 배치 결과와 보조
  * 레인 수로 `savedChartJson`을 만들고 이력을 비워, 열자마자 dirty·Undo·Redo가 없다. 서버·원본 파일에는 쓰지 않으며,
  * 사용자가 저장할 때 옮긴 초기 설정 배치가 함께 저장된다. 로드는 차트 변이 게이트의 유일한 예외 통로라 배치 뒤 남은
- * 위반 차트도 열어 수리를 허용한다.
+ * 위반 차트도 열어 수리를 허용한다. 함께 받은 `charts` 행(ID·리비전·파일 경로)은 차트 저장의 대상이다(RFD 0107).
  */
-export function openEditorChart(asset: LoadedEditorChartAsset, song?: LoadedSongSharedData | null): void {
+export function openEditorChart(
+  asset: LoadedEditorChartAsset,
+  song?: LoadedSongSharedData | null,
+  chartRow: StoredChartRow | null = null,
+): void {
   const store = useEditorStore.getState();
   // 파일이 보조 레인 수를 정하지 않으면 지금 store 값(처음 열 때 기본 2)을 유지한다.
   const fileDefinesExtraLaneCount = asset.extraLaneCount > 0 || asset.hasExtraLaneCount;
@@ -34,5 +39,6 @@ export function openEditorChart(asset: LoadedEditorChartAsset, song?: LoadedSong
   const loaded = useEditorStore.getState();
   loaded.setSavedChartJson(toSavedChartJson(loaded.chart, loaded.extraLaneCount));
   loaded.setSong(song ? createEditorSong(song, loaded.chart) : null);
+  loaded.setChartRow(chartRow);
   loaded.resetHistory();
 }

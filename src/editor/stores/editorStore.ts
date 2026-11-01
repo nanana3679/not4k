@@ -12,6 +12,7 @@ import { isPlaybackLockedChange } from '../editing/playbackEditLock';
 import type { EditorSong } from '../songState';
 import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
 import type { SavedChartJson } from '../savedChart';
+import type { StoredChartRow } from '../../supabase/chartRows';
 import type { CursorBeatKeeperState } from '../playback/cursorBeatKeeper';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
 import {
@@ -61,6 +62,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   /**
    * 열린 차트의 난이도 경로(소문자). URL의 `difficulty`로 열고 Save As 성공 때만 바뀐다. Save·Delete는 이 경로를 쓰며,
    * Meta에서 고칠 수 있는 `chart.meta.difficultyLabel`과 달라도 다른 난이도의 파일을 덮어쓰지 않는다.
+   * `chartRow`가 있으면 그 행의 난이도명(소문자)과 같다. Save As는 둘을 `adoptChartIdentity` 한 번에 함께 바꾼다.
    */
   activeDifficulty: string | null;
   pendingAudioUrl: string | null;
@@ -100,6 +102,10 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // dirty 표시·나가기 확인이 이것과 현재 차트를 비교한다. 차트를 새로 불러올 때와 저장(Save·Save As) 성공 때만 정한다.
   // 편집·Undo·테스트 플레이는 바꾸지 않는다. 페이지 컴포넌트가 아니라 store가 소유해, 테스트 플레이에서 돌아와 페이지가 다시 마운트돼도 유지된다.
   savedChartJson: SavedChartJson | null;
+  // 열린 차트의 `charts` 행(ID·충돌 검사 리비전·파일 경로, RFD 0107). 차트 저장은 이 ID·리비전으로 `save_chart`를 부른다.
+  // 행 없이 연 차트는 null이며, 곡 행이 있으면 첫 저장이 `create_chart`로 행을 만든다. 곡 행이 없으면 행을 만들 수 없어(FK)
+  // 계속 null이다. 불러올 때와 차트 저장 성공 때만 바뀌고 편집·Undo는 바꾸지 않는다. Save As는 `adoptChartIdentity`로 바꾼다.
+  chartRow: StoredChartRow | null;
   song: EditorSong | null;
   isSavingSong: boolean;
   setSong: (song: EditorSong | null) => void;
@@ -132,10 +138,12 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setActiveSongId: (songId: string | null) => void;
   setActiveDifficulty: (difficulty: string | null) => void;
   /**
-   * Save As가 확정한 새 난이도를 열린 차트의 정체성으로 삼는다. 편집이 아니므로 Undo 이력을 남기지 않고,
-   * 이력·열린 편집·마지막 유효 상태의 난이도명·레벨도 함께 바꿔 Undo·취소·복원이 이전 난이도를 되살리지 않는다.
+   * Save As가 확정한 새 난이도와 저장한 `charts` 행을 열린 차트의 정체성으로 삼는다. 난이도명·레벨·`activeDifficulty`·
+   * `chartRow`를 한 번에 바꿔, 다음 Save·Delete가 이 행·난이도를 쓴다. 곡 행 없이 연 차트는 행이 없어 `row`가 null이다.
+   * 편집이 아니므로 Undo 이력을 남기지 않고, 이력·열린 편집·마지막 유효 상태의 난이도명·레벨도 함께 바꿔
+   * Undo·취소·복원이 이전 난이도를 되살리지 않는다. 행은 이력에 없으므로 Undo가 저장 대상 행을 되돌리지 않는다.
    */
-  adoptChartIdentity: (difficultyLabel: string, difficultyLevel: number) => void;
+  adoptChartIdentity: (difficultyLabel: string, difficultyLevel: number, row: StoredChartRow | null) => void;
   setPendingAudioUrl: (url: string | null) => void;
   setChart: (chart: ChartDocument, options?: { separateHistory?: boolean; transaction?: symbol }) => void;
   /** 업로드 결과의 미디어 경로만 반영한다. 편집·Undo 이력·열린 transaction은 만들거나 끝내지 않는다. */
@@ -152,17 +160,19 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   loadChart: (chart: ChartDocument) => void;
   /** 불러온 차트의 savedChartJson을 정한다. loadChart 직후에만 부른다. 저장 결과는 finishChartSave로 정한다. */
   setSavedChartJson: (saved: SavedChartJson) => void;
+  /** 불러온 차트의 `charts` 행을 정한다. loadChart 직후에만 부른다. Save 결과는 finishChartSave, Save As 결과는 adoptChartIdentity로 정한다. */
+  setChartRow: (row: StoredChartRow | null) => void;
   /**
    * 저장을 시작한다. 이미 저장 중이면 null을 돌려주고 아무것도 바꾸지 않는다(저장을 겹쳐 시작하지 않는다).
    * 시작하면 isSavingChart를 켜고 이 저장의 세대 번호(chartSaveGeneration)를 돌려준다.
    */
   beginChartSave: () => number | null;
   /**
-   * beginChartSave가 준 세대 번호로 저장을 끝낸다. 성공이면 업로드한 메인·보조 JSON을, 실패면 null을 넘긴다.
-   * 세대 번호가 지금 값과 같을 때만 isSavingChart를 끄고, 성공이면 savedChartJson을 넘긴 JSON으로 바꾼다.
+   * beginChartSave가 준 세대 번호로 저장을 끝낸다. 성공이면 업로드한 메인·보조 JSON과 확정된 `charts` 행을, 실패면 null을 넘긴다.
+   * 세대 번호가 지금 값과 같을 때만 isSavingChart를 끄고, 성공이면 savedChartJson·chartRow를 넘긴 값으로 바꾼다.
    * 다르면(그 사이 차트를 새로 불러옴) 늦게 끝난 저장이므로 아무것도 바꾸지 않는다.
    */
-  finishChartSave: (generation: number, saved: SavedChartJson | null) => void;
+  finishChartSave: (generation: number, saved: SavedChartJson | null, row?: StoredChartRow) => void;
   setMode: (mode: EditorModeName) => void;
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
@@ -313,6 +323,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editTransaction: null,
   lastValidSnapshot: null,
   savedChartJson: null,
+  chartRow: null,
   song: null,
   isSavingSong: false,
   songlessMedia: EMPTY_SONGLESS_MEDIA,
@@ -326,8 +337,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Actions
   setActivePage: (activePage) => set({ activePage }),
   setActiveSongId: (activeSongId) => set({ activeSongId }),
-  setActiveDifficulty: (difficulty) => set({ activeDifficulty: difficulty?.toLowerCase() ?? null }),
-  adoptChartIdentity: (difficultyLabel, difficultyLevel) => set(state => {
+  setActiveDifficulty: (difficulty) => set({ activeDifficulty: difficulty }),
+  adoptChartIdentity: (difficultyLabel, difficultyLevel, row) => set(state => {
     const relabel = (chart: ChartDocument): ChartDocument =>
       chart.meta.difficultyLabel === difficultyLabel && chart.meta.difficultyLevel === difficultyLevel
         ? chart : { ...chart, meta: { ...chart.meta, difficultyLabel, difficultyLevel } };
@@ -338,7 +349,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return next === snapshot.chart ? snapshot : { ...snapshot, chart: next };
     };
     const transaction = state.editTransaction;
-    return { chart, activeDifficulty: difficultyLabel.toLowerCase(),
+    // 덮어쓴 기존 행은 행의 이름(대소문자만 다를 수 있음)을, 행이 없으면 Save As 대상 이름을 경로로 쓴다.
+    return { chart, chartRow: row, activeDifficulty: row?.difficultyLabel ?? difficultyLabel.toLowerCase(),
       historyPast: state.historyPast.map(relabelSnapshot),
       historyFuture: state.historyFuture.map(relabelSnapshot),
       lastValidSnapshot: state.lastValidSnapshot ? relabelSnapshot(state.lastValidSnapshot) : null,
@@ -442,6 +454,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       chart,
       selection: emptySelection(),
       savedChartJson: null,
+      chartRow: null,
       song: null,
       isSavingSong: false,
       songlessMedia: EMPTY_SONGLESS_MEDIA,
@@ -461,6 +474,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSong: (song) => set({ song }),
   setSonglessMedia: (songlessMedia) => set({ songlessMedia }),
   setSavedChartJson: (savedChartJson) => set({ savedChartJson }),
+  setChartRow: (chartRow) => set({ chartRow }),
   beginChartSave: () => {
     const { isSavingChart, chartSaveGeneration } = get();
     if (isSavingChart || get().isSavingSong) return null;
@@ -468,9 +482,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ isSavingChart: true, chartSaveGeneration: generation });
     return generation;
   },
-  finishChartSave: (generation, saved) => {
+  finishChartSave: (generation, saved, row) => {
     if (get().chartSaveGeneration !== generation) return;
-    set(saved === null ? { isSavingChart: false } : { isSavingChart: false, savedChartJson: saved });
+    if (saved === null) { set({ isSavingChart: false }); return; }
+    set(row ? { isSavingChart: false, savedChartJson: saved, chartRow: row } : { isSavingChart: false, savedChartJson: saved });
   },
   setMode: (mode) => { get().commitEditTransaction(); set({ mode }); },
   setEntityType: (entityType) => { get().commitEditTransaction(); set({ entityType }); },

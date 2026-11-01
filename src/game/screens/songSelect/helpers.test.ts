@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  chartCreateErrorMessage,
   getDifficultyOrder,
   DIFFICULTIES,
   filterVisibleSongs,
@@ -329,4 +330,16 @@ describe('shouldBlockSongNavKey', () => {
   it('곡 0개 + 차단 오버레이면 Escape도 차단(오버레이 우선)', () => {
     expect(shouldBlockSongNavKey({ ...base, songsEmpty: true, blockingModalOpen: true, key: 'Escape' })).toBe(true);
   });
+});
+
+
+it.each([
+  ['23505', '대상 난이도에 이미 차트가 있습니다. 곡 목록을 새로고침한 뒤 기존 차트를 열어주세요.'],
+  ['42501', '차트를 만들 관리자 권한이 없습니다.'],
+])('New Chart가 %s로 실패하면 SQLSTATE를 읽을 수 있는 안내로 바꾼다', (code, message) => {
+  expect(chartCreateErrorMessage(Object.assign(new Error('rejected'), { code }))).toBe(message);
+});
+
+it('New Chart가 network down Error로 실패하면 원인 문구를 표시한다', () => {
+  expect(chartCreateErrorMessage(new Error('network down'))).toBe('차트를 만들지 못했습니다: network down');
 });

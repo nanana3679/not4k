@@ -12,4 +12,5 @@ export {
   deleteChartAsset,
   deleteSongAsset,
   saveChartAsset,
+  saveSonglessChartAsset,
 } from "./songAssets";

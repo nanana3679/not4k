@@ -629,6 +629,43 @@ describe('editorStore 저장 진행 beginChartSave·finishChartSave', () => {
     expect(useEditorStore.getState().isSavingChart).toBe(false);
     expect(useEditorStore.getState().savedChartJson).toEqual(toSavedChartJson(editedSecond, 2));
   });
+
+  const rowA = { id: 'chart-a', difficultyLabel: 'normal', revision: 3, chartPath: null, chartExtraPath: null };
+  const savedRowA = { ...rowA, revision: 4, chartPath: 'songs/s/normal-t.json', chartExtraPath: 'songs/s/normal-t.extra.json' };
+
+  it('리비전 3 차트 행으로 연 뒤 finishChartSave(세대, JSON, 리비전 4 행)는 차트 행을 리비전 4·새 경로로 바꾼다', () => {
+    open(makeChart([tap(1)]));
+    useEditorStore.getState().setChartRow(rowA);
+    const generation = useEditorStore.getState().beginChartSave()!;
+
+    useEditorStore.getState().finishChartSave(generation, toSavedChartJson(makeChart([tap(1)]), 2), savedRowA);
+
+    expect(useEditorStore.getState().chartRow).toEqual(savedRowA);
+  });
+
+  it('저장 실패 finishChartSave(세대, null)는 차트 행을 리비전 3 그대로 둔다', () => {
+    open(makeChart([tap(1)]));
+    useEditorStore.getState().setChartRow(rowA);
+    const generation = useEditorStore.getState().beginChartSave()!;
+
+    useEditorStore.getState().finishChartSave(generation, null);
+
+    expect(useEditorStore.getState().chartRow).toEqual(rowA);
+  });
+
+  it('저장 A 중 loadChart로 다른 차트를 열면 차트 행이 비고, 늦게 끝난 A의 finishChartSave는 새 차트의 행을 바꾸지 않는다', () => {
+    open(makeChart([tap(1)]));
+    useEditorStore.getState().setChartRow(rowA);
+    const saveA = useEditorStore.getState().beginChartSave()!;
+
+    open(makeChart([tap(5)]));
+    expect(useEditorStore.getState().chartRow).toBeNull();
+    const rowB = { ...rowA, id: 'chart-b', difficultyLabel: 'hard' };
+    useEditorStore.getState().setChartRow(rowB);
+    useEditorStore.getState().finishChartSave(saveA, toSavedChartJson(makeChart([tap(1)]), 2), savedRowA);
+
+    expect(useEditorStore.getState().chartRow).toEqual(rowB);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -970,10 +1007,56 @@ describe('editorStore 재생 중 편집 제한', () => {
 
 describe('editorStore Save As 정체성 adoptChartIdentity', () => {
   const note = (at: number) => ({ type: 'single' as const, lane: 1 as Lane, beat: beat(at) });
+  const normalRow = { id: 'chart-normal', difficultyLabel: 'normal', revision: 3, chartPath: null, chartExtraPath: null };
+  /** Save As가 create_chart로 만든 hard 행. */
+  const hardRow = { id: 'created-hard', difficultyLabel: 'hard', revision: 0,
+    chartPath: 'songs/s/hard-t.json', chartExtraPath: 'songs/s/hard-t.extra.json' };
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);
     useEditorStore.getState().loadChart(makeChart([note(0)]));
+    useEditorStore.getState().setChartRow(normalRow);
     useEditorStore.getState().setActiveDifficulty('normal');
+  });
+
+  it('chart-normal 행으로 연 차트가 HARD Lv.8과 created-hard 행을 받으면 난이도명·레벨·열린 난이도 hard·차트 행을 한 번의 변경으로 바꾼다', () => {
+    const changes: { activeDifficulty: string | null; rowId: string | undefined; label: string }[] = [];
+    const unsubscribe = useEditorStore.subscribe(state => changes.push({
+      activeDifficulty: state.activeDifficulty, rowId: state.chartRow?.id, label: state.chart.meta.difficultyLabel,
+    }));
+
+    useEditorStore.getState().adoptChartIdentity('HARD', 8, hardRow);
+    unsubscribe();
+
+    expect(changes).toEqual([{ activeDifficulty: 'hard', rowId: 'created-hard', label: 'HARD' }]);
+    expect(useEditorStore.getState().chartRow).toBe(hardRow);
+    expect(useEditorStore.getState().chart.meta.difficultyLevel).toBe(8);
+  });
+
+  it('BREAKTHROUGH Lv.9로 기존 행 HARD(chart-hard)를 덮어쓰면 열린 난이도는 행의 이름 HARD다', () => {
+    useEditorStore.getState().adoptChartIdentity('BREAKTHROUGH', 9, { ...hardRow, id: 'chart-hard', difficultyLabel: 'HARD' });
+
+    expect(useEditorStore.getState().activeDifficulty).toBe('HARD');
+    expect(useEditorStore.getState().chart.meta).toMatchObject({ difficultyLabel: 'BREAKTHROUGH', difficultyLevel: 9 });
+  });
+
+  it('곡 행 없이 연 차트(행 null)가 HARD Lv.8을 받으면 열린 난이도는 hard이고 차트 행은 null이다', () => {
+    useEditorStore.getState().setChartRow(null);
+
+    useEditorStore.getState().adoptChartIdentity('HARD', 8, null);
+
+    expect(useEditorStore.getState().activeDifficulty).toBe('hard');
+    expect(useEditorStore.getState().chartRow).toBeNull();
+  });
+
+  it('2박 노트 편집 뒤 HARD Lv.8·created-hard 행을 받고 Undo하면 노트만 되돌리고 차트 행은 created-hard로 남는다', () => {
+    useEditorStore.getState().setChart(makeChart([note(0), note(2)]));
+
+    useEditorStore.getState().adoptChartIdentity('HARD', 8, hardRow);
+    useEditorStore.getState().undo();
+
+    expect(useEditorStore.getState().chart.notes).toEqual([note(0)]);
+    expect(useEditorStore.getState().chartRow).toBe(hardRow);
+    expect(useEditorStore.getState().activeDifficulty).toBe('hard');
   });
 
   it('노트 2개 편집 이력 뒤 HARD Lv.8을 받으면 이력을 늘리지 않고 Undo·Redo해도 HARD Lv.8과 열린 차트 hard를 유지한다', () => {
@@ -984,7 +1067,7 @@ describe('editorStore Save As 정체성 adoptChartIdentity', () => {
     useEditorStore.getState().undo();
     expect(useEditorStore.getState().historyFuture).toHaveLength(1);
 
-    useEditorStore.getState().adoptChartIdentity('HARD', 8);
+    useEditorStore.getState().adoptChartIdentity('HARD', 8, hardRow);
     const state = useEditorStore.getState();
     expect(state.activeDifficulty).toBe('hard');
     expect(state.chart.meta).toMatchObject({ difficultyLabel: 'HARD', difficultyLevel: 8 });
@@ -1005,7 +1088,7 @@ describe('editorStore Save As 정체성 adoptChartIdentity', () => {
     const token = useEditorStore.getState().beginEditTransaction('selectModeEdit')!;
     useEditorStore.getState().setChart(makeChart([note(4)]), { transaction: token });
 
-    useEditorStore.getState().adoptChartIdentity('HARD', 8);
+    useEditorStore.getState().adoptChartIdentity('HARD', 8, hardRow);
     expect(useEditorStore.getState().editTransaction?.token).toBe(token);
     useEditorStore.getState().cancelEditTransaction(token);
 
@@ -1016,13 +1099,13 @@ describe('editorStore Save As 정체성 adoptChartIdentity', () => {
 
   it('빈 편집 transaction 중 HARD Lv.8을 받아도 Undo할 편집이 생기지 않는다', () => {
     useEditorStore.getState().beginEditTransaction('selectModeEdit');
-    useEditorStore.getState().adoptChartIdentity('HARD', 8);
+    useEditorStore.getState().adoptChartIdentity('HARD', 8, hardRow);
     expect(selectCanUndo(useEditorStore.getState())).toBe(false);
   });
 
   it('위반 편집 뒤 HARD Lv.8을 받고 마지막 유효 상태로 되돌려도 난이도는 HARD Lv.8이다', () => {
     useEditorStore.getState().setChart(makeChart([note(0), note(0)]));
-    useEditorStore.getState().adoptChartIdentity('HARD', 8);
+    useEditorStore.getState().adoptChartIdentity('HARD', 8, hardRow);
     useEditorStore.getState().revertToLastValid();
     expect(useEditorStore.getState().chart.notes).toEqual([note(0)]);
     expect(useEditorStore.getState().chart.meta).toMatchObject({ difficultyLabel: 'HARD', difficultyLevel: 8 });
