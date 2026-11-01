@@ -618,7 +618,7 @@ export function TutorialPreviewPlayer({
         const sessionAdapter = new SessionRendererAdapter({
           notes: preview.chart.notes,
           connections: controller.session.connections,
-          bodyStates: () => controller.session.bodyStates,
+          unitStates: () => controller.session.unitStates,
           scoreAccuracy: () => controller.session.score.getState().achievementRate,
           port: previewPort,
         });

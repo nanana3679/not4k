@@ -86,9 +86,9 @@ test('첫 방문에서 이미 선택된 Classic을 누르면 주소만 design=cl
   await expect(page).toHaveURL(/\/lab$/);
 });
 
-test('연결 트릴에서 v013·v014 트릴 포인트는 마름모 테두리 그림자로 경계 2px 대비 하위 5%가 대기·홀드 모두 3:1 이상이고 그림자가 없는 v012는 2:1 미만이다', async ({ page }, testInfo) => {
+test('연결 트릴 홀드에서 가운데 바디만 bodyTrillHeld로 켜지고, v013·v014 트릴 포인트는 마름모 테두리 그림자로 경계 2px 대비 하위 5%가 대기·홀드 모두 3:1 이상이고 그림자가 없는 v012는 2:1 미만이다', async ({ page }, testInfo) => {
   await page.goto('/lab');
-  const result = await page.evaluate(async () => {
+  const { out: result, bodies } = await page.evaluate(async () => {
     const rendererPath = '/src/game/renderer/GameRenderer.ts', skinPath = '/src/game/skin/SkinManager.ts';
     const timingPath = '/src/shared/timing/chartTiming.ts', designsPath = '/src/lab/noteAssetDesigns.ts';
     const [{ GameRenderer }, { SkinManager }, { createChartTiming }, { CLASSIC_NOTE_ASSET_VERSIONS }] = await Promise.all([
@@ -111,6 +111,7 @@ test('연결 트릴에서 v013·v014 트릴 포인트는 마름모 테두리 그
       v012: CLASSIC_NOTE_ASSET_VERSIONS.find((v: { id: string }) => v.id === 'v012').design.skinManifest,
     };
     const out: Record<string, number> = {};
+    const bodies: Record<string, string[]> = {};
     for (const [name, manifest] of Object.entries(skins)) for (const phase of ['idle', 'held']) {
       const skin = new SkinManager();
       await skin.loadSkin(manifest);
@@ -126,10 +127,13 @@ test('연결 트릴에서 v013·v014 트릴 포인트는 마름모 테두리 그
       // 홀드: 가운데 구간을 누르고 있어 바디가 하얗게 켜진 상태.
       renderer.setJudgmentBodyStateQuery((index: number) => index >= 3 ? null : {
         successorIndex: index < 2 ? index + 1 : undefined,
-        units: [{ unitIndex: 0, active: phase === 'held' && index === 1, complete: phase === 'held' && index === 0, failed: false,
-          registeredKeys: phase === 'held' && index === 1 ? ['KeyF'] : [] }],
+        units: [{ unitIndex: 0, hasStarted: phase === 'held' && index === 1, complete: phase === 'held' && index === 0, failed: false,
+          held: phase === 'held' && index === 1 }],
       });
       renderer.renderFrame(200);
+      // 바디 텍스처를 구간 순서로 적는다. 홀드 단계에서 가운데 바디가 켜진 텍스처가 아니면 어두운 화면의 대비를 잰 것이다.
+      bodies[`${name}-${phase}`] = renderer.longNoteBodyLayer.children.map((sprite: { texture: unknown }) =>
+        ['bodyTrill', 'bodyTrillHeld'].find(key => sprite.texture === skin.getTexture(key)) ?? 'other');
       const frame = renderer.app.renderer.screen;
       const grab = (target: unknown) => renderer.app.renderer.extract.canvas({ target, frame }).getContext('2d').getImageData(0, 0, 400, 500).data;
       const full = grab(renderer.app.stage);
@@ -157,9 +161,12 @@ test('연결 트릴에서 v013·v014 트릴 포인트는 마름모 테두리 그
       skin.dispose();
       canvas.remove();
     }
-    return out;
+    return { out, bodies };
   });
-  await testInfo.attach('trill-contrast.json', { body: JSON.stringify(result, null, 2), contentType: 'application/json' });
+  await testInfo.attach('trill-contrast.json', { body: JSON.stringify({ ...result, bodies }, null, 2), contentType: 'application/json' });
+  for (const version of ['v012', 'v013', 'v014']) {
+    expect(bodies[`${version}-held`], `${version} held 바디`).toEqual(['bodyTrill', 'bodyTrillHeld', 'bodyTrill']);
+  }
   for (const phase of ['idle', 'held']) {
     for (const version of ['v013', 'v014']) {
       expect(result[`${version}-${phase}-samples`], `${version} ${phase}`).toBeGreaterThan(300);
