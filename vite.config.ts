@@ -5,6 +5,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { handlePreviewRequest } from "./output/prototypes/flight-background-preview-20260913/preview-server.mjs";
 import { mapLabImageGalleryDevRequest } from "./src/lab/labImageGalleryDevRequest";
+import { allowWasmInLabDocumentCsp } from "./src/lab/labDevCsp";
 import { labImageGalleryCatalog } from "./src/lab/labImageGalleryCatalog";
 import { classicVersionPreviewsPlugin } from "./scripts/classicVersionPreviews";
 
@@ -17,6 +18,7 @@ export default defineConfig({
     classicVersionPreviewsPlugin(dirname(fileURLToPath(import.meta.url))),
     labImageGalleryPlugin(),
     flightBackgroundPreviewLabPlugin(),
+    labWasmCspPlugin(),
     excludeLabFromBuildPlugin(),
   ],
   server: {
@@ -68,6 +70,17 @@ function flightBackgroundPreviewLabPlugin(): Plugin {
         }
         handlePreviewRequest(request, response, { basePath: flightBackgroundPreviewLabPath });
       });
+    },
+  };
+}
+
+/** 개발 서버의 /lab 문서에만 WASM 컴파일을 허용한다(옵저버 감속 Lab의 Signalsmith Stretch). 게임 문서의 CSP는 그대로다. */
+function labWasmCspPlugin(): Plugin {
+  return {
+    name: "not4k-lab-wasm-csp",
+    apply: "serve",
+    transformIndexHtml(html, context) {
+      return allowWasmInLabDocumentCsp(html, context.path, context.originalUrl ?? context.path);
     },
   };
 }
