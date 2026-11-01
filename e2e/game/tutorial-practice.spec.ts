@@ -186,7 +186,8 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
     const dialog = await openTutorial(page);
     await dialog.locator(`[data-tutorial-index-item="${id}"]`).click();
     const diagram = page.locator('[data-tutorial-diagram-modal="true"]');
-    await expect(diagram).toBeVisible();
+    // 처음 시작은 메트로놈 4박 준비(2초)와 출력 안정 대기 뒤에 0ms 도식을 연다.
+    await expect(diagram).toBeVisible({ timeout: 15_000 });
     const selector = `[data-tutorial-preview-slot="active"][data-tutorial-preview-id="${id}"] [data-tutorial-engine]`;
     const player = page.locator(selector);
     // 도식의 짧은 숨김 구간을 기다리지 않고 기존 버튼의 키보드 동작으로 실습에 진입한다.
