@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { ClipboardManager, type ClipboardCallbacks } from "./ClipboardManager";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
+import { INITIAL_TIMING_EXISTS_COPY } from "../editorCopy";
 import { beat, beatToFloat } from "../../shared";
 import type { ChartDocument, Lane, RestZone } from "../../shared";
 
@@ -139,6 +140,122 @@ describe("ClipboardManager — 이벤트 명시 선택", () => {
     const pasted = cm.paste(chart, beat(5), callbacks, () => {})!;
     expect(cm.confirmPaste(pasted.chart, callbacks, () => [])).toBe(true);
     expect(cm.cancelPaste(pasted.chart, callbacks, () => {}).events).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 0박 초기 설정 — 붙여넣기·대기 중 이동으로 0박에 온 BPM·박자 (RFD 0082)
+// ---------------------------------------------------------------------------
+
+describe("ClipboardManager — 0박에 오는 BPM·박자", () => {
+  const initialBpm = { type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 } as const;
+  const initialSignature = { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 } as const;
+
+  it("0박 BPM이 있을 때 4박 노트와 4박 BPM 180을 복사해 0박에 붙이면 전체를 거부하고 INITIAL_TIMING_EXISTS_COPY 경고를 한 번 띄운다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1, beat: beat(4) }],
+      events: [initialBpm, initialSignature, { type: "bpm", beat: beat(4), bpm: 180, editorLane: 1 }] });
+    const cm = new ClipboardManager(); const callbacks = makeCallbacks(); const clearSelection = vi.fn();
+    cm.copy(chart, new Set([0]), new Set(), new Set(), new Set([2]));
+
+    expect(cm.paste(chart, beat(0), callbacks, clearSelection)).toBeNull();
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(clearSelection).not.toHaveBeenCalled();
+    expect(cm.isPendingPaste).toBe(false);
+    expect(callbacks.onWarn).toHaveBeenCalledTimes(1);
+    expect(callbacks.onWarn).toHaveBeenCalledWith(INITIAL_TIMING_EXISTS_COPY);
+  });
+
+  it("0박 박자가 없을 때 보조 레인3의 4박 박자 3/4를 복사해 0박에 붙이면 고정 자리인 보조 레인2에 둔다", () => {
+    const chart = makeChart({ events: [initialBpm, { type: "timeSignature", beat: beat(4), beatPerMeasure: beat(3), editorLane: 3 }] });
+    const cm = new ClipboardManager(); const callbacks = makeCallbacks();
+    cm.copy(chart, new Set(), new Set(), new Set(), new Set([1]));
+
+    const pasted = cm.paste(chart, beat(0), callbacks, () => {})!;
+
+    expect(pasted.chart.events[2]).toEqual({ type: "timeSignature", beat: beat(0), beatPerMeasure: beat(3), editorLane: 2 });
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("0박 BPM이 있을 때 1박에 붙인 BPM 180을 대기 중 아래로 1스냅 옮겨 0박이 되면 이동을 거부하고 경고를 한 번 띄운다", () => {
+    const chart = makeChart({ events: [initialBpm, initialSignature, { type: "bpm", beat: beat(4), bpm: 180, editorLane: 3 }] });
+    const cm = new ClipboardManager(); const callbacks = makeCallbacks();
+    cm.copy(chart, new Set(), new Set(), new Set(), new Set([2]));
+    const pasted = cm.paste(chart, beat(1), callbacks, () => {})!;
+
+    expect(cm.movePasteBySnap(pasted.chart, "down", callbacks)).toBeNull();
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+    expect(callbacks.onWarn).toHaveBeenCalledTimes(1);
+    expect(callbacks.onWarn).toHaveBeenCalledWith(INITIAL_TIMING_EXISTS_COPY);
+    expect(cm.isPendingPaste).toBe(true);
+  });
+
+  it("0박 박자가 없을 때 1박에 붙인 보조 레인3 박자를 대기 중 아래로 옮기면 0박 보조 레인2가 되고 다시 위로 옮기면 붙인 자리인 1박 보조 레인3으로 돌아온다", () => {
+    const chart = makeChart({ events: [initialBpm, { type: "timeSignature", beat: beat(4), beatPerMeasure: beat(4), editorLane: 3 }] });
+    const cm = new ClipboardManager(); const callbacks = { ...makeCallbacks(), getExtraLaneCount: () => 4 };
+    cm.copy(chart, new Set(), new Set(), new Set(), new Set([1]));
+    const pasted = cm.paste(chart, beat(1), callbacks, () => {})!;
+
+    const down = cm.movePasteBySnap(pasted.chart, "down", callbacks)!;
+    expect(down.events[2]).toMatchObject({ beat: beat(0), editorLane: 2 });
+    const up = cm.movePasteBySnap(down, "up", callbacks);
+    expect(up?.events[2]).toMatchObject({ beat: beat(1), editorLane: 3 });
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("0박 박자가 없을 때 1박 보조 레인3에 붙인 박자를 아래로 옮겨 0박 보조 레인2가 된 뒤 →로 옮겨도 보조 레인2에 남고 위로 옮기면 1박 보조 레인4가 된다", () => {
+    const chart = makeChart({ events: [initialBpm, { type: "timeSignature", beat: beat(4), beatPerMeasure: beat(4), editorLane: 3 }] });
+    const cm = new ClipboardManager(); const callbacks = { ...makeCallbacks(), getExtraLaneCount: () => 4 };
+    cm.copy(chart, new Set(), new Set(), new Set(), new Set([1]));
+    const pasted = cm.paste(chart, beat(1), callbacks, () => {})!;
+
+    const down = cm.movePasteBySnap(pasted.chart, "down", callbacks)!;
+    const right = cm.movePasteByLane(down, "right", callbacks)!;
+    expect(right.events[2]).toMatchObject({ beat: beat(0), editorLane: 2 });
+    const up = cm.movePasteBySnap(right, "up", callbacks);
+    expect(up?.events[2]).toMatchObject({ beat: beat(1), editorLane: 4 });
+  });
+
+  it("0박 박자가 없을 때 보조 레인3의 4박 박자를 0박에 붙이면 보조 레인2에 두고 위로 옮기면 복사한 레인인 1박 보조 레인3이 된다", () => {
+    const chart = makeChart({ events: [initialBpm, { type: "timeSignature", beat: beat(4), beatPerMeasure: beat(4), editorLane: 3 }] });
+    const cm = new ClipboardManager(); const callbacks = { ...makeCallbacks(), getExtraLaneCount: () => 4 };
+    cm.copy(chart, new Set(), new Set(), new Set(), new Set([1]));
+    const pasted = cm.paste(chart, beat(0), callbacks, () => {})!;
+    expect(pasted.chart.events[2]).toMatchObject({ beat: beat(0), editorLane: 2 });
+
+    const up = cm.movePasteBySnap(pasted.chart, "up", callbacks);
+
+    expect(up?.events[2]).toMatchObject({ beat: beat(1), editorLane: 3 });
+  });
+
+  it("보조 레인 2개·0박 박자 없는 차트에 레인1 노트와 보조 레인2 박자 3/4를 0박에 붙인 뒤 →로 옮기면 노트는 레인2로 가고 박자는 보조 레인2에 남는다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1, beat: beat(4) }],
+      events: [initialBpm, { type: "timeSignature", beat: beat(4), beatPerMeasure: beat(3), editorLane: 2 }] });
+    const cm = new ClipboardManager(); const callbacks = { ...makeCallbacks(), getExtraLaneCount: () => 2 };
+    cm.copy(chart, new Set([0]), new Set(), new Set(), new Set([1]));
+    const pasted = cm.paste(chart, beat(0), callbacks, () => {})!;
+    expect(pasted.chart.events[2]).toMatchObject({ beat: beat(0), editorLane: 2 });
+
+    const moved = cm.movePasteByLane(pasted.chart, "right", callbacks);
+
+    expect(moved?.notes[1]).toEqual({ type: "single", lane: 2, beat: beat(0) });
+    expect(moved?.events[2]).toEqual({ type: "timeSignature", beat: beat(0), beatPerMeasure: beat(3), editorLane: 2 });
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("보조 레인 2개에서 레인1 노트와 함께 0박 보조 레인2에 붙인 박자를 →로 옮긴 뒤 위로 옮기면 박자가 보이지 않는 보조 레인3이 되므로 이동을 거부한다", () => {
+    const chart = makeChart({ notes: [{ type: "single", lane: 1, beat: beat(4) }],
+      events: [initialBpm, { type: "timeSignature", beat: beat(4), beatPerMeasure: beat(3), editorLane: 2 }] });
+    const cm = new ClipboardManager(); const callbacks = { ...makeCallbacks(), getExtraLaneCount: () => 2 };
+    cm.copy(chart, new Set([0]), new Set(), new Set(), new Set([1]));
+    const pasted = cm.paste(chart, beat(0), callbacks, () => {})!;
+    const right = cm.movePasteByLane(pasted.chart, "right", callbacks)!;
+
+    expect(cm.movePasteBySnap(right, "up", callbacks)).toBeNull();
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(2);
+    expect(cm.isPendingPaste).toBe(true);
   });
 });
 

@@ -17,7 +17,7 @@ _Avoid_: 오프라인 우선
 _Avoid_: 게스트 계정
 
 **프로필**:
-로그인 유저의 서비스 권한과 개인 기록을 연결하는 사용자 정보이다. 게임 설정의 프로필 탭에서 닉네임을 변경한다([glossary](../../docs/context/glossary.md#프로필)).
+로그인 유저의 서비스 권한과 개인 기록을 연결하는 사용자 정보다. 설정의 프로필 탭은 비로그인 시 기기의 Guest 닉네임과 로그인 버튼, 로그인 시 닉네임 편집과 로그아웃 버튼을 표시한다([glossary](../../docs/context/glossary.md#프로필)).
 _Avoid_: 계정
 
 **admin 권한**:
@@ -28,7 +28,10 @@ _Avoid_: 개발자 모드
 제목·아티스트·자켓은 같은 곡의 모든 차트가 공유하며, 이 표시 정보만 수정하면 기존 기록과 랭킹을 유지한다([glossary](../../docs/context/glossary.md#곡-메타데이터)).
 
 **곡 타이밍**:
-같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 곡 단위 공유는 채택 규칙이며 런타임 반영은 후속 작업이다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 게임·에디터 공용 로더는 곡 행의 표시 정보·타이밍을 우선하며, 타이밍 NULL 또는 곡 행 없음일 때 파일 타이밍을 유지한다. 저장 연결·데이터 이행은 후속 작업이다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+
+**곡 저장**:
+곡의 표시 정보·공통 타이밍·음원·프리뷰 및 플레이 구간을 함께 확정하며 차트 저장과 범위를 분리한다. `songs.timing` 정본과 리비전 기반 저장 함수의 DB 계약은 [RFD 0107](../../docs/rfd/0107-song-timing-storage-and-atomic-saves.md), 의미는 [glossary](../../docs/context/glossary.md#곡-저장)를 따른다.
 
 **곡 에셋**:
 플레이에 필요한 음원, `gameplayRange`, 자켓 이미지, 프리뷰 음원, 차트 에셋을 묶은 콘텐츠 단위이다. 프리뷰는 곡마다 본편과 별개의 전용 음원 파일을 필수로 제공하고 로딩 용량을 위해 길이를 5초 이상 15초 이하로 제한하며, 한 번 불러온 프리뷰는 브라우저에 저장해 다음 접속에도 재사용한다([glossary](../../docs/context/glossary.md#곡-프리뷰)).
@@ -51,7 +54,7 @@ _Avoid_: 공개 곡
 _Avoid_: 랭킹
 
 **닉네임**:
-랭킹에 표시하는 플레이어 이름이며 처음 닉네임이 없으면 Guest 뒤에 6자리 숫자 난수를 공백 없이 붙여 기존 닉네임과 겹치지 않게 자동 생성한다. 이후 사용자가 직접 변경하는 닉네임은 중복을 허용한다. 기존 랭킹에도 조회 시점의 현재 닉네임을 표시한다([glossary](../../docs/context/glossary.md#닉네임)).
+플레이어를 표시하는 이름이다. 로그인 전에는 기기의 Guest 닉네임을, 랭킹에는 조회 시점의 계정 닉네임을 표시한다. 새 계정의 첫 연동 때 계정이 기기의 Guest 닉네임을 가져가며(겹치면 새 번호), 직접 변경하는 닉네임은 중복을 허용한다([glossary](../../docs/context/glossary.md#닉네임)).
 
 **랭킹**:
 같은 버전·판정 설정에서 점수와 독립 보존한 풀콤보·올퍼펙트 배지를 함께 표시하며, 올퍼펙트가 풀콤보를 대체한다. 배지는 점수 순위·동점 최초 달성 시각에 영향을 주지 않는다. 같은 차트 버전·판정 설정의 최고 점수를 비교하고, 기록 수치는 점수만 표시한다. 차트별 최고 기록을 다른 유저와 비교해 보여주는 순위이다. Normal/Easy 모두 제공하되 차트 버전·판정 설정별로 순위를 따로 집계하고, 동점은 해당 점수를 먼저 달성한 순서로 정한다([glossary](../../docs/context/glossary.md#랭킹)).
@@ -74,6 +77,16 @@ _Avoid_: 로컬 설정 저장
 - **`gameplayRange`**는 원본 음원 중 실제 플레이 세션에서 사용할 시작～끝 구간이며, 값이 없으면 전체 음원을 사용한다.
 - **차트 에셋**은 **Shared chart model**의 차트 언어를 따른다.
 - **플레이 기록** 중 최고 기록이 같은 차트 버전·판정 설정의 **랭킹**에 반영된다.
+
+## 저장 구현 경계
+
+`20261101000000_song_timing_and_atomic_saves.sql`은 `songs.timing`·`songs.revision`, `charts.chart_path`·`charts.chart_extra_path`·`charts.revision`과 `save_song`·`save_chart`·`create_chart`를 추가한다. 타이밍 NULL은 미이행으로 차트 JSON 폴백 대상이며, 경로 NULL은 기존 결정적 경로를 뜻한다. 새 차트의 리비전은 0, 덮어쓰기 성공 시 1 증가한다. 공용 로더는 `songs.timing`·`revision`을 조회해 게임 시간 계산·에디터 기본 상태 확정 전에 곡 행을 적용한다. 차트 파일은 아직 기존 결정적 경로로 읽으며 새 경로·저장 함수 연결은 후속 PR이다. 앱 배포 전에 PR1 마이그레이션을 적용해야 한다. 열이 없으면 조회 오류로 로드가 실패하며, 누락 열을 NULL로 간주하지 않는다. 이 문서는 운영 DB 적용 완료를 뜻하지 않는다.
+
+`save_chart(p_chart_id uuid, p_expected_revision bigint, p_difficulty_level integer, p_chart_path text, p_chart_extra_path text)`는 UUID·리비전으로 저장하며 곡·난이도명은 바꾸지 않는다. 같은 곡·난이도로 재생성한 차트는 다른 UUID라 옛 저장은 PT404다. 차트 없는 곡은 삭제·같은 text ID 재등록이 가능하므로 곡의 기존 행·신규 행·`save_song`은 공유 `song_revision_seq`를 써서 옛 리비전을 재사용하지 않는다. `save_song` 서명은 유지하며 호출자는 결번이 가능한 반환 리비전을 보관한다.
+
+세 함수는 기존 `public.is_admin()`으로 첫 쓰기 전에 관리자 여부를 확인하고 `security definer`로 실행한다. 마이그레이션에 `songs` UPDATE 정책이 없는데 기존 앱은 직접 UPDATE한다는 차이가 있다. 새 `save_song`은 RLS를 우회하도록 설계했으며 기존 RLS를 바꾸지 않는다. 서명·권한·오류 계약과 직접 쓰기의 리비전 제한은 [RLS 정책 문서](../../supabase/RLS_POLICIES.md#곡차트-저장-함수-rfd-0107)를 따른다.
+
+**필수 선행 조건:** `profiles.is_admin` 자기 승격을 차단하는 PR [#396](https://github.com/nanana3679/not4k/pull/396)의 `20261031000000_block_admin_privilege_bypass.sql`에 의존한다. 운영에는 2026-10-31 적용되었고 main에는 2026-11-01 머지되었다. 새 환경에는 시간순으로 먼저 적용해야 하고, 이 보호가 없는 환경에 저장 마이그레이션을 적용해서는 안 된다.
 
 ## Example dialogue
 

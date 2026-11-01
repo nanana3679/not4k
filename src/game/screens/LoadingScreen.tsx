@@ -5,6 +5,7 @@ import { loadSongDocumentData } from '../../supabase';
 import { prepareNormalPlay } from '../stores/explicitPlayRequest';
 import { ExplicitChartCompileError } from '../judgment/explicitCompiledChart';
 import { ChartFormatError } from '../../shared';
+import { SongTimingError } from '../../shared/songAssets/songTiming';
 import { PageLoading } from '../../shared/components/LoadingSpinner';
 import { font, color, primitives } from '../../shared/theme';
 
@@ -44,7 +45,9 @@ export function LoadingScreen() {
       } catch (err) {
         if (isMounted) {
           cancelNormalPlayLoad(loadId);
-          if (err instanceof ExplicitChartCompileError || err instanceof ChartFormatError) {
+          if (err instanceof SongTimingError) {
+            setError('This song contains invalid timing data. Go back and choose another song.');
+          } else if (err instanceof ExplicitChartCompileError || err instanceof ChartFormatError) {
             const reason = err instanceof ExplicitChartCompileError && err.validation.runtimeIncompatible.length > 0
               ? 'This chart uses an older note format.' : 'This chart contains invalid notes or chart data.';
             setError(`${reason} Go back and choose another chart, or correct it in the editor before playing.`);

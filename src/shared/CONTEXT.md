@@ -19,9 +19,10 @@ _Avoid_: 섹션
 
 **곡 메타데이터**:
 제목·아티스트·자켓은 같은 곡의 모든 차트가 공유하며, 이 표시 정보만 수정하면 기존 기록과 랭킹을 유지한다([glossary](../../docs/context/glossary.md#곡-메타데이터)).
+공용 로더는 곡 행의 표시 정보를 우선하되 자켓 NULL은 차트의 `imageFile`을 유지한다([읽기 계약](../../docs/spec/chart-format.md#곡-행-우선-읽기)).
 
 **곡 타이밍**:
-같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 곡 단위 공유는 채택 규칙이며 런타임 반영은 후속 작업이다([glossary](../../docs/context/glossary.md#곡-타이밍)).
+같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 게임·에디터 공용 로더는 곡 행의 표시 정보·타이밍을 우선하며, 타이밍 NULL 또는 곡 행 없음일 때 파일 타이밍을 유지한다. 저장 연결·데이터 이행은 후속 작업이다([glossary](../../docs/context/glossary.md#곡-타이밍)).
 
 **차트 메타데이터**:
 난이도명·Lv. 등 개별 차트를 설명하는 정보이다. 현재 차트 문서가 곡 제목·아티스트·자켓·오프셋도 담는 저장 표현과 곡의 논리적 소유 범위를 구별한다([glossary](../../docs/context/glossary.md#차트-메타데이터)).
@@ -52,7 +53,7 @@ _Avoid_: 이벤트의 시각 표현
 _Avoid_: 시점 이벤트
 
 **이벤트 배치 겹침**:
-같은 보조 레인에서 종류에 관계없이 이벤트의 점·구간이 겹치는 의미 위반이다. 겹친 초기 BPM·박자 설정만 로드에서 보조 레인을 자동 분리하며, 값·박 위치와 다른 의미 위반은 유지한다([glossary](../../docs/context/glossary.md#chartevent), [RFD 0078](../../docs/rfd/0078-event-placement-overlap.md)·[RFD 0082](../../docs/rfd/0082-initial-timing-events-not-selectable.md), 자동 분리 런타임은 후속 구현).
+같은 보조 레인에서 종류에 관계없이 이벤트의 점·구간이 겹치는 의미 위반이다. 에디터는 로드에서 초기 BPM·박자만 보조 레인 1·2로 옮기며, 그 자리와 겹친 일반 이벤트·값·박 위치와 다른 의미 위반은 유지한다([glossary](../../docs/context/glossary.md#chartevent), [RFD 0078](../../docs/rfd/0078-event-placement-overlap.md)·[RFD 0082](../../docs/rfd/0082-initial-timing-events-not-selectable.md)).
 
 **`TextEvent`**:
 특정 구간 동안 튜토리얼 설명 문구를 보여주는 구간 이벤트이다.

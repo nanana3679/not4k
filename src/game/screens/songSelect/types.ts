@@ -23,6 +23,9 @@ export interface DbSong {
   gameplay_fade_in: number | null;
   gameplay_fade_out: number | null;
   jacket_url: string | null;
+  /** DB JSON은 resolver가 검증한다. null만 미이행 상태다. */
+  timing: unknown;
+  revision: number;
   updated_at?: string | null;
   charts: DbChart[];
 }

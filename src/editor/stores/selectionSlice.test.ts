@@ -218,7 +218,7 @@ describe('zoneContainedNoteIndices — 실행 시점 파생 규칙 (RFD 0016 §4
 // 합성 후에는 setChart 선택 보정·undo clear 등 store 경유 테스트가 추가된다.
 // ---------------------------------------------------------------------------
 
-type HarnessState = SelectionSlice & { chart: ChartDocument };
+type HarnessState = SelectionSlice & { chart: ChartDocument; isPlaying: boolean };
 
 function makeSliceHarness() {
   let state: HarnessState;
@@ -231,7 +231,7 @@ function makeSliceHarness() {
   const get = () => state;
   const slice = createSelectionSlice(set, get);
   // §3-5 게이트가 validateChart를 읽으므로 events까지 채운다 (meta는 게이트가 안 읽어 생략)
-  state = { chart: { ...chart, events: [] } as unknown as ChartDocument, ...slice };
+  state = { chart: { ...chart, events: [] } as unknown as ChartDocument, isPlaying: false, ...slice };
   return { getState: () => state };
 }
 

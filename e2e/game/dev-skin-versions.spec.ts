@@ -39,6 +39,7 @@ async function openSongs(page: Page) {
   // fetch and decode their data through the regular app flow.
   await page.route('**/rest/v1/songs?**', route => route.fulfill({ json: [{
     id: SONG_ID, title: chart.meta.title, artist: 'test', audio_url: `songs/${SONG_ID}/audio.wav`,
+    timing: null, revision: 1,
     duration: SONG_SECONDS, preview_url: null, preview_start: 0, preview_end: 1, jacket_url: `songs/${SONG_ID}/jacket.svg`,
     gameplay_start: 2, gameplay_end: SONG_SECONDS - 2, gameplay_fade_in: 0, gameplay_fade_out: 0,
     charts: [{ id: 'dev-chart', song_id: SONG_ID, difficulty_label: 'NORMAL', difficulty_level: 1 }],

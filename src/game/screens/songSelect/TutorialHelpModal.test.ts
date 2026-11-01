@@ -269,6 +269,16 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).not.toContain('brightness(0.72) saturate(0.82)');
   });
 
+  it('닫기를 요청하면 120ms 닫힘 애니메이션 타이머를 걸기 전에 onCloseRequested를 먼저 부르고, onClose는 타이머가 끝난 뒤 부른다', () => {
+    const requestCloseBody = tutorialHelpModalSource.slice(
+      tutorialHelpModalSource.indexOf('const requestClose = useCallback'),
+      tutorialHelpModalSource.indexOf('}, TUTORIAL_MODAL_CLOSE_MS);'),
+    );
+    expect(requestCloseBody).toContain('onCloseRequested?.();');
+    expect(requestCloseBody.indexOf('onCloseRequested?.();')).toBeLessThan(requestCloseBody.indexOf('window.setTimeout'));
+    expect(requestCloseBody.indexOf('onClose();')).toBeGreaterThan(requestCloseBody.indexOf('window.setTimeout'));
+  });
+
   it('운영체제 prefers-reduced-motion이 reduce여도 페이지 전환은 260ms·모달 닫기는 120ms로 같다(모션 감소 matchMedia·@media 규칙 없음, RFD 0030)', () => {
     // 전환 타이머·진행률과 닫기 타이머는 상수만 쓰고 운영체제 설정을 읽지 않는다.
     expect(tutorialHelpModalSource).toContain('}, TUTORIAL_PAGE_TRANSITION_MS);');

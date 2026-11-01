@@ -59,6 +59,9 @@ async function cursorAndSelection(page: Page) {
 }
 
 test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결과·검토 목록 이동·복사·Undo·dirty·v4 저장으로 이어지며 다시 열면 묻지 않는다', async ({ page, context }) => {
+  // 같은 테스트에서 에디터를 두 번 연다(렌더러 초기화 2회). 차트·선택을 바꾸는 조작마다 SwiftShader 전체 다시 그리기가
+  // 여러 번 일어나 기본 30초 안팎이 걸려, 부하가 조금만 있어도 마지막 대기에서 시간 초과가 났다.
+  test.setTimeout(60_000);
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const editor = await openEditor(page, { chart: legacyMain, extra: legacyExtra, legacyConversion: 'manual' });
   const offer = legacyConversionOffer(page);

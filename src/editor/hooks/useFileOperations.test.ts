@@ -247,6 +247,54 @@ describe('performPlayTest', () => {
   });
 });
 
+describe('performPlayTest 진입 직전 콜백(beforeEnter)', () => {
+  const explicitMainTap = { type: 'tap' as const, kind: 'double' as const, lane: 1 as Lane, beat: beat(2), grace: true };
+
+  it.each([
+    { refusal: '오디오 미로딩', overrides: { audioBuffer: null } },
+    { refusal: '레인 1 1박 중복 노트 배치 제약 위반', overrides: { chart: { ...baseChart, notes: [
+      { type: 'single' as const, lane: 1 as Lane, beat: beat(1) }, { type: 'single' as const, lane: 1 as Lane, beat: beat(1) },
+    ] } } },
+    { refusal: '명시 main 탭인데 새 게임 port 없음', overrides: { chart: { ...baseChart, notes: [explicitMainTap] } } },
+  ])('$refusal으로 테스트 플레이를 거절하면 beforeEnter를 부르지 않고 false를 돌려준다', ({ overrides }) => {
+    const beforeEnter = vi.fn();
+    const { params, navigate } = buildParams({ ...overrides, beforeEnter });
+
+    expect(performPlayTest(params)).toBe(false);
+    expect(beforeEnter).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('명시 main 탭 컴파일·시작이 던지면(startExplicitPlayTest 오류) beforeEnter를 부르지 않고 그 메시지를 안내한다', () => {
+    const beforeEnter = vi.fn();
+    const { params, game, addToast, navigate } = buildParams({ chart: { ...baseChart, notes: [explicitMainTap] }, beforeEnter });
+    params.game = { ...game, startExplicitPlayTest: () => { throw new Error('명시 차트 시작 실패'); } };
+
+    expect(performPlayTest(params)).toBe(false);
+    expect(addToast).toHaveBeenCalledWith('명시 차트 시작 실패', 'error');
+    expect(beforeEnter).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it.each(['구형 main', '명시 main'] as const)('%s 테스트 플레이가 성공하면 게임 상태를 넣고 메뉴를 닫은 뒤 navigate 바로 전에 beforeEnter를 1번 부른다', path => {
+    const calls: string[] = [];
+    const { params, game } = buildParams({
+      ...(path === '명시 main' ? { chart: { ...baseChart, notes: [explicitMainTap] } } : {}),
+      closeMenu: () => calls.push('closeMenu'),
+      beforeEnter: () => calls.push('beforeEnter'),
+      navigate: () => calls.push('navigate'),
+    });
+    params.game = {
+      ...game,
+      setScreen: () => { calls.push('setScreen'); },
+      startExplicitPlayTest: () => { calls.push('startExplicitPlayTest'); },
+    };
+
+    expect(performPlayTest(params)).toBe(true);
+    expect(calls).toEqual([path === '명시 main' ? 'startExplicitPlayTest' : 'setScreen', 'closeMenu', 'beforeEnter', 'navigate']);
+  });
+});
+
 describe('새 문서와 구형 테스트 플레이 경계', () => {
   it('명시 main 탭이 있어도 새 게임 port가 주입되지 않으면 안내 후 오디오·게임 상태·화면을 보존한다', () => {
     const { params, game, navigate, pause, closeMenu, addToast } = buildParams({ isPlaying: true,

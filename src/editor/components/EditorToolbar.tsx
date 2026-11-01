@@ -12,7 +12,7 @@ import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
 import { isChartDirty } from '../savedChart';
-import { SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 import { color, edge } from '../../shared/theme';
 
 const styles = {
@@ -677,6 +677,12 @@ export function EditorToolbar({
   const setLegacyConversionReviewOpen = useEditorStore((s) => s.setLegacyConversionReviewOpen);
   // 선택은 통합 축(sel.notes) 하나 — 보조 노트도 chart.notes 통합 인덱스로 포함 (RFD 0018 ④).
   const selectedCount = selectedNotes.size;
+  // 재생 중 편집 제한(RFD 0099): 차트를 바꾸는 버튼·입력은 비활성으로 두고 같은 안내를 title로 단다.
+  // Undo·Redo는 selectCanUndo·selectCanRedo가 재생 중 false라 함께 비활성이다. 보조 레인 수는 막지 않는다(허용 여부는 PRD §12 미정).
+  const editLockedTitle = isPlaying ? PAUSE_TO_EDIT_COPY : undefined;
+  const undoTitle = editLockedTitle ?? 'Undo (Ctrl+Z)';
+  const redoTitle = editLockedTitle ?? 'Redo (Ctrl+Shift+Z)';
+  const deleteSelectedDisabled = selectedCount === 0 || isPlaying;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
   // 현재 차트를 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 store의 savedChartJson과 비교한다 (RFD 0018 ③).
@@ -741,7 +747,13 @@ export function EditorToolbar({
   };
 
   const applyOffset = (offsetMs: number) => {
-    const currentChart = useEditorStore.getState().chart;
+    const { chart: currentChart, isPlaying: playingNow } = useEditorStore.getState();
+    // 오프셋은 타이밍 값이라 재생 중에는 바꾸지 않는다(RFD 0099). 입력·증감 버튼도 비활성이지만 다른 경로까지 막는다.
+    if (playingNow && currentChart.meta.offsetMs !== offsetMs) {
+      setOffsetDraft(String(currentChart.meta.offsetMs));
+      addToast(PAUSE_TO_EDIT_COPY, 'warn');
+      return;
+    }
     setOffsetDraft(String(offsetMs));
     if (currentChart.meta.offsetMs === offsetMs) return;
     setChart({ ...currentChart, meta: { ...currentChart.meta, offsetMs } });
@@ -774,6 +786,12 @@ export function EditorToolbar({
       : { ...styles.button, ...styles.buttonActive };
     const inputStyle = compact ? styles.offsetCompactInput : styles.offsetInput;
     const stepDelta = (delta: number) => applyOffset(chart.meta.offsetMs + delta);
+    const stepButtonStyle = isPlaying ? { ...buttonStyle, ...styles.compactButtonDisabled } : buttonStyle;
+    const renderStep = (delta: number) => (
+      <button style={stepButtonStyle} onClick={() => stepDelta(delta)} disabled={isPlaying} title={editLockedTitle}>
+        {delta > 0 ? `+${delta}` : delta}
+      </button>
+    );
 
     return (
       <div style={toolbarStyle}>
@@ -792,14 +810,16 @@ export function EditorToolbar({
               e.currentTarget.blur();
             }
           }}
-          style={inputStyle}
+          style={isPlaying ? { ...inputStyle, ...styles.compactButtonDisabled } : inputStyle}
+          disabled={isPlaying}
+          title={editLockedTitle}
           aria-label="Audio offset milliseconds"
         />
         <span style={{ ...styles.label, marginLeft: 0 }}>ms</span>
-        <button style={buttonStyle} onClick={() => stepDelta(-10)}>-10</button>
-        <button style={buttonStyle} onClick={() => stepDelta(-1)}>-1</button>
-        <button style={buttonStyle} onClick={() => stepDelta(1)}>+1</button>
-        <button style={buttonStyle} onClick={() => stepDelta(10)}>+10</button>
+        {renderStep(-10)}
+        {renderStep(-1)}
+        {renderStep(1)}
+        {renderStep(10)}
       </div>
     );
   };
@@ -944,11 +964,13 @@ export function EditorToolbar({
               {hasLastValidSnapshot && (
                 <>
                   <button
-                    style={styles.violationRevertButton}
+                    style={isPlaying ? { ...styles.violationRevertButton, ...styles.compactButtonDisabled } : styles.violationRevertButton}
                     onClick={() => {
                       revertToLastValid();
                       setShowViolationList(false);
                     }}
+                    disabled={isPlaying}
+                    title={editLockedTitle}
                   >
                     마지막 유효 상태로 되돌리기
                   </button>
@@ -998,7 +1020,7 @@ export function EditorToolbar({
               style={getIconButtonStyle(false, !canUndo)}
               onClick={runUndo}
               disabled={!canUndo}
-              title="Undo (Ctrl+Z)"
+              title={undoTitle}
               aria-label="Undo"
             >
               <ToolbarIcon name="undo" />
@@ -1007,7 +1029,7 @@ export function EditorToolbar({
               style={getIconButtonStyle(false, !canRedo)}
               onClick={runRedo}
               disabled={!canRedo}
-              title="Redo (Ctrl+Shift+Z)"
+              title={redoTitle}
               aria-label="Redo"
             >
               <ToolbarIcon name="redo" />
@@ -1129,9 +1151,10 @@ export function EditorToolbar({
                       Meta
                     </button>
                     <button
-                      style={styles.compactMenuButton}
+                      style={{ ...styles.compactMenuButton, ...(deleteSelectedDisabled ? styles.compactButtonDisabled : {}) }}
                       onClick={() => { setShowMoreMenu(false); onDeleteSelected(); }}
-                      disabled={selectedCount === 0}
+                      disabled={deleteSelectedDisabled}
+                      title={editLockedTitle}
                     >
                       Delete selected{selectedCount > 0 ? ` (${selectedCount})` : ''}
                     </button>
@@ -1210,7 +1233,7 @@ export function EditorToolbar({
           style={getIconButtonStyle(false, !canUndo)}
           onClick={runUndo}
           disabled={!canUndo}
-          title="Undo (Ctrl+Z)"
+          title={undoTitle}
           aria-label="Undo"
         >
           <ToolbarIcon name="undo" />
@@ -1219,7 +1242,7 @@ export function EditorToolbar({
           style={getIconButtonStyle(false, !canRedo)}
           onClick={runRedo}
           disabled={!canRedo}
-          title="Redo (Ctrl+Shift+Z)"
+          title={redoTitle}
           aria-label="Redo"
         >
           <ToolbarIcon name="redo" />
@@ -1421,9 +1444,10 @@ export function EditorToolbar({
                 Meta
               </button>
               <button
-                style={{ ...styles.compactMenuButton, ...(selectedCount === 0 ? styles.compactButtonDisabled : {}) }}
+                style={{ ...styles.compactMenuButton, ...(deleteSelectedDisabled ? styles.compactButtonDisabled : {}) }}
                 onClick={() => { setShowMoreMenu(false); onDeleteSelected(); }}
-                disabled={selectedCount === 0}
+                disabled={deleteSelectedDisabled}
+                title={editLockedTitle}
               >
                 Delete selected{selectedCount > 0 ? ` (${selectedCount})` : ''}
               </button>

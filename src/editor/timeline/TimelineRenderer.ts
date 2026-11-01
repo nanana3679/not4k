@@ -53,6 +53,7 @@ import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 import { destroyChildren } from "./utils";
 import { laneToX, laneWidth } from "./laneGeometry";
+import { clampToCursorRange, cursorRangeMsOf } from "./timelineRange";
 
 export interface TimelineRendererOptions {
   canvas: HTMLCanvasElement;
@@ -778,10 +779,7 @@ export class TimelineRenderer {
    */
   clampToMeasureRange(timeMs: number): number {
     if (!this.chart) return timeMs;
-    const offsetMs = this.chart.meta.offsetMs;
-    const measureStartMs = offsetMs; // measure 0 starts at offsetMs
-    const measureEndMs = this.getTotalTimelineMs();
-    return Math.max(measureStartMs, Math.min(measureEndMs, timeMs));
+    return clampToCursorRange(timeMs, cursorRangeMsOf(this.chart.meta.offsetMs, this.getTotalTimelineMs()));
   }
 
   /**
