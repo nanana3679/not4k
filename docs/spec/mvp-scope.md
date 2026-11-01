@@ -99,7 +99,7 @@
 곡 선택 → 설정(키 바인딩 + 스크롤 속도 + 리프트/서든 + 프레임레이트 + 오프셋 수치) → 곡 선택
 ```
 
-첫 기동 튜토리얼은 별도 단계 진행이나 스킵을 요구하지 않는다([RFD 0055](../rfd/0055-first-launch-tutorial-modal.md)). 실습 통과는 차트 선택의 선행 조건으로 사용하지 않는다([RFD 0081](../rfd/0081-tutorial-demonstration-and-three-practice-successes.md)). 현재 도움말 모달은 구현되어 있고 첫 기동 자동 열기·직접 입력 실습·항목별 요구 횟수만큼 누적 성공 통과는 미구현이다.
+첫 기동 튜토리얼은 별도 단계 진행이나 스킵을 요구하지 않는다([RFD 0055](../rfd/0055-first-launch-tutorial-modal.md)). 실습 통과는 차트 선택의 선행 조건으로 사용하지 않는다([RFD 0081](../rfd/0081-tutorial-demonstration-and-three-practice-successes.md)). 현재 도움말 모달과 첫 기동 자동 열기는 구현되어 있고 직접 입력 실습·항목별 요구 횟수만큼 누적 성공 통과는 미구현이다.
 
 ---
 

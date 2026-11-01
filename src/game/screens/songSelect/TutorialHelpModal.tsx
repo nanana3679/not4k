@@ -18,7 +18,10 @@ import {
 } from './tutorialViewedCache';
 
 interface TutorialHelpModalProps {
+  /** 닫힘 애니메이션(120ms)이 끝난 뒤 부른다. 호출자는 여기서 모달을 언마운트한다. */
   onClose: () => void;
+  /** 사용자가 닫기를 요청한 순간(Close 버튼·Escape·배경 클릭) 애니메이션 전에 부른다. 애니메이션 중 새로고침해도 닫은 것으로 남길 상태를 저장한다. */
+  onCloseRequested?: () => void;
   isAdmin?: boolean;
 }
 
@@ -50,7 +53,7 @@ function getTutorialViewedStorage(): Storage | null {
   }
 }
 
-export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModalProps) {
+export function TutorialHelpModal({ onClose, onCloseRequested, isAdmin = false }: TutorialHelpModalProps) {
   const [tutorialIndex, setTutorialIndex] = useState(0);
   const lastSectionIndexesRef = useRef<Record<TutorialSectionId, number>>({ basic: 0, advanced: TUTORIAL_PREVIEWS.length });
   const [visiblePlayerIndex, setVisiblePlayerIndex] = useState(0);
@@ -168,6 +171,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     if (isClosing) return;
 
     setIsClosing(true);
+    onCloseRequested?.();
     cancelScheduledTransitionStart();
     if (closeTimeoutRef.current !== null) {
       window.clearTimeout(closeTimeoutRef.current);
@@ -176,7 +180,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
       closeTimeoutRef.current = null;
       onClose();
     }, TUTORIAL_MODAL_CLOSE_MS);
-  }, [cancelScheduledTransitionStart, isClosing, onClose]);
+  }, [cancelScheduledTransitionStart, isClosing, onClose, onCloseRequested]);
 
   const resetViewedTutorialCache = useCallback(() => {
     clearTutorialViewedIds(getTutorialViewedStorage());
