@@ -165,8 +165,8 @@ export default function EditorApp() {
         // 보조 형식·내용 오류는 빈 보조 데이터로 열지 않고 아래 catch의 로드 오류로 보낸다.
         // 열린 뒤 저장이 기존 .extra.json을 지우는 유실을 막는다.
         const asset = loadEditorChartAsset(chartText, extraText);
-        // 초기 BPM·박자를 보조 레인1·2에 두고 그 자리와 겹친 일반 이벤트를 옮긴 상태가 불러온 기본 상태다
-        // (dirty·Undo 없음, 서버에 쓰지 않음).
+        // 초기 BPM·박자만 보조 레인1·2에 둔 상태가 불러온 기본 상태다(dirty·Undo 없음, 서버에 쓰지 않음).
+        // 그 자리와 겹친 일반 이벤트는 옮기지 않고 배치 위반으로 남긴다.
         openEditorChart(asset);
         setActiveSongId(songId);
         setOfferLegacyConversion(hasLegacyNotes(asset.chart.notes));

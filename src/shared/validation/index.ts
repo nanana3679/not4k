@@ -577,7 +577,6 @@ function eventPositionsOverlap(a: ChartEvent, b: ChartEvent): boolean {
 /**
  * 두 이벤트가 같은 보조 레인(`editorLane ?? 1`)에서 시간 위치가 겹치는지 판정한다(RFD 0078).
  * 종류는 보지 않는다. 같은 종류 BPM·박자 쌍도 true이며, 검증은 그 쌍을 `eventDuplicate`에 맡긴다.
- * 불러올 때 초기 설정 자리와 겹친 일반 이벤트를 옮기는 배치(RFD 0082)도 이 판정으로 겹침과 빈 레인을 찾아 검증과 기준이 어긋나지 않는다.
  */
 export function eventPlacementsOverlap(a: ChartEvent, b: ChartEvent): boolean {
   return (a.editorLane ?? 1) === (b.editorLane ?? 1) && eventPositionsOverlap(a, b);

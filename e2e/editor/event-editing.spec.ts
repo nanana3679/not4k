@@ -25,6 +25,23 @@ async function eventLanes(page: Page) {
   });
 }
 
+async function extraLaneCount(page: Page) {
+  return page.evaluate(async () => {
+    const path = '/src/editor/stores/editorStore.ts';
+    return (await import(path)).useEditorStore.getState().extraLaneCount as number;
+  });
+}
+
+/** `at`박에 있는 이벤트 몸통을 같은 박의 다른 통합 레인으로 끈다. */
+async function dragEventBodyToColumn(page: Page, fromColumn: number, toColumn: number, at: number) {
+  const from = await canvasPosition(page, fromColumn, at);
+  const to = await canvasPosition(page, toColumn, at);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 3 });
+  await page.mouse.up();
+}
+
 /** 0박의 통합 레인 위치를 더블클릭한다. 음원을 불러온 뒤 0박이 canvas 밖이면 먼저 그 위치로 스크롤한다. */
 async function dblclickInitialEvent(page: Page, column: number) {
   let position = await canvasPosition(page, column, 0);
@@ -216,24 +233,50 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('초기 BPM·박자 자리인 보조 레인1·2의 text·auto [0,4)는 열 때 레인3·4로 옮기고 보조 레인 수 2 → 4를 기본으로 저장한다', async ({ page }) => {
+  test('초기 BPM·박자 자리인 보조 레인1·2의 text·auto [0,4)는 열 때 옮기지 않아 위반 2건으로 열리고 저장은 [eventOverlap] 2건으로 막히며, 보조 레인 수 2 → 4로 늘려 text·auto를 레인3·4로 옮기면 위반이 풀려 저장된다', async ({ page }) => {
     const chart = editorTestChart();
     chart.events = [...chart.events,
       { type: 'text', beat: '0', endBeat: '4', text: 'hello', editorLane: 1 },
       { type: 'auto', beat: '0', endBeat: '4', editorLane: 2 },
     ];
     const loadViolationLogs = recordLoadViolationLogs(page);
-    const editor = await openEditor(page, { chart, audio: true });
-    await expectCleanLoadBaseline(page);
-    expect(loadViolationLogs).toEqual([]);
-    expect(await eventLanes(page)).toEqual([1, 2, 3, 4]);
-    expect(await page.evaluate(async () => {
-      const path = '/src/editor/stores/editorStore.ts';
-      return (await import(path)).useEditorStore.getState().extraLaneCount;
-    })).toBe(4);
+    const editor = await openEditor(page, { chart });
+
+    // 열 때는 초기 설정만 고정 자리에 두고 일반 이벤트는 옮기지 않는다. 위반 표시와 경고만 있고 미저장 표시·Undo는 없다.
+    await expect.poll(() => loadViolationLogs.length).toBeGreaterThan(0);
+    await expect(page.getByRole('button', { name: '배치 제약 위반 2건 목록 열기', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+    expect(await eventLanes(page)).toEqual([1, 2, 1, 2]);
+    expect(await extraLaneCount(page)).toBe(2);
     expect(editor.supabaseWrites).toEqual([]);
 
     await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
+    await expect(page.getByText('[eventOverlap]', { exact: true })).toHaveCount(2);
+    await page.getByRole('button', { name: '닫기', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toHaveCount(0);
+    expect(editor.supabaseWrites).toEqual([]);
+
+    // 로드 경고 알림은 화면 아래 가운데에 떠 0박 근처 canvas를 가릴 수 있으므로 사라진 뒤 끈다.
+    await expect(page.getByText('이 차트에 배치 제약 위반 2건이 있습니다 — 수리 후 저장할 수 있습니다', { exact: true }))
+      .toBeHidden({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+    await page.locator('select').filter({ has: page.locator('option[value="10"]') }).selectOption('4');
+    await page.mouse.click(10, 100);
+    await expect.poll(() => extraLaneCount(page)).toBe(4);
+
+    // 첫째·둘째 보조 칸(통합 레인 5·6)의 text·auto 몸통을 셋째·넷째 보조 칸(통합 레인 7·8)으로 끈다.
+    await page.getByRole('button', { name: 'Select', exact: true }).click();
+    await dragEventBodyToColumn(page, 5, 7, 2);
+    await expect.poll(() => eventLanes(page)).toEqual([1, 2, 3, 2]);
+    await expect(page.getByRole('button', { name: '배치 제약 위반 1건 목록 열기', exact: true })).toBeVisible();
+    await dragEventBodyToColumn(page, 6, 8, 2);
+    await expect.poll(() => eventLanes(page)).toEqual([1, 2, 3, 4]);
+    await expect(page.getByRole('button', { name: /배치 제약 위반.*목록 열기/ })).toHaveCount(0);
+    expect(editor.supabaseWrites).toEqual([]);
+
+    await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
     await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
     expect(readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!)).toMatchObject({ events: [
       { type: 'bpm', beat: '0', bpm: 120, editorLane: 1 },
