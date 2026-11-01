@@ -2,15 +2,24 @@
 -- RFD 0107: 곡 공통 타이밍과 곡·차트의 원자적 저장
 -- 파일은 호출 전에 새 Storage 경로로 업로드한다. 이 함수들은 경로만 확정한다.
 -- 기존 열·RLS 정책·차트 JSON 사본은 그대로 두며, 앱 연결은 후속 PR에서 한다.
+-- 필수 선행 조건: PR #396의 20261031000000_block_admin_privilege_bypass.sql.
+-- profiles.is_admin 자기 승격을 막지 않은 환경에는 적용하지 않는다.
 -- 다른 마이그레이션과 같이 트랜잭션 처리는 마이그레이션 실행기에 맡긴다.
 -- =============================================================
 
-
+-- 차트가 없는 곡은 삭제 후 같은 text ID로 재등록할 수 있다.
+-- 기존 행·새 행·save_song이 하나의 시퀀스를 써서 과거 리비전을 재사용하지 않는다.
+create sequence public.song_revision_seq as bigint no cycle;
 alter table public.songs
   add column timing jsonb,
-  add column revision bigint not null default 0,
+  add column revision bigint not null default nextval('public.song_revision_seq'::regclass),
   add constraint songs_timing_object check (timing is null or jsonb_typeof(timing) = 'object'),
   add constraint songs_revision_nonnegative check (revision >= 0);
+
+alter sequence public.song_revision_seq owned by public.songs.revision;
+-- 기존 관리자 INSERT도 기본값 nextval을 쓸 수 있게 하되 setval 권한은 주지 않는다.
+revoke all on sequence public.song_revision_seq from public, anon, authenticated, service_role;
+grant usage on sequence public.song_revision_seq to authenticated, service_role;
 
 -- 타이밍 JSON의 저장 계약 (TS 타입·내용 검증은 PR2):
 -- {
@@ -25,7 +34,7 @@ alter table public.songs
 comment on column public.songs.timing is
   '곡 공통 타이밍 정본. {"bpmChanges":[{"beat":"0","bpm":120}],"timeSignatureChanges":[{"beat":"0","beatPerMeasure":"4"}],"offsetMs":0}. SQL NULL이면 미이행: 로더는 차트 JSON 타이밍으로 폴백한다. DB는 객체 여부만 검증한다.';
 comment on column public.songs.revision is
-  '곡 저장 충돌 검사용 리비전. 기존 행·새 행은 0, save_song 성공마다 1 증가. 기록용 차트 버전과 무관하다.';
+  '곡 저장 충돌 검사용 리비전. 기존 행·새 행·save_song은 공유 song_revision_seq에서 발급받아 삭제·재등록에도 재사용하지 않는다. 실패·다른 곡 저장으로 결번이 생길 수 있으며 기록용 차트 버전과 무관하다.';
 
 alter table public.charts
   add column chart_path text,
@@ -67,7 +76,7 @@ as $$
 declare
   v_revision bigint;
 begin
-  -- 이 브랜치의 20260214300000_admin_role.sql에 정의된 헬퍼를 사용한다.
+  -- 헬퍼는 20260214300000_admin_role.sql, 신뢰 경계는 PR #396의 profiles 열 권한이다.
   if public.is_admin() is not true then
     raise exception using errcode = '42501', message = 'admin_required';
   end if;
@@ -87,7 +96,7 @@ begin
       gameplay_fade_in = p_gameplay_fade_in,
       gameplay_fade_out = p_gameplay_fade_out,
       timing = p_timing,
-      revision = s.revision + 1,
+      revision = nextval('public.song_revision_seq'::regclass),
       updated_at = now()
   where s.id = p_song_id and s.revision = p_expected_revision
   returning s.revision into v_revision;
@@ -102,12 +111,11 @@ begin
 end;
 $$;
 
--- 기존 upsert의 식별 키(song_id, difficulty_label)로 기존 행만 저장한다.
--- difficulty_label은 현재 저장 어댑터처럼 호출자가 소문자로 정규화한다.
+-- UUID로 기존 행만 저장한다. 삭제 후 같은 곡·난이도로 만든 새 행은 다른 UUID다.
+-- song_id·difficulty_label은 불변이며 다른 이름 저장은 create_chart로 한다.
 -- 곡 소유 데이터의 사본(offset_ms 등)은 쓰지 않는다. 행의 ID·업로더도 유지한다.
 create function public.save_chart(
-  p_song_id text,
-  p_difficulty_label text,
+  p_chart_id uuid,
   p_expected_revision bigint,
   p_difficulty_level integer,
   p_chart_path text,
@@ -131,18 +139,13 @@ begin
       chart_extra_path = p_chart_extra_path,
       revision = c.revision + 1,
       updated_at = now()
-  where c.song_id = p_song_id
-    and c.difficulty_label = p_difficulty_label
-    and c.revision = p_expected_revision
+  where c.id = p_chart_id and c.revision = p_expected_revision
   returning c.revision into v_revision;
 
   if found then
     return v_revision;
   end if;
-  if not exists (
-    select 1 from public.charts
-    where song_id = p_song_id and difficulty_label = p_difficulty_label
-  ) then
+  if not exists (select 1 from public.charts where id = p_chart_id) then
     raise exception using errcode = 'PT404', message = 'chart_not_found';
   end if;
   raise exception using errcode = 'PT409', message = 'chart_revision_conflict';
@@ -151,6 +154,7 @@ $$;
 
 -- Save As는 INSERT만 한다. 기존 키 충돌(23505)을 덮어쓰기로 바꾸지 않는다.
 -- 신규 행의 revision은 기본값 0이며, ID와 함께 반환한다.
+-- difficulty_label은 현재 저장 어댑터처럼 호출자가 소문자로 정규화한다.
 create function public.create_chart(
   p_song_id text,
   p_difficulty_label text,
@@ -181,10 +185,10 @@ $$;
 -- SECURITY DEFINER를 통한 RLS 우회는 함수 내부 관리자 확인 뒤에만 허용한다.
 -- PUBLIC의 기본 실행 권한과 anon의 명시적 실행 권한을 같은 트랜잭션에서 제거한다.
 revoke execute on function public.save_song(text, bigint, text, text, text, text, numeric, text, numeric, numeric, numeric, numeric, numeric, numeric, jsonb) from public, anon;
-revoke execute on function public.save_chart(text, text, bigint, integer, text, text) from public, anon;
+revoke execute on function public.save_chart(uuid, bigint, integer, text, text) from public, anon;
 revoke execute on function public.create_chart(text, text, integer, text, text) from public, anon;
 
 grant execute on function public.save_song(text, bigint, text, text, text, text, numeric, text, numeric, numeric, numeric, numeric, numeric, numeric, jsonb) to authenticated;
-grant execute on function public.save_chart(text, text, bigint, integer, text, text) to authenticated;
+grant execute on function public.save_chart(uuid, bigint, integer, text, text) to authenticated;
 grant execute on function public.create_chart(text, text, integer, text, text) to authenticated;
 

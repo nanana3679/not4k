@@ -12,6 +12,7 @@
 - `is_admin boolean` 컬럼 있음 (migration 300000)
 - 클라이언트(`authenticated`)의 UPDATE 권한은 `display_name` 열만 (migration 20261031000000). `is_admin`은 대시보드·SQL Editor처럼 DB 소유자(`postgres`)나 `service_role` 권한으로만 변경
 - INSERT는 트리거(`handle_new_user`)로만 수행
+- `profiles_update_own`만으로는 자기 `is_admin` 변경을 막지 못한다. PR [#396](https://github.com/nanana3679/not4k/pull/396)의 `20261031000000_block_admin_privilege_bypass.sql`이 `anon`·`authenticated`의 테이블 UPDATE를 회수하고 `authenticated`에는 `display_name` 열 UPDATE만 허용한다. 운영에는 2026-10-31 적용되었고 main에는 2026-11-01 머지되었다(85652549).
 
 ## songs
 
@@ -23,9 +24,9 @@
 
 - `uploaded_by uuid` 컬럼 있음 (migration 200000, default `auth.uid()`)
 - UPDATE 정책이 없다. 클라이언트의 `songs` UPDATE는 오류 없이 0행을 바꾼다
-- `songs_delete_admin`은 `authenticated` + 인라인 `is_admin` 서브쿼리로 DELETE를 허용한다(migration `20260227100000`). 차트가 남아 있으면 FK RESTRICT가 삭제를 막는다.
-- **마이그레이션에는 songs UPDATE 정책이 없다.** 현재 `useFileOperations.ts`는 직접 UPDATE를 보내지만 운영 DB의 정책은 확인하지 않았다. `save_song`은 관리자 확인 뒤 `security definer`로 RLS를 우회하도록 설계했으며, UPDATE 정책을 추가하지 않는다.
-- `timing jsonb`는 곡 공통 타이밍의 정본이며 SQL NULL은 미이행 상태다. `revision bigint NOT NULL DEFAULT 0`은 저장 충돌 검사에 쓴다(migration `20261101000000`).
+- `songs_delete_admin`은 `authenticated` + 인라인 `is_admin` 서브쿼리로 DELETE를 허용한다(migration `20260227100000`). `20260706000000_restrict_song_delete.sql`의 FK RESTRICT는 차트가 남아 있을 때만 삭제를 막는다. 차트를 모두 지우면 곡을 삭제하고 같은 text ID로 다시 INSERT할 수 있다.
+- 현재 `useFileOperations.ts`가 자켓·음원 경로를 바꾸려고 보내는 직접 UPDATE도 이 때문에 0행을 바꾼다. `save_song`은 관리자 확인 뒤 `security definer`로 RLS를 우회하도록 설계했으며, UPDATE 정책을 추가하지 않는다. 곡 저장 연결(RFD 0107 PR4)에서 직접 UPDATE를 `save_song`으로 바꾼다.
+- `timing jsonb`는 곡 공통 타이밍의 정본이며 SQL NULL은 미이행 상태다. `revision bigint NOT NULL DEFAULT nextval('public.song_revision_seq'::regclass)`는 저장 충돌 검사에 쓴다(migration `20261101000000`). 기존 행·신규 행·`save_song` 모두 같은 비순환 시퀀스를 사용해 삭제·재등록 시 과거 리비전을 재사용하지 않는다. 시퀀스는 이 열에 소속되며 `authenticated`·`service_role`에는 USAGE만 부여해 INSERT 기본값은 허용하고 `setval`은 막는다.
 
 ## charts
 
@@ -42,7 +43,9 @@
 
 ## 곡·차트 저장 함수 (RFD 0107)
 
-마이그레이션 `20261101000000_song_timing_and_atomic_saves.sql`의 세 함수는 모두 `security definer`, `set search_path = ''`이며, 첫 쓰기 전에 `public.is_admin() is not true`이면 거부한다. 헬퍼는 이 브랜치의 `20260214300000_admin_role.sql`에 정의되어 있고 `auth.uid()`에 해당하는 `public.profiles.is_admin`을 읽으며, 프로필이 없으면 false를 반환한다. 다른 브랜치의 권한 강화 마이그레이션에 의존하지 않는다.
+마이그레이션 `20261101000000_song_timing_and_atomic_saves.sql`의 세 함수는 모두 `security definer`, `set search_path = ''`이며, 첫 쓰기 전에 `public.is_admin() is not true`이면 거부한다. 헬퍼는 이 브랜치의 `20260214300000_admin_role.sql`에 정의되어 있고 `auth.uid()`에 해당하는 `public.profiles.is_admin`을 읽으며, 프로필이 없으면 false를 반환한다.
+
+**필수 선행 조건: PR [#396](https://github.com/nanana3679/not4k/pull/396)의 `20261031000000_block_admin_privilege_bypass.sql`을 먼저 적용해야 한다.** 초기 스키마의 자기 행 UPDATE 정책과 Supabase 기본 테이블 권한만으로는 일반 사용자가 자기 `is_admin`을 true로 바꾼 뒤 세 함수를 실행할 수 있다. #396은 운영에 2026-10-31 적용되었지만, 새 환경에는 시간순으로 별도 적용해야 하며 보호가 없는 환경에 이 저장 마이그레이션을 적용해서는 안 된다. 이 브랜치의 마이그레이션만 실행하는 검증은 이 보안 의존성을 검증하지 않는다.
 
 세 함수 모두 `PUBLIC`·`anon`의 EXECUTE를 취소하고 `authenticated`에 부여한다. 로그인 자체는 관리자 권한을 대신하지 않는다. 함수 생성과 권한 설정은 같은 트랜잭션이다. 기존 테이블·Storage RLS 정책은 변경하지 않는다.
 
@@ -58,7 +61,7 @@ public.save_song(
 ) returns bigint
 
 public.save_chart(
-  p_song_id text, p_difficulty_label text, p_expected_revision bigint,
+  p_chart_id uuid, p_expected_revision bigint,
   p_difficulty_level integer, p_chart_path text, p_chart_extra_path text
 ) returns bigint
 
@@ -68,8 +71,9 @@ public.create_chart(
 ) returns table (chart_id uuid, revision bigint)
 ```
 
-- 모든 인자는 필수이며 nullable 값도 명시적으로 전달한다. 부분 패치가 아니라 편집 가능한 범위 전체를 교체한다. `save_song`은 곡 ID·생성 시각·업로더를, `save_chart`는 기존 `(song_id, difficulty_label)` 키·ID·생성 시각·업로더를 유지한다. 난이도명은 현재 어댑터처럼 호출자가 소문자로 정규화한다.
-- `save_song`·`save_chart`는 UPDATE의 WHERE에 예상 리비전 일치를 포함하고 성공 시 리비전을 1 증가시켜 반환하며 `updated_at`도 갱신한다. NULL 예상 리비전은 기존 행과 일치하지 않으므로 충돌이다. 기존 행·신규 행의 리비전은 0부터 시작하며 기록용 차트 버전과 무관하다.
+- 모든 인자는 필수이며 nullable 값도 명시적으로 전달한다. 부분 패치가 아니라 편집 가능한 범위 전체를 교체한다. `save_song`은 곡 ID·생성 시각·업로더를, `save_chart`는 UUID로 찾은 행의 `(song_id, difficulty_label)`·ID·생성 시각·업로더를 유지한다. `save_chart`는 곡·난이도명을 인자로 받지 않으며 Save As는 `create_chart`를 사용한다. 생성 시 난이도명은 현재 어댑터처럼 호출자가 소문자로 정규화한다.
+- `save_song`·`save_chart`는 UPDATE의 WHERE에 예상 리비전 일치를 포함하고 성공 시 새 리비전을 반환하며 `updated_at`도 갱신한다. NULL 예상 리비전은 기존 행과 일치하지 않으므로 충돌이다. 곡 리비전은 1부터 발급하는 공유 시퀀스 값이며 다른 곡의 저장·실패한 트랜잭션 때문에 결번이 생길 수 있다. 호출자는 다음 값을 계산하지 말고 반환값을 보관한다. 차트 리비전은 기존 행·신규 행 모두 0부터 시작하고 저장마다 1 증가한다. 두 리비전 모두 기록용 차트 버전과 무관하다.
+- 차트를 삭제하고 같은 `(song_id, difficulty_label)`로 다시 생성해도 UUID가 달라 옛 UUID의 저장은 `PT404/chart_not_found`다. 곡은 같은 text ID로 재생성하더라도 시퀀스가 과거 리비전을 재사용하지 않으므로 옛 리비전의 저장은 `PT409/song_revision_conflict`다. 별도 곡 UUID나 추가 RPC 인자 없이 기존 곡 API를 유지한다.
 - `create_chart`는 INSERT만 하며 기존 `(song_id, difficulty_label)` 충돌은 고유 제약 위반으로 실패한다. 생성된 UUID와 리비전 0을 한 행으로 반환한다. 부모 곡이 없으면 기존 FK 제약이 거부한다.
 - 함수는 파일을 읽거나 업로드하지 않는다. 호출자는 바뀐 파일을 새 경로로 먼저 업로드한다. 함수 실패 시 DB 행은 이전 상태로 남고 새 파일 정리는 별도 작업이다. 경로 열의 값은 `assets` 버킷 경로이며 공개 URL이 아니다.
 - 타이밍 JSON 계약은 `{"bpmChanges":[{"beat":"0","bpm":120}],"timeSignatureChanges":[{"beat":"0","beatPerMeasure":"4"}],"offsetMs":0}`이다. 두 목록은 0박 초기값을 포함한 박 순서이며 `beat`·`beatPerMeasure`는 차트 JSON과 같은 분수 문자열이다. `offsetMs`는 플레이 음원 시작점에서 0박까지의 밀리초다. SQL은 객체 여부만 검사하고 내부 값·TS 타입은 PR2에서 검증한다. SQL NULL은 허용하고 JSON null·배열·스칼라는 거부한다.
@@ -86,7 +90,7 @@ public.create_chart(
 | Save As의 기존 키 충돌 | `23505` | `charts_song_id_difficulty_label_key` (PostgreSQL 메시지는 고정하지 않음) |
 | 객체가 아닌 타이밍 | `23514` | `songs_timing_object` |
 
-`anon`은 함수 본문 진입 전 EXECUTE 권한 검사에서 `42501`로 거부되므로 메시지는 `admin_required`가 아니다. 직접 테이블을 갱신하는 기존 코드·정책은 리비전 증가를 강제하지 않는다. 이 PR은 DB 계약만 추가하며 앱 로더·저장 연결은 후속 PR이다. 연결 전에는 새 경로 저장과 기존 결정적 경로 로더를 함께 사용하지 않는다. 곡 타이밍이 NULL인 행은 후속 로더에서도 차트 JSON으로 폴백한다.
+`anon`은 함수 본문 진입 전 EXECUTE 권한 검사에서 `42501`로 거부되므로 메시지는 `admin_required`가 아니다. 직접 테이블을 갱신하는 기존 코드·정책은 리비전 증가를 강제하지 않는다. 곡 INSERT는 리비전 기본값을 사용해야 하며, 관리자 SQL로 과거 리비전·차트 UUID를 명시적으로 재사용하거나 시퀀스를 초기화하는 작업은 이 충돌 보호의 계약 밖이다. 이 PR은 DB 계약만 추가하며 앱 로더·저장 연결은 후속 PR이다. 연결 전에는 새 경로 저장과 기존 결정적 경로 로더를 함께 사용하지 않는다. 곡 타이밍이 NULL인 행은 후속 로더에서도 차트 JSON으로 폴백한다.
 
 ## play_records
 

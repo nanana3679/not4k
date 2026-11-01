@@ -26,10 +26,20 @@ function addedColumns(table: 'songs' | 'charts'): string {
 }
 
 describe('RFD 0107 곡·차트 저장 마이그레이션', () => {
-  it('기존 songs에 열을 추가하면 timing은 nullable이고 revision은 NOT NULL DEFAULT 0이다', () => {
+  it('기존 songs와 같은 ID로 재생성한 songs는 공유 시퀀스에서 서로 다른 revision을 받는다', () => {
     expect(addedColumns('songs')).toContain('add column timing jsonb,');
-    expect(addedColumns('songs')).toContain('add column revision bigint not null default 0,');
+    expect(statements).toContain('create sequence public.song_revision_seq as bigint no cycle;');
+    expect(addedColumns('songs')).toContain(
+      "add column revision bigint not null default nextval('public.song_revision_seq'::regclass),",
+    );
     expect(addedColumns('songs')).toContain('check (revision >= 0)');
+    expect(statements).toContain('alter sequence public.song_revision_seq owned by public.songs.revision;');
+    expect(statements).not.toMatch(/\bsetval\s*\(|\brestart\b/);
+  });
+
+  it('authenticated는 곡 INSERT용 nextval을 쓸 수 있지만 시퀀스를 setval로 되돌릴 수 없다', () => {
+    expect(statements).toContain('revoke all on sequence public.song_revision_seq from public, anon, authenticated, service_role;');
+    expect(statements).toContain('grant usage on sequence public.song_revision_seq to authenticated, service_role;');
   });
 
   it('timing을 저장하면 SQL NULL과 JSON 객체만 허용하고 배열·JSON null은 거부한다', () => {
@@ -68,14 +78,14 @@ describe('RFD 0107 곡·차트 저장 마이그레이션', () => {
   });
 
   it.each([
-    ['save_song', 'songs', 's'],
-    ['save_chart', 'charts', 'c'],
-  ] as const)('%s는 UPDATE의 expected revision 조건으로 저장하고 revision을 1 증가시켜 반환한다', (name, table, alias) => {
+    ['save_song', 'songs', 's', "nextval('public.song_revision_seq'::regclass)"],
+    ['save_chart', 'charts', 'c', 'c.revision + 1'],
+  ] as const)('%s는 expected revision이 맞을 때 새 revision을 원자적으로 저장하고 반환한다', (name, table, alias, revision) => {
     const definition = functionSql(name);
     const update = definition.match(new RegExp(`update public\\.${table} as ${alias} (.*?) returning (.*?);`));
     expect(update).not.toBeNull();
     const [assignment, condition] = update![1].split(' where ');
-    expect(assignment).toContain(`revision = ${alias}.revision + 1`);
+    expect(assignment).toContain(`revision = ${revision}`);
     expect(assignment).toContain('updated_at = now()');
     expect(condition).toContain(`${alias}.revision = p_expected_revision`);
     expect(update![2]).toBe(`${alias}.revision into v_revision`);
@@ -108,14 +118,22 @@ describe('RFD 0107 곡·차트 저장 마이그레이션', () => {
     expect(definition).not.toContain('public.charts');
   });
 
-  it('save_chart는 song_id·difficulty_label 키로 난이도와 두 경로만 교체하고 offset_ms 사본은 쓰지 않는다', () => {
+  it('save_chart는 UUID·revision으로 난이도와 두 경로만 저장하고 song_id·difficulty_label·offset_ms를 유지한다', () => {
     const definition = functionSql('save_chart');
-    expect(definition).toContain('where c.song_id = p_song_id and c.difficulty_label = p_difficulty_label');
+    expect(definition).toContain('save_chart( p_chart_id uuid, p_expected_revision bigint,');
+    expect(definition).toContain('where c.id = p_chart_id and c.revision = p_expected_revision');
     for (const field of ['difficulty_level', 'chart_path', 'chart_extra_path']) {
       expect(definition).toContain(`${field} = p_${field}`);
     }
-    expect(definition).not.toContain('offset_ms');
+    expect(definition).not.toMatch(/\b(song_id|difficulty_label|offset_ms|p_song_id|p_difficulty_label)\b/);
     expect(definition).not.toContain('public.songs');
+  });
+
+  it('같은 곡·난이도의 차트를 재생성해도 save_chart는 삭제된 UUID를 PT404로 거부한다', () => {
+    expect(functionSql('save_chart')).toContain(
+      "if not exists (select 1 from public.charts where id = p_chart_id) then raise exception using errcode = 'PT404', message = 'chart_not_found';",
+    );
+    expect(statements).not.toContain('public.save_chart(text, text, bigint, integer, text, text)');
   });
 
   it('create_chart는 INSERT 후 ID·revision 0을 반환하며 기존 키 충돌을 UPDATE로 바꾸지 않는다', () => {

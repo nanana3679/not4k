@@ -82,7 +82,11 @@ _Avoid_: 로컬 설정 저장
 
 `20261101000000_song_timing_and_atomic_saves.sql`은 `songs.timing`·`songs.revision`, `charts.chart_path`·`charts.chart_extra_path`·`charts.revision`과 `save_song`·`save_chart`·`create_chart`를 추가한다. 타이밍 NULL은 미이행으로 차트 JSON 폴백 대상이며, 경로 NULL은 기존 결정적 경로를 뜻한다. 새 차트의 리비전은 0, 덮어쓰기 성공 시 1 증가한다. 앱 로더·저장 연결은 후속 PR이며 현재 런타임은 기존 경로를 사용한다.
 
+`save_chart(p_chart_id uuid, p_expected_revision bigint, p_difficulty_level integer, p_chart_path text, p_chart_extra_path text)`는 UUID·리비전으로 저장하며 곡·난이도명은 바꾸지 않는다. 같은 곡·난이도로 재생성한 차트는 다른 UUID라 옛 저장은 PT404다. 차트 없는 곡은 삭제·같은 text ID 재등록이 가능하므로 곡의 기존 행·신규 행·`save_song`은 공유 `song_revision_seq`를 써서 옛 리비전을 재사용하지 않는다. `save_song` 서명은 유지하며 호출자는 결번이 가능한 반환 리비전을 보관한다.
+
 세 함수는 기존 `public.is_admin()`으로 첫 쓰기 전에 관리자 여부를 확인하고 `security definer`로 실행한다. 마이그레이션에 `songs` UPDATE 정책이 없는데 기존 앱은 직접 UPDATE한다는 차이가 있다. 새 `save_song`은 RLS를 우회하도록 설계했으며 기존 RLS를 바꾸지 않는다. 서명·권한·오류 계약과 직접 쓰기의 리비전 제한은 [RLS 정책 문서](../../supabase/RLS_POLICIES.md#곡차트-저장-함수-rfd-0107)를 따른다.
+
+**필수 선행 조건:** `profiles.is_admin` 자기 승격을 차단하는 PR [#396](https://github.com/nanana3679/not4k/pull/396)의 `20261031000000_block_admin_privilege_bypass.sql`에 의존한다. 운영에는 2026-10-31 적용되었으며 이 브랜치에는 복제하지 않는다. 새 환경에는 시간순으로 먼저 적용해야 하고, 이 보호가 없는 환경에 저장 마이그레이션을 적용해서는 안 된다.
 
 ## Example dialogue
 
