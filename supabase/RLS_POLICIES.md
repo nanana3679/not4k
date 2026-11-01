@@ -10,6 +10,7 @@
 | `profiles_update_own` | UPDATE | `auth.uid() = id`, 익명 아님 |
 
 - `is_admin boolean` 컬럼 있음 (migration 300000)
+- 클라이언트(`authenticated`)의 UPDATE 권한은 `display_name` 열만 (migration 20261031000000). `is_admin`은 대시보드·SQL Editor처럼 DB 소유자(`postgres`)나 `service_role` 권한으로만 변경
 - INSERT는 트리거(`handle_new_user`)로만 수행
 
 ## songs
@@ -18,8 +19,10 @@
 |------|------|------|
 | `songs_select_all` | SELECT | 모두 허용 |
 | `songs_insert_admin` | INSERT | `authenticated` + `is_admin()` |
+| `songs_delete_admin` | DELETE | `authenticated` + 인라인 `is_admin` 서브쿼리 |
 
 - `uploaded_by uuid` 컬럼 있음 (migration 200000, default `auth.uid()`)
+- UPDATE 정책이 없다. 클라이언트의 `songs` UPDATE는 오류 없이 0행을 바꾼다
 
 ## charts
 
@@ -71,6 +74,7 @@
   - Storage RLS 컨텍스트에서 `security definer` 함수가 `auth.uid()`를 올바르게 해석하지 못하는 문제 회피
 - Storage `upsert: true` 사용 시 INSERT + UPDATE + **SELECT** 정책이 모두 필요
 - `is_admin()` 헬퍼 함수는 테이블 RLS에서는 정상 동작
+- migration 이력(`supabase_migrations.schema_migrations`)과 실제 정책이 어긋날 수 있다. 300000·500000이 지운 것으로 기록된 `songs_insert_auth`·`charts_insert_auth`·`assets_upload_songs`가 운영 DB에 남아 있는 것을 2026-10-31에 확인해 migration 20261031000000으로 제거했다. 권한을 바꾼 뒤에는 `pg_policies`와 `has_column_privilege`로 실제 상태를 확인한다
 
 ## 헬퍼 함수
 
