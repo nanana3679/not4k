@@ -34,13 +34,9 @@ const ADVANCED_IDS = [
   'advanced-double-swap',
   'advanced-single-head-double',
   'advanced-decrease',
-  'advanced-holdonly-decrease',
   'advanced-same-key',
   'advanced-recovery',
   'advanced-partial-double',
-  'advanced-independent-holdonly',
-  'advanced-short-holdonly',
-  'advanced-zero-holdonly',
   'advanced-double-release',
 ] as const;
 
@@ -96,6 +92,7 @@ async function expectActive(dialog: Locator, id: string) {
   await expect(dialog.locator('[data-tutorial-preview-slot="active"]')).toHaveAttribute('data-tutorial-preview-id', id);
   await expect(dialog.locator('[data-tutorial-index-item="' + id + '"]')).toHaveAttribute('data-tutorial-index-current', 'true');
   await expect(dialog.locator('[data-tutorial-preview-slot="active"] [data-tutorial-preview-error]')).toHaveCount(0);
+  await expect(dialog.locator('[data-tutorial-preview-slot="active"] [data-tutorial-engine]')).toHaveAttribute('data-tutorial-engine', 'explicit');
 }
 
 async function selectTab(dialog: Locator, name: 'Basic' | 'Advanced') {
@@ -121,7 +118,7 @@ test.describe('Tutorial level tabs', () => {
     await page.addInitScript((key) => localStorage.removeItem(key), VIEWED_KEY);
   });
 
-  test('Basic 17개와 Advanced 12개가 실제 preview·본문과 함께 탭별로 순환한다', async ({ page }) => {
+  test('Basic 17개와 Advanced 8개가 실제 preview·본문과 함께 탭별로 순환한다', async ({ page }) => {
     await page.clock.install();
     const dialog = await openTutorial(page);
     await expect(tab(dialog, 'Basic')).toHaveAttribute('aria-selected', 'true');
@@ -214,7 +211,7 @@ test.describe('Tutorial level tabs', () => {
     await expect(indexItems(reopened)).toHaveCount(ADVANCED_IDS.length);
   });
 
-  test('Advanced 항목을 모두 보면 29개 viewed를 저장하고 Reset Viewed는 Basic 첫 항목만 남긴다', async ({ page }) => {
+  test('Advanced 항목을 모두 보면 25개 viewed를 저장하고 Reset Viewed는 Basic 첫 항목만 남긴다', async ({ page }) => {
     await page.addLocatorHandler(page.locator('[data-tutorial-diagram-ok="true"]:visible').first(), async button => {
       await button.click();
     });
@@ -224,10 +221,32 @@ test.describe('Tutorial level tabs', () => {
     for (const id of ADVANCED_IDS) await choose(dialog, id);
 
     const viewed = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '[]') as string[], VIEWED_KEY);
-    expect(new Set(viewed)).toEqual(new Set([...BASIC_IDS, ...ADVANCED_IDS]));
+    expect(viewed).toEqual([...BASIC_IDS, ...ADVANCED_IDS]);
+    expect(viewed).toHaveLength(25);
     await dialog.getByRole('button', { name: 'Reset tutorial viewed cache' }).click();
     const resetViewed = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '[]') as string[], VIEWED_KEY);
     expect(resetViewed).toEqual([BASIC_IDS[0]]);
+  });
+
+  test('제거된 Advanced holdOnly 4개가 저장되어 있어도 팝업은 8개만 표시하고 viewed에서 제외한다', async ({ page }) => {
+    const removedIds = [
+      'advanced-holdonly-decrease', 'advanced-independent-holdonly',
+      'advanced-short-holdonly', 'advanced-zero-holdonly',
+    ];
+    const initial = await openTutorial(page);
+    await initial.getByRole('button', { name: 'Close tutorial help' }).click();
+    await expect(initial).toBeHidden();
+    await page.evaluate(({ key, ids }) => localStorage.setItem(key, JSON.stringify(ids)), {
+      key: VIEWED_KEY, ids: ['single-note', ...removedIds, 'advanced-recovery'],
+    });
+    await page.getByRole('button', { name: 'Open tutorial help' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Tutorial' });
+    await selectTab(dialog, 'Advanced');
+    await expect(indexItems(dialog)).toHaveCount(8);
+    for (const id of removedIds) await expect(dialog.locator(`[data-tutorial-index-item="${id}"]`)).toHaveCount(0);
+    await expect(dialog.locator('[data-tutorial-index-item="advanced-recovery"]')).toHaveAttribute('data-tutorial-index-seen', 'true');
+    await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem(key) ?? '[]'), VIEWED_KEY))
+      .toEqual(['hand-placement', 'single-note', 'advanced-double-hold', 'advanced-recovery']);
   });
 
   test('탭 키보드 화살표는 lesson window handler와 중복되지 않고 탭 내부 포커스를 이동한다', async ({ page }) => {
@@ -283,7 +302,7 @@ test.describe('튜토리얼 재생기 레인 끝 클립 (#247)', () => {
   test('기어 없는 재생기에서 놓친 노트가 레인 끝(판정선 + 노트 반 칸) 아래로 내려가면, 클립을 풀었을 때 노트가 보일 레인 끝 아래 픽셀(키캡·키봄·판정 글자 밖, 3프레임 이상에서 1000픽셀 이상)이 실제 프레임에서는 캔버스 바탕색 그대로(채널 차 8 이하)다', async ({ page }) => {
     const dialog = await openTutorial(page);
     await expect(dialog.locator('[data-tutorial-preview-slot="active"] [data-tutorial-preview-canvas="true"]')).toBeVisible();
-    // 재생기에는 테스트 훅이 없으므로 실제 GameRenderer.renderFrame을 감싸, 그린 직후(같은 task라 드로잉 버퍼가 남아 있다)
+    // GPU 클립은 DOM 결과로 확인할 수 없어 실제 GameRenderer.renderFrame을 감싸, 그린 직후(같은 task라 드로잉 버퍼가 남아 있다)
     // 레인 끝 아래 픽셀을 gl.readPixels로 읽는다. 실제 WebGL 스텐실이 필요해 vitest로는 확인할 수 없다.
     await page.evaluate(async () => {
       // Vite HMR은 재생기가 가져오는 모듈에 ?t=를 붙일 수 있다. 같은 소스를 별도 URL로 import하면 다른 class를 계측하므로
@@ -301,7 +320,7 @@ test.describe('튜토리얼 재생기 레인 끝 클립 (#247)', () => {
         skinManager: { getTheme(): { bg: number } };
         laneEndY(): number;
         laneEndClip: { context: ClipContext };
-        noteLayer: Layer; longNoteHeadLayer: Layer; longNoteEndLayer: Layer; longNoteBodyLayer: Layer;
+        explicitNoteRenderer: { root: { children: Layer[] } } | null;
         laneKeyLabelLayer: Layer; effectLayer: Layer; uiLayer: Layer; tutorialKeyboardLayer: Layer;
       };
       const probe = { frames: 0, presentBelow: 0, worstBelow: 0 };
@@ -313,7 +332,7 @@ test.describe('튜토리얼 재생기 레인 끝 클립 (#247)', () => {
         if (!self.app?.canvas?.closest('[data-tutorial-preview-slot="active"][data-tutorial-preview-id="advanced-partial-double"]')) return;
         const laneEnd = self.laneEndY();
         let passed = false;
-        for (const layer of [self.noteLayer, self.longNoteHeadLayer, self.longNoteEndLayer, self.longNoteBodyLayer]) {
+        for (const layer of self.explicitNoteRenderer?.root.children ?? []) {
           for (const child of layer.children) {
             if (child.visible && child.getBounds().maxY > laneEnd + 4) passed = true;
           }

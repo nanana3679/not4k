@@ -9,7 +9,7 @@ import {
   persistTutorialViewedIds,
   readTutorialViewedIdsFromStorage,
 } from './tutorialViewedCache';
-import { TUTORIAL_PREVIEWS } from './tutorialPreviewChart';
+import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreviews';
 import tutorialHelpModalSource from './TutorialHelpModal.tsx?raw';
 import tutorialViewedCacheSource from './tutorialViewedCache.ts?raw';
 
@@ -25,6 +25,8 @@ describe('TutorialHelpModal', () => {
     expect(html).toContain('id="tutorial-tab-advanced" type="button" role="tab" aria-selected="false"');
     expect(html).toContain('role="tabpanel" aria-labelledby="tutorial-tab-basic"');
     expect(html).not.toContain('data-tutorial-index-item="advanced-double-hold"');
+    expect(html).toContain('릴리즈 없는 롱노트');
+    expect(html).toContain('길이가 0인 바디와 틱 노트');
   });
 
   it('튜토리얼 캐시 무효화 버튼은 개발환경이거나 admin이면 표시', () => {
@@ -101,6 +103,8 @@ describe('TutorialHelpModal', () => {
     );
 
     expect(countOccurrences(html, 'data-tutorial-preview-canvas="true"')).toBe(2);
+    expect(countOccurrences(html, 'data-tutorial-engine="explicit"')).toBe(2);
+    expect(html).not.toContain('data-tutorial-last-iteration=');
     expect(html).toContain('aria-label="Tutorial chart preview"');
     expect(html).toContain('not4k-tutorial-carousel-card');
     expect(html).toContain('data-tutorial-driver-visible="false"');
@@ -129,7 +133,7 @@ describe('TutorialHelpModal', () => {
 
     expect(html).toContain('aria-label="Tutorial index"');
     expect(html).toContain('not4k-tutorial-index');
-    expect(countOccurrences(html, 'data-tutorial-index-item=')).toBe(TUTORIAL_PREVIEWS.length);
+    expect(countOccurrences(html, 'data-tutorial-index-item=')).toBe(BASIC_TUTORIAL_EXPLICIT_PREVIEWS.length);
     expect(countOccurrences(html, 'data-tutorial-index-current="true"')).toBe(1);
     expect(countOccurrences(html, 'data-tutorial-index-seen="true"')).toBe(1);
     expect(countOccurrences(html, 'data-tutorial-index-check="true"')).toBe(1);
@@ -161,7 +165,7 @@ describe('TutorialHelpModal', () => {
     expect(tutorialHelpModalSource).toContain('canShowTutorialCacheInvalidationButton({');
     expect(tutorialHelpModalSource).toContain('isDev: import.meta.env.DEV');
     expect(tutorialHelpModalSource).toContain('clearTutorialViewedIds(getTutorialViewedStorage())');
-    expect(tutorialHelpModalSource).toContain('setViewedTutorialIds(new Set([TUTORIAL_PREVIEWS[0].id]))');
+    expect(tutorialHelpModalSource).toContain('setViewedTutorialIds(new Set([ALL_TUTORIAL_PREVIEWS[0].id]))');
   });
 
   it('튜토리얼 팝업은 가운데 플레이어와 오른쪽 텍스트 전용 영역을 분리해서 렌더링', () => {

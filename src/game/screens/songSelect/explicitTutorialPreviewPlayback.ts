@@ -37,7 +37,7 @@ export interface ExplicitTutorialPreviewPlayback {
 }
 
 export interface ExplicitTutorialPreviewPlaybackOptions {
-  /** 생략하면 구형 재생기와 같은 고정 `JUDGMENT_WINDOWS`. 설정의 판정 모드는 따르지 않는다. */
+  /** 호출자가 판정 창을 지정한다. 팝업·Lab 재생기는 설정의 judgmentMode를 전달하고, 생략한 독립 호출은 Normal을 쓴다. */
   readonly windows?: JudgmentWindows;
 }
 
