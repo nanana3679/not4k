@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { color, surface, radius, primitives } from '../../../shared/theme';
+import type { ScoreState } from '../../scoring/ScoreManager';
 import type { GameRenderer } from '../../renderer';
 import type { SkinManager } from '../../skin';
 import type { SkinManifest } from '../../skin/types';
@@ -16,7 +17,7 @@ import {
   type TutorialInputMode,
 } from './explicitTutorialPreviewPlayback';
 import { stepTutorialLoopClock } from './tutorialLoopClock';
-import { createExplicitTutorialInput } from './explicitTutorialInput';
+import { createExplicitTutorialInput, getExplicitTutorialInputTime } from './explicitTutorialInput';
 import type { KeyBinding } from '../../input/InputSystem';
 import { getTutorialRenderCycleIndex, mapTutorialRenderBodyQuery } from './tutorialPreviewRenderMapping';
 import { TUTORIAL_KB_SIDE_PAD, TUTORIAL_KB_VPAD } from '../../renderer/constants';
@@ -114,7 +115,7 @@ export function getTutorialBombPosition(lane: number, keyboardAreaHeight: number
   };
 }
 
-interface TutorialPreviewPlayerProps {
+export interface TutorialPreviewPlayerProps {
   /** 구형 정의는 `NoteJudgmentSession`, 명시 정의(`engine: 'explicit'`)는 명시 판정 controller로 재생한다. */
   preview?: TutorialPreviewDefinition | ExplicitTutorialPreviewDefinition;
   /**
@@ -122,6 +123,8 @@ interface TutorialPreviewPlayerProps {
    * 렌더러를 새로 만들려면 부모가 key를 바꿔 재생기를 다시 마운트한다(Lab의 처음부터 재생).
    */
   previewInstanceId?: number;
+  /** 같은 레슨 안에서 다음 연주 방법으로 넘어갈 때 차트·시계만 새로 시작한다. */
+  playbackRevision?: number;
   onReady?: () => void;
   diagramModalEnabled?: boolean;
   diagramModalVisible?: boolean;
@@ -135,18 +138,20 @@ interface TutorialPreviewPlayerProps {
   onBombEffect?: (lane: number, position: TutorialBombPosition) => void;
   /** true면 판정 진행과 렌더를 멈추고 마지막 장면을 유지한다. false로 돌아오면 멈춘 지점부터 이어서 재생한다. */
   paused?: boolean;
-  /** 명시 정의 전용. 적용된 모드이며 prop 변경 즉시 전환한다. 시연 복귀를 다음 패턴까지 미루는 것은 호출자 책임이다.
+  /** 명시 정의 전용. 어느 방향이든 prop 변경 즉시 현재 재생 위치에서 전환한다.
    * 직접 입력 레인 키는 window capture에서 소비하므로 모달 탐색은 bubble 단계에 둔다. Escape는 항상 통과한다. */
   inputMode?: TutorialInputMode;
   /** 설정 키 캡처 등 다른 UI가 키보드를 소유하면 false. 기존 held 키의 up은 계속 추적한다. */
   ownsKeyboardInput?: (event: KeyboardEvent) => boolean;
-  /** 최초 준비와 각 반복 시작에 0부터 알린다. 중간 모드 전환은 새 시작이 아니다. */
+  /** 최초 준비와 각 반복 시작에 0부터 알린다. 이전 패턴의 finish 뒤에만 통지하며 직접 입력의 물리 세션 시작보다 늦을 수 있다. 중간 전환은 새 시작이 아니다. */
   onPatternStarted?: (iteration: number) => void;
   /**
-   * 명시 정의를 재생할 때만 부른다. 반복 경계에서 끝난 패턴을 controller가 `loopMs`까지 진행·finalize한 결과이며,
-   * 다음 패턴은 이 호출 직후 새 세션으로 시작한다. 레슨을 넘기거나 렌더러를 다시 걸어 중간에 버린 패턴은 알리지 않는다.
+   * 명시 정의를 재생할 때만 부른다. 시연은 반복 경계, 직접 입력은 경계와 마지막 판정 기한을 모두 지난 뒤 finalize한 결과이며,
+   * false를 반환하면 다음 패턴 시작 통지·입력·진행을 멈춘다. 그 밖에는 다음 패턴을 시작한다. 레슨을 넘기거나 렌더러를 다시 걸어 중간에 버린 패턴은 알리지 않는다.
    */
-  onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => void;
+  onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => false | void;
+  /** 세션 준비·확정 효과 발생 때만 전달한다. 프레임마다 호출하지 않는다. */
+  onScoreChanged?: (score: Readonly<ScoreState>, combo: number) => void;
 }
 
 export function uniqueTutorialKeys(timings: readonly TutorialInputTiming[]): TutorialKeyView[] {
@@ -249,6 +254,7 @@ export function buildTutorialKeyboardKeys(
 export function TutorialPreviewPlayer({
   preview = TUTORIAL_PREVIEWS[0],
   previewInstanceId,
+  playbackRevision,
   onReady,
   diagramModalEnabled = true,
   diagramModalVisible = true,
@@ -259,9 +265,11 @@ export function TutorialPreviewPlayer({
   paused = false,
   onPatternFinished,
   onPatternStarted,
+  onScoreChanged,
   inputMode = 'demonstration',
   ownsKeyboardInput,
 }: TutorialPreviewPlayerProps) {
+  const shellRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // 지금 차트를 그리고 있는(차트를 건) 렌더러. 레인 키 라벨 effect가 쓴다.
   const rendererRef = useRef<GameRenderer | null>(null);
@@ -278,11 +286,14 @@ export function TutorialPreviewPlayer({
   const pausedRef = useRef(paused);
   const onPatternFinishedRef = useRef(onPatternFinished);
   const onPatternStartedRef = useRef(onPatternStarted);
+  const onScoreChangedRef = useRef(onScoreChanged);
   const inputModeRef = useRef(inputMode);
   const ownsKeyboardInputRef = useRef(ownsKeyboardInput);
   const syncExplicitControlRef = useRef<(() => void) | null>(null);
   const directInput = isExplicitTutorialPreview(preview) && inputMode === 'directInput';
   const settings = useGameStore((state) => state.settings);
+  const inputOffsetMsRef = useRef(settings.inputOffsetMs);
+  useEffect(() => { inputOffsetMsRef.current = settings.inputOffsetMs; }, [settings.inputOffsetMs]);
   // 판정 모드는 명시 정의만 따른다. 구형 정의(노트 에셋 시연실)는 고정 Normal이라 모드가 바뀌어도 다시 걸지 않는다.
   const explicitJudgmentMode = preview && isExplicitTutorialPreview(preview) ? settings.judgmentMode : 'normal';
   const [activeKeyIds, setActiveKeyIds] = useState<string[]>([]);
@@ -364,7 +375,8 @@ export function TutorialPreviewPlayer({
   useEffect(() => {
     onPatternFinishedRef.current = onPatternFinished;
     onPatternStartedRef.current = onPatternStarted;
-  }, [onPatternFinished, onPatternStarted]);
+    onScoreChangedRef.current = onScoreChanged;
+  }, [onPatternFinished, onPatternStarted, onScoreChanged]);
 
   useEffect(() => {
     inputModeRef.current = inputMode;
@@ -488,6 +500,7 @@ export function TutorialPreviewPlayer({
           skinManager: nextSkinManager,
           showGear: false,
           showFlightBackground: false,
+          // 팝업 실습의 콤보·조건·진행도는 TutorialPracticePanel에서 접근 가능한 DOM으로 함께 표시한다.
           showComboAndAccuracy: false,
           showLaneKeyLabels: true,
           judgmentLineOffset: PREVIEW_JUDGMENT_LINE_OFFSET,
@@ -556,11 +569,13 @@ export function TutorialPreviewPlayer({
     let previousDiagramHash = '';
     let previousNow = performance.now();
     let previousLoopTime = 0;
+    let pendingPatternStart: number | null = null;
     let explicitInput: ReturnType<typeof createExplicitTutorialInput> | null = null;
     let loopStartNow = previousNow;
     let pausedAtNow: number | null = null;
     let activeDiagramPause: TutorialDiagramPause | null = null;
     let activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
+    let screenIteration = 0;
 
     const notifyReady = () => {
       if (!readyNotifiedRef.current) {
@@ -663,6 +678,7 @@ export function TutorialPreviewPlayer({
       loopStartNow = resumeNow - activeDiagramPause.timing.endMs;
       // 경계 정산 대기가 남아 있으면 마친 뒤 실제 OK 시각부터 새 입력을 받는다.
       explicitInput?.rebase(resumeNow);
+      screenIteration = 0;
       previousNow = resumeNow;
       // 멈춘(paused) 상태에서 재개하면 멈춘 시각을 지금으로 옮겨, 나중에 일시정지가 풀릴 때 도식 끝 시점에서 그대로 잇는다.
       if (pausedAtNow !== null) pausedAtNow = resumeNow;
@@ -697,6 +713,8 @@ export function TutorialPreviewPlayer({
     const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {
       detachRenderer();
       setFinishedPattern(null);
+      pendingPatternStart = null;
+      screenIteration = 0;
       try {
         // 이전 차트가 남긴 봄·판정 텍스트·키 눌림을 지운 뒤 이 차트를 건다.
         renderer.resetTransientState();
@@ -714,21 +732,36 @@ export function TutorialPreviewPlayer({
             showJudgmentGroup: (state) => renderer.showJudgmentGroup(state),
             recordFlightJudgment: (grade) => renderer.recordFlightJudgment(grade),
             showBombEffect: showPreviewBomb,
-          }, { windows: getJudgmentWindows(explicitJudgmentMode) });
+          }, { windows: getJudgmentWindows(explicitJudgmentMode),
+            onScoreChanged: (score, combo) => onScoreChangedRef.current?.(score, combo),
+          });
           explicitInput = createExplicitTutorialInput(explicitPlayback, directBindings, preview.loopMs,
-            () => ({ loopStartNow, blocked: pausedRef.current || activeDiagramPause !== null }),
+            () => ({ loopStartNow, blocked: pausedRef.current || activeDiagramPause !== null, inputOffsetMs: inputOffsetMsRef.current }),
             pattern => {
               setFinishedPattern(pattern);
-              onPatternFinishedRef.current?.(pattern);
+              if (onPatternFinishedRef.current?.(pattern) === false) {
+                pendingPatternStart = pattern.iteration + 1;
+                pausedRef.current = true;
+                return false;
+              }
+              // 직접 입력은 다음 물리 세션이 이미 열렸어도 이전 결과 뒤에만 reducer의 패턴을 교체한다.
               onPatternStartedRef.current?.(pattern.iteration + 1);
             }, event => ownsKeyboardInputRef.current?.(event) ?? true);
           explicitInput.attach(window);
           explicitInput.setMode(inputModeRef.current);
-          const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) =>
-            explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {
+          let firstPatternStarted = false;
+          const advanceExplicit = (loopTimeMs: number, diagramHeldBeforeFrame = activeDiagramPause !== null) => {
+            const blocked = pausedRef.current || diagramHeldBeforeFrame;
+            // 렌더러 준비·캐러셀 대기는 패턴 재생이 아니다. 실제 시작 때 선택된 모드로 집계를 연다.
+            if (!firstPatternStarted && !blocked) {
+              firstPatternStarted = true;
+              onPatternStartedRef.current?.(0);
+            }
+            return explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {
               loopTimeMs,
-              blocked: pausedRef.current || diagramHeldBeforeFrame,
+              blocked,
             });
+          };
           syncExplicitControlRef.current = () => {
             const now = performance.now();
             const clock = stepTutorialLoopClock({ loopStartNow, pausedAtNow, previousNow }, now, pausedRef.current);
@@ -738,6 +771,10 @@ export function TutorialPreviewPlayer({
               const diagramHeldBeforeFrame = activeDiagramPause !== null;
               const loopTimeMs = resolveDiagramPauseTime(Math.max(0, now - loopStartNow) % preview.loopMs);
               advanceExplicit(loopTimeMs, diagramHeldBeforeFrame);
+            }
+            if (pendingPatternStart !== null && !pausedRef.current && inputModeRef.current === 'demonstration') {
+              onPatternStartedRef.current?.(pendingPatternStart);
+              pendingPatternStart = null;
             }
             explicitInput?.setMode(inputModeRef.current);
             explicitInput?.syncJudging();
@@ -753,7 +790,10 @@ export function TutorialPreviewPlayer({
           renderer.setExplicitChart(
             explicitPlayback.renderChart,
             explicitSkin,
-            () => explicitPlayback.renderSnapshot(activeRenderCycle),
+            () => explicitPlayback.renderSnapshot(
+              activeRenderCycle,
+              (explicitInput?.sessionIteration ?? screenIteration) - screenIteration,
+            ),
             preview.renderChart,
             preview.renderDurationMs,
           );
@@ -843,11 +883,14 @@ export function TutorialPreviewPlayer({
         loopStartNow = previousNow;
         pausedAtNow = null;
         previousLoopTime = 0;
+        if (shellRef.current) {
+          shellRef.current.dataset.tutorialElapsedMs = '0';
+          shellRef.current.dataset.tutorialLoopTimeMs = '0';
+        }
         explicitInput?.rebase(previousNow);
         activeRenderCycle = getTutorialRenderCycleIndex(preview.renderStartMs, preview.loopMs);
         attachedRenderer = renderer;
         rendererRef.current = renderer;
-        if (explicitInput) onPatternStartedRef.current?.(0);
         notifyReady();
         setRendererReady(true);
 
@@ -865,7 +908,9 @@ export function TutorialPreviewPlayer({
           const deltaMs = Math.min(48, now - previousNow);
           previousNow = now;
           // rAF 타임스탬프는 프레임 시작 시각이라 첫 프레임 직후 잰 loopStartNow보다 앞설 수 있다. 음수면 루프 경계로 오인하므로 0으로 막는다.
-          let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs;
+          const screenTime = getExplicitTutorialInputTime(now, loopStartNow, preview.loopMs);
+          screenIteration = screenTime.iteration;
+          let loopTimeMs = screenTime.loopTimeMs;
           // 새 도식은 이미 지난 경계의 정산을 막지 않는다. 직접 입력은 늦은 이벤트를 위해 다음 프레임까지 기다린다.
           const diagramHeldBeforeFrame = activeDiagramPause !== null;
           loopTimeMs = resolveDiagramPauseTime(loopTimeMs);
@@ -878,6 +923,11 @@ export function TutorialPreviewPlayer({
           }
           previewJudgment.advanceTo(loopTimeMs, diagramHeldBeforeFrame);
           previousLoopTime = loopTimeMs;
+          // 브라우저 진단용 시계. React를 프레임마다 다시 그리지 않고 실제 재생 시각만 공개한다.
+          if (shellRef.current) {
+            shellRef.current.dataset.tutorialElapsedMs = String(Math.max(0, now - loopStartNow));
+            shellRef.current.dataset.tutorialLoopTimeMs = String(loopTimeMs);
+          }
           setRendererInputState(renderer, activeTimings);
           renderer.renderFrame(renderTimeMs, deltaMs);
           animationFrameId = requestAnimationFrame(renderLoop);
@@ -933,7 +983,7 @@ export function TutorialPreviewPlayer({
       detachRenderer();
     };
     // previewInstanceId는 본문에서 읽지 않지만, 같은 레슨을 다시 방문했을 때 차트를 처음부터 다시 걸기 위한 의존성이다.
-  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);
+  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, playbackRevision, timings, tutorialKeyboardKeys]);
 
   // 레인 키 라벨은 렌더러(캔버스)가 그린다 — 텍스트·표시 여부만 push.
   // 눌림 상태는 렌더 루프의 setKeyBeam이 이미 처리한다.
@@ -952,7 +1002,10 @@ export function TutorialPreviewPlayer({
 
   return (
     <div
+      ref={shellRef}
       style={styles.previewShell}
+      data-tutorial-input-mode={inputMode}
+      data-tutorial-paused={paused ? 'true' : 'false'}
       data-tutorial-skin-id={skinManifest?.theme.id ?? skinId}
       data-tutorial-engine={isExplicitTutorialPreview(preview) ? 'explicit' : 'legacy'}
       data-tutorial-judgment-mode={explicitJudgmentMode}

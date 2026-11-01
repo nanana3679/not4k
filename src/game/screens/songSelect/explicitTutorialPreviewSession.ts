@@ -4,6 +4,7 @@ import type { ExplicitAutoInput, ExplicitAutoPlayerOptions } from "../../input/E
 import type { TimedJudgmentInput } from "../../input/InputTimeline";
 import { InputTimeline } from "../../input/InputTimeline";
 import { compileExplicitJudgmentChart } from "../../judgment/explicitCompiledChart";
+import type { ExplicitCompiledChart } from "../../judgment/explicitCompiledChart";
 import { ExplicitJudgmentSession } from "../../judgment/ExplicitJudgmentSession";
 import type { ExplicitHeldKey } from "../../judgment/ExplicitJudgmentState";
 import type { ExplicitSessionResult } from "../../judgment/ExplicitJudgmentSession";
@@ -38,7 +39,7 @@ export interface ExplicitTutorialPreviewOptions extends ExplicitJudgmentCoreOpti
 export interface ExplicitTutorialPreviewSessionController {
   readonly session: ExplicitJudgmentSession;
   readonly iteration: number;
-  /** 현재 위치 이전의 계획을 버리고 hold를 무점수 동기화한다. 되감기 없이 현재 시각부터 새 계획을 쓴다. */
+  /** 현재까지의 계획상 hold(직접 입력은 전달한 실제 hold)를 무점수 동기화하고 이후 입력만 재생한다. */
   setInputPlan(plan: ExplicitTutorialInputPlan, heldKeys?: readonly ExplicitHeldKey[]): void;
   /** 멈춘 동안의 물리 hold 변화는 점수 입력을 만들지 않고 현재 판정 시각에서 맞춘다. */
   syncHeldKeys(heldKeys: readonly ExplicitHeldKey[]): void;
@@ -47,6 +48,9 @@ export interface ExplicitTutorialPreviewSessionController {
   advanceTo(timeMs: number, visualTimeMs?: number): void;
   attachRenderer(renderer: ExplicitSnapshotRendererPort | null, visualTimeMs?: number): void;
   reset(): void;
+  /** 원본 compile을 공유하는 다음 세션을 만든다. 현재 세션은 자기 판정 기한까지 별도로 유지한다. */
+  startNextPattern(preheldKeys: readonly ExplicitHeldKey[]): ExplicitTutorialPreviewSessionController;
+  finish(endTimeMs: number): ExplicitSessionResult;
   /** 경계 입력·정산·효과는 이전 세션에서 마친 뒤 다음 반복을 만든다. */
   repeat(endTimeMs: number, preheldKeys?: readonly ExplicitHeldKey[]): ExplicitSessionResult;
   dispose(): void;
@@ -59,6 +63,16 @@ export function createExplicitTutorialPreviewSessionController(
   options: ExplicitTutorialPreviewOptions = {},
 ): ExplicitTutorialPreviewSessionController {
   const compiled = compileExplicitJudgmentChart(chart);
+  return createController(compiled, plan, options);
+}
+
+function createController(
+  compiled: ExplicitCompiledChart,
+  plan: ExplicitTutorialInputPlan,
+  options: ExplicitTutorialPreviewOptions,
+  initialIteration = 0,
+  preheldKeys?: readonly ExplicitHeldKey[],
+): ExplicitTutorialPreviewSessionController {
   // 외부 배열 수정이나 이전 AutoPlayer cursor를 다음 반복에 들고 가지 않는다.
   const createEvents = (plan: ExplicitTutorialInputPlan): readonly ExplicitAutoInput[] => (plan.kind === "auto"
     ? new ExplicitAutoPlayer(compiled, plan.options).eventsThrough(Infinity)
@@ -75,7 +89,7 @@ export function createExplicitTutorialPreviewSessionController(
   let timeline: InputTimeline;
   let adapter: ExplicitSessionRendererAdapter;
   let presentation: ExplicitTutorialPresentation | undefined;
-  let iteration = 0;
+  let iteration = initialIteration;
   let time = -Infinity;
   let disposed = false;
   const assertOpen = () => { if (disposed) throw new Error("dispose된 명시 튜토리얼 세션입니다"); };
@@ -95,19 +109,26 @@ export function createExplicitTutorialPreviewSessionController(
     presentation?.dispose();
     presentation = undefined;
   };
-  replace();
+  replace(preheldKeys);
   const controller: ExplicitTutorialPreviewSessionController = {
     get session() { return current; },
     get iteration() { return iteration; },
-    setInputPlan(nextPlan, heldKeys = []) {
+    setInputPlan(nextPlan, heldKeys) {
       assertOpen();
       const nextEvents = createEvents(nextPlan);
       if (nextEvents.some(event => !Number.isFinite(event.timeMs))) throw new RangeError("튜토리얼 입력 시각은 유한해야 합니다");
       timeline.clear();
       plan = nextPlan;
       events = nextEvents;
-      controller.syncHeldKeys(heldKeys);
-      timeline.enqueueMany(events.filter(event => event.timeMs >= time).map(event => ({
+      const switchTime = time;
+      const heldByKey = new Map<string, ExplicitHeldKey>();
+      for (const event of events) {
+        if (event.timeMs >= switchTime) break;
+        if (event.type === 'down') heldByKey.set(event.key, { lane: event.lane, key: event.key });
+        else heldByKey.delete(event.key);
+      }
+      controller.syncHeldKeys(heldKeys ?? [...heldByKey.values()]);
+      timeline.enqueueMany(events.filter(event => event.timeMs >= switchTime).map(event => ({
         lane: event.lane, key: event.key, type: event.type, inputAt: event.timeMs,
       })));
     },
@@ -141,11 +162,19 @@ export function createExplicitTutorialPreviewSessionController(
       iteration++;
       replace();
     },
-    repeat(endTimeMs, preheldKeys) {
+    startNextPattern(heldKeys) {
+      assertOpen();
+      return createController(compiled, plan, options, iteration + 1, heldKeys);
+    },
+    finish(endTimeMs) {
       assertOpen();
       controller.advanceTo(endTimeMs);
       const result = current.finalize();
       adapter.sync(endTimeMs);
+      return result;
+    },
+    repeat(endTimeMs, preheldKeys) {
+      const result = controller.finish(endTimeMs);
       release();
       iteration++;
       replace(preheldKeys);

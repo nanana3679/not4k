@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useGameStore } from '../../stores';
 import { font, color, surface, radius, primitives } from '../../../shared/theme';
+import { TutorialPracticePanel } from './TutorialPracticePanel';
+import { useTutorialPractice } from './useTutorialPractice';
 import { TutorialPreviewPlayer } from './TutorialPreviewPlayer';
+import { isTutorialControlInput } from './explicitTutorialInput';
 import { isTutorialPreviewSlotPlaying, type TutorialPreviewSlotState } from './tutorialPreviewSlots';
-import { TUTORIAL_OPPOSITE_HAND_BODY_LINE } from './tutorialPreviewChart';
-import type { ExplicitTutorialPreviewDefinition } from './explicitTutorialPreviewChart';
+import { TUTORIAL_OPPOSITE_HAND_BODY_LINE, getTutorialInputTimings } from './tutorialPreviewChart';
+import type { TutorialPreviewPlayerProps } from './TutorialPreviewPlayer';
 import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, getTutorialSection, type TutorialSectionId } from './tutorialCatalog';
-import { getTutorialKeyboardLabel, type TutorialKeyBindings } from './tutorialKeyboardLayout';
+import { findUnmetTutorialPracticeKeyRequirements, getTutorialKeyboardLabel, type TutorialKeyBindings } from './tutorialKeyboardLayout';
 import {
   canShowTutorialCacheInvalidationButton,
   clearTutorialViewedIds,
@@ -17,6 +20,8 @@ import {
 interface TutorialHelpModalProps {
   onClose: () => void;
   isAdmin?: boolean;
+  /** 항목 전체가 이번 실습에서 false → true로 통과한 순간. 기록 저장은 후속 연결한다. */
+  onItemPassed?: (itemId: string) => void;
 }
 
 const TUTORIAL_PAGE_TRANSITION_MS = 260;
@@ -47,7 +52,7 @@ function getTutorialViewedStorage(): Storage | null {
   }
 }
 
-export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModalProps) {
+export function TutorialHelpModal({ onClose, isAdmin = false, onItemPassed }: TutorialHelpModalProps) {
   const [tutorialIndex, setTutorialIndex] = useState(0);
   const lastSectionIndexesRef = useRef<Record<TutorialSectionId, number>>({ basic: 0, advanced: TUTORIAL_SECTIONS[1].startIndex });
   const [visiblePlayerIndex, setVisiblePlayerIndex] = useState(0);
@@ -67,9 +72,24 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     () => readTutorialViewedIdsFromStorage(getTutorialViewedStorage()),
   );
   const settings = useGameStore((state) => state.settings);
+  const settingsOpen = useGameStore((state) => state.settingsOpen);
+  const setSettingsOpen = useGameStore((state) => state.setSettingsOpen);
   const currentSection = getTutorialSection(tutorialIndex);
   const sectionTutorialIndex = tutorialIndex - currentSection.startIndex;
   const currentTutorial = ALL_TUTORIAL_PREVIEWS[tutorialIndex] ?? ALL_TUTORIAL_PREVIEWS[0];
+  const practice = useTutorialPractice(ALL_TUTORIAL_PREVIEWS[0], onItemPassed);
+  const unmetKeyRequirements = useMemo(() => findUnmetTutorialPracticeKeyRequirements(
+    getTutorialInputTimings(currentTutorial.chart), settings.keyBindings,
+  ), [currentTutorial, settings.keyBindings]);
+  const { dispatch: dispatchPractice, reset: resetPractice } = practice;
+  const practiceMode = practice.state?.mode;
+  useEffect(() => {
+    if (unmetKeyRequirements.length && practiceMode === 'directInput') {
+      dispatchPractice({ type: 'modeSelected', mode: 'demonstration' });
+    }
+  }, [dispatchPractice, practiceMode, unmetKeyRequirements.length]);
+  const isPracticeLaneKey = useCallback((code: string) => practice.state?.mode === 'directInput'
+    && Object.values(settings.keyBindings).some(keys => keys.includes(code)), [practice.state?.mode, settings.keyBindings]);
   const bodyLines = currentTutorial.bodyLines.map((line) =>
     line === TUTORIAL_OPPOSITE_HAND_BODY_LINE
       ? getOppositeHandPlacementLine(settings.preset, settings.keyBindings)
@@ -113,6 +133,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     const nextSlot = getStandbyTutorialPreviewSlot(sourcePlayerSlot);
 
     cancelScheduledTransitionStart();
+    resetPractice(nextTutorial);
     setTutorialIndex(normalizedIndex);
     setTextTransitionDirection(direction);
     if (normalizedIndex === sourcePlayerIndex) {
@@ -149,6 +170,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
     cancelScheduledTransitionStart,
     playerTransition,
     previewSlotInstanceIds,
+    resetPractice,
     tutorialIndex,
     visiblePlayerIndex,
   ]);
@@ -300,9 +322,11 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
+      if (event.defaultPrevented || settingsOpen || isTutorialControlInput(event)) return;
       if (event.key === 'Escape') {
         requestClose();
+      } else if (isPracticeLaneKey(event.code)) {
+        event.preventDefault();
       } else if (event.key === 'ArrowLeft') {
         event.preventDefault();
         goToPreviousTutorial();
@@ -314,7 +338,7 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToNextTutorial, goToPreviousTutorial, requestClose]);
+  }, [goToNextTutorial, goToPreviousTutorial, requestClose, settingsOpen, isPracticeLaneKey]);
 
   return (
     <div
@@ -398,6 +422,10 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
               style={{ ...tutorialHelpStyles.tab, ...(currentSection.id === section.id ? tutorialHelpStyles.tabSelected : {}) }}
               onClick={() => goToTutorialIndex(lastSectionIndexesRef.current[section.id])}
               onKeyDown={(event) => {
+                if (isPracticeLaneKey(event.code) && !isTutorialControlInput(event.nativeEvent)) {
+                  event.preventDefault();
+                  return;
+                }
                 const nextSectionIndex = event.key === 'Home' ? 0
                   : event.key === 'End' ? TUTORIAL_SECTIONS.length - 1
                   : event.key === 'ArrowRight' ? (index + 1) % TUTORIAL_SECTIONS.length
@@ -463,6 +491,8 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
           </nav>
 
           <div className="not4k-tutorial-player-column" style={tutorialHelpStyles.playerColumn}>
+            <TutorialPracticePanel practice={practice} onNextItem={goToNextTutorial}
+              unmetKeyRequirements={unmetKeyRequirements} onOpenSettings={() => setSettingsOpen(true)} />
             <div
               className="not4k-tutorial-carousel-card"
               style={tutorialHelpStyles.carouselCard}
@@ -484,6 +514,8 @@ export function TutorialHelpModal({ onClose, isAdmin = false }: TutorialHelpModa
                 playerTransition={playerTransition}
                 transitionProgress={playerTransitionProgress}
                 handlePreviewSlotReady={handlePreviewSlotReady}
+                practice={practice}
+                suspended={settingsOpen || isClosing}
               />
             </div>
           </div>
@@ -519,7 +551,11 @@ function TutorialPreviewTransitionStage({
   playerTransition: transition,
   transitionProgress,
   handlePreviewSlotReady,
+  practice,
+  suspended,
 }: {
+  practice: ReturnType<typeof useTutorialPractice>;
+  suspended: boolean;
   activePlayerSlot: TutorialPreviewSlotId;
   previewSlotIndexes: readonly [number, number];
   previewSlotInstanceIds: readonly [number, number];
@@ -564,6 +600,8 @@ function TutorialPreviewTransitionStage({
               slotState={slotState}
               transition={transition}
               onReady={() => handlePreviewSlotReady(slotId, previewIndex, previewInstanceId)}
+              practiceProps={ALL_TUTORIAL_PREVIEWS[previewIndex].id === practice.lessonId ? practice.playerProps : undefined}
+              practiceStopped={suspended || (ALL_TUTORIAL_PREVIEWS[previewIndex].id === practice.lessonId && practice.stopped)}
             />
           );
         })}
@@ -636,20 +674,26 @@ function TutorialPreviewSlot({
   slotState,
   transition,
   onReady,
+  practiceProps,
+  practiceStopped,
 }: {
-  preview: ExplicitTutorialPreviewDefinition;
+  practiceProps?: Pick<TutorialPreviewPlayerProps, 'inputMode' | 'playbackRevision' | 'onPatternStarted' | 'onPatternFinished' | 'onScoreChanged'>;
+  practiceStopped: boolean;
+  preview: (typeof ALL_TUTORIAL_PREVIEWS)[number];
   previewInstanceId: number;
   slotState: TutorialPreviewSlotState;
   transition: TutorialPlayerTransition | null;
   onReady?: () => void;
 }) {
+  // 도식은 시연에서만 멈춰 보여준다. 직접 입력은 다음 반복과 완료 뒤 다음 버튼을 가리지 않는다.
   // entering 재생기는 paused라 루프를 진행하지 않으므로, 차트를 건 시점(루프 시간 0)에 시작하는 도식만 미리 arming해
   // 도식 시작점에 프레임을 고정한다.
-  const diagramModalEnabled = slotState === 'active' || slotState === 'entering';
+  const diagramModalEnabled = practiceProps?.inputMode !== 'directInput'
+    && (slotState === 'active' || slotState === 'entering');
   // 확인 모달은 뷰포트 전체를 덮는 portal이라, 전환 중 나가는 슬롯의 exit 애니메이션과
   // 들어오는 슬롯의 enter가 겹치면 화면에 모달이 2개로 보인다. 안착한 active 슬롯에서만 표시해
   // 동시에 두 개가 뜨지 않게 한다.
-  const diagramModalVisible = slotState === 'active';
+  const diagramModalVisible = diagramModalEnabled && slotState === 'active';
 
   return (
     <div
@@ -669,8 +713,10 @@ function TutorialPreviewSlot({
           previewInstanceId={previewInstanceId}
           diagramModalEnabled={diagramModalEnabled}
           diagramModalVisible={diagramModalVisible}
-          paused={!isTutorialPreviewSlotPlaying(slotState)}
+          paused={!isTutorialPreviewSlotPlaying(slotState) || practiceStopped}
           onReady={onReady}
+          {...practiceProps}
+          ownsKeyboardInput={() => !useGameStore.getState().settingsOpen}
         />
       </div>
     </div>

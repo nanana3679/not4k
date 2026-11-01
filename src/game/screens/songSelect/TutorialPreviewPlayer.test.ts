@@ -40,7 +40,7 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('showFlightBackground: false');
   });
 
-  it('곡 선택 튜토리얼 미니 재생기는 정확도·콤보 HUD를 숨기고 판정선을 아래로 내림', () => {
+  it('캔버스 HUD는 숨겨 팝업 실습의 DOM 콤보·조건과 중복하지 않고 판정선을 아래로 내린다', () => {
     expect(tutorialPreviewPlayerSource).toContain('showComboAndAccuracy: false');
     expect(tutorialPreviewPlayerSource).toContain('const PREVIEW_JUDGMENT_LINE_OFFSET = playfieldPx(80)');
     expect(tutorialPreviewPlayerSource).toContain('judgmentLineOffset: PREVIEW_JUDGMENT_LINE_OFFSET');
@@ -193,7 +193,8 @@ describe('TutorialPreviewPlayer', () => {
     expect(tutorialPreviewPlayerSource).toContain('preview.renderChart');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderDurationMs');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderStartMs');
-    expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = Math.max(0, now - loopStartNow) % preview.loopMs');
+    expect(tutorialPreviewPlayerSource).toContain('getExplicitTutorialInputTime(now, loopStartNow, preview.loopMs)');
+    expect(tutorialPreviewPlayerSource).toContain('let loopTimeMs = screenTime.loopTimeMs');
     expect(tutorialPreviewPlayerSource).toContain('const renderTimeMs = preview.renderStartMs + loopTimeMs');
     expect(tutorialPreviewPlayerSource).toContain('getActiveTutorialInputTimings(loopTimeMs, timings)');
     expect(tutorialPreviewPlayerSource).toContain('renderer.renderFrame(renderTimeMs, deltaMs)');
@@ -341,7 +342,7 @@ describe('TutorialPreviewPlayer', () => {
   });
 
   it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 렌더 사이클 0 초기화 → 준비 알림 순서로 재사용', () => {
-    const contentDeps = '  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
+    const contentDeps = '  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, playbackRevision, timings, tutorialKeyboardKeys]);';
     expect(tutorialPreviewPlayerSource).toContain(contentDeps);
     const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {');
     expect(attachStart).toBeGreaterThan(-1);
@@ -361,7 +362,7 @@ describe('TutorialPreviewPlayer', () => {
 
   it('차트 effect 정리는 rAF만 멈추고 렌더러를 dispose하지 않음 — dispose는 렌더러 effect 정리에서만', () => {
     const contentStart = tutorialPreviewPlayerSource.indexOf('  }, [rendererKey]);');
-    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);');
+    const contentEnd = tutorialPreviewPlayerSource.indexOf('  }, [diagramTimings, directBindings, directKeyboardKeys, explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, playbackRevision, timings, tutorialKeyboardKeys]);');
     expect(contentStart).toBeGreaterThan(-1);
     expect(contentEnd).toBeGreaterThan(contentStart);
     const contentEffect = tutorialPreviewPlayerSource.slice(contentStart, contentEnd);
@@ -418,7 +419,9 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(order.every((index) => index > attachStart)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(tutorialPreviewPlayerSource.split('renderer.setExplicitChart(').length - 1).toBe(1);
-    expect(tutorialPreviewPlayerSource).toContain('() => explicitPlayback.renderSnapshot(activeRenderCycle)');
+    expect(tutorialPreviewPlayerSource).toContain('() => explicitPlayback.renderSnapshot(');
+    expect(tutorialPreviewPlayerSource).toContain('(explicitInput?.sessionIteration ?? screenIteration) - screenIteration');
+    expect(tutorialPreviewPlayerSource).toContain('screenIteration = screenTime.iteration;');
     expect(tutorialPreviewPlayerSource).toContain('preview.renderDurationMs,');
   });
 
@@ -429,7 +432,7 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     // 구형 정의는 고정 Normal이라 판정 모드 변경으로 다시 걸지 않는다.
     expect(tutorialPreviewPlayerSource).toContain("const explicitJudgmentMode = preview && isExplicitTutorialPreview(preview) ? settings.judgmentMode : 'normal';");
     expect(tutorialPreviewPlayerSource).toContain('renderer.setPerfectWindow(JUDGMENT_WINDOWS.PERFECT)');
-    expect(tutorialPreviewPlayerSource).toContain('explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, timings');
+    expect(tutorialPreviewPlayerSource).toContain('explicitJudgmentMode, keyboardAreaHeight, keys, preview, previewInstanceId, playbackRevision, timings');
   });
 
   it('명시 확정 효과는 판정 글자 묶음·고도·타격을 렌더러로 보내고 타격은 구형과 같은 onBombEffect·showRendererBomb 경로를 공유', () => {
@@ -448,10 +451,13 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     // `callback?.(finishPattern())`처럼 쓰면 콜백이 없을 때 인자도 평가하지 않아 반복을 정산하지 않는다. 정산을 먼저 한다.
     const finishPattern = tutorialInputSource.indexOf('finished = playback.finishPattern(');
     expect(finishPattern).toBeGreaterThan(-1);
-    expect(tutorialInputSource.indexOf('onPatternFinished?.(finished);', finishPattern)).toBeGreaterThan(finishPattern);
-    expect(tutorialPreviewPlayerSource).toContain('onPatternFinishedRef.current?.(pattern);');
+    expect(tutorialInputSource.indexOf('reportFinished(finished);', finishPattern)).toBeGreaterThan(finishPattern);
+    const finishCallback = tutorialPreviewPlayerSource.indexOf('onPatternFinishedRef.current?.(pattern) === false');
+    expect(finishCallback).toBeGreaterThan(-1);
+    expect(tutorialPreviewPlayerSource.indexOf('onPatternStartedRef.current?.(pattern.iteration + 1)', finishCallback))
+      .toBeGreaterThan(finishCallback);
     expect(tutorialPreviewPlayerSource).not.toMatch(/\?\.\([^)]*finishPattern\(\)/);
-    expect(tutorialPreviewPlayerSource).toContain('onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => void;');
+    expect(tutorialPreviewPlayerSource).toContain('onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => false | void;');
   });
 
   it('명시 반복 결과는 DOM에 경계 정산·차수·점수를 공개하고 같은 차트를 렌더러에 다시 걸면 이전 결과를 지운다', () => {
@@ -487,8 +493,9 @@ describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
     expect(tutorialPreviewPlayerSource).toContain([
       'explicitInput?.advanceTo(Math.max(0, previousNow - loopStartNow), {',
       '              loopTimeMs,',
-      '              blocked: pausedRef.current || diagramHeldBeforeFrame,',
+      '              blocked,',
     ].join('\n'));
+    expect(tutorialPreviewPlayerSource).toContain('const blocked = pausedRef.current || diagramHeldBeforeFrame;');
     // 프레임에만 이전 도식 상태를 전달한다. 프레임 사이 키 이벤트는 현재 도식 상태를 읽어야 한다.
     expect(tutorialPreviewPlayerSource).toContain('blocked: pausedRef.current || activeDiagramPause !== null');
     expect(tutorialInputSource).toContain('beforeInput: () => syncJudging()');

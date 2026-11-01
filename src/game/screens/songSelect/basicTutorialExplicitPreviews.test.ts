@@ -9,6 +9,8 @@ import { BASIC_TUTORIAL_EXPLICIT_PREVIEWS } from './basicTutorialExplicitPreview
 import { ADVANCED_TUTORIAL_PREVIEWS } from './advancedTutorialPreviews';
 import { createTutorialTimingsInputPlan } from './explicitTutorialPreviewPlayback';
 import { createExplicitTutorialPreviewSessionController } from './explicitTutorialPreviewSession';
+import { ALL_TUTORIAL_PREVIEWS } from './tutorialCatalog';
+import { isTutorialPatternSuccess } from './tutorialPractice';
 import {
   getTutorialDiagramEvents,
   getTutorialInputEvents,
@@ -32,15 +34,18 @@ const expectedResults = [
   { id: 'headless-long-note', perfect: 1, goodTrill: 0, rate: 100 },
   { id: 'zero-length-long-note', perfect: 1, goodTrill: 0, rate: 100 },
   { id: 'grace-note', perfect: 2, goodTrill: 0, rate: 100 },
-  { id: 'hold-only-long-note', perfect: 1, goodTrill: 0, rate: 100 },
+  { id: 'hold-only-long-note', perfect: 2, goodTrill: 0, rate: 100 },
   { id: 'zero-length-hold-only-long-note', perfect: 1, goodTrill: 0, rate: 100 },
   { id: 'rest-zone', perfect: 8, goodTrill: 0, rate: 100 },
   { id: 'horizontal-movement', perfect: 16, goodTrill: 0, rate: 100 },
   { id: 'vertical-movement', perfect: 16, goodTrill: 0, rate: 100 },
 ];
 
-describe('Basic·Advanced 튜토리얼 반복 여백', () => {
-  it.each([...BASIC_TUTORIAL_EXPLICIT_PREVIEWS, ...ADVANCED_TUTORIAL_PREVIEWS])(
+describe.each([
+  { name: '공개 Basic·Advanced', previews: ALL_TUTORIAL_PREVIEWS },
+  { name: '구형 Advanced', previews: ADVANCED_TUTORIAL_PREVIEWS },
+])('$name 튜토리얼 반복 여백', ({ previews }) => {
+  it.each([...previews])(
     '$id는 마지막 노트·릴리즈 뒤 최소 2000ms를 두고 정수 박에서 반복하며 시연 keyup도 반복 안에 끝난다',
     preview => {
       const bpmChanges = extractBpmChanges(preview.chart.events);
@@ -57,7 +62,7 @@ describe('Basic·Advanced 튜토리얼 반복 여백', () => {
       expect(Number.isInteger(preview.loopBeats)).toBe(true);
       expect(msToBeat(loopStartMs + preview.loopMs, bpmChanges, offsetMs)).toBe(preview.loopBeats);
       for (const input of inputs) expect(input.endMs - loopStartMs).toBeLessThan(preview.loopMs);
-      if ('engine' in preview) {
+      if (BASIC_TUTORIAL_EXPLICIT_PREVIEWS.some(basic => basic.id === preview.id)) {
         // Basic은 기존 길이를 늘릴 때 이 조건을 만족하는 최소 정수 박까지만 늘린다.
         const previousBeatMs = beatToMs(beat(preview.loopBeats - 1), bpmChanges, offsetMs);
         expect(previousBeatMs - lastItemMs).toBeLessThan(TUTORIAL_LOOP_TRAILING_MARGIN_MS);
@@ -67,6 +72,44 @@ describe('Basic·Advanced 튜토리얼 반복 여백', () => {
 });
 
 describe('Basic 명시 튜토리얼', () => {
+  it.each([
+    { downMs: 500, upMs: 510, perfect: 1, great: 0, succeeded: true, rate: 50 },
+    { downMs: 550, upMs: 560, perfect: 0, great: 1, succeeded: false, rate: 100 / 3 },
+  ])('Basic 12에서 $downMs ms에 누르고 $upMs ms에 떼면 Great $great개·바디 Miss 1개로 최종 성공 $succeeded를 3회 반복한다', ({ downMs, upMs, perfect, great, succeeded, rate }) => {
+    const lesson = ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'hold-only-long-note')!;
+    const controller = createExplicitTutorialPreviewSessionController(lesson.chart, {
+      kind: 'events', events: [
+        { type: 'down', lane: 2, key: 'KeyE', timeMs: downMs },
+        { type: 'up', lane: 2, key: 'KeyE', timeMs: upMs },
+      ],
+    });
+    try {
+      for (let iteration = 0; iteration < 3; iteration++) {
+        const { score } = controller.repeat(lesson.loopMs);
+        expect(score.judgmentCounts).toMatchObject({ perfect, great, miss: 1 });
+        expect(isTutorialPatternSuccess(lesson.practice!.conditions, score, 'final')).toBe(succeeded);
+        expect(score.achievementRate).toBeCloseTo(rate);
+      }
+    } finally {
+      controller.dispose();
+    }
+  });
+
+  it('Basic 12에서 500ms에 누른 뒤 반복 끝까지 떼지 않으면 Perfect 2·Miss 0·100%로 성공한다', () => {
+    const lesson = ALL_TUTORIAL_PREVIEWS.find(preview => preview.id === 'hold-only-long-note')!;
+    const controller = createExplicitTutorialPreviewSessionController(lesson.chart, {
+      kind: 'events', events: [{ type: 'down', lane: 2, key: 'KeyE', timeMs: 500 }],
+    });
+    try {
+      const { score } = controller.repeat(lesson.loopMs);
+      expect(score.judgmentCounts).toMatchObject({ perfect: 2, miss: 0 });
+      expect(score.achievementRate).toBe(100);
+      expect(isTutorialPatternSuccess(lesson.practice!.conditions, score, 'final')).toBe(true);
+    } finally {
+      controller.dispose();
+    }
+  });
+
   it('구형 Basic 17개를 명시 목록으로 옮기고 뒤 여백을 늘려도 ID·순서·시연 입력·도식이 모두 유지된다', () => {
     expect(BASIC_TUTORIAL_EXPLICIT_PREVIEWS).toHaveLength(17);
     expect(BASIC_TUTORIAL_EXPLICIT_PREVIEWS.map(preview => ({
@@ -82,12 +125,14 @@ describe('Basic 명시 튜토리얼', () => {
   });
 
   it.each(expectedResults)(
-    '$id 원본은 승인한 변환과 같은 노트·구간을 유지하고 구형 노트 0개로 명시 compile을 통과한다',
+    '$id 원본은 승인한 변환과 실습용 끝 틱을 반영하고 구형 노트 0개로 명시 compile을 통과한다',
     ({ id }) => {
       const preview = BASIC_TUTORIAL_EXPLICIT_PREVIEWS.find(preview => preview.id === id)!;
       const legacy = TUTORIAL_PREVIEWS.find(preview => preview.id === id)!;
       // 변환기는 테스트에서만 비교 기준으로 사용한다. 실제 정의는 독립된 명시 노트 리터럴이다.
       const convertedChart = convertLegacyChart(legacy.chart).chart;
+      // Basic 12는 바디 끝 유지에 점수를 주도록 승인한 변환 뒤 끝 틱을 추가했다.
+      if (id === 'hold-only-long-note') convertedChart.notes.push({ type: 'tick', lane: 2, beat: beat(4), count: 1 });
       expect(preview.chart).toEqual({
         ...convertedChart,
         meta: { ...convertedChart.meta, title: preview.title },
@@ -108,11 +153,12 @@ describe('Basic 명시 튜토리얼', () => {
     expect(preview.chart.meta.title).toBe(preview.title);
   });
 
-  it('Basic 12는 1박 탭과 1～4박 바디만 두고 릴리즈 없는 롱노트로 안내한다', () => {
+  it('Basic 12는 1박 탭·1～4박 바디·4박 틱으로 끝 유지에 점수를 주고 릴리즈는 요구하지 않는다', () => {
     const preview = BASIC_TUTORIAL_EXPLICIT_PREVIEWS[12];
     expect(preview.chart.notes).toEqual([
       { type: 'tap', kind: 'single', lane: 2, beat: beat(1) },
       { type: 'body', lane: 2, beat: beat(1), endBeat: beat(4), holdCount: 1 },
+      { type: 'tick', lane: 2, beat: beat(4), count: 1 },
     ]);
     expect(preview.title).toBe('릴리즈 없는 롱노트');
     expect(preview.chart.meta.title).toBe(preview.title);
