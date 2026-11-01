@@ -1,34 +1,88 @@
+import { isSongDirty } from '../songState';
+import { saveEditorSong } from '../saveEditorSong';
+import { isChartDirty } from '../savedChart';
 import { deleteEvents } from '../editing/eventEditing';
 /**
  * useFileOperations — 파일 저장/삭제 핸들러
  */
 
-import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useCallback } from 'react';
 import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import {
-  STORAGE_BUCKET,
-  songPreviewPath,
-  songJacketPath,
-  songAudioPath,
-  encodeWavBlob,
   extractTimeSignatureChanges,
   isMeasureBoundary,
 } from '../../shared';
-import type { Lane, PlaybackRange, TutorialDiagramId, ValidationError } from '../../shared';
+import type { Lane, TutorialDiagramId, ValidationError } from '../../shared';
 import {
   deleteChartAsset as persistDeleteChartAsset,
   saveChartAsset as persistChartAsset,
-  supabase,
 } from '../../supabase';
 import { useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { performPlayTest } from '../playtest/performPlayTest';
 import { editorChartErrors } from '../documentValidation';
 import type { SavedChartJson } from '../savedChart';
-import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { PAUSE_TO_EDIT_COPY, SAVE_AUDIO_LOADING_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { settleSonglessMedia, songlessMediaPaths, uploadSonglessMedia, withSonglessMediaPaths } from '../saveSonglessMedia';
+import { hasSonglessMedia } from '../songlessMedia';
 export { performPlayTest } from '../playtest/performPlayTest';
 export type { PerformPlayTestParams, PlayTestGameActions } from '../playtest/performPlayTest';
+
+type EditorStoreState = ReturnType<typeof useEditorStore.getState>;
+
+/** 열린 차트의 난이도 경로. URL·Save As가 정한 값이 없을 때만 meta의 난이도명을 쓴다. */
+function activeChartDifficulty(state: Pick<EditorStoreState, 'activeDifficulty' | 'chart'>): string {
+  return (state.activeDifficulty ?? state.chart.meta.difficultyLabel).toLowerCase();
+}
+
+/**
+ * Save·Save As는 같은 시작 초안을 사용한다. 기다리는 동안 추가한 편집은 저장 기준에 넣지 않는다.
+ * 곡을 저장하기 전에 저장 중·음원 로딩·저장별 조건(precheck)·차트 검증을 모두 확인해, 곡만 저장되고 차트 저장이 막히는 일을 줄인다.
+ */
+async function prepareSave(
+  audioBuffer: AudioBuffer | null,
+  isAudioLoading: () => boolean,
+  onValidationErrors: (errors: ValidationError[]) => void,
+  /** 곡 저장 전에 확인할 저장별 조건. 안내를 띄우고 false를 돌려주면 아무것도 쓰지 않는다. */
+  precheck: (state: EditorStoreState) => boolean,
+) {
+  const start = useEditorStore.getState();
+  if (start.isSavingSong || start.isSavingChart) {
+    start.addToast(SAVE_IN_PROGRESS_COPY.secondSave, 'error');
+    return null;
+  }
+  // 프리뷰 클립은 재생 중인 음원으로 만든다. 테스트 플레이 복귀 직후처럼 음원이 준비되지 않았으면 시작하지 않는다.
+  if (isAudioLoading()) {
+    start.addToast(SAVE_AUDIO_LOADING_COPY, 'error');
+    return null;
+  }
+  if (!precheck(start)) return null;
+  // 곡만 변경해도 전체 차트를 먼저 검증한다. 공통 타이밍을 게시한 뒤에는 차단할 수 없다.
+  const errors = editorChartErrors(start.chart);
+  if (errors.length > 0) {
+    onValidationErrors(errors);
+    return null;
+  }
+  const songDirty = isSongDirty(start.chart, start.song);
+  const chartDirty = isChartDirty(start.chart, start.extraLaneCount, start.savedChartJson, start.song !== null);
+  const songSaveResult = songDirty || start.song?.needsTimingMigration
+    ? await saveEditorSong(audioBuffer, message => window.confirm(message)) : null;
+  if (songSaveResult === 'aborted') return null;
+  const current = useEditorStore.getState();
+  if (current.chartLoadGeneration !== start.chartLoadGeneration) return null;
+  // 업로드로 확정된 곡 경로만 사본에 반영한다. 저장 중의 노트·타이밍 편집은 다음 저장에 남긴다.
+  const savedSong = songSaveResult === 'saved' ? current.song?.baseline : null;
+  const chart = savedSong ? { ...start.chart, meta: { ...start.chart.meta,
+    imageFile: savedSong.jacketUrl ?? '', audioFile: savedSong.audioUrl, previewAudioFile: savedSong.previewUrl ?? '',
+  } } : start.chart;
+  return { chart, activeSongId: start.activeSongId, extraLaneCount: start.extraLaneCount,
+    chartLoadGeneration: start.chartLoadGeneration, difficulty: activeChartDifficulty(start),
+    // 곡 행이 없으면 기존 규칙대로 차트와 함께 대기 미디어를 올린다.
+    songlessMedia: !start.song && hasSonglessMedia(start.songlessMedia) ? start.songlessMedia : null,
+    // 아무 변경도 없거나 이행을 거절했으면 곡 변경 여부와 관계없이 현재 차트를 저장한다.
+    saveChart: chartDirty || !songDirty || songSaveResult === 'migration-declined' };
+}
 
 export interface FileOperationHandlers {
   handleSaveChart: () => Promise<void>;
@@ -37,44 +91,6 @@ export interface FileOperationHandlers {
   handleDeleteChart: () => Promise<void>;
   handleEventSave: (values: Record<string, string>) => void;
   handleEventDelete: () => void;
-}
-
-/**
- * 교체할 오디오 파일이 있으면 업로드 대상 storage 경로를 계산한다.
- * 파일 확장자를 그대로 쓰되, 없으면 기본 'ogg'를 사용한다.
- * 교체 파일이 없으면 null을 반환한다.
- */
-export function resolveAudioUploadPath(
-  pendingAudioFile: File | null,
-  songId: string,
-): string | null {
-  if (!pendingAudioFile) return null;
-  const ext = pendingAudioFile.name.split('.').pop() || 'ogg';
-  return songAudioPath(songId, ext);
-}
-
-/**
- * 프리뷰 클립(preview.wav)을 재생성해야 하는 구간을 결정한다.
- * - 프리뷰 구간을 새로 지정/변경했으면 그 구간을 사용한다.
- * - 구간 변경은 없지만 오디오를 교체했고 기존 프리뷰 구간이 있으면,
- *   같은 구간을 새 음원 기준으로 다시 인코딩하기 위해 그 구간을 반환한다(페이드 없음).
- * - 둘 다 아니면 null(재생성 안 함).
- */
-export function resolvePreviewRegenRange(
-  pendingPreviewRange: PlaybackRange | null,
-  audioReplaced: boolean,
-  meta: { previewStart?: number; previewEnd?: number },
-): PlaybackRange | null {
-  if (pendingPreviewRange) return pendingPreviewRange;
-  if (audioReplaced && meta.previewStart != null && meta.previewEnd != null) {
-    return {
-      startTime: meta.previewStart,
-      endTime: meta.previewEnd,
-      fadeInTime: 0,
-      fadeOutTime: 0,
-    };
-  }
-  return null;
 }
 
 export function useFileOperations(
@@ -86,55 +102,34 @@ export function useFileOperations(
   setSaveAsOverwriteTarget: (v: { difficulty: string; level: number } | null) => void,
   setShowDeleteConfirm: (v: boolean) => void,
   setShowPlayTestMenu: (v: boolean) => void,
-  setPendingPreviewRange: (v: PlaybackRange | null) => void,
-  setPendingGameplayRange: (v: PlaybackRange | null) => void,
-  setPendingJacketFile: (v: File | null) => void,
-  setJacketCacheBust: (v: number) => void,
-  pendingPreviewRange: PlaybackRange | null,
-  pendingGameplayRange: PlaybackRange | null,
-  pendingJacketFile: File | null,
-  setPendingAudioFile: (v: File | null) => void,
-  pendingAudioFile: File | null,
   /** 테스트 플레이 시 /game으로 이동. 전체 리로드 대신 react-router 네비게이션을 주입한다. */
   navigateTo: (path: string) => void,
+  /** 에디터 음원을 불러오는 중인가. 불러오는 동안에는 Save·Save As를 시작하지 않는다. */
+  isAudioLoading: () => boolean = () => false,
 ): FileOperationHandlers {
   const chart = useEditorStore((s) => s.chart);
   const setChart = useEditorStore((s) => s.setChart);
   const activeSongId = useEditorStore((s) => s.activeSongId);
-  const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const addToast = useEditorStore((s) => s.addToast);
   const beginChartSave = useEditorStore((s) => s.beginChartSave);
   const finishChartSave = useEditorStore((s) => s.finishChartSave);
   const editingEvent = useEditorStore((s) => s.editingEvent);
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
-  // 저장 콜백은 시작 시 파일을 캡처한다. 완료 시에는 마지막으로 적용한 Meta의 파일과 identity를 비교한다.
-  const pendingAssetsRef = useRef({ jacket: pendingJacketFile, audio: pendingAudioFile });
-  useLayoutEffect(() => {
-    pendingAssetsRef.current = { jacket: pendingJacketFile, audio: pendingAudioFile };
-  }, [pendingJacketFile, pendingAudioFile]);
-
   const handleSaveChart = useCallback(async () => {
-    if (!activeSongId) {
-      addToast('No song selected — cannot save to server', 'error');
-      return;
-    }
-    const difficulty = chart.meta.difficultyLabel.toLowerCase();
-    if (!difficulty) {
-      addToast('Difficulty label is empty', 'error');
-      return;
-    }
-
-    // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6 — ③ 후 chart.notes로 환원)
-    const errors = editorChartErrors({
-      notes: chart.notes,
-      trillZones: chart.trillZones,
-      restZones: chart.restZones,
-      events: chart.events,
+    const prepared = await prepareSave(playbackRef.current?.audioBufferData ?? null, isAudioLoading, setValidationErrors, state => {
+      if (!state.activeSongId) {
+        addToast('No song selected — cannot save to server', 'error');
+        return false;
+      }
+      if (!state.chart.meta.difficultyLabel) {
+        addToast('Difficulty label is empty', 'error');
+        return false;
+      }
+      return true;
     });
-    if (errors.length > 0) {
-      setValidationErrors(errors);
-      return;
-    }
+    if (!prepared || !prepared.saveChart || !prepared.activeSongId
+      || useEditorStore.getState().chartLoadGeneration !== prepared.chartLoadGeneration) return;
+    const { chart, activeSongId, extraLaneCount, difficulty, songlessMedia } = prepared;
 
     // 저장 진행은 store가 소유한다. 테스트 플레이에서 돌아와 페이지가 다시 마운트돼도 진행 중인 저장을 알고 막는다.
     const saveGeneration = beginChartSave();
@@ -145,113 +140,19 @@ export function useFileOperations(
     }
     let uploadedJson: SavedChartJson | null = null;
     try {
-      let chartToSave = chart;
-      let resolvedJacketPath: string | null = null;
-      if (pendingJacketFile) {
-        const ext = pendingJacketFile.name.split('.').pop() || 'jpg';
-        resolvedJacketPath = songJacketPath(activeSongId, ext);
-        chartToSave = { ...chartToSave, meta: { ...chartToSave.meta, imageFile: resolvedJacketPath } };
-      }
-
-      const resolvedAudioPath = resolveAudioUploadPath(pendingAudioFile, activeSongId);
-      if (resolvedAudioPath) {
-        chartToSave = { ...chartToSave, meta: { ...chartToSave.meta, audioFile: resolvedAudioPath } };
-      }
-
+      const mediaPaths = songlessMedia ? songlessMediaPaths(activeSongId, songlessMedia) : null;
       const savedAsset = await persistChartAsset({
         songId: activeSongId,
         difficulty,
-        chart: chartToSave,
+        chart: mediaPaths ? withSonglessMediaPaths(chart, mediaPaths) : chart,
         extraLaneCount,
       });
-
-      if (pendingJacketFile && resolvedJacketPath) {
-        const { error: jacketUpErr } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .upload(resolvedJacketPath, pendingJacketFile, { upsert: true });
-        if (jacketUpErr) throw new Error(`Jacket upload failed: ${jacketUpErr.message}`);
-        await supabase.from('songs').update({ jacket_url: resolvedJacketPath }).eq('id', activeSongId);
-        if (pendingAssetsRef.current.jacket === pendingJacketFile) {
-          const currentChart = useEditorStore.getState().chart;
-          setChart({ ...currentChart, meta: { ...currentChart.meta, imageFile: resolvedJacketPath } });
-          setPendingJacketFile(null);
-        }
-        setJacketCacheBust(Date.now());
+      if (songlessMedia && mediaPaths) {
+        await uploadSonglessMedia({ songId: activeSongId, media: songlessMedia, paths: mediaPaths, meta: chart.meta,
+          audioBuffer: playbackRef.current?.audioBufferData ?? null });
+        if (useEditorStore.getState().chartSaveGeneration === saveGeneration) settleSonglessMedia(songlessMedia, mediaPaths);
       }
 
-      if (pendingAudioFile && resolvedAudioPath) {
-        const { error: audioUpErr } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .upload(resolvedAudioPath, pendingAudioFile, { upsert: true });
-        if (audioUpErr) throw new Error(`Audio upload failed: ${audioUpErr.message}`);
-        await supabase.from('songs').update({ audio_url: resolvedAudioPath }).eq('id', activeSongId);
-        if (pendingAssetsRef.current.audio === pendingAudioFile) {
-          const currentChart = useEditorStore.getState().chart;
-          setChart({ ...currentChart, meta: { ...currentChart.meta, audioFile: resolvedAudioPath } });
-          setPendingAudioFile(null);
-        }
-      }
-
-      const songUpdate: Record<string, unknown> = {};
-
-      if (pendingPreviewRange) {
-        Object.assign(songUpdate, {
-          preview_start: pendingPreviewRange.startTime,
-          preview_end: pendingPreviewRange.endTime,
-        });
-      }
-
-      // 프리뷰 클립은 (1) 구간 변경 시 또는 (2) 오디오 교체 시(기존 구간 유지) 재생성한다.
-      const previewRegenRange = resolvePreviewRegenRange(
-        pendingPreviewRange,
-        pendingAudioFile != null,
-        chart.meta,
-      );
-      if (previewRegenRange) {
-        const ab = playbackRef.current?.audioBufferData;
-        if (ab) {
-          const wavBlob = encodeWavBlob(ab, previewRegenRange.startTime, previewRegenRange.endTime, {
-            fadeInTime: previewRegenRange.fadeInTime,
-            fadeOutTime: previewRegenRange.fadeOutTime,
-          });
-          const previewPath = songPreviewPath(activeSongId);
-          const { error: prevUpErr } = await supabase.storage
-            .from(STORAGE_BUCKET)
-            .upload(previewPath, wavBlob, { upsert: true });
-          if (prevUpErr) throw new Error(`Preview upload failed: ${prevUpErr.message}`);
-          songUpdate.preview_url = previewPath;
-        }
-      }
-
-      if (pendingGameplayRange) {
-        Object.assign(songUpdate, {
-          gameplay_start: pendingGameplayRange.startTime,
-          gameplay_end: pendingGameplayRange.endTime,
-          gameplay_fade_in: pendingGameplayRange.fadeInTime,
-          gameplay_fade_out: pendingGameplayRange.fadeOutTime,
-        });
-      }
-
-      // 오디오/프리뷰 파일을 교체하면 storage 경로(URL)는 그대로라 브라우저 캐시가
-      // 옛 파일을 제공한다. updated_at을 갱신해 프리뷰 재생 URL의 캐시버스트 토큰으로 쓴다.
-      // (songs.updated_at은 default now()라 UPDATE 시 자동 갱신되지 않으므로 직접 넣는다.)
-      if (pendingAudioFile != null || previewRegenRange != null) {
-        songUpdate.updated_at = new Date().toISOString();
-      }
-
-      if (Object.keys(songUpdate).length > 0) {
-        const { error: songUpdateError } = await supabase
-          .from('songs')
-          .update(songUpdate)
-          .eq('id', activeSongId);
-        if (songUpdateError) throw new Error(`Song settings update failed: ${songUpdateError.message}`);
-
-        setPendingPreviewRange(null);
-        setPendingGameplayRange(null);
-      }
-
-      // 업로드한 메인·보조 JSON(저장을 시작할 때의 chartToSave)을 아래 finally에서 savedChartJson으로 정한다.
-      // 저장 결과의 경로만 현재 차트에 합치므로 저장 중 편집은 남고 업로드한 JSON과 달라 dirty다.
       uploadedJson = { chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson };
       addToast('Chart saved', 'info');
     } catch (err: unknown) {
@@ -261,26 +162,20 @@ export function useFileOperations(
       // 실패(uploadedJson null)면 savedChartJson을 그대로 둬 dirty가 남는다. 그 사이 차트를 새로 불러왔으면 store가 무시한다.
       finishChartSave(saveGeneration, uploadedJson);
     }
-  }, [chart, activeSongId, addToast, pendingPreviewRange, pendingGameplayRange, pendingJacketFile, pendingAudioFile, extraLaneCount, playbackRef, setChart, beginChartSave, finishChartSave, setValidationErrors, setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setPendingAudioFile, setJacketCacheBust]);
+  }, [playbackRef, addToast, beginChartSave, finishChartSave, setValidationErrors, isAudioLoading]);
 
   const handleSaveAs = useCallback(async (targetDifficulty: string, targetLevel: number) => {
-    if (!activeSongId) {
-      addToast('No song selected — cannot save', 'error');
-      return;
-    }
-
-    // 저장 게이트도 보조 레인 위반을 동일하게 본다 (RFD 0018 §3-6)
-    const errors = editorChartErrors({
-      notes: chart.notes,
-      trillZones: chart.trillZones,
-      restZones: chart.restZones,
-      events: chart.events,
-    });
-    if (errors.length > 0) {
+    const prepared = await prepareSave(playbackRef.current?.audioBufferData ?? null, isAudioLoading, errors => {
       setValidationErrors(errors);
       setShowSaveAsModal(false);
-      return;
-    }
+    }, state => {
+      if (state.activeSongId) return true;
+      addToast('No song selected — cannot save', 'error');
+      return false;
+    });
+    if (!prepared || !prepared.activeSongId
+      || useEditorStore.getState().chartLoadGeneration !== prepared.chartLoadGeneration) return;
+    const { chart, activeSongId, extraLaneCount } = prepared;
 
     const saveGeneration = beginChartSave();
     if (saveGeneration === null) {
@@ -309,14 +204,16 @@ export function useFileOperations(
         extraLaneCount,
       });
 
-      const currentChart = useEditorStore.getState().chart;
-      setChart({
-        ...currentChart,
-        meta: { ...currentChart.meta, difficultyLabel: targetDifficulty, difficultyLevel: targetLevel },
-      });
+      const current = useEditorStore.getState();
+      // 그 사이 다른 차트를 열었으면 새 차트의 난이도·URL을 바꾸지 않는다(finishChartSave도 같은 세대로 무시한다).
+      if (current.chartSaveGeneration === saveGeneration) {
+        // 열린 차트의 정체성 변경은 편집이 아니다. Undo가 이전 난이도를 되살려 다음 Save가 원래 차트를 덮어쓰지 않게 한다.
+        current.adoptChartIdentity(targetDifficulty, targetLevel);
+        // 다음 곡 이행 확인에서는 Save As로 열린 차트를 비교 대상에서 제외한다.
+        if (current.song) current.setSong({ ...current.song, sourceDifficulty: targetDifficulty });
+        window.history.replaceState(null, '', `?songId=${activeSongId}&difficulty=${difficulty}`);
+      }
       uploadedJson = { chartJson: savedAsset.chartJson, extraJson: savedAsset.extraJson };
-
-      window.history.replaceState(null, '', `?songId=${activeSongId}&difficulty=${difficulty}`);
 
       addToast(`Chart saved as ${targetDifficulty.toUpperCase()} Lv.${targetLevel}`, 'info');
     } catch (err: unknown) {
@@ -325,12 +222,11 @@ export function useFileOperations(
     } finally {
       finishChartSave(saveGeneration, uploadedJson);
     }
-  }, [chart, activeSongId, addToast, extraLaneCount, setChart, beginChartSave, finishChartSave, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget]);
+  }, [playbackRef, addToast, beginChartSave, finishChartSave, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, isAudioLoading]);
 
   const handlePlayTest = useCallback((fromCursor: boolean) => {
-    // 저장이 끝나기 전에 /game으로 가면 페이지가 다시 마운트되어, 진행 중인 저장이 끝날 때 하는 페이지 상태 정리
-    // (구간·재킷·오디오 대기 비우기)가 사라진 페이지에 닿는다. 툴바 버튼도 비활성이지만 다른 경로까지 여기서 막는다.
-    if (useEditorStore.getState().isSavingChart) {
+    // 곡·차트 저장 완료 전에 테스트 플레이로 이동하지 않는다. 툴바 밖 호출도 같은 조건을 적용한다.
+    if (useEditorStore.getState().isSavingChart || useEditorStore.getState().isSavingSong) {
       addToast(SAVE_IN_PROGRESS_COPY.playTest, 'error');
       return;
     }
@@ -372,7 +268,8 @@ export function useFileOperations(
       addToast('No song selected — cannot delete', 'error');
       return;
     }
-    const difficulty = chart.meta.difficultyLabel.toLowerCase();
+    // Save와 같이 열린 차트의 난이도 경로를 지운다. meta의 난이도명이 달라도 다른 난이도의 차트를 지우지 않는다.
+    const difficulty = activeChartDifficulty(useEditorStore.getState());
     if (!difficulty) {
       addToast('Difficulty label is empty', 'error');
       return;
@@ -394,7 +291,7 @@ export function useFileOperations(
     } finally {
       setDeleting(false);
     }
-  }, [chart, activeSongId, addToast, setDeleting, setShowDeleteConfirm]);
+  }, [activeSongId, addToast, setDeleting, setShowDeleteConfirm]);
 
   // 이벤트 편집 핸들러
 

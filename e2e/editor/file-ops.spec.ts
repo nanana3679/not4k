@@ -10,9 +10,9 @@ import {
   type OpenedEditor,
 } from './editorTestSetup';
 
-/** Save chart를 누르고 저장이 끝난 뒤 Storage에 업로드된 차트 JSON을 돌려준다. */
+/** Save를 누르고 저장이 끝난 뒤 Storage에 업로드된 차트 JSON을 돌려준다. */
 async function saveChart(page: Page, editor: OpenedEditor): Promise<ChartJsonV3 | ChartJsonV4> {
-  await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
   const upload = editor.supabaseWrites.find((write) => write.method === 'POST' && write.path === EDITOR_TEST_CHART_UPLOAD_PATH);
   expect(upload, `${EDITOR_TEST_CHART_UPLOAD_PATH} 업로드가 없다`).toBeDefined();
@@ -20,21 +20,28 @@ async function saveChart(page: Page, editor: OpenedEditor): Promise<ChartJsonV3 
 }
 
 test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
-  test('곡 행이 있으면 Meta의 Title·Artist는 읽기 전용이고 Offset·난이도는 편집 가능하며 Save chart는 곡 제목을 보존한다', async ({ page }) => {
-    const editor = await openEditor(page);
+  test('곡 제목을 새 제목으로 바꾸고 Save하면 확인 없이 곡 RPC 1회로 저장하고 Save 표시가 깨끗해진다', async ({ page }) => {
+    const editor = await openEditor(page, { songTiming: { bpmChanges: [{ beat: '0', bpm: 120 }],
+      timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 } });
+    const dialogs: string[] = [];
+    page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
     await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
     await page.getByRole('button', { name: 'Meta', exact: true }).click();
 
     for (const name of ['Title', 'Artist']) {
-      await expect(page.getByLabel(name, { exact: true })).toHaveJSProperty('readOnly', true);
+      await expect(page.getByLabel(name, { exact: true })).toBeEditable();
     }
-    await expect(page.getByText('Title and Artist are song-level values. Editing will be available with song save.')).toBeVisible();
+    await page.getByLabel('Title', { exact: true }).fill('새 제목');
     for (const name of ['Offset (ms)', 'Difficulty Label', 'Difficulty Level']) {
       await expect(page.getByLabel(name, { exact: true })).toBeEditable();
     }
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    const uploaded = await saveChart(page, editor);
-    expect(uploaded.meta).toMatchObject({ title: 'E2E 에디터 곡', artist: 'Offline', offsetMs: 0 });
+    await page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+    expect(editor.supabaseWrites).toHaveLength(1);
+    expect(editor.supabaseWrites[0].path).toBe('/rest/v1/rpc/save_song');
+    expect(JSON.parse(editor.supabaseWrites[0].body!)).toMatchObject({ p_title: '새 제목', p_artist: 'Offline' });
+    expect(dialogs).toEqual([]);
     expect(editor.supabaseWrites.filter(write => write.path === '/rest/v1/songs')).toEqual([]);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
@@ -50,7 +57,7 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     await page.getByLabel('Title', { exact: true }).fill('새 제목');
     await page.getByLabel('Artist', { exact: true }).fill('새 작곡가');
     await page.getByLabel('Offset (ms)', { exact: true }).fill('45');
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
     await openMeta();
     await expect(page.getByLabel('Title', { exact: true })).toHaveValue('새 제목');
     await expect(page.getByLabel('Artist', { exact: true })).toHaveValue('새 작곡가');
@@ -59,7 +66,7 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('Save chart를 누르면 songs/{songId}/normal.json에 v3 차트 JSON을 업로드하고 Chart saved 토스트를 띄운다', async ({ page }) => {
+  test('Save를 누르면 songs/{songId}/normal.json에 v3 차트 JSON을 업로드하고 Chart saved 토스트를 띄운다', async ({ page }) => {
     const editor = await openEditor(page);
 
     const uploaded = await saveChart(page, editor);
@@ -68,7 +75,7 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('차트 JSON 업로드 응답을 기다리는 동안 Save chart가 Saving chart로 비활성이고 처음부터·커서부터 시작도 저장 중 안내와 함께 비활성이며, 저장이 끝나면 둘 다 다시 활성', async ({ page }) => {
+  test('차트 JSON 업로드 응답을 기다리는 동안 Save가 Saving으로 비활성이고 처음부터·커서부터 시작도 저장 중 안내와 함께 비활성이며, 저장이 끝나면 둘 다 다시 활성', async ({ page }) => {
     const editor = await openEditor(page);
     let releaseUpload!: () => void;
     const uploadHeld = new Promise<void>((resolve) => { releaseUpload = resolve; });
@@ -78,8 +85,8 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
       await route.fallback();
     });
 
-    await page.getByRole('button', { name: 'Save chart', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Saving chart', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Saving', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Playback options', exact: true }).click();
     const fromStart = page.getByRole('button', { name: '처음부터 시작', exact: true });
     const fromCursor = page.getByRole('button', { name: '커서부터 시작', exact: true });
@@ -94,7 +101,7 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('보조 레인 수를 2 → 3으로 바꾼 뒤 차트 JSON 업로드가 500으로 실패하면 실패 토스트를 띄우고 Save chart의 저장 안 됨 표시가 남으며 Back to Songs가 Unsaved Changes 확인을 띄운다', async ({ page }) => {
+  test('보조 레인 수를 2 → 3으로 바꾼 뒤 차트 JSON 업로드가 500으로 실패하면 실패 토스트를 띄우고 Save의 저장 안 됨 표시가 남으며 Back to Songs가 Unsaved Changes 확인을 띄운다', async ({ page }) => {
     const editor = await openEditor(page);
     await page.route((url) => url.pathname === EDITOR_TEST_CHART_UPLOAD_PATH, async (route) => {
       if (route.request().method() !== 'POST') { await route.fallback(); return; }
@@ -104,7 +111,7 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
     await page.locator('select').filter({ has: page.locator('option[value="10"]') }).selectOption('3');
     await page.mouse.click(10, 100);
-    const unsavedSave = page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true });
+    const unsavedSave = page.getByRole('button', { name: 'Save, unsaved changes', exact: true });
 
     await unsavedSave.click();
 
@@ -117,7 +124,7 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.supabaseWrites.filter((write) => write.path === '/rest/v1/charts')).toEqual([]);
   });
 
-  test('Storage 차트에 노트 3개가 있으면 진입 후 Save chart로 업로드한 차트에도 같은 노트 3개가 있다', async ({ page }) => {
+  test('Storage 차트에 노트 3개가 있으면 진입 후 Save로 업로드한 차트에도 같은 노트 3개가 있다', async ({ page }) => {
     const notes: ChartJsonV3['notes'] = [
       { type: 'single', lane: 1, beat: '0' },
       { type: 'single', lane: 2, beat: '1' },
@@ -131,7 +138,7 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('v3 메인과 version 999 보조 파일을 열면 Error를 보이고 타임라인·Save chart·업로드가 없다', async ({ page }) => {
+  test('v3 메인과 version 999 보조 파일을 열면 Error를 보이고 타임라인·Save·업로드가 없다', async ({ page }) => {
     const editor = await openEditor(page, {
       chart: editorTestChart([{ type: 'single', lane: 1, beat: '0' }]),
       extra: {
@@ -146,12 +153,12 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     await expect(page.getByText('차트 파싱 실패: 지원하지 않는 version: 999', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Back to Songs', exact: true })).toBeVisible();
     await expect(page.locator('canvas')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toHaveCount(0);
     expect(editor.supabaseWrites).toEqual([]);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('구형 보조 노트의 grace·holdOnly가 true·false이면 로드 후 Save chart의 보조 업로드에도 값을 보존한다', async ({ page }) => {
+  test('구형 보조 노트의 grace·holdOnly가 true·false이면 로드 후 Save의 보조 업로드에도 값을 보존한다', async ({ page }) => {
     const chart = editorTestChart([{ type: 'single', lane: 1, beat: '0' }]);
     const extra: ExtraNotesJson = {
       extraNotes: [
@@ -173,7 +180,7 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('보조 파일이 404이면 v3 메인에 내장된 보조 노트 2개를 열고 Save chart로 별도 파일에 보존한다', async ({ page }) => {
+  test('보조 파일이 404이면 v3 메인에 내장된 보조 노트 2개를 열고 Save로 별도 파일에 보존한다', async ({ page }) => {
     const embeddedExtra = {
       extraNotes: [
         { type: 'single', extraLane: 2, beat: '0', grace: true },

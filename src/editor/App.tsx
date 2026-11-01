@@ -2,7 +2,7 @@
  * not4k Chart Editor — Main App Component
  */
 
-import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { cursorRangeMsOf, setChartAndReadTimelineRange, timelineRangeMsOf } from './timeline/timelineRange';
@@ -17,7 +17,7 @@ import { useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
-import { normalizePlaybackRange, STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
+import { STORAGE_BUCKET, songChartPath, songChartExtraPath } from '../shared';
 import { hasLegacyNotes } from '../shared';
 import { hiddenViolationLanes } from './stores/unifiedNotes';
 import { toAuxIndex } from '../shared';
@@ -45,6 +45,7 @@ import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
 import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
+import { useEditorAudioLoad } from './hooks/useEditorAudioLoad';
 import { useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
@@ -53,6 +54,8 @@ import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
 import { editorChartViolationIndices } from './documentValidation';
 import { isChartDirty } from './savedChart';
 import { openEditorChart } from './openEditorChart';
+import { restoreSongAudioAfterPlayTest } from './playtest/restoreSongAudioAfterPlayTest';
+import { createMetaAudioSession, type MetaAudioPick } from './metaAudioSession';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 
@@ -77,27 +80,6 @@ function useCompactEditorLayout(): boolean {
   return compact;
 }
 
-interface SongGameplayRow {
-  duration: number | null;
-  gameplay_start: number | null;
-  gameplay_end: number | null;
-  gameplay_fade_in: number | null;
-  gameplay_fade_out: number | null;
-}
-
-function songRowToPlaybackRange(row: SongGameplayRow | null | undefined): PlaybackRange | null {
-  if (!row || row.gameplay_start == null || row.gameplay_end == null) return null;
-  const duration = row.duration != null && Number.isFinite(row.duration) && row.duration > 0
-    ? row.duration
-    : row.gameplay_end;
-  return normalizePlaybackRange({
-    startTime: row.gameplay_start,
-    endTime: row.gameplay_end,
-    fadeInTime: row.gameplay_fade_in ?? 0,
-    fadeOutTime: row.gameplay_fade_out ?? 0,
-  }, duration);
-}
-
 function samePlaybackRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
   if (a === null || b === null) return a === b;
   return a.startTime === b.startTime
@@ -110,10 +92,10 @@ export default function EditorApp() {
   const { user, isAdmin, loading, signInWithGoogle, signOut } = useAuth();
   const setChart = useEditorStore((s) => s.setChart);
   const setActiveSongId = useEditorStore((s) => s.setActiveSongId);
+  const setActiveDifficulty = useEditorStore((s) => s.setActiveDifficulty);
   const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
 
   const [chartLoading, setChartLoading] = useState(true);
-  const [hasSongRow, setHasSongRow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 새로 불러온 차트에 구형 노트가 있으면 에디터가 열릴 때 변환을 묻는다(RFD 0037 §8-1).
   // 테스트 플레이에서 돌아오는 경로(이미 불러온 곡)는 묻지 않는다. 사용자가 답하면 내려서,
@@ -142,17 +124,9 @@ export default function EditorApp() {
     // savedChartJson도 store에 그대로 남아, 저장하지 않은 편집은 돌아와도 dirty다.
     const existingStore = useEditorStore.getState();
     if (existingStore.activeSongId === songId) {
-      // 음원 경로와 곡 행 유무를 다시 읽되, 편집 중인 차트·저장 기준은 그대로 둔다.
-      fetchSongSharedData(songId).then((song) => {
-        setHasSongRow(song !== null);
-        if (song?.audioUrl) {
-          setPendingAudioUrl(getPublicUrl(song.audioUrl));
-        }
-        setChartLoading(false);
-      }).catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
-        setChartLoading(false);
-      });
+      // 복귀 시 음원 조회는 유지하되, 열린 곡의 초안·리비전·대기 파일을 서버 값으로 바꾸지 않는다.
+      // 조회가 실패해도 오류 화면으로 바꾸지 않고 편집을 그대로 연다(필요하면 알림만 띄운다).
+      void restoreSongAudioAfterPlayTest(songId, getPublicUrl).then(() => setChartLoading(false));
       return;
     }
 
@@ -173,9 +147,10 @@ export default function EditorApp() {
         const asset = loadEditorChartAsset(chartText, extraText, song);
         // 초기 BPM·박자만 보조 레인1·2에 둔 상태가 불러온 기본 상태다(dirty·Undo 없음, 서버에 쓰지 않음).
         // 그 자리와 겹친 일반 이벤트는 옮기지 않고 배치 위반으로 남긴다.
-        openEditorChart(asset);
-        setHasSongRow(song !== null);
+        openEditorChart(asset, song);
         setActiveSongId(songId);
+        // Save·Delete는 Meta의 난이도명이 아니라 연 차트의 난이도 경로를 쓴다. Save As만 바꾼다.
+        setActiveDifficulty(difficulty);
         setOfferLegacyConversion(hasLegacyNotes(asset.chart.notes));
 
         if (song?.audioUrl) {
@@ -187,7 +162,7 @@ export default function EditorApp() {
         setError(err instanceof Error ? err.message : String(err));
         setChartLoading(false);
       });
-  }, [songId, difficulty, setChart, setActiveSongId, setPendingAudioUrl]);
+  }, [songId, difficulty, setChart, setActiveSongId, setActiveDifficulty, setPendingAudioUrl]);
 
   if (loading || chartLoading) {
     return <PageLoading message="Loading editor..." />;
@@ -231,7 +206,6 @@ export default function EditorApp() {
 
   return (
     <ChartEditorPage
-      hasSongRow={hasSongRow}
       offerLegacyConversion={offerLegacyConversion}
       onLegacyConversionAnswered={handleLegacyConversionAnswered}
     />
@@ -242,13 +216,13 @@ export default function EditorApp() {
 // Chart Editor Page — 추출된 훅/컴포넌트로 조합
 // ---------------------------------------------------------------------------
 
-function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversionAnswered }: {
-  hasSongRow: boolean;
+function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: {
   offerLegacyConversion: boolean;
   /** 변환 모달에 답했다(변환 또는 구형 그대로 열기). 다시 마운트돼도 묻지 않게 묻는 표시를 내린다. */
   onLegacyConversionAnswered: () => void;
 }) {
   const chart = useEditorStore((s) => s.chart);
+  const song = useEditorStore((s) => s.song);
   const playTestNavigate = useNavigate();
   // Imperative refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -272,9 +246,6 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
   const [showMetaModal, setShowMetaModal] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
-  const [audioLoading, setAudioLoading] = useState(false);
-  const [initialAudioPending, setInitialAudioPending] = useState(() => Boolean(useEditorStore.getState().pendingAudioUrl));
-  const hasCompletedInitialAudioLoadRef = useRef(!useEditorStore.getState().pendingAudioUrl);
   const [loadedAudioBuffer, setLoadedAudioBuffer] = useState<AudioBuffer | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -284,12 +255,18 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
   const [deleting, setDeleting] = useState(false);
   const [showPlayTestMenu, setShowPlayTestMenu] = useState(false);
   const [showOffsetToolbar, setShowOffsetToolbar] = useState(false);
-  const [pendingPreviewRange, setPendingPreviewRange] = useState<PlaybackRange | null>(null);
-  const [pendingGameplayRange, setPendingGameplayRange] = useState<PlaybackRange | null>(null);
-  const [songGameplayRange, setSongGameplayRange] = useState<PlaybackRange | null>(null);
-  const [pendingJacketFile, setPendingJacketFile] = useState<File | null>(null);
-  const [pendingAudioFile, setPendingAudioFile] = useState<File | null>(null);
-  const [jacketCacheBust, setJacketCacheBust] = useState(0);
+  // 곡 행이 없는 차트의 대기 미디어·구간은 store가 소유하고 Save가 기존 규칙대로 올린 뒤 비운다(src/editor/saveSonglessMedia.ts).
+  const songlessMedia = useEditorStore((s) => s.songlessMedia);
+  const [localSongGameplayRange, setSongGameplayRange] = useState<PlaybackRange | null>(null);
+  const pendingPreviewRange = song ? song.pendingPreviewRange : songlessMedia.previewRange;
+  const pendingGameplayRange = song ? null : songlessMedia.gameplayRange;
+  const songGameplayRange = song ? song.gameplayRange : localSongGameplayRange;
+  const pendingJacketFile = song ? song.pendingJacketFile : songlessMedia.jacketFile;
+  // Meta 창에서 고른 음원과 로드 결과. 아래 metaAudio가 정한다.
+  const [metaAudioPick, setMetaAudioPick] = useState<MetaAudioPick | null>(null);
+  // 음원을 불러오는 중에는 Save·Save As를 시작하지 않는다. 아래 useEditorAudioLoad의 상태를 저장 핸들러가 읽는다.
+  const audioLoadingRef = useRef(false);
+  const isAudioLoading = useCallback(() => audioLoadingRef.current, []);
   // 구형 차트 변환 모달(RFD 0037 §8-1). 불러올 때 store의 savedChartJson을 구형 차트로 정했으므로 변환하면 dirty가 된다.
   // 변환 전 개수는 같은 순수 함수의 dry-run이다. 지금 차트에 구형 노트가 없으면 묻지 않는다.
   const [legacyConversionDialog, setLegacyConversionDialog] = useState<LegacyConversionDialog | null>(
@@ -302,9 +279,6 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const currentTimeMs = useEditorStore((s) => s.currentTimeMs);
   const selectedNotes = useEditorStore((s) => s.selection.notes);
-  const pendingAudioUrl = useEditorStore((s) => s.pendingAudioUrl);
-  const setPendingAudioUrl = useEditorStore((s) => s.setPendingAudioUrl);
-  const setChart = useEditorStore((s) => s.setChart);
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
@@ -315,11 +289,11 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
   const editingEvent = useEditorStore((s) => s.editingEvent);
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const activeSongId = useEditorStore((s) => s.activeSongId);
+  const activeDifficulty = useEditorStore((s) => s.activeDifficulty);
   const mode = useEditorStore((s) => s.mode);
   const legacyConversionReview = useEditorStore((s) => s.legacyConversionReview);
   const legacyConversionReviewOpen = useEditorStore((s) => s.legacyConversionReviewOpen);
   const setLegacyConversionReviewOpen = useEditorStore((s) => s.setLegacyConversionReviewOpen);
-  const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // TimelineSpace deep module — 좌표 변환 / 히트테스트
   const { space, bpmChanges } = useTimelineSpace(rendererRef);
@@ -395,31 +369,9 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
     rendererRef as React.RefObject<{ setChart: (c: unknown) => void } | null>,
     setDeleting, setValidationErrors,
     setShowSaveAsModal, setSaveAsOverwriteTarget, setShowDeleteConfirm, setShowPlayTestMenu,
-    setPendingPreviewRange, setPendingGameplayRange, setPendingJacketFile, setJacketCacheBust,
-    pendingPreviewRange, pendingGameplayRange, pendingJacketFile,
-    setPendingAudioFile, pendingAudioFile,
     playTestNavigate,
+    isAudioLoading,
   );
-
-  useEffect(() => {
-    if (!activeSongId) {
-      setSongGameplayRange(null);
-      return;
-    }
-    let mounted = true;
-    supabase
-      .from('songs')
-      .select('duration,gameplay_start,gameplay_end,gameplay_fade_in,gameplay_fade_out')
-      .eq('id', activeSongId)
-      .single()
-      .then(({ data }) => {
-        if (!mounted) return;
-        setSongGameplayRange(songRowToPlaybackRange(data as SongGameplayRow | null));
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [activeSongId]);
 
   // 키보드 단축키 훅
   useEditorKeyboard(
@@ -515,7 +467,7 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
     const container = canvasContainerRef.current;
     const initWidth = container?.clientWidth ?? 800;
     const initHeight = container?.clientHeight ?? 600;
-    setCanvasSize({ width: initWidth, height: initHeight });
+    // 렌더러는 측정값으로 시작하고, 화면 크기 상태는 아래 ResizeObserver가 갱신한다.
 
     const renderer = new TimelineRenderer({
       canvas,
@@ -607,30 +559,19 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
     }
   }, [masterVolume]);
 
-  // 오디오 로드
-  useEffect(() => {
-    if (!pendingAudioUrl) return;
-    const playback = playbackRef.current;
-    if (!playback) return;
+  const { audioLoading, setAudioLoading, initialAudioPending } = useEditorAudioLoad(playbackRef, setLoadedAudioBuffer);
+  useLayoutEffect(() => {
+    audioLoadingRef.current = audioLoading || initialAudioPending;
+  }, [audioLoading, initialAudioPending]);
+  // Meta 창 한 번의 음원 선택. 실패하면 이전 음원을 다시 보이고, 적용하지 않고 닫으면 재생기를 이전 음원으로 되돌린다.
+  const [metaAudio] = useState(() => createMetaAudioSession({
+    setPick: setMetaAudioPick,
+    setAudioLoading,
+    setLoadedAudioBuffer,
+    onLoadFailed: () => useEditorStore.getState().addToast('Audio load failed', 'error'),
+  }));
 
-    const url = pendingAudioUrl;
-    if (!hasCompletedInitialAudioLoadRef.current) {
-      setInitialAudioPending(true);
-    }
-    setPendingAudioUrl(null);
-    setAudioLoading(true);
-    // dirty 스냅샷은 저장 분리(buildChartAsset)와 동일하게 직렬화한다 — 메인/보조 분리 후 비교.
-
-    playback.loadAudioUrl(url).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      setLoadedAudioBuffer(null);
-      addToast(`Audio load failed: ${message}`, 'error');
-    }).finally(() => {
-      setAudioLoading(false);
-      hasCompletedInitialAudioLoadRef.current = true;
-      setInitialAudioPending(false);
-    });
-  }, [pendingAudioUrl, setPendingAudioUrl, addToast]);
+  const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
   // ResizeObserver
   useEffect(() => {
@@ -878,27 +819,36 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
       {showMetaModal && (
         <MetaEditModal
           meta={chart.meta}
-          hasSongRow={hasSongRow}
           audioBuffer={loadedAudioBuffer}
           initialJacketFile={pendingJacketFile}
-          jacketCacheBust={jacketCacheBust}
+          audioLoading={audioLoading}
           initialGameplayRange={songGameplayRange}
           offsetLocked={isPlaying}
+          audioPick={metaAudioPick}
           onSave={async (meta, previewRange, jacketFile, gameplayRange, audioFile) => {
-            const prevStart = chart.meta.previewStart;
-            const prevEnd = chart.meta.previewEnd;
+            metaAudio.apply();
+            // 모달을 연 뒤 저장이 끝났어도 현재 경로·리비전·대기 파일을 기준으로 합친다.
+            const current = useEditorStore.getState();
+            const currentSong = current.song;
+            const prevStart = current.chart.meta.previewStart;
+            const prevEnd = current.chart.meta.previewEnd;
             const rangeChanged = previewRange != null && (
               previewRange.startTime !== prevStart || previewRange.endTime !== prevEnd
             );
-            setChart({ ...chart, meta });
-            if (rangeChanged && previewRange) {
-              setPendingPreviewRange({
-                startTime: previewRange.startTime,
-                endTime: previewRange.endTime,
-                fadeInTime: previewRange.fadeInTime,
-                fadeOutTime: previewRange.fadeOutTime,
+            current.setChart({ ...current.chart, meta: { ...current.chart.meta, ...meta } });
+            if (currentSong) {
+              current.setSong({ ...currentSong,
+                duration: audioFile ? loadedAudioBuffer?.duration ?? currentSong.duration : currentSong.duration,
+                pendingJacketFile: jacketFile ?? currentSong.pendingJacketFile,
+                pendingAudioFile: audioFile ?? currentSong.pendingAudioFile,
+                pendingPreviewRange: rangeChanged ? previewRange : currentSong.pendingPreviewRange,
+                gameplayRange: gameplayRange ?? currentSong.gameplayRange,
               });
+              setShowMetaModal(false);
+              return;
             }
+            // 곡 행이 없으면 기존 규칙대로 대기 미디어·구간으로 남기고 Save가 올린다.
+            const media = current.songlessMedia;
             const nextGameplayRange = gameplayRange
               ? {
                 startTime: gameplayRange.startTime,
@@ -907,18 +857,26 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
                 fadeOutTime: gameplayRange.fadeOutTime,
               }
               : null;
-            if (!samePlaybackRange(nextGameplayRange, songGameplayRange)) {
-              setSongGameplayRange(nextGameplayRange);
-              setPendingGameplayRange(nextGameplayRange);
-            }
-            if (jacketFile) setPendingJacketFile(jacketFile);
-            if (audioFile) setPendingAudioFile(audioFile);
+            const gameplayChanged = nextGameplayRange !== null && !samePlaybackRange(nextGameplayRange, songGameplayRange);
+            if (gameplayChanged) setSongGameplayRange(nextGameplayRange);
+            current.setSonglessMedia({
+              previewRange: rangeChanged && previewRange ? {
+                startTime: previewRange.startTime,
+                endTime: previewRange.endTime,
+                fadeInTime: previewRange.fadeInTime,
+                fadeOutTime: previewRange.fadeOutTime,
+              } : media.previewRange,
+              gameplayRange: gameplayChanged ? nextGameplayRange : media.gameplayRange,
+              jacketFile: jacketFile ?? media.jacketFile,
+              audioFile: audioFile ?? media.audioFile,
+            });
             setShowMetaModal(false);
           }}
-          onClose={() => setShowMetaModal(false)}
-          onLoadAudio={(file) => {
-            void playbackRef.current?.loadAudioFile(file);
+          onClose={() => {
+            metaAudio.cancel(playbackRef.current);
+            setShowMetaModal(false);
           }}
+          onLoadAudio={(file) => { void metaAudio.load(playbackRef.current, file); }}
         />
       )}
 
@@ -960,7 +918,7 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
           currentDifficulty={chart.meta.difficultyLabel}
           title={chart.meta.title}
           level={chart.meta.difficultyLevel}
-          isDirty={isChartDirty(chart, extraLaneCount, savedChartJson)}
+          isDirty={isChartDirty(chart, extraLaneCount, savedChartJson, song !== null)}
           onSave={async (targetDifficulty, targetLevel) => {
             const { data: existing, error } = await supabase
               .from('charts')
@@ -1007,7 +965,8 @@ function ChartEditorPage({ hasSongRow, offerLegacyConversion, onLegacyConversion
           <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
             <h3 style={modalStyles.title}>Delete Chart</h3>
             <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#ccc' }}>
-              <strong>{chart.meta.difficultyLabel.toUpperCase()}</strong> 차트를 삭제하시겠습니까?<br />
+              {/* Delete Chart는 Meta의 난이도명이 아니라 열린 차트의 난이도 파일을 지운다. */}
+              <strong>{(activeDifficulty ?? chart.meta.difficultyLabel).toUpperCase()}</strong> 차트를 삭제하시겠습니까?<br />
               <span style={{ color: '#999', fontSize: '13px' }}>Storage 파일과 DB 행이 모두 삭제됩니다.</span>
             </p>
             <div style={modalStyles.buttons}>

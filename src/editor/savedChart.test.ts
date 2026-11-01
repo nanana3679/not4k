@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { beat, saveChartAsset, deserializeChartDocument } from '../shared';
 import type { ChartDocument, Lane, SongAssetPersistenceAdapter } from '../shared';
 import { isChartDirty, toSavedChartJson } from './savedChart';
+import { toSongTiming } from '../shared/songAssets/toSongTiming';
 
 function makeChart(notes: ChartDocument['notes'] = []): ChartDocument {
   return {
@@ -22,6 +23,62 @@ const mainNote = { type: 'single', lane: 1 as Lane, beat: beat(0) } as const;
 const auxNote = { type: 'single', lane: 5 as Lane, beat: beat(1) } as const;
 
 describe('isChartDirty', () => {
+  it.each(['bpm', 'timeSignature'] as const)('8박 %s의 editorLane만 1→2로 옮기면 곡 행이 있어도 차트가 dirty다', type => {
+    const chart = makeChart();
+    chart.events.push(type === 'bpm'
+      ? { type, beat: beat(8), bpm: 180, editorLane: 1 }
+      : { type, beat: beat(8), beatPerMeasure: beat(3), editorLane: 1 });
+    const saved = toSavedChartJson(chart, 2);
+    const edited = { ...chart, events: chart.events.map((event, index) => index === 2 ? { ...event, editorLane: 2 } : event) };
+    expect(isChartDirty(edited, 2, saved, true)).toBe(true);
+  });
+
+  it.each(['bpm', 'timeSignature'] as const)('보조 레인 1·2의 같은 값 %s 두 개의 4·8박을 맞바꾸면 곡 타이밍은 같아도 차트는 dirty다', type => {
+    const chart = makeChart();
+    chart.events.push(...[1, 2].map(editorLane => type === 'bpm'
+      ? { type, beat: beat(editorLane * 4), bpm: 180, editorLane }
+      : { type, beat: beat(editorLane * 4), beatPerMeasure: beat(4), editorLane }));
+    const saved = toSavedChartJson(chart, 2);
+    const edited = { ...chart, events: chart.events.map((event, index) => index >= 2
+      ? { ...event, beat: beat(index === 2 ? 8 : 4) } : event) };
+    expect(toSongTiming(edited)).toEqual(toSongTiming(chart));
+    expect(isChartDirty(edited, 2, saved, true)).toBe(true);
+  });
+
+  it('4박 BPM 180→150만 바꾸고 editorLane 1을 유지하면 곡 행이 있는 차트는 깨끗하다', () => {
+    const chart = makeChart();
+    chart.events.push({ type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 });
+    const saved = toSavedChartJson(chart, 2);
+    const edited = { ...chart, events: chart.events.map((event, index) => index === 2 ? { ...event, bpm: 150 } : event) };
+    expect(isChartDirty(edited, 2, saved, true)).toBe(false);
+  });
+
+  it('4박 박자표 4→3만 바꾸고 editorLane 2를 유지하면 곡 행이 있는 차트는 깨끗하다', () => {
+    const chart = makeChart();
+    chart.events.push({ type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(4), editorLane: 2 });
+    const saved = toSavedChartJson(chart, 2);
+    const edited = { ...chart, events: chart.events.map((event, index) => index === 2
+      ? { ...event, beatPerMeasure: beat(3) } : event) };
+    expect(isChartDirty(edited, 2, saved, true)).toBe(false);
+  });
+
+  it.each([4, 8])('4박·%s박 BPM의 배열 순서만 뒤집으면 같은 박의 레인 순서까지 정규화해 차트는 깨끗하다', secondBeat => {
+    const chart = makeChart();
+    chart.events.push({ type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 },
+      { type: 'bpm', beat: beat(secondBeat), bpm: 180, editorLane: 2 });
+    const saved = toSavedChartJson(chart, 2);
+    expect(isChartDirty({ ...chart, events: [...chart.events].reverse() }, 2, saved, true)).toBe(false);
+  });
+
+  it('BPM 180의 박만 4→8로 옮기면 editorLane 1을 유지해도 차트 배치가 dirty다', () => {
+    const chart = makeChart();
+    chart.events.push({ type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 });
+    const saved = toSavedChartJson(chart, 2);
+    const edited = { ...chart, events: chart.events.map((event, index) => index === 2
+      ? { ...event, beat: beat(8) } : event) };
+    expect(isChartDirty(edited, 2, saved, true)).toBe(true);
+  });
+
   it('savedChartJson을 만든 차트·보조 레인 수 2 그대로면 dirty 아님', () => {
     const chart = makeChart([mainNote]);
     expect(isChartDirty(chart, 2, toSavedChartJson(chart, 2))).toBe(false);
@@ -80,4 +137,37 @@ it('보조 lane 5 구간 끝을 4→5로 바꾸면 main JSON은 같아도 dirty�
   const edited = { ...chart, trillZones: [{ ...chart.trillZones[0], endBeat: beat(5) }] };
   expect(toSavedChartJson(edited, 2).chartJson).toBe(saved.chartJson);
   expect(isChartDirty(edited, 2, saved)).toBe(true);
+});
+
+describe('곡 행이 있는 차트의 저장 기준 정리 결과 재사용', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('같은 savedChartJson으로 노트 1·2·3개의 dirty를 차례로 비교하면 JSON 해석은 현재 차트 3회와 저장 기준 1회로 4회다', () => {
+    const saved = toSavedChartJson(makeChart([mainNote]), 2);
+    const parse = vi.spyOn(JSON, 'parse');
+    const results = [1, 2, 3].map(count => isChartDirty(
+      makeChart(Array.from({ length: count }, (_, index) => ({ ...mainNote, beat: beat(index) }))), 2, saved, true));
+    expect(results).toEqual([false, true, true]);
+    expect(parse).toHaveBeenCalledTimes(4);
+  });
+
+  it('노트 1개 기준으로 비교한 뒤 노트 2개를 저장한 새 savedChartJson으로 바꾸면 새 기준과 비교해 노트 2개 차트가 깨끗하고 노트 1개 차트가 dirty다', () => {
+    const one = makeChart([mainNote]);
+    const two = makeChart([mainNote, { ...mainNote, beat: beat(1) }]);
+    const first = toSavedChartJson(one, 2);
+    expect(isChartDirty(one, 2, first, true)).toBe(false);
+    expect(isChartDirty(two, 2, first, true)).toBe(true);
+
+    const second = toSavedChartJson(two, 2);
+    expect(isChartDirty(two, 2, second, true)).toBe(false);
+    expect(isChartDirty(one, 2, second, true)).toBe(true);
+  });
+
+  it('내용이 같은 새 savedChartJson 객체로 바꾸면 그 기준을 한 번 더 해석해 결과는 깨끗하다', () => {
+    const chart = makeChart([mainNote]);
+    expect(isChartDirty(chart, 2, toSavedChartJson(chart, 2), true)).toBe(false);
+    const parse = vi.spyOn(JSON, 'parse');
+    expect(isChartDirty(chart, 2, toSavedChartJson(chart, 2), true)).toBe(false);
+    expect(parse).toHaveBeenCalledTimes(2);
+  });
 });

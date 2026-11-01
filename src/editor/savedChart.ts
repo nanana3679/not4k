@@ -31,8 +31,40 @@ export function toSavedChartJson(chart: ChartDocument, extraLaneCount: number): 
  * 현재 차트·보조 레인 수를 같은 방식으로 직렬화해 `savedChartJson`과 다르면 dirty다.
  * `savedChartJson`이 없으면(null, 아직 불러온 차트가 없음) 비교할 대상이 없으므로 dirty로 본다 — 확인 없이 나가 편집을 잃지 않게 한다.
  */
-export function isChartDirty(chart: ChartDocument, extraLaneCount: number, saved: SavedChartJson | null): boolean {
+export function isChartDirty(chart: ChartDocument, extraLaneCount: number, saved: SavedChartJson | null, hasSongRow = false): boolean {
   if (saved === null) return true;
   const current = toSavedChartJson(chart, extraLaneCount);
-  return current.chartJson !== saved.chartJson || current.extraJson !== saved.extraJson;
+  return (hasSongRow
+    ? chartOnlyJson(current.chartJson) !== savedChartOnlyJson(saved)
+    : current.chartJson !== saved.chartJson) || current.extraJson !== saved.extraJson;
+}
+
+/**
+ * 저장 기준 쪽 정리 결과. 기준은 불러오기·저장 성공 때만 새 객체로 바뀌므로 객체마다 한 번만 해석한다.
+ * 편집마다 다시 계산하는 것은 현재 차트 쪽뿐이다.
+ */
+const chartOnlyJsonBySaved = new WeakMap<SavedChartJson, string>();
+function savedChartOnlyJson(saved: SavedChartJson): string {
+  let stripped = chartOnlyJsonBySaved.get(saved);
+  if (stripped === undefined) {
+    stripped = chartOnlyJson(saved.chartJson);
+    chartOnlyJsonBySaved.set(saved, stripped);
+  }
+  return stripped;
+}
+
+/** 저장 JSON 형식은 유지하고 비교에서만 곡 소유 사본을 제외한다. */
+function chartOnlyJson(json: string): string {
+  const document = JSON.parse(json);
+  for (const key of ['title', 'artist', 'imageFile', 'audioFile', 'previewAudioFile', 'previewStart', 'previewEnd', 'offsetMs']) {
+    delete document.meta[key];
+  }
+  // 값은 곡 소유다. 차트에는 종류·박에 연결된 보조 레인을 남겨 같은 값 이벤트의 자리 교환도 감지한다.
+  const timingEvents: { type: string; beat: string; editorLane?: number }[] = document.events
+    .filter((event: { type: string }) => event.type === 'bpm' || event.type === 'timeSignature');
+  document.timingLayout = timingEvents.map(event => ({
+    type: event.type, beat: event.beat, editorLane: event.editorLane ?? 1,
+  })).sort((a, b) => a.type.localeCompare(b.type) || a.beat.localeCompare(b.beat) || a.editorLane - b.editorLane);
+  document.events = document.events.filter((event: { type: string }) => event.type !== 'bpm' && event.type !== 'timeSignature');
+  return JSON.stringify(document);
 }

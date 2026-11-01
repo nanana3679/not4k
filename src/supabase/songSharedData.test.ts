@@ -16,11 +16,13 @@ describe('fetchSongSharedData', () => {
     const timing = { bpmChanges: [{ beat: '0', bpm: 151 }],
       timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 10 };
     query.maybeSingle.mockResolvedValue({ data: { title: '곡', artist: '작곡가', jacket_url: null,
-      audio_url: 'songs/song-1/audio.ogg', timing, revision: 42 }, error: null });
+      audio_url: 'songs/song-1/audio.ogg', duration: 120, preview_url: 'preview.wav', preview_start: 10, preview_end: 20,
+      gameplay_start: 2, gameplay_end: 110, gameplay_fade_in: 1, gameplay_fade_out: 3, timing, revision: 42 }, error: null });
     expect(await fetchSongSharedData('song-1')).toEqual({ title: '곡', artist: '작곡가', jacketUrl: null,
-      audioUrl: 'songs/song-1/audio.ogg', timing, revision: 42 });
+      audioUrl: 'songs/song-1/audio.ogg', duration: 120, previewUrl: 'preview.wav', previewStart: 10, previewEnd: 20,
+      gameplayStart: 2, gameplayEnd: 110, gameplayFadeIn: 1, gameplayFadeOut: 3, timing, revision: 42 });
     expect(query.from).toHaveBeenCalledWith('songs');
-    expect(query.select).toHaveBeenCalledWith('title,artist,jacket_url,audio_url,timing,revision');
+    expect(query.select).toHaveBeenCalledWith('title,artist,jacket_url,audio_url,duration,preview_url,preview_start,preview_end,gameplay_start,gameplay_end,gameplay_fade_in,gameplay_fade_out,timing,revision');
     expect(query.eq).toHaveBeenCalledWith('id', 'song-1');
   });
 

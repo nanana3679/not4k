@@ -32,7 +32,8 @@ test('NORMAL의 Save As는 INFILTRATION을 제외하고 LIFTOFF 덮어쓰기 확
       }
       if (method === 'GET' && path === '/rest/v1/songs') {
         await route.fulfill({ json: { title: chart.meta.title, artist: chart.meta.artist,
-          jacket_url: chart.meta.imageFile, timing: null, revision: 1, audio_url: null, duration: null, gameplay_start: null, gameplay_end: null } }); return;
+          jacket_url: chart.meta.imageFile, timing: { bpmChanges: [{ beat: '0', bpm: 120 }],
+            timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 }, revision: 1, audio_url: null, duration: null, gameplay_start: null, gameplay_end: null } }); return;
       }
       if (method === 'GET' && path === '/rest/v1/charts') {
         await route.fulfill({ json: [{ difficulty_label: 'normal' }, { difficulty_label: 'easy' }] }); return;
@@ -62,7 +63,7 @@ test('NORMAL의 Save As는 INFILTRATION을 제외하고 LIFTOFF 덮어쓰기 확
   await expect(target.locator('option')).toHaveText(['LIFTOFF', 'INFILTRATION (current)', 'BREAKTHROUGH']);
   await expect(target.locator('option[value="INFILTRATION"]')).toHaveJSProperty('disabled', true);
   await target.selectOption('LIFTOFF');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('heading', { name: 'Save As (다른 이름으로 저장)', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Overwrite Existing Chart', exact: true })).toBeVisible();
   await expect(page.getByText('LIFTOFF 난이도에 이미 차트가 존재합니다.')).toBeVisible();
   expect(writes).toEqual([]);
