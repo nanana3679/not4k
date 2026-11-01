@@ -5,6 +5,7 @@ import { beat, ChartFormatError, type ChartDocument } from '../../shared';
 import { explicitPlaytestCharts } from '../../lab/explicitPlaytestCharts';
 import { useGameStore } from '../stores/gameStore';
 import { openNormalPlayForTest } from '../stores/normalPlayTestHarness';
+import { SongTimingError } from '../../shared/songAssets/songTiming';
 
 const fixture = vi.hoisted(() => ({ effect: null as (() => (() => void)) | null,
   error: null as string | null, load: vi.fn(), close: vi.fn(async () => undefined) }));
@@ -38,6 +39,15 @@ function delayedLoad() {
 }
 
 describe('일반 곡 LoadingScreen', () => {
+  it('곡 BPM 0의 SongTimingError가 나면 곡 타이밍 오류·Back을 표시하고 play 요청은 비운다', async () => {
+    fixture.load.mockRejectedValue(new SongTimingError('bpmChanges[0].bpm: 유한한 양수가 필요합니다'));
+    mount();
+    await vi.waitFor(() => expect(fixture.error).toContain('This song contains invalid timing data.'));
+    expect(fixture.error).not.toContain('try again');
+    expect(useGameStore.getState()).toMatchObject({ screen: 'loading', normalPlay: null, audioBuffer: null });
+    expect(renderToStaticMarkup(createElement(LoadingScreen))).toContain('Back to Song Select');
+    expect(fixture.close).toHaveBeenCalledOnce();
+  });
   it('선택한 custom.mp3와 구간을 읽고 전체 검증된 purpose=play 요청으로 한 번 진입한다', async () => {
     fixture.load.mockResolvedValue({ chart: explicitPlaytestCharts[0].chart, audioBuffer });
     mount();
