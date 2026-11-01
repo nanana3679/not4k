@@ -52,7 +52,7 @@ _Avoid_: 이벤트의 시각 표현
 _Avoid_: 시점 이벤트
 
 **이벤트 배치 겹침**:
-같은 보조 레인에서 종류에 관계없이 이벤트의 점·구간이 겹치는 의미 위반이다. 에디터는 로드에서 초기 BPM·박자를 보조 레인 1·2에 고정하고 그 자리와 겹치는 일반 이벤트만 빈 레인으로 옮기며, 값·박 위치와 다른 의미 위반은 유지한다([glossary](../../docs/context/glossary.md#chartevent), [RFD 0078](../../docs/rfd/0078-event-placement-overlap.md)·[RFD 0082](../../docs/rfd/0082-initial-timing-events-not-selectable.md)).
+같은 보조 레인에서 종류에 관계없이 이벤트의 점·구간이 겹치는 의미 위반이다. 에디터는 로드에서 초기 BPM·박자만 보조 레인 1·2로 옮기며, 그 자리와 겹친 일반 이벤트·값·박 위치와 다른 의미 위반은 유지한다([glossary](../../docs/context/glossary.md#chartevent), [RFD 0078](../../docs/rfd/0078-event-placement-overlap.md)·[RFD 0082](../../docs/rfd/0082-initial-timing-events-not-selectable.md)).
 
 **`TextEvent`**:
 특정 구간 동안 튜토리얼 설명 문구를 보여주는 구간 이벤트이다.
