@@ -7,13 +7,29 @@
  * - Seek to position (ms)
  * - High-precision playback time via AudioContext.currentTime
  * - Offset support for chart synchronization
+ * - Observer faded span playback (fade in → selected range → fade out, stops at span end)
  */
 import { normalizePlaybackRange, type PlaybackRange } from '../../shared';
+
+/**
+ * 옵저버 반복 1회의 재생 범위. 모두 재생 범위 기준 논리 위치(ms)다.
+ * fromMs～fadeInUntilMs에서 페이드 인, fadeOutFromMs～toMs에서 페이드 아웃하고 toMs에서 음원을 멈춘다.
+ */
+export interface FadedAudioSpan {
+  readonly fromMs: number;
+  readonly fadeInUntilMs: number;
+  readonly fadeOutFromMs: number;
+  readonly toMs: number;
+}
 
 export class AudioEngine {
   private ctx: AudioContext;
   private source: AudioBufferSourceNode | null = null;
   private sourceGain: GainNode | null = null;
+  // 페이드 구간 재생 중에만 sourceGain과 masterGain 사이에 둔다. 범위 페이드와 곱해진다.
+  private spanGain: GainNode | null = null;
+  // pause/resume이 같은 구간을 잇도록 보관한다. play·playWithPreroll·stop이 지운다.
+  private fadedSpan: FadedAudioSpan | null = null;
   private buffer: AudioBuffer | null = null;
   private masterGain: GainNode;
   private startTime: number = 0;  // AudioContext time when playback started
@@ -49,15 +65,19 @@ export class AudioEngine {
    */
   set playbackRate(rate: number) {
     const clamped = Math.max(0.1, Math.min(rate, 4.0));
+    const now = this.ctx.currentTime;
     if (this.clockRunning) {
       // 현재까지의 위치를 누적하고 startTime을 리셋
-      const elapsed = this.ctx.currentTime - this.startTime;
+      const elapsed = now - this.startTime;
       this.startOffset = this.startOffset + elapsed * this._playbackRate;
-      this.startTime = this.ctx.currentTime;
+      this.startTime = now;
     }
     this._playbackRate = clamped;
     if (this.source) {
       this.source.playbackRate.value = clamped;
+    }
+    if (this.clockRunning && this.fadedSpan && this.spanGain) {
+      this.scheduleSpanFade(this.spanGain, this.fadedSpan, this.startOffset * 1000, now);
     }
   }
 
@@ -110,19 +130,51 @@ export class AudioEngine {
    * @param offsetMs - Starting position in milliseconds (default: 0)
    */
   play(offsetMs: number = 0): void {
-    this.startPlayback(offsetMs, false);
+    this.startPlayback(offsetMs, false, null);
   }
 
   /** 음악 준비용 P. 음수 구간은 무음으로 두고 곡 0을 AudioContext에 미리 예약한다. */
   playWithPreroll(positionMs: number): void {
     if (!Number.isFinite(positionMs)) throw new RangeError('Preparation position must be finite');
-    this.startPlayback(positionMs, true);
+    this.startPlayback(positionMs, true, null);
   }
 
-  private startPlayback(offsetMs: number, allowPreroll: boolean): void {
+  /**
+   * 옵저버 반복 1회. startMs(기본 fromMs)부터 재생해 toMs에서 음원을 멈추고 남은 페이드를 spanGain에 예약한다.
+   * 음원 범위 밖을 무음으로 채우지 않으므로 음수 위치는 받지 않는다. 시계는 toMs 뒤에도 계속 돈다.
+   * duration을 최대 0.5ms 초과하는 경계와 시작 위치는 부동소수점 오차로 보고 duration으로 자른다.
+   */
+  playFadedSpan(span: FadedAudioSpan, startMs = span.fromMs): void {
     if (!this.buffer) {
       throw new Error('No audio loaded');
     }
+    const { fromMs, fadeInUntilMs, fadeOutFromMs, toMs } = span;
+    const duration = this.duration;
+    const finite = [fromMs, fadeInUntilMs, fadeOutFromMs, toMs].every(Number.isFinite);
+    const ordered = 0 <= fromMs && fromMs <= fadeInUntilMs && fadeInUntilMs <= fadeOutFromMs
+      && fadeOutFromMs <= toMs && toMs <= duration + 0.5;
+    if (!finite || !ordered) {
+      throw new RangeError('Faded span must satisfy 0 <= from <= fadeInUntil <= fadeOutFrom <= to <= duration + 0.5ms');
+    }
+    const clampedSpan: FadedAudioSpan = {
+      fromMs: Math.min(fromMs, duration),
+      fadeInUntilMs: Math.min(fadeInUntilMs, duration),
+      fadeOutFromMs: Math.min(fadeOutFromMs, duration),
+      toMs: Math.min(toMs, duration),
+    };
+    const clampedStartMs = Math.min(startMs, duration);
+    if (!Number.isFinite(startMs) || startMs > duration + 0.5
+      || clampedStartMs < clampedSpan.fromMs || clampedStartMs > clampedSpan.toMs) {
+      throw new RangeError('Start must be finite and within the faded span (duration tolerance: 0.5ms)');
+    }
+    this.startPlayback(clampedStartMs, false, clampedSpan);
+  }
+
+  private startPlayback(offsetMs: number, allowPreroll: boolean, span: FadedAudioSpan | null): void {
+    if (!this.buffer) {
+      throw new Error('No audio loaded');
+    }
+    this.fadedSpan = span;
 
     // Resume AudioContext if suspended (autoplay policy)
     if (this.ctx.state === 'suspended') {
@@ -158,10 +210,16 @@ export class AudioEngine {
     this.source.buffer = this.buffer;
     this.sourceGain = this.ctx.createGain();
     this.source.connect(this.sourceGain);
-    this.sourceGain.connect(this.masterGain);
+    // 범위 페이드(sourceGain)와 구간 페이드(spanGain)를 다른 노드에 두어 한 AudioParam을 두고 다투지 않게 한다.
+    const spanGain = span ? this.ctx.createGain() : null;
+    this.spanGain = spanGain;
+    this.sourceGain.connect(spanGain ?? this.masterGain);
+    spanGain?.connect(this.masterGain);
 
     // Handle natural playback end
-    this.source.onended = () => {
+    const source = this.source;
+    source.onended = () => {
+      if (this.source !== source) return;
       // onended 전달이 늦어도 기준 시각을 바꾸지 않는다. P는 원래 AudioContext 시계로 계속 진행한다.
       this._playing = false;
       this.audioEnded = true;
@@ -174,11 +232,14 @@ export class AudioEngine {
     const scheduledAt = this.startTime + delaySeconds;
     const rangeStart = this.getRangeStartSeconds();
     const actualOffsetSeconds = rangeStart + offsetSeconds;
-    const remainingSeconds = Math.max(0, this.getRangeDurationSeconds() - offsetSeconds);
+    // source.start의 길이는 버퍼 시간이라 배속과 무관하게 구간 끝 toMs에서 멈춘다.
+    const stopSeconds = span ? span.toMs / 1000 : this.getRangeDurationSeconds();
+    const remainingSeconds = Math.max(0, stopSeconds - offsetSeconds);
 
     // Apply playback rate
     this.source.playbackRate.value = this._playbackRate;
     this.scheduleRangeFade(this.sourceGain, offsetSeconds, scheduledAt);
+    if (span && spanGain) this.scheduleSpanFade(spanGain, span, offsetSeconds * 1000, scheduledAt);
 
     // Start playback
     this.source.start(delaySeconds > 0 ? scheduledAt : 0, actualOffsetSeconds, remainingSeconds);
@@ -214,13 +275,16 @@ export class AudioEngine {
       return;
     }
 
-    if (this.audioEnded || this.pauseTime >= this.getRangeDurationSeconds()) {
+    // 페이드 구간 재생이면 구간 끝 toMs에서 음원이 끝난다.
+    const audioEndSeconds = this.fadedSpan ? this.fadedSpan.toMs / 1000 : this.getRangeDurationSeconds();
+    if (this.audioEnded || this.pauseTime >= audioEndSeconds) {
       // 판정 대기 재개는 시계만 잇는다. 끝난 음원은 다시 재생하지 않는다.
       this.startOffset = this.pauseTime;
       this.startTime = this.ctx.currentTime;
       this.clockRunning = true;
     } else {
-      this.play(this.pauseTime * 1000);
+      // 페이드 구간 재생 중이었으면 같은 구간 끝과 남은 페이드를 이어서 예약한다.
+      this.startPlayback(this.pauseTime * 1000, false, this.fadedSpan);
     }
   }
 
@@ -240,6 +304,7 @@ export class AudioEngine {
     }
     this.stopActiveSource();
 
+    this.fadedSpan = null;
     this._playing = false;
     this.clockRunning = false;
     this.audioEnded = false;
@@ -416,14 +481,46 @@ export class AudioEngine {
     }
   }
 
+  /** 구간 페이드 값. fromMs～fadeInUntilMs는 0→1, fadeOutFromMs～toMs는 1→0이다. */
+  private getSpanGainAt(span: FadedAudioSpan, positionMs: number): number {
+    const { fromMs, fadeInUntilMs, fadeOutFromMs, toMs } = span;
+    const fadeInGain = fadeInUntilMs > fromMs
+      ? Math.min(1, Math.max(0, (positionMs - fromMs) / (fadeInUntilMs - fromMs))) : 1;
+    const fadeOutGain = toMs > fadeOutFromMs
+      ? Math.min(1, Math.max(0, (toMs - positionMs) / (toMs - fadeOutFromMs))) : 1;
+    return Math.min(fadeInGain, fadeOutGain);
+  }
+
+  private scheduleSpanFade(gainNode: GainNode, span: FadedAudioSpan, positionMs: number, scheduledAt: number): void {
+    const gain = gainNode.gain;
+    const rate = this._playbackRate;
+    const realTimeAt = (logicalMs: number) => scheduledAt + (logicalMs - positionMs) / 1000 / rate;
+    gain.cancelScheduledValues(scheduledAt);
+    gain.setValueAtTime(this.getSpanGainAt(span, positionMs), scheduledAt);
+    if (span.fadeInUntilMs > positionMs) {
+      gain.linearRampToValueAtTime(1, realTimeAt(span.fadeInUntilMs));
+    }
+    if (span.toMs > span.fadeOutFromMs && span.toMs > positionMs) {
+      if (span.fadeOutFromMs > positionMs) {
+        gain.setValueAtTime(1, realTimeAt(span.fadeOutFromMs));
+      }
+      gain.linearRampToValueAtTime(0, realTimeAt(span.toMs));
+    }
+  }
+
   private stopActiveSource(): void {
     if (this.source) {
+      this.source.onended = null;
       this.source.disconnect();
       this.source = null;
     }
     if (this.sourceGain) {
       this.sourceGain.disconnect();
       this.sourceGain = null;
+    }
+    if (this.spanGain) {
+      this.spanGain.disconnect();
+      this.spanGain = null;
     }
   }
 }
