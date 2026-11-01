@@ -54,6 +54,7 @@ import { fetchEditorExtraText, loadEditorChartAsset } from './chartAssetLoad';
 import { editorChartViolationIndices } from './documentValidation';
 import { isChartDirty } from './savedChart';
 import { openEditorChart } from './openEditorChart';
+import { restoreSongAudioAfterPlayTest } from './playtest/restoreSongAudioAfterPlayTest';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
 
@@ -122,16 +123,8 @@ export default function EditorApp() {
     const existingStore = useEditorStore.getState();
     if (existingStore.activeSongId === songId) {
       // 복귀 시 음원 조회는 유지하되, 열린 곡의 초안·리비전·대기 파일을 서버 값으로 바꾸지 않는다.
-      fetchSongSharedData(songId).then((loaded) => {
-        // 대기 File은 재생기가 직접 읽는다. 없으면 기존처럼 방금 조회한 곡의 음원을 복원한다.
-        if (!existingStore.song?.pendingAudioFile && loaded?.audioUrl) {
-          setPendingAudioUrl(getPublicUrl(loaded.audioUrl));
-        }
-        setChartLoading(false);
-      }).catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
-        setChartLoading(false);
-      });
+      // 조회가 실패해도 오류 화면으로 바꾸지 않고 편집을 그대로 연다(필요하면 알림만 띄운다).
+      void restoreSongAudioAfterPlayTest(songId, getPublicUrl).then(() => setChartLoading(false));
       return;
     }
 

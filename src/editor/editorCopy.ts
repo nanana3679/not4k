@@ -23,6 +23,12 @@ export const PAUSE_TO_EDIT_COPY = "Pause playback to edit";
  */
 export const INITIAL_TIMING_EXISTS_COPY = "An initial BPM/time signature already exists at beat 0";
 
+/**
+ * 테스트 플레이에서 돌아온 에디터가 곡 행을 다시 읽지 못해 음원을 불러오지 못한 안내. 대기 음원 파일이 없을 때만 띄우며,
+ * 편집 초안·저장 기준은 그대로 두고 오류 화면으로 바꾸지 않는다.
+ */
+export const PLAY_TEST_RETURN_AUDIO_FAILED_COPY = '곡 정보를 다시 불러오지 못해 음원을 불러오지 않았습니다. 편집 내용은 유지됩니다.';
+
 export const SONG_SAVE_COPY = {
   saved: 'Song saved',
   conflict: '다른 곳에서 곡을 변경했습니다. 편집 내용은 유지됩니다. 곡을 다시 불러온 뒤 저장해주세요.',

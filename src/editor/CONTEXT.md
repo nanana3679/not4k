@@ -43,7 +43,7 @@ Meta에서 Title·Artist를 편집하고 곡 저장으로 확정하며, 자켓 N
 **곡 타이밍**:
 같은 곡의 모든 차트가 공유하는 초기 BPM·BPM 변경 목록·박자표·변박 정보·음원 정렬용 오프셋이다. 게임·에디터 공용 로더는 곡 행의 표시 정보·타이밍을 우선하며, 타이밍 NULL 또는 곡 행 없음일 때 파일 타이밍을 유지한다. 에디터 Save는 변경된 곡을 `save_song`으로 먼저 확정하며, 타이밍 NULL 곡은 첫 곡 저장 확인 후 열린 차트의 타이밍으로 이행한다([glossary](../../docs/context/glossary.md#곡-타이밍)).
 
-곡 행 우선 해석 뒤 `openEditorChart`가 RFD 0082 배치를 적용하고 `savedChartJson`과 곡 저장 기준을 정하므로, 이행된 곡을 열어도 dirty·Undo·Redo가 생기지 않는다. 테스트 재생에서 복귀할 때는 이미 열린 편집 초안과 저장 기준을 유지한다.
+곡 행 우선 해석 뒤 `openEditorChart`가 RFD 0082 배치를 적용하고 `savedChartJson`과 곡 저장 기준을 정하므로, 이행된 곡을 열어도 dirty·Undo·Redo가 생기지 않는다. 테스트 재생에서 복귀할 때는 이미 열린 편집 초안과 저장 기준을 유지하며, 곡 행 재조회가 실패해도 오류 화면 대신 알림만 띄운다. 공용 로더는 차트에 있던 타이밍 이벤트의 보조 레인을 유지한다([읽기 계약](../../docs/spec/chart-format.md#곡-행-우선-읽기)).
 
 **박자 그리드**:
 `BpmChangeEvent`와 `TimeSignatureChangeEvent`를 기준으로 계산되는 시간 눈금이다.

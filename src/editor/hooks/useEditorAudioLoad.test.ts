@@ -14,6 +14,7 @@ import { encodeWavBlob } from '../../shared';
 import { isSongDirty } from '../songState';
 import { fetchSongSharedData } from '../../supabase/songSharedData';
 import { showToast } from '../../shared/toast';
+import { PLAY_TEST_RETURN_AUDIO_FAILED_COPY } from '../editorCopy';
 
 // DOM 없이 App의 복귀 effect와 같은 오디오 훅을 실행한다. store·재생기·테스트 진입은 실제 구현이다.
 const lifecycle = vi.hoisted(() => ({ effects: [] as Array<() => void | (() => void)> }));
@@ -169,4 +170,40 @@ it.each([
   expect(restored.setLoadedAudioBuffer).not.toHaveBeenCalled();
   expect(fetch).not.toHaveBeenCalled();
   expect(showToast).not.toHaveBeenCalled();
+});
+
+it('대기 File 없이 복귀할 때 곡 행 재조회가 Failed to load song 오류로 실패하면 오류 화면 대신 초안·저장 기준·리비전 42를 유지하고 음원 미로드 오류 알림을 1회 띄운다', async () => {
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, difficultyLevel: 9 } });
+  const draft = state().chart;
+  const song = state().song;
+  const savedChartJson = state().savedChartJson;
+  vi.mocked(fetchSongSharedData).mockRejectedValue(new Error('Failed to load song: TypeError: Failed to fetch'));
+
+  const restored = await returnToEditor();
+
+  await vi.waitFor(() => expect(showToast).toHaveBeenCalledExactlyOnceWith(PLAY_TEST_RETURN_AUDIO_FAILED_COPY, 'error'));
+  expect(state().chart).toBe(draft);
+  expect(state().song).toBe(song);
+  expect(state().song?.revision).toBe(42);
+  expect(state().savedChartJson).toBe(savedChartJson);
+  expect(state().pendingAudioUrl).toBeNull();
+  expect(restored.playback.audioBufferData).toBeNull();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it('대기 File이 있는 채 복귀할 때 곡 행 재조회가 실패해도 대기 File로 음원을 복원하고 알림 없이 초안을 유지한다', async () => {
+  const file = new File(['replacement'], 'replacement.wav');
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, audioFile: file.name } });
+  state().setSong({ ...state().song!, pendingAudioFile: file, duration: 2 });
+  const draft = state().chart;
+  vi.mocked(fetchSongSharedData).mockRejectedValue(new Error('Failed to load song: TypeError: Failed to fetch'));
+
+  const restored = await returnToEditor();
+
+  await vi.waitFor(() => expect(restored.playback.audioBufferData).toBe(decoded));
+  await Promise.resolve();
+  expect(showToast).not.toHaveBeenCalled();
+  expect(state().chart).toBe(draft);
+  expect(state().song?.pendingAudioFile).toBe(file);
+  expect(fetch).not.toHaveBeenCalled();
 });
