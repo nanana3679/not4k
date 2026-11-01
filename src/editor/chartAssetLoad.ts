@@ -1,11 +1,21 @@
 import type { ChartDocument } from "../shared/types";
+import { resolveSongChart, type SongSharedData } from '../shared/songAssets/resolveSongChart';
 import { deserializeChartDocument, parseExtraNotesDocument, extraToNote, isAuxLane, maxAuxLane, toAuxIndex, ChartFormatError } from "../shared/chart";
+
+/** 메인·보조 파일을 합친 차트와 보조 레인 수. `hasExtraLaneCount`는 파일이 `extraLaneCount`를 직접 적었는지다. */
+export interface LoadedEditorChartAsset {
+  chart: ChartDocument;
+  extraLaneCount: number;
+  hasExtraLaneCount: boolean;
+}
 
 /**
  * 지원되는 main/aux 문서를 의미 위반도 보존해 수리용으로 연다. 미지원·손상 보조 자료를 빈 보조 데이터로 열지 않는다.
  * `extraText`가 null(별도 보조 파일 없음)일 때만 메인 내장 보조 데이터로 돌아간다.
  */
-export function loadEditorChartAsset(chartText: string, extraText: string | null): { chart: ChartDocument; extraLaneCount: number; hasExtraLaneCount: boolean } {
+export function loadEditorChartAsset(
+  chartText: string, extraText: string | null, song?: SongSharedData | null,
+): LoadedEditorChartAsset {
   let chart = deserializeChartDocument(chartText);
   // chartText는 위에서 이미 JSON으로 읽혔다.
   const extraJson = extraText === null ? JSON.parse(chartText) : parseExtraFileJson(extraText);
@@ -18,7 +28,7 @@ export function loadEditorChartAsset(chartText: string, extraText: string | null
       trillZones: [...chart.trillZones.filter(zone => !isAuxLane(zone.lane)), ...extra.extraTrillZones] };
   }
   const extraLaneCount = Math.max(extra.extraLaneCount, toAuxIndex(maxAuxLane([...chart.notes, ...chart.trillZones])));
-  return { chart, extraLaneCount, hasExtraLaneCount };
+  return { chart: resolveSongChart(chart, song), extraLaneCount, hasExtraLaneCount };
 }
 
 /**

@@ -6,6 +6,7 @@ import { supabase } from '../../supabase';
 import { PreviewRangeSelector } from './PreviewRangeSelector';
 import type { PreviewRangeState } from './PreviewRangeSelector';
 import { modalStyles } from './modalStyles';
+import { PAUSE_TO_EDIT_COPY, SONG_METADATA_READ_ONLY_COPY } from '../editorCopy';
 
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
@@ -27,6 +28,13 @@ export interface MetaEditModalProps {
   initialJacketFile?: File | null;
   jacketCacheBust?: number;
   initialGameplayRange?: PlaybackRange | null;
+  /** 곡 행이 있으면 곡 저장(PR4) 연결 전까지 Title·Artist는 읽기 전용이다. */
+  hasSongRow?: boolean;
+  /**
+   * 에디터가 재생 중이다. 오프셋은 타이밍 값이라 입력을 비활성으로 두고 저장해도 바꾸지 않는다(RFD 0099).
+   * 난이도·곡 행 없는 차트의 제목·아티스트는 재생 중에도 저장한다.
+   */
+  offsetLocked?: boolean;
 }
 
 export function MetaEditModal({
@@ -38,6 +46,8 @@ export function MetaEditModal({
   initialJacketFile,
   jacketCacheBust,
   initialGameplayRange,
+  hasSongRow = false,
+  offsetLocked = false,
 }: MetaEditModalProps) {
   const [values, setValues] = useState<Record<string, string>>({
     title: meta.title,
@@ -77,11 +87,11 @@ export function MetaEditModal({
     const offset = parseFloat(values.offsetMs);
     const updatedMeta: ChartMeta = {
       ...meta,
-      title: values.title,
-      artist: values.artist,
+      title: hasSongRow ? meta.title : values.title,
+      artist: hasSongRow ? meta.artist : values.artist,
       difficultyLabel: values.difficultyLabel,
       difficultyLevel: isNaN(level) ? meta.difficultyLevel : level,
-      offsetMs: isNaN(offset) ? meta.offsetMs : offset,
+      offsetMs: offsetLocked || isNaN(offset) ? meta.offsetMs : offset,
       audioFile: values.audioFile,
       imageFile: values.imageFile,
       previewAudioFile: values.previewAudioFile,
@@ -106,17 +116,30 @@ export function MetaEditModal({
       <div style={{ ...modalStyles.modal, width: '520px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>Chart Metadata</h3>
 
-        {fields.map((f) => (
-          <label key={f.key} style={modalStyles.field}>
-            <span>{f.label}</span>
-            <input
-              style={modalStyles.input}
-              type={f.type}
-              value={values[f.key]}
-              onChange={(e) => set(f.key, e.target.value)}
-            />
-          </label>
-        ))}
+        {hasSongRow && (
+          <p id="song-metadata-read-only-hint" style={{ color: '#aaa', fontSize: '12px', margin: '0 0 12px' }}>
+            {SONG_METADATA_READ_ONLY_COPY}
+          </p>
+        )}
+        {fields.map((f) => {
+          const locked = offsetLocked && f.key === 'offsetMs';
+          const readOnly = hasSongRow && (f.key === 'title' || f.key === 'artist');
+          return (
+            <label key={f.key} style={modalStyles.field}>
+              <span>{f.label}</span>
+              <input
+                style={locked ? { ...modalStyles.input, opacity: 0.5 } : modalStyles.input}
+                type={f.type}
+                value={readOnly ? (f.key === 'title' ? meta.title : meta.artist) : values[f.key]}
+                onChange={(e) => set(f.key, e.target.value)}
+                disabled={locked}
+                readOnly={readOnly}
+                aria-describedby={readOnly ? 'song-metadata-read-only-hint' : undefined}
+                title={locked ? PAUSE_TO_EDIT_COPY : undefined}
+              />
+            </label>
+          );
+        })}
 
         {/* Audio section */}
         <div style={{ marginBottom: '12px' }}>

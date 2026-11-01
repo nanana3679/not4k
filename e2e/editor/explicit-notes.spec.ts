@@ -136,6 +136,9 @@ test('터치 double 롱프레스의 1→3박 드래그는 마우스와 같은 Gr
 });
 
 test('보조 트릴 구간 생성·트릴 바디·구간 유닛 이동·Undo·저장·재로드는 같은 레인 규칙과 파일 분리를 보존한다', async ({ page }) => {
+  // 같은 테스트에서 에디터를 두 번 연다(렌더러 초기화 2회). 차트·선택을 바꾸는 조작마다 SwiftShader 전체 다시 그리기가
+  // 여러 번 일어나 기본 30초 안팎이 걸려, 부하가 조금만 있어도 마지막 대기에서 시간 초과가 났다.
+  test.setTimeout(60_000);
   const editor = await openEditor(page);
   await entitySelect(page).selectOption('trillZone');
   await drag(page, 5, 1, 4);

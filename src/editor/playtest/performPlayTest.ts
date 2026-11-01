@@ -25,6 +25,11 @@ export interface PerformPlayTestParams {
   game: PlayTestGameActions;
   addToast: (message: string, type: "error") => void;
   closeMenu: () => void;
+  /**
+   * 진입 검사를 모두 통과해 게임 상태를 넣은 뒤, navigate 바로 전에 한 번 부른다. 오디오 없음·배치 제약 위반·
+   * 명시 차트 컴파일 오류처럼 진입을 거절한 시도에서는 부르지 않는다.
+   */
+  beforeEnter?: () => void;
   navigate: () => void;
 }
 
@@ -34,7 +39,7 @@ export interface PerformPlayTestParams {
 export function performPlayTest(params: PerformPlayTestParams): boolean {
   const {
     fromCursor, audioBuffer, isPlaying, pause, chart, currentTimeMs,
-    returnUrl, game, addToast, closeMenu, navigate,
+    returnUrl, game, addToast, closeMenu, beforeEnter, navigate,
   } = params;
 
   if (!audioBuffer) {
@@ -71,7 +76,7 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
       return false;
     }
     if (isPlaying) pause();
-    closeMenu(); navigate();
+    closeMenu(); beforeEnter?.(); navigate();
     return true;
   }
 
@@ -95,6 +100,7 @@ export function performPlayTest(params: PerformPlayTestParams): boolean {
   game.setScreen("play");
 
   closeMenu();
+  beforeEnter?.();
   navigate();
   return true;
 }

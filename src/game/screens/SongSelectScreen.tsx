@@ -60,7 +60,16 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const [deleteSongTarget, setDeleteSongTarget] = useState<DbSong | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [mobileEditSelection, setMobileEditSelection] = useState<SelectedChartRef | null>(null);
-  const [showTutorialHelp, setShowTutorialHelp] = useState(false);
+  // 첫 기동 튜토리얼 모달(RFD 0055): 프리셋 설정 직후 처음 그리는 곡 선택은 도움말 모달을 연 채 시작한다.
+  // 신호는 사용자가 모달을 닫을 때(Close 버튼·Escape·배경 클릭) 지운다. 닫기 전에 새로고침하거나 곡 선택을 벗어나면 다음 곡 선택에서 다시 열고,
+  // 닫은 뒤에는 `?` 버튼으로만 연다.
+  const shouldOpenFirstLaunchTutorialModal = useGameStore((state) => state.shouldOpenFirstLaunchTutorialModal);
+  const markFirstLaunchTutorialModalClosed = useGameStore((state) => state.markFirstLaunchTutorialModalClosed);
+  const [showTutorialHelp, setShowTutorialHelp] = useState(shouldOpenFirstLaunchTutorialModal);
+  // 닫기를 요청한 순간 끄므로, 120ms 닫힘 애니메이션 중에 새로고침해도 닫은 것으로 남는다.
+  const handleTutorialHelpCloseRequested = () => {
+    if (shouldOpenFirstLaunchTutorialModal) markFirstLaunchTutorialModalClosed();
+  };
 
   const addToast = useCallback((msg: string, type: ToastType = 'info') => {
     showToast(msg, type);
@@ -77,6 +86,8 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     setScreen('loading');
   }, [playAllowed, selectSong, setScreen]);
 
+  const blockingModalOpen = showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null;
+
   const {
     songs,
     loading,
@@ -91,7 +102,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     getSortedCharts,
   } = useSongNavigation({
     isAdmin,
-    blockingModalOpen: showAddSong || showTutorialHelp || settingsOpen || deleteSongTarget !== null,
+    blockingModalOpen,
     newChartTarget,
     onPlay: handlePlay,
     onEscape: mobileListOnly ? () => {} : () => setScreen('title'),
@@ -192,7 +203,11 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
   const renderOverlays = () => (
     <>
       {showTutorialHelp && (
-        <TutorialHelpModal isAdmin={isAdmin} onClose={() => setShowTutorialHelp(false)} />
+        <TutorialHelpModal
+          isAdmin={isAdmin}
+          onCloseRequested={handleTutorialHelpCloseRequested}
+          onClose={() => setShowTutorialHelp(false)}
+        />
       )}
 
       {showAddSong && (
@@ -226,7 +241,9 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
     </>
   );
 
-  if (isInitialSongLoading) {
+  // 모달(첫 기동 튜토리얼 모달 등)이 열려 있으면 곡 목록을 불러오는 중에도 로딩 화면 대신 곡 선택 레이아웃 위에 모달을 그린다.
+  // 로딩 화면(body 포털, z-index 3000)이 모달을 가리지 않고, 로딩이 끝나도 모달이 다시 마운트되지 않는다.
+  if (isInitialSongLoading && !blockingModalOpen) {
     return <PageLoading message="Loading songs..." />;
   }
 

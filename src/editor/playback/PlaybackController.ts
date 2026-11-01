@@ -6,13 +6,23 @@
  */
 
 export interface PlaybackCallbacks {
+  /** 생성·음원 로드 완료 시 읽는 화면 커서. 없으면 0ms에서 시작한다. */
+  getCursorTimeMs?: () => number;
   onTimeUpdate: (currentTimeMs: number) => void;
   onPlayStateChange: (isPlaying: boolean) => void;
+  /**
+   * 재생을 시작하기 직전, 아직 정지 상태이고 시작 위치를 읽기 전에 부른다. 여기서 seekTo하면 그 위치부터 재생한다.
+   * 음원이 없거나 이미 재생 중이라 시작하지 않으면 부르지 않는다.
+   */
+  beforePlay?: () => void;
+  /** 최신 음원 로드가 반영된 뒤 파형·범위를 갱신한다. 오래된 로드·dispose 뒤에는 부르지 않는다. */
+  onAudioLoaded?: (buffer: AudioBuffer) => void;
 }
 
 export class PlaybackController {
   private audioContext: AudioContext | null = null;
   private audioBuffer: AudioBuffer | null = null;
+  private audioLoadGeneration = 0;
   private sourceNode: AudioBufferSourceNode | null = null;
   private gainNode: GainNode | null = null;
   private pendingVolume: number = 1;
@@ -24,25 +34,35 @@ export class PlaybackController {
 
   private animationFrameId: number | null = null;
 
-  constructor(private callbacks: PlaybackCallbacks) {}
+  constructor(private callbacks: PlaybackCallbacks) {
+    this.seedFromCursor();
+  }
+
+  private seedFromCursor(): void {
+    // store → 재생기 초기화는 커서 이동이 아니다. onTimeUpdate를 부르면 keeper의 기억이 무효화된다.
+    this.playbackOffset = (this.callbacks.getCursorTimeMs?.() ?? 0) / 1000;
+  }
 
   /** Load an audio file from File object */
   async loadAudioFile(file: File): Promise<void> {
+    const generation = ++this.audioLoadGeneration;
     const arrayBuffer = await file.arrayBuffer();
-    await this.loadAudioBuffer(arrayBuffer);
+    await this.loadAudioBuffer(arrayBuffer, generation);
   }
 
   /** Load an audio file from URL */
   async loadAudioUrl(url: string): Promise<void> {
+    const generation = ++this.audioLoadGeneration;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
     }
     const arrayBuffer = await response.arrayBuffer();
-    await this.loadAudioBuffer(arrayBuffer);
+    await this.loadAudioBuffer(arrayBuffer, generation);
   }
 
-  private async loadAudioBuffer(arrayBuffer: ArrayBuffer): Promise<void> {
+  private async loadAudioBuffer(arrayBuffer: ArrayBuffer, generation: number): Promise<void> {
+    if (generation !== this.audioLoadGeneration) return;
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
       this.gainNode = this.audioContext.createGain();
@@ -50,11 +70,14 @@ export class PlaybackController {
       this.gainNode.connect(this.audioContext.destination);
     }
 
-    this.audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+    if (generation !== this.audioLoadGeneration) return;
+    this.audioBuffer = audioBuffer;
 
     // Reset playback state
     this.pause();
-    this.playbackOffset = 0;
+    this.seedFromCursor();
+    this.callbacks.onAudioLoaded?.(audioBuffer);
   }
 
   /** Play/pause toggle */
@@ -72,6 +95,7 @@ export class PlaybackController {
       return;
     }
 
+    this.callbacks.beforePlay?.();
     this.playbackStartTime = this.audioContext.currentTime;
     this._isPlaying = true;
     this.callbacks.onPlayStateChange(true);
@@ -199,6 +223,7 @@ export class PlaybackController {
 
   /** Dispose resources */
   dispose(): void {
+    this.audioLoadGeneration++;
     this.pause();
     this.stopAnimationLoop();
 

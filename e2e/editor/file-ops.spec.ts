@@ -20,6 +20,45 @@ async function saveChart(page: Page, editor: OpenedEditor): Promise<ChartJsonV3 
 }
 
 test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
+  test('곡 행이 있으면 Meta의 Title·Artist는 읽기 전용이고 Offset·난이도는 편집 가능하며 Save chart는 곡 제목을 보존한다', async ({ page }) => {
+    const editor = await openEditor(page);
+    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+    await page.getByRole('button', { name: 'Meta', exact: true }).click();
+
+    for (const name of ['Title', 'Artist']) {
+      await expect(page.getByLabel(name, { exact: true })).toHaveJSProperty('readOnly', true);
+    }
+    await expect(page.getByText('Title and Artist are song-level values. Editing will be available with song save.')).toBeVisible();
+    for (const name of ['Offset (ms)', 'Difficulty Label', 'Difficulty Level']) {
+      await expect(page.getByLabel(name, { exact: true })).toBeEditable();
+    }
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    const uploaded = await saveChart(page, editor);
+    expect(uploaded.meta).toMatchObject({ title: 'E2E 에디터 곡', artist: 'Offline', offsetMs: 0 });
+    expect(editor.supabaseWrites.filter(write => write.path === '/rest/v1/songs')).toEqual([]);
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('곡 행 없이 차트 파일을 열면 Meta에서 Title·Artist·Offset 45ms를 바꾸고 다시 열어도 편집값이 남는다', async ({ page }) => {
+    const editor = await openEditor(page, { songRow: false });
+    const openMeta = async () => {
+      await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+      await page.getByRole('button', { name: 'Meta', exact: true }).click();
+    };
+    await openMeta();
+    await expect(page.getByText('Title and Artist are song-level values. Editing will be available with song save.')).toHaveCount(0);
+    await page.getByLabel('Title', { exact: true }).fill('새 제목');
+    await page.getByLabel('Artist', { exact: true }).fill('새 작곡가');
+    await page.getByLabel('Offset (ms)', { exact: true }).fill('45');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await openMeta();
+    await expect(page.getByLabel('Title', { exact: true })).toHaveValue('새 제목');
+    await expect(page.getByLabel('Artist', { exact: true })).toHaveValue('새 작곡가');
+    await expect(page.getByLabel('Offset (ms)', { exact: true })).toHaveValue('45');
+    expect(editor.supabaseWrites).toEqual([]);
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
   test('Save chart를 누르면 songs/{songId}/normal.json에 v3 차트 JSON을 업로드하고 Chart saved 토스트를 띄운다', async ({ page }) => {
     const editor = await openEditor(page);
 

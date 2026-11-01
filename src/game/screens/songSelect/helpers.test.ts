@@ -83,6 +83,7 @@ describe('filterVisibleSongs', () => {
     gameplay_fade_in: null,
     gameplay_fade_out: null,
     jacket_url: null,
+    timing: null, revision: 1,
     charts,
   });
   const chartless = makeSong('no-charts', []);
@@ -115,6 +116,7 @@ describe('findRestoredFocus', () => {
       gameplay_fade_in: null,
       gameplay_fade_out: null,
       jacket_url: null,
+      timing: null, revision: 1,
       charts: [
         { id: 'a-easy', song_id: 'song-a', difficulty_label: 'EASY', difficulty_level: 3 },
       ],
@@ -133,6 +135,7 @@ describe('findRestoredFocus', () => {
       gameplay_fade_in: null,
       gameplay_fade_out: null,
       jacket_url: null,
+      timing: null, revision: 1,
       charts: [
         { id: 'b-hard', song_id: 'song-b', difficulty_label: 'HARD', difficulty_level: 9 },
         { id: 'b-easy', song_id: 'song-b', difficulty_label: 'EASY', difficulty_level: 3 },
@@ -182,6 +185,7 @@ describe('getSelectedChartForSong', () => {
     gameplay_fade_in: null,
     gameplay_fade_out: null,
     jacket_url: null,
+    timing: null, revision: 1,
     charts: [
       { id: 'chart-easy', song_id: 'song-1', difficulty_label: 'EASY', difficulty_level: 3 },
       { id: 'chart-hard', song_id: 'song-1', difficulty_label: 'HARD', difficulty_level: 9 },
@@ -257,6 +261,7 @@ describe('resolveGameplayRange', () => {
     gameplay_fade_in: null,
     gameplay_fade_out: null,
     jacket_url: null,
+    timing: null, revision: 1,
     charts: [],
     ...override,
   });

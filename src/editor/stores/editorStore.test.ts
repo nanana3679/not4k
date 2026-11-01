@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat } from '../../shared';
 import type { ChartDocument, Lane } from '../../shared';
-import { useEditorStore } from './editorStore';
+import { selectCanRedo, selectCanUndo, useEditorStore } from './editorStore';
 import { emptySelection } from './selectionSlice';
 import { isChartDirty, toSavedChartJson } from '../savedChart';
 
@@ -26,6 +26,32 @@ function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument
     ],
   };
 }
+
+describe('editorStore 커서 이동 횟수', () => {
+  it.each([2000, -500])('커서 3500ms에서 offset %ims 차트를 열면 0박인 offset으로 이동하고 이동 횟수는 유지한다', (offsetMs) => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    useEditorStore.getState().setCurrentTimeMs(3500);
+    const chart = makeChart();
+    chart.meta.offsetMs = offsetMs;
+
+    useEditorStore.getState().loadChart(chart);
+
+    expect(useEditorStore.getState().currentTimeMs).toBe(offsetMs);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(1);
+    expect(useEditorStore.getState().cursorBeatKeeperState).toBeNull();
+  });
+
+  it('setCurrentTimeMs로 2000→1000→2000→2000ms를 알리면 cursorMoveCount가 4 증가한다', () => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+
+    for (const timeMs of [2000, 1000, 2000, 2000]) {
+      useEditorStore.getState().setCurrentTimeMs(timeMs);
+    }
+
+    expect(useEditorStore.getState().currentTimeMs).toBe(2000);
+    expect(useEditorStore.getState().cursorMoveCount).toBe(4);
+  });
+});
 
 describe('editorStore history', () => {
   beforeEach(() => {
@@ -475,6 +501,43 @@ describe('editorStore savedChartJson', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 차트 불러오기 세대(chartLoadGeneration) — 타이밍 값 수정 뒤 커서 박 유지가 새로 불러온 차트를 수정으로 오인하지 않게 한다.
+// ---------------------------------------------------------------------------
+
+describe('editorStore 차트 불러오기 세대 chartLoadGeneration', () => {
+  const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  beforeEach(() => {
+    useEditorStore.setState({
+      chart: makeChart(), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
+      isSavingChart: false, chartSaveGeneration: 0, chartLoadGeneration: 0,
+      historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
+    });
+  });
+
+  it('처음 상태의 chartLoadGeneration은 0', () => {
+    expect(useEditorStore.getInitialState().chartLoadGeneration).toBe(0);
+  });
+
+  it('loadChart를 두 번 부르면 chartLoadGeneration이 0 → 1 → 2로 오른다', () => {
+    useEditorStore.getState().loadChart(makeChart([tap(1)]));
+    expect(useEditorStore.getState().chartLoadGeneration).toBe(1);
+
+    useEditorStore.getState().loadChart(makeChart([tap(2)]));
+    expect(useEditorStore.getState().chartLoadGeneration).toBe(2);
+  });
+
+  it('불러온 뒤 setChart·Undo·Redo·beginChartSave는 chartLoadGeneration 1을 바꾸지 않는다', () => {
+    useEditorStore.getState().loadChart(makeChart([tap(1)]));
+    useEditorStore.getState().setChart(makeChart([tap(1), tap(3)]));
+    useEditorStore.getState().undo();
+    useEditorStore.getState().redo();
+    useEditorStore.getState().beginChartSave();
+
+    expect(useEditorStore.getState().chartLoadGeneration).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 저장 진행(isSavingChart·chartSaveGeneration) — 페이지가 다시 마운트돼도 store가 유지하고,
 // 늦게 끝난 저장이 그 뒤에 정한 savedChartJson을 덮지 않는다.
 // ---------------------------------------------------------------------------
@@ -692,5 +755,215 @@ describe('editorStore applyLegacyConversion', () => {
     expect(useEditorStore.getState().chart).toBe(inverted);
     expect(useEditorStore.getState().historyPast).toHaveLength(0);
     expect(useEditorStore.getState().legacyConversionReview).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 재생 중 편집 제한(RFD 0099) — store 마지막 방어선. 입력 경로가 먼저 막고, 막지 못한 쓰기도 여기서 거부한다.
+// ---------------------------------------------------------------------------
+
+describe('editorStore 재생 중 편집 제한', () => {
+  const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  const state = () => useEditorStore.getState();
+  beforeEach(() => {
+    // 다른 describe의 setState는 isPlaying을 되돌리지 않으므로 여기서 매번 정한다.
+    useEditorStore.setState({
+      chart: makeChart([tap(1)]), extraLaneCount: 2, mode: 'select', selection: emptySelection(), isPlaying: false,
+      historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
+    });
+  });
+  afterEach(() => useEditorStore.setState({ isPlaying: false }));
+
+  it('재생 중 1박 탭 옆에 3박 탭을 더하는 setChart는 차트·history·재생 상태를 바꾸지 않는다', () => {
+    const before = state().chart;
+    state().setIsPlaying(true);
+
+    state().setChart(makeChart([tap(1), tap(3)]));
+
+    expect(state().chart).toBe(before);
+    expect(state().historyPast).toHaveLength(0);
+    expect(state().isPlaying).toBe(true);
+  });
+
+  it('재생 중 오프셋을 0ms에서 25ms로 바꾸는 setChart는 거부되어 오프셋 0ms가 남는다', () => {
+    state().setIsPlaying(true);
+
+    state().setChart({ ...state().chart, meta: { ...state().chart.meta, offsetMs: 25 } });
+
+    expect(state().chart.meta.offsetMs).toBe(0);
+  });
+
+  it('재생 중 BPM 120 → 90 변경 setChart는 거부되어 BPM 120이 남는다', () => {
+    state().setIsPlaying(true);
+    const current = state().chart;
+
+    state().setChart({ ...current, events: [{ type: 'bpm', beat: beat(0, 1), bpm: 90, editorLane: 1 }, current.events[1]] });
+
+    expect(state().chart.events[0]).toMatchObject({ type: 'bpm', bpm: 120 });
+  });
+
+  it('재생 중 저장이 제목·난이도만 바꾼 meta 쓰기는 통과해 차트 meta에 반영된다', () => {
+    state().setIsPlaying(true);
+    const current = state().chart;
+
+    state().setChart({ ...current, meta: { ...current.meta, title: 'Saved', difficultyLabel: 'LIFTOFF' } });
+
+    expect(state().chart.meta).toMatchObject({ title: 'Saved', difficultyLabel: 'LIFTOFF' });
+    expect(state().chart.notes).toBe(current.notes);
+  });
+
+  it('재생 중 보조 레인 수 2 → 3 변경은 막지 않는다', () => {
+    state().setIsPlaying(true);
+
+    state().setExtraLaneCount(3);
+
+    expect(state().extraLaneCount).toBe(3);
+  });
+
+  it('3박 탭을 더한 뒤 재생 중 undo·redo는 차트와 history를 바꾸지 않고, 정지 뒤 undo는 1개로 되돌린다', () => {
+    state().setChart(makeChart([tap(1), tap(3)]), { separateHistory: true });
+    const edited = state().chart;
+    state().setIsPlaying(true);
+
+    state().undo();
+    expect(state().chart).toBe(edited);
+    expect(state().historyPast).toHaveLength(1);
+
+    useEditorStore.setState({ historyFuture: [{ chart: makeChart([tap(1), tap(3), tap(5)]), extraLaneCount: 2 }] });
+    state().redo();
+    expect(state().chart).toBe(edited);
+    expect(state().historyFuture).toHaveLength(1);
+
+    state().setIsPlaying(false);
+    state().undo();
+    expect(state().chart.notes).toHaveLength(1);
+  });
+
+  it('재생 중 revertToLastValid는 위반 차트를 마지막 유효 차트로 되돌리지 않는다', () => {
+    const valid = state().chart;
+    state().setChart(makeChart([tap(2), tap(2)]));
+    useEditorStore.setState({ lastValidSnapshot: { chart: valid, extraLaneCount: 2 } });
+    const invalid = state().chart;
+    state().setIsPlaying(true);
+
+    state().revertToLastValid();
+
+    expect(state().chart).toBe(invalid);
+  });
+
+  it('history가 1개·Redo 기록이 1개 있어도 재생 중 selectCanUndo·selectCanRedo는 false이고 정지하면 true다', () => {
+    useEditorStore.setState({
+      historyPast: [{ chart: makeChart(), extraLaneCount: 2 }],
+      historyFuture: [{ chart: makeChart([tap(1), tap(3)]), extraLaneCount: 2 }],
+      isPlaying: true,
+    });
+    expect(selectCanUndo(state())).toBe(false);
+    expect(selectCanRedo(state())).toBe(false);
+
+    useEditorStore.setState({ isPlaying: false });
+    expect(selectCanUndo(state())).toBe(true);
+    expect(selectCanRedo(state())).toBe(true);
+  });
+
+  it('재생 중 beginEditTransaction은 null을 돌려주고 transaction을 열지 않는다', () => {
+    state().setIsPlaying(true);
+
+    expect(state().beginEditTransaction('erase')).toBeNull();
+    expect(state().editTransaction).toBeNull();
+  });
+
+  it('1박 탭을 선택해 3박으로 옮기며 보조 레인 2 → 3·선택 해제까지 한 transaction이 열린 채 재생을 시작하면 1박 탭·보조 레인 2·1박 선택으로 돌아가고 history 없이 소유자 onInterrupt를 1번 부른다', () => {
+    state().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    const before = state().chart;
+    const onInterrupt = vi.fn();
+    const token = state().beginEditTransaction('selectModeEdit', onInterrupt)!;
+    state().setChart(makeChart([tap(3)]), { transaction: token });
+    state().setExtraLaneCount(3, token);
+    state().setSelection(emptySelection());
+
+    state().setIsPlaying(true);
+
+    expect(onInterrupt).toHaveBeenCalledOnce();
+    expect(state().editTransaction).toBeNull();
+    expect(state().chart).toBe(before);
+    expect(state().extraLaneCount).toBe(2);
+    expect(state().selection.notes).toEqual(new Set([0]));
+    expect(state().historyPast).toHaveLength(0);
+    expect(state().historyFuture).toHaveLength(0);
+    expect(state().isPlaying).toBe(true);
+  });
+
+  it('transaction 없이 재생을 시작하면 1박 탭·선택·history를 그대로 둔다', () => {
+    state().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    const before = state().chart;
+
+    state().setIsPlaying(true);
+
+    expect(state().chart).toBe(before);
+    expect(state().selection.notes).toEqual(new Set([0]));
+    expect(state().historyPast).toHaveLength(0);
+  });
+
+  it('재생 중 setSelection으로 1박 탭을 고르면 false를 돌려주고 선택이 빈 채로 남는다', () => {
+    state().setIsPlaying(true);
+
+    expect(state().setSelection({ ...emptySelection(), notes: new Set([0]) })).toBe(false);
+    expect(state().selection.notes.size).toBe(0);
+  });
+
+  it('재생 중 clearSelection은 1박 탭 선택을 비우지 않고 false를 돌려준다', () => {
+    state().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    state().setIsPlaying(true);
+
+    expect(state().clearSelection()).toBe(false);
+    expect(state().selection.notes).toEqual(new Set([0]));
+  });
+
+  it('재생 중에도 setSelectionTransient는 박스 취소처럼 시작 전 선택(1박 탭)을 되돌려 쓴다', () => {
+    state().setIsPlaying(true);
+
+    state().setSelectionTransient({ ...emptySelection(), notes: new Set([0]) });
+
+    expect(state().selection.notes).toEqual(new Set([0]));
+  });
+
+  it('재생을 멈추는 setIsPlaying(false)는 열린 transaction을 확정하지 않는다', () => {
+    const onInterrupt = vi.fn();
+    state().beginEditTransaction('selectModeEdit', onInterrupt);
+
+    state().setIsPlaying(false);
+
+    expect(onInterrupt).not.toHaveBeenCalled();
+    expect(state().editTransaction).not.toBeNull();
+  });
+
+  /** 1박 탭 A를 선택해 두고, 누름이 선택을 3박 탭 B로 바꾼 뒤 B를 4박으로 옮기는 transaction을 연다. */
+  const pressBAfterSelectingA = () => {
+    useEditorStore.setState({ chart: makeChart([tap(1), tap(3)]) });
+    state().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    const selectionBeforePress = state().selection;
+    state().setSelection({ ...emptySelection(), notes: new Set([1]) });
+    const before = state().chart;
+    const token = state().beginEditTransaction('selectModeEdit', undefined, selectionBeforePress)!;
+    state().setChart(makeChart([tap(1), tap(4)]), { transaction: token });
+    return { before, token };
+  };
+
+  it('A 선택 뒤 누름이 B로 선택을 바꿔 연 transaction을 소유자 token으로 취소하면 B는 3박으로 돌아오고 선택은 B로 남는다', () => {
+    const { before, token } = pressBAfterSelectingA();
+
+    state().cancelEditTransaction(token);
+
+    expect(state().chart).toBe(before);
+    expect(state().selection.notes).toEqual(new Set([1]));
+  });
+
+  it('A 선택 뒤 누름이 B로 선택을 바꿔 연 transaction이 열린 채 재생을 시작하면 B는 3박으로 돌아오고 선택은 누르기 전 A로 돌아간다', () => {
+    const { before } = pressBAfterSelectingA();
+
+    state().setIsPlaying(true);
+
+    expect(state().chart).toBe(before);
+    expect(state().selection.notes).toEqual(new Set([0]));
   });
 });

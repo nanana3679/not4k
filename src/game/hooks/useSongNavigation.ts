@@ -89,7 +89,7 @@ export function useSongNavigation(options: {
   const fetchSongsCore = useCallback((signal?: AbortSignal) => {
     const query = supabase
       .from('songs')
-      .select('*, charts(*)')
+      .select('id,title,artist,audio_url,duration,jacket_url,updated_at,timing,revision,preview_start,preview_end,preview_url,gameplay_start,gameplay_end,gameplay_fade_in,gameplay_fade_out,charts(*)')
       .order('title');
     if (signal) query.abortSignal(signal);
     return Promise.resolve(query).then(({ data, error: err }) => {

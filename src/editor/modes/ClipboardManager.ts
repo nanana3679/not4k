@@ -1,5 +1,7 @@
 import { translateEvent, eventInBounds } from '../editing/eventEditing';
 import { reconcileMovedTicks } from '../editing/explicitEditing';
+import { placeEditedInitialTiming, withInitialTimingLane } from '../editing/initialTimingPlacement';
+import { INITIAL_TIMING_EXISTS_COPY } from '../editorCopy';
 import type { ChartDocument, ChartEvent, DocumentNoteEntity, RangeNote, BodyNote, Beat, TrillZone, RestZone } from "../../shared";
 import { beatToFloat, isVisibleLane, isMainLane, maxAuxLane, toAuxIndex } from "../../shared";
 import { beatAdd, beatSub } from "../../shared";
@@ -62,7 +64,13 @@ export class ClipboardManager {
   private pastedNoteIndices: Set<number> = new Set();
   private pastedZoneIndices: Set<number> = new Set();
   private pastedRestZoneIndices: Set<number> = new Set();
-  private pastedEventIndices: Set<number> = new Set();
+  // 붙여넣은 이벤트 인덱스 → 붙인 시점 위치(복사한 레인 그대로, 초기 설정 자리에 두기 전). 대기 중 이동은 이 위치에서
+  // 누적 오프셋만큼 옮긴 뒤 0박 BPM·박자를 초기 설정 자리에 둔다. 드래그 이동이 시작 위치에서 옮기는 것과 같아, 0박을
+  // 거쳐 다시 옮기면 원래 레인으로 돌아온다(RFD 0082).
+  private pastedEventOriginsByIndex = new Map<number, ChartEvent>();
+  // 붙여넣은 뒤 대기 중 이동의 누적 박·레인 오프셋. 이동이 성공할 때만 늘어난다.
+  private pendingPasteBeatOffset: Beat = { n: 0, d: 1 };
+  private pendingPasteLaneOffset = 0;
   // 붙여넣은 틱 노트의 클립보드 수량. 대기 중 이동으로 바디 밖에 두면 이 수량으로 돌린다.
   private pastedTickCountByNoteIndex = new Map<number, 1 | 2>();
 
@@ -210,6 +218,18 @@ export class ClipboardManager {
         }
       }
     }
+    // 이벤트도 함께 붙여넣는다(같은 beatOffset 평행이동, editorLane 유지 — §3-4 D4). 0박에 온 BPM·박자는 초기 설정
+    // 자리에 두고, 같은 종류 초기 설정이 이미 있으면 붙여넣기 전체를 거부한다(RFD 0082).
+    const pastedEventStart = chart.events.length;
+    const pastedEventOrigins = clipEvents.map(clipEvent => translateEvent(clipEvent, beatOffset));
+    const newEvents = placeEditedInitialTiming(
+      [...chart.events, ...pastedEventOrigins],
+      pastedEventOrigins.map((_, offset) => pastedEventStart + offset),
+    );
+    if (!newEvents) {
+      callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+      return null;
+    }
 
     clearSelection();
 
@@ -249,15 +269,10 @@ export class ClipboardManager {
       this.pastedRestZoneIndices.add(idx);
     }
 
-    // 이벤트도 함께 붙여넣기(같은 beatOffset 평행이동, editorLane 유지 — §3-4 D4).
-    // 위반이어도 낙관 주입(place-then-fix, RFD 0017) — 커밋 게이트가 검증한다.
-    const newEvents = [...chart.events];
-    this.pastedEventIndices.clear();
-    for (const clipEvent of clipEvents) {
-      const idx = newEvents.length;
-      newEvents.push(translateEvent(clipEvent, beatOffset));
-      this.pastedEventIndices.add(idx);
-    }
+    // 붙여넣은 이벤트는 위에서 만들었다. 위반이어도 낙관 주입(place-then-fix, RFD 0017) — 커밋 게이트가 검증한다.
+    this.pastedEventOriginsByIndex.clear();
+    pastedEventOrigins.forEach((origin, offset) => this.pastedEventOriginsByIndex.set(pastedEventStart + offset, origin));
+    this.resetPendingPasteOffsets();
 
     const newChart = {
       ...chart,
@@ -278,7 +293,7 @@ export class ClipboardManager {
       chart: newChart,
       selectedIndices: newSelectedIndices,
       pastedNoteIndices: new Set(this.pastedNoteIndices),
-      pastedEventIndices: new Set(this.pastedEventIndices),
+      pastedEventIndices: new Set(this.pastedEventOriginsByIndex.keys()),
       pastedRestZoneIndices: new Set(this.pastedRestZoneIndices),
       count: clipNotes.length + clipZones.length + clipRestZones.length + clipEvents.length,
     };
@@ -297,7 +312,7 @@ export class ClipboardManager {
     }
     const pastedZones = [...this.pastedZoneIndices].map(index => chart.trillZones[index]).filter(Boolean);
     const needed = Math.max(toAuxIndex(maxAuxLane([...pastedNotes, ...pastedZones])),
-      ...[...this.pastedEventIndices].map(index => chart.events[index].editorLane ?? 1));
+      ...[...this.pastedEventOriginsByIndex.keys()].map(index => chart.events[index].editorLane ?? 1));
     const cur = callbacks.getExtraLaneCount();
     if (needed > cur) {
       // 확장이 실제 일어났을 때만 이전 값을 기록 — 취소 시 이 값으로만 되돌린다(§8-6).
@@ -350,7 +365,8 @@ export class ClipboardManager {
     this.pastedNoteIndices.clear();
     this.pastedZoneIndices.clear();
     this.pastedRestZoneIndices.clear();
-    this.pastedEventIndices.clear();
+    this.pastedEventOriginsByIndex.clear();
+    this.resetPendingPasteOffsets();
     this.pastedTickCountByNoteIndex.clear();
     const restoreExtraLaneCount = this.prePasteExtraLaneCount;
     this.prePasteExtraLaneCount = null;
@@ -379,7 +395,7 @@ export class ClipboardManager {
     // 노트 없는 구간만 붙여넣은 경우도 이동할 수 있다.
     if (
       !this._isPendingPaste ||
-      (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0 && this.pastedZoneIndices.size === 0 && this.pastedEventIndices.size === 0)
+      (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0 && this.pastedZoneIndices.size === 0 && this.pastedEventOriginsByIndex.size === 0)
     ) {
       return null;
     }
@@ -431,27 +447,21 @@ export class ClipboardManager {
       if (beatToFloat(zone.beat) < 0 || beatToFloat(zone.endBeat) > restMaxFloat) return null;
     }
 
-    // 붙여넣은 이벤트도 함께 이동(상/하) — 레인 이동과 달리 beat 축은 이벤트도 따라간다
-    const newEvents = [...chart.events];
-    for (const idx of this.pastedEventIndices) {
-      newEvents[idx] = translateEvent(newEvents[idx], offset);
-    }
-    // 이벤트가 범위를 벗어나면 이동 거부(노트 :_areNotesInBounds와 대칭, 음수 beat 저장 방지)
-    const maxFloat = callbacks.space.getMaxBeatFloat();
-    for (const idx of this.pastedEventIndices) {
-      const evt = newEvents[idx];
-      if (beatToFloat(evt.beat) < 0 || beatToFloat(evt.beat) > maxFloat) return null;
-      if ("endBeat" in evt) {
-        const ef = beatToFloat(evt.endBeat);
-        if (ef < 0 || ef > maxFloat) return null;
-      }
-    }
+    // 붙여넣은 이벤트도 함께 이동(상/하) — 레인 이동과 달리 beat 축은 이벤트도 따라간다.
+    // 범위를 벗어나면 이동 거부(노트 _areNotesInBounds와 대칭, 음수 beat 저장 방지).
+    const nextBeatOffset = beatAdd(this.pendingPasteBeatOffset, offset);
+    const placedEvents = this.movePastedEvents(chart.events, nextBeatOffset, this.pendingPasteLaneOffset, {
+      maxBeat: callbacks.space.getMaxBeatFloat(),
+      extraLaneCount: callbacks.getExtraLaneCount?.() ?? Infinity,
+    }, callbacks.onWarn);
+    if (!placedEvents) return null;
+    this.pendingPasteBeatOffset = nextBeatOffset;
 
     const newChart = {
       ...chart,
       notes: reconcileMovedTicks(newNotes, this.pastedNoteIndices, this.pastedTickCountByNoteIndex),
       trillZones: newZones,
-      events: newEvents,
+      events: placedEvents,
       ...(this.pastedRestZoneIndices.size > 0 ? { restZones: newRestZones } : {}),
     };
     callbacks.onChartUpdate(newChart);
@@ -470,12 +480,12 @@ export class ClipboardManager {
   movePasteByLane(
     chart: ChartDocument,
     direction: "left" | "right",
-    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getExtraLaneCount">,
+    callbacks: Pick<ClipboardCallbacks, "onChartUpdate" | "getExtraLaneCount" | "onWarn">,
   ): ChartDocument | null {
     // 노트 없는 구간만 붙여넣은 경우도 이동할 수 있다.
     if (
       !this._isPendingPaste ||
-      (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0 && this.pastedZoneIndices.size === 0 && this.pastedEventIndices.size === 0)
+      (this.pastedNoteIndices.size === 0 && this.pastedRestZoneIndices.size === 0 && this.pastedZoneIndices.size === 0 && this.pastedEventOriginsByIndex.size === 0)
     ) {
       return null;
     }
@@ -516,15 +526,17 @@ export class ClipboardManager {
       newRestZones[idx] = { ...zone, lane: (zone.lane + laneOffset) as RestZone["lane"] };
     }
 
-    const events = [...chart.events];
-    for (const index of this.pastedEventIndices) {
-      const event = translateEvent(events[index], { n: 0, d: 1 }, laneOffset);
-      if (!eventInBounds(event, Infinity, extraLaneCount)) return null;
-      events[index] = event;
-    }
+    // 0박 BPM·박자는 레인을 옮겨도 초기 설정 자리에 남는다(RFD 0082). 함께 붙여넣은 다른 항목만 옮겨진다.
+    const nextLaneOffset = this.pendingPasteLaneOffset + laneOffset;
+    const placedEvents = this.movePastedEvents(chart.events, this.pendingPasteBeatOffset, nextLaneOffset, {
+      maxBeat: Infinity,
+      extraLaneCount,
+    }, callbacks.onWarn);
+    if (!placedEvents) return null;
+    this.pendingPasteLaneOffset = nextLaneOffset;
     const newChart = {
       ...chart,
-      events,
+      events: placedEvents,
       notes: reconcileMovedTicks(newNotes, this.pastedNoteIndices, this.pastedTickCountByNoteIndex),
       trillZones: newZones,
       ...(this.pastedRestZoneIndices.size > 0 ? { restZones: newRestZones } : {}),
@@ -574,8 +586,39 @@ export class ClipboardManager {
     this.pastedNoteIndices.clear();
     this.pastedZoneIndices.clear();
     this.pastedRestZoneIndices.clear();
-    this.pastedEventIndices.clear();
+    this.pastedEventOriginsByIndex.clear();
+    this.resetPendingPasteOffsets();
     this.pastedTickCountByNoteIndex.clear();
+  }
+
+  /**
+   * 붙여넣은 이벤트를 붙인 시점 위치에서 누적 오프셋(`beatOffset`·`laneOffset`)만큼 옮긴 events를 만든다.
+   *
+   * 0박에 온 BPM·박자는 먼저 초기 설정 자리에 두고, 그 최종 위치로 범위를 검사한다. 레인 이동이 만든 임시 레인이 보조 레인
+   * 수를 넘어도 고정 자리로 돌아가므로 이동을 막지 않는다. 범위를 벗어나면 `null`, 같은 종류 초기 설정이 이미 있으면
+   * 안내를 한 번 띄우고 `null`을 돌려준다(RFD 0082).
+   */
+  private movePastedEvents(
+    events: ChartEvent[],
+    beatOffset: Beat,
+    laneOffset: number,
+    bounds: { maxBeat: number; extraLaneCount: number },
+    onWarn: ((message: string) => void) | undefined,
+  ): ChartEvent[] | null {
+    const movedEvents = [...events];
+    for (const [index, origin] of this.pastedEventOriginsByIndex) {
+      const event = withInitialTimingLane(translateEvent(origin, beatOffset, laneOffset));
+      if (!eventInBounds(event, bounds.maxBeat, bounds.extraLaneCount)) return null;
+      movedEvents[index] = event;
+    }
+    const placedEvents = placeEditedInitialTiming(movedEvents, this.pastedEventOriginsByIndex.keys());
+    if (!placedEvents) onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+    return placedEvents;
+  }
+
+  private resetPendingPasteOffsets(): void {
+    this.pendingPasteBeatOffset = { n: 0, d: 1 };
+    this.pendingPasteLaneOffset = 0;
   }
 
   private _isRangeNote(note: DocumentNoteEntity): note is RangeNote | BodyNote {
