@@ -25,12 +25,16 @@ async function openTutorial(page: Page, shortage = false, keyBindings = KEY_BIND
 
 const ACTIVE_PLAYER = '[data-tutorial-preview-slot="active"][data-tutorial-preview-id="single-note"] [data-tutorial-engine]';
 
+// 2초 여백으로 반복이 6초까지 길어져, 다음 반복의 입력 시각까지 최대 약 9초를 기다린다. 부하에서도 넘지 않게 여유를 둔다.
+const LOOP_WAIT_TIMEOUT_MS = 20_000;
+
 // 실제 rAF가 공개한 경과 시간에 맞춰 실제 키보드로 친다. 고정 sleep·합성 KeyboardEvent·세션 패치는 쓰지 않는다.
+// 앞 반복에서 이미 완료해 실습이 멈췄으면 기다리지 않고 돌아가 호출자가 진행도를 확인하게 한다.
 async function waitForElapsed(page: Page, target: number, selector = ACTIVE_PLAYER) {
   await page.waitForFunction(({ selector, target }) => {
     const player = document.querySelector<HTMLElement>(selector);
-    return player && Number(player.dataset.tutorialElapsedMs) >= target;
-  }, { selector, target }, { polling: 'raf', timeout: 10_000 });
+    return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= target);
+  }, { selector, target }, { polling: 'raf', timeout: LOOP_WAIT_TIMEOUT_MS });
 }
 
 for (const inputOffsetMs of [0, -200, 200]) {
@@ -66,7 +70,7 @@ for (const inputOffsetMs of [0, -200, 200]) {
       await page.waitForFunction(({ selector, endMs }) => {
         const player = document.querySelector<HTMLElement>(selector);
         return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 32);
-      }, { selector: ACTIVE_PLAYER, endMs: startMs + loopMs + Math.max(0, -inputOffsetMs) }, { polling: 'raf', timeout: 10_000 });
+      }, { selector: ACTIVE_PLAYER, endMs: startMs + loopMs + Math.max(0, -inputOffsetMs) }, { polling: 'raf', timeout: LOOP_WAIT_TIMEOUT_MS });
       if (await progress.textContent() === '3/3') break;
     }
 
@@ -222,7 +226,7 @@ for (const id of ['connected-long-note-switch', 'connected-long-note-overlap']) 
       await page.waitForFunction(({ selector, endMs }) => {
         const player = document.querySelector<HTMLElement>(selector);
         return player && (player.dataset.tutorialPaused === 'true' || Number(player.dataset.tutorialElapsedMs) >= endMs + 32);
-      }, { selector, endMs: startMs + loopMs }, { polling: 'raf', timeout: 10_000 });
+      }, { selector, endMs: startMs + loopMs }, { polling: 'raf', timeout: LOOP_WAIT_TIMEOUT_MS });
       attempts.push(await player.evaluate(element => ({
         iteration: element.getAttribute('data-tutorial-last-iteration'),
         perfect: element.getAttribute('data-tutorial-last-perfect'),
