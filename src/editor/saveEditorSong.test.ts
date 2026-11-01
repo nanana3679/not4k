@@ -372,16 +372,77 @@ it('0박 BPM 2개가 있는 미이행 곡도 깨끗하게 열리지만 saveEdito
   expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled();
 });
 
-it.each(['BPM 120→180', '박자표 4→3', 'Offset 25→45'])('%s 변경을 승인하면 다른 차트 0개 확인 1회 뒤 save_song 1회로 저장한다', async change => {
+it.each(['BPM 120→180', '박자표 4→3', 'Offset 25→45'])('%s 변경에 같은 곡의 다른 차트가 0개면 확인 없이 save_song 1회로 저장한다', async change => {
   const chart = state().chart;
   state().setChart({ ...chart, meta: { ...chart.meta, offsetMs: change.startsWith('Offset') ? 45 : 25 },
     events: chart.events.map(event => event.type === 'bpm' && change.startsWith('BPM') ? { ...event, bpm: 180 }
       : event.type === 'timeSignature' && change.startsWith('박자표') ? { ...event, beatPerMeasure: { n: 3, d: 1 } } : event) });
+  api.eq.mockResolvedValue({ data: [{ difficulty_label: base.meta.difficultyLabel.toLowerCase() }], error: null });
   const confirm = vi.fn(() => true);
   expect(await saveEditorSong(null, confirm)).toBe(true);
-  expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('다른 차트 0개'));
+  expect(confirm).not.toHaveBeenCalled();
   expect(api.rpc).toHaveBeenCalledOnce();
   expect(dirty()).toBe(false);
+});
+
+it('Offset 25→45 변경에 같은 곡의 다른 차트가 hard 1개면 다른 차트 1개 확인 1회 뒤 save_song 1회로 저장한다', async () => {
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, offsetMs: 45 } });
+  api.eq.mockResolvedValue({ data: [{ difficulty_label: base.meta.difficultyLabel.toLowerCase() }, { difficulty_label: 'hard' }], error: null });
+  const confirm = vi.fn(() => true);
+  expect(await saveEditorSong(null, confirm)).toBe(true);
+  expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('다른 차트 1개'));
+  expect(api.rpc).toHaveBeenCalledOnce();
+});
+
+it.each([
+  ['title', '   '], ['artist', ''],
+] as const)('곡 행이 있는 차트의 %s를 "%s"로 비우고 자켓 A.png와 저장하면 확인·업로드·RPC 0회로 거부하고 Title·Artist 필수 안내를 띄운다', async (field, value) => {
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, [field]: value, offsetMs: 45 } });
+  state().setSong({ ...state().song!, pendingJacketFile: new File(['A'], 'A.png') });
+  const before = state();
+  const confirm = vi.fn(() => true);
+  expect(await saveEditorSong(null, confirm)).toBe(false);
+  expect(confirm).not.toHaveBeenCalled(); expect(api.from).not.toHaveBeenCalled();
+  expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
+  expect(showToast).toHaveBeenCalledExactlyOnceWith('Title and Artist cannot be empty.', 'error');
+  expect(state().song).toBe(before.song); expect(state().isSavingSong).toBe(false);
+});
+
+it('timing NULL에서 다른 차트 hard는 BPM 180, expert는 파일 없음, easy는 깨진 JSON이면 확인에 hard를 타이밍이 다른 차트로, easy·expert를 비교하지 못한 차트로 보이고 승인하면 RPC 1회다', async () => {
+  open(null);
+  const raw = JSON.parse(toSavedChartJson(state().chart, 2).chartJson);
+  api.eq.mockResolvedValue({ data: [
+    { difficulty_label: base.meta.difficultyLabel.toLowerCase(), chart_path: null },
+    { difficulty_label: 'hard', chart_path: null },
+    { difficulty_label: 'expert', chart_path: null },
+    { difficulty_label: 'easy', chart_path: null },
+  ], error: null });
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (url.endsWith('expert.json')) return new Response('missing', { status: 404 });
+    if (url.endsWith('easy.json')) return new Response('{ broken');
+    const file = structuredClone(raw);
+    file.events.find((e: { type: string }) => e.type === 'bpm').bpm = 180;
+    return new Response(JSON.stringify(file));
+  }));
+  const confirm = vi.fn<(message: string) => boolean>(() => true);
+  expect(await saveEditorSong(null, confirm)).toBe(true);
+  expect(confirm).toHaveBeenCalledOnce();
+  const message = confirm.mock.calls[0][0];
+  expect(message).toContain('타이밍이 다른 차트: hard');
+  expect(message).toContain('Could not compare (chart file unreadable): expert, easy');
+  expect(api.rpc).toHaveBeenCalledOnce();
+});
+
+it('timing NULL에서 다른 차트 hard 파일만 없고 확인을 취소하면 RPC·업로드 0회로 이행 대기를 유지한다', async () => {
+  open(null);
+  api.eq.mockResolvedValue({ data: [{ difficulty_label: 'hard', chart_path: null }], error: null });
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('missing', { status: 404 })));
+  const confirm = vi.fn<(message: string) => boolean>(() => false);
+  expect(await saveEditorSong(null, confirm)).toBe(false);
+  expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('Could not compare (chart file unreadable): hard'));
+  expect(confirm.mock.calls[0][0]).not.toContain('타이밍이 다른 차트');
+  expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled();
+  expect(state().song?.needsTimingMigration).toBe(true);
 });
 
 it.each(['title', 'artist', 'gameplayRange'] as const)('%s만 새 값 또는 5～100초로 변경하면 확인·다른 차트 조회 0회로 리비전 57을 저장한다', async field => {
@@ -413,4 +474,16 @@ it('Offset 25→45의 차트 수 조회 중 새 차트를 열면 늦은 응답�
   expect(await saving).toBe(false);
   expect(confirm).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
   expect(state().chart).toBe(next.chart); expect(state().song).toBe(next.song);
+});
+
+it('프리뷰를 0～8초로 바꾸고 Offset 25→45까지 바꿨는데 재생 음원이 없으면 확인·업로드·RPC 0회로 음원 없음 안내를 띄운다', async () => {
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, previewStart: 0, previewEnd: 8, offsetMs: 45 } });
+  state().setSong({ ...state().song!, pendingPreviewRange: { startTime: 0, endTime: 8, fadeInTime: 0, fadeOutTime: 0 } });
+  api.eq.mockResolvedValue({ data: [{ difficulty_label: 'hard' }], error: null });
+  const confirm = vi.fn(() => true);
+  expect(await saveEditorSong(null, confirm)).toBe(false);
+  expect(confirm).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
+  expect(showToast).toHaveBeenCalledExactlyOnceWith(
+    'The song audio is not loaded, so the preview clip cannot be created. Load the audio in Meta and save again.', 'error');
+  expect(state().isSavingSong).toBe(false); expect(dirty()).toBe(true);
 });

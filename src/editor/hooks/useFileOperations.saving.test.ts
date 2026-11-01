@@ -17,6 +17,8 @@ import { SelectMode } from '../modes/SelectMode';
 import { makeFakeSpace } from '../timeline/makeFakeSpace';
 import { useGameStore } from '../../game/stores';
 import { useFileOperations, type FileOperationHandlers } from './useFileOperations';
+import { EMPTY_SONGLESS_MEDIA } from '../songlessMedia';
+import { SAVE_AUDIO_LOADING_COPY } from '../editorCopy';
 
 /** charts 행 upsert 하나. 테스트가 resolve·reject할 때까지 그 저장은 끝나지 않는다. */
 interface PendingUpsert {
@@ -27,7 +29,8 @@ interface PendingUpsert {
 
 const harness = vi.hoisted(() => ({
   upserts: [] as PendingUpsert[], uploads: new Map<string, string>(),
-  uploadAsset: vi.fn(async () => ({ error: null })),
+  uploadAsset: vi.fn(async (_path: string, _body: Blob, _options?: unknown) => ({ error: null as { message: string } | null })),
+  songUpdates: vi.fn(async (_values: Record<string, unknown>, _id: string) => ({ error: null as { message: string } | null })),
   rpc: vi.fn(), charts: vi.fn(), confirm: vi.fn(),
 }));
 
@@ -36,7 +39,8 @@ vi.mock('../../supabase/client', () => ({
   supabase: {
     storage: { from: () => ({ upload: harness.uploadAsset }) },
     rpc: harness.rpc,
-    from: () => ({ select: () => ({ eq: harness.charts }) }),
+    from: () => ({ select: () => ({ eq: harness.charts }),
+      update: (values: Record<string, unknown>) => ({ eq: (_column: string, id: string) => harness.songUpdates(values, id) }) }),
   },
 }));
 // 실제 저장 함수(shared saveChartAsset)에 메모리 adapter를 꽂는다. 업로드는 바로 끝나고 charts 행 upsert만 기다리게 해
@@ -67,7 +71,7 @@ const SAVE_FAILED_TOAST = '저장에 실패했습니다. 잠시 후 다시 시�
 const current = () => useEditorStore.getState();
 const single = (lane: number, at: number): ChartDocument['notes'][number] => ({ type: 'single', lane: lane as Lane, beat: beat(at) });
 const chart = (notes: ChartDocument['notes'], difficultyLabel = 'NORMAL'): ChartDocument => ({
-  meta: { title: '저장 진행', artist: '', difficultyLabel, difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
+  meta: { title: '저장 진행', artist: '작곡가', difficultyLabel, difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
   notes,
   trillZones: [],
   events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }],
@@ -87,14 +91,17 @@ function renderFileOperations(): FileOperationHandlers {
   return mountFileOperations().handlers;
 }
 
-function mountFileOperations({ audioBufferData = {} as AudioBuffer }: { audioBufferData?: AudioBuffer | null } = {}) {
+function mountFileOperations({ audioBufferData = {} as AudioBuffer, audioLoading = false }: {
+  audioBufferData?: AudioBuffer | null; audioLoading?: boolean;
+} = {}) {
   const playback = { audioBufferData, isPlaying: false, pause: vi.fn() } as unknown as PlaybackController;
   const playbackRef: RefObject<PlaybackController | null> = { current: playback };
   const rendererRef: RefObject<{ setChart: (c: unknown) => void } | null> = { current: null };
   let handlers: FileOperationHandlers | undefined;
   const setValidationErrors = vi.fn();
   function Probe({ onRender }: { onRender: (handlers: FileOperationHandlers) => void }) {
-    onRender(useFileOperations(playbackRef, rendererRef, vi.fn(), setValidationErrors, vi.fn(), vi.fn(), vi.fn(), vi.fn(), navigateTo));
+    onRender(useFileOperations(playbackRef, rendererRef, vi.fn(), setValidationErrors, vi.fn(), vi.fn(), vi.fn(), vi.fn(), navigateTo,
+      () => audioLoading));
     return null;
   }
   renderToStaticMarkup(createElement(Probe, { onRender: value => { handlers = value; } }));
@@ -102,7 +109,7 @@ function mountFileOperations({ audioBufferData = {} as AudioBuffer }: { audioBuf
 }
 
 function attachSong(migrated = true) {
-  current().setSong(createEditorSong({ title: current().chart.meta.title, artist: '', jacketUrl: null, audioUrl: '', duration: null,
+  current().setSong(createEditorSong({ title: current().chart.meta.title, artist: current().chart.meta.artist, jacketUrl: null, audioUrl: '', duration: null,
     previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
     gameplayFadeIn: null, gameplayFadeOut: null, timing: migrated ? toSongTiming(current().chart) : null, revision: 42 }, current().chart));
 }
@@ -110,7 +117,8 @@ function attachSong(migrated = true) {
 beforeEach(() => {
   harness.upserts.length = 0;
   harness.uploads.clear();
-  harness.uploadAsset.mockClear();
+  harness.uploadAsset.mockReset().mockImplementation(async () => ({ error: null }));
+  harness.songUpdates.mockClear();
   harness.rpc.mockReset().mockResolvedValue({ data: 57, error: null });
   harness.charts.mockReset().mockResolvedValue({ data: [{ difficulty_label: 'normal' }, { difficulty_label: 'hard' }], error: null });
   harness.confirm.mockReset().mockReturnValue(true);
@@ -122,7 +130,8 @@ beforeEach(() => {
   });
   useEditorStore.setState({
     chart: chart([]), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
-    song: null, isSavingSong: false, isSavingChart: false, chartSaveGeneration: 0, activeSongId: 'song', currentTimeMs: 0, editingEvent: null, isPlaying: false,
+    song: null, isSavingSong: false, isSavingChart: false, chartSaveGeneration: 0, activeSongId: 'song', activeDifficulty: null,
+    songlessMedia: EMPTY_SONGLESS_MEDIA, currentTimeMs: 0, editingEvent: null, isPlaying: false,
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
   });
 });
@@ -710,4 +719,127 @@ it('제목만 새 제목으로 바꾸고 Save As HARD Lv.8을 실행하면 확�
   expect(current().chart.meta).toMatchObject({ title: '새 제목', difficultyLabel: 'HARD', difficultyLevel: 8 });
   expect(isSongDirty(current().chart, current().song)).toBe(false);
   expect(isChartDirty(current().chart, 2, current().savedChartJson, true)).toBe(false);
+});
+
+describe('Save As 뒤 열린 차트의 난이도(정체성)', () => {
+  it('normal로 연 차트에 2박 노트를 더하고 HARD Lv.8로 Save As한 뒤 Undo하면 노트만 되돌리고 HARD Lv.8이 남아 다음 Save는 hard 경로·행에 쓴다', async () => {
+    open(chart([single(1, 0)])); current().setActiveDifficulty('normal');
+    current().setChart(chart([single(1, 0), single(2, 2)]));
+    const savingAs = renderFileOperations().handleSaveAs('HARD', 8);
+    await flush(); harness.upserts[0].resolve(); await savingAs;
+    expect(current().activeDifficulty).toBe('hard');
+
+    current().undo();
+    expect(current().chart.notes).toEqual([single(1, 0)]);
+    expect(current().chart.meta).toMatchObject({ difficultyLabel: 'HARD', difficultyLevel: 8 });
+
+    const saving = renderFileOperations().handleSaveChart();
+    await flush();
+    expect(harness.upserts[1].row).toMatchObject({ difficulty: 'hard', difficultyLevel: 8 });
+    expect(JSON.parse(harness.uploads.get('songs/song/hard.json')!).meta.difficultyLabel).toBe('HARD');
+    harness.upserts[1].resolve(); await saving;
+    expect(dirty()).toBe(false);
+  });
+
+  it('열린 차트가 normal인데 meta 난이도명이 EXPERT로 달라진 채 Save하면 expert가 아니라 normal.json·normal 행에 저장한다', async () => {
+    open(chart([single(1, 0)])); current().setActiveDifficulty('normal');
+    current().setChart({ ...current().chart, meta: { ...current().chart.meta, difficultyLabel: 'EXPERT' } });
+    const saving = renderFileOperations().handleSaveChart();
+    await flush();
+    expect(harness.upserts[0].row.difficulty).toBe('normal');
+    expect([...harness.uploads.keys()]).toEqual(['songs/song/normal.json', 'songs/song/normal.extra.json']);
+    harness.upserts[0].resolve(); await saving;
+  });
+
+  it('Save As HARD Lv.8 업로드 중 다른 차트 EASY를 열면 늦은 완료가 EASY의 난이도·열린 차트·URL을 바꾸지 않는다', async () => {
+    open(chart([single(1, 0)])); current().setActiveDifficulty('normal');
+    const savingAs = renderFileOperations().handleSaveAs('HARD', 8);
+    await flush();
+    open(chart([single(4, 4)], 'EASY')); current().setActiveDifficulty('easy');
+    harness.upserts[0].resolve(); await savingAs;
+    expect(current().chart.meta.difficultyLabel).toBe('EASY');
+    expect(current().activeDifficulty).toBe('easy');
+    expect(window.history.replaceState).not.toHaveBeenCalled();
+  });
+});
+
+describe('저장 전 확인 순서', () => {
+  it.each(['Save', 'Save As'])('음원 로딩 중 제목·프리뷰 0～8초를 바꿔 %s하면 곡 RPC·업로드 0회로 음원 로딩 안내를 띄운다', async action => {
+    open(chart([single(1, 0)])); attachSong();
+    current().setChart({ ...current().chart, meta: { ...current().chart.meta, title: '새 제목', previewStart: 0, previewEnd: 8 } });
+    current().setSong({ ...current().song!, pendingPreviewRange: { startTime: 0, endTime: 8, fadeInTime: 0, fadeOutTime: 0 } });
+    const { handlers } = mountFileOperations({ audioBufferData: null, audioLoading: true });
+    await (action === 'Save' ? handlers.handleSaveChart() : handlers.handleSaveAs('HARD', 8));
+    expect(SAVE_AUDIO_LOADING_COPY).toBe('Audio is still loading. Save again after it finishes.');
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(SAVE_AUDIO_LOADING_COPY, 'error');
+    expect(harness.rpc).not.toHaveBeenCalled(); expect(harness.uploadAsset).not.toHaveBeenCalled();
+    expect(harness.upserts).toHaveLength(0);
+    expect(isSongDirty(current().chart, current().song)).toBe(true);
+  });
+
+  it('곡 행이 있는 차트의 난이도명을 비우고 제목을 바꿔 Save하면 곡 RPC·차트 업로드 0회로 Difficulty label is empty를 띄운다', async () => {
+    open(chart([single(1, 0)])); attachSong();
+    current().setChart({ ...current().chart, meta: { ...current().chart.meta, title: '새 제목', difficultyLabel: '' } });
+    await renderFileOperations().handleSaveChart();
+    expect(showToast).toHaveBeenCalledExactlyOnceWith('Difficulty label is empty', 'error');
+    expect(harness.rpc).not.toHaveBeenCalled(); expect(harness.upserts).toHaveLength(0);
+    expect(current().song?.revision).toBe(42);
+  });
+});
+
+describe('곡 행 없는 차트의 기존 저장 규칙', () => {
+  const buffer = { duration: 120, length: 1200, sampleRate: 10, numberOfChannels: 1,
+    getChannelData: () => new Float32Array(1200) } as unknown as AudioBuffer;
+  const previewRange = { startTime: 0, endTime: 8, fadeInTime: 1, fadeOutTime: 1 };
+  const gameplayRange = { startTime: 2, endTime: 100, fadeInTime: 1, fadeOutTime: 3 };
+  function openSongless() {
+    open(chart([single(1, 0)]));
+    // Meta 적용처럼 프리뷰 구간과 음원 파일명은 차트 meta에, 파일·구간은 대기 미디어에 둔다.
+    current().setChart({ ...current().chart, meta: { ...current().chart.meta, previewStart: 0, previewEnd: 8, audioFile: 'A.ogg' } });
+    const media = { previewRange, gameplayRange, jacketFile: new File(['A'], 'A.png'), audioFile: new File(['A'], 'A.ogg') };
+    current().setSonglessMedia(media);
+    return media;
+  }
+
+  it('곡 행 없이 프리뷰 0～8초·인게임 2～100초·자켓 A.png·음원 A.ogg를 대기한 채 Save하면 고정 경로를 담은 차트를 올린 뒤 미디어 3개를 덮어쓰고 대기 값을 비워 깨끗해진다', async () => {
+    openSongless();
+    const saving = mountFileOperations({ audioBufferData: buffer }).handlers.handleSaveChart();
+    await flush();
+    expect(JSON.parse(harness.uploads.get('songs/song/normal.json')!).meta).toMatchObject({
+      imageFile: 'songs/song/jacket.png', audioFile: 'songs/song/audio.ogg', previewStart: 0, previewEnd: 8,
+    });
+    harness.upserts[0].resolve(); await saving;
+
+    expect(harness.uploadAsset.mock.calls.map(call => [call[0], call[2]])).toEqual([
+      ['songs/song/jacket.png', { upsert: true }], ['songs/song/audio.ogg', { upsert: true }], ['songs/song/preview.wav', { upsert: true }],
+    ]);
+    // 곡 행이 없어 구간·경로를 쓸 songs 행이 없다. 곡 RPC도 부르지 않는다.
+    expect(harness.songUpdates).not.toHaveBeenCalled();
+    expect(harness.rpc).not.toHaveBeenCalled();
+    expect(current().songlessMedia).toEqual(EMPTY_SONGLESS_MEDIA);
+    expect(current().chart.meta).toMatchObject({ imageFile: 'songs/song/jacket.png', audioFile: 'songs/song/audio.ogg' });
+    expect(current().historyPast).toHaveLength(1);
+    expect(dirty()).toBe(false);
+  });
+
+  it('곡 행 없는 차트의 Save 중 자켓을 B.png로 다시 고르면 저장한 A의 구간·음원만 비우고 B는 다음 Save에 남긴다', async () => {
+    openSongless();
+    const saving = mountFileOperations({ audioBufferData: buffer }).handlers.handleSaveChart();
+    await flush();
+    const jacketB = new File(['B'], 'B.png');
+    current().setSonglessMedia({ ...current().songlessMedia, jacketFile: jacketB });
+    harness.upserts[0].resolve(); await saving;
+    expect(current().songlessMedia).toEqual({ ...EMPTY_SONGLESS_MEDIA, jacketFile: jacketB });
+    expect(current().chart.meta.imageFile).toBe('');
+  });
+
+  it('곡 행 없는 차트의 프리뷰 클립 업로드가 실패하면 실패 토스트를 띄우고 대기 값과 저장 안 됨을 남긴다', async () => {
+    const media = openSongless();
+    harness.uploadAsset.mockImplementation(async path => ({ error: path.endsWith('preview.wav') ? { message: 'denied' } : null }));
+    const saving = mountFileOperations({ audioBufferData: buffer }).handlers.handleSaveChart();
+    await flush(); harness.upserts[0].resolve(); await saving;
+    expect(showToast).toHaveBeenCalledWith(SAVE_FAILED_TOAST, 'error');
+    expect(current().songlessMedia).toBe(media);
+    expect(dirty()).toBe(true);
+  });
 });

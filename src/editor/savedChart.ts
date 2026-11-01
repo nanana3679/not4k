@@ -35,8 +35,22 @@ export function isChartDirty(chart: ChartDocument, extraLaneCount: number, saved
   if (saved === null) return true;
   const current = toSavedChartJson(chart, extraLaneCount);
   return (hasSongRow
-    ? chartOnlyJson(current.chartJson) !== chartOnlyJson(saved.chartJson)
+    ? chartOnlyJson(current.chartJson) !== savedChartOnlyJson(saved)
     : current.chartJson !== saved.chartJson) || current.extraJson !== saved.extraJson;
+}
+
+/**
+ * 저장 기준 쪽 정리 결과. 기준은 불러오기·저장 성공 때만 새 객체로 바뀌므로 객체마다 한 번만 해석한다.
+ * 편집마다 다시 계산하는 것은 현재 차트 쪽뿐이다.
+ */
+const chartOnlyJsonBySaved = new WeakMap<SavedChartJson, string>();
+function savedChartOnlyJson(saved: SavedChartJson): string {
+  let stripped = chartOnlyJsonBySaved.get(saved);
+  if (stripped === undefined) {
+    stripped = chartOnlyJson(saved.chartJson);
+    chartOnlyJsonBySaved.set(saved, stripped);
+  }
+  return stripped;
 }
 
 /** 저장 JSON 형식은 유지하고 비교에서만 곡 소유 사본을 제외한다. */

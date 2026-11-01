@@ -7,6 +7,7 @@ import { PreviewRangeSelector } from './PreviewRangeSelector';
 import type { PreviewRangeState } from './PreviewRangeSelector';
 import { modalStyles } from './modalStyles';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import type { MetaAudioPick } from '../metaAudioSession';
 
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
@@ -42,6 +43,11 @@ export interface MetaEditModalProps {
   ) => void;
   onClose: () => void;
   onLoadAudio: (file: File) => void;
+  /**
+   * 이번 창에서 고른 음원과 로드 결과(App의 Meta 음원 선택이 소유). 로드에 성공한 파일만 적용하고, 로딩 중에는 Save를
+   * 막는다. 실패한 파일은 적용하지 않으며 이전 음원으로 구간을 계속 편집할 수 있다.
+   */
+  audioPick?: MetaAudioPick | null;
   initialJacketFile?: File | null;
   jacketCacheBust?: number;
   initialGameplayRange?: PlaybackRange | null;
@@ -52,6 +58,17 @@ export interface MetaEditModalProps {
   offsetLocked?: boolean;
 }
 
+/** 창을 열 때의 입력값. 난이도는 이 값에서 바꾼 경우에만 적용한다. */
+function initialMetaValues(meta: ChartMeta): Record<string, string> {
+  return {
+    title: meta.title,
+    artist: meta.artist,
+    difficultyLabel: meta.difficultyLabel,
+    difficultyLevel: String(meta.difficultyLevel),
+    offsetMs: String(meta.offsetMs),
+  };
+}
+
 export function MetaEditModal({
   meta,
   audioBuffer,
@@ -59,18 +76,14 @@ export function MetaEditModal({
   onSave,
   onClose,
   onLoadAudio,
+  audioPick = null,
   initialJacketFile,
   jacketCacheBust,
   initialGameplayRange,
   offsetLocked = false,
 }: MetaEditModalProps) {
-  const [values, setValues] = useState<Record<string, string>>({
-    title: meta.title,
-    artist: meta.artist,
-    difficultyLabel: meta.difficultyLabel,
-    difficultyLevel: String(meta.difficultyLevel),
-    offsetMs: String(meta.offsetMs),
-  });
+  const [initialValues] = useState(() => initialMetaValues(meta));
+  const [values, setValues] = useState<Record<string, string>>(initialValues);
   const previewDraft = useRangeDraft();
   const gameplayDraft = useRangeDraft();
   const [jacketError, setJacketError] = useState(false);
@@ -79,7 +92,7 @@ export function MetaEditModal({
   );
   // 기존 대기 파일은 미리보기에만 쓴다. 이번 모달에서 고른 파일만 다시 적용한다.
   const [jacketFile, setJacketFile] = useState<File | null>(null);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const audioFile = audioPick?.status === 'loaded' ? audioPick.file : null;
   const prevJacketUrlRef = useRef<string | null>(jacketLocalUrl);
 
   useEffect(() => {
@@ -95,7 +108,7 @@ export function MetaEditModal({
       ? getPublicUrl(meta.imageFile) + (jacketCacheBust ? `?t=${jacketCacheBust}` : '')
       : null);
 
-  const saveDisabled = audioLoading || (audioFile !== null && audioBuffer === null);
+  const saveDisabled = audioLoading || audioPick?.status === 'loading' || (audioFile !== null && audioBuffer === null);
   const handleSave = () => {
     if (saveDisabled) return;
     const level = parseInt(values.difficultyLevel);
@@ -103,10 +116,11 @@ export function MetaEditModal({
     const updatedMeta: Partial<ChartMeta> = {
       title: values.title,
       artist: values.artist,
-      difficultyLabel: values.difficultyLabel,
-      difficultyLevel: isNaN(level) ? meta.difficultyLevel : level,
       offsetMs: offsetLocked || isNaN(offset) ? meta.offsetMs : offset,
     };
+    // 난이도는 이 창에서 바꾼 값만 적용한다. 창을 연 뒤 Save As가 바꾼 난이도를 창을 열 때의 값으로 되돌리지 않는다.
+    if (values.difficultyLabel !== initialValues.difficultyLabel) updatedMeta.difficultyLabel = values.difficultyLabel;
+    if (values.difficultyLevel !== initialValues.difficultyLevel && !isNaN(level)) updatedMeta.difficultyLevel = level;
     // 저장 완료로 바뀐 경로를 모달을 열 때의 파일명으로 되돌리지 않는다.
     if (audioFile) updatedMeta.audioFile = audioFile.name;
     // 음원을 교체했다면 새 길이로 정규화한 구간도 적용한다.
@@ -169,10 +183,7 @@ export function MetaEditModal({
                 style={{ display: 'none' }}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) {
-                    setAudioFile(file);
-                    onLoadAudio(file);
-                  }
+                  if (file) onLoadAudio(file);
                 }}
               />
             </label>

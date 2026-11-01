@@ -5,6 +5,7 @@ import { createEditorSong, isSongDirty } from '../songState';
 import { useEditorStore } from '../stores/editorStore';
 import type { ChartMeta } from '../../shared';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import type { MetaAudioPick } from '../metaAudioSession';
 import { MetaEditModal } from './MetaEditModal';
 import { PreviewRangeSelector, type PreviewRangeState } from './PreviewRangeSelector';
 
@@ -70,7 +71,7 @@ it('Meta의 프리뷰 10～20초·인게임 2～110초 초기 알림 뒤 현재 
   renderToStaticMarkup(createElement(Probe));
   save!();
   expect(onSave).toHaveBeenCalledExactlyOnceWith({
-    title: '메타', artist: '작곡가', difficultyLabel: 'NORMAL', difficultyLevel: 5, offsetMs: 30,
+    title: '메타', artist: '작곡가', offsetMs: 30,
   }, null, null, null, null);
 });
 
@@ -98,16 +99,18 @@ it('Meta에서 프리뷰를 30～40초·인게임 페이드를 2초로 수정하
     { ...preview, startTime: 30, endTime: 40 }, null, { ...gameplay, fadeInTime: 2 }, null);
 });
 
-it('이번 Meta에서 next.ogg·next.png를 고르면 두 대기 파일과 새 음원의 0～5초 구간을 적용한다', () => {
+it('이번 Meta에서 next.ogg·next.png를 고르고 음원 로드가 끝나면 두 대기 파일과 새 음원의 0～5초 구간을 적용한다', () => {
   const onSave = vi.fn();
-  const onLoadAudio = vi.fn();
   const audio = new File(['audio'], 'next.ogg');
   const jacket = new File(['jacket'], 'next.png');
+  // 음원 로드 결과는 App의 Meta 음원 선택이 소유한다. 여기서는 로드가 바로 끝났다고 둔다.
+  let audioPick: MetaAudioPick | null = null;
+  const onLoadAudio = vi.fn((file: File) => { audioPick = { file, status: 'loaded' }; });
   const range = { startTime: 0, endTime: 5, fadeInTime: 0, fadeOutTime: 0, enabled: true };
   let initialized = false;
   let save: (() => void) | undefined;
   function Probe() {
-    const tree = MetaEditModal({ meta, audioBuffer: { duration: 5 } as AudioBuffer,
+    const tree = MetaEditModal({ meta, audioBuffer: { duration: 5 } as AudioBuffer, audioPick,
       onSave, onClose() {}, onLoadAudio });
     if (!initialized) {
       initialized = true;
@@ -162,7 +165,7 @@ describe('메타 편집 창의 곡 표시 정보', () => {
     save!();
 
     expect(onSave).toHaveBeenCalledExactlyOnceWith({
-      title: '새 제목', artist: '새 작곡가', offsetMs: 90, difficultyLabel: 'NORMAL', difficultyLevel: 5,
+      title: '새 제목', artist: '새 작곡가', offsetMs: 90,
     }, null, null, null, null);
     expect(isSongDirty(useEditorStore.getState().chart, useEditorStore.getState().song)).toBe(hasSongRow);
   });
@@ -201,7 +204,7 @@ describe('메타 편집 창의 재생 중 오프셋 잠금', () => {
     save!();
 
     expect(onSave).toHaveBeenCalledExactlyOnceWith(
-      { title: '새 제목', artist: '작곡가', offsetMs: 30, difficultyLabel: 'NORMAL', difficultyLevel: 5 },
+      { title: '새 제목', artist: '작곡가', offsetMs: 30 },
       null, null, null, null,
     );
   });
@@ -222,5 +225,78 @@ describe('메타 편집 창의 재생 중 오프셋 잠금', () => {
 
     expect(inputOf(markup, 'Offset \\(ms\\)')).toContain('value="30"');
     expect(inputOf(markup, 'Offset \\(ms\\)')).not.toContain('disabled');
+  });
+});
+
+describe('메타 편집 창의 난이도 적용', () => {
+  it('Meta를 NORMAL Lv.5로 연 뒤 Save As가 HARD Lv.8로 바꾸고 제목만 고쳐 적용하면 난이도를 보내지 않아 HARD Lv.8이 남는다', () => {
+    const onSave = vi.fn();
+    let phase = 0;
+    let save: (() => void) | undefined;
+    function Probe() {
+      const current = phase === 0 ? meta : { ...meta, difficultyLabel: 'HARD', difficultyLevel: 8 };
+      const tree = MetaEditModal({ meta: current, audioBuffer: null, onSave, onClose() {}, onLoadAudio() {} });
+      const fields = controls(tree);
+      if (phase++ === 0) fields.find(field => field.value === '메타')!.onChange!({ target: { value: '새 제목' } });
+      save = fields.find(field => field.children === 'Save')!.onClick;
+      return tree;
+    }
+    renderToStaticMarkup(createElement(Probe));
+    save!();
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith({ title: '새 제목', artist: '작곡가', offsetMs: 30 }, null, null, null, null);
+    const applied = { ...meta, difficultyLabel: 'HARD', difficultyLevel: 8, ...onSave.mock.calls[0][0] };
+    expect(applied).toMatchObject({ title: '새 제목', difficultyLabel: 'HARD', difficultyLevel: 8 });
+  });
+
+  it('Meta에서 Difficulty Label NORMAL→EXPERT·Level 5→9로 바꾸면 두 값을 적용한다', () => {
+    const onSave = vi.fn();
+    let phase = 0;
+    let save: (() => void) | undefined;
+    const edits = [['NORMAL', 'EXPERT'], ['5', '9']];
+    function Probe() {
+      const tree = MetaEditModal({ meta, audioBuffer: null, onSave, onClose() {}, onLoadAudio() {} });
+      const fields = controls(tree);
+      const edit = edits[phase++];
+      if (edit) fields.find(field => field.value === edit[0])!.onChange!({ target: { value: edit[1] } });
+      save = fields.find(field => field.children === 'Save')!.onClick;
+      return tree;
+    }
+    renderToStaticMarkup(createElement(Probe));
+    save!();
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(
+      { title: '메타', artist: '작곡가', offsetMs: 30, difficultyLabel: 'EXPERT', difficultyLevel: 9 }, null, null, null, null,
+    );
+  });
+});
+
+describe('메타 편집 창의 음원 로드 결과', () => {
+  const saveButton = (markup: string) => markup.match(/<button[^>]*>Save<\/button>/)?.[0] ?? '';
+
+  it('고른 broken.ogg 로드가 실패해 120초 이전 음원이 다시 보이면 구간 선택기 2개와 활성 Save로 음원 없이 적용한다', () => {
+    const onSave = vi.fn();
+    const props = { meta, audioBuffer: { duration: 120 } as AudioBuffer,
+      audioPick: { file: new File(['x'], 'broken.ogg'), status: 'failed' as const }, onSave, onClose() {}, onLoadAudio() {} };
+    const markup = renderToStaticMarkup(createElement(MetaEditModal, props));
+    expect(saveButton(markup)).not.toContain('disabled');
+    expect(markup.match(/프리뷰 구간|인게임 구간/g)).toHaveLength(2);
+
+    let save: (() => void) | undefined;
+    function Probe() {
+      const tree = MetaEditModal(props);
+      save = controls(tree).find(field => field.children === 'Save')!.onClick;
+      return tree;
+    }
+    renderToStaticMarkup(createElement(Probe));
+    save!();
+    expect(onSave.mock.calls[0][0]).not.toHaveProperty('audioFile');
+    expect(onSave.mock.calls[0][4]).toBeNull();
+  });
+
+  it('고른 next.ogg가 아직 로딩 중이면 이전 음원이 보여도 Save가 비활성이다', () => {
+    const markup = renderToStaticMarkup(createElement(MetaEditModal, { meta, audioBuffer: { duration: 120 } as AudioBuffer,
+      audioPick: { file: new File(['x'], 'next.ogg'), status: 'loading' }, onSave() {}, onClose() {}, onLoadAudio() {} }));
+    expect(saveButton(markup)).toContain('disabled=""');
   });
 });

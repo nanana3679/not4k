@@ -156,6 +156,14 @@ describe('저장 버튼 하나의 표시', () => {
     useEditorStore.setState({ isSavingSong: true });
     expect(buttonTag(render({ compact }), 'Saving')).toContain('disabled=""');
   });
+  it.each(['preview', 'gameplay'] as const)('곡 행 없는 차트에 %s 구간 0～8초가 대기 중이면 Save가 미저장이고, Save가 대기 구간을 비우면 깨끗하다', kind => {
+    const range = { startTime: 0, endTime: 8, fadeInTime: 0, fadeOutTime: 0 };
+    const pending = renderToStaticMarkup(createElement(EditorToolbar, { ...toolbarProps(),
+      pendingPreviewRange: kind === 'preview' ? range : null, pendingGameplayRange: kind === 'gameplay' ? range : null }));
+    expect(buttonTag(pending, 'Save, unsaved changes')).not.toBe('');
+    expect(buttonTag(render(), 'Save')).not.toBe('');
+  });
+
   it('곡 행 없이 1박 노트를 열면 Save 1개로 차트를 저장한다', () => {
     expect(render()).not.toContain('Save Song');
     expect(render().match(/aria-label="Save[^"]*"/g)).toHaveLength(1);

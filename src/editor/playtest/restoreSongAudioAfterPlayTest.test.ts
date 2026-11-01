@@ -25,11 +25,12 @@ describe('restoreSongAudioAfterPlayTest', () => {
     expect(showToast).not.toHaveBeenCalled();
   });
 
-  it('곡 행 조회가 Failed to load song 오류로 실패하고 대기 File이 없으면 거부하지 않고 오류 알림 1회만 띄우며 pendingAudioUrl은 null이다', async () => {
+  it('곡 행 조회가 Failed to load song 오류로 실패하고 대기 File이 없으면 거부하지 않고 영어 오류 알림 1회만 띄우며 pendingAudioUrl은 null이다', async () => {
     vi.mocked(fetchSongSharedData).mockRejectedValue(new Error('Failed to load song: timeout'));
 
     await expect(restoreSongAudioAfterPlayTest('a', toPublicUrl)).resolves.toBeUndefined();
 
+    expect(PLAY_TEST_RETURN_AUDIO_FAILED_COPY).toBe('Could not reload the song, so the audio was not loaded. Your edits are kept.');
     expect(showToast).toHaveBeenCalledExactlyOnceWith(PLAY_TEST_RETURN_AUDIO_FAILED_COPY, 'error');
     expect(useEditorStore.getState().pendingAudioUrl).toBeNull();
   });

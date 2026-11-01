@@ -44,15 +44,30 @@ export async function countOtherSongCharts(songId: string, openDifficulty: strin
   return (data ?? []).filter(row => row.difficulty_label.toLowerCase() !== openDifficulty.toLowerCase()).length;
 }
 
-/** 이행 확인에서만 다른 차트 파일을 읽어 타이밍을 비교한다. */
-export async function findDifferingSongCharts(songId: string, openDifficulty: string, timing: SongTiming): Promise<string[]> {
+/** 이행 확인에 보일 다른 차트. 파일이 없거나 해석할 수 없는 차트는 비교하지 못한 차트로 따로 돌려준다. */
+export interface SongChartTimingComparison {
+  differing: string[];
+  uncompared: string[];
+}
+
+/**
+ * 이행 확인에서만 다른 차트 파일을 읽어 타이밍을 비교한다. 차트 목록 조회 실패는 던지지만, 차트 파일 하나를 읽거나
+ * 해석하지 못한 것은 저장을 막지 않고 `uncompared`에 담아 관리자가 확인 창에서 판단하게 한다.
+ */
+export async function findDifferingSongCharts(songId: string, openDifficulty: string, timing: SongTiming): Promise<SongChartTimingComparison> {
   const { data, error } = await supabase.from('charts').select('difficulty_label,chart_path').eq('song_id', songId);
   if (error) throw error;
-  const differing: string[] = [];
+  const result: SongChartTimingComparison = { differing: [], uncompared: [] };
   for (const row of data ?? []) {
     if (row.difficulty_label.toLowerCase() === openDifficulty.toLowerCase()) continue;
-    const chart = deserializeChartDocument(await fetchChartText(songId, row.difficulty_label, row.chart_path));
-    if (JSON.stringify(toSongTiming(chart)) !== JSON.stringify(timing)) differing.push(row.difficulty_label);
+    let otherTiming: SongTiming;
+    try {
+      otherTiming = toSongTiming(deserializeChartDocument(await fetchChartText(songId, row.difficulty_label, row.chart_path)));
+    } catch {
+      result.uncompared.push(row.difficulty_label);
+      continue;
+    }
+    if (JSON.stringify(otherTiming) !== JSON.stringify(timing)) result.differing.push(row.difficulty_label);
   }
-  return differing;
+  return result;
 }

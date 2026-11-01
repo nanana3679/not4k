@@ -19,27 +19,39 @@ export async function saveEditorSong(
     return false;
   }
   const song = start.song;
+  // 곡 행의 제목·아티스트는 곡 추가와 같이 비울 수 없다. 확인·업로드·RPC보다 먼저 거부한다.
+  if (!start.chart.meta.title.trim() || !start.chart.meta.artist.trim()) {
+    start.addToast(SONG_SAVE_COPY.titleArtistRequired, 'error');
+    return false;
+  }
   useEditorStore.setState({ isSavingSong: true });
   try {
     const values = songValues(start.chart, song);
     parseSongTiming(values.timing);
-    if (song.needsTimingMigration) {
-      const differing = await findDifferingSongCharts(start.activeSongId, song.sourceDifficulty, values.timing);
-      if (useEditorStore.getState().chartLoadGeneration !== start.chartLoadGeneration) return false;
-      const message = SONG_SAVE_COPY.migration + (differing.length
-        ? `\n\n${SONG_SAVE_COPY.differingCharts}: ${differing.join(', ')}` : '');
-      if (!confirm(message)) return false;
-    } else if (isSongTimingDirty(start.chart, song)) {
-      const count = await countOtherSongCharts(start.activeSongId, song.sourceDifficulty);
-      if (useEditorStore.getState().chartLoadGeneration !== start.chartLoadGeneration) return false;
-      if (!confirm(SONG_SAVE_COPY.sharedTiming(count))) return false;
-    }
     const previewChanged = values.previewStart !== song.baseline.previewStart || values.previewEnd !== song.baseline.previewEnd;
     const previewRange = (previewChanged || song.pendingAudioFile) && values.previewStart != null && values.previewEnd != null
       ? { startTime: values.previewStart, endTime: values.previewEnd,
         fadeInTime: song.pendingPreviewRange?.fadeInTime ?? 0, fadeOutTime: song.pendingPreviewRange?.fadeOutTime ?? 0 } : null;
-    // 필요한 프리뷰를 만들 수 없으면 파일이나 행을 쓰기 전에 거부한다.
-    if (previewRange && !audioBuffer) throw new Error('Preview audio is not loaded');
+    // 프리뷰 클립은 재생 중인 음원으로 만든다. 만들 수 없으면 확인·파일·행보다 먼저 거부한다(음원 로딩 중이면 Save가 먼저 막는다).
+    if (previewRange && !audioBuffer) {
+      start.addToast(SONG_SAVE_COPY.previewAudioMissing, 'error');
+      return false;
+    }
+    if (song.needsTimingMigration) {
+      const { differing, uncompared } = await findDifferingSongCharts(start.activeSongId, song.sourceDifficulty, values.timing);
+      if (useEditorStore.getState().chartLoadGeneration !== start.chartLoadGeneration) return false;
+      const details = [
+        differing.length ? `${SONG_SAVE_COPY.differingCharts}: ${differing.join(', ')}` : null,
+        uncompared.length ? `${SONG_SAVE_COPY.uncomparedCharts}: ${uncompared.join(', ')}` : null,
+      ].filter(line => line !== null);
+      const message = SONG_SAVE_COPY.migration + (details.length ? `\n\n${details.join('\n')}` : '');
+      if (!confirm(message)) return false;
+    } else if (isSongTimingDirty(start.chart, song)) {
+      const count = await countOtherSongCharts(start.activeSongId, song.sourceDifficulty);
+      if (useEditorStore.getState().chartLoadGeneration !== start.chartLoadGeneration) return false;
+      // 다른 차트가 없으면 이 곡 전체에 퍼지는 영향이 없으므로 묻지 않는다(RFD 0098).
+      if (count > 0 && !confirm(SONG_SAVE_COPY.sharedTiming(count))) return false;
+    }
     if (song.pendingJacketFile) values.jacketUrl = await uploadSongMedia(start.activeSongId, 'jacket', song.pendingJacketFile, extension(song.pendingJacketFile, 'jpg'));
     if (song.pendingAudioFile) values.audioUrl = await uploadSongMedia(start.activeSongId, 'audio', song.pendingAudioFile, extension(song.pendingAudioFile, 'ogg'));
     if (previewRange && audioBuffer) {
