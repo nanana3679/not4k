@@ -27,6 +27,9 @@ class FakeAudio {
   positionMsAtRealOffset(realOffsetMs: number): number {
     return this.currentTimeMs + realOffsetMs * this.playbackRate;
   }
+  songMsOverRealSpan(_fromRealOffsetMs: number, realSpanMs: number): number {
+    return realSpanMs * this.playbackRate;
+  }
   masterVolume = 1; playbackRate = 1; duration = 4000; position = 0; startedAt = 0; running = false;
   get currentTimeMs() { return this.position + (this.running ? (fixture.now - this.startedAt) * this.playbackRate : 0); }
   prepareForPlayback = vi.fn(() => fixture.prepareAudio());

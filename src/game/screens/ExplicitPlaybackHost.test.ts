@@ -12,6 +12,9 @@ class FakeAudio {
   positionMsAtRealOffset(realOffsetMs: number): number {
     return this.currentTimeMs + realOffsetMs * this.playbackRate;
   }
+  songMsOverRealSpan(_fromRealOffsetMs: number, realSpanMs: number): number {
+    return realSpanMs * this.playbackRate;
+  }
   masterVolume = 1; playbackRate = 1; currentTimeMs = 1000;
   loadBuffer = vi.fn<(buffer: AudioBuffer) => void>(() => { fixture.calls.push('audio.loadBuffer'); });
   setPlaybackRange = vi.fn<(range: PlaybackRange | null) => void>(() => { fixture.calls.push('audio.setPlaybackRange'); });

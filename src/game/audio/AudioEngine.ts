@@ -48,6 +48,8 @@ export class AudioEngine {
   // startTime까지 누적한 실행 시간(초). pause 중에는 진행하지 않는다.
   private runningTime = 0;
   private rateSegments: RateSegment[] = [{ runningTime: 0, position: 0, rate: 1 }];
+  // play 계열이 연 재생 시도. stop 뒤나 첫 재생 전 배속 변경은 이력을 잇지 않고 기준 구간을 바꾼다.
+  private attemptActive = false;
   // 음악이 끝나도 판정 대기 중에는 시계가 계속 돈다. pause/stop만 멈춘다.
   private clockRunning = false;
   private _playing: boolean = false;
@@ -88,11 +90,13 @@ export class AudioEngine {
       this.startTime = now;
     }
     if (clamped !== this._playbackRate) {
-      // 정지 중에도 정지 시각에 구간을 이어 붙여 J가 튀지 않게 한다. 재개 뒤 L₀ 동안은 이전 배속으로 진행한다.
+      // 일시정지 중에도 정지 시각에 구간을 이어 붙여 J가 튀지 않게 한다. 재개 뒤 L₀ 동안은 이전 배속으로 진행한다.
       const position = this.clockRunning ? this.startOffset : this.pauseTime;
       const segment = { runningTime: this.runningTime, position, rate: clamped };
       // 같은 실행 시각의 변경은 마지막 배속만 남긴다. 첫 구간은 시작 전 역외삽에 필요하다.
-      if (this.rateSegments.length > 1
+      if (!this.attemptActive) {
+        this.rateSegments = [segment];
+      } else if (this.rateSegments.length > 1
         && this.rateSegments[this.rateSegments.length - 1].runningTime === this.runningTime) {
         this.rateSegments[this.rateSegments.length - 1] = segment;
       } else {
@@ -233,6 +237,7 @@ export class AudioEngine {
     this.startOffset = positionSeconds;
     this.startTime = this.ctx.currentTime;
     this.clockRunning = true;
+    this.attemptActive = true;
     this.pauseTime = 0;
     if (allowPreroll && positionSeconds >= this.getRangeDurationSeconds()) {
       this._playing = false;
@@ -350,6 +355,7 @@ export class AudioEngine {
     this.pauseTime = 0;
     this.runningTime = 0;
     this.rateSegments = [{ runningTime: 0, position: 0, rate: this._playbackRate }];
+    this.attemptActive = false;
   }
 
   /**
@@ -379,9 +385,11 @@ export class AudioEngine {
    * 미래 외삽값은 배속 변경으로 달라질 수 있으므로 양수 offset의 단조 증가를 보장하지 않는다.
    */
   positionMsAtRealOffset(realOffsetMs: number): number {
-    const now = this.runningTime + (this.clockRunning ? this.ctx.currentTime - this.startTime : 0);
+    const now = this.runningNow();
     this.pruneRateHistory(now);
     const target = now + realOffsetMs / 1000;
+    // 마지막 구간 안이면 기존 P − L₀·r와 같은 순서로 계산해 일정 배속의 판정 경계값을 비트 단위로 유지한다.
+    if (this.inCurrentSegment(target)) return this.currentTimeMs + realOffsetMs * this._playbackRate;
     // target 이전 마지막 구간을 찾는다. 보관 범위 이전이면 첫 구간으로 역외삽한다.
     let low = 0;
     let high = this.rateSegments.length;
@@ -392,6 +400,28 @@ export class AudioEngine {
     }
     const segment = this.rateSegments[low];
     return (segment.position + (target - segment.runningTime) * segment.rate) * 1000;
+  }
+
+  /**
+   * fromRealOffsetMs에서 실제 시간 realSpanMs 동안 진행하는 곡 시간(ms). 음수 span은 과거 방향이다.
+   * 두 끝이 마지막 구간 안이면 기존 오프셋·r 곱과 같은 값을 돌려준다.
+   */
+  songMsOverRealSpan(fromRealOffsetMs: number, realSpanMs: number): number {
+    const now = this.runningNow();
+    const from = now + fromRealOffsetMs / 1000;
+    if (this.inCurrentSegment(from) && this.inCurrentSegment(from + realSpanMs / 1000)) {
+      return realSpanMs * this._playbackRate;
+    }
+    return this.positionMsAtRealOffset(fromRealOffsetMs + realSpanMs) - this.positionMsAtRealOffset(fromRealOffsetMs);
+  }
+
+  private runningNow(): number {
+    return this.runningTime + (this.clockRunning ? this.ctx.currentTime - this.startTime : 0);
+  }
+
+  private inCurrentSegment(runningTime: number): boolean {
+    const last = this.rateSegments[this.rateSegments.length - 1];
+    return this.rateSegments.length === 1 || runningTime >= last.runningTime;
   }
 
   private pruneRateHistory(now: number): void {

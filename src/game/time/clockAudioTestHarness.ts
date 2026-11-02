@@ -9,5 +9,8 @@ export function createConstantRateAudioSource(currentTimeMs = 0, outputLatencyMs
     positionMsAtRealOffset(realOffsetMs: number): number {
       return this.currentTimeMs + realOffsetMs * this.playbackRate;
     },
+    songMsOverRealSpan(_fromRealOffsetMs: number, realSpanMs: number): number {
+      return realSpanMs * this.playbackRate;
+    },
   } satisfies ClockAudioSource;
 }

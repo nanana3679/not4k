@@ -2,6 +2,7 @@
  * GameClock — 한 플레이 세션의 시간 권위(RFD 0031).
  * P(t)는 일시정지 중 멈추는 실행 시각 t에서 배속 이력을 따르는 구간별 선형 곡 위치다.
  * J = P(t − L₀), V = P(t − L₀ + visualOffsetMs), 입력 = P(t − L₀ − handlerDelay + inputOffsetMs).
+ * 배속이 일정하면 J = P − L₀·r, V = J + visualOffsetMs·r, 입력 = J + (inputOffsetMs − handlerDelay)·r과 비트 단위로 같다.
  * 일시정지·배속·재생 구간과 곡 끝 뒤 진행은 AudioEngine이 소유한다.
  */
 export interface ClockAudioSource {
@@ -11,6 +12,8 @@ export interface ClockAudioSource {
   readonly playbackRate: number;
   /** 현재 실행 시각에서 실제 시간(ms)만큼 이동한 곡 위치. 음수는 과거, 양수는 미래다. */
   positionMsAtRealOffset(realOffsetMs: number): number;
+  /** fromRealOffsetMs에서 실제 시간 realSpanMs 동안 진행하는 곡 시간(ms). 일정 배속이면 realSpanMs·r이다. */
+  songMsOverRealSpan(fromRealOffsetMs: number, realSpanMs: number): number;
   /** 로딩 중 prepareForPlayback으로 확정한 baseLatency + outputLatency(ms). */
   getOutputLatencyMs(): number;
 }
@@ -40,15 +43,17 @@ export class GameClock {
 
   /** 시각 오프셋은 노트·마디선·구간의 위치에만 적용한다. */
   visualTimeMs(): number {
-    return this.audio.positionMsAtRealOffset(-this.outputLatencyMs + this.offsets.visualOffsetMs);
+    return this.judgmentTimeMs() + this.audio.songMsOverRealSpan(-this.outputLatencyMs, this.offsets.visualOffsetMs);
   }
 
   /**
    * performance 클럭의 짧은 handlerDelay만 곡 시간으로 환산한다. 미래 timestamp는 지연 0이다.
-   * 양수 오프셋으로 미래를 외삽한 값은 직후 감속으로 낮아질 수 있다. 그런 입력은 session이 늦은 관측 입력으로 처리한다.
+   * 양수 오프셋으로 미래를 외삽한 값은 직후 감속으로 낮아질 수 있다. 큐에 남은 down·up의 순서가 뒤집히지 않도록
+   * 배속을 바꾸는 쪽이 바꾸기 전에 대기 입력을 먼저 처리해야 한다. 처리된 입력보다 이른 값은 session이 늦은 관측 입력으로 다룬다.
    */
   toInputTimeMs(eventTimeStamp: number): number {
     const handlerDelay = Math.max(0, this.now() - eventTimeStamp);
-    return this.audio.positionMsAtRealOffset(-this.outputLatencyMs - handlerDelay + this.offsets.inputOffsetMs);
+    return this.judgmentTimeMs()
+      + this.audio.songMsOverRealSpan(-this.outputLatencyMs, this.offsets.inputOffsetMs - handlerDelay);
   }
 }

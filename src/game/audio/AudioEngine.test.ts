@@ -536,6 +536,60 @@ describe("AudioEngine 배속 이력과 GameClock", () => {
     return { engine, clock };
   }
 
+  function createClockWithLatency(outputLatencyMs: number, inputOffsetMs = 0, visualOffsetMs = 0) {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(60));
+    vi.spyOn(engine, "getOutputLatencyMs").mockReturnValue(outputLatencyMs);
+    const clock = new GameClock(engine, { inputOffsetMs, visualOffsetMs }, () => mockCtx.currentTime * 1000);
+    return { engine, clock };
+  }
+
+  it("1배속·L₀=15ms·1.056초 경과·오프셋 0이면 입력 시각은 기존 식과 같은 정확히 1041ms다", () => {
+    const { engine, clock } = createClockWithLatency(15);
+    engine.play();
+    mockCtx._advanceTime(1.056);
+    expect(clock.judgmentTimeMs()).toBe(engine.currentTimeMs - 15 * 1);
+    expect(clock.toInputTimeMs(mockCtx.currentTime * 1000)).toBe(1041);
+  });
+
+  it("L₀=128/48000초에서 playFadedSpan(1000ms) 직후 J는 옵저버 세션 시작식 1000+(0−L₀)·1과 비트 단위로 같다", () => {
+    const outputLatencyMs = 128 / 48000 * 1000;
+    const { engine, clock } = createClockWithLatency(outputLatencyMs);
+    engine.playFadedSpan({ fromMs: 1000, fadeInUntilMs: 1000, fadeOutFromMs: 5000, toMs: 5000 });
+    expect(clock.judgmentTimeMs()).toBe(1000 + (Math.min(0, 0) - outputLatencyMs) * 1);
+  });
+
+  it("0.75배속 일정·시각 +37ms·입력 −23ms·핸들러 지연 3ms면 V=J+37·r, 입력=J+(−23−3)·r과 비트 단위로 같다", () => {
+    const { engine, clock } = createClockWithLatency(128 / 48000 * 1000, -23, 37);
+    engine.playbackRate = 0.75;
+    engine.play(1234);
+    mockCtx._advanceTime(2.345);
+    const judgment = clock.judgmentTimeMs();
+    expect(judgment).toBe(engine.currentTimeMs - (128 / 48000 * 1000) * 0.75);
+    expect(clock.visualTimeMs()).toBe(judgment + 37 * 0.75);
+    expect(clock.toInputTimeMs(mockCtx.currentTime * 1000 - 3)).toBe(judgment + (-23 - 3) * 0.75);
+  });
+
+  it("첫 재생 전 0.5배속으로 바꾸면 J=−20ms이고 play() 직후에도 −20ms로 튀지 않는다", () => {
+    const { engine, clock } = createClock();
+    engine.playbackRate = 0.5;
+    expect(clock.judgmentTimeMs()).toBe(-20);
+    engine.play();
+    expect(clock.judgmentTimeMs()).toBe(-20);
+  });
+
+  it("stop 뒤 0.5→1배속으로 바꾸면 이전 이력 없이 J=−40ms이고 play(1000) 직후 960ms다", () => {
+    const { engine, clock } = createClock();
+    engine.playbackRate = 0.5;
+    engine.play(4000);
+    mockCtx._advanceTime(1);
+    engine.stop();
+    engine.playbackRate = 1;
+    expect(clock.judgmentTimeMs()).toBe(-40);
+    engine.play(1000);
+    expect(clock.judgmentTimeMs()).toBe(960);
+  });
+
   it.each([
     { beforeRate: 0.5, afterRate: 1, beforeJudgment: 3980, after20: 3990, after60: 4020 },
     { beforeRate: 1, afterRate: 0.25, beforeJudgment: 3960, after20: 3980, after60: 4005 },
