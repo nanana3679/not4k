@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import type { ChartDocument, LegacyConversionItem, LegacyConversionReport } from '../../shared';
+import type { ChartDocument, ChartMeta, LegacyConversionItem, LegacyConversionReport } from '../../shared';
 import { beat, convertLegacyChart, validateChartDocumentStructural } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
@@ -60,9 +60,9 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   activePage: EditorPage;
   activeSongId: string | null;
   /**
-   * 열린 차트의 난이도 경로(소문자). URL의 `difficulty`로 열고 Save As 성공 때만 바뀐다. Save·Delete는 이 경로를 쓰며,
-   * Meta에서 고칠 수 있는 `chart.meta.difficultyLabel`과 달라도 다른 난이도의 파일을 덮어쓰지 않는다.
-   * `chartRow`가 있으면 그 행의 난이도명(소문자)과 같다. Save As는 둘을 `adoptChartIdentity` 한 번에 함께 바꾼다.
+   * 열린 차트의 난이도명. URL의 `difficulty`로 열고 Save As 성공 때만 바뀐다.
+   * `chartRow`가 있으면 그 행의 난이도명(대소문자 보존)과 같고 Meta에서는 이름을 바꾸지 않는다.
+   * Save As는 둘을 `adoptChartIdentity` 한 번에 함께 바꾼다.
    */
   activeDifficulty: string | null;
   pendingAudioUrl: string | null;
@@ -146,6 +146,8 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   adoptChartIdentity: (difficultyLabel: string, difficultyLevel: number, row: StoredChartRow | null) => void;
   setPendingAudioUrl: (url: string | null) => void;
   setChart: (chart: ChartDocument, options?: { separateHistory?: boolean; transaction?: symbol }) => void;
+  /** 현재 초안에 Meta 편집을 합친다. charts 행이 있으면 난이도명은 유지하고 레벨은 편집한다. */
+  applyMetaEdit: (meta: Partial<ChartMeta>) => void;
   /** 업로드 결과의 미디어 경로만 반영한다. 편집·Undo 이력·열린 transaction은 만들거나 끝내지 않는다. */
   reconcileSongMedia: (media: Pick<ChartDocument['meta'], 'audioFile' | 'imageFile' | 'previewAudioFile'>) => void;
   /**
@@ -361,6 +363,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     };
   }),
   setPendingAudioUrl: (pendingAudioUrl) => set({ pendingAudioUrl }),
+  applyMetaEdit: (meta) => {
+    const current = get();
+    const updatedMeta = { ...current.chart.meta, ...meta };
+    if (current.chartRow) updatedMeta.difficultyLabel = current.chart.meta.difficultyLabel;
+    current.setChart({ ...current.chart, meta: updatedMeta });
+  },
   setChart: (chart, options) => {
     if (options?.transaction && get().editTransaction?.token !== options.transaction) return;
     // 재생 중 편집 제한(RFD 0099)의 마지막 방어선. 입력 경로(캔버스·키보드·툴바·모달)가 먼저 막고 안내하므로

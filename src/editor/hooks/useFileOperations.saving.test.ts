@@ -1075,7 +1075,7 @@ describe('차트 저장의 새 경로 업로드와 save_chart·create_chart (RFD
     expect(current().activeDifficulty).toBe('normal');
   });
 
-  it('Meta의 Difficulty Label을 HARD로 바꿔 Save해도 열린 normal 행(chart-normal)에 저장하고 새 경로 이름도 normal이다', async () => {
+  it('JSON 사본의 Difficulty Label이 HARD여도 Save는 열린 normal 행(chart-normal)에 저장하고 새 경로 이름도 normal이다', async () => {
     open(chart([single(1, 0)]));
     current().setChart({ ...current().chart, meta: { ...current().chart.meta, difficultyLabel: 'HARD' } });
 
@@ -1083,6 +1083,29 @@ describe('차트 저장의 새 경로 업로드와 save_chart·create_chart (RFD
     expect(harness.chartRows[0]).toMatchObject({ kind: 'save', row: { chartId: 'chart-normal', chartPath: 'songs/song/normal-t1.json' } });
     harness.chartRows[0].resolve(); await saving;
     expect(current().chartRow?.difficultyLabel).toBe('normal');
+  });
+
+  it('normal 행의 Meta에서 Level 5→9를 적용하고 Save하면 NORMAL·열린 난이도 normal을 유지하며 레벨 9를 JSON과 save_chart에 저장한다', async () => {
+    open(chart([single(1, 0)])); attachSong(); current().setActiveDifficulty('normal');
+    current().applyMetaEdit({ difficultyLevel: 9 });
+    expect(isChartDirty(current().chart, 2, current().savedChartJson, true)).toBe(true);
+    expect(isSongDirty(current().chart, current().song)).toBe(false);
+
+    const saving = renderFileOperations().handleSaveChart(); await flush();
+    expect(harness.rpc).not.toHaveBeenCalled();
+    expect(harness.chartRows).toHaveLength(1);
+    expect(harness.chartRows[0]).toMatchObject({ kind: 'save', row: {
+      chartId: 'chart-normal', expectedRevision: 3, difficultyLevel: 9,
+    } });
+    expect(JSON.parse(harness.uploads.get('songs/song/normal-t1.json')!).meta).toMatchObject({
+      difficultyLabel: 'NORMAL', difficultyLevel: 9,
+    });
+    harness.chartRows[0].resolve(); await saving;
+
+    expect(current().chart.meta).toMatchObject({ difficultyLabel: 'NORMAL', difficultyLevel: 9 });
+    expect(current().activeDifficulty).toBe('normal');
+    expect(current().chartRow).toMatchObject({ id: 'chart-normal', revision: 4 });
+    expect(isChartDirty(current().chart, 2, current().savedChartJson, true)).toBe(false);
   });
 
   it('Save As LIFTOFF Lv.3(덮어쓰기 아님)은 create_chart로 새 행을 만들고 에디터의 차트 행을 created-liftoff·리비전 0으로 바꿔 다음 Save가 그 행에 save_chart한다', async () => {

@@ -281,6 +281,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const activeDifficulty = useEditorStore((s) => s.activeDifficulty);
+  const hasChartRow = useEditorStore((s) => s.chartRow !== null);
   const mode = useEditorStore((s) => s.mode);
   const legacyConversionReview = useEditorStore((s) => s.legacyConversionReview);
   const legacyConversionReviewOpen = useEditorStore((s) => s.legacyConversionReviewOpen);
@@ -810,6 +811,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       {showMetaModal && (
         <MetaEditModal
           meta={chart.meta}
+          hasChartRow={hasChartRow}
           audioBuffer={loadedAudioBuffer}
           initialJacketFile={pendingJacketFile}
           audioLoading={audioLoading}
@@ -826,7 +828,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
             const rangeChanged = previewRange != null && (
               previewRange.startTime !== prevStart || previewRange.endTime !== prevEnd
             );
-            current.setChart({ ...current.chart, meta: { ...current.chart.meta, ...meta } });
+            current.applyMetaEdit(meta);
             if (currentSong) {
               current.setSong({ ...currentSong,
                 duration: audioFile ? loadedAudioBuffer?.duration ?? currentSong.duration : currentSong.duration,

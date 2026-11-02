@@ -27,6 +27,51 @@ function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument
   };
 }
 
+describe('Meta 난이도 적용', () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    useEditorStore.getState().loadChart(makeChart());
+    useEditorStore.getState().setActiveDifficulty('normal');
+  });
+
+  it('normal 행이 있을 때 Meta의 EXPERT·Lv.9를 적용하면 난이도명 NORMAL·activeDifficulty normal을 유지하고 레벨만 1→9로 바뀐다', () => {
+    const store = useEditorStore.getState();
+    const row = { id: 'chart-normal', difficultyLabel: 'normal', revision: 3, chartPath: null, chartExtraPath: null };
+    store.setChartRow(row);
+
+    store.applyMetaEdit({ difficultyLabel: 'EXPERT', difficultyLevel: 9 });
+
+    expect(useEditorStore.getState().chart.meta).toMatchObject({ difficultyLabel: 'NORMAL', difficultyLevel: 9 });
+    expect(useEditorStore.getState().activeDifficulty).toBe('normal');
+    expect(useEditorStore.getState().chartRow).toEqual(row);
+  });
+
+  it('곡·charts 행이 없을 때 Meta의 EXPERT·Lv.9를 적용하면 NORMAL Lv.1→EXPERT Lv.9로 바뀌고 activeDifficulty normal은 유지한다', () => {
+    const store = useEditorStore.getState();
+    expect(store.song).toBeNull();
+    expect(store.chartRow).toBeNull();
+
+    store.applyMetaEdit({ difficultyLabel: 'EXPERT', difficultyLevel: 9 });
+
+    expect(useEditorStore.getState().chart.meta).toMatchObject({ difficultyLabel: 'EXPERT', difficultyLevel: 9 });
+    expect(useEditorStore.getState().activeDifficulty).toBe('normal');
+    expect(useEditorStore.getState().chartRow).toBeNull();
+  });
+
+  it('Meta를 NORMAL로 연 뒤 Save As가 HARD Lv.8 행을 채택하면 이전 Meta의 EXPERT 초안을 적용해도 HARD·activeDifficulty hard를 유지한다', () => {
+    const apply = useEditorStore.getState().applyMetaEdit;
+    useEditorStore.getState().adoptChartIdentity('HARD', 8, {
+      id: 'chart-hard', difficultyLabel: 'hard', revision: 0, chartPath: null, chartExtraPath: null,
+    });
+
+    apply({ difficultyLabel: 'EXPERT', title: '새 제목' });
+
+    expect(useEditorStore.getState().chart.meta).toMatchObject({ title: '새 제목', difficultyLabel: 'HARD', difficultyLevel: 8 });
+    expect(useEditorStore.getState().activeDifficulty).toBe('hard');
+    expect(useEditorStore.getState().chartRow?.id).toBe('chart-hard');
+  });
+});
+
 describe('editorStore 커서 이동 횟수', () => {
   it.each([2000, -500])('커서 3500ms에서 offset %ims 차트를 열면 0박인 offset으로 이동하고 이동 횟수는 유지한다', (offsetMs) => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);

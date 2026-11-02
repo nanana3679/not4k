@@ -11,6 +11,9 @@ export const SAVE_IN_PROGRESS_COPY = {
   playTest: "저장 중에는 테스트 플레이를 시작할 수 없습니다",
 } as const;
 
+/** charts 행이 있는 차트의 Meta에서는 난이도명을 편집하지 않는다. */
+export const DIFFICULTY_LABEL_READ_ONLY_COPY = '난이도명은 Save As에서 변경할 수 있습니다.';
+
 /**
  * 재생 중 막힌 편집 시도의 안내(RFD 0099). 캔버스·키보드 시도에는 이 문구로 토스트를 한 번 띄우고,
  * 재생 중 비활성으로 두는 툴바·모달 컨트롤에는 같은 문구를 title로 단다.

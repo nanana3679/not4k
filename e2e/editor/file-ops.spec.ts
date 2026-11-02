@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { CHART_SAVE_COPY } from '../../src/editor/editorCopy';
+import { CHART_SAVE_COPY, DIFFICULTY_LABEL_READ_ONLY_COPY } from '../../src/editor/editorCopy';
 import type { ChartJsonV3, ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
 import {
   EDITOR_TEST_AUDIO_FILE,
@@ -15,7 +15,7 @@ import {
 
 /** Save를 누르고 저장이 끝난 뒤 Storage에 업로드된 차트 JSON을 돌려준다. */
 async function saveChart(page: Page, editor: OpenedEditor): Promise<ChartJsonV3 | ChartJsonV4> {
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('button', { name: /^Save(?:, unsaved changes)?$/, exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
   const upload = editor.supabaseWrites.find((write) => write.method === 'POST' && isChartUploadPath(write.path));
   expect(upload, '차트 메인 JSON의 새 경로 업로드가 없다').toBeDefined();
@@ -71,7 +71,9 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
       await expect(page.getByLabel(name, { exact: true })).toBeEditable();
     }
     await page.getByLabel('Title', { exact: true }).fill('새 제목');
-    for (const name of ['Offset (ms)', 'Difficulty Label', 'Difficulty Level']) {
+    await expect(page.getByLabel('Difficulty Label', { exact: true })).toHaveAttribute('readonly', '');
+    await expect(page.getByText(DIFFICULTY_LABEL_READ_ONLY_COPY, { exact: true })).toBeVisible();
+    for (const name of ['Offset (ms)', 'Difficulty Level']) {
       await expect(page.getByLabel(name, { exact: true })).toBeEditable();
     }
     await page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
@@ -85,7 +87,7 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('곡 행 없이 차트 파일을 열면 Meta에서 Title·Artist·Offset 45ms를 바꾸고 다시 열어도 편집값이 남는다', async ({ page }) => {
+  test('곡 행 없이 차트 파일을 열면 Meta에서 Title·Artist·Offset 45ms·난이도 EXPERT를 바꾸고 다시 열어도 편집값이 남는다', async ({ page }) => {
     const editor = await openEditor(page, { songRow: false });
     const openMeta = async () => {
       await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
@@ -96,12 +98,37 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     await page.getByLabel('Title', { exact: true }).fill('새 제목');
     await page.getByLabel('Artist', { exact: true }).fill('새 작곡가');
     await page.getByLabel('Offset (ms)', { exact: true }).fill('45');
+    await expect(page.getByText(DIFFICULTY_LABEL_READ_ONLY_COPY, { exact: true })).toHaveCount(0);
+    await page.getByLabel('Difficulty Label', { exact: true }).fill('EXPERT');
     await page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
     await openMeta();
     await expect(page.getByLabel('Title', { exact: true })).toHaveValue('새 제목');
     await expect(page.getByLabel('Artist', { exact: true })).toHaveValue('새 작곡가');
     await expect(page.getByLabel('Offset (ms)', { exact: true })).toHaveValue('45');
+    await expect(page.getByLabel('Difficulty Label', { exact: true })).toHaveValue('EXPERT');
     expect(editor.supabaseWrites).toEqual([]);
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
+  test('normal 행의 Meta에서 NORMAL은 읽기 전용이고 Level 5→9를 적용해 Save하면 같은 UUID에 레벨 9를 저장한다', async ({ page }) => {
+    const editor = await openEditor(page, { songTiming: { bpmChanges: [{ beat: '0', bpm: 120 }],
+      timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 } });
+    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+    await page.getByRole('button', { name: 'Meta', exact: true }).click();
+    await expect(page.getByLabel('Difficulty Label', { exact: true })).toHaveValue('NORMAL');
+    await expect(page.getByLabel('Difficulty Label', { exact: true })).toHaveAttribute('readonly', '');
+    await expect(page.getByText(DIFFICULTY_LABEL_READ_ONLY_COPY, { exact: true })).toBeVisible();
+    await page.getByLabel('Difficulty Level', { exact: true }).fill('9');
+    await page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..')
+      .getByRole('button', { name: 'Save', exact: true }).click();
+
+    const uploaded = await saveChart(page, editor);
+
+    expect(uploaded.meta).toMatchObject({ difficultyLabel: 'NORMAL', difficultyLevel: 9 });
+    const saved = editor.supabaseWrites.find(write => write.path === '/rest/v1/rpc/save_chart')!;
+    expect(JSON.parse(saved.body!)).toMatchObject({ p_chart_id: editorTestChartId('normal'), p_difficulty_level: 9 });
+    expect(editor.supabaseWrites.filter(write => write.path === '/rest/v1/rpc/create_chart')).toHaveLength(0);
+    await expect(page).toHaveURL(/difficulty=normal/);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
