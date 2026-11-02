@@ -8,6 +8,7 @@ import { toSavedChartJson } from './savedChart';
 import { selectCanUndo, useEditorStore } from './stores/editorStore';
 import { isSongDirty } from './songState';
 import { saveEditorSong } from './saveEditorSong';
+import { SONG_SAVE_COPY } from './editorCopy';
 
 const api = vi.hoisted(() => ({ rpc: vi.fn(), upload: vi.fn(), from: vi.fn(), select: vi.fn(), eq: vi.fn() }));
 vi.mock('../supabase/client', () => ({ supabase: {
@@ -524,5 +525,18 @@ it('프리뷰를 0～8초로 바꾸고 Offset 25→45까지 바꿨는데 재생 
   expect(confirm).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
   expect(showToast).toHaveBeenCalledExactlyOnceWith(
     '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Song Info에서 음원을 불러온 뒤 다시 저장해주세요.', 'error');
+  expect(state().isSavingSong).toBe(false); expect(dirty()).toBe(true);
+});
+
+it('250초 음원이 재생 중인데 프리뷰가 250～265초로 남아 있으면 확인·업로드·RPC 0회로 구간이 음원 길이를 넘는다고 안내한다', async () => {
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, previewStart: 250, previewEnd: 265, offsetMs: 45 } });
+  const buffer = { duration: 250, length: 2500, sampleRate: 10, numberOfChannels: 1,
+    getChannelData: () => new Float32Array(2500) } as unknown as AudioBuffer;
+  const confirm = vi.fn(() => true);
+
+  expect(await saveEditorSong(buffer, confirm)).toBe('aborted');
+
+  expect(confirm).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
+  expect(showToast).toHaveBeenCalledExactlyOnceWith(SONG_SAVE_COPY.previewOutOfRange, 'error');
   expect(state().isSavingSong).toBe(false); expect(dirty()).toBe(true);
 });

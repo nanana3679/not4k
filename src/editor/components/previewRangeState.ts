@@ -62,3 +62,47 @@ export function notifiedRange(state: PreviewRangeState): PlaybackRange {
     fadeOutTime: Math.max(0, Math.min(state.fadeOutTime, maxFade)),
   };
 }
+
+/** 구간 선택기에서 잡은 곳(시작·끝 핸들 또는 구간 안)과 누른 순간의 x·구간. */
+export interface RangeDrag {
+  mode: 'start' | 'end' | 'move';
+  startX: number;
+  startTime: number;
+  endTime: number;
+}
+
+/** 끌기의 한계: 음원 길이와 구간의 최소·최대 길이(초). */
+export interface RangeDragLimits {
+  duration: number;
+  minRangeDuration: number;
+  maxRangeDuration: number;
+}
+
+/**
+ * 포인터가 `clientX`에 있을 때의 구간. 선택기는 끄는 동안 이 값으로 구간을 바꾸고, 손을 뗄 때도 놓은 위치로 다시 계산해
+ * 마지막 구간을 정한다(마지막 끌기의 렌더·알림이 아직 끝나지 않았어도 놓은 위치를 쓴다).
+ * 시작·끝 핸들은 반대쪽 끝에서 최소·최대 길이 안에 머물고, 구간 이동은 길이를 유지한 채 음원 안에 머문다.
+ */
+export function dragRangeAt(
+  drag: RangeDrag,
+  clientX: number,
+  rect: { left: number; width: number },
+  limits: RangeDragLimits,
+): { startTime: number; endTime: number } {
+  const { duration, minRangeDuration, maxRangeDuration } = limits;
+  const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+  if (drag.mode === 'move') {
+    const length = drag.endTime - drag.startTime;
+    const startTime = clamp(drag.startTime + ((clientX - drag.startX) / rect.width) * duration, 0, duration - length);
+    return { startTime, endTime: startTime + length };
+  }
+  const t = clamp(((clientX - rect.left) / rect.width) * duration, 0, duration);
+  if (drag.mode === 'start') {
+    const lower = Math.max(0, drag.endTime - maxRangeDuration);
+    const upper = Math.max(lower, drag.endTime - minRangeDuration);
+    return { startTime: clamp(t, lower, upper), endTime: drag.endTime };
+  }
+  const lower = Math.min(duration, drag.startTime + minRangeDuration);
+  const upper = Math.min(duration, drag.startTime + maxRangeDuration);
+  return { startTime: drag.startTime, endTime: clamp(t, lower, Math.max(lower, upper)) };
+}

@@ -753,7 +753,8 @@ export function EditorToolbar({
   };
 
   const requestBackToSongs = () => {
-    if (isDirty) {
+    // 저장 중이면 깨끗해 보여도 이탈 확인 흐름에 넘긴다. 흐름이 저장이 끝날 때까지 이동을 막는다(RFD 0098).
+    if (isDirty || saving || savingSong) {
       window.dispatchEvent(new CustomEvent('editor:requestLeave'));
     } else {
       window.location.href = '/game';

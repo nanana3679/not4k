@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialRangeState, notifiedRange } from './previewRangeState';
+import { dragRangeAt, initialRangeState, notifiedRange } from './previewRangeState';
 
 describe('구간 선택기의 처음 구간(initialRangeState)', () => {
   it('프리뷰 값이 없으면 120초 음원에서 30～45초·페이드 0.5초로 시작한다', () => {
@@ -26,5 +26,27 @@ describe('선택기가 알리는 구간(notifiedRange)', () => {
   it('2초 구간에 페이드 1.5초면 구간 절반인 1초로 자른다', () => {
     expect(notifiedRange({ startTime: 3, endTime: 5, enabled: true, fadeInTime: 1.5, fadeOutTime: 0.2 }))
       .toEqual({ startTime: 3, endTime: 5, fadeInTime: 1, fadeOutTime: 0.2 });
+  });
+});
+
+describe('구간 선택기를 끈 위치의 구간(dragRangeAt)', () => {
+  /** 120초 음원을 폭 240px(1px = 0.5초)에 그린 선택기. 최소 1초, 최대는 음원 길이다. */
+  const rect = { left: 0, width: 240 };
+  const limits = { duration: 120, minRangeDuration: 1, maxRangeDuration: 120 };
+
+  it('10～20초의 끝 핸들을 180px에 놓으면 끝이 90초가 되고 시작 10초는 그대로다', () => {
+    expect(dragRangeAt({ mode: 'end', startX: 40, startTime: 10, endTime: 20 }, 180, rect, limits))
+      .toEqual({ startTime: 10, endTime: 90 });
+  });
+
+  it('10～20초의 시작 핸들을 끝 너머 100px(50초)로 끌면 최소 길이 1초를 남긴 19초에서 멈춘다', () => {
+    expect(dragRangeAt({ mode: 'start', startX: 20, startTime: 10, endTime: 20 }, 100, rect, limits))
+      .toEqual({ startTime: 19, endTime: 20 });
+  });
+
+  it('10～20초 구간 안을 잡아 60px(30초) 옮기면 40～50초가 되고, 음원 끝 너머로 옮기면 110～120초에서 멈춘다', () => {
+    const drag = { mode: 'move' as const, startX: 30, startTime: 10, endTime: 20 };
+    expect(dragRangeAt(drag, 90, rect, limits)).toEqual({ startTime: 40, endTime: 50 });
+    expect(dragRangeAt(drag, 1000, rect, limits)).toEqual({ startTime: 110, endTime: 120 });
   });
 });

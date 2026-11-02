@@ -145,6 +145,37 @@ describe('저장 버튼 하나의 표시', () => {
     expect(window.location.href).toBe('/editor');
   });
 
+  it.each([
+    ['차트 저장 중', { saving: true }, {}],
+    ['곡 저장 중', {}, { isSavingSong: true }],
+  ] as const)('곡·차트가 깨끗해도 %s에 Back to Songs를 누르면 바로 /game으로 가지 않고 이탈 확인 흐름(editor:requestLeave)에 넘긴다', (_, props, state) => {
+    useEditorStore.setState(state);
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal('window', { dispatchEvent, location: { href: '/editor' } });
+    let openedMenu = false;
+    let leave: (() => void) | undefined;
+    function inspect(node: ReactNode) {
+      Children.forEach(node, child => {
+        if (!isValidElement<{ children?: ReactNode; 'aria-label'?: string; onClick?: () => void }>(child)) return;
+        if (child.props['aria-label'] === 'More editor actions' && !openedMenu) {
+          openedMenu = true;
+          child.props.onClick?.();
+        }
+        if (child.props.children === 'Back to Songs') leave = child.props.onClick;
+        inspect(child.props.children);
+      });
+    }
+    function Probe() {
+      const tree = EditorToolbar(toolbarProps(props));
+      inspect(tree);
+      return tree;
+    }
+    renderToStaticMarkup(createElement(Probe));
+    leave!();
+    expect(dispatchEvent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: 'editor:requestLeave' }));
+    expect(window.location.href).toBe('/editor');
+  });
+
   it.each([false, true])('곡 제목을 새 제목으로 바꾸면 compact=%s에서 Save 1개만 미저장이고 곡 저장 중 비활성이다', compact => {
     const document = chart();
     const song = createEditorSong({ title: '툴바', artist: '', jacketUrl: null, audioUrl: '', duration: null,

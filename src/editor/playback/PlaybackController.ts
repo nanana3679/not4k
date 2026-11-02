@@ -92,6 +92,13 @@ export class PlaybackController {
     this.callbacks.onAudioLoaded?.(buffer);
   }
 
+  /**
+   * 진행 중인 로드를 버린다. 늦게 끝나도 지금 음원을 바꾸지 않는다. 되돌릴 음원 없이 고른 음원 선택을 취소할 때 쓴다.
+   */
+  cancelAudioLoad(): void {
+    this.audioLoadGeneration++;
+  }
+
   /** Play/pause toggle */
   togglePlay(): void {
     if (this._isPlaying) {

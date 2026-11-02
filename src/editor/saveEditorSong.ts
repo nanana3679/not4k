@@ -40,6 +40,12 @@ export async function saveEditorSong(
       start.addToast(SONG_SAVE_COPY.previewAudioMissing, 'error');
       return 'aborted';
     }
+    // 프리뷰 구간은 차트 사본(Undo 대상)에 있고 음원 파일·길이는 곡 세션 값이라, Undo가 다른 음원 길이에 맞춘 구간을 되살릴 수
+    // 있다(통합 이력 PR6 전). 재생 음원 밖의 구간으로 클립을 만들거나 저장하지 않는다.
+    if (previewRange && audioBuffer && previewRange.endTime > audioBuffer.duration) {
+      start.addToast(SONG_SAVE_COPY.previewOutOfRange, 'error');
+      return 'aborted';
+    }
     // 다른 차트는 Meta의 난이도명(JSON 사본)이 아니라 열린 `charts` 행(없으면 열린 난이도)을 빼고 고른다.
     const openChart = { chartId: start.chartRow?.id ?? null, difficulty: start.activeDifficulty ?? start.chart.meta.difficultyLabel };
     if (song.needsTimingMigration) {

@@ -6,7 +6,7 @@ export interface MetaAudioPick {
   status: 'loading' | 'loaded' | 'failed';
 }
 
-export type MetaAudioPlayback = Pick<PlaybackController, 'audioBufferData' | 'loadAudioFile' | 'restoreAudioBuffer'>;
+export type MetaAudioPlayback = Pick<PlaybackController, 'audioBufferData' | 'loadAudioFile' | 'restoreAudioBuffer' | 'cancelAudioLoad'>;
 
 /**
  * Meta 창(곡 행이 없는 차트) 또는 곡 정보 드로어의 음원 선택 한 번을 관리한다. 창을 열 때의 재생기 음원을 기억해 두고,
@@ -14,7 +14,7 @@ export type MetaAudioPlayback = Pick<PlaybackController, 'audioBufferData' | 'lo
  * - 로드가 실패하면 재생기에 남은 이전 음원을 다시 표시하고 고른 파일을 실패로 남긴다(적용 대상이 아니다).
  * - 적용(`apply`)하면 새 음원을 유지한다.
  * - 적용하지 않고 닫으면(`cancel`) 재생기를 창을 열 때의 음원으로 되돌려, 저장의 프리뷰 생성이 취소한 파일을 쓰지 않게 한다.
- *   창을 열 때 음원이 없었으면 되돌릴 음원이 없어 그대로 둔다.
+ *   창을 열 때 음원이 없었으면 되돌릴 음원이 없어 그대로 두되, 아직 불러오는 중인 로드는 무효화해 늦게 끝나도 재생기에 남지 않게 한다.
  *
  * 성공한 로드의 표시 음원은 재생기의 `onAudioLoaded`가 정한다. 여러 번 고르면 마지막 선택의 결과만 반영한다.
  */
@@ -71,13 +71,20 @@ export function createMetaAudioSession(deps: {
       deps.onLoadFailed();
       return 'failed';
     },
+    /** 고른 음원을 아직 불러오는 중인가. 곡 정보 드로어는 이 동안 곡 정보를 미저장으로 본다. */
+    isLoading(): boolean {
+      return loading;
+    },
     /** 고른 음원을 적용하고 창을 닫았다. */
     apply(): void {
       finish();
     },
-    /** 적용하지 않고 창을 닫았다. */
+    /** 적용하지 않고 창을 닫았다(곡 정보 드로어는 닫기·변경 취소). 진행 중인 선택의 결과는 null이 된다. */
     cancel(playback: MetaAudioPlayback | null): void {
-      if (bufferAtOpen && playback) playback.restoreAudioBuffer(bufferAtOpen);
+      if (playback) {
+        if (bufferAtOpen) playback.restoreAudioBuffer(bufferAtOpen);
+        else if (loading) playback.cancelAudioLoad();
+      }
       finish();
     },
   };

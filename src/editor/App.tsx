@@ -47,10 +47,10 @@ import { EditorToolbar } from './components/EditorToolbar';
 import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorAudioLoad } from './hooks/useEditorAudioLoad';
-import { useEditorKeyboard } from './hooks/useEditorKeyboard';
+import { isTextEntryTarget, useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
-import { PAUSE_TO_EDIT_COPY } from './editorCopy';
+import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from './editorCopy';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { fetchEditorChart } from './fetchEditorChart';
 import { editorChartViolationIndices } from './documentValidation';
@@ -473,69 +473,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     };
   }, []);
 
-  // 미저장 변경 확인 흐름(RFD 0098). 확인 창의 선택을 기다리고, 저장은 툴바의 Save와 같은 저장을 쓴다.
-  const askUnsaved = useCallback((request: UnsavedChangesDialogRequest) =>
-    new Promise<SongInfoDecision>(resolve => setUnsavedDialog({ request, resolve })), []);
-  const handleSaveChart = fileOps.handleSaveChart;
-  const unsavedFlow = useMemo<UnsavedChangesFlow>(() => ({
-    songInfoDirty: () => hasUnsavedSongInfo(useEditorStore.getState()),
-    anyDirty: () => hasUnsavedEditorChanges(useEditorStore.getState()),
-    askSongInfo: purpose => askUnsaved({ kind: 'songInfo', purpose }),
-    askLeave: purpose => askUnsaved({ kind: 'leave', purpose }),
-    save: handleSaveChart,
-    discardSongInfo: () => {
-      const result = discardSongInfoChanges();
-      // 고른 음원을 버렸으면 재생기·파형을 저장된 음원으로 되돌린다.
-      if (result.reloadAudioUrl) setPendingAudioUrl(getPublicUrl(result.reloadAudioUrl));
-      return result.discarded;
-    },
-  }), [askUnsaved, handleSaveChart, setPendingAudioUrl]);
-  const runUnsavedFlow = useCallback((flow: () => Promise<void>) => {
-    if (unsavedFlowRunningRef.current) return;
-    unsavedFlowRunningRef.current = true;
-    void flow().finally(() => { unsavedFlowRunningRef.current = false; });
-  }, []);
-
-  const loadSongChartList = useCallback(() => {
-    const songId = useEditorStore.getState().activeSongId;
-    const request = ++chartListRequestRef.current;
-    if (!songId) {
-      setSongChartList({ status: 'failed' });
-      return;
-    }
-    setSongChartList({ status: 'loading' });
-    fetchChartRows(songId).then(
-      rows => { if (request === chartListRequestRef.current) setSongChartList({ status: 'loaded', rows }); },
-      () => { if (request === chartListRequestRef.current) setSongChartList({ status: 'failed' }); },
-    );
-  }, []);
-  const requestCloseSongInfo = useCallback(() => runUnsavedFlow(async () => {
-    if (await confirmCloseSongInfo(unsavedFlow)) setSongInfoOpen(false);
-  }), [runUnsavedFlow, unsavedFlow]);
-  const toggleSongInfo = useCallback(() => {
-    if (songInfoOpen) {
-      requestCloseSongInfo();
-      return;
-    }
-    setSongInfoOpen(true);
-    loadSongChartList();
-  }, [songInfoOpen, requestCloseSongInfo, loadSongChartList]);
-  // 같은 곡의 다른 차트로 전환한다. 미저장 곡 정보를 저장하거나 변경 취소한 뒤, 남은 차트 변경은 이탈처럼 확인한다.
-  const requestChartSwitch = useCallback((difficulty: string) => runUnsavedFlow(async () => {
-    const songId = useEditorStore.getState().activeSongId;
-    if (!songId || !(await confirmChartSwitch(unsavedFlow))) return;
-    window.location.href = `/editor?songId=${encodeURIComponent(songId)}&difficulty=${encodeURIComponent(difficulty)}`;
-  }), [runUnsavedFlow, unsavedFlow]);
-
-  // Leave 요청 이벤트 처리 (EditorToolbar의 Back to Songs가 미저장 변경이 있을 때 발행)
-  useEffect(() => {
-    const handler = () => runUnsavedFlow(async () => {
-      if (await confirmLeave(unsavedFlow)) window.location.href = '/game';
-    });
-    window.addEventListener('editor:requestLeave', handler);
-    return () => window.removeEventListener('editor:requestLeave', handler);
-  }, [runUnsavedFlow, unsavedFlow]);
-
   // 초기화
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -665,6 +602,87 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     drawerAudio.apply();
   }, [drawerAudio]);
   const pickDrawerAudio = useCallback((file: File) => { void handleDrawerAudioPick(file); }, [handleDrawerAudioPick]);
+
+  // 미저장 변경 확인 흐름(RFD 0098). 확인 창의 선택을 기다리고, 저장은 툴바의 Save와 같은 저장을 쓴다.
+  // 드로어에서 고른 음원을 불러오는 중이면 미저장 곡 정보로 보고, 변경 취소·닫기는 그 선택을 버려 늦은 로드가 적용되지 않게 한다.
+  const askUnsaved = useCallback((request: UnsavedChangesDialogRequest) =>
+    new Promise<SongInfoDecision>(resolve => setUnsavedDialog({ request, resolve })), []);
+  const handleSaveChart = fileOps.handleSaveChart;
+  const unsavedFlow = useMemo<UnsavedChangesFlow>(() => ({
+    saving: () => {
+      const { isSavingSong, isSavingChart } = useEditorStore.getState();
+      return isSavingSong || isSavingChart;
+    },
+    notifySaving: () => useEditorStore.getState().addToast(SAVE_IN_PROGRESS_COPY.unsavedFlow, 'warn'),
+    // 드로어 입력칸은 포커스 이동으로 적용한다. 포커스를 가진 입력칸이 있으면 포커스를 옮겨 그 값을 먼저 적용한다.
+    commitDrafts: () => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && isTextEntryTarget(active)) active.blur();
+    },
+    songInfoDirty: () => hasUnsavedSongInfo(useEditorStore.getState(), drawerAudio.isLoading()),
+    anyDirty: () => hasUnsavedEditorChanges(useEditorStore.getState(), drawerAudio.isLoading()),
+    askSongInfo: purpose => askUnsaved({ kind: 'songInfo', purpose }),
+    askLeave: purpose => askUnsaved({ kind: 'leave', purpose }),
+    save: handleSaveChart,
+    discardSongInfo: () => {
+      const result = discardSongInfoChanges();
+      if (!result.discarded) return false;
+      // 불러오는 중인 드로어 음원은 버린다(재생기를 고르기 전 음원으로 되돌리고 늦은 완료를 무시한다).
+      drawerAudio.cancel(playbackRef.current);
+      // 적용했던 음원을 버렸으면 재생기·파형을 저장된 음원으로 다시 불러온다.
+      if (result.reloadAudioUrl) setPendingAudioUrl(getPublicUrl(result.reloadAudioUrl));
+      return true;
+    },
+  }), [askUnsaved, handleSaveChart, setPendingAudioUrl, drawerAudio]);
+  const runUnsavedFlow = useCallback((flow: () => Promise<void>) => {
+    if (unsavedFlowRunningRef.current) return;
+    unsavedFlowRunningRef.current = true;
+    void flow().finally(() => { unsavedFlowRunningRef.current = false; });
+  }, []);
+
+  const loadSongChartList = useCallback(() => {
+    const songId = useEditorStore.getState().activeSongId;
+    const request = ++chartListRequestRef.current;
+    if (!songId) {
+      setSongChartList({ status: 'failed' });
+      return;
+    }
+    setSongChartList({ status: 'loading' });
+    fetchChartRows(songId).then(
+      rows => { if (request === chartListRequestRef.current) setSongChartList({ status: 'loaded', rows }); },
+      () => { if (request === chartListRequestRef.current) setSongChartList({ status: 'failed' }); },
+    );
+  }, []);
+  const requestCloseSongInfo = useCallback(() => runUnsavedFlow(async () => {
+    if (!(await confirmCloseSongInfo(unsavedFlow))) return;
+    // 닫힌 드로어의 음원 선택이 남지 않게 한다(불러오는 중이면 확인에서 이미 변경 취소로 버렸다).
+    drawerAudio.cancel(playbackRef.current);
+    setSongInfoOpen(false);
+  }), [runUnsavedFlow, unsavedFlow, drawerAudio]);
+  const toggleSongInfo = useCallback(() => {
+    if (songInfoOpen) {
+      requestCloseSongInfo();
+      return;
+    }
+    setSongInfoOpen(true);
+    loadSongChartList();
+  }, [songInfoOpen, requestCloseSongInfo, loadSongChartList]);
+  // 같은 곡의 다른 차트로 전환한다. 미저장 곡 정보를 저장하거나 변경 취소한 뒤, 남은 차트 변경은 이탈처럼 확인한다.
+  const requestChartSwitch = useCallback((difficulty: string) => runUnsavedFlow(async () => {
+    const songId = useEditorStore.getState().activeSongId;
+    if (!songId || !(await confirmChartSwitch(unsavedFlow))) return;
+    window.location.href = `/editor?songId=${encodeURIComponent(songId)}&difficulty=${encodeURIComponent(difficulty)}`;
+  }), [runUnsavedFlow, unsavedFlow]);
+
+  // Leave 요청 이벤트 처리 (EditorToolbar의 Back to Songs가 미저장 변경이 있을 때 발행)
+  useEffect(() => {
+    const handler = () => runUnsavedFlow(async () => {
+      if (await confirmLeave(unsavedFlow)) window.location.href = '/game';
+    });
+    window.addEventListener('editor:requestLeave', handler);
+    return () => window.removeEventListener('editor:requestLeave', handler);
+  }, [runUnsavedFlow, unsavedFlow]);
+
 
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
@@ -841,8 +859,9 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
   return (
     <>
-    {/* 변환 모달이 열린 동안 뒤 화면 전체(툴바·캔버스·다른 모달)는 포커스·클릭을 받지 않는다. 모달은 이 영역 밖에 그린다. */}
-    <div style={styles.container} inert={legacyConversionDialog !== null}>
+    {/* 변환 모달·미저장 변경 확인 창이 열린 동안 뒤 화면 전체(툴바·드로어·캔버스·다른 모달)는 포커스·클릭을 받지 않는다.
+        두 창은 이 영역 밖에 그린다. */}
+    <div style={styles.container} inert={legacyConversionDialog !== null || unsavedDialog !== null}>
       {/* 툴바 */}
       {audioLoadingSurface === 'transparentPage' && (
         <PageLoading message="Loading audio..." background="transparent" />
@@ -890,6 +909,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           {audioLoadingSurface === 'overlay' && <OverlayLoading message="Loading audio..." />}
           <canvas
             ref={canvasRef}
+            data-testid="timeline-canvas"
             style={styles.canvas}
             onPointerDown={canvasEvents.handlePointerDown}
             onPointerMove={canvasEvents.handlePointerMove}
@@ -994,18 +1014,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
             setShowCustomSnapModal(false);
           }}
           onClose={() => setShowCustomSnapModal(false)}
-        />
-      )}
-
-      {/* 미저장 변경 확인 창(드로어 닫기·차트 전환·이탈, RFD 0098) */}
-      {unsavedDialog && (
-        <UnsavedChangesDialog
-          request={unsavedDialog.request}
-          discardLocked={unsavedDialog.request.kind === 'songInfo' && isPlaying && isSongTimingDirty(chart, song)}
-          onChoose={(decision) => {
-            setUnsavedDialog(null);
-            unsavedDialog.resolve(decision);
-          }}
         />
       )}
 
@@ -1116,6 +1124,18 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         </div>
       )}
     </div>
+
+    {/* 미저장 변경 확인 창(드로어 닫기·차트 전환·이탈, RFD 0098) — 위의 inert 영역 밖 */}
+    {unsavedDialog && (
+      <UnsavedChangesDialog
+        request={unsavedDialog.request}
+        discardLocked={unsavedDialog.request.kind === 'songInfo' && isPlaying && isSongTimingDirty(chart, song)}
+        onChoose={(decision) => {
+          setUnsavedDialog(null);
+          unsavedDialog.resolve(decision);
+        }}
+      />
+    )}
 
     {/* 구형 차트 변환 모달 — 위의 inert 영역 밖 */}
     {legacyConversionDialog && (

@@ -34,8 +34,8 @@ const props = (overrides: Partial<SongInfoDrawerProps> = {}): SongInfoDrawerProp
 const render = (overrides: Partial<SongInfoDrawerProps> = {}) => renderToStaticMarkup(createElement(SongInfoDrawer, props(overrides)));
 
 type ElementProps = {
-  children?: ReactNode; defaultValue?: string; type?: string; accept?: string; disabled?: boolean;
-  'aria-label'?: string; 'aria-current'?: string; title?: string;
+  children?: ReactNode; defaultValue?: string; type?: string; accept?: string; disabled?: boolean; tabIndex?: number;
+  hidden?: boolean; 'aria-label'?: string; 'aria-current'?: string; title?: string;
   onBlur?: (event: { currentTarget: { value: string } }) => void;
   onClick?: () => void;
   onChange?: (event: { currentTarget: { files: File[] } }) => void;
@@ -122,11 +122,24 @@ describe('곡 정보 드로어의 곡 공통 값', () => {
     expect(ranges).toHaveLength(2);
   });
 
-  it('고른 음원을 불러오는 중이면 Loading audio를 보이고 음원 선택 입력을 막는다', () => {
+  it('고른 음원을 불러오는 중이면 Loading audio를 보이고 음원 선택 입력과 Upload Audio 버튼을 막는다', () => {
     const found = tree({ audioPick: { file: new File(['a'], 'next.ogg'), status: 'loading' } });
 
     expect(found.find(e => e.type === 'input' && e.props.accept === 'audio/*')!.props.disabled).toBe(true);
+    expect(button(found, 'Upload Audio').disabled).toBe(true);
     expect(render({ audioPick: { file: new File(['a'], 'next.ogg'), status: 'loading' } })).toContain('Loading audio');
+  });
+
+  it('자켓·음원 고르기는 키보드로 닿는 Upload Jacket·Upload Audio 버튼이고 숨은 파일 입력은 탭 순서에서 빠진다', () => {
+    const found = tree();
+
+    for (const label of ['Upload Jacket', 'Upload Audio']) {
+      expect(found.find(e => e.type === 'button' && Children.toArray(e.props.children).join('') === label)?.props)
+        .toMatchObject({ type: 'button' });
+    }
+    for (const accept of ['image/*', 'audio/*']) {
+      expect(found.find(e => e.type === 'input' && e.props.accept === accept)!.props).toMatchObject({ tabIndex: -1, hidden: true });
+    }
   });
 });
 
@@ -203,28 +216,37 @@ describe('곡 정보 드로어의 차트 목록·닫기', () => {
 
 describe('드로어의 구간 선택기 적용(RangeField)', () => {
   const initial = { startTime: 10, endTime: 20, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 };
-  /** RangeField 한 번의 렌더에서 선택기 알림과 손 떼기를 흉내 낸다. */
-  function probe(notifications: (typeof initial | null)[], finish: 'pointerUp' | 'blur') {
+  /**
+   * RangeField 한 번의 렌더에서 선택기 알림과 손 떼기(선택기의 onDragEnd) 또는 포커스 이동을 흉내 낸다.
+   * 손 떼기는 선택기가 놓은 위치로 계산한 구간을 넘긴다.
+   */
+  function probe(notifications: (typeof initial | null)[], finish: { dragEnd: typeof initial | null } | 'blur') {
     const onCommit = vi.fn();
     function Probe() {
       const node = RangeField({ selector: { audioBuffer: { duration: 120 } as AudioBuffer, label: '프리뷰 구간' }, onCommit });
-      const wrapper = node as { props: { onPointerUp: () => void; onBlur: () => void; children: ReactNode } };
+      const wrapper = node as { props: { onBlur: () => void; children: ReactNode } };
       const selector = elements(wrapper.props.children).find(e => e.type === PreviewRangeSelector)!
-        .props as unknown as { onChange: (range: typeof initial | null) => void };
+        .props as unknown as { onChange: (range: typeof initial | null) => void; onDragEnd: (range: typeof initial | null) => void };
       for (const range of notifications) selector.onChange(range);
-      if (finish === 'pointerUp') wrapper.props.onPointerUp(); else wrapper.props.onBlur();
+      if (finish === 'blur') wrapper.props.onBlur(); else selector.onDragEnd(finish.dragEnd);
       return null;
     }
     renderToStaticMarkup(createElement(Probe));
     return onCommit;
   }
 
-  it('선택기의 첫 알림 10～20초는 적용하지 않고 손을 떼도 구간이 그대로면 적용하지 않는다', () => {
-    expect(probe([initial], 'pointerUp')).not.toHaveBeenCalled();
+  it('선택기의 첫 알림 10～20초는 적용하지 않고 손을 뗀 구간도 10～20초 그대로면 적용하지 않는다', () => {
+    expect(probe([initial], { dragEnd: initial })).not.toHaveBeenCalled();
   });
 
   it('30～40초로 끈 뒤 손을 떼면 30～40초·페이드 0.5초를 한 번 적용한다', () => {
-    expect(probe([initial, { ...initial, startTime: 30, endTime: 40 }], 'pointerUp'))
+    const dragged = { ...initial, startTime: 30, endTime: 40 };
+    expect(probe([initial, dragged], { dragEnd: dragged }))
+      .toHaveBeenCalledExactlyOnceWith({ startTime: 30, endTime: 40, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('마지막 알림이 25～35초에 머문 채 30～40초에서 손을 떼면 알림이 아니라 손을 뗀 위치 30～40초를 적용한다', () => {
+    expect(probe([initial, { ...initial, startTime: 25, endTime: 35 }], { dragEnd: { ...initial, startTime: 30, endTime: 40 } }))
       .toHaveBeenCalledExactlyOnceWith({ startTime: 30, endTime: 40, fadeInTime: 0.5, fadeOutTime: 0.5 });
   });
 

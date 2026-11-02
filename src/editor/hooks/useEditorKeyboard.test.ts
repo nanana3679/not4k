@@ -286,17 +286,38 @@ describe('재생 중 단축키(RFD 0099)', () => {
 });
 
 describe('곡 정보 드로어의 입력칸 포커스', () => {
-  /** DOM 없이 입력칸 포커스를 흉내 낸 keydown 대상. */
-  const field = (tagName: string, type?: string) => ({ tagName, type, isContentEditable: false }) as unknown as EventTarget;
+  /** DOM 없이 입력칸 포커스를 흉내 낸 keydown 대상. blur는 입력칸이 값을 적용하는 포커스 이동이다. */
+  const field = (tagName: string, type?: string) => ({ tagName, type, isContentEditable: false, blur: vi.fn() });
+  const nextTask = () => new Promise(resolve => setTimeout(resolve, 0));
 
-  it.each([['text', 'Title'], ['number', 'Offset (ms)']])('%s 입력칸(%s)에 포커스가 있으면 Space·S·Delete가 재생·모드·선택 노트를 바꾸지 않는다', type => {
+  it('Title(text) 입력칸에 포커스가 있으면 Space·S·Delete가 재생·모드·선택 노트를 바꾸지 않는다', async () => {
     const { mode, press } = setup();
     mode.selectNote(0);
     useEditorStore.setState({ mode: 'create' });
+    const title = field('INPUT', 'text');
 
-    for (const key of [' ', 's', 'Delete']) press(key, { target: field('INPUT', type) });
+    for (const key of [' ', 's', 'Delete']) press(key, { target: title as unknown as EventTarget });
+    await nextTask();
 
     expect(current().isPlaying).toBe(false);
+    expect(current().mode).toBe('create');
+    expect(notes()).toHaveLength(1);
+    expect(title.blur).not.toHaveBeenCalled();
+  });
+
+  it('Offset(number) 입력칸에 포커스가 있으면 S·Delete는 무시하고 Space는 입력값을 적용(blur)한 뒤 다음 작업에서 재생을 시작한다', async () => {
+    const { mode, press } = setup();
+    mode.selectNote(0);
+    useEditorStore.setState({ mode: 'create' });
+    const offset = field('INPUT', 'number');
+
+    for (const key of ['s', 'Delete']) press(key, { target: offset as unknown as EventTarget });
+    press(' ', { target: offset as unknown as EventTarget });
+
+    expect(offset.blur).toHaveBeenCalledOnce();
+    expect(current().isPlaying).toBe(false);
+    await nextTask();
+    expect(current().isPlaying).toBe(true);
     expect(current().mode).toBe('create');
     expect(notes()).toHaveLength(1);
   });
@@ -304,7 +325,7 @@ describe('곡 정보 드로어의 입력칸 포커스', () => {
   it('체크박스에 포커스가 있으면 Space는 그대로 재생을 시작한다', () => {
     const { press } = setup();
 
-    press(' ', { target: field('INPUT', 'checkbox') });
+    press(' ', { target: field('INPUT', 'checkbox') as unknown as EventTarget });
 
     expect(current().isPlaying).toBe(true);
   });

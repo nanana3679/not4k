@@ -12,7 +12,7 @@
  * - 닫기와 차트 전환은 미저장 곡 정보 확인을 거치도록 호출한 쪽에 요청만 한다.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, FocusEvent, KeyboardEvent } from 'react';
+import type { CSSProperties, FocusEvent, KeyboardEvent, RefObject } from 'react';
 import type { PlaybackRange } from '../../shared';
 import { formatDifficultyLabel } from '../../shared/chartDifficulty';
 import { color, font, primitives, radius, surface } from '../../shared/theme';
@@ -78,12 +78,13 @@ function sameRangeState(a: PreviewRangeState, b: PreviewRangeState): boolean {
 }
 
 /**
- * 구간 선택기 하나. 선택기는 마운트할 때만 처음 구간을 읽고 바뀔 때마다 알린다. 첫 알림은 처음 구간이라 적용하지 않고,
- * 끌기를 마치고 손을 떼거나(pointerup) 페이드 입력·체크박스에서 포커스를 옮길 때(blur) 마지막 구간이 처음과 다르면 적용한다.
+ * 구간 선택기 하나. 선택기는 마운트할 때만 처음 구간을 읽고 바뀔 때마다 알린다. 첫 알림은 처음 구간이라 적용하지 않는다.
+ * 파형에서 손을 떼면 선택기가 놓은 위치로 계산해 바로 넘기는 구간(onDragEnd)을, 페이드 입력·체크박스에서 포커스를 옮기면(blur)
+ * 마지막 알림을 처음 구간과 비교해 다르면 적용한다. 손을 떼는 순간에는 마지막 끌기의 알림이 아직 오지 않았을 수 있어 알림을 쓰지 않는다.
  * 선택기를 끈(null) 알림은 구간을 지우지 않는다(기존 Meta 창과 같다). 적용한 값이 store에 들어가면 드로어가 key로 다시 마운트한다.
  */
 export function RangeField({ selector, onCommit }: {
-  selector: Omit<PreviewRangeSelectorProps, 'onChange'>;
+  selector: Omit<PreviewRangeSelectorProps, 'onChange' | 'onDragEnd'>;
   onCommit: (range: PlaybackRange) => void;
 }) {
   const initialRef = useRef<PreviewRangeState | null | undefined>(undefined);
@@ -92,16 +93,58 @@ export function RangeField({ selector, onCommit }: {
     if (initialRef.current === undefined) initialRef.current = range;
     latestRef.current = range;
   }, []);
-  const commit = () => {
-    const latest = latestRef.current;
+  const commit = (range: PreviewRangeState | null) => {
     const initial = initialRef.current;
-    if (!latest || (initial && sameRangeState(latest, initial))) return;
-    onCommit(notifiedRange(latest));
+    if (!range || (initial && sameRangeState(range, initial))) return;
+    onCommit(notifiedRange(range));
+  };
+  const handleDragEnd = (range: PreviewRangeState | null) => {
+    latestRef.current = range;
+    commit(range);
   };
   return (
-    <div onPointerUp={commit} onBlur={commit}>
-      <PreviewRangeSelector {...selector} onChange={handleChange} />
+    <div onBlur={() => commit(latestRef.current)}>
+      <PreviewRangeSelector {...selector} onChange={handleChange} onDragEnd={handleDragEnd} />
     </div>
+  );
+}
+
+/**
+ * 숨은 파일 입력과 그 입력을 여는 버튼. 파일 입력은 화면에 보이지 않고 탭 순서에서 빠지며, 키보드·화면 읽기 프로그램은 이 버튼으로
+ * 연다. 입력 ref는 드로어가 갖는다(요소 트리로 검사하는 단위 테스트가 버튼·입력을 바로 보게 컴포넌트가 아닌 함수로 그린다).
+ */
+function renderFilePick({ label, accept, disabled = false, inputRef, onPick }: {
+  label: string;
+  accept: string;
+  disabled?: boolean;
+  inputRef: RefObject<HTMLInputElement | null>;
+  onPick: (file: File) => void;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        style={disabled ? { ...styles.pickButton, ...styles.disabled } : styles.pickButton}
+        disabled={disabled}
+        onClick={() => inputRef.current?.click()}
+      >
+        {label}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        hidden
+        tabIndex={-1}
+        disabled={disabled}
+        onChange={(e) => {
+          const file = e.currentTarget.files?.[0];
+          // 같은 파일을 다시 골라도 onChange가 오도록 비운다.
+          e.currentTarget.value = '';
+          if (file) onPick(file);
+        }}
+      />
+    </>
   );
 }
 
@@ -127,6 +170,8 @@ export function SongInfoDrawer({
   const chartRow = useEditorStore((s) => s.chartRow);
   const activeDifficulty = useEditorStore((s) => s.activeDifficulty);
   const jacketPreviewUrl = useObjectUrl(song?.pendingJacketFile ?? null);
+  const jacketInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   // 불러오지 못한 자켓 URL. 다른 URL로 바뀌면 다시 시도한다.
   const [brokenJacketUrl, setBrokenJacketUrl] = useState<string | null>(null);
 
@@ -226,18 +271,8 @@ export function SongInfoDrawer({
       <div style={styles.section}>
         <div style={styles.sectionHeader}>
           <span style={styles.sectionTitle}>Jacket</span>
-          <label style={styles.pickLabel}>
-            <span style={styles.pickButton}>{showJacket ? 'Replace Jacket' : 'Upload Jacket'}</span>
-            <input
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const file = e.currentTarget.files?.[0];
-                if (file) editSongJacket(file);
-              }}
-            />
-          </label>
+          {renderFilePick({ label: showJacket ? 'Replace Jacket' : 'Upload Jacket', accept: 'image/*',
+            inputRef: jacketInputRef, onPick: editSongJacket })}
         </div>
         <div style={styles.mediaBox}>
           {showJacket ? (
@@ -251,19 +286,8 @@ export function SongInfoDrawer({
       <div style={styles.section}>
         <div style={styles.sectionHeader}>
           <span style={styles.sectionTitle}>Audio</span>
-          <label style={{ ...styles.pickLabel, ...(audioPickLoading ? styles.disabled : {}) }}>
-            <span style={styles.pickButton}>{audioBuffer ? 'Replace Audio' : 'Upload Audio'}</span>
-            <input
-              type="file"
-              accept="audio/*"
-              style={{ display: 'none' }}
-              disabled={audioPickLoading}
-              onChange={(e) => {
-                const file = e.currentTarget.files?.[0];
-                if (file) onPickAudio(file);
-              }}
-            />
-          </label>
+          {renderFilePick({ label: audioBuffer ? 'Replace Audio' : 'Upload Audio', accept: 'audio/*',
+            disabled: audioPickLoading, inputRef: audioInputRef, onPick: onPickAudio })}
         </div>
         <div style={styles.mediaBox}>
           {audioPickLoading ? (
@@ -444,18 +468,15 @@ const styles = {
     fontSize: '13px',
     touchAction: 'manipulation',
   },
-  pickLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    cursor: 'pointer',
-    margin: 0,
-  },
   pickButton: {
     padding: '4px 12px',
     backgroundColor: '#3a3a3a',
+    color: color.ink,
     border: '1px solid #555',
     borderRadius: '4px',
+    cursor: 'pointer',
     fontSize: '12px',
+    touchAction: 'manipulation',
   },
   mediaBox: {
     padding: '10px',

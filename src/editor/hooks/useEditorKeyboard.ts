@@ -22,7 +22,8 @@ const NON_TEXT_INPUT_TYPES = new Set(['checkbox', 'radio', 'range', 'button', 's
 
 /**
  * 키 입력 대상이 글자를 입력하는 칸인가(입력란·textarea·contenteditable). 곡 정보 드로어는 열린 채 단축키를 쓰게 두므로
- * (RFD 0098) 제목·오프셋을 입력하는 동안에는 Space·S 같은 단축키가 재생·모드를 바꾸지 않게 이 대상을 건너뛴다.
+ * (RFD 0098) 제목·오프셋을 입력하는 동안에는 S·Delete 같은 단축키가 모드·노트를 바꾸지 않게 이 대상을 건너뛴다.
+ * 숫자 입력칸의 Space만은 재생·정지로 쓴다(handleEditorKeyDown).
  */
 export function isTextEntryTarget(target: EventTarget | null | undefined): boolean {
   if (!target || typeof target !== 'object' || !('tagName' in target)) return false;
@@ -30,6 +31,13 @@ export function isTextEntryTarget(target: EventTarget | null | undefined): boole
   if (element.isContentEditable) return true;
   if (element.tagName === 'TEXTAREA') return true;
   return element.tagName === 'INPUT' && !NON_TEXT_INPUT_TYPES.has((element.type ?? 'text').toLowerCase());
+}
+
+/** 키 입력 대상이 숫자 입력칸인가(오프셋·페이드). 숫자 입력칸에는 Space가 글자를 넣지 않는다. */
+function isNumberEntryTarget(target: EventTarget | null | undefined): target is EventTarget & { blur?: () => void } {
+  if (!isTextEntryTarget(target)) return false;
+  const element = target as unknown as { tagName: string; type?: string };
+  return element.tagName === 'INPUT' && (element.type ?? '').toLowerCase() === 'number';
 }
 
 /**
@@ -68,8 +76,17 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
   const { mode, selectMode, playback, bpmChanges, offsetMs, shortcutsBlocked, isPlaying, setMode, addToast } = context;
   // Disable shortcuts while focused editor UI is open.
   if (shortcutsBlocked) return;
-  // 곡 정보 드로어의 입력칸에서 친 글자는 단축키가 아니다.
-  if (isTextEntryTarget(e.target)) return;
+  // 곡 정보 드로어의 입력칸에서 친 글자는 단축키가 아니다. 숫자 입력칸(Offset 등)의 Space만은 재생·정지로 쓴다(RFD 0099:
+  // 오프셋 입력을 연 채 재생·일시정지). 입력한 값은 포커스를 옮겨(blur) 먼저 적용하고, 적용이 커서 박 유지까지 반영된 다음 작업에서
+  // 재생을 토글한다. 재생 중에는 Offset 입력이 비활성이라 값이 남은 채 잠기지 않는다.
+  if (isTextEntryTarget(e.target)) {
+    if (e.key === ' ' && isNumberEntryTarget(e.target)) {
+      e.preventDefault();
+      e.target.blur?.();
+      setTimeout(() => playback?.togglePlay(), 0);
+    }
+    return;
+  }
 
   // 재생 중 편집 제한(RFD 0099): 아무것도 확정·변경하지 않고 안내만 한다. 누르고 있어 반복되는 입력은 다시 안내하지 않는다.
   if (isPlaying && isPlaybackLockedKey(e, mode)) {

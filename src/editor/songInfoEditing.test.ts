@@ -3,7 +3,8 @@ import { beat } from '../shared';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
 import { isChartDirty, toSavedChartJson } from './savedChart';
-import { isSongDirty } from './songState';
+import { isSongDirty, songValues } from './songState';
+import type { ChartDocument } from '../shared';
 import { useEditorStore } from './stores/editorStore';
 import { PAUSE_TO_EDIT_COPY } from './editorCopy';
 import {
@@ -187,11 +188,75 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
     expect(store().historyPast).toHaveLength(1);
   });
 
+  it('저장 음원 250초·프리뷰 10～20초에서 265초 음원을 고르고 프리뷰 250～265초·새 제목을 적용한 뒤 변경 취소하고 Undo하면 제목만 돌아오고 프리뷰 10～20초·저장 음원·길이 250초는 그대로다', () => {
+    const saved = { ...loadedSong, duration: 250 };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, saved), saved);
+    editSongAudio(new File(['a'], 'long.ogg'), 265);
+    editPreviewRange({ startTime: 250, endTime: 265, fadeInTime: 1, fadeOutTime: 1 });
+    editSongTitle('새 제목');
+    discardSongInfoChanges();
+
+    store().undo();
+
+    expect(store().chart.meta).toMatchObject({ title: '새 제목', audioFile: 'audio.ogg', previewStart: 10, previewEnd: 20 });
+    expect(store().song).toMatchObject({ duration: 250, pendingAudioFile: null, pendingPreviewRange: null });
+    const values = songValues(store().chart, store().song!);
+    expect(values.previewEnd).toBeLessThanOrEqual(values.duration!);
+  });
+
+  it('프리뷰만 30～40초로 바꾼 뒤 변경 취소하면 프리뷰 10～20초로 돌아가고 되살릴 것이 없는 Undo 이력을 남기지 않는다', () => {
+    editPreviewRange({ startTime: 30, endTime: 40, fadeInTime: 0.5, fadeOutTime: 0.5 });
+    const historyLength = store().historyPast.length;
+
+    expect(discardSongInfoChanges().discarded).toBe(true);
+
+    expect(store().chart.meta).toMatchObject({ previewStart: 10, previewEnd: 20 });
+    expect(store().historyPast).toHaveLength(historyLength);
+    expect(songDirty()).toBe(false);
+  });
+
   it('곡 행 없이 연 차트는 변경 취소할 곡 정보가 없어 아무것도 바꾸지 않는다', () => {
     openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null));
     store().setChart({ ...store().chart, meta: { ...store().chart.meta, title: '새 제목' } });
 
     expect(discardSongInfoChanges()).toEqual({ discarded: false, reloadAudioUrl: null });
     expect(store().chart.meta.title).toBe('새 제목');
+  });
+});
+
+describe('곡 정보 변경 취소의 타이밍 이벤트 자리와 선택(RFD 0098)', () => {
+  const bpmAt4 = { type: 'bpm' as const, beat: beat(4), bpm: 150, editorLane: 3 };
+  const auto = { type: 'auto' as const, beat: beat(0), endBeat: beat(4), editorLane: 4 };
+  /** 0박 BPM·박자(보조 레인 1·2)에 4박 BPM 150(보조 레인 3)과 auto 이벤트(보조 레인 4)를 저장한 곡을 연다. */
+  function openWithBpmAt4() {
+    const chart: ChartDocument = { ...base, events: [...base.events, bpmAt4, auto] };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(chart, 2).chartJson, null, loadedSong), loadedSong);
+  }
+  const bpmEvents = () => store().chart.events.filter(event => event.type === 'bpm')
+    .map(event => ({ beat: event.beat.n / event.beat.d, editorLane: event.editorLane }));
+
+  it('저장한 4박 BPM(보조 레인 3)을 8박으로 옮긴 뒤 변경 취소하면 4박 BPM이 기본 레인 1이 아니라 저장된 레인 3으로 돌아온다', () => {
+    openWithBpmAt4();
+    store().setChart({ ...store().chart, events: store().chart.events.map(event =>
+      event.type === 'bpm' && event.beat.n === 4 ? { ...event, beat: beat(8) } : event) });
+
+    discardSongInfoChanges();
+
+    expect(bpmEvents()).toEqual([{ beat: 0, editorLane: 1 }, { beat: 4, editorLane: 3 }]);
+  });
+
+  it('저장한 4박 BPM을 지우고 auto 이벤트(index 2)를 고른 뒤 변경 취소하면 4박 BPM이 앞에 돌아와도 선택은 같은 auto 이벤트(index 3)를 가리킨다', () => {
+    openWithBpmAt4();
+    store().setChart({ ...store().chart, events: store().chart.events.filter(event => event !== store().chart.events
+      .find(e => e.type === 'bpm' && e.beat.n === 4)) });
+    const autoIndex = store().chart.events.findIndex(event => event.type === 'auto');
+    store().setSelection({ notes: new Set(), zones: new Set(), restZones: new Set(), events: new Set([autoIndex]) });
+    expect(autoIndex).toBe(2);
+
+    discardSongInfoChanges();
+
+    const selected = [...store().selection.events];
+    expect(selected).toEqual([3]);
+    expect(store().chart.events[selected[0]].type).toBe('auto');
   });
 });

@@ -11,8 +11,10 @@ import type { PlaybackRange } from '../shared';
 import { isPlaybackLockedChange } from './editing/playbackEditLock';
 import { PAUSE_TO_EDIT_COPY } from './editorCopy';
 import { initialRangeState, notifiedRange } from './components/previewRangeState';
-import { restoreSavedSongInfo } from './songState';
+import { savedChartEvents } from './savedChart';
+import { restoreSavedSongInfo, SONG_SESSION_META_KEYS, songSessionMetaOf } from './songState';
 import { useEditorStore } from './stores/editorStore';
+import { normalizeSelection } from './stores/selectionSlice';
 
 function samePlaybackRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
   if (a === null || b === null) return a === b;
@@ -107,24 +109,66 @@ export interface DiscardSongInfoResult {
 
 /**
  * 곡 정보 변경 취소(RFD 0098). 곡 소유 값만 마지막 곡 저장 기준으로 되돌리고 노트·차트별 이벤트·난이도 편집은 남긴다.
- * 차트 사본의 변경은 `setChart`의 별도 이력 한 단위라 Undo하면 취소 직전 곡 정보로, Redo하면 다시 취소한 상태로 간다.
- * 대기 파일·플레이 구간·길이는 곡 세션 값이라 이력 밖에서 비운다(PR6 전). 재생 중 오프셋·BPM·박자표를 되돌려야 하면
- * 아무것도 바꾸지 않고 정지 안내를 띄운다(RFD 0099).
+ *
+ * - 미디어 경로·프리뷰 구간(SONG_SESSION_META_KEYS)과 대기 파일·플레이 구간·길이는 곡 세션 값이라 이력 없이 먼저 되돌린다.
+ *   그래서 변경 취소의 Undo는 제목·아티스트·오프셋·BPM·박자표만 되살리고, 버린 음원이나 그 길이에 맞춘 구간을 저장된 음원 위에
+ *   되살리지 않는다(통합 이력은 PR6).
+ * - 제목·아티스트·오프셋·BPM·박자표의 되돌림은 `setChart`의 별도 이력 한 단위라 Undo하면 취소 직전 값으로, Redo하면 다시 취소한
+ *   상태로 간다. 이 값이 이미 기준과 같으면 이력을 남기지 않는다.
+ * - 되살아난 타이밍 이벤트가 이벤트 순서를 바꿔도 이벤트 선택은 같은 이벤트를 가리키게 옮긴다(되돌려 없어진 이벤트는 선택에서 뺀다).
+ *   되살아난 이벤트는 마지막으로 불러오거나 저장한 차트의 보조 레인을 쓴다.
+ *
+ * 재생 중 오프셋·BPM·박자표를 되돌려야 하면 아무것도 바꾸지 않고 정지 안내를 띄운다(RFD 0099).
  */
 export function discardSongInfoChanges(): DiscardSongInfoResult {
   const state = useEditorStore.getState();
   const song = state.song;
   if (!song) return { discarded: false, reloadAudioUrl: null };
-  const restored = restoreSavedSongInfo(state.chart, song);
+  const restored = restoreSavedSongInfo(state.chart, song, savedChartEvents(state.savedChartJson));
   if (state.isPlaying && isPlaybackLockedChange(state.chart, restored.chart)) {
     state.addToast(PAUSE_TO_EDIT_COPY, 'warn');
     return { discarded: false, reloadAudioUrl: null };
   }
-  if (restored.chart !== state.chart) {
-    state.setChart(restored.chart, { separateHistory: true });
-    // 구조 검증 등으로 거부되면 곡 세션 값도 그대로 둔다.
-    if (useEditorStore.getState().chart !== restored.chart) return { discarded: false, reloadAudioUrl: null };
+  // 차트를 바꿀 때는 열린 편집(붙여넣기 대기 등)을 먼저 확정해, 아래의 이력 없는 되돌림이 그 편집의 시작 상태와 섞이지 않게 한다.
+  if (restored.chart !== state.chart) state.commitEditTransaction();
+  const before = useEditorStore.getState();
+  const sessionMeta = songSessionMetaOf(restored.chart.meta);
+  const previousSessionMeta = songSessionMetaOf(before.chart.meta);
+  if (SONG_SESSION_META_KEYS.some(key => sessionMeta[key] !== previousSessionMeta[key])) before.reconcileSongMedia(sessionMeta);
+
+  const current = useEditorStore.getState().chart;
+  const restMetaChanged = (Object.keys(restored.chart.meta) as (keyof typeof restored.chart.meta)[])
+    .some(key => restored.chart.meta[key] !== current.meta[key]);
+  if (restMetaChanged || restored.chart.events !== current.events) {
+    const selection = useEditorStore.getState().selection;
+    const next = { ...current, meta: restored.chart.meta, events: restored.chart.events };
+    useEditorStore.getState().setChart(next, { separateHistory: true });
+    // 구조 검증 등으로 거부되면 먼저 되돌린 미디어 경로·프리뷰 구간을 원래대로 돌리고 대기 파일·구간도 그대로 둔다.
+    if (useEditorStore.getState().chart !== next) {
+      useEditorStore.getState().reconcileSongMedia(previousSessionMeta);
+      return { discarded: false, reloadAudioUrl: null };
+    }
+    if (restored.chart.events !== current.events) keepEventSelection(selection, current.events, next.events);
   }
   useEditorStore.getState().setSong(restored.song);
   return { discarded: true, reloadAudioUrl: song.pendingAudioFile && song.baseline.audioUrl ? song.baseline.audioUrl : null };
+}
+
+/**
+ * 이벤트 배열이 바뀐 뒤에도 고른 이벤트를 같은 객체로 다시 찾는다. setChart는 배열이 줄 때만 객체로 다시 찾으므로,
+ * 변경 취소처럼 타이밍 이벤트를 앞에 다시 놓아 순서가 바뀌는 경우는 여기서 맞춘다.
+ */
+function keepEventSelection(
+  selection: ReturnType<typeof useEditorStore.getState>['selection'],
+  beforeEvents: readonly unknown[],
+  afterEvents: readonly unknown[],
+): void {
+  const indexByEvent = new Map(afterEvents.map((event, index) => [event, index]));
+  const events = new Set([...selection.events].flatMap(index => {
+    const next = indexByEvent.get(beforeEvents[index]);
+    return next === undefined ? [] : [next];
+  }));
+  const state = useEditorStore.getState();
+  // 차트 변경이 하는 선택 보정이라 재생 여부와 관계없이 store에 직접 쓴다(setChart·Undo와 같다).
+  useEditorStore.setState({ selection: normalizeSelection({ ...state.selection, events }, state.chart) });
 }

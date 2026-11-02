@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { getWaveformPeaks } from '../timeline/waveform';
-import { initialRangeState, type PreviewRangeState } from './previewRangeState';
+import { dragRangeAt, initialRangeState, type PreviewRangeState, type RangeDrag } from './previewRangeState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -10,7 +10,13 @@ export type { PreviewRangeState } from './previewRangeState';
 
 export interface PreviewRangeSelectorProps {
   audioBuffer: AudioBuffer;
+  /** 구간이 바뀔 때마다(렌더 뒤) 알린다. 처음 마운트할 때도 처음 구간을 한 번 알린다. */
   onChange: (state: PreviewRangeState | null) => void;
+  /**
+   * 파형에서 손을 뗄 때 놓은 위치로 계산한 마지막 구간을 바로 알린다. onChange는 렌더 뒤에 오므로 손을 떼는 순간에는
+   * 마지막 끌기가 아직 반영되지 않았을 수 있다. 끌기를 마치고 적용하는 쪽은 이 값을 쓴다. 사용을 꺼 두었으면 null이다.
+   */
+  onDragEnd?: (state: PreviewRangeState | null) => void;
   initialStart?: number;
   initialEnd?: number;
   initialFadeInTime?: number;
@@ -63,6 +69,7 @@ function clamp(value: number, min: number, max: number): number {
 export function PreviewRangeSelector({
   audioBuffer,
   onChange,
+  onDragEnd,
   initialStart,
   initialEnd,
   initialFadeInTime,
@@ -104,9 +111,8 @@ export function PreviewRangeSelector({
   const rafRef = useRef<number>(0);
   const playStartRef = useRef<number>(0);
   const playOffsetRef = useRef<number>(0);
-  const dragStartXRef = useRef<number>(0);
-  const dragStartTimeRef = useRef<number>(0);
-  const dragEndTimeRef = useRef<number>(0);
+  // 지금 끄는 중인 잡은 곳과 누른 순간의 x·구간. 끌기를 시작할 때 정하고 손을 떼면 비운다.
+  const dragRef = useRef<RangeDrag | null>(null);
 
   // Notify parent
   useEffect(() => {
@@ -298,6 +304,15 @@ export function PreviewRangeSelector({
     return clamp((px / rect.width) * duration, 0, duration);
   }, [duration]);
 
+  /** 끄는 중이면 포인터 위치의 구간(dragRangeAt), 아니면 null. */
+  const rangeAt = useCallback((clientX: number): { startTime: number; endTime: number } | null => {
+    const drag = dragRef.current;
+    const canvas = canvasRef.current;
+    if (!drag || !canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return dragRangeAt(drag, clientX, rect, { duration, minRangeDuration, maxRangeDuration });
+  }, [duration, minRangeDuration, maxRangeDuration]);
+
   const hitTest = useCallback((clientX: number): DragMode => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -324,9 +339,7 @@ export function PreviewRangeSelector({
 
     if (mode) {
       setDragMode(mode);
-      dragStartXRef.current = e.clientX;
-      dragStartTimeRef.current = startTime;
-      dragEndTimeRef.current = endTime;
+      dragRef.current = { mode, startX: e.clientX, startTime, endTime };
     } else {
       // Click outside → move selection centered on click
       const selDuration = endTime - startTime;
@@ -352,39 +365,29 @@ export function PreviewRangeSelector({
       return;
     }
 
-    const t = getTimeFromX(e.clientX);
-    const selDuration = dragEndTimeRef.current - dragStartTimeRef.current;
-
-    if (dragMode === 'start') {
-      const lower = Math.max(0, dragEndTimeRef.current - maxRangeDuration);
-      const upper = Math.max(lower, dragEndTimeRef.current - minRangeDuration);
-      const newStart = clamp(t, lower, upper);
-      setStartTime(newStart);
-      setEndTime(dragEndTimeRef.current);
-    } else if (dragMode === 'end') {
-      const lower = Math.min(duration, dragStartTimeRef.current + minRangeDuration);
-      const upper = Math.min(duration, dragStartTimeRef.current + maxRangeDuration);
-      const newEnd = clamp(t, lower, Math.max(lower, upper));
-      setStartTime(dragStartTimeRef.current);
-      setEndTime(newEnd);
-    } else if (dragMode === 'move') {
-      // Move entire selection
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const dx = e.clientX - dragStartXRef.current;
-      const dt = (dx / rect.width) * duration;
-      let newStart = dragStartTimeRef.current + dt;
-      newStart = clamp(newStart, 0, duration - selDuration);
-      setStartTime(newStart);
-      setEndTime(newStart + selDuration);
-    }
-  }, [enabled, dragMode, hitTest, getTimeFromX, duration, minRangeDuration, maxRangeDuration]);
+    const range = rangeAt(e.clientX);
+    if (!range) return;
+    setStartTime(range.startTime);
+    setEndTime(range.endTime);
+  }, [enabled, dragMode, hitTest, rangeAt]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    // 놓은 위치로 마지막 구간을 다시 계산한다. 끌지 않았으면(구간 밖 클릭은 누를 때 옮겼다) 지금 구간이다.
+    const range = rangeAt(e.clientX) ?? { startTime, endTime };
+    dragRef.current = null;
+    setStartTime(range.startTime);
+    setEndTime(range.endTime);
     setDragMode(null);
-  }, []);
+    if (!onDragEnd) return;
+    const maxFade = Math.max(0, (range.endTime - range.startTime) / 2);
+    onDragEnd(enabled ? {
+      ...range,
+      enabled,
+      fadeInTime: clamp(fadeInTime, 0, maxFade),
+      fadeOutTime: clamp(fadeOutTime, 0, maxFade),
+    } : null);
+  }, [rangeAt, startTime, endTime, enabled, fadeInTime, fadeOutTime, onDragEnd]);
 
   // ---------------------------------------------------------------------------
   // Render

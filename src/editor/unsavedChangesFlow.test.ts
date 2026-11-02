@@ -13,7 +13,10 @@ import {
   type UnsavedChangesFlow,
 } from './unsavedChangesFlow';
 
-/** 곡 정보·차트의 미저장 여부와 사용자의 선택을 정해 둔 흐름. save·discard는 정한 대로 미저장 여부를 바꾼다. */
+/**
+ * 곡 정보·차트의 미저장 여부와 사용자의 선택을 정해 둔 흐름. save·discard는 정한 대로 미저장 여부를 바꾼다.
+ * draft는 포커스를 가진 드로어 입력칸에 아직 적용하지 않은 값이다. commitDrafts가 적용하면 곡 정보가 미저장이 된다.
+ */
 function flow(options: {
   song: boolean;
   chart: boolean;
@@ -22,14 +25,36 @@ function flow(options: {
   /** Save가 끝난 뒤 남는 미저장. 기본은 둘 다 저장 성공이다. */
   afterSave?: { song: boolean; chart: boolean };
   discardAllowed?: boolean;
+  /** 흐름을 시작할 때 다른 저장(Save·Save As)이 진행 중인가. */
+  savingAtStart?: boolean;
+  /** 확인 창에 답하는 사이 다른 저장이 시작되는가. */
+  savingAfterAnswer?: boolean;
+  /** 흐름을 시작할 때 입력칸에 적용하지 않은 값이 있는가. */
+  draftAtStart?: boolean;
+  /** 흐름의 Save가 진행되는 동안 입력칸에 새 값을 치는가. */
+  draftDuringSave?: boolean;
 }) {
   const dirty = { song: options.song, chart: options.chart };
+  const state = { saving: options.savingAtStart ?? false, draft: options.draftAtStart ?? false };
+  const answer = <T,>(value: T) => {
+    if (options.savingAfterAnswer) state.saving = true;
+    return value;
+  };
   const deps: UnsavedChangesFlow = {
+    saving: () => state.saving,
+    notifySaving: vi.fn(),
+    commitDrafts: vi.fn(() => {
+      if (state.draft) dirty.song = true;
+      state.draft = false;
+    }),
     songInfoDirty: () => dirty.song,
     anyDirty: () => dirty.song || dirty.chart,
-    askSongInfo: vi.fn(async () => options.songInfoAnswer ?? 'cancel'),
-    askLeave: vi.fn(async () => options.leaveAnswer ?? 'cancel'),
-    save: vi.fn(async () => { Object.assign(dirty, options.afterSave ?? { song: false, chart: false }); }),
+    askSongInfo: vi.fn(async () => answer(options.songInfoAnswer ?? 'cancel')),
+    askLeave: vi.fn(async () => answer(options.leaveAnswer ?? 'cancel')),
+    save: vi.fn(async () => {
+      Object.assign(dirty, options.afterSave ?? { song: false, chart: false });
+      if (options.draftDuringSave) state.draft = true;
+    }),
     discardSongInfo: vi.fn(() => {
       if (options.discardAllowed === false) return false;
       dirty.song = false;
@@ -88,6 +113,44 @@ describe('곡 정보 드로어 닫기(confirmCloseSongInfo)', () => {
 
     await expect(confirmCloseSongInfo(deps)).resolves.toBe(false);
   });
+
+  it('다른 Save가 진행 중이면 묻지 않고 저장 중 안내를 한 번 띄운 뒤 드로어를 연 채 둔다', async () => {
+    const deps = flow({ song: true, chart: false, savingAtStart: true });
+
+    await expect(confirmCloseSongInfo(deps)).resolves.toBe(false);
+    expect(deps.notifySaving).toHaveBeenCalledOnce();
+    expect(deps.askSongInfo).not.toHaveBeenCalled();
+  });
+
+  it('미저장 곡 정보가 없어도 다른 Save가 진행 중이면 저장 결과가 정해질 때까지 닫지 않는다', async () => {
+    const deps = flow({ song: false, chart: false, savingAtStart: true });
+
+    await expect(confirmCloseSongInfo(deps)).resolves.toBe(false);
+    expect(deps.notifySaving).toHaveBeenCalledOnce();
+  });
+
+  it('확인 창에 답하는 사이 Save가 시작되면 변경 취소 후 닫기를 골라도 곡 정보를 되돌리지 않고 연 채 둔다', async () => {
+    const deps = flow({ song: true, chart: false, songInfoAnswer: 'discard', savingAfterAnswer: true });
+
+    await expect(confirmCloseSongInfo(deps)).resolves.toBe(false);
+    expect(deps.discardSongInfo).not.toHaveBeenCalled();
+    expect(deps.notifySaving).toHaveBeenCalledOnce();
+  });
+
+  it('닫기를 누를 때 Title 입력칸에 적용하지 않은 값이 있으면 먼저 적용해 미저장 곡 정보로 묻는다', async () => {
+    const deps = flow({ song: false, chart: false, draftAtStart: true, songInfoAnswer: 'cancel' });
+
+    await expect(confirmCloseSongInfo(deps)).resolves.toBe(false);
+    expect(deps.askSongInfo).toHaveBeenCalledExactlyOnceWith('close');
+  });
+
+  it('저장 후 닫기의 Save 중 Title 입력칸에 친 새 값은 저장이 끝난 뒤 적용되어 미저장으로 남고 드로어를 닫지 않는다', async () => {
+    const deps = flow({ song: true, chart: false, songInfoAnswer: 'save', draftDuringSave: true });
+
+    await expect(confirmCloseSongInfo(deps)).resolves.toBe(false);
+    expect(deps.save).toHaveBeenCalledOnce();
+    expect(deps.songInfoDirty()).toBe(true);
+  });
 });
 
 describe('에디터 이탈·다른 곡 이동(confirmLeave)', () => {
@@ -122,6 +185,27 @@ describe('에디터 이탈·다른 곡 이동(confirmLeave)', () => {
 
   it('저장 후 이동에서 곡만 저장되고 차트 저장이 실패하면 이동하지 않고 편집을 유지한다', async () => {
     const deps = flow({ song: true, chart: true, leaveAnswer: 'save', afterSave: { song: false, chart: true } });
+
+    await expect(confirmLeave(deps)).resolves.toBe(false);
+  });
+
+  it('곡 저장과 차트 저장 사이처럼 Save가 진행 중이면 묻지 않고 이동하지 않는다', async () => {
+    const deps = flow({ song: false, chart: true, savingAtStart: true });
+
+    await expect(confirmLeave(deps)).resolves.toBe(false);
+    expect(deps.askLeave).not.toHaveBeenCalled();
+    expect(deps.notifySaving).toHaveBeenCalledOnce();
+  });
+
+  it('확인 창에 답하는 사이 Save가 시작되면 버리고 이동을 골라도 이동하지 않는다', async () => {
+    const deps = flow({ song: false, chart: true, leaveAnswer: 'discard', savingAfterAnswer: true });
+
+    await expect(confirmLeave(deps)).resolves.toBe(false);
+    expect(deps.save).not.toHaveBeenCalled();
+  });
+
+  it('저장 후 이동의 Save 중 입력칸에 친 새 값이 남으면 이동하지 않는다', async () => {
+    const deps = flow({ song: false, chart: true, leaveAnswer: 'save', draftDuringSave: true });
 
     await expect(confirmLeave(deps)).resolves.toBe(false);
   });
@@ -179,6 +263,26 @@ describe('같은 곡의 다른 차트로 전환(confirmChartSwitch)', () => {
     expect(deps.askSongInfo).not.toHaveBeenCalled();
     expect(deps.askLeave).toHaveBeenCalledExactlyOnceWith('switch');
   });
+
+  it('Save가 진행 중이면 변경이 없어도 전환하지 않고 저장 중 안내를 띄운다', async () => {
+    const deps = flow({ song: false, chart: false, savingAtStart: true });
+
+    await expect(confirmChartSwitch(deps)).resolves.toBe(false);
+    expect(deps.notifySaving).toHaveBeenCalledOnce();
+  });
+
+  it('확인 창에 답하는 사이 Save가 시작되면 변경 취소 후 전환을 골라도 곡 정보를 되돌리지 않고 남는다', async () => {
+    const deps = flow({ song: true, chart: false, songInfoAnswer: 'discard', savingAfterAnswer: true });
+
+    await expect(confirmChartSwitch(deps)).resolves.toBe(false);
+    expect(deps.discardSongInfo).not.toHaveBeenCalled();
+  });
+
+  it('저장 후 전환의 Save 중 입력칸에 친 새 값이 남으면 전환하지 않는다', async () => {
+    const deps = flow({ song: true, chart: false, songInfoAnswer: 'save', draftDuringSave: true });
+
+    await expect(confirmChartSwitch(deps)).resolves.toBe(false);
+  });
 });
 
 describe('미저장 여부 판단', () => {
@@ -195,6 +299,14 @@ describe('미저장 여부 판단', () => {
 
     expect(hasUnsavedSongInfo(store())).toBe(false);
     expect(hasUnsavedEditorChanges(store())).toBe(true);
+  });
+
+  it('곡 정보가 깨끗해도 드로어에서 고른 음원을 불러오는 중이면 곡 정보와 에디터가 모두 미저장이다', () => {
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loadedSong), loadedSong);
+
+    expect(hasUnsavedSongInfo(store())).toBe(false);
+    expect(hasUnsavedSongInfo(store(), true)).toBe(true);
+    expect(hasUnsavedEditorChanges(store(), true)).toBe(true);
   });
 
   it('곡 행 없는 차트에 프리뷰 0～8초가 대기 중이면 에디터는 미저장이다', () => {

@@ -3,7 +3,7 @@ import { beat } from '../types/beat';
 import type { ChartDocument } from '../types/chart';
 import { createChartTiming } from '../timing/chartTiming';
 import { validateChartDocument } from '../validation/documentValidation';
-import { resolveSongChart, type SongSharedData } from './resolveSongChart';
+import { applySongTimingEvents, resolveSongChart, type SongSharedData } from './resolveSongChart';
 
 function chart(bpm = 150, difficultyLabel = 'EASY'): ChartDocument {
   return {
@@ -171,5 +171,26 @@ describe('resolveSongChart 타이밍 이벤트의 보조 레인', () => {
     const song = songWithTiming([{ beat: '0', bpm: 150 }, { beat: '20', bpm: 200 }]);
     const resolved = resolveSongChart(textOverBpmChart(), song);
     expect(resolveSongChart(resolved, song)).toBe(resolved);
+  });
+});
+
+describe('applySongTimingEvents의 레인 출처', () => {
+  const timing = { bpmChanges: [{ beat: '0', bpm: 120 }, { beat: '4', bpm: 150 }],
+    timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 };
+  const initial = [
+    { type: 'bpm' as const, beat: beat(0), bpm: 120, editorLane: 1 },
+    { type: 'timeSignature' as const, beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+  ];
+
+  it('events에 없는 4박 BPM은 laneSources에 같은 박 BPM이 보조 레인 3에 있으면 레인 3에 둔다', () => {
+    const events = applySongTimingEvents(initial, timing, [{ type: 'bpm', beat: beat(4), bpm: 999, editorLane: 3 }]);
+
+    expect(events.find(event => event.type === 'bpm' && event.beat.n === 4)).toMatchObject({ bpm: 150, editorLane: 3 });
+  });
+
+  it('laneSources에도 4박 BPM이 없으면 기본 보조 레인 1에 둔다', () => {
+    const events = applySongTimingEvents(initial, timing, [{ type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(3), editorLane: 3 }]);
+
+    expect(events.find(event => event.type === 'bpm' && event.beat.n === 4)).toMatchObject({ bpm: 150, editorLane: 1 });
   });
 });

@@ -57,6 +57,13 @@ export function isExtraUploadPath(path: string, difficulty = EDITOR_TEST_DIFFICU
   return new RegExp(`^${UPLOAD_SONG_DIR}/${difficulty}-${UUID}\\.extra\\.json$`).test(path);
 }
 
+/**
+ * 에디터 타임라인 canvas. 곡 정보 드로어·Meta 창의 구간 선택기도 canvas를 그리므로 `locator('canvas')` 대신 이 test id로 찾는다.
+ */
+export function timelineCanvas(page: Page) {
+  return page.getByTestId('timeline-canvas');
+}
+
 /** 0박 120 BPM·4/4 이벤트만 있는 v3 차트. 노트를 넘기면 그대로 담는다. */
 export function editorTestChart(notes: ChartJsonV3['notes'] = []): ChartJsonV3 {
   return {
@@ -140,6 +147,8 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
   }));
 
   const uploadedFilesByPath = new Map<string, string>();
+  // JSON이 아닌 업로드(자켓·음원·프리뷰). 저장 뒤 드로어가 저장된 자켓을 공개 URL로 다시 읽으므로 올린 바이트를 그대로 돌려준다.
+  const uploadedMediaByPath = new Map<string, { body: Buffer; contentType: string }>();
   const selectChartRows = (columns: string) => chartRows.map(row => columns === '*' ? { ...row }
     : Object.fromEntries(columns.split(',').map(column => [column, row[column as keyof typeof row]])));
 
@@ -157,6 +166,10 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     if (method === 'GET' && uploaded !== undefined) {
       await route.fulfill({ body: uploaded, contentType: 'application/json' }); return;
     }
+    const uploadedMedia = uploadedMediaByPath.get(path.replace('/storage/v1/object/public/assets/', ''));
+    if (method === 'GET' && uploadedMedia !== undefined) {
+      await route.fulfill(uploadedMedia); return;
+    }
     const mainChartPath = options.storedChartPaths ? EDITOR_TEST_STORED_CHART_PATH : `${SONG_DIR}/${EDITOR_TEST_DIFFICULTY}.json`;
     const extraChartPath = options.storedChartPaths ? EDITOR_TEST_STORED_EXTRA_PATH : `${SONG_DIR}/${EDITOR_TEST_DIFFICULTY}.extra.json`;
     if (method === 'GET' && path === `/storage/v1/object/public/assets/${mainChartPath}`) {
@@ -165,6 +178,10 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
     for (const [difficulty, otherChart] of Object.entries(options.otherCharts ?? {})) {
       if (method === 'GET' && path === `${PUBLIC_SONG_DIR}/${difficulty}.json`) {
         await route.fulfill({ json: otherChart }); return;
+      }
+      // 다른 차트도 보조 파일은 없다. 그 차트로 전환해 열면 로더가 404를 보고 내장 자료로 폴백한다.
+      if (method === 'GET' && path === `${PUBLIC_SONG_DIR}/${difficulty}.extra.json`) {
+        await route.fulfill({ status: 404, json: { error: 'not_found' } }); return;
       }
     }
     if (method === 'GET' && path === `/storage/v1/object/public/assets/${extraChartPath}`) {
@@ -196,6 +213,8 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
         uploadedFilesByPath.set(path.replace('/storage/v1/object/assets/', ''), JSON.stringify(readUploadedJson({
           method, path, body: request.postData(),
         })));
+      } else {
+        uploadedMediaByPath.set(path.replace('/storage/v1/object/assets/', ''), readUploadedMedia(request.postDataBuffer()));
       }
       await route.fulfill({ json: { Key: path.replace('/storage/v1/object/', '') } }); return;
     }
@@ -275,7 +294,7 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
   }
 
   await page.goto(`/editor?songId=${EDITOR_TEST_SONG_ID}&difficulty=${EDITOR_TEST_DIFFICULTY}`);
-  const timeline = page.locator('canvas').first();
+  const timeline = timelineCanvas(page);
   const accessDenied = page.getByRole('heading', { name: 'Access Denied', exact: true });
   const loadError = page.getByRole('heading', { name: 'Error', exact: true });
   await timeline.or(accessDenied).or(loadError).first().waitFor();
@@ -324,6 +343,20 @@ export async function waitForTimelineReady(page: Page, timeout = 15_000): Promis
     const { useEditorStore } = await import(storePath);
     return useEditorStore.getState().timelineRangeMs !== null;
   }), { timeout, message: '도안을 포함한 타임라인 초기화가 끝나지 않았다' }).toBe(true);
+}
+
+/** Storage 업로드(multipart/form-data) 본문에서 파일 부분의 바이트와 Content-Type을 꺼낸다. 형식이 다르면 빈 본문이다. */
+function readUploadedMedia(body: Buffer | null): { body: Buffer; contentType: string } {
+  const empty = { body: Buffer.alloc(0), contentType: 'application/octet-stream' };
+  if (!body) return empty;
+  const delimiter = body.subarray(0, body.indexOf('\r\n'));
+  const fileHeader = body.indexOf('filename=');
+  if (delimiter.length === 0 || fileHeader < 0) return empty;
+  const headerEnd = body.indexOf('\r\n\r\n', fileHeader);
+  const fileEnd = body.indexOf(Buffer.concat([Buffer.from('\r\n'), delimiter]), headerEnd);
+  if (headerEnd < 0 || fileEnd < 0) return empty;
+  const contentType = /content-type:\s*([^\r\n]+)/i.exec(body.subarray(fileHeader, headerEnd).toString('latin1'))?.[1];
+  return { body: body.subarray(headerEnd + 4, fileEnd), contentType: contentType ?? empty.contentType };
 }
 
 /** Storage 업로드(multipart/form-data) 본문에서 파일 부분을 JSON으로 읽는다. */

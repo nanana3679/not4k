@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
-import { editorTestChart, openEditor, readUploadedJson, EDITOR_TEST_AUDIO_FILE, isChartUploadPath, isExtraUploadPath } from './editorTestSetup';
+import { editorTestChart, openEditor, readUploadedJson, EDITOR_TEST_AUDIO_FILE, isChartUploadPath, isExtraUploadPath, timelineCanvas } from './editorTestSetup';
 import { canvasPosition, drag, notes } from './explicitEditorTestHelpers';
 import { installProbe as installManualClock, probe, waitAt, preparationTarget, expectPreparation } from '../explicitPlaybackProbe';
 
@@ -69,7 +69,7 @@ test('새 에디터 Double 제작·Undo·저장·reload 후 처음부터 실제 
   await page.getByTestId('explicit-play-result').screenshot({ path: info.outputPath('editor-manual-explicit-result.png') });
   await page.getByRole('button', { name: '돌아가기', exact: true }).first().click();
   await expect(page).toHaveURL(/\/editor\?songId=e2e-editor-song&difficulty=normal$/);
-  await expect(page.locator('canvas')).toHaveCount(1);
+  await expect(timelineCanvas(page)).toHaveCount(1);
   expect(await notes(page)).toEqual(authored);
   expect(reloaded.supabaseWrites).toEqual([]);
   expect(initial.unexpectedSupabaseRequests).toEqual([]); expect(reloaded.unexpectedSupabaseRequests).toEqual([]);
@@ -122,7 +122,7 @@ test('1500ms 커서에서 미리 누른 키로 남은 바디를 시작하고 커
   await expect(page.getByTestId('explicit-bodies')).toHaveText('1 / 0');
   await page.getByRole('button', { name: '돌아가기', exact: true }).first().click();
   await expect(page).toHaveURL(/\/editor\?songId=e2e-editor-song&difficulty=normal$/);
-  await expect(page.locator('canvas')).toHaveCount(1);
+  await expect(timelineCanvas(page)).toHaveCount(1);
   expect(await notes(page)).toEqual(before);
   expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
@@ -218,7 +218,7 @@ for (const auto of [false, true]) test(`${auto ? 'Auto' : '수동'} 4500ms 재�
   await page.getByTestId('explicit-play-result').screenshot({ path: info.outputPath(`rewind-${auto ? 'auto' : 'manual'}-result.png`) });
   await page.getByRole('button', { name: '돌아가기', exact: true }).first().click();
   await expect(page).toHaveURL(/\/editor\?songId=e2e-editor-song&difficulty=normal$/);
-  await expect(page.locator('canvas')).toHaveCount(1);
+  await expect(timelineCanvas(page)).toHaveCount(1);
   expect(await notes(page)).toEqual(originalNotes);
   expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
@@ -329,7 +329,7 @@ test('legacy aux는 저장한 그대로 보존하며 explicit main만 auto 물�
   });
   expect(request.notes).toEqual(before); expect(request.count).toBe(3); expect(request.result).toBeNull();
   await page.getByRole('button', { name: '돌아가기', exact: true }).first().click();
-  await expect(page.locator('canvas')).toHaveCount(1); expect(await notes(page)).toEqual(before);
+  await expect(timelineCanvas(page)).toHaveCount(1); expect(await notes(page)).toEqual(before);
   expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
 
@@ -372,7 +372,7 @@ for (const replaceAudio of [false, true]) test(`${replaceAudio ? '음원 교체�
   await expect(page.getByTestId('explicit-play-result')).toBeVisible({ timeout: 20000 });
   await page.getByRole('button', { name: '돌아가기', exact: true }).first().click();
   await expect(page).toHaveURL(/\/editor\?songId=e2e-editor-song&difficulty=normal$/);
-  await expect(page.locator('canvas')).toHaveCount(1);
+  await expect(timelineCanvas(page)).toHaveCount(1);
   // 돌아온 에디터는 음원을 다시 읽는 동안 화면 전체를 덮는 로딩 표시로 입력을 막는다.
   await expect(page.getByRole('status').filter({ hasText: 'Loading audio...' })).toBeHidden({ timeout: 15000 });
   await expect(page.getByText(/Audio load failed/)).toHaveCount(0);
@@ -390,7 +390,7 @@ for (const replaceAudio of [false, true]) test(`${replaceAudio ? '음원 교체�
   await page.getByRole('button', { name: '취소', exact: true }).click();
   await expect(leaveConfirm).toHaveCount(0);
   await expect(page).toHaveURL(/\/editor\?songId=e2e-editor-song&difficulty=normal$/);
-  await expect(page.locator('canvas')).toHaveCount(1);
+  await expect(timelineCanvas(page)).toHaveCount(1);
   expect(await notes(page)).toEqual(edited);
   await expect(unsavedSave).toBeVisible();
   expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);

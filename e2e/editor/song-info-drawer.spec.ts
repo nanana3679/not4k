@@ -8,7 +8,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { ChartJsonV4 } from '../../src/shared/chart';
 import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY, SONG_INFO_UNSAVED_COPY } from '../../src/editor/editorCopy';
-import { editorTestChart, isChartUploadPath, openEditor } from './editorTestSetup';
+import { editorTestChart, isChartUploadPath, openEditor, timelineCanvas } from './editorTestSetup';
 import { canvasPosition } from './explicitEditorTestHelpers';
 
 test.setTimeout(60_000);
@@ -54,12 +54,12 @@ async function requestLeave(page: Page) {
 }
 
 test.describe('곡 정보 드로어', () => {
-  test('드로어를 연 채 Play로 재생하면 Offset 입력·증감 버튼은 비활성이고 Title은 활성이며, Pause 뒤 Offset 45를 적용할 수 있다', async ({ page }) => {
+  test('드로어를 연 채 Play로 재생하면 Offset 입력·증감 버튼은 비활성이고 Title은 활성이며, Pause 뒤 Offset 45를 적용하고 Offset 입력에서 50을 친 채 Space를 누르면 50을 적용하고 재생한다', async ({ page }) => {
     const slow: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [],
       events: [{ type: 'bpm', beat: '0', bpm: 30, editorLane: 1 }, { type: 'timeSignature', beat: '0', beatPerMeasure: '4', editorLane: 2 }] };
     await openEditor(page, { audio: true, chart: slow });
     await openSongInfo(page);
-    await expect(page.locator('canvas')).toBeVisible();
+    await expect(timelineCanvas(page)).toBeVisible();
     const offset = songInfo(page).getByLabel('Offset (ms)', { exact: true });
 
     await page.getByRole('button', { name: 'Play', exact: true }).click();
@@ -75,6 +75,49 @@ test.describe('곡 정보 드로어', () => {
     await offset.press('Enter');
     await expect.poll(async () => (await editorState(page)).offsetMs).toBe(45);
     await expect(songInfo(page)).toBeVisible();
+
+    await offset.fill('50');
+    await offset.press('Space');
+    await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+    expect(await editorState(page)).toMatchObject({ offsetMs: 50, isPlaying: true });
+  });
+
+  test('Title을 바꾸고 닫기를 누르면 확인 창이 저장 후 닫기에 포커스를 두고 뒤 화면을 막으며, Tab은 창 안에서 돌고 Escape는 취소로 닫은 뒤 포커스를 닫기 버튼에 돌려준다', async ({ page }) => {
+    const editor = await openEditor(page, { songTiming: timing });
+    await openSongInfo(page);
+    await fillTitle(page, '새 제목');
+    const close = songInfo(page).getByRole('button', { name: 'Close song info', exact: true });
+
+    await close.click();
+    const dialog = songInfoDialog(page);
+    await expect(dialog.getByRole('button', { name: '저장 후 닫기', exact: true })).toBeFocused();
+    await expect(page.locator('div[inert]')).toHaveCount(1);
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Tab');
+    await expect(dialog.getByRole('button', { name: '저장 후 닫기', exact: true })).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await expect(dialog.getByRole('button', { name: '취소', exact: true })).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('div[inert]')).toHaveCount(0);
+    await expect(close).toBeFocused();
+    await expect(songInfo(page).getByLabel('Title', { exact: true })).toHaveValue('새 제목');
+    expect(editor.supabaseWrites).toEqual([]);
+  });
+
+  test('Upload Jacket 버튼에 키보드 포커스를 두고 Enter를 누르면 파일 선택 창이 열리고 고른 new.png가 미리보기에 보인다', async ({ page }) => {
+    await openEditor(page, { songTiming: timing });
+    await openSongInfo(page);
+    const upload = songInfo(page).getByRole('button', { name: 'Upload Jacket', exact: true });
+
+    await upload.focus();
+    const chooser = page.waitForEvent('filechooser');
+    await page.keyboard.press('Enter');
+    await (await chooser).setFiles({ name: 'new.png', mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') });
+
+    await expect(songInfo(page).getByRole('img', { name: 'Jacket', exact: true })).toBeVisible();
+    await expect(unsavedSave(page)).toBeVisible();
   });
 
   test('Title을 새 제목으로 바꾸고 닫기를 누르면 Unsaved Song Info 확인이 뜨고, 취소하면 드로어와 새 제목이 남는다', async ({ page }) => {
@@ -155,7 +198,7 @@ test.describe('같은 곡의 다른 차트로 전환', () => {
     await songInfo(page).getByRole('button', { name: 'BREAKTHROUGH', exact: true }).click();
 
     await expect(page).toHaveURL(/\/editor\?songId=e2e-editor-song&difficulty=hard$/);
-    await expect(page.locator('canvas')).toBeVisible();
+    await expect(timelineCanvas(page)).toBeVisible();
     expect(editor.supabaseWrites).toEqual([]);
   });
 
