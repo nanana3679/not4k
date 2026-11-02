@@ -9,6 +9,9 @@ const fixture = vi.hoisted(() => ({
   prepareAudio: async () => {}, loadSkin: async () => {}, loadExplicit: async () => {}, initRenderer: async () => {},
 }));
 class FakeAudio {
+  positionMsAtRealOffset(realOffsetMs: number): number {
+    return this.currentTimeMs + realOffsetMs * this.playbackRate;
+  }
   masterVolume = 1; playbackRate = 1; currentTimeMs = 1000;
   loadBuffer = vi.fn<(buffer: AudioBuffer) => void>(() => { fixture.calls.push('audio.loadBuffer'); });
   setPlaybackRange = vi.fn<(range: PlaybackRange | null) => void>(() => { fixture.calls.push('audio.setPlaybackRange'); });

@@ -9,6 +9,7 @@ import { ExplicitJudgmentSession } from "../../judgment/ExplicitJudgmentSession"
 import type { ExplicitSessionResult } from "../../judgment/ExplicitJudgmentSession";
 import type { ExplicitJudgmentEffect } from "../../judgment/ExplicitJudgmentState";
 import { GameClock } from "../../time/GameClock";
+import { createConstantRateAudioSource } from "../../time/clockAudioTestHarness";
 import { drainExplicitPlaySessionInputs, stepExplicitPlaySession } from "../explicitPlaySessionInput";
 import { createExplicitTutorialPreviewSessionController } from "./explicitTutorialPreviewSession";
 
@@ -70,7 +71,7 @@ describe("명시 튜토리얼과 실제 입력·AutoPlayer의 공통 세션", ()
     const session = new ExplicitJudgmentSession(compiled, { maintenanceGraceMs: 20 });
     const timeline = new InputTimeline();
     const auto = new ExplicitAutoPlayer(compiled);
-    const audio = { currentTimeMs: 0, playbackRate: 1, getOutputLatencyMs: () => 0 };
+    const audio = createConstantRateAudioSource(0, 0, 1);
     const clock = new GameClock(audio, { inputOffsetMs: 0, visualOffsetMs: 0 }, () => audio.currentTimeMs);
     for (const at of [0, 777, 1000, 1017, 1701, 3000]) {
       audio.currentTimeMs = at;

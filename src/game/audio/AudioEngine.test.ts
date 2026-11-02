@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
 import { AudioEngine } from "./AudioEngine";
 import type { FadedAudioSpan } from "./index";
+import { GameClock } from "../time/GameClock";
 
 // ---------------------------------------------------------------------------
 // Web Audio API mock
@@ -523,6 +524,274 @@ describe("AudioEngine playbackRate", () => {
     // 벽시계 1초 더 경과 (2x 속도 → 추가 2초 → 총 4초 = 4000ms)
     mockCtx._advanceTime(1);
     expect(engine.currentTimeMs).toBeCloseTo(4000);
+  });
+});
+
+describe("AudioEngine 배속 이력과 GameClock", () => {
+  function createClock(inputOffsetMs = 0, visualOffsetMs = 0) {
+    const engine = new AudioEngine();
+    engine.loadBuffer(createMockBuffer(60));
+    vi.spyOn(engine, "getOutputLatencyMs").mockReturnValue(40);
+    const clock = new GameClock(engine, { inputOffsetMs, visualOffsetMs }, () => mockCtx.currentTime * 1000);
+    return { engine, clock };
+  }
+
+  it.each([
+    { beforeRate: 0.5, afterRate: 1, beforeJudgment: 3980, after20: 3990, after60: 4020 },
+    { beforeRate: 1, afterRate: 0.25, beforeJudgment: 3960, after20: 3980, after60: 4005 },
+  ])("L₀=40ms·곡 4000ms에서 $beforeRate→$afterRate 배속으로 바꾸면 J=$beforeJudgment 유지 후 20ms에 $after20·60ms에 $after60 ms다", ({ beforeRate, afterRate, beforeJudgment, after20, after60 }) => {
+    const { engine, clock } = createClock();
+    const expectClocks = (expected: number) => {
+      expect(clock.judgmentTimeMs()).toBeCloseTo(expected);
+      expect(clock.visualTimeMs()).toBeCloseTo(expected);
+      expect(clock.toInputTimeMs(mockCtx.currentTime * 1000)).toBeCloseTo(expected);
+    };
+    engine.playbackRate = beforeRate;
+    engine.play();
+    mockCtx._advanceTime(4 / beforeRate);
+    expectClocks(beforeJudgment);
+
+    engine.playbackRate = afterRate;
+
+    expectClocks(beforeJudgment);
+    mockCtx._advanceTime(0.02);
+    expectClocks(after20);
+    mockCtx._advanceTime(0.02);
+    expectClocks(4000);
+    mockCtx._advanceTime(0.02);
+    expectClocks(after60);
+  });
+
+  it.each([
+    { inputOffsetMs: -200, handlerDelay: 0, atChange: 3760, after300: 4030 },
+    { inputOffsetMs: 200, handlerDelay: 240, atChange: 3920, after300: 4110 },
+    { inputOffsetMs: -1000, handlerDelay: 560, atChange: 2400, after300: 2700 },
+  ])("L₀=40·입력 $inputOffsetMs·지연 $handlerDelay ms에서 1→0.5배속으로 바꾸면 입력=$atChange 유지 후 300ms 동안 단조 증가해 $after300 ms다", ({ inputOffsetMs, handlerDelay, atChange, after300 }) => {
+    const { engine, clock } = createClock(inputOffsetMs);
+    engine.play();
+    mockCtx._advanceTime(4);
+    const inputTime = () => clock.toInputTimeMs(mockCtx.currentTime * 1000 - handlerDelay);
+    expect(inputTime()).toBeCloseTo(atChange);
+
+    engine.playbackRate = 0.5;
+
+    expect(inputTime()).toBeCloseTo(atChange);
+    let previous = inputTime();
+    for (let i = 0; i < 30; i++) {
+      mockCtx._advanceTime(0.01);
+      const current = inputTime();
+      expect(current).toBeGreaterThan(previous);
+      previous = current;
+    }
+    expect(previous).toBeCloseTo(after300);
+  });
+
+  it.each([
+    { visualOffsetMs: -200, atChange: 3760, after300: 4030 },
+    { visualOffsetMs: 20, atChange: 3980, after300: 4140 },
+  ])("L₀=40·시각 $visualOffsetMs ms에서 1→0.5배속으로 바꾸면 V=$atChange 유지 후 300ms에 $after300 ms다", ({ visualOffsetMs, atChange, after300 }) => {
+    const { engine, clock } = createClock(0, visualOffsetMs);
+    engine.play();
+    mockCtx._advanceTime(4);
+    expect(clock.visualTimeMs()).toBeCloseTo(atChange);
+    engine.playbackRate = 0.5;
+    expect(clock.visualTimeMs()).toBeCloseTo(atChange);
+    mockCtx._advanceTime(0.3);
+    expect(clock.visualTimeMs()).toBeCloseTo(after300);
+  });
+
+  it("4000ms에서 1→0.5배속으로 바꾸고 핸들러가 100ms 늦어져도 timestamp=3990ms 입력은 3950ms다", () => {
+    const { engine, clock } = createClock();
+    engine.play();
+    mockCtx._advanceTime(4);
+    expect(clock.toInputTimeMs(3990)).toBeCloseTo(3950);
+    engine.playbackRate = 0.5;
+    mockCtx._advanceTime(0.1);
+    expect(clock.toInputTimeMs(3990)).toBeCloseTo(3950);
+  });
+
+  it("L₀=40·입력과 시각 +200ms·지연 0에서 1→0.5배속으로 바꾸면 미래 외삽값은 4160→4080ms로 바뀐다", () => {
+    const { engine, clock } = createClock(200, 200);
+    engine.play();
+    mockCtx._advanceTime(4);
+    expect(clock.visualTimeMs()).toBeCloseTo(4160);
+    expect(clock.toInputTimeMs(4000)).toBeCloseTo(4160);
+
+    engine.playbackRate = 0.5;
+
+    // +160ms 미래를 현재 배속으로 외삽하는 계약은 배속 변경 시 단조 증가와 양립하지 않는다.
+    expect(clock.visualTimeMs()).toBeCloseTo(4080);
+    expect(clock.toInputTimeMs(4000)).toBeCloseTo(4080);
+  });
+
+  it("0.5배속으로 play(4000)한 같은 시각에 1배속으로 바꿔도 J=3980ms를 유지하고 40ms 뒤 4000ms다", () => {
+    const { engine, clock } = createClock();
+    engine.playbackRate = 0.5;
+    engine.play(4000);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(3980);
+    engine.playbackRate = 1;
+    expect(clock.judgmentTimeMs()).toBeCloseTo(3980);
+    mockCtx._advanceTime(0.04);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(4000);
+  });
+
+  it.each([
+    { rate: 0.5, judgment: 4080 }, { rate: 1, judgment: 4160 }, { rate: 2, judgment: 4320 },
+  ])("$rate 배속·4000ms부터 200ms 재생 후 정지하면 10초 뒤에도 J=$judgment ms이고 재개 순간에도 같다", ({ rate, judgment }) => {
+    const { engine, clock } = createClock();
+    engine.playbackRate = rate;
+    engine.play(4000);
+    mockCtx._advanceTime(0.2);
+    engine.pause();
+    expect(clock.judgmentTimeMs()).toBeCloseTo(judgment);
+    mockCtx._advanceTime(10);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(judgment);
+    engine.resume();
+    expect(clock.judgmentTimeMs()).toBeCloseTo(judgment);
+    mockCtx._advanceTime(0.04);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(judgment + 40 * rate);
+  });
+
+  it.each(["play", "playFadedSpan", "onended"])("%s·4000ms에서 0.5→1배속 변경 20ms 뒤 정지하면 J=3990ms를 10초간 유지하고 재개 20ms 뒤 4000ms다", mode => {
+    const { engine, clock } = createClock();
+    engine.playbackRate = 0.5;
+    if (mode === "playFadedSpan") {
+      engine.playFadedSpan({ fromMs: 0, fadeInUntilMs: 1000, fadeOutFromMs: 9000, toMs: 10000 });
+    } else {
+      if (mode === "onended") engine.loadBuffer(createMockBuffer(4));
+      engine.play();
+    }
+    mockCtx._advanceTime(8);
+    if (mode === "onended") mockCtx.createBufferSource.mock.results[0].value.onended!();
+    engine.playbackRate = 1;
+    mockCtx._advanceTime(0.02);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(3990);
+    engine.pause();
+    mockCtx._advanceTime(10);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(3990);
+    engine.resume();
+    expect(clock.judgmentTimeMs()).toBeCloseTo(3990);
+    mockCtx._advanceTime(0.02);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(4000);
+    mockCtx._advanceTime(0.02);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(4020);
+    expect(mockCtx.createBufferSource).toHaveBeenCalledTimes(mode === "onended" ? 1 : 2);
+  });
+
+  it("4020ms에서 정지 중 1→0.25배속으로 바꿔도 J=3990ms를 유지하고 재개 40ms 뒤 4020ms·그 뒤 40ms는 4030ms다", () => {
+    const { engine, clock } = createClock();
+    engine.playbackRate = 0.5;
+    engine.play();
+    mockCtx._advanceTime(8);
+    engine.playbackRate = 1;
+    mockCtx._advanceTime(0.02);
+    engine.pause();
+    expect(clock.judgmentTimeMs()).toBeCloseTo(3990);
+    engine.playbackRate = 0.25;
+    expect(clock.judgmentTimeMs()).toBeCloseTo(3990);
+    mockCtx._advanceTime(10);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(3990);
+    engine.resume();
+    expect(clock.judgmentTimeMs()).toBeCloseTo(3990);
+    mockCtx._advanceTime(0.04);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(4020);
+    mockCtx._advanceTime(0.04);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(4030);
+  });
+
+  it("4020ms에서 정지 중 0.25→1배속으로 바꿔도 J=4010ms를 유지해 뒤로 가지 않는다", () => {
+    const { engine, clock } = createClock();
+    engine.playbackRate = 0.25;
+    engine.play(4000);
+    mockCtx._advanceTime(0.08);
+    engine.pause();
+    expect(clock.judgmentTimeMs()).toBeCloseTo(4010);
+    engine.playbackRate = 1;
+    expect(clock.judgmentTimeMs()).toBeCloseTo(4010);
+    engine.resume();
+    mockCtx._advanceTime(0.04);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(4020);
+    mockCtx._advanceTime(0.04);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(4060);
+  });
+
+  it.each([
+    { name: "play(2000)", start: (engine: AudioEngine) => engine.play(2000), judgment: 1980 },
+    { name: "playFadedSpan(2000)", start: (engine: AudioEngine) => engine.playFadedSpan({
+      fromMs: 2000, fadeInUntilMs: 3000, fadeOutFromMs: 5000, toMs: 6000,
+    }), judgment: 1980 },
+    { name: "playWithPreroll(-1000)", start: (engine: AudioEngine) => engine.playWithPreroll(-1000), judgment: -1020 },
+    { name: "playWithPreroll(61000)", start: (engine: AudioEngine) => engine.playWithPreroll(61000), judgment: 60980 },
+  ])("4000ms에서 1→0.5배속 변경 직후 $name으로 다시 시작하면 과거 이력을 지워 J=$judgment ms다", ({ start, judgment }) => {
+    const { engine, clock } = createClock();
+    engine.play();
+    mockCtx._advanceTime(4);
+    engine.playbackRate = 0.5;
+    start(engine);
+    expect(clock.judgmentTimeMs()).toBeCloseTo(judgment);
+    expect(engine.positionMsAtRealOffset(-1000)).toBeCloseTo(engine.currentTimeMs - 500);
+  });
+
+  it.each([
+    { name: "stop", reset: (engine: AudioEngine) => engine.stop() },
+    { name: "loadBuffer", reset: (engine: AudioEngine) => engine.loadBuffer(createMockBuffer(60)) },
+    { name: "setPlaybackRange", reset: (engine: AudioEngine) => engine.setPlaybackRange({ startTime: 10, endTime: 30, fadeInTime: 0, fadeOutTime: 0 }) },
+  ])("4000ms에서 1→0.5배속 변경 후 $name하면 P=0·J=−20ms로 초기화하고 재개해도 J=−20ms다", ({ reset }) => {
+    const { engine, clock } = createClock();
+    engine.play();
+    mockCtx._advanceTime(4);
+    engine.playbackRate = 0.5;
+    reset(engine);
+    expect(engine.currentTimeMs).toBe(0);
+    expect(clock.judgmentTimeMs()).toBe(-20);
+    engine.resume();
+    expect(clock.judgmentTimeMs()).toBe(-20);
+  });
+
+  it("10ms 간격으로 1000번 배속을 바꾸면 이력은 502개 이하이고 최근 5초의 모든 5ms 조회가 정확하다", () => {
+    const { engine } = createClock();
+    engine.play();
+    // 보관을 하지 않는 독립 기준표: 매 10ms 구간을 적분해 곡 위치를 기록한다.
+    const positions = [0];
+    const rates = [1];
+    for (let i = 1; i <= 1000; i++) {
+      mockCtx._advanceTime(0.01);
+      positions.push(positions[i - 1] + 10 * rates[i - 1]);
+      const rate = i % 2 === 0 ? 1 : 0.5;
+      rates.push(rate);
+      engine.playbackRate = rate;
+    }
+    // 비공개 저장소의 크기만 확인해 시간 창 밖 이력이 누적되는 회귀를 잡는다.
+    expect(engine['rateSegments'].length).toBeLessThanOrEqual(502);
+    expect(engine.currentTimeMs).toBeCloseTo(7500);
+    for (let offset = -5000; offset <= 0; offset += 5) {
+      const target = 10000 + offset;
+      const index = Math.floor(target / 10);
+      const expected = positions[index] + (target - index * 10) * rates[index];
+      expect(engine.positionMsAtRealOffset(offset)).toBeCloseTo(expected, 6);
+    }
+    expect(engine.positionMsAtRealOffset(200)).toBeCloseTo(7700);
+  });
+
+  it("같은 시각에 배속을 1000번 바꾸면 이력은 2개이고 −40ms 조회는 3960ms·+200ms 조회는 4200ms다", () => {
+    const { engine } = createClock();
+    engine.play();
+    mockCtx._advanceTime(4);
+    for (let i = 0; i < 1000; i++) engine.playbackRate = i % 2 === 0 ? 0.5 : 1;
+    expect(engine['rateSegments'].length).toBe(2);
+    expect(engine.positionMsAtRealOffset(-40)).toBeCloseTo(3960);
+    expect(engine.positionMsAtRealOffset(200)).toBeCloseTo(4200);
+  });
+
+  it("1→0.5배속 변경 후 6초 지나면 이력은 1개이고 5초 전은 4500ms·보관 전 7초는 3500ms로 외삽한다", () => {
+    const { engine } = createClock();
+    engine.play();
+    mockCtx._advanceTime(4);
+    engine.playbackRate = 0.5;
+    mockCtx._advanceTime(6);
+    expect(engine.positionMsAtRealOffset(-5000)).toBeCloseTo(4500);
+    expect(engine['rateSegments'].length).toBe(1);
+    expect(engine.positionMsAtRealOffset(-7000)).toBeCloseTo(3500);
   });
 });
 

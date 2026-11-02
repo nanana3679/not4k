@@ -1,8 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { GameClock } from "./GameClock";
+import { createConstantRateAudioSource } from "./clockAudioTestHarness";
 
 function fakeAudio(currentTimeMs: number, outputLatencyMs = 0, playbackRate = 1) {
-  return { currentTimeMs, playbackRate, getOutputLatencyMs: vi.fn(() => outputLatencyMs) };
+  return {
+    ...createConstantRateAudioSource(currentTimeMs, outputLatencyMs, playbackRate),
+    getOutputLatencyMs: vi.fn(() => outputLatencyMs),
+  };
 }
 
 describe("GameClock", () => {

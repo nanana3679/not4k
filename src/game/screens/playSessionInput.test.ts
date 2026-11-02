@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { InputTimeline } from "../input/InputTimeline";
 import { AutoPlayer } from "../input/AutoPlayer";
 import { GameClock } from "../time/GameClock";
+import { createConstantRateAudioSource } from "../time/clockAudioTestHarness";
 import { NoteJudgmentSession } from "../judgment/NoteJudgmentSession";
 import { body, point } from "../judgment/noteJudgmentTestHarness";
 import { compileJudgmentChart } from "../judgment/compiledJudgmentChart";
@@ -20,7 +21,7 @@ function play(
   const compiled = compileJudgmentChart(notes, starts, ends);
   const session = new NoteJudgmentSession(compiled);
   const timeline = new InputTimeline();
-  const audio = { currentTimeMs: 0, playbackRate, getOutputLatencyMs: () => latencyMs };
+  const audio = createConstantRateAudioSource(0, latencyMs, playbackRate);
   const clock = new GameClock(audio, { visualOffsetMs: 0, inputOffsetMs: offset }, () => audio.currentTimeMs);
   const autoRanges = Array.isArray(auto) ? auto : auto ? [{ startMs: 0, endMs: 5000 }] : [];
   const player = new AutoPlayer(notes, starts, ends, autoRanges, compiled);

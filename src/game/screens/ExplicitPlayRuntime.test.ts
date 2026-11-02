@@ -18,6 +18,9 @@ const fixture = vi.hoisted(() => ({ now: 0, audio: [] as FakeAudio[], renderers:
   playError: false, preparationError: false, latency: 0,
 }));
 class FakeAudio {
+  positionMsAtRealOffset(realOffsetMs: number): number {
+    return this.currentTimeMs + realOffsetMs * this.playbackRate;
+  }
   masterVolume = 1; playbackRate = 1; duration = 4000; position = 0; startedAt = 0; running = false;
   get currentTimeMs() { return this.position + (this.running ? (fixture.now - this.startedAt) * this.playbackRate : 0); }
   prepareForPlayback = vi.fn(() => fixture.prepareAudio()); getOutputLatencyMs = () => fixture.latency;

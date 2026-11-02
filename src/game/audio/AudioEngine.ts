@@ -22,6 +22,17 @@ export interface FadedAudioSpan {
   readonly toMs: number;
 }
 
+/** 실행 시각과 곡 위치는 초 단위다. */
+interface RateSegment {
+  readonly runningTime: number;
+  readonly position: number;
+  readonly rate: number;
+}
+
+// 단위는 초. 최근 실행 시간 5초와 경계를 포함하는 구간 1개를 보관한다.
+// GameClock의 약 1.6초 과거 조회를 덮고, 메모리는 전체 재생 길이 대신 최근 5초의 배속 변경 수에 비례한다.
+const RATE_HISTORY_SECONDS = 5;
+
 export class AudioEngine {
   private ctx: AudioContext;
   private source: AudioBufferSourceNode | null = null;
@@ -34,6 +45,9 @@ export class AudioEngine {
   private masterGain: GainNode;
   private startTime: number = 0;  // AudioContext time when playback started
   private startOffset: number = 0; // offset into the buffer when playback started (seconds)
+  // startTime까지 누적한 실행 시간(초). pause 중에는 진행하지 않는다.
+  private runningTime = 0;
+  private rateSegments: RateSegment[] = [{ runningTime: 0, position: 0, rate: 1 }];
   // 음악이 끝나도 판정 대기 중에는 시계가 계속 돈다. pause/stop만 멈춘다.
   private clockRunning = false;
   private _playing: boolean = false;
@@ -69,8 +83,22 @@ export class AudioEngine {
     if (this.clockRunning) {
       // 현재까지의 위치를 누적하고 startTime을 리셋
       const elapsed = now - this.startTime;
+      this.runningTime += elapsed;
       this.startOffset = this.startOffset + elapsed * this._playbackRate;
       this.startTime = now;
+    }
+    if (clamped !== this._playbackRate) {
+      // 정지 중에도 정지 시각에 구간을 이어 붙여 J가 튀지 않게 한다. 재개 뒤 L₀ 동안은 이전 배속으로 진행한다.
+      const position = this.clockRunning ? this.startOffset : this.pauseTime;
+      const segment = { runningTime: this.runningTime, position, rate: clamped };
+      // 같은 실행 시각의 변경은 마지막 배속만 남긴다. 첫 구간은 시작 전 역외삽에 필요하다.
+      if (this.rateSegments.length > 1
+        && this.rateSegments[this.rateSegments.length - 1].runningTime === this.runningTime) {
+        this.rateSegments[this.rateSegments.length - 1] = segment;
+      } else {
+        this.rateSegments.push(segment);
+      }
+      this.pruneRateHistory(this.runningTime);
     }
     this._playbackRate = clamped;
     if (this.source) {
@@ -170,7 +198,9 @@ export class AudioEngine {
     this.startPlayback(clampedStartMs, false, clampedSpan);
   }
 
-  private startPlayback(offsetMs: number, allowPreroll: boolean, span: FadedAudioSpan | null): void {
+  private startPlayback(
+    offsetMs: number, allowPreroll: boolean, span: FadedAudioSpan | null, preserveRateHistory = false,
+  ): void {
     if (!this.buffer) {
       throw new Error('No audio loaded');
     }
@@ -195,6 +225,11 @@ export class AudioEngine {
 
     const positionSeconds = allowPreroll ? offsetMs / 1000
       : Math.max(0, Math.min(offsetMs / 1000, this.getRangeDurationSeconds()));
+    // resume은 정지 전 이력을 잇는다. 기존 resume의 음수 위치 클램프는 새 시작으로 취급한다.
+    if (!preserveRateHistory || positionSeconds !== offsetMs / 1000) {
+      this.runningTime = 0;
+      this.rateSegments = [{ runningTime: 0, position: positionSeconds, rate: this._playbackRate }];
+    }
     this.startOffset = positionSeconds;
     this.startTime = this.ctx.currentTime;
     this.clockRunning = true;
@@ -255,7 +290,9 @@ export class AudioEngine {
    */
   pause(): void {
     if (!this.clockRunning) return;
-    this.pauseTime = this.currentTimeMs / 1000;
+    const elapsed = this.ctx.currentTime - this.startTime;
+    this.pauseTime = this.startOffset + elapsed * this._playbackRate;
+    this.runningTime += elapsed;
     this.clockRunning = false;
 
     if (this.source) {
@@ -284,7 +321,7 @@ export class AudioEngine {
       this.clockRunning = true;
     } else {
       // 페이드 구간 재생 중이었으면 같은 구간 끝과 남은 페이드를 이어서 예약한다.
-      this.startPlayback(this.pauseTime * 1000, false, this.fadedSpan);
+      this.startPlayback(this.pauseTime * 1000, false, this.fadedSpan, true);
     }
   }
 
@@ -311,6 +348,8 @@ export class AudioEngine {
     this.startTime = 0;
     this.startOffset = 0;
     this.pauseTime = 0;
+    this.runningTime = 0;
+    this.rateSegments = [{ runningTime: 0, position: 0, rate: this._playbackRate }];
   }
 
   /**
@@ -333,6 +372,35 @@ export class AudioEngine {
       // Return paused position or 0
       return this.pauseTime * 1000;
     }
+  }
+
+  /**
+   * 현재 실행 시각에서 실제 시간 offset(ms)만큼 이동한 곡 위치. 과거는 이력, 미래는 현재 배속으로 외삽한다.
+   * 미래 외삽값은 배속 변경으로 달라질 수 있으므로 양수 offset의 단조 증가를 보장하지 않는다.
+   */
+  positionMsAtRealOffset(realOffsetMs: number): number {
+    const now = this.runningTime + (this.clockRunning ? this.ctx.currentTime - this.startTime : 0);
+    this.pruneRateHistory(now);
+    const target = now + realOffsetMs / 1000;
+    // target 이전 마지막 구간을 찾는다. 보관 범위 이전이면 첫 구간으로 역외삽한다.
+    let low = 0;
+    let high = this.rateSegments.length;
+    while (low + 1 < high) {
+      const middle = Math.floor((low + high) / 2);
+      if (this.rateSegments[middle].runningTime <= target) low = middle;
+      else high = middle;
+    }
+    const segment = this.rateSegments[low];
+    return (segment.position + (target - segment.runningTime) * segment.rate) * 1000;
+  }
+
+  private pruneRateHistory(now: number): void {
+    const cutoff = now - RATE_HISTORY_SECONDS;
+    let first = 0;
+    while (first + 1 < this.rateSegments.length && this.rateSegments[first + 1].runningTime <= cutoff) {
+      first++;
+    }
+    if (first > 0) this.rateSegments.splice(0, first);
   }
 
   /**

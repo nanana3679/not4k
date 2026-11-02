@@ -7,6 +7,7 @@ import { InputTimeline } from "../input/InputTimeline";
 import { compileExplicitJudgmentChart } from "../judgment/explicitCompiledChart";
 import { ExplicitJudgmentSession } from "../judgment/ExplicitJudgmentSession";
 import { GameClock } from "../time/GameClock";
+import { createConstantRateAudioSource } from "../time/clockAudioTestHarness";
 import { canFinishExplicitPlaySession, createExplicitPlayInput, drainExplicitPlaySessionInputs,
   finishExplicitPlaySession, stepExplicitPlaySession } from "./explicitPlaySessionInput";
 
@@ -23,7 +24,7 @@ function play(notes: ExplicitNoteEntity[], offset = 0, sections: readonly Explic
   const compiled = compileExplicitJudgmentChart(chart);
   const session = new ExplicitJudgmentSession(compiled, { maintenanceGraceMs: 20 });
   const timeline = new InputTimeline();
-  const audio = { currentTimeMs: 0, playbackRate: rate, getOutputLatencyMs: () => latency };
+  const audio = createConstantRateAudioSource(0, latency, rate);
   const clock = new GameClock(audio, { visualOffsetMs: 0, inputOffsetMs: offset }, () => audio.currentTimeMs);
   const auto = new ExplicitAutoPlayer(compiled, { sections });
   return { session, timeline, audio, clock, auto,

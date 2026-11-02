@@ -10,6 +10,7 @@ import type { ExplicitConfirmedFact, ExplicitHeldKey, ExplicitJudgmentInput } fr
 import type { ExplicitAutoInputSource } from "../screens/explicitPlaySessionInput";
 import { canFinishExplicitPlaySession, createExplicitPlayInput, stepExplicitPlaySession } from "../screens/explicitPlaySessionInput";
 import { GameClock } from "../time/GameClock";
+import { createConstantRateAudioSource } from "../time/clockAudioTestHarness";
 import type { ObserverRange } from "./observerRepetitionPlan";
 import { ObserverRepetition } from "./ObserverRepetition";
 
@@ -26,7 +27,7 @@ const startRepetition = (notes: ExplicitNoteEntity[], range: ObserverRange,
 
 /** 미전달 입력이 없는 사례도 실제 입력 포트와 시계로 전환한다. */
 function toggleAuto(repetition: ObserverRepetition, enabled: boolean, atMs: number, heldKeys: readonly KeyBinding[]): void {
-  const audio = { currentTimeMs: atMs, playbackRate: 1, getOutputLatencyMs: () => 0 };
+  const audio = createConstantRateAudioSource(atMs, 0, 1);
   const clock = new GameClock(audio, { inputOffsetMs: 0, visualOffsetMs: 0 }, () => atMs);
   const input = createExplicitPlayInput([], clock);
   repetition.setAuto(enabled, { ...input, heldKeys }, clock, atMs);
@@ -68,7 +69,7 @@ describe("옵저버 반복 1회", () => {
       range: { startMs: 0, endMs: 1000 }, audioDurationMs: 1000, playbackRate: 1,
       sessionStartTimeMs: -70, auto: false, humanHeldKeys: [], windows,
     });
-    const audio = { currentTimeMs: 10, playbackRate: 1, getOutputLatencyMs: () => 30 };
+    const audio = createConstantRateAudioSource(10, 30, 1);
     const clock = new GameClock(audio, { inputOffsetMs: -40, visualOffsetMs: 0 }, () => 10);
     const input = createExplicitPlayInput([W], clock);
     input.timeline.enqueue({ ...down(), inputAt: clock.toInputTimeMs(10) });
@@ -104,7 +105,7 @@ describe("옵저버 반복 1회", () => {
 
   it("입력 오프셋 +100ms로 곡 1000ms에서 core 1100ms가 된 뒤 Auto를 켜도 곡 1016ms 프레임을 계속 처리", () => {
     const repetition = startRepetition([p(1100), p(1500)], { startMs: 1000, endMs: 2000 }, { auto: false });
-    const audio = { currentTimeMs: 1000, playbackRate: 1, getOutputLatencyMs: () => 0 };
+    const audio = createConstantRateAudioSource(1000, 0, 1);
     const clock = new GameClock(audio, { inputOffsetMs: 100, visualOffsetMs: 0 }, () => audio.currentTimeMs);
     const input = createExplicitPlayInput([W], clock);
     const { timeline } = input;
@@ -267,7 +268,7 @@ describe("옵저버 반복 1회", () => {
 
   it("수동 큐에 1000ms down이 남은 채 1010ms에 Auto를 켜면 큐를 비우기 전에 탭을 Perfect로 판정", () => {
     const repetition = startRepetition([p(1000)], { startMs: 1000, endMs: 2000 }, { auto: false });
-    const audio = { currentTimeMs: 1010, playbackRate: 1, getOutputLatencyMs: () => 0 };
+    const audio = createConstantRateAudioSource(1010, 0, 1);
     const clock = new GameClock(audio, { inputOffsetMs: 0, visualOffsetMs: 0 }, () => audio.currentTimeMs);
     const input = createExplicitPlayInput([], clock);
     playTo(repetition, 990);
@@ -280,7 +281,7 @@ describe("옵저버 반복 1회", () => {
 
   it("1000ms에 Auto를 켜면 같은 시각의 대기 중 사람 down 대신 Auto가 탭을 판정하고 이후 1080ms 사람 입력은 큐에 넣지 않음", () => {
     const repetition = startRepetition([p(1000), p(1080)], { startMs: 1000, endMs: 2000 }, { auto: false });
-    const audio = { currentTimeMs: 1000, playbackRate: 1, getOutputLatencyMs: () => 0 };
+    const audio = createConstantRateAudioSource(1000, 0, 1);
     const clock = new GameClock(audio, { inputOffsetMs: 0, visualOffsetMs: 0 }, () => audio.currentTimeMs);
     const input = createExplicitPlayInput([W], clock);
     const target = new EventTarget(); input.attach(target);
@@ -301,7 +302,7 @@ describe("옵저버 반복 1회", () => {
 
   it("Auto를 990ms 프레임 뒤 1000ms에 끄면 경계의 Auto down을 보내지 않고 같은 1000ms 사람 down만 집계", () => {
     const repetition = startRepetition([p(1000)], { startMs: 1000, endMs: 2000 }, { auto: true });
-    const audio = { currentTimeMs: 990, playbackRate: 1, getOutputLatencyMs: () => 0 };
+    const audio = createConstantRateAudioSource(990, 0, 1);
     const clock = new GameClock(audio, { inputOffsetMs: 0, visualOffsetMs: 0 }, () => audio.currentTimeMs);
     const input = createExplicitPlayInput([W], clock);
     input.setJudging(false);
@@ -319,7 +320,7 @@ describe("옵저버 반복 1회", () => {
 
   it("입력 오프셋 -100ms에서 곡 1000ms에 Auto를 끈 뒤 곡 1050ms의 raw 950ms 탭은 수동 콤보 1·100%", () => {
     const repetition = startRepetition([p(950)], { startMs: 900, endMs: 2000 }, { auto: true });
-    const audio = { currentTimeMs: 1000, playbackRate: 1, getOutputLatencyMs: () => 0 };
+    const audio = createConstantRateAudioSource(1000, 0, 1);
     const clock = new GameClock(audio, { inputOffsetMs: -100, visualOffsetMs: 0 }, () => audio.currentTimeMs);
     const input = createExplicitPlayInput([W], clock);
     repetition.setAuto(false, input, clock, 1000);
@@ -444,7 +445,7 @@ describe("옵저버 반복 1회", () => {
 
   it("입력 오프셋 -100ms에서 곡 5000ms·판정 4900ms이면 toMs 5000ms와 마감 2120ms를 모두 지나 반복 종료", () => {
     const repetition = startRepetition([p(2000)], { startMs: 1000, endMs: 2000 }, { auto: false });
-    const audio = { currentTimeMs: 5000, playbackRate: 1, getOutputLatencyMs: () => 0 };
+    const audio = createConstantRateAudioSource(5000, 0, 1);
     const clock = new GameClock(audio, { inputOffsetMs: -100, visualOffsetMs: 0 }, () => audio.currentTimeMs);
     stepExplicitPlaySession(new InputTimeline(), repetition.session, repetition.autoInputSource, clock, 5000);
     expect(repetition.session.snapshot.atMs).toBe(4900);
@@ -454,7 +455,7 @@ describe("옵저버 반복 1회", () => {
 
   it("입력 오프셋 -100ms에서 음원 끝 2000ms 뒤 곡 2220ms·판정 2120ms에는 기다리고 곡 2221ms에 종료", () => {
     const repetition = startRepetition([p(2000)], { startMs: 1000, endMs: 2000 }, { auto: false, audioDurationMs: 2000 });
-    const audio = { currentTimeMs: 2220, playbackRate: 1, getOutputLatencyMs: () => 0 };
+    const audio = createConstantRateAudioSource(2220, 0, 1);
     const clock = new GameClock(audio, { inputOffsetMs: -100, visualOffsetMs: 0 }, () => audio.currentTimeMs);
     for (const [songTimeMs, finished] of [[2220, false], [2221, true]] as const) {
       audio.currentTimeMs = songTimeMs;
