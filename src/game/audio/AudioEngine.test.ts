@@ -1525,6 +1525,7 @@ describe('AudioEngine pitch 보존 media 재생', () => {
   let blobs: Blob[];
   beforeEach(() => {
     element = new FakeAudioElement(); blobs = [];
+    vi.stubGlobal('navigator', { userAgent: '' });
     vi.stubGlobal('Audio', vi.fn(function () { return element; }));
     vi.spyOn(URL, 'createObjectURL').mockImplementation(blob => {
       blobs.push(blob as Blob); return `blob:audio-${blobs.length}`;
@@ -1548,6 +1549,139 @@ describe('AudioEngine pitch 보존 media 재생', () => {
     mockCtx._advanceTime(seconds); element.position = mediaSeconds;
   }
   const span = { fromMs: 1000, fadeInUntilMs: 2000, fadeOutFromMs: 4000, toMs: 5000 };
+
+  describe('Chromium 출력 선행 보정', () => {
+    beforeEach(() => {
+      vi.stubGlobal('navigator', { userAgent: 'HeadlessChrome/145.0.7632.6' });
+    });
+
+    it.each([
+      [0.25, 39.7], [0.5, 31.4], [1, 0],
+    ])('%s배속 play(1000)은 첫 P를 1000+%sms에 두고 element는 1000ms부터 재생한다', (rate, leadMs) => {
+      const engine = create(); engine.playbackRate = rate; engine.play(1000);
+      expect(engine.currentTimeMs).toBeCloseTo(1000 + leadMs);
+      expect(engine.positionMsAtRealOffset(-100)).toBeCloseTo(1000 + leadMs - 100 * rate);
+      expect(element.position).toBe(1);
+      advance(0.02, 1 + 0.02 * rate);
+      expect(engine.currentTimeMs).toBeCloseTo(element.position * 1000 + leadMs);
+    });
+
+    it('1→0.5배속 변경은 P·J를 유지하고 6초 뒤 element+31.4ms의 2.05ms 이내로 수렴한다', () => {
+      const engine = create(); engine.play(1000);
+      const before = engine.currentTimeMs;
+      const past = engine.positionMsAtRealOffset(-30);
+      engine.playbackRate = 0.5;
+      expect(engine.currentTimeMs).toBe(before);
+      expect(engine.positionMsAtRealOffset(-30)).toBe(past);
+      expect(spanGain().gain.setValueAtTime.mock.lastCall![1]).toBeCloseTo(17.9372);
+      let previous = before;
+      let previousPast = past;
+      for (let i = 1; i <= 600; i++) {
+        advance(0.01, 1 + i * 0.005);
+        const position = engine.currentTimeMs;
+        const judgment = engine.positionMsAtRealOffset(-30);
+        expect(position).toBeGreaterThanOrEqual(previous);
+        expect(position - previous).toBeLessThanOrEqual(5.25 + 1e-9);
+        expect(judgment).toBeGreaterThanOrEqual(previousPast);
+        previous = position; previousPast = judgment;
+      }
+      expect(Math.abs(previous - element.position * 1000 - 31.4)).toBeLessThan(2.05);
+      expect(engine.playbackRate).toBe(0.5); expect(element.playbackRate).toBe(0.5);
+    });
+
+    it('0.25배속 2039.7ms에서 pause 후 1배속 resume은 P·J를 보존하고 J가 뒤로 가지 않는다', async () => {
+      const engine = create(); mockCtx.outputLatency = 0.03;
+      const ready = engine.prepareForPlayback();
+      await vi.advanceTimersByTimeAsync(100); await ready;
+      const clock = new GameClock(engine, { inputOffsetMs: 0, visualOffsetMs: 0 });
+      engine.playbackRate = 0.25; engine.play(1000);
+      advance(4, 2); engine.pause();
+      const position = engine.currentTimeMs;
+      const judgment = clock.judgmentTimeMs();
+      expect(position).toBeCloseTo(2039.7);
+      expect(judgment).toBeCloseTo(2032.2);
+      engine.playbackRate = 1;
+      advance(10, 2); engine.resume();
+      expect(engine.currentTimeMs).toBe(position);
+      expect(clock.judgmentTimeMs()).toBeCloseTo(judgment);
+      let previous = judgment;
+      const mediaStart = element.position;
+      for (let i = 1; i <= 100; i++) {
+        advance(0.01, mediaStart + i * 0.01);
+        const next = clock.judgmentTimeMs();
+        expect(next).toBeGreaterThanOrEqual(previous);
+        previous = next;
+      }
+    });
+
+    it('0.5배속 pause·resume은 P=1281.4ms를 유지하고 새 play(1000)은 P=1031.4ms로 시작한다', () => {
+      const engine = create(); engine.playbackRate = 0.5; engine.play(1000);
+      advance(0.5, 1.25); engine.pause();
+      const past = engine.positionMsAtRealOffset(-30);
+      expect(engine.currentTimeMs).toBeCloseTo(1281.4);
+      advance(10, 1.25); engine.resume();
+      expect(engine.currentTimeMs).toBeCloseTo(1281.4);
+      expect(engine.positionMsAtRealOffset(-30)).toBeCloseTo(past);
+      engine.play(1000);
+      expect(engine.currentTimeMs).toBeCloseTo(1031.4);
+      expect(engine.positionMsAtRealOffset(-30)).toBeCloseTo(1016.4);
+    });
+
+    it('0.25배속에서 첫 resume과 stop 뒤 resume은 새 앵커 P=39.7ms로 시작한다', () => {
+      const engine = create(); engine.playbackRate = 0.25;
+      engine.resume();
+      expect(engine.currentTimeMs).toBeCloseTo(39.7);
+      expect(element.position).toBe(0);
+      advance(1, 0.25); engine.stop(); engine.resume();
+      expect(engine.currentTimeMs).toBeCloseTo(39.7);
+      expect(engine.positionMsAtRealOffset(-100)).toBeCloseTo(14.7);
+      expect(element.position).toBe(0);
+    });
+
+    it('0.5배속 span 1000～5000ms는 보정한 끝을 7.9372초에 예약한다', () => {
+      const engine = create(); engine.playbackRate = 0.5; engine.playFadedSpan(span);
+      const gain = spanGain().gain;
+      expect(gain.setValueAtTime.mock.lastCall![0]).toBe(0);
+      expect(gain.setValueAtTime.mock.lastCall![1]).toBeCloseTo(7.9372);
+      expect(gain.linearRampToValueAtTime.mock.calls[0][1]).toBeCloseTo(1.9372);
+      expect(gain.linearRampToValueAtTime.mock.calls[1][1]).toBeCloseTo(7.9372);
+    });
+
+    it('0.5배속에서 P<5000ms여도 element=4980ms에 lead를 더한 5011.4ms가 span 끝을 지나 멈춘다', () => {
+      const engine = create(); engine.playbackRate = 0.5; engine.playFadedSpan(span);
+      advance(7.8, 4.96);
+      expect(engine.currentTimeMs).toBeCloseTo(4931.4);
+      const gain = spanGain().gain;
+      expect(gain.setValueAtTime.mock.lastCall![1]).toBeCloseTo(7.8172);
+      advance(0.02, 4.98);
+      expect(engine.currentTimeMs).toBeLessThan(5000);
+      expect(engine.playing).toBe(false);
+      expect(element.pause).toHaveBeenCalled();
+    });
+
+    it('0.5배속 span을 4980ms부터 시작하면 P=5011.4ms이고 element를 즉시 멈춘다', () => {
+      const engine = create(); engine.playbackRate = 0.5; engine.playFadedSpan(span, 4980);
+      expect(engine.currentTimeMs).toBeCloseTo(5011.4);
+      expect(engine.playing).toBe(false);
+      expect(spanGain().gain.setValueAtTime).toHaveBeenLastCalledWith(0, 0);
+    });
+
+    it('Firefox 0.5배속 play(1000)은 P=1000ms이고 2초 뒤 element와 같은 2000ms다', () => {
+      vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 Gecko/20100101 Firefox/145.0' });
+      const engine = create(); engine.playbackRate = 0.5; engine.play(1000);
+      expect(engine.currentTimeMs).toBe(1000);
+      advance(2, 2); expect(engine.currentTimeMs).toBe(2000);
+    });
+
+    it('Chromium 일반 경로의 0.5배속 play(1000)은 P=1000ms이고 2초 뒤 2000ms다', () => {
+      const engine = new AudioEngine(); engines.push(engine); engine.loadBuffer(pcmBuffer());
+      engine.playbackRate = 0.5; engine.play(1000);
+      expect(engine.currentTimeMs).toBe(1000);
+      advance(2, 2); expect(engine.currentTimeMs).toBe(2000);
+      expect(Audio).not.toHaveBeenCalled();
+      expect(mockCtx.createBufferSource.mock.results[0].value.start).toHaveBeenCalledWith(0, 1, 9);
+    });
+  });
 
   it('기본 엔진으로 1000ms를 재생하면 Audio element·WAV URL은 0개이고 기존 buffer source 1개를 쓴다', () => {
     const engine = new AudioEngine(); engines.push(engine); engine.loadBuffer(pcmBuffer()); engine.play(1000);

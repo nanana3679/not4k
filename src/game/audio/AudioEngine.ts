@@ -13,6 +13,7 @@ import { normalizePlaybackRange, type PlaybackRange } from '../../shared';
 import { encodePcmWav } from './encodePcmWav';
 import { MediaClockCorrection } from './MediaClockCorrection';
 import { PitchPreservingMedia } from './PitchPreservingMedia';
+import { getMediaPlaybackLeadMs } from './mediaPlaybackLead';
 
 export interface AudioEngineOptions {
   readonly preservePitch?: boolean;
@@ -106,7 +107,10 @@ export class AudioEngine {
         this.rateSegments = [{ runningTime: this.runningTime, position: this.pauseTime, rate: clamped }];
         this.mediaClockRate = clamped;
       }
-      if (this._playing) this.scheduleMediaFades(this.startOffset, this.ctx.currentTime);
+      if (this._playing) {
+        this.scheduleMediaFades(this.startOffset, this.ctx.currentTime,
+          this.media.positionSeconds + getMediaPlaybackLeadMs(this._playbackRate) / 1000);
+      }
       return;
     }
     const now = this.ctx.currentTime;
@@ -262,11 +266,15 @@ export class AudioEngine {
     const positionSeconds = allowPreroll ? offsetMs / 1000
       : Math.max(0, Math.min(offsetMs / 1000, this.getRangeDurationSeconds()));
     // resume은 정지 전 이력을 잇는다. 기존 resume의 음수 위치 클램프는 새 시작으로 취급한다.
-    if (!preserveRateHistory || positionSeconds !== offsetMs / 1000) {
+    const freshAnchor = !preserveRateHistory || !this.attemptActive || positionSeconds !== offsetMs / 1000;
+    const leadSeconds = this.media ? getMediaPlaybackLeadMs(this._playbackRate) / 1000 : 0;
+    // 첫 출력부터 선행량이 있으므로 새 앵커에만 더한다. 이력을 잇는 resume은 P·J를 옮기지 않는다.
+    const clockPositionSeconds = positionSeconds + (freshAnchor ? leadSeconds : 0);
+    if (freshAnchor) {
       this.runningTime = 0;
-      this.rateSegments = [{ runningTime: 0, position: positionSeconds, rate: this._playbackRate }];
+      this.rateSegments = [{ runningTime: 0, position: clockPositionSeconds, rate: this._playbackRate }];
     }
-    this.startOffset = positionSeconds;
+    this.startOffset = clockPositionSeconds;
     this.startTime = this.ctx.currentTime;
     this.clockRunning = true;
     this.attemptActive = true;
@@ -274,7 +282,7 @@ export class AudioEngine {
     if (this.media) {
       this.mediaCorrection.reset();
       this.lastMediaSampleTime = this.startTime;
-      if (preserveRateHistory) this.appendMediaRate(this._playbackRate, this.startTime);
+      if (!freshAnchor) this.appendMediaRate(this._playbackRate, this.startTime);
       else this.mediaClockRate = this._playbackRate;
       this.sourceGain = this.ctx.createGain();
       // media에는 play()에도 끝 시각을 보장하는 gate가 필요하다.
@@ -283,9 +291,9 @@ export class AudioEngine {
       this.spanGain.connect(this.masterGain);
       this._playing = true;
       this.audioEnded = false;
-      this.scheduleMediaFades(positionSeconds, this.startTime);
+      this.scheduleMediaFades(clockPositionSeconds, this.startTime, positionSeconds + leadSeconds);
       this.media.start(this.sourceGain, positionSeconds, this._playbackRate);
-      if (positionSeconds >= (span ? span.toMs / 1000 : this.getRangeDurationSeconds())) this.endMediaPlayback();
+      if (positionSeconds + leadSeconds >= (span ? span.toMs / 1000 : this.getRangeDurationSeconds())) this.endMediaPlayback();
       return;
     }
     if (allowPreroll && positionSeconds >= this.getRangeDurationSeconds()) {
@@ -617,7 +625,7 @@ export class AudioEngine {
     if (now - this.lastMediaSampleTime < 0.01) return;
     this.lastMediaSampleTime = now;
     const position = this.startOffset + (now - this.startTime) * this.mediaClockRate;
-    const mediaPosition = this.media.positionSeconds;
+    const mediaPosition = this.media.positionSeconds + getMediaPlaybackLeadMs(this._playbackRate) / 1000;
     const end = this.fadedSpan ? this.fadedSpan.toMs / 1000 : this.getRangeDurationSeconds();
     if (position >= end || mediaPosition >= end) {
       this.endMediaPlayback();
@@ -637,7 +645,7 @@ export class AudioEngine {
     this.stopActiveSource();
   }
 
-  private scheduleMediaFades(position: number, now: number, mediaPosition = position): void {
+  private scheduleMediaFades(position: number, now: number, mediaPosition: number): void {
     if (!this.sourceGain || !this.spanGain) return;
     this.scheduleRangeFade(this.sourceGain, position, now, this.mediaClockRate);
     const span = this.fadedSpan;
