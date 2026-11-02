@@ -244,6 +244,11 @@ it.each(saveIndicatorCases)('compact=$compact·곡 변경=$songDirty·차트 변
 
 /** More 메뉴를 연 뒤 툴바의 모든 버튼 이름(aria-label 또는 글자)을 모은다. */
 function buttonNamesWithMoreMenu(props: Parameters<typeof toolbarProps>[0]): string[] {
+  return renderWithMoreMenu(props).names;
+}
+
+/** More 메뉴를 연 툴바의 버튼 이름과 HTML. */
+function renderWithMoreMenu(props: Parameters<typeof toolbarProps>[0]): { names: string[]; markup: string } {
   let opened = false;
   let names: string[] = [];
   const text = (node: ReactNode): string => Children.toArray(node).map(child => typeof child === 'string' || typeof child === 'number'
@@ -268,9 +273,49 @@ function buttonNamesWithMoreMenu(props: Parameters<typeof toolbarProps>[0]): str
     inspect(tree);
     return tree;
   }
-  renderToStaticMarkup(createElement(Probe));
-  return names;
+  const markup = renderToStaticMarkup(createElement(Probe));
+  return { names, markup };
 }
+
+/** chart()와 같은 제목·타이밍으로 저장된 곡(revision 42). */
+const savedSong = (document: ChartDocument) => createEditorSong({ title: document.meta.title, artist: '', jacketUrl: null, audioUrl: '',
+  duration: null, previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
+  gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 }, document);
+
+/** title이 미저장 표시인 Song Info 버튼(글자 뒤 점 포함). */
+const UNSAVED_SONG_INFO_BUTTON = /<button[^>]*title="Song Info \(unsaved changes\)"[^>]*>Song Info<span aria-hidden="true"[^>]*><\/span><\/button>/;
+
+describe('Song Info 버튼의 곡 정보 미저장 표시', () => {
+  it.each([false, true])('곡 Title을 "새 제목"으로 바꾸면(compact=%s) Song Info 버튼에 미저장 title과 점을 달고 버튼 이름은 Song Info로 둔다', compact => {
+    const document = chart();
+    useEditorStore.setState({ song: savedSong(document), chart: { ...document, meta: { ...document.meta, title: '새 제목' } } });
+
+    const { names, markup } = renderWithMoreMenu({ compact, onToggleSongInfo: () => {} });
+
+    expect(markup).toMatch(UNSAVED_SONG_INFO_BUTTON);
+    expect(names).toContain('Song Info');
+    expect(buttonTag(markup, 'Save, unsaved changes')).not.toBe('');
+  });
+
+  it.each([false, true])('노트만 2박에 추가하면(compact=%s) Save만 미저장 표시이고 Song Info 버튼에는 점·미저장 title이 없다', compact => {
+    const document = chart();
+    useEditorStore.setState({ song: savedSong(document),
+      chart: { ...document, notes: [...document.notes, { type: 'tap', kind: 'single', lane: 2, beat: beat(2) }] } });
+
+    const { markup } = renderWithMoreMenu({ compact, onToggleSongInfo: () => {} });
+
+    expect(buttonTag(markup, 'Save, unsaved changes')).not.toBe('');
+    expect(markup).toMatch(/<button[^>]*>Song Info<\/button>/);
+    expect(markup).not.toContain('Song Info (unsaved changes)');
+  });
+
+  it('곡 정보가 저장된 그대로여도 드로어 음원을 불러오는 중(isLoadingSongAudio)이면 Song Info 버튼에 점을 단다', () => {
+    const document = chart();
+    useEditorStore.setState({ song: savedSong(document), isLoadingSongAudio: true });
+
+    expect(render({ onToggleSongInfo: () => {} })).toMatch(UNSAVED_SONG_INFO_BUTTON);
+  });
+});
 
 describe('곡 정보 드로어 열기와 오프셋 줄(RFD 0098)', () => {
   it('곡 행이 있으면 데스크톱 툴바에 Song Info 토글을 두고 열림이면 aria-pressed=true이며 More 메뉴에 Offset이 없다', () => {

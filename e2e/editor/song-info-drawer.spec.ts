@@ -7,7 +7,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import type { ChartJsonV4 } from '../../src/shared/chart';
-import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY, SONG_INFO_UNSAVED_COPY } from '../../src/editor/editorCopy';
+import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY, SONG_INFO_DRAWER_COPY, SONG_INFO_UNSAVED_COPY } from '../../src/editor/editorCopy';
 import { editorTestChart, isChartUploadPath, openEditor, timelineCanvas } from './editorTestSetup';
 import { canvasPosition } from './explicitEditorTestHelpers';
 
@@ -18,6 +18,7 @@ const songInfo = (page: Page) => page.getByRole('complementary', { name: 'Song I
 const songInfoDialog = (page: Page) => page.getByRole('dialog', { name: SONG_INFO_UNSAVED_COPY.title, exact: true });
 const leaveDialog = (page: Page) => page.getByRole('dialog', { name: LEAVE_CONFIRM_COPY.title, exact: true });
 const unsavedSave = (page: Page) => page.getByRole('button', { name: 'Save, unsaved changes', exact: true });
+const songInfoButton = (page: Page) => page.getByRole('button', { name: 'Song Info', exact: true });
 
 async function openSongInfo(page: Page) {
   await page.getByRole('button', { name: 'Song Info', exact: true }).click();
@@ -144,13 +145,15 @@ test.describe('곡 정보 드로어', () => {
     expect(editor.supabaseWrites).toEqual([]);
   });
 
-  test('드로어를 연 채 1레인 2박에 탭을 놓고 Title을 바꾼 뒤 변경 취소 후 닫기를 고르면 제목만 돌아가 탭은 남고 Ctrl+Z로 새 제목이 돌아온다', async ({ page }) => {
+  test('드로어를 연 채 1레인 2박에 탭을 놓고 Title을 바꾼 뒤 변경 취소 후 닫기를 고르면 제목만 돌아가 Song Info 점은 사라지고 탭과 Save 표시는 남으며 Ctrl+Z로 새 제목과 점이 돌아온다', async ({ page }) => {
     const editor = await openEditor(page, { songTiming: timing });
     await openSongInfo(page);
     const point = await canvasPosition(page, 1, 2);
     await page.mouse.click(point.x, point.y);
     await expect.poll(async () => (await editorState(page)).notes).toBe(1);
+    await expect(songInfoButton(page)).not.toHaveAttribute('title', SONG_INFO_DRAWER_COPY.unsavedTitle);
     await fillTitle(page, '새 제목');
+    await expect(songInfoButton(page)).toHaveAttribute('title', SONG_INFO_DRAWER_COPY.unsavedTitle);
 
     await songInfo(page).getByRole('button', { name: 'Close song info', exact: true }).click();
     await songInfoDialog(page).getByRole('button', { name: '변경 취소 후 닫기', exact: true }).click();
@@ -158,11 +161,13 @@ test.describe('곡 정보 드로어', () => {
     await expect(songInfo(page)).toHaveCount(0);
     expect(await editorState(page)).toMatchObject({ title: 'E2E 에디터 곡', notes: 1 });
     await expect(unsavedSave(page)).toBeVisible();
+    await expect(songInfoButton(page)).not.toHaveAttribute('title', SONG_INFO_DRAWER_COPY.unsavedTitle);
     expect(editor.supabaseWrites).toEqual([]);
 
     await page.keyboard.press('Control+z');
     await expect.poll(async () => (await editorState(page)).title).toBe('새 제목');
     expect((await editorState(page)).notes).toBe(1);
+    await expect(songInfoButton(page)).toHaveAttribute('title', SONG_INFO_DRAWER_COPY.unsavedTitle);
   });
 
   test('Title을 바꾼 뒤 저장 후 닫기를 고르면 save_song 1회 뒤 드로어가 닫히고 Save 표시가 깨끗하다', async ({ page }) => {

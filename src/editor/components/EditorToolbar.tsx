@@ -10,7 +10,7 @@ import { buildViolationList, mainNotes, isExplicitNote } from '../../shared';
 import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
-import { hasUnsavedEditorChanges } from '../unsavedChangesFlow';
+import { hasUnsavedEditorChanges, hasUnsavedSongInfo } from '../unsavedChangesFlow';
 import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY, SONG_INFO_DRAWER_COPY } from '../editorCopy';
 import { editAudioOffset } from '../songInfoEditing';
 import { color, edge } from '../../shared/theme';
@@ -207,6 +207,17 @@ const styles = {
     borderRadius: '50%',
     backgroundColor: '#ffcc66',
     boxShadow: '0 0 0 2px #2f67d8',
+    pointerEvents: 'none' as const,
+  },
+  // Song Info 버튼 글자 뒤의 곡 정보 미저장 점. Save 미저장 점과 같은 색이다.
+  songInfoDirtyDot: {
+    display: 'inline-block',
+    width: '7px',
+    height: '7px',
+    marginLeft: '6px',
+    borderRadius: '50%',
+    backgroundColor: '#ffcc66',
+    verticalAlign: 'middle',
     pointerEvents: 'none' as const,
   },
   compactMoreMenu: {
@@ -700,6 +711,13 @@ export function EditorToolbar({
     () => hasUnsavedEditorChanges({ chart, song, extraLaneCount, savedChartJson, songlessMedia, isLoadingSongAudio }),
     [chart, song, extraLaneCount, savedChartJson, songlessMedia, isLoadingSongAudio],
   );
+  // Save 점은 곡·차트를 합친 표시라 곡 정보만의 미저장은 Song Info 버튼의 점으로 따로 보인다. 드로어 닫기 확인과 같은 판단이다.
+  const songInfoDirty = useMemo(
+    () => hasUnsavedSongInfo({ chart, song, isLoadingSongAudio }),
+    [chart, song, isLoadingSongAudio],
+  );
+  const songInfoTitle = songInfoDirty ? SONG_INFO_DRAWER_COPY.unsavedTitle : undefined;
+  const songInfoDirtyDot = songInfoDirty ? <span aria-hidden="true" style={styles.songInfoDirtyDot} /> : null;
   const saveLocked = saving || savingSong || deleting;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
@@ -1164,8 +1182,9 @@ export function EditorToolbar({
                         style={{ ...styles.compactMenuButton, ...(songInfoOpen ? styles.buttonActive : {}) }}
                         onClick={() => { setShowMoreMenu(false); onToggleSongInfo(); }}
                         aria-pressed={songInfoOpen}
+                        title={songInfoTitle}
                       >
-                        {SONG_INFO_DRAWER_COPY.title}
+                        {SONG_INFO_DRAWER_COPY.title}{songInfoDirtyDot}
                       </button>
                     ) : (
                       <button
@@ -1406,14 +1425,15 @@ export function EditorToolbar({
 
       <div style={{ flex: 1 }} />
 
-      {/* 곡 정보 드로어(RFD 0098) — 곡 행이 있는 차트만. 닫기는 미저장 곡 정보 확인을 거친다. */}
+      {/* 곡 정보 드로어(RFD 0098) — 곡 행이 있는 차트만. 닫기는 미저장 곡 정보 확인을 거친다. 곡 정보 미저장이면 글자 뒤에 점. */}
       {onToggleSongInfo && (
         <button
           style={{ ...styles.button, ...(songInfoOpen ? styles.buttonActive : {}), flexShrink: 0 }}
           onClick={onToggleSongInfo}
           aria-pressed={songInfoOpen}
+          title={songInfoTitle}
         >
-          {SONG_INFO_DRAWER_COPY.title}
+          {SONG_INFO_DRAWER_COPY.title}{songInfoDirtyDot}
         </button>
       )}
 

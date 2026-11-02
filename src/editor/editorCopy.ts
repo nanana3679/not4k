@@ -29,6 +29,8 @@ export const SONG_INFO_UNSAVED_COPY = {
 /** 곡 정보 드로어의 문구. 곡 공통 값이 이 곡의 모든 차트에 적용됨을 알린다(RFD 0095·0098). */
 export const SONG_INFO_DRAWER_COPY = {
   title: "Song Info",
+  /** 곡 정보에 미저장 변경이 있을 때 Song Info 버튼의 title. 버튼 이름은 title 그대로 둔다. */
+  unsavedTitle: "Song Info (unsaved changes)",
   scope: "곡 공통 · 이 곡의 모든 차트에 적용됩니다. Save가 곡 정보를 함께 저장합니다.",
   close: "Close song info",
   charts: "Charts",
