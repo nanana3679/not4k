@@ -7,12 +7,22 @@ export interface TimelineXRange {
   readonly width: number;
 }
 
+export interface TimelineLayoutConfig {
+  readonly auxiliaryLaneCount: number;
+  readonly songCommonColumns: readonly { readonly id: string; readonly width: number }[];
+}
+
+/** 앱·입력·E2E가 공유하는 현재 표시 설정. song-common area는 아직 비어 있다. */
+export function getEditorTimelineLayoutConfig(auxiliaryLaneCount: number): TimelineLayoutConfig {
+  return { auxiliaryLaneCount, songCommonColumns: [] };
+}
+
 export type TimelineColumn =
   | { kind: "main"; lane: number }
   | { kind: "auxiliary"; lane: number }
   | { kind: "common"; column: string };
 
-type EventPlacementInput = Pick<ChartEvent, "type" | "editorLane">;
+export type EventPlacementInput = Pick<ChartEvent, "type" | "editorLane">;
 
 /** 현재는 타이밍 이벤트도 저장된 보조 레인 배치를 그대로 따른다. */
 export function eventPlacement(event: EventPlacementInput): { kind: "auxiliary"; lane: number } {
@@ -29,7 +39,7 @@ export function xToLaneInRange(x: number, startX: number, width: number, count: 
 /** 콘텐츠 원점을 기준으로 한 가로 배치. 저장 레인 번호는 바꾸지 않는다. */
 export function createTimelineLayout(input: {
   auxiliaryLaneCount: number;
-  songCommonColumns?: readonly { id: string; width: number }[];
+  songCommonColumns?: TimelineLayoutConfig["songCommonColumns"];
 }) {
   const { auxiliaryLaneCount } = input;
   const rangeByCommonColumn = new Map<string, TimelineXRange>();
@@ -78,7 +88,13 @@ export function createTimelineLayout(input: {
     noteLaneToAuxiliaryLane: (lane: number) => lane > LANE_COUNT ? toAuxIndex(lane) : null,
     eventPlacement,
     eventRange,
-    eventBoxColumn: (event: EventPlacementInput) => fromAuxIndex(eventPlacement(event).lane),
+    columnRangeAtX: (x: number): TimelineXRange | null => {
+      const column = classifyX(x);
+      if (column.kind === "common") return rangeByCommonColumn.get(column.column)!;
+      if (column.kind === "main") return noteLaneRange(column.lane);
+      if (column.kind === "auxiliary") return auxiliaryLaneRange(column.lane);
+      return null;
+    },
     isEventAtX: (event: EventPlacementInput, x: number): boolean => {
       const column = classifyX(x);
       const placement = eventPlacement(event);
@@ -89,5 +105,16 @@ export function createTimelineLayout(input: {
 
 export type TimelineLayout = ReturnType<typeof createTimelineLayout>;
 
-/** 레이아웃을 주입하지 않는 순수 어댑터의 기본값. 곡 공통 영역은 비어 있다. */
+/** 격리된 노트 렌더링 호스트의 기본값. 곡 공통 영역은 비어 있다. */
 export const DEFAULT_TIMELINE_LAYOUT = createTimelineLayout({ auxiliaryLaneCount: 0 });
+
+/** 양 끝 열 전체를 포함하는 가로 범위. */
+export function enclosingXRange(start: TimelineXRange, end: TimelineXRange): TimelineXRange {
+  const x = Math.min(start.x, end.x);
+  return { x, width: Math.max(start.x + start.width, end.x + end.width) - x };
+}
+
+/** 맞닿은 열은 겹치지 않는 반열린 구간. */
+export function xRangesOverlap(a: TimelineXRange, b: TimelineXRange): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width;
+}

@@ -6,6 +6,7 @@
  * Vertical timeline (time flows bottom-to-top)
  */
 
+import type { BoxSelectRect } from "../modes/editorMode";
 import { Application, Container, Graphics, TextStyle, FillGradient } from "pixi.js";
 import type { ViewportSource } from "../stores/viewportSlice";
 import type {
@@ -50,11 +51,12 @@ import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 import { destroyChildren } from "./utils";
 import { laneToX, laneWidth } from "./laneGeometry";
-import { createTimelineLayout, type TimelineLayout } from "./TimelineLayout";
+import { createTimelineLayout, type TimelineLayout, type EventPlacementInput, type TimelineLayoutConfig } from "./TimelineLayout";
 import { clampToCursorRange, cursorRangeMsOf } from "./timelineRange";
 
 export interface TimelineRendererOptions {
   canvas: HTMLCanvasElement;
+  layoutConfig: TimelineLayoutConfig;
   width: number;
   height: number;
   /**
@@ -74,6 +76,8 @@ export interface TimelineRendererOptions {
  */
 export class TimelineRenderer {
   private cachedLayout: TimelineLayout | null = null;
+  private cachedLayoutConfig: TimelineLayoutConfig | null = null;
+  private layoutConfig: TimelineLayoutConfig;
   private app!: Application;
   private initialized: boolean = false;
   private disposed = false;
@@ -122,10 +126,9 @@ export class TimelineRenderer {
   private _selectedRestZones: Set<number> = new Set();
   private _selectedEvents: Set<number> = new Set();
   private _moveOrigins: { note: DocumentNoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
-  private _boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null = null;
+  private _boxSelectRect: BoxSelectRect | null = null;
 
-  // Extra lane state
-  private _extraLaneCount: number = 0;
+  // Hover state
   private _hoveredNoteIndex: number | null = null;
   private _hoveredTrillZoneIndex: number | null = null;
   private _hoveredRestZoneIndex: number | null = null;
@@ -194,6 +197,7 @@ export class TimelineRenderer {
 
   constructor(options: TimelineRendererOptions) {
     this.options = options;
+    this.layoutConfig = this.copyLayoutConfig(options.layoutConfig);
     // 뷰포트 초기값은 소유자(뷰포트 슬라이스)에서 온다.
     const viewport = options.viewport.get();
     this._zoom = viewport.zoom;
@@ -367,7 +371,7 @@ export class TimelineRenderer {
       get chart() { return self.chart; },
       get zoom() { return self._zoom; },
       get snap() { return self._snap; },
-      get extraLaneCount() { return self._extraLaneCount; },
+      get extraLaneCount() { return self.extraLaneCount; },
       get selectedTrillZones() { return self._selectedTrillZones; },
       get selectedRestZones() { return self._selectedRestZones; },
       get currentTimelineWidth() { return self.currentTimelineWidth; },
@@ -504,9 +508,9 @@ export class TimelineRenderer {
     if (this.initialized) this.render();
   }
 
-  /** Set extra lane count */
-  setExtraLaneCount(count: number): void {
-    this._extraLaneCount = count;
+  /** 가로 배치 전체를 갱신하고 팬·커서·렌더링을 같은 설정으로 맞춘다. */
+  setLayoutConfig(config: TimelineLayoutConfig): void {
+    this.layoutConfig = this.copyLayoutConfig(config);
     this._horizontalPanX = clampHorizontalPan({
       requestedPanX: this._horizontalPanX,
       timelineWidth: this.currentTimelineWidth,
@@ -515,11 +519,11 @@ export class TimelineRenderer {
       rightRailWidth: this.rightRailWidth,
     });
     this.render();
-    this.updatePlaybackCursor(this._lastCursorTimeMs);
+    if (this.initialized) this.updatePlaybackCursor(this._lastCursorTimeMs);
   }
 
   get extraLaneCount(): number {
-    return this._extraLaneCount;
+    return this.layoutConfig.auxiliaryLaneCount;
   }
 
 
@@ -552,10 +556,21 @@ export class TimelineRenderer {
     this.updateHoverOverlay();
   }
 
-  /** 입력은 store의 최신 보조 레인 수를 넘겨 렌더 동기화 지연 없이 같은 배치를 읽는다. */
-  getLayout(auxiliaryLaneCount = this._extraLaneCount): TimelineLayout {
-    if (this.cachedLayout?.auxiliaryLaneCount !== auxiliaryLaneCount) {
-      this.cachedLayout = createTimelineLayout({ auxiliaryLaneCount });
+  private copyLayoutConfig(config: TimelineLayoutConfig): TimelineLayoutConfig {
+    return { auxiliaryLaneCount: config.auxiliaryLaneCount,
+      songCommonColumns: config.songCommonColumns.map(column => ({ ...column })) };
+  }
+
+  /** 입력도 최신 설정 전체를 넘겨 렌더 동기화 지연 없이 같은 배치를 읽는다. */
+  getLayout(config: TimelineLayoutConfig = this.layoutConfig): TimelineLayout {
+    const cached = this.cachedLayoutConfig;
+    if (!this.cachedLayout || !cached
+      || cached.auxiliaryLaneCount !== config.auxiliaryLaneCount
+      || cached.songCommonColumns.length !== config.songCommonColumns.length
+      || cached.songCommonColumns.some((column, index) =>
+        column.id !== config.songCommonColumns[index].id || column.width !== config.songCommonColumns[index].width)) {
+      this.cachedLayoutConfig = this.copyLayoutConfig(config);
+      this.cachedLayout = createTimelineLayout(this.cachedLayoutConfig);
     }
     return this.cachedLayout;
   }
@@ -623,7 +638,7 @@ export class TimelineRenderer {
   }
 
   /** Set box select rectangle for visual feedback (pixel Y coords) */
-  setBoxSelectRect(rect: { startY: number; startLane: number; endY: number; endLane: number }): void {
+  setBoxSelectRect(rect: BoxSelectRect): void {
     this._boxSelectRect = rect;
   }
 
@@ -952,12 +967,9 @@ export class TimelineRenderer {
     this.overlayRenderer.showGhostNote(lane, timeMs);
   }
 
-  /**
-   * Show a semi-transparent ghost event in an auxiliary lane.
-   * @param auxIndex 0=event
-   */
-  showGhostEvent(auxIndex: number, timeMs: number): void {
-    this.overlayRenderer.showGhostEvent(auxIndex, timeMs);
+  /** 일반 이벤트와 같은 배치에 반투명 고스트를 그린다. */
+  showGhostEvent(event: EventPlacementInput, timeMs: number): void {
+    this.overlayRenderer.showGhostEvent(event, timeMs);
   }
 
   /**

@@ -167,11 +167,8 @@ export function useCanvasEvents(
   // Delete 모드 터치 삭제. 노트가 없으면 빈 trillZone·restZone을 같은 transaction에서 지운다.
   const deleteAtPoint = useCallback((x: number, y: number) => {
     if (eraseGestureRef.current.isActive) {
-      const lane = space.xToUnifiedLane(x);
-      if (lane !== null) {
-        const beat = space.yToBeatRaw(y);
-        eraseGestureRef.current.eraseNoteOrZoneAt(lane, beat.n / beat.d);
-      }
+      const beat = space.yToBeatRaw(y);
+      eraseGestureRef.current.eraseNoteOrZoneAt(x, beat.n / beat.d);
     } else deleteModeRef.current?.onPointerDown(x, y);
   }, [deleteModeRef, space]);
 
@@ -530,11 +527,10 @@ export function useCanvasEvents(
       const openTransaction = useEditorStore.getState().editTransaction;
       if (openTransaction && openTransaction.kind !== 'erase') useEditorStore.getState().commitEditTransaction();
       eraseGestureRef.current.begin();
-      const lane = space.xToUnifiedLane(x);
       const hit = space.hitTestUnifiedNote(x, y);
-      if (hit !== null && lane !== null) {
+      if (hit !== null) {
         const beat = space.yToBeatRaw(y);
-        eraseGestureRef.current.erase(lane, beat.n / beat.d);
+        eraseGestureRef.current.erase(x, beat.n / beat.d);
       } else {
         const current = useEditorStore.getState().chart;
         const zone = space.hitTestTrillZone(x, y);
@@ -543,10 +539,8 @@ export function useCanvasEvents(
           if (result.blockedReason) addToast(result.blockedReason);
           if (result.chart) setChart(result.chart, { transaction: eraseGestureRef.current.transaction });
         } else {
-          if (lane !== null) {
-            const beat = space.yToBeatRaw(y);
-            eraseGestureRef.current.erase(lane, beat.n / beat.d);
-          }
+          const beat = space.yToBeatRaw(y);
+          eraseGestureRef.current.erase(x, beat.n / beat.d);
         }
       }
       return;
@@ -817,13 +811,10 @@ export function useCanvasEvents(
       return;
     }
 
-    // 우클릭 드래그 삭제 — 메인·보조 모두 통합 lane으로 chart.notes에서 제자리 삭제 (RFD 0018 ④d)
+    // 우클릭 드래그 삭제 — 노트·이벤트 모두 같은 가로 배치에서 찾는다.
     if (e.buttons & 2) {
-      const lane = space.xToUnifiedLane(x);
-      if (lane !== null) {
-        const beat = space.yToBeatRaw(y);
-        eraseGestureRef.current.erase(lane, beat.n / beat.d);
-      }
+      const beat = space.yToBeatRaw(y);
+      eraseGestureRef.current.erase(x, beat.n / beat.d);
       return;
     }
 
@@ -842,8 +833,9 @@ export function useCanvasEvents(
         const timeMs = beatToMs(snapped, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
 
         if (createModeRef.current?.dragging && createModeRef.current.dragBeat) {
-          if (createModeRef.current.dragType === 'event') {
-            rendererRef.current.showGhostEvent(createModeRef.current.dragExtraLane ?? 1, timeMs);
+          const eventPlacement = createModeRef.current.dragEventPlacement;
+          if (eventPlacement) {
+            rendererRef.current.showGhostEvent(eventPlacement, timeMs);
           } else if (createModeRef.current.dragType === 'extraRangeNote' && createModeRef.current.dragExtraLane) {
             const startTimeMs = beatToMs(createModeRef.current.dragBeat, bpmChanges, useEditorStore.getState().chart.meta.offsetMs);
             rendererRef.current.showGhostExtraRange(createModeRef.current.dragExtraLane, startTimeMs, timeMs);
@@ -855,9 +847,9 @@ export function useCanvasEvents(
           const snappedBeatFloat = snapped.n / snapped.d;
           const extraLane = space.xToExtraLane(x);
           if (extraLane) {
-            if (isEventEntityType(entityType as import('../modes').EntityType)) {
+            if (isEventEntityType(entityType)) {
               // Show ghost event for event entity types on extra lanes
-              rendererRef.current.showGhostEvent(extraLane, timeMs);
+              rendererRef.current.showGhostEvent({ type: entityType, editorLane: extraLane }, timeMs);
             } else {
               // 보조 노트도 chart.notes(lane 5+)에 살아 통합 인덱스로 직접 히트한다 (RFD 0018 ④d)
               const existingAux = noteExistsAtSnap(useEditorStore.getState().chart.notes, fromAuxIndex(extraLane), snappedBeatFloat);

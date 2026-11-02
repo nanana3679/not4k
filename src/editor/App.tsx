@@ -1,3 +1,4 @@
+import { getEditorTimelineLayoutConfig } from "./timeline/TimelineLayout";
 /**
  * not4k Chart Editor — Main App Component
  */
@@ -485,6 +486,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
     const renderer = new TimelineRenderer({
       canvas,
+      layoutConfig: getEditorTimelineLayoutConfig(useEditorStore.getState().extraLaneCount),
       width: initWidth,
       height: initHeight,
       // 렌더러는 뷰포트 소유자(뷰포트 슬라이스)를 구독만 한다 — setter 없음.
@@ -500,7 +502,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       // init()이 async라 그 사이 차트가 바뀌었을 수 있다(렌더러 준비 전에 구형 차트 변환을 승인 등).
       // [chart] 반응형 effect는 렌더러가 없어 그 변경을 건너뛰었으므로, 첫 렌더의 chart가 아니라 지금 store의 차트를 그린다.
       const { chart: currentChart, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
-      renderer.setExtraLaneCount(storedExtraLaneCount);
+      renderer.setLayoutConfig(getEditorTimelineLayoutConfig(storedExtraLaneCount));
       // chart.notes가 곧 통합 배열이다 (RFD 0018 ③) — 보조 노트도 lane 5+로 한 배열에서 그린다.
       renderer.setChart(currentChart);
 
@@ -736,7 +738,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
   // extraLaneCount → renderer
   useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setExtraLaneCount(extraLaneCount);
+    if (rendererRef.current) rendererRef.current.setLayoutConfig(getEditorTimelineLayoutConfig(extraLaneCount));
   }, [extraLaneCount]);
 
   // zoom·snapDivision·scrollY → renderer 동기화 useEffect는 삭제됨:

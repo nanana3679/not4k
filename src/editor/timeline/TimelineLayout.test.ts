@@ -26,7 +26,7 @@ describe("TimelineLayout", () => {
       expect(layout.eventPlacement({ type })).toEqual({ kind: "auxiliary", lane: 1 });
       expect(layout.eventRange({ type })).toEqual({ x: 240, width: 60 });
       expect(layout.eventRange({ type, editorLane: 2 })).toEqual({ x: 300, width: 60 });
-      expect(layout.eventBoxColumn({ type, editorLane: 2 })).toBe(6);
+      expect(layout.xToNoteLane(layout.eventRange({ type, editorLane: 2 }).x)).toBe(6);
       expect(layout.isEventAtX({ type, editorLane: 2 }, 299.9)).toBe(false);
       expect(layout.isEventAtX({ type, editorLane: 2 }, 300)).toBe(true);
       expect(layout.isEventAtX({ type, editorLane: 2 }, 360)).toBe(false);

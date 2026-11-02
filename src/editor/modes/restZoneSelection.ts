@@ -6,6 +6,7 @@
  * "구간 자체" 클램프만 있으면 된다.
  */
 
+import type { NoteSelectionBox } from "./trillZoneSelection";
 import type { Beat, RestZone } from "../../shared";
 import { beatAdd, beatSub, beatToFloat, BEAT_ZERO } from "../../shared";
 
@@ -16,13 +17,12 @@ import { beatAdd, beatSub, beatToFloat, BEAT_ZERO } from "../../shared";
  */
 export function restZoneOverlapsBox(
   zone: RestZone,
-  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+  box: NoteSelectionBox,
 ): boolean {
   // 롱노트처럼 **일부만 겹쳐도** 픽업한다 — 구간 [beat, endBeat]가 박스 beat 범위와
   // 교차하면 선택(trillZone의 완전 감쌈과 대비, 사용자 요청). 레인은 박스 레인 범위 안.
   return (
-    box.minLane <= zone.lane &&
-    zone.lane <= box.maxLane &&
+    box.includesLane(zone.lane) &&
     beatToFloat(box.minBeat) <= beatToFloat(zone.endBeat) &&
     beatToFloat(zone.beat) <= beatToFloat(box.maxBeat)
   );

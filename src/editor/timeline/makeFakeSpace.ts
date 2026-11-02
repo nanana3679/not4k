@@ -37,5 +37,14 @@ export function makeFakeSpace(overrides: Partial<TimelineSpace> = {}): TimelineS
     getBpmChanges: () => [],
     ...overrides,
   };
+  if (!overrides.layout) {
+    return { ...space, layout: { ...space.layout,
+      columnRangeAtX: x => {
+        const lane = space.xToUnifiedLane(x);
+        return lane === null ? null : { x: lane, width: 1 };
+      },
+      noteLaneRange: lane => ({ x: lane, width: 1 }),
+    } };
+  }
   return space;
 }

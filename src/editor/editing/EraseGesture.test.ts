@@ -4,6 +4,7 @@ import type { ChartDocument, DocumentNoteEntity } from '../../shared';
 import { useEditorStore } from '../stores';
 import { emptySelection } from '../stores/selectionSlice';
 import { EraseGesture } from './EraseGesture';
+import { createTimelineLayout, type TimelineLayout } from '../timeline/TimelineLayout';
 
 vi.mock('../../shared/toast', () => ({ showToast: vi.fn() }));
 
@@ -17,13 +18,14 @@ const chart = (source: DocumentNoteEntity[], extra: Partial<ChartDocument> = {})
   ...extra,
 });
 
-function setup(source: ChartDocument) {
+function setup(source: ChartDocument, layout: TimelineLayout = createTimelineLayout({ auxiliaryLaneCount: 2 })) {
   useEditorStore.setState({
     chart: source, mode: 'delete', selection: emptySelection(), extraLaneCount: 2,
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null,
   });
   const warn = vi.fn();
   const erase = new EraseGesture({
+    getLayout: () => layout,
     getChart: () => current().chart,
     getSelectedNotes: () => current().selection.notes,
     onChartUpdate: (value, transaction) => current().setChart(value, { transaction }),
@@ -41,10 +43,10 @@ describe('EraseGesture 독립 명령 중단', () => {
   it('1박 삭제 뒤 token 없는 편집이 transaction을 확정하면 같은 누름의 2박 삭제는 시도하지 않는다', () => {
     const tap = (at: number): DocumentNoteEntity => ({ type: 'tap', kind: 'single', lane: 1, beat: beat(at) });
     const { erase } = setup(chart([tap(1), tap(2), tap(3)]));
-    erase.begin(); expect(erase.erase(1, 1)).toBe(true);
+    erase.begin(); expect(erase.erase(30, 1)).toBe(true);
     current().setChart({ ...current().chart, notes: [...notes(), tap(9)] });
 
-    expect(erase.erase(1, 2)).toBe(false);
+    expect(erase.erase(30, 2)).toBe(false);
     erase.finish();
     expect(notes().map(note => note.beat)).toEqual([beat(2), beat(3), beat(9)]);
   });
@@ -56,7 +58,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
   it('빈 1～4박 trillZone의 2박을 터치하면 같은 transaction에서 구간을 지우고 Undo 1번에 돌아온다', () => {
     const initial = chart([], { trillZones: [zoneAt1to4] });
     const { erase } = setup(initial);
-    erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(true); erase.finish();
+    erase.begin(); expect(erase.eraseNoteOrZoneAt(30, 2)).toBe(true); erase.finish();
 
     expect(current().chart.trillZones).toEqual([]);
     expect(current().historyPast).toHaveLength(1);
@@ -66,7 +68,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
   it('3박 트릴 탭이 든 1～4박 trillZone의 2박을 터치하면 구간을 지우지 않고 경고한다', () => {
     const initial = chart([{ type: 'tap', kind: 'trill', lane: 1, beat: beat(3) }], { trillZones: [zoneAt1to4] });
     const { erase, warn } = setup(initial);
-    erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
+    erase.begin(); expect(erase.eraseNoteOrZoneAt(30, 2)).toBe(false); erase.finish();
 
     expect(current().chart).toBe(initial);
     expect(warn).toHaveBeenCalledWith('Zone contains notes — remove them first');
@@ -74,7 +76,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
 
   it('1～4박 restZone의 2박을 터치하면 restZone을 지운다', () => {
     const { erase } = setup(chart([], { restZones: [zoneAt1to4] }));
-    erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(true); erase.finish();
+    erase.begin(); expect(erase.eraseNoteOrZoneAt(30, 2)).toBe(true); erase.finish();
 
     expect(current().chart.restZones).toEqual([]);
   });
@@ -85,7 +87,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
     const initial = chart([body, tick], { restZones: [zoneAt1to4] });
     const { erase, warn } = setup(initial);
     useEditorStore.setState({ selection: { notes: new Set([0]), zones: new Set(), restZones: new Set(), events: new Set() } });
-    erase.begin(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
+    erase.begin(); expect(erase.eraseNoteOrZoneAt(30, 2)).toBe(false); erase.finish();
 
     expect(current().chart).toBe(initial);
     expect(warn).toHaveBeenCalledOnce();
@@ -94,7 +96,7 @@ describe('Delete 모드 터치 삭제의 구간 삭제', () => {
   it('Esc로 취소한 누름은 같은 누름의 2박 터치로 빈 trillZone을 지우지 않는다', () => {
     const initial = chart([], { trillZones: [zoneAt1to4] });
     const { erase } = setup(initial);
-    erase.begin(); erase.cancel(); expect(erase.eraseNoteOrZoneAt(1, 2)).toBe(false); erase.finish();
+    erase.begin(); erase.cancel(); expect(erase.eraseNoteOrZoneAt(30, 2)).toBe(false); erase.finish();
 
     expect(current().chart).toBe(initial);
   });
@@ -106,7 +108,7 @@ describe('우클릭 드래그 삭제 경로의 구형·보조 노트', () => {
       { type: 'single', lane: 1, beat: beat(1) },
       { type: 'long', lane: 2, beat: beat(2), endBeat: beat(4) },
     ], { trillZones: [{ lane: 2, beat: beat(2), endBeat: beat(4) }] }));
-    erase.begin(); erase.erase(1, 1 + 1 / 32); erase.erase(2, 3); erase.finish();
+    erase.begin(); erase.erase(30, 1 + 1 / 32); erase.erase(90, 3); erase.finish();
 
     expect(notes()).toEqual([]);
     expect(current().chart.trillZones).toEqual([]);
@@ -118,7 +120,7 @@ describe('우클릭 드래그 삭제 경로의 구형·보조 노트', () => {
       { type: 'long', lane: 5, beat: beat(2), endBeat: beat(4) },
       { type: 'single', lane: 6, beat: beat(8) },
     ]));
-    erase.begin(); erase.erase(5, 3); erase.erase(6, 8); erase.finish();
+    erase.begin(); erase.erase(270, 3); erase.erase(330, 8); erase.finish();
 
     expect(notes().map(note => note.lane)).toEqual([1]);
   });
@@ -129,8 +131,29 @@ describe('우클릭 드래그 삭제 경로의 구형·보조 노트', () => {
       { type: 'trillLong', lane: 1, beat: beat(0), endBeat: beat(2) },
       { type: 'single', lane: 2, beat: beat(0) },
     ], { trillZones: [{ lane: 1, beat: beat(0), endBeat: beat(2) }] }));
-    erase.begin(); erase.erase(1, 0); erase.finish();
+    erase.begin(); erase.erase(30, 0); erase.finish();
 
     expect(notes().map(note => note.type)).toEqual(['single']);
   });
+});
+
+it('song-common 열 x=0～60의 4박 BPM을 x=30에서 지우면 0박 BPM은 남고 Undo 1번에 복구된다', () => {
+  const base = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'timing', width: 60 }] });
+  // 전용 배치 정책은 후속 PR에서 정한다. 소비자가 노트 레인 없이 배치를 따르는지 검증한다.
+  const layout: TimelineLayout = { ...base, isEventAtX: (event, x) =>
+    event.type === 'bpm' ? x >= 0 && x < 60 : base.isEventAtX(event, x) };
+  const initial = chart([], { events: [
+    { type: 'bpm', beat: beat(0), bpm: 120 },
+    { type: 'bpm', beat: beat(4), bpm: 150 },
+  ] });
+  const { erase, warn } = setup(initial, layout);
+  erase.begin();
+  expect(erase.erase(30, 4)).toBe(true);
+  expect(erase.erase(30, 0)).toBe(false);
+  erase.finish();
+  expect(current().chart.events).toEqual([initial.events[0]]);
+  expect(warn).toHaveBeenCalledWith('Cannot delete initial event');
+  expect(current().historyPast).toHaveLength(1);
+  current().undo();
+  expect(current().chart).toEqual(initial);
 });

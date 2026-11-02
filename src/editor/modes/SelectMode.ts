@@ -1,3 +1,4 @@
+import { enclosingXRange, xRangesOverlap, type TimelineXRange } from "../timeline/TimelineLayout";
 import { deleteEvents, eventInBounds, isInitialTimingEvent, translateEvent } from '../editing/eventEditing';
 import { placeEditedInitialTiming, withInitialTimingLane } from '../editing/initialTimingPlacement';
 import { INITIAL_TIMING_EXISTS_COPY } from '../editorCopy';
@@ -21,12 +22,13 @@ import {
   clampTrillBeatOffset,
   translateTrillZone,
   selectionFromBox,
+  trillZoneIndexOfNote,
 } from "./trillZoneSelection";
 import { clampRestBeatOffset, translateRestZone } from "./restZoneSelection";
 import type { TrillZone, RestZone } from "../../shared";
 import { emptySelection, zoneContainedNoteIndices, type Selection } from "../stores/selectionSlice";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
-import type { EditorMode, PointerGesture, EditResult, EditPreview, MoveOriginDatum } from "./editorMode";
+import type { EditorMode, PointerGesture, EditResult, EditPreview, BoxSelectRect, MoveOriginDatum } from "./editorMode";
 
 /**
  * SelectMode 콜백 — RFD 0018 ④에서 이원 축(extraNotes)이 소멸했다.
@@ -72,11 +74,11 @@ export class SelectMode implements EditorMode {
   // 이동 앵커 레인 — 통합 lane 공간(1..4+extraLaneCount). 메인·보조 무차별.
   private dragStartLane: number | null = null;
   private _boxEndBeat: Beat | null = null;
-  private _boxEndLane: number | null = null;
+  private _boxEndRange: TimelineXRange | null = null;
 
   // Box select pixel state (for rendering)
   private _boxStartY: number = 0;
-  private _boxStartLane: number | null = null;
+  private _boxStartRange: TimelineXRange | null = null;
   private _boxEndY: number = 0;
 
   // Move state
@@ -314,14 +316,14 @@ export class SelectMode implements EditorMode {
   }
 
   /** Current box select rectangle in pixel Y coords (for rendering) */
-  get boxSelectPixelRect(): { startY: number; startLane: number; endY: number; endLane: number } | null {
+  get boxSelectPixelRect(): BoxSelectRect | null {
     if (!this.isBoxSelecting) return null;
-    if (this._boxStartLane === null || this._boxEndLane === null) return null;
+    if (this._boxStartRange === null || this._boxEndRange === null) return null;
     return {
       startY: this._boxStartY,
-      startLane: this._boxStartLane,
+      startRange: this._boxStartRange,
       endY: this._boxEndY,
-      endLane: this._boxEndLane,
+      endRange: this._boxEndRange,
     };
   }
 
@@ -350,11 +352,24 @@ export class SelectMode implements EditorMode {
   }
 
   selectAll(): void {
-    const box = { minLane: 1, maxLane: Infinity,
-      minBeat: { n: 0, d: 1 }, maxBeat: { n: Number.MAX_SAFE_INTEGER, d: 1 } };
-    const selection = selectionFromBox(this.chart.trillZones, this.chart.notes, this.chart.restZones ?? [], box);
-    const events = this.eventsInBox(box);
-    this.callbacks.setSelection({ ...selection, events });
+    const notes = new Set<number>();
+    this.chart.notes.forEach((note, index) => {
+      // 구간에 속한 트릴은 구간 유닛이 대표한다. 고아 트릴은 기존처럼 선택 후보에 남긴다.
+      if (trillZoneIndexOfNote(this.chart.trillZones, note) === null) notes.add(index);
+    });
+    for (const index of [...notes]) {
+      if (this.chart.notes[index].type === 'body') {
+        for (const companion of bodyCompanionIndices(this.chart.notes, index)) notes.add(companion);
+      }
+    }
+    const events = new Set<number>();
+    this.chart.events.forEach((event, index) => {
+      if (!isInitialTimingEvent(event)) events.add(index);
+    });
+    this.callbacks.setSelection({ notes, events,
+      zones: new Set(this.chart.trillZones.map((_, index) => index)),
+      restZones: new Set((this.chart.restZones ?? []).map((_, index) => index)),
+    });
   }
 
   private beginTransaction(selectionBefore?: Selection): void {
@@ -776,8 +791,8 @@ export class SelectMode implements EditorMode {
     this.dragStartBeat = this.callbacks.space.yToBeatRaw(y);
     this.dragStartLane = null;
     this._boxStartY = y;
-    this._boxStartLane = this.callbacks.space.xToUnifiedLane(x);
-    this._boxEndLane = this._boxStartLane;
+    this._boxStartRange = this.callbacks.space.layout.columnRangeAtX(x);
+    this._boxEndRange = this._boxStartRange;
     this._boxEndY = y;
   }
 
@@ -941,11 +956,9 @@ export class SelectMode implements EditorMode {
       }
     } else if (this.dragType === "boxSelect") {
       this._boxEndBeat = this.callbacks.space.yToBeatRaw(y);
-      const lane = this.callbacks.space.xToUnifiedLane(x);
-      // Keep previous _boxEndLane when cursor is outside lane area
-      if (lane !== null) {
-        this._boxEndLane = lane;
-      }
+      const range = this.callbacks.space.layout.columnRangeAtX(x);
+      // 콘텐츠 밖이면 직전 열을 유지한다.
+      if (range !== null) this._boxEndRange = range;
       this._boxEndY = y;
 
       this.updateBoxSelection();
@@ -970,10 +983,8 @@ export class SelectMode implements EditorMode {
       // Update end positions from final pointer position
       this._boxEndBeat = this.callbacks.space.yToBeatRaw(y);
       this._boxEndY = y; // px 기반 클릭 판정(§6-6)용 — 최종 up 위치 반영
-      const endLane = this.callbacks.space.xToUnifiedLane(x);
-      if (endLane !== null) {
-        this._boxEndLane = endLane;
-      }
+      const range = this.callbacks.space.layout.columnRangeAtX(x);
+      if (range !== null) this._boxEndRange = range;
       this.updateBoxSelection();
 
       // 미선택 존/restZone 몸통 클릭(움직임 없음)이면 빈 박스 확정 대신 그 유닛을 선택한다
@@ -1001,7 +1012,7 @@ export class SelectMode implements EditorMode {
     this._pendingZoneSelect = null;
     this._pendingRestZoneSelect = null;
     this._boxEndBeat = null;
-    this._boxEndLane = null;
+    this._boxEndRange = null;
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
@@ -1015,8 +1026,9 @@ export class SelectMode implements EditorMode {
    */
   private pendingClickTarget(pending: number | null): number | null {
     if (pending === null) return null;
-    if (this._boxStartLane === null || this._boxEndLane === null) return null;
-    if (this._boxStartLane !== this._boxEndLane) return null;
+    if (this._boxStartRange === null || this._boxEndRange === null) return null;
+    if (this._boxStartRange.x !== this._boxEndRange.x
+      || this._boxStartRange.width !== this._boxEndRange.width) return null;
     // 마우스 down↔up 미세 드리프트(1~2px, 트랙패드에서 흔함)를 흡수한다 — 정확 beat 일치(zero-slop)면
     // 클릭이 쉽게 무산돼 존 선택 실패 + 기존 선택까지 통째로 해제된다. 터치와 같은 click-slop(px)으로 판정.
     return Math.abs(this._boxEndY - this._boxStartY) <= TOUCH_MOVE_CANCEL_PX ? pending : null;
@@ -1050,7 +1062,7 @@ export class SelectMode implements EditorMode {
     this._pendingRestZoneSelect = null;
 
     this._boxEndBeat = null;
-    this._boxEndLane = null;
+    this._boxEndRange = null;
     this.isDragging = false;
     this.dragType = null;
     this.dragStartBeat = null;
@@ -1064,39 +1076,39 @@ export class SelectMode implements EditorMode {
   private updateBoxSelection(): void {
     if (!this.dragStartBeat || !this._boxEndBeat) return;
 
-    const startLane = this._boxStartLane;
-    const endLane = this._boxEndLane;
-    if (startLane === null || endLane === null) return;
+    const startRange = this._boxStartRange;
+    const endRange = this._boxEndRange;
+    if (startRange === null || endRange === null) return;
 
     const startFirst = beatLt(this.dragStartBeat, this._boxEndBeat);
     const minBeat = startFirst ? this.dragStartBeat : this._boxEndBeat;
     const maxBeat = startFirst ? this._boxEndBeat : this.dragStartBeat;
 
-    const minLane = Math.min(startLane, endLane);
-    const maxLane = Math.max(startLane, endLane);
+    const range = enclosingXRange(startRange, endRange);
+    const layout = this.callbacks.space.layout;
     // 앵커 없는 순수 감쌈 모델 (RFD 0016 §6-2) — 통합 인덱스(RFD 0018 ④).
-    // zone·restZone 완전 감쌈=유닛 픽업(공존 축, RFD 0019), 통과=박스 안 개별 트릴,
+    // zone 완전 감쌈·restZone 부분 겹침=유닛 픽업, 통과 zone=박스 안 개별 트릴,
     // 일반 노트=박스 안이면 선택. 동질성은 선택 커밋의 normalizeSelection 게이트가 처리한다.
     const { notes, zones, restZones } = selectionFromBox(
       this.chart.trillZones,
       this.chart.notes,
       this.chart.restZones ?? [],
-      { minLane, maxLane, minBeat, maxBeat },
+      { includesLane: lane => xRangesOverlap(layout.noteLaneRange(lane), range), minBeat, maxBeat },
     );
 
     // 프레임 선택은 취소 가능한 프리뷰다.
-    this.commitSelectionTransient({ notes, zones, restZones, events: this.eventsInBox({ minLane, maxLane, minBeat, maxBeat }) });
+    this.commitSelectionTransient({ notes, zones, restZones, events: this.eventsInBox(range, minBeat, maxBeat) });
   }
 
-  private eventsInBox(box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat }): Set<number> {
+  private eventsInBox(range: TimelineXRange, minBeat: Beat, maxBeat: Beat): Set<number> {
     const indices = new Set<number>();
     this.chart.events.forEach((event, index) => {
       if (isInitialTimingEvent(event)) return;
-      const column = this.callbacks.space.layout.eventBoxColumn(event);
+      const eventRange = this.callbacks.space.layout.eventRange(event);
       const end = 'endBeat' in event ? event.endBeat : event.beat;
-      if (column >= box.minLane && column <= box.maxLane
-        && beatToFloat(event.beat) <= beatToFloat(box.maxBeat)
-        && beatToFloat(end) >= beatToFloat(box.minBeat)) indices.add(index);
+      if (xRangesOverlap(eventRange, range)
+        && beatToFloat(event.beat) <= beatToFloat(maxBeat)
+        && beatToFloat(end) >= beatToFloat(minBeat)) indices.add(index);
     });
     return indices;
   }

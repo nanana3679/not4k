@@ -1,4 +1,4 @@
-import { DEFAULT_TIMELINE_LAYOUT, type TimelineLayout } from '../timeline/TimelineLayout';
+import type { TimelineLayout } from '../timeline/TimelineLayout';
 import { deleteEvents } from './eventEditing';
 import type { ChartDocument, DocumentNoteEntity } from '../../shared';
 import { beatLte } from '../../shared';
@@ -6,7 +6,7 @@ import { DeleteMode } from '../modes/DeleteMode';
 import { hitTestEventAt, hitTestNoteAt, hitTestRestZoneAt, hitTestTrillZoneAt, isExplicitScoreNote } from '../timeline/hitTest';
 
 interface EraseCallbacks {
-  getLayout?: () => TimelineLayout;
+  getLayout: () => TimelineLayout;
   getChart: () => ChartDocument;
   getSelectedNotes: () => ReadonlySet<number>;
   onChartUpdate: (chart: ChartDocument, transaction: symbol) => void;
@@ -40,15 +40,16 @@ export class EraseGesture {
     return true;
   }
 
-  erase(lane: number, beatFloat: number): boolean {
+  /** x는 콘텐츠 원점 기준의 timeline 좌표다. */
+  erase(x: number, beatFloat: number): boolean {
     if (!this.active || this.stopped) return false;
     const chart = this.callbacks.getChart();
     const selected = this.callbacks.getSelectedNotes();
-    const index = hitTestNoteAt(chart.notes, lane, beatFloat, undefined, selected);
+    const layout = this.callbacks.getLayout();
+    const lane = layout.xToNoteLane(x);
+    const index = lane === null ? null : hitTestNoteAt(chart.notes, lane, beatFloat, undefined, selected);
     if (index === null) {
-      const layout = this.callbacks.getLayout?.() ?? DEFAULT_TIMELINE_LAYOUT;
-      const eventLane = layout.noteLaneToAuxiliaryLane(lane);
-      const eventIndex = eventLane === null ? null : hitTestEventAt(chart.events, eventLane, beatFloat);
+      const eventIndex = hitTestEventAt(chart.events, event => layout.isEventAtX(event, x), beatFloat);
       if (eventIndex === null) return false;
       const next = deleteEvents(chart, new Set([eventIndex]));
       if (!next) { this.callbacks.onWarn?.('Cannot delete initial event'); return false; }
@@ -59,7 +60,7 @@ export class EraseGesture {
     if (note.type === 'body') {
       // 노트를 지워 드러난 자리만 보호한다. 다른 위치의 바디를 직접 지우는 동작은 유지한다.
       const occluders = this.occludersByBody.get(note) ?? [];
-      if (hitTestNoteAt(occluders, lane, beatFloat) !== null) return false;
+      if (hitTestNoteAt(occluders, note.lane, beatFloat) !== null) return false;
     }
     const next = DeleteMode.deleteNoteAtPoint(chart, () => index, 0, 0, selected, this.callbacks.onWarn);
     if (!next || next === chart) return false;
@@ -78,9 +79,11 @@ export class EraseGesture {
    * Delete 모드 터치 삭제. 노트를 먼저 지우고, 그 자리에 노트가 없을 때만 빈 `trillZone`·
    * `restZone`을 같은 transaction에서 지운다. 삭제가 막힌 노트 아래 구간은 대신 지우지 않는다.
    */
-  eraseNoteOrZoneAt(lane: number, beatFloat: number): boolean {
-    if (this.erase(lane, beatFloat)) return true;
+  eraseNoteOrZoneAt(x: number, beatFloat: number): boolean {
+    if (this.erase(x, beatFloat)) return true;
     if (!this.active || this.stopped) return false;
+    const lane = this.callbacks.getLayout().xToNoteLane(x);
+    if (lane === null) return false;
     const chart = this.callbacks.getChart();
     if (hitTestNoteAt(chart.notes, lane, beatFloat) !== null) return false;
     const next = DeleteMode.deleteZoneAtHits(

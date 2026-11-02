@@ -1,3 +1,4 @@
+import { createTimelineLayout, type TimelineLayout } from './timeline/TimelineLayout';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { beat, beatToMs, type ChartDocument } from '../shared';
 import { EraseGesture } from './editing/EraseGesture';
@@ -33,10 +34,11 @@ function chartWithoutInitialSignature(): ChartDocument {
     { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(4), editorLane: 3 }] };
 }
 
-function editor(extraLaneCount = 3) {
+function editor(extraLaneCount = 3, layout?: TimelineLayout) {
   const store = () => useEditorStore.getState();
   const warnings: string[] = [];
   const space = createTimelineSpace({
+    getLayout: layout ? () => layout : undefined,
     getChart: () => store().chart,
     getSnapDivision: () => 4,
     getSelectedNotes: () => store().selection.notes,
@@ -340,7 +342,7 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
 
   it('이벤트 드래그 삭제를 Esc로 취소하면 4박 BPM을 복구하고 같은 제스처의 재삭제를 막는다', () => {
     const { store } = editor();
-    const gesture = new EraseGesture({ getChart: () => store().chart,
+    const gesture = new EraseGesture({ getLayout: () => createTimelineLayout({ auxiliaryLaneCount: store().extraLaneCount }), getChart: () => store().chart,
       getSelectedNotes: () => store().selection.notes,
       beginTransaction: onInterrupt => store().beginEditTransaction('erase', onInterrupt),
       commitTransaction: token => store().commitEditTransaction(token),
@@ -348,10 +350,10 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
       onChartUpdate: (chart, transaction) => store().setChart(chart, { transaction }),
     });
     gesture.begin();
-    expect(gesture.erase(5, 4)).toBe(true);
+    expect(gesture.erase(270, 4)).toBe(true);
     expect(store().chart.events).toHaveLength(3);
     gesture.cancel();
-    expect(gesture.erase(5, 4)).toBe(false);
+    expect(gesture.erase(270, 4)).toBe(false);
     gesture.finish();
     expect(store().chart.events).toEqual(chartFixture().events);
   });
@@ -514,7 +516,7 @@ describe('[text, 초기 BPM, 초기 박자] 순서 파일을 연 뒤 0박에서 
     const { initialBpm, initialSignature } = openChartWithTextOnInitialBpm();
     const { store } = editor();
     const warnings: string[] = [];
-    const gesture = new EraseGesture({ getChart: () => store().chart,
+    const gesture = new EraseGesture({ getLayout: () => createTimelineLayout({ auxiliaryLaneCount: store().extraLaneCount }), getChart: () => store().chart,
       getSelectedNotes: () => store().selection.notes,
       beginTransaction: onInterrupt => store().beginEditTransaction('erase', onInterrupt),
       commitTransaction: token => store().commitEditTransaction(token),
@@ -523,10 +525,57 @@ describe('[text, 초기 BPM, 초기 박자] 순서 파일을 연 뒤 0박에서 
       onWarn: message => warnings.push(message),
     });
     gesture.begin();
-    expect(gesture.erase(5, 0)).toBe(true);
+    expect(gesture.erase(270, 0)).toBe(true);
     gesture.finish();
 
     expect(store().chart.events).toEqual([initialBpm, initialSignature]);
     expect(warnings).toEqual([]);
   });
+});
+
+it.each([[30, 150], [150, 30]])(
+  'song-common 열과 메인 1번 사이 x=%i→%i로 0～5박 박스를 만들면 4박 BPM·노트만 선택된다',
+  (startX, endX) => {
+    const base = createTimelineLayout({ auxiliaryLaneCount: 3,
+      songCommonColumns: [{ id: 'bpm', width: 60 }, { id: 'signature', width: 60 }] });
+    const layout: TimelineLayout = { ...base, eventRange: event =>
+      event.type === 'bpm' ? { x: 0, width: 60 } : base.eventRange(event) };
+    const { mode, store, space } = editor(3, layout);
+    mode.beginBoxSelect(startX, 0);
+    const endY = beatToMs(beat(5), space.getBpmChanges());
+    mode.onPointerMove(endX, endY);
+    expect(mode.boxSelectPixelRect).toEqual({
+      startY: 0, startRange: { x: startX === 30 ? 0 : 120, width: 60 },
+      endY, endRange: { x: endX === 30 ? 0 : 120, width: 60 },
+    });
+    mode.onPointerUp(endX, endY);
+    expect(store().selection.events).toEqual(new Set([2]));
+    expect(store().selection.notes).toEqual(new Set([0]));
+  },
+);
+
+it('Ctrl+A가 가로 배치를 읽지 않고 4박 노트·BPM과 8～12박 text를 선택하면 초기 이벤트 0·1은 제외된다', () => {
+  const layout = new Proxy(createTimelineLayout({ auxiliaryLaneCount: 0 }), {
+    get: () => { throw new Error('Ctrl+A must not read display geometry'); },
+  });
+  const { mode, store } = editor(0, layout);
+  mode.selectAll();
+  expect(store().selection.notes).toEqual(new Set([0]));
+  expect(store().selection.events).toEqual(new Set([2, 3]));
+});
+
+it('song-common 열 x=30→90에서 0～5박 박스를 만들고 x=1000까지 나가면 4박 BPM만 선택하고 메인 1번은 제외된다', () => {
+  const base = createTimelineLayout({ auxiliaryLaneCount: 3,
+    songCommonColumns: [{ id: 'bpm', width: 60 }, { id: 'signature', width: 60 }] });
+  const layout: TimelineLayout = { ...base, eventRange: event =>
+    event.type === 'bpm' ? { x: 0, width: 60 } : base.eventRange(event) };
+  const { mode, store, space } = editor(3, layout);
+  const endY = beatToMs(beat(5), space.getBpmChanges());
+  mode.beginBoxSelect(30, 0);
+  mode.onPointerMove(90, endY);
+  mode.onPointerMove(1000, endY);
+  expect(mode.boxSelectPixelRect?.endRange).toEqual({ x: 60, width: 60 });
+  mode.onPointerUp(1000, endY);
+  expect(store().selection.events).toEqual(new Set([2]));
+  expect(store().selection.notes).toEqual(new Set());
 });

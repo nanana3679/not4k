@@ -3,6 +3,7 @@
  * TimelineRenderer에서 Composition 패턴으로 사용된다.
  */
 
+import type { BoxSelectRect } from "../modes/editorMode";
 import { Container, Graphics } from "pixi.js";
 import { beatToMs, isVisibleLane } from "../../shared";
 import type { ChartDocument, Beat, DocumentNoteEntity, BpmChange, Lane } from "../../shared";
@@ -12,7 +13,7 @@ import {
   TRILL_HANDLE_SELECTED_BUMP,
 } from "./constants";
 import { laneToX, laneWidth } from "./laneGeometry";
-import { createTimelineLayout, type TimelineLayout } from "./TimelineLayout";
+import { createTimelineLayout, enclosingXRange, type TimelineLayout, type EventPlacementInput } from "./TimelineLayout";
 import type { NoteRenderer } from "./NoteRenderer";
 import { destroyChildren } from "./utils";
 import { drawTrillZoneHandles, drawNoteResizeHandle, drawResizeCap } from "./trillZoneHandles";
@@ -32,7 +33,7 @@ export interface OverlayHost {
   readonly violatingRestZoneIndices: Set<number>;
   readonly violatingEventIndices: Set<number>;
   readonly moveOrigins: { note: DocumentNoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null;
-  readonly boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null;
+  readonly boxSelectRect: BoxSelectRect | null;
   readonly scrollY: number;
   readonly contentOffsetX: number;
   readonly cachedBpmChanges: BpmChange[];
@@ -148,17 +149,15 @@ export class OverlayRenderer {
     destroyChildren(this.host.boxSelectLayer);
     if (!this.host.boxSelectRect || !this.host.chart) return;
 
-    const { startY, startLane, endY, endLane } = this.host.boxSelectRect;
+    const { startY, startRange, endY, endRange } = this.host.boxSelectRect;
 
     const y1 = startY + this.host.scrollY;
     const y2 = endY + this.host.scrollY;
     const topY = Math.min(y1, y2);
     const height = Math.max(y1, y2) - topY;
 
-    const minLane = Math.min(startLane, endLane);
-    const maxLane = Math.max(startLane, endLane);
-    const x1 = laneToX(minLane, this.layout);
-    const x2 = laneToX(maxLane, this.layout) + laneWidth(maxLane, this.layout);
+    const { x: x1, width } = enclosingXRange(startRange, endRange);
+    const x2 = x1 + width;
 
     if (x1 >= x2) return;
 
@@ -189,13 +188,13 @@ export class OverlayRenderer {
   }
 
   /**
-   * 엑스트라 레인에 고스트 이벤트 표시 (이벤트용)
+   * 일반 이벤트와 같은 배치에 고스트 이벤트 표시
    */
-  showGhostEvent(extraLane: number, timeMs: number): void {
+  showGhostEvent(event: EventPlacementInput, timeMs: number): void {
     destroyChildren(this.host.ghostLayer);
 
     const y = this.host.timeToY(timeMs);
-    const { x, width } = this.layout.auxiliaryLaneRange(Math.max(1, extraLane));
+    const { x, width } = this.layout.eventRange(event);
 
     const ghost = new Graphics();
     ghost.rect(x, y - NOTE_HEIGHT / 2, width, NOTE_HEIGHT);
