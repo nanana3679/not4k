@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { CHART_SAVE_COPY } from '../../src/editor/editorCopy';
 import type { ChartJsonV3, ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
 import {
   EDITOR_TEST_AUDIO_FILE,
@@ -20,6 +21,42 @@ async function saveChart(page: Page, editor: OpenedEditor): Promise<ChartJsonV3 
   expect(upload, '차트 메인 JSON의 새 경로 업로드가 없다').toBeDefined();
   return readUploadedJson(upload!) as ChartJsonV3 | ChartJsonV4;
 }
+
+test('normal 행 없이 첫 Save의 생성 응답이 유실되면 UUID·리비전 0을 채택하고 다음 Save는 같은 UUID·리비전 0으로 갱신한다', async ({ page }) => {
+  const editor = await openEditor(page, { chartRow: false, chartCreateResponseLost: true,
+    songTiming: { bpmChanges: [{ beat: '0', bpm: 120 }], timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 } });
+
+  await saveChart(page, editor);
+  const adopted = await page.evaluate(async () => {
+    const storePath = '/src/editor/stores/editorStore.ts';
+    const { useEditorStore } = await import(storePath);
+    return useEditorStore.getState().chartRow;
+  });
+  expect(adopted).toMatchObject({ difficultyLabel: 'normal', revision: 0 });
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(() => editor.supabaseWrites.filter(write => write.path === '/rest/v1/rpc/save_chart').length).toBe(1);
+  const updated = JSON.parse(editor.supabaseWrites.find(write => write.path === '/rest/v1/rpc/save_chart')!.body!);
+  expect(updated).toMatchObject({ p_chart_id: adopted!.id, p_expected_revision: 0 });
+  expect(editor.supabaseWrites.filter(write => write.path === '/rest/v1/rpc/create_chart')).toHaveLength(1);
+  expect(editor.unexpectedSupabaseRequests).toEqual([]);
+});
+
+test('normal 첫 Save가 23505이고 다른 저장 경로의 행이면 편집 표시를 유지하고 별도 보관 후 다시 불러오기를 안내한다', async ({ page }) => {
+  await openEditor(page, { chartRow: false,
+    songTiming: { bpmChanges: [{ beat: '0', bpm: 120 }], timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 } });
+  await page.route('**/rest/v1/rpc/create_chart', route => route.fulfill({ status: 409, json: { code: '23505', message: 'duplicate key' } }));
+  await page.route('**/rest/v1/charts?*', route => route.fulfill({ json: [{ id: editorTestChartId('normal'), difficulty_label: 'normal', revision: 0,
+    chart_path: 'songs/e2e-editor-song/normal-other.json', chart_extra_path: 'songs/e2e-editor-song/normal-other.extra.json' }] }));
+  await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+  await page.locator('select').filter({ has: page.locator('option[value="10"]') }).selectOption('3');
+  await page.mouse.click(10, 100);
+  const unsavedSave = page.getByRole('button', { name: 'Save, unsaved changes', exact: true });
+
+  await unsavedSave.click();
+
+  await expect(page.getByText(CHART_SAVE_COPY.existsOnSave, { exact: true })).toBeVisible();
+  await expect(unsavedSave).toBeEnabled();
+});
 
 test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
   test('곡 제목을 새 제목으로 바꾸고 Save하면 확인 없이 곡 RPC 1회로 저장하고 Save 표시가 깨끗해진다', async ({ page }) => {

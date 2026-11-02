@@ -7,6 +7,7 @@ export {
   SongHasChartsError,
   ChartSaveError,
   type ChartAssetFiles,
+  type ChartAssetRow,
   type ChartAssetTarget,
   type ChartRowCreate,
   type ChartRowRef,

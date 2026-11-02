@@ -9,6 +9,7 @@ import {
   saveChartAsset,
   saveSonglessChartAsset,
   SongHasChartsError,
+  type ChartAssetRow,
   type ChartRowCreate,
   type ChartRowSave,
   type SongAssetPersistenceAdapter,
@@ -40,7 +41,7 @@ function makeChart(input: {
   };
 }
 
-function makeAdapter(input: { songFiles?: string[]; tokens?: string[] } = {}) {
+function makeAdapter(input: { songFiles?: string[]; tokens?: string[]; survivingRows?: ChartAssetRow[] } = {}) {
   const calls: string[] = [];
   const uploads: { path: string; content: string; contentType: string; upsert: boolean }[] = [];
   const removes: string[][] = [];
@@ -72,7 +73,9 @@ function makeAdapter(input: { songFiles?: string[]; tokens?: string[] } = {}) {
     deleteChartRow: async (target) => {
       calls.push(`delete:${target.songId}:${target.difficulty}`);
       deletes.push(target);
+      return { difficultyLabel: target.difficulty, chartPath: null, chartExtraPath: null };
     },
+    listChartAssets: async () => input.survivingRows ?? [],
     listSongFiles: async (songId) => {
       calls.push(`list:${songId}`);
       return input.songFiles ?? [];
@@ -384,15 +387,29 @@ describe("deleteSongAsset", () => {
 });
 
 describe("deleteChartAsset", () => {
-  it("deletes the chart row before removing chart and extra JSON assets", async () => {
+  it("HARD가 새 경로·hard가 NULL 경로일 때 HARD UUID를 삭제하면 새 파일 2개만 지우고 hard.json·hard.extra.json은 보존한다", async () => {
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "hard", chartPath: null, chartExtraPath: null }] });
+    fake.adapter.deleteChartRow = async (target) => {
+      fake.deletes.push(target);
+      return { difficultyLabel: "HARD", chartPath: "songs/song-four/hard-saved.json", chartExtraPath: "songs/song-four/hard-saved.extra.json" };
+    };
+
+    await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.deletes).toEqual([{ songId: "song-four", difficulty: "hard", chartId: "chart-HARD" }]);
+    expect(fake.removes).toEqual([["songs/song-four/hard-saved.json", "songs/song-four/hard-saved.extra.json"]]);
+  });
+
+  it("NULL 경로 HARD만 있을 때 UUID로 삭제하면 행 삭제 후 hard.json·hard.extra.json을 제거한다", async () => {
     const fake = makeAdapter();
 
     await deleteChartAsset(fake.adapter, {
       songId: "song-four",
       difficulty: "HARD",
+      chartId: "chart-HARD",
     });
 
-    expect(fake.deletes).toEqual([{ songId: "song-four", difficulty: "hard" }]);
+    expect(fake.deletes).toEqual([{ songId: "song-four", difficulty: "hard", chartId: "chart-HARD" }]);
     expect(fake.removes).toEqual([[
       "songs/song-four/hard.json",
       "songs/song-four/hard.extra.json",
@@ -401,5 +418,51 @@ describe("deleteChartAsset", () => {
       "delete:song-four:hard",
       "remove:songs/song-four/hard.json,songs/song-four/hard.extra.json",
     ]);
+  });
+
+  it("NULL 경로 HARD·hard가 함께 있을 때 HARD UUID를 삭제하면 hard.json·hard.extra.json을 모두 보존한다", async () => {
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "hard", chartPath: null, chartExtraPath: null }] });
+
+    const result = await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.deletes).toEqual([{ songId: "song-four", difficulty: "hard", chartId: "chart-HARD" }]);
+    expect(fake.removes).toEqual([]);
+    expect(result.removedPaths).toEqual([]);
+  });
+
+  it("expert가 hard.json을 명시적으로 참조할 때 NULL 경로 HARD를 삭제하면 hard.extra.json만 제거한다", async () => {
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "expert", chartPath: "songs/song-four/hard.json", chartExtraPath: "songs/song-four/expert.extra.json" }] });
+
+    await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.removes).toEqual([["songs/song-four/hard.extra.json"]]);
+  });
+
+  it("HARD의 저장 경로 2개를 expert도 참조할 때 HARD를 삭제하면 공유 파일 2개를 보존한다", async () => {
+    const shared = { chartPath: "songs/song-four/hard-saved.json", chartExtraPath: "songs/song-four/hard-saved.extra.json" };
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "expert", ...shared }] });
+    fake.adapter.deleteChartRow = async () => ({ difficultyLabel: "HARD", ...shared });
+
+    await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.removes).toEqual([]);
+  });
+
+  it("HARD UUID 삭제 후 살아 있는 행 조회가 실패하면 Storage 파일을 0개 삭제한다", async () => {
+    const fake = makeAdapter();
+    fake.adapter.listChartAssets = async () => { throw new Error("offline"); };
+
+    await expect(deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" })).rejects.toThrow("offline");
+
+    expect(fake.removes).toEqual([]);
+  });
+
+  it("HARD UUID가 이미 없으면 Delete Chart가 hard.json을 포함해 Storage 파일을 0개 삭제한다", async () => {
+    const fake = makeAdapter();
+    fake.adapter.deleteChartRow = async () => null;
+
+    await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.removes).toEqual([]);
   });
 });

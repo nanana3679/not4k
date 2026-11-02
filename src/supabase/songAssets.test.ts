@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat } from '../shared';
 import type { ChartDocument } from '../shared';
 
-const storage = vi.hoisted(() => ({ upload: vi.fn(), rpc: vi.fn(), remove: vi.fn(), list: vi.fn(), eq: vi.fn(), delete: vi.fn(), select: vi.fn() }));
+const storage = vi.hoisted(() => ({ upload: vi.fn(), rpc: vi.fn(), remove: vi.fn(), list: vi.fn(), eq: vi.fn(), delete: vi.fn(), select: vi.fn(), deleted: vi.fn(), charts: vi.fn() }));
 vi.mock('./client', () => ({ supabase: { storage: { from: () => ({ upload: storage.upload, remove: storage.remove, list: storage.list }) }, rpc: storage.rpc,
   from: () => ({ delete: storage.delete, select: storage.select }) } }));
 const { createChartAsset, saveChartAsset, saveSonglessChartAsset, deleteChartAsset, deleteSongAsset } = await import('./songAssets');
@@ -21,9 +21,11 @@ beforeEach(() => {
   storage.rpc.mockReset();
   storage.remove.mockReset().mockResolvedValue({ error: null });
   storage.list.mockReset().mockResolvedValue({ data: [], error: null });
-  storage.eq.mockReset().mockImplementation(() => ({ eq: storage.eq, then: (resolve: (value: unknown) => void) => resolve({ data: [], error: null }) }));
+  storage.eq.mockReset().mockImplementation(() => ({ eq: storage.eq, select: storage.deleted, then: (resolve: (value: unknown) => void) => resolve({ data: [], error: null }) }));
   storage.delete.mockReset().mockReturnValue({ eq: storage.eq });
-  storage.select.mockReset().mockReturnValue({ eq: storage.eq });
+  storage.select.mockReset().mockReturnValue({ eq: storage.charts });
+  storage.deleted.mockReset().mockResolvedValue({ data: [], error: null });
+  storage.charts.mockReset().mockResolvedValue({ data: [], error: null });
   vi.spyOn(crypto, 'randomUUID').mockReturnValue(UUID);
 });
 
@@ -94,10 +96,16 @@ describe('Supabase 차트 저장 adapter', () => {
 });
 
 
-it('HARD 행 UUID로 Delete Chart하면 difficulty_label 대신 id를 조건으로 삭제하고 고정 경로 hard.json만 정리한다', async () => {
+it('HARD 새 경로·hard NULL 경로가 있을 때 HARD UUID로 삭제하면 hard.json을 보존하고 삭제 응답의 새 파일 2개만 정리한다', async () => {
+  storage.deleted.mockResolvedValue({ data: [{ id: UUID, difficulty_label: 'HARD', revision: 4,
+    chart_path: 'songs/song-1/hard-saved.json', chart_extra_path: 'songs/song-1/hard-saved.extra.json' }], error: null });
+  storage.charts.mockResolvedValue({ data: [{ id: 'chart-hard', difficulty_label: 'hard', revision: 0,
+    chart_path: null, chart_extra_path: null }], error: null });
   await deleteChartAsset({ songId: 'song-1', difficulty: 'HARD', chartId: UUID });
   expect(storage.eq.mock.calls).toEqual([['id', UUID]]);
-  expect(storage.remove).toHaveBeenCalledWith(['songs/song-1/hard.json', 'songs/song-1/hard.extra.json']);
+  expect(storage.deleted).toHaveBeenCalledWith('id,difficulty_label,revision,chart_path,chart_extra_path');
+  expect(storage.charts).toHaveBeenCalledWith('song_id', 'song-1');
+  expect(storage.remove).toHaveBeenCalledExactlyOnceWith(['songs/song-1/hard-saved.json', 'songs/song-1/hard-saved.extra.json']);
 });
 
 it('행 없이 HARD를 Delete Chart하면 기존 song_id·소문자 hard 조건으로 삭제한다', async () => {

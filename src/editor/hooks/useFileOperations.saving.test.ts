@@ -58,7 +58,8 @@ vi.mock('../../supabase', async importOriginal => {
     createChartRow: row => new Promise<ChartRowRef>((resolve, reject) => {
       harness.chartRows.push({ kind: 'create', row, resolve: () => resolve({ chartId: `created-${row.difficulty}`, revision: 0 }), reject });
     }),
-    deleteChartRow: async () => {},
+    deleteChartRow: async () => null,
+    listChartAssets: async () => [],
     listSongFiles: async () => [],
     deleteSongRow: async () => {},
     newPathToken: () => `t${++harness.pathTokens}`,
@@ -1266,15 +1267,96 @@ it('리비전 3 Save 응답 유실 뒤 행 재조회도 실패하면 편집 노�
   expect(CHART_SAVE_COPY.unconfirmed).toContain('다시 불러오면 저장하지 않은 편집 내용이 사라집니다');
 });
 
-it('곡 행만 있는 normal의 첫 Save가 23505면 편집을 유지하고 Save As에서 난이도 선택·덮어쓰기를 안내한다', async () => {
+it.each(['23505', undefined])('행 없이 연 normal 첫 Save가 %s로 실패해도 두 경로가 normal-t1과 같으면 exact normal UUID·리비전 0을 채택하고 다음 Save가 갱신한다', async code => {
+  open(chart([single(1, 0)]), null); attachSong(); current().setActiveDifficulty('NORMAL');
+  current().setChart({ ...current().chart, notes: [...current().chart.notes, single(2, 2)] });
+  harness.charts.mockResolvedValue({ data: [
+    { id: 'chart-NORMAL', difficulty_label: 'NORMAL', revision: 9,
+      chart_path: 'songs/song/normal-t1.json', chart_extra_path: 'songs/song/normal-t1.extra.json' },
+    { id: 'created-normal', difficulty_label: 'normal', revision: 0,
+      chart_path: 'songs/song/normal-t1.json', chart_extra_path: 'songs/song/normal-t1.extra.json' },
+  ], error: null });
+
+  const saving = renderFileOperations().handleSaveChart(); await flush();
+  harness.chartRows[0].reject(Object.assign(new Error('response lost'), { code })); await saving;
+
+  expect(current().chartRow).toMatchObject({ id: 'created-normal', difficultyLabel: 'normal', revision: 0 });
+  expect(dirty()).toBe(false);
+  expect(showToast).toHaveBeenCalledWith(CHART_SAVE_COPY.saved, 'info');
+  expect(showToast).not.toHaveBeenCalledWith(expect.anything(), 'error');
+  const next = renderFileOperations().handleSaveChart(); await flush();
+  expect(harness.chartRows[1]).toMatchObject({ kind: 'save', row: { chartId: 'created-normal', expectedRevision: 0 } });
+  harness.chartRows[1].resolve(); await next;
+});
+
+it('곡 행만 있는 normal의 첫 Save가 23505이고 일치하는 행이 없으면 노트 2개를 유지하고 별도 보관 후 다시 불러오기를 안내한다', async () => {
   open(chart([single(1, 0)]), null); attachSong(); current().setActiveDifficulty('normal');
   current().setChart({ ...current().chart, notes: [...current().chart.notes, single(2, 2)] });
   const saving = renderFileOperations().handleSaveChart(); await flush();
   harness.chartRows[0].reject(Object.assign(new Error('duplicate'), { code: '23505' })); await saving;
-  expect(showToast).toHaveBeenCalledWith(CHART_SAVE_COPY.exists, 'error');
-  expect(CHART_SAVE_COPY.exists).toContain('Save As에서 저장할 난이도를 선택하고');
+  expect(showToast).toHaveBeenCalledWith(
+    '현재 난이도에 이미 차트가 있어 이번 저장을 확인하지 못했습니다. 편집 내용은 유지됩니다. 다시 불러오면 저장하지 않은 편집 내용이 사라집니다. 필요한 내용을 별도로 보관한 뒤 차트를 다시 불러와 확인해주세요.',
+    'error',
+  );
   expect(current().chartRow).toBeNull();
   expect(dirty()).toBe(true);
+});
+
+it.each([
+  ['메인', 'songs/song/other.json', 'songs/song/normal-t1.extra.json', '23505'],
+  ['보조', 'songs/song/normal-t1.json', 'songs/song/other.extra.json', '23505'],
+  ['메인', 'songs/song/other.json', 'songs/song/normal-t1.extra.json', undefined],
+  ['보조', 'songs/song/normal-t1.json', null, undefined],
+])('normal 첫 Save에서 %s 경로가 %s·%s이고 오류가 %s이면 NORMAL의 일치 경로도 채택하지 않고 노트 2개·저장 기준을 보존한다', async (_case, chartPath, chartExtraPath, code) => {
+  open(chart([single(1, 0)]), null); attachSong(); current().setActiveDifficulty('normal');
+  current().setChart({ ...current().chart, notes: [...current().chart.notes, single(2, 2)] });
+  const baseline = current().savedChartJson;
+  harness.charts.mockResolvedValue({ data: [
+    { id: 'chart-NORMAL', difficulty_label: 'NORMAL', revision: 9,
+      chart_path: 'songs/song/normal-t1.json', chart_extra_path: 'songs/song/normal-t1.extra.json' },
+    { id: 'other-normal', difficulty_label: 'normal', revision: 4, chart_path: chartPath, chart_extra_path: chartExtraPath },
+  ], error: null });
+
+  const saving = renderFileOperations().handleSaveChart(); await flush();
+  harness.chartRows[0].reject(Object.assign(new Error('response lost'), { code })); await saving;
+
+  expect(current().chartRow).toBeNull();
+  expect(current().chart.notes).toHaveLength(2);
+  expect(current().savedChartJson).toBe(baseline);
+  expect(dirty()).toBe(true);
+  expect(harness.removals).toEqual([]);
+  expect(showToast).not.toHaveBeenCalledWith(CHART_SAVE_COPY.saved, 'info');
+  if (!code) expect(showToast).toHaveBeenCalledWith(CHART_SAVE_COPY.unconfirmed, 'error');
+});
+
+it('normal 첫 Save 응답 유실 후 행 재조회도 실패하면 노트 2개·저장 기준을 유지하고 결과 미확인을 안내한다', async () => {
+  open(chart([single(1, 0)]), null); attachSong(); current().setActiveDifficulty('normal');
+  current().setChart({ ...current().chart, notes: [...current().chart.notes, single(2, 2)] });
+  const baseline = current().savedChartJson;
+  harness.charts.mockResolvedValue({ data: null, error: { message: 'offline' } });
+
+  const saving = renderFileOperations().handleSaveChart(); await flush();
+  harness.chartRows[0].reject(new Error('response lost')); await saving;
+
+  expect(current().chartRow).toBeNull();
+  expect(current().chart.notes).toHaveLength(2);
+  expect(current().savedChartJson).toBe(baseline);
+  expect(dirty()).toBe(true);
+  expect(showToast).toHaveBeenCalledWith(CHART_SAVE_COPY.unconfirmed, 'error');
+});
+
+it('Save As LIFTOFF 생성 응답이 유실돼도 두 경로가 liftoff-t1과 같으면 새 UUID·리비전 0·주소를 채택한다', async () => {
+  open(chart([single(1, 0)]));
+  harness.charts.mockResolvedValue({ data: [{ id: 'created-liftoff', difficulty_label: 'liftoff', revision: 0,
+    chart_path: 'songs/song/liftoff-t1.json', chart_extra_path: 'songs/song/liftoff-t1.extra.json' }], error: null });
+
+  const saving = renderFileOperations().handleSaveAs('LIFTOFF', 3); await flush();
+  harness.chartRows[0].reject(new Error('response lost')); await saving;
+
+  expect(current().chartRow).toMatchObject({ id: 'created-liftoff', revision: 0, difficultyLabel: 'liftoff' });
+  expect(current().activeDifficulty).toBe('liftoff');
+  expect(dirty()).toBe(false);
+  expect(window.history.replaceState).toHaveBeenCalledWith(null, '', '?songId=song&difficulty=liftoff');
 });
 
 

@@ -14,7 +14,7 @@ import {
   extractTimeSignatureChanges,
   isMeasureBoundary,
 } from '../../shared';
-import type { ChartAssetWriteResult, SaveChartAssetInput, Lane, TutorialDiagramId, ValidationError } from '../../shared';
+import type { ChartAssetWriteResult, CreateChartAssetInput, SaveChartAssetInput, Lane, TutorialDiagramId, ValidationError } from '../../shared';
 import {
   createChartAsset as persistNewChartAsset,
   deleteChartAsset as persistDeleteChartAsset,
@@ -113,13 +113,13 @@ async function prepareSave(
 }
 
 /** 저장 함수가 보존한 SQLSTATE(`code`)로 차트 저장 실패 안내를 고른다. 행 갱신 결과를 확인하지 못한 경우는 일반 업로드 실패와 구별한다. */
-function chartSaveErrorCopy(error: unknown): string {
+function chartSaveErrorCopy(error: unknown, creatingCurrentChart = false): string {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
   switch (code) {
     case 'PT409': return CHART_SAVE_COPY.conflict;
     case 'PT404': return CHART_SAVE_COPY.missing;
     case '42501': return CHART_SAVE_COPY.permission;
-    case '23505': return CHART_SAVE_COPY.exists;
+    case '23505': return creatingCurrentChart ? CHART_SAVE_COPY.existsOnSave : CHART_SAVE_COPY.exists;
     default: return !code && error instanceof ChartSaveError ? CHART_SAVE_COPY.unconfirmed : CHART_SAVE_COPY.failed;
   }
 }
@@ -137,6 +137,25 @@ async function saveChartWithRecovery(input: SaveChartAssetInput): Promise<ChartA
         }
       } catch {
         // 확인 조회도 실패하면 원래 저장 오류와 미저장 편집을 유지한다.
+      }
+    }
+    throw error;
+  }
+}
+
+/** 생성 응답 유실은 생성 시도에 쓴 난이도와 메인·보조 경로가 모두 같은 행만 채택한다. */
+async function createChartWithRecovery(input: CreateChartAssetInput): Promise<ChartAssetWriteResult> {
+  try {
+    return await persistNewChartAsset(input);
+  } catch (error) {
+    if (error instanceof ChartSaveError && (!error.code || error.code === '23505')) {
+      try {
+        const row = findChartRow(await fetchChartRows(input.songId), error.files.difficulty);
+        if (row && row.chartPath === error.files.chartPath && row.chartExtraPath === error.files.extraPath) {
+          return { ...error.files, row: { chartId: row.id, revision: row.revision } };
+        }
+      } catch {
+        // 확인 조회도 실패하면 원래 생성 오류와 미저장 편집을 유지한다.
       }
     }
     throw error;
@@ -213,7 +232,7 @@ export function useFileOperations(
         const written = chartRow
           ? await saveChartWithRecovery({ songId: activeSongId, difficulty, chart, extraLaneCount,
             row: { chartId: chartRow.id, revision: chartRow.revision } })
-          : await persistNewChartAsset({ songId: activeSongId, difficulty, chart, extraLaneCount });
+          : await createChartWithRecovery({ songId: activeSongId, difficulty, chart, extraLaneCount });
         uploadedJson = { chartJson: written.chartJson, extraJson: written.extraJson };
         savedRow = savedChartRow(written, chartRow?.difficultyLabel ?? written.difficulty);
       } else {
@@ -231,7 +250,7 @@ export function useFileOperations(
       addToast(CHART_SAVE_COPY.saved, 'info');
     } catch (err: unknown) {
       console.error('useFileOperations:', err);
-      addToast(chartSaveErrorCopy(err), 'error');
+      addToast(chartSaveErrorCopy(err, prepared.hasSongRow && !chartRow), 'error');
     } finally {
       // 실패(uploadedJson null)면 savedChartJson·리비전을 그대로 둬 dirty가 남는다. 그 사이 차트를 새로 불러왔으면 store가 무시한다.
       finishChartSave(saveGeneration, uploadedJson, savedRow);
@@ -295,7 +314,7 @@ export function useFileOperations(
         const written = target
           ? await saveChartWithRecovery({ songId: activeSongId, difficulty: target.difficultyLabel, chart: chartToSave, extraLaneCount,
             row: { chartId: target.id, revision: target.revision } })
-          : await persistNewChartAsset({ songId: activeSongId, difficulty, chart: chartToSave, extraLaneCount });
+          : await createChartWithRecovery({ songId: activeSongId, difficulty, chart: chartToSave, extraLaneCount });
         uploadedJson = { chartJson: written.chartJson, extraJson: written.extraJson };
         savedRow = savedChartRow(written, target?.difficultyLabel ?? written.difficulty);
       } else {
@@ -369,7 +388,7 @@ export function useFileOperations(
       addToast('No song selected — cannot delete', 'error');
       return;
     }
-    // Save와 같이 열린 차트의 난이도 경로를 지운다. meta의 난이도명이 달라도 다른 난이도의 차트를 지우지 않는다.
+    // 열린 UUID로 삭제한다. persistence가 삭제 응답의 파일 경로를 읽고 다른 행의 참조를 보호한다.
     const difficulty = activeChartDifficulty(useEditorStore.getState());
     if (!difficulty) {
       addToast('Difficulty label is empty', 'error');

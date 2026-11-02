@@ -1,5 +1,6 @@
 import { supabase } from "./client";
 import { STORAGE_BUCKET } from "../shared/storage";
+import { CHART_ROW_COLUMNS, fetchChartRows, toStoredChartRow, type ChartRowRecord } from "./chartRows";
 import {
   createChartAsset as createChartAssetWithAdapter,
   deleteChartAsset as deleteChartAssetWithAdapter,
@@ -73,11 +74,14 @@ const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
   },
   deleteChartRow: async (target) => {
     const query = supabase.from("charts").delete();
-    const { error } = await (target.chartId
+    const { data, error } = await (target.chartId
       ? query.eq("id", target.chartId)
-      : query.eq("song_id", target.songId).eq("difficulty_label", target.difficulty));
+      : query.eq("song_id", target.songId).eq("difficulty_label", target.difficulty)).select(CHART_ROW_COLUMNS);
     if (error) throw new Error(`Chart DB delete failed: ${error.message}`);
+    const deleted = (data as ChartRowRecord[] | null)?.[0];
+    return deleted ? toStoredChartRow(deleted) : null;
   },
+  listChartAssets: fetchChartRows,
   listSongFiles: async (songId) => {
     const paths: string[] = [];
     const limit = 100;

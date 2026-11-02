@@ -93,6 +93,10 @@ export interface OpenEditorOptions {
   audio?: boolean;
   /** false면 songs 조회에 null을 반환해 곡 행 없이 남은 차트 파일을 연다. */
   songRow?: boolean;
+  /** false면 normal 행 없이 구형 파일만 열어 첫 Save의 create_chart를 검증한다. */
+  chartRow?: boolean;
+  /** create_chart가 행을 만든 뒤 응답만 유실되는 상황. 행 재조회는 정상 응답한다. */
+  chartCreateResponseLost?: boolean;
   /** 생략하면 timing NULL인 미이행 곡. 지정하면 공유 타이밍 변경 확인을 검증한다. */
   songTiming?: SongTiming | null;
   /** 같은 곡의 다른 차트. 타이밍 이행 비교용 파일도 이 로컬 응답에서 제공한다. */
@@ -128,7 +132,7 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
   const appOrigin = new URL(baseURL).origin;
   const supabaseWrites: SupabaseWrite[] = [];
   const unexpectedSupabaseRequests: string[] = [];
-  const chartRows = [EDITOR_TEST_DIFFICULTY, ...Object.keys(options.otherCharts ?? {})].map(difficulty_label => ({
+  const chartRows = [...(options.chartRow === false ? [] : [EDITOR_TEST_DIFFICULTY]), ...Object.keys(options.otherCharts ?? {})].map(difficulty_label => ({
     id: editorTestChartId(difficulty_label), song_id: EDITOR_TEST_SONG_ID, difficulty_label,
     difficulty_level: chart.meta.difficultyLevel, revision: EDITOR_TEST_CHART_REVISION,
     chart_path: options.storedChartPaths && difficulty_label === EDITOR_TEST_DIFFICULTY ? EDITOR_TEST_STORED_CHART_PATH : null,
@@ -239,6 +243,7 @@ export async function openEditor(page: Page, options: OpenEditorOptions = {}): P
         difficulty_level: args.p_difficulty_level, revision: 0,
         chart_path: args.p_chart_path, chart_extra_path: args.p_chart_extra_path };
       chartRows.push(row);
+      if (options.chartCreateResponseLost) { await route.abort('connectionfailed'); return; }
       await route.fulfill({ json: [{ chart_id: row.id, revision: row.revision }] }); return;
     }
     unexpectedSupabaseRequests.push(`${method} ${path}`);

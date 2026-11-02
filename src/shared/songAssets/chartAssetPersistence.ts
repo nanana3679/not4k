@@ -1,6 +1,6 @@
 import type { ChartDocument } from "../types";
 import { serializeChart, serializeExtraNotes, mainNotes, mainTrillZones, auxNotes, auxNotesAsExtra } from "../chart";
-import { newChartAssetPaths, songChartExtraPath, songChartPath } from "../storage";
+import { newChartAssetPaths, resolveChartAssetPaths, songChartExtraPath, songChartPath } from "../storage";
 
 export interface TextAssetUpload {
   path: string;
@@ -46,6 +46,13 @@ export interface DeleteChartAssetInput extends ChartAssetTarget {
   chartId?: string;
 }
 
+/** 행이 참조하는 파일. NULL은 그 행 난이도의 결정적 경로로 해석한다. */
+export interface ChartAssetRow {
+  difficultyLabel: string;
+  chartPath: string | null;
+  chartExtraPath: string | null;
+}
+
 export interface SongAssetPersistenceAdapter {
   uploadText: (asset: TextAssetUpload) => Promise<void>;
   remove: (paths: string[]) => Promise<void>;
@@ -53,7 +60,10 @@ export interface SongAssetPersistenceAdapter {
   saveChartRow: (row: ChartRowSave) => Promise<number>;
   /** 새 행을 만들고 ID·리비전을 돌려준다. 거부 오류의 `code`(SQLSTATE)를 보존한다. */
   createChartRow: (row: ChartRowCreate) => Promise<ChartRowRef>;
-  deleteChartRow: (target: DeleteChartAssetInput) => Promise<void>;
+  /** 실제 삭제한 행의 경로를 돌려준다. 이미 없는 행이면 null이다. */
+  deleteChartRow: (target: DeleteChartAssetInput) => Promise<ChartAssetRow | null>;
+  /** 같은 곡에서 현재 살아 있는 행의 파일 참조. 조회 실패 시 파일을 삭제하지 않는다. */
+  listChartAssets: (songId: string) => Promise<ChartAssetRow[]>;
   listSongFiles: (songId: string) => Promise<string[]>;
   deleteSongRow: (songId: string) => Promise<void>;
   /** 새 업로드 경로에 붙일 저장마다 다른 토큰. */
@@ -93,7 +103,7 @@ export interface ChartAssetWriteResult extends ChartAssetFiles {
   row: ChartRowRef;
 }
 
-/** 파일 업로드 이후 행 갱신이 실패한 결과. 응답 유실 확인에 필요한 업로드 경로·내용을 보존한다. */
+/** 파일 업로드 이후 행 생성·갱신이 실패한 결과. 응답 유실 확인에 필요한 업로드 경로·내용을 보존한다. */
 export class ChartSaveError extends Error {
   readonly files: ChartAssetFiles;
   readonly code: string | undefined;
@@ -131,20 +141,24 @@ export async function saveChartAsset(
   }
 }
 
-/** 새 차트 행을 만든다. 파일은 `saveChartAsset`과 같이 새 경로에 먼저 올린다. 기존 행을 덮어쓰지 않는다. */
+/** 새 차트 행을 만든다. 기존 행을 덮어쓰지 않으며, 응답 유실 확인을 위해 실패 시 업로드 경로를 보존한다. */
 export async function createChartAsset(
   adapter: SongAssetPersistenceAdapter,
   input: CreateChartAssetInput,
 ): Promise<ChartAssetWriteResult> {
   const asset = await uploadChartAsset(adapter, { ...input, extraLaneCount: input.extraLaneCount ?? 0 });
-  const row = await adapter.createChartRow({
-    songId: input.songId,
-    difficulty: asset.difficulty,
-    difficultyLevel: input.chart.meta.difficultyLevel,
-    chartPath: asset.chartPath,
-    extraPath: asset.extraPath,
-  });
-  return { ...asset, row };
+  try {
+    const row = await adapter.createChartRow({
+      songId: input.songId,
+      difficulty: asset.difficulty,
+      difficultyLevel: input.chart.meta.difficultyLevel,
+      chartPath: asset.chartPath,
+      extraPath: asset.extraPath,
+    });
+    return { ...asset, row };
+  } catch (error) {
+    throw new ChartSaveError(error, asset);
+  }
 }
 
 /**
@@ -214,18 +228,27 @@ export async function deleteSongAsset(
   return { removedPaths: paths };
 }
 
+/** 실제 삭제한 행의 파일만 정리하며, 다른 행이 참조하는 파일은 보존한다. */
 export async function deleteChartAsset(
   adapter: SongAssetPersistenceAdapter,
   input: DeleteChartAssetInput,
-): Promise<{ chartPath: string; extraPath: string; difficulty: string }> {
+): Promise<{ removedPaths: string[]; difficulty: string }> {
   const difficulty = normalizeDifficulty(input.difficulty);
-  const chartPath = songChartPath(input.songId, difficulty);
-  const extraPath = songChartExtraPath(input.songId, difficulty);
+  const deleted = await adapter.deleteChartRow({ ...input, difficulty });
+  if (!deleted && input.chartId) return { removedPaths: [], difficulty };
+  // 행 없이 연 파일도 구형 경로를 정리하되, 살아 있는 행의 NULL·명시 경로를 모두 보호한다.
+  const paths = chartAssetRowPaths(input.songId, deleted ?? { difficultyLabel: difficulty, chartPath: null, chartExtraPath: null });
+  const survivingRows = await adapter.listChartAssets(input.songId);
+  const referencedPaths = new Set(survivingRows.flatMap(row => chartAssetRowPaths(input.songId, row)));
+  const removedPaths = [...new Set(paths)].filter(path => !referencedPaths.has(path));
+  if (removedPaths.length > 0) await adapter.remove(removedPaths);
 
-  await adapter.deleteChartRow({ ...input, difficulty });
-  await adapter.remove([chartPath, extraPath]);
+  return { removedPaths, difficulty };
+}
 
-  return { chartPath, extraPath, difficulty };
+function chartAssetRowPaths(songId: string, row: ChartAssetRow): string[] {
+  const { chartPath, extraPath } = resolveChartAssetPaths(songId, row.difficultyLabel, row);
+  return [chartPath, extraPath];
 }
 
 /**
