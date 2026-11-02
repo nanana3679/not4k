@@ -1,19 +1,14 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { getWaveformPeaks } from '../timeline/waveform';
+import { initialRangeState, type PreviewRangeState } from './previewRangeState';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface PreviewRangeState {
-  startTime: number;
-  endTime: number;
-  enabled: boolean;
-  fadeInTime: number;
-  fadeOutTime: number;
-}
+export type { PreviewRangeState } from './previewRangeState';
 
-interface PreviewRangeSelectorProps {
+export interface PreviewRangeSelectorProps {
   audioBuffer: AudioBuffer;
   onChange: (state: PreviewRangeState | null) => void;
   initialStart?: number;
@@ -37,7 +32,6 @@ interface PreviewRangeSelectorProps {
 
 const CANVAS_HEIGHT = 80;
 const DEFAULT_DURATION = 15;
-const DEFAULT_PREVIEW_FADE = 0.5;
 const HANDLE_HIT_PX = 6;
 const COLOR_WAVE = '#4488ff';
 const COLOR_WAVE_SELECTED = '#66aaff';
@@ -87,23 +81,17 @@ export function PreviewRangeSelector({
   const maxRangeDuration = Math.min(maxDuration ?? duration, duration);
   const minRangeDuration = Math.min(minDuration, duration);
 
-  // Compute initial range (use provided initial values if available)
-  const initStart = initialStart != null
-    ? Math.max(0, Math.min(initialStart, duration))
-    : defaultStart != null
-      ? Math.max(0, Math.min(defaultStart, duration))
-      : Math.min(duration * 0.25, Math.max(0, duration - defaultDuration));
-  const initEnd = initialEnd != null
-    ? Math.max(initStart, Math.min(initialEnd, duration))
-    : defaultEnd != null
-      ? Math.max(initStart, Math.min(defaultEnd, duration))
-      : Math.min(initStart + defaultDuration, duration);
+  // 처음 구간은 곡 정보 드로어의 음원 교체도 같은 계산(initialRangeState)을 쓴다. 마운트할 때만 읽는다.
+  const [initial] = useState(() => initialRangeState(duration, {
+    initialStart, initialEnd, initialFadeInTime, initialFadeOutTime,
+    defaultStart, defaultEnd, defaultDuration, showFadeControls,
+  }));
 
-  const [startTime, setStartTime] = useState(initStart);
-  const [endTime, setEndTime] = useState(initEnd);
+  const [startTime, setStartTime] = useState(initial.startTime);
+  const [endTime, setEndTime] = useState(initial.endTime);
   const [enabled, setEnabled] = useState(true);
-  const [fadeInTime, setFadeInTime] = useState(initialFadeInTime ?? (showFadeControls ? 0 : DEFAULT_PREVIEW_FADE));
-  const [fadeOutTime, setFadeOutTime] = useState(initialFadeOutTime ?? (showFadeControls ? 0 : DEFAULT_PREVIEW_FADE));
+  const [fadeInTime, setFadeInTime] = useState(initial.fadeInTime);
+  const [fadeOutTime, setFadeOutTime] = useState(initial.fadeOutTime);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
   const [dragMode, setDragMode] = useState<DragMode>(null);

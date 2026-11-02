@@ -163,7 +163,7 @@ test.describe('BPM·박자 변경 이벤트 편집', () => {
     await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
     await page.getByRole('button', { name: 'Back to Songs', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Unsaved Changes', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: '취소', exact: true }).click();
     const dialogs: string[] = [];
     page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
     await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();

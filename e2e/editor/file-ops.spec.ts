@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { CHART_SAVE_COPY, DIFFICULTY_LABEL_READ_ONLY_COPY } from '../../src/editor/editorCopy';
+import { CHART_SAVE_COPY, DIFFICULTY_LABEL_READ_ONLY_COPY, META_SONG_INFO_MOVED_COPY } from '../../src/editor/editorCopy';
 import type { ChartJsonV3, ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
 import {
   EDITOR_TEST_AUDIO_FILE,
@@ -59,24 +59,29 @@ test('normal 첫 Save가 23505이고 다른 저장 경로의 행이면 편집 �
 });
 
 test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
-  test('곡 제목을 새 제목으로 바꾸고 Save하면 확인 없이 곡 RPC 1회로 저장하고 Save 표시가 깨끗해진다', async ({ page }) => {
+  test('드로어에서 곡 제목을 새 제목으로 바꾸고 Save하면 확인 없이 곡 RPC 1회로 저장하고 Save 표시가 깨끗해지며 Meta에는 차트 정보만 있다', async ({ page }) => {
     const editor = await openEditor(page, { songTiming: { bpmChanges: [{ beat: '0', bpm: 120 }],
       timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 } });
     const dialogs: string[] = [];
     page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
+    await page.getByRole('button', { name: 'Song Info', exact: true }).click();
+    const songInfo = page.getByRole('complementary', { name: 'Song Info', exact: true });
+
+    for (const name of ['Title', 'Artist', 'Offset (ms)']) {
+      await expect(songInfo.getByLabel(name, { exact: true })).toBeEditable();
+    }
+    await songInfo.getByLabel('Title', { exact: true }).fill('새 제목');
+    await songInfo.getByLabel('Title', { exact: true }).press('Enter');
     await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
     await page.getByRole('button', { name: 'Meta', exact: true }).click();
-
-    for (const name of ['Title', 'Artist']) {
-      await expect(page.getByLabel(name, { exact: true })).toBeEditable();
-    }
-    await page.getByLabel('Title', { exact: true }).fill('새 제목');
+    const meta = page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..');
+    await expect(meta.getByText(META_SONG_INFO_MOVED_COPY, { exact: true })).toBeVisible();
+    for (const name of ['Title', 'Artist', 'Offset (ms)']) await expect(meta.getByLabel(name, { exact: true })).toHaveCount(0);
+    await expect(meta.locator('input[type="file"]')).toHaveCount(0);
     await expect(page.getByLabel('Difficulty Label', { exact: true })).toHaveAttribute('readonly', '');
     await expect(page.getByText(DIFFICULTY_LABEL_READ_ONLY_COPY, { exact: true })).toBeVisible();
-    for (const name of ['Offset (ms)', 'Difficulty Level']) {
-      await expect(page.getByLabel(name, { exact: true })).toBeEditable();
-    }
-    await page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByLabel('Difficulty Level', { exact: true })).toBeEditable();
+    await meta.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
     expect(editor.supabaseWrites).toHaveLength(1);
@@ -87,8 +92,9 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('곡 행 없이 차트 파일을 열면 Meta에서 Title·Artist·Offset 45ms·난이도 EXPERT를 바꾸고 다시 열어도 편집값이 남는다', async ({ page }) => {
+  test('곡 행 없이 차트 파일을 열면 Song Info 없이 Meta에서 Title·Artist·Offset 45ms·난이도 EXPERT를 바꾸고 다시 열어도 편집값이 남는다', async ({ page }) => {
     const editor = await openEditor(page, { songRow: false });
+    await expect(page.getByRole('button', { name: 'Song Info', exact: true })).toHaveCount(0);
     const openMeta = async () => {
       await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
       await page.getByRole('button', { name: 'Meta', exact: true }).click();
@@ -342,18 +348,20 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
-  test('Meta 모달의 Upload Audio로 음원 파일을 고르면 페이지 오류 없이 Replace Audio로 바뀐다', async ({ page }) => {
+  test('곡 정보 드로어의 Upload Audio로 음원 파일을 고르면 페이지 오류 없이 Replace Audio로 바뀌고 Save가 미저장이 된다', async ({ page }) => {
     await openEditor(page);
     const errors: string[] = [];
     page.on('pageerror', (err) => errors.push(err.message));
 
-    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
-    await page.getByRole('button', { name: 'Meta', exact: true }).click();
-    const fileInput = page.locator('input[type="file"][accept="audio/*"]');
+    await page.getByRole('button', { name: 'Song Info', exact: true }).click();
+    const songInfo = page.getByRole('complementary', { name: 'Song Info', exact: true });
+    const fileInput = songInfo.locator('input[type="file"][accept="audio/*"]');
     await fileInput.setInputFiles(EDITOR_TEST_AUDIO_FILE);
 
-    // 디코딩이 끝나 모달이 음원 버퍼를 받으면 버튼 문구가 바뀐다
-    await expect(page.getByText('Replace Audio', { exact: true })).toBeVisible();
+    // 디코딩이 끝나 드로어가 음원 버퍼를 받으면 버튼 문구가 바뀌고, 고른 음원은 바로 곡 음원(대기 파일)이 된다
+    await expect(songInfo.getByText('Replace Audio', { exact: true })).toBeVisible();
+    await expect(songInfo.getByText('프리뷰 구간', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save, unsaved changes', exact: true })).toBeVisible();
 
     // Filter out WebGL-related warnings that may appear in headless mode
     const realErrors = errors.filter(

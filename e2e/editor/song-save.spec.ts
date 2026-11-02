@@ -5,14 +5,35 @@ const timing = { bpmChanges: [{ beat: '0', bpm: 120 }],
   timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 };
 const save = (page: Page) => page.getByRole('button', { name: 'Save, unsaved changes', exact: true });
 const meta = (page: Page) => page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..');
+/** 곡 행이 있는 차트의 곡 공통 값(제목·오프셋·자켓·음원)은 왼쪽 곡 정보 드로어에서 편집한다(RFD 0098). */
+const songInfo = (page: Page) => page.getByRole('complementary', { name: 'Song Info', exact: true });
 async function openMeta(page: Page) {
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
   await page.getByRole('button', { name: 'Meta', exact: true }).click();
 }
+async function openSongInfo(page: Page) {
+  if (await songInfo(page).isVisible()) return;
+  await page.getByRole('button', { name: 'Song Info', exact: true }).click();
+  await expect(songInfo(page)).toBeVisible();
+}
+/** 드로어 입력칸은 Enter(또는 포커스 이동)로 적용한다. */
+async function fillSongInfo(page: Page, label: 'Title' | 'Artist' | 'Offset (ms)', value: string) {
+  await openSongInfo(page);
+  const field = songInfo(page).getByLabel(label, { exact: true });
+  await field.fill(value);
+  await field.press('Enter');
+}
+/** 드로어에서 음원을 고르고 불러와 곡 음원으로 적용될 때까지 기다린다. */
+async function replaceAudio(page: Page) {
+  await openSongInfo(page);
+  await songInfo(page).locator('input[type="file"][accept="audio/*"]').setInputFiles(EDITOR_TEST_AUDIO_FILE);
+  await expect(songInfo(page).getByText('Replace Audio', { exact: true })).toBeVisible();
+  await expect(songInfo(page).getByText('Loading audio…', { exact: true })).toHaveCount(0);
+}
 async function editSongAndChart(page: Page) {
+  await fillSongInfo(page, 'Title', '저장할 곡');
+  await fillSongInfo(page, 'Offset (ms)', '45');
   await openMeta(page);
-  await page.getByLabel('Title', { exact: true }).fill('저장할 곡');
-  await page.getByLabel('Offset (ms)', { exact: true }).fill('45');
   await page.getByLabel('Difficulty Level', { exact: true }).fill('6');
   await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
 }
@@ -48,7 +69,7 @@ function expectSongBeforeChart(editor: OpenedEditor, difficulty = 'normal', char
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 }
 
-test('음원 저장 중 Meta를 열어 완료 뒤 제목만 적용하면 다음 Save가 업로드 경로를 유지하고 미디어를 다시 올리지 않는다', async ({ page }) => {
+test('음원 저장 중 드로어에서 제목을 저장 뒤 제목으로 바꾸면 다음 Save가 업로드 경로를 유지하고 미디어를 다시 올리지 않는다', async ({ page }) => {
   const editor = await openEditor(page, { songTiming: timing });
   let release!: () => void;
   const pending = new Promise<void>(resolve => { release = resolve; });
@@ -57,18 +78,15 @@ test('음원 저장 중 Meta를 열어 완료 뒤 제목만 적용하면 다음 
     if (!blocked) { blocked = true; await pending; }
     await route.fallback();
   });
-  await openMeta(page);
-  await page.locator('input[type="file"][accept="audio/*"]').setInputFiles(EDITOR_TEST_AUDIO_FILE);
-  await expect(page.getByText('Replace Audio', { exact: true })).toBeVisible();
-  await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
+  await replaceAudio(page);
   await save(page).click();
   await expect.poll(() => blocked).toBe(true);
-  await openMeta(page);
-  await page.getByLabel('Title', { exact: true }).fill('저장 뒤 제목');
+  // 진행 중인 저장은 시작 당시의 초안을 확정하고, 저장 중 편집은 다음 Save에 남는다.
+  await fillSongInfo(page, 'Title', '저장 뒤 제목');
   release();
   await expect(page.getByText('Song saved', { exact: true })).toBeVisible();
   const first = JSON.parse(editor.supabaseWrites.find(write => write.path === '/rest/v1/rpc/save_song')!.body!);
-  await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
+  expect(first.p_title).toBe('E2E 에디터 곡');
   await save(page).click();
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   const requests = editor.supabaseWrites.filter(write => write.path === '/rest/v1/rpc/save_song');
@@ -80,18 +98,15 @@ test('음원 저장 중 Meta를 열어 완료 뒤 제목만 적용하면 다음 
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
 
-test('timing NULL에서 Title·Offset 45ms·자켓·음원을 바꿔 Save하면 이행 확인 1회 뒤 새 경로 3개와 곡만 저장한다', async ({ page }) => {
+test('timing NULL에서 드로어의 Title·Offset 45ms·자켓·음원을 바꿔 Save하면 이행 확인 1회 뒤 새 경로 3개와 곡만 저장한다', async ({ page }) => {
   const editor = await openEditor(page);
-  await openMeta(page);
-  await page.getByLabel('Title', { exact: true }).fill('저장할 곡');
-  await page.getByLabel('Offset (ms)', { exact: true }).fill('45');
-  await page.locator('input[type="file"][accept="image/*"]').setInputFiles({
+  await fillSongInfo(page, 'Title', '저장할 곡');
+  await fillSongInfo(page, 'Offset (ms)', '45');
+  await songInfo(page).locator('input[type="file"][accept="image/*"]').setInputFiles({
     name: 'new.png', mimeType: 'image/png',
     buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64'),
   });
-  await page.locator('input[type="file"][accept="audio/*"]').setInputFiles(EDITOR_TEST_AUDIO_FILE);
-  await expect(page.getByText('Replace Audio', { exact: true })).toBeVisible();
-  await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
+  await replaceAudio(page);
   await expect(save(page)).toBeVisible();
   await expect(page.getByRole('button', { name: /Save song/i })).toHaveCount(0);
   expect(editor.supabaseWrites).toEqual([]);
@@ -144,10 +159,10 @@ for (const action of ['Save', 'Save As'] as const) {
     expect(dialogs).toHaveLength(1); expect(dialogs[0]).toContain('다른 차트 1개');
     expect(editor.supabaseWrites).toEqual([]);
     if (action === 'Save As') await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(songInfo(page).getByLabel('Offset (ms)', { exact: true })).toHaveValue('45');
     await openMeta(page);
-    await expect(page.getByLabel('Offset (ms)', { exact: true })).toHaveValue('45');
     await expect(page.getByLabel('Difficulty Level', { exact: true })).toHaveValue('6');
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await meta(page).getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
     await page.getByRole('button', { name: 'Back to Songs', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Unsaved Changes', exact: true })).toBeVisible();
@@ -173,9 +188,7 @@ for (const action of ['Save', 'Save As'] as const) {
   test(`timing NULL에서 제목을 새 제목으로 바꾼 ${action} 이행을 취소하면 BPM 180인 hard를 알리고 차트만 저장하며 제목은 미저장이다`, async ({ page }) => {
     const hard = editorTestChart(); hard.events[0] = { type: 'bpm', beat: '0', bpm: 180 };
     const editor = await openEditor(page, { otherCharts: { hard } });
-    await openMeta(page);
-    await page.getByLabel('Title', { exact: true }).fill('새 제목');
-    await meta(page).getByRole('button', { name: 'Save', exact: true }).click();
+    await fillSongInfo(page, 'Title', '새 제목');
     const dialogs: string[] = [];
     page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.dismiss(); });
     await startSave(page, action);
@@ -184,8 +197,7 @@ for (const action of ['Save', 'Save As'] as const) {
     expect(dialogs).toHaveLength(1); expect(dialogs[0]).toContain('타이밍이 다른 차트: hard');
     expect(dialogs[0]).toContain('취소하면 곡 변경은 저장하지 않고 차트만 저장합니다.');
     expectChartOnlySave(editor, action);
-    await openMeta(page);
-    await expect(page.getByLabel('Title', { exact: true })).toHaveValue('새 제목');
+    await expect(songInfo(page).getByLabel('Title', { exact: true })).toHaveValue('새 제목');
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 

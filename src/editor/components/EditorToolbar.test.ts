@@ -26,7 +26,8 @@ const chart = (): ChartDocument => ({
   events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) }],
 });
 
-const toolbarProps = (props: { compact?: boolean; showOffsetToolbar?: boolean; saving?: boolean } = {}) => ({
+const toolbarProps = (props: { compact?: boolean; showOffsetToolbar?: boolean; saving?: boolean;
+  songInfoOpen?: boolean; onToggleSongInfo?: () => void; } = {}) => ({
   compact: props.compact ?? false,
   playbackRef: { current: null },
   autoScroll: true,
@@ -46,6 +47,8 @@ const toolbarProps = (props: { compact?: boolean; showOffsetToolbar?: boolean; s
   onDeleteSelected() {},
   onOpenMeta() {},
   onOpenCustomSnap() {},
+  songInfoOpen: props.songInfoOpen ?? false,
+  onToggleSongInfo: props.onToggleSongInfo,
 });
 const render = (props: Parameters<typeof toolbarProps>[0] = {}) => renderToStaticMarkup(createElement(EditorToolbar, toolbarProps(props)));
 afterEach(() => vi.unstubAllGlobals());
@@ -187,4 +190,61 @@ it.each(saveIndicatorCases)('compact=$compact·곡 변경=$songDirty·차트 변
   expect(buttonTag(markup, songDirty || chartDirty ? 'Save, unsaved changes' : 'Save')).not.toBe('');
   expect(markup.match(/aria-label="Save[^"]*"/g)).toHaveLength(1);
   expect(buttonTag(render({ compact, saving: true }), 'Saving')).toContain('disabled=""');
+});
+
+/** More 메뉴를 연 뒤 툴바의 모든 버튼 이름(aria-label 또는 글자)을 모은다. */
+function buttonNamesWithMoreMenu(props: Parameters<typeof toolbarProps>[0]): string[] {
+  let opened = false;
+  let names: string[] = [];
+  const text = (node: ReactNode): string => Children.toArray(node).map(child => typeof child === 'string' || typeof child === 'number'
+    ? String(child) : isValidElement<{ children?: ReactNode }>(child) ? text(child.props.children) : '').join('');
+  function inspect(node: ReactNode) {
+    Children.forEach(node, child => {
+      if (!isValidElement<{ children?: ReactNode; 'aria-label'?: string; onClick?: () => void }>(child)) return;
+      if (child.type === 'button') {
+        const name = child.props['aria-label'] ?? text(child.props.children);
+        names.push(name);
+        if (name === 'More editor actions' && !opened) {
+          opened = true;
+          child.props.onClick?.();
+        }
+      }
+      inspect(child.props.children);
+    });
+  }
+  function Probe() {
+    const tree = EditorToolbar(toolbarProps(props));
+    names = [];
+    inspect(tree);
+    return tree;
+  }
+  renderToStaticMarkup(createElement(Probe));
+  return names;
+}
+
+describe('곡 정보 드로어 열기와 오프셋 줄(RFD 0098)', () => {
+  it('곡 행이 있으면 데스크톱 툴바에 Song Info 토글을 두고 열림이면 aria-pressed=true이며 More 메뉴에 Offset이 없다', () => {
+    const onToggleSongInfo = vi.fn();
+    const markup = render({ onToggleSongInfo, songInfoOpen: true });
+
+    expect(markup).toMatch(/<button[^>]*aria-pressed="true"[^>]*>Song Info<\/button>/);
+    const names = buttonNamesWithMoreMenu({ onToggleSongInfo });
+    expect(names).toContain('Song Info');
+    expect(names).toContain('Meta');
+    expect(names).not.toContain('Offset');
+  });
+
+  it('compact 툴바에서 곡 행이 있으면 More 메뉴에 Song Info가 있고 Offset이 없다', () => {
+    const names = buttonNamesWithMoreMenu({ compact: true, onToggleSongInfo: () => {} });
+
+    expect(names).toContain('Song Info');
+    expect(names).not.toContain('Offset');
+  });
+
+  it.each([false, true])('곡 행이 없으면(compact=%s) Song Info 없이 More 메뉴의 Offset을 그대로 둔다', compact => {
+    const names = buttonNamesWithMoreMenu({ compact });
+
+    expect(names).not.toContain('Song Info');
+    expect(names).toContain('Offset');
+  });
 });

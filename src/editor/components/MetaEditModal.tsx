@@ -6,7 +6,7 @@ import { supabase } from '../../supabase';
 import { PreviewRangeSelector } from './PreviewRangeSelector';
 import type { PreviewRangeState } from './PreviewRangeSelector';
 import { modalStyles } from './modalStyles';
-import { DIFFICULTY_LABEL_READ_ONLY_COPY, PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import { DIFFICULTY_LABEL_READ_ONLY_COPY, META_SONG_INFO_MOVED_COPY, PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import type { MetaAudioPick } from '../metaAudioSession';
 
 function getPublicUrl(path: string): string {
@@ -37,6 +37,11 @@ export interface MetaEditModalProps {
    * JSON 사본의 난이도명이 저장 대상과 어긋나지 않게 처음부터 읽기 전용이다. 곡 행이 없는 차트는 편집할 수 있다.
    */
   hasSongRow?: boolean;
+  /**
+   * 곡 정보 드로어가 곡 공통 값(제목·아티스트·자켓·음원·구간·오프셋)을 편집한다(RFD 0098·0107 결정 4). 이 창은 난이도명(읽기 전용)·
+   * 레벨 같은 차트별 정보만 보이고 적용한다. 곡 행이 없는 차트는 드로어가 없어 기존처럼 모든 값을 이 창에서 편집한다.
+   */
+  songInfoInDrawer?: boolean;
   audioBuffer: AudioBuffer | null;
   audioLoading?: boolean;
   onSave: (
@@ -77,6 +82,7 @@ function initialMetaValues(meta: ChartMeta): Record<string, string> {
 export function MetaEditModal({
   meta,
   hasSongRow = false,
+  songInfoInDrawer = false,
   audioBuffer,
   audioLoading = false,
   onSave,
@@ -114,10 +120,19 @@ export function MetaEditModal({
       ? getPublicUrl(meta.imageFile) + (jacketCacheBust ? `?t=${jacketCacheBust}` : '')
       : null);
 
-  const saveDisabled = audioLoading || audioPick?.status === 'loading' || (audioFile !== null && audioBuffer === null);
+  // 차트 정보만 다루는 창은 음원 로딩과 관계없다.
+  const saveDisabled = !songInfoInDrawer
+    && (audioLoading || audioPick?.status === 'loading' || (audioFile !== null && audioBuffer === null));
   const handleSave = () => {
     if (saveDisabled) return;
     const level = parseInt(values.difficultyLevel);
+    if (songInfoInDrawer) {
+      // 곡 공통 값은 드로어가 소유한다. 레벨은 이 창에서 바꾼 경우에만 적용한다.
+      const chartMeta: Partial<ChartMeta> = {};
+      if (values.difficultyLevel !== initialValues.difficultyLevel && !isNaN(level)) chartMeta.difficultyLevel = level;
+      onSave(chartMeta, null, null, null, null);
+      return;
+    }
     const offset = parseFloat(values.offsetMs);
     const updatedMeta: Partial<ChartMeta> = {
       title: values.title,
@@ -139,18 +154,22 @@ export function MetaEditModal({
     onSave(updatedMeta, previewRange, jacketFile, gameplayRange, audioFile);
   };
 
-  const fields: { label: string; key: string; type: string }[] = [
-    { label: 'Title', key: 'title', type: 'text' },
-    { label: 'Artist', key: 'artist', type: 'text' },
+  const allFields: { label: string; key: string; type: string; songInfo?: boolean }[] = [
+    { label: 'Title', key: 'title', type: 'text', songInfo: true },
+    { label: 'Artist', key: 'artist', type: 'text', songInfo: true },
     { label: 'Difficulty Label', key: 'difficultyLabel', type: 'text' },
     { label: 'Difficulty Level', key: 'difficultyLevel', type: 'number' },
-    { label: 'Offset (ms)', key: 'offsetMs', type: 'number' },
+    { label: 'Offset (ms)', key: 'offsetMs', type: 'number', songInfo: true },
   ];
+  const fields = songInfoInDrawer ? allFields.filter(field => !field.songInfo) : allFields;
 
   return (
     <div style={modalStyles.overlay} onMouseDown={onClose}>
       <div style={{ ...modalStyles.modal, width: '520px', maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }} onMouseDown={(e) => e.stopPropagation()}>
         <h3 style={modalStyles.title}>Chart Metadata</h3>
+        {songInfoInDrawer && (
+          <p style={{ fontSize: '13px', margin: '0 0 12px', color: '#aaa' }}>{META_SONG_INFO_MOVED_COPY}</p>
+        )}
 
         {fields.map((f) => {
           const locked = offsetLocked && f.key === 'offsetMs';
@@ -179,118 +198,122 @@ export function MetaEditModal({
           );
         })}
 
-        {/* Audio section */}
-        <div style={{ marginBottom: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <span style={{ fontSize: '13px' }}>Audio</span>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
-              <span style={{
-                padding: '4px 12px',
-                backgroundColor: '#3a3a3a',
-                border: '1px solid #555',
-                borderRadius: '4px',
-                fontSize: '12px',
-              }}>
-                {audioBuffer ? 'Replace Audio' : 'Upload Audio'}
-              </span>
-              <input
-                type="file"
-                accept="audio/*"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) onLoadAudio(file);
-                }}
-              />
-            </label>
-          </div>
-          <div style={{ padding: '12px', backgroundColor: '#222', borderRadius: '6px', border: '1px solid #3a3a3a' }}>
-            {audioBuffer ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <PreviewRangeSelector
-                  audioBuffer={audioBuffer}
-                  label="프리뷰 구간"
-                  enabledLabel="프리뷰 사용"
-                  onChange={previewDraft.onChange}
-                  initialStart={meta.previewStart}
-                  initialEnd={meta.previewEnd}
-                />
-                <PreviewRangeSelector
-                  audioBuffer={audioBuffer}
-                  label="인게임 구간"
-                  canDisable={false}
-                  defaultStart={0}
-                  defaultEnd={audioBuffer.duration}
-                  defaultDuration={audioBuffer.duration}
-                  minDuration={1}
-                  showFadeControls
-                  initialStart={initialGameplayRange?.startTime}
-                  initialEnd={initialGameplayRange?.endTime}
-                  initialFadeInTime={initialGameplayRange?.fadeInTime}
-                  initialFadeOutTime={initialGameplayRange?.fadeOutTime}
-                  onChange={gameplayDraft.onChange}
-                />
+        {!songInfoInDrawer && (
+          <>
+            {/* Audio section */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '13px' }}>Audio</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
+                  <span style={{
+                    padding: '4px 12px',
+                    backgroundColor: '#3a3a3a',
+                    border: '1px solid #555',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                  }}>
+                    {audioBuffer ? 'Replace Audio' : 'Upload Audio'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) onLoadAudio(file);
+                    }}
+                  />
+                </label>
               </div>
-            ) : (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '12px' }}>
-                Select an audio file
+              <div style={{ padding: '12px', backgroundColor: '#222', borderRadius: '6px', border: '1px solid #3a3a3a' }}>
+                {audioBuffer ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <PreviewRangeSelector
+                      audioBuffer={audioBuffer}
+                      label="프리뷰 구간"
+                      enabledLabel="프리뷰 사용"
+                      onChange={previewDraft.onChange}
+                      initialStart={meta.previewStart}
+                      initialEnd={meta.previewEnd}
+                    />
+                    <PreviewRangeSelector
+                      audioBuffer={audioBuffer}
+                      label="인게임 구간"
+                      canDisable={false}
+                      defaultStart={0}
+                      defaultEnd={audioBuffer.duration}
+                      defaultDuration={audioBuffer.duration}
+                      minDuration={1}
+                      showFadeControls
+                      initialStart={initialGameplayRange?.startTime}
+                      initialEnd={initialGameplayRange?.endTime}
+                      initialFadeInTime={initialGameplayRange?.fadeInTime}
+                      initialFadeOutTime={initialGameplayRange?.fadeOutTime}
+                      onChange={gameplayDraft.onChange}
+                    />
+                  </div>
+                ) : (
+                  <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+                    Select an audio file
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        {/* Jacket section */}
-        <div style={{ marginBottom: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <span style={{ fontSize: '13px' }}>Jacket</span>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
-              <span style={{
-                padding: '4px 12px',
-                backgroundColor: '#3a3a3a',
-                border: '1px solid #555',
-                borderRadius: '4px',
-                fontSize: '12px',
-              }}>
-                {jacketUrl && !jacketError ? 'Replace Jacket' : 'Upload Jacket'}
-              </span>
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    if (prevJacketUrlRef.current) URL.revokeObjectURL(prevJacketUrlRef.current);
-                    const newUrl = URL.createObjectURL(file);
-                    prevJacketUrlRef.current = newUrl;
-                    setJacketFile(file);
-                    setJacketLocalUrl(newUrl);
-                    setJacketError(false);
-                  }
-                }}
-              />
-            </label>
-          </div>
-          <div style={{ padding: '12px', backgroundColor: '#222', borderRadius: '6px', border: '1px solid #3a3a3a' }}>
-            {jacketUrl && !jacketError ? (
-              <img
-                src={jacketUrl}
-                alt="Jacket"
-                style={{
-                  width: '100%',
-                  maxHeight: '120px',
-                  objectFit: 'contain',
-                  borderRadius: '4px',
-                }}
-                onError={() => setJacketError(true)}
-              />
-            ) : (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '12px' }}>
-                Select a jacket image
+            {/* Jacket section */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ fontSize: '13px' }}>Jacket</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
+                  <span style={{
+                    padding: '4px 12px',
+                    backgroundColor: '#3a3a3a',
+                    border: '1px solid #555',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                  }}>
+                    {jacketUrl && !jacketError ? 'Replace Jacket' : 'Upload Jacket'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (prevJacketUrlRef.current) URL.revokeObjectURL(prevJacketUrlRef.current);
+                        const newUrl = URL.createObjectURL(file);
+                        prevJacketUrlRef.current = newUrl;
+                        setJacketFile(file);
+                        setJacketLocalUrl(newUrl);
+                        setJacketError(false);
+                      }
+                    }}
+                  />
+                </label>
               </div>
-            )}
-          </div>
-        </div>
+              <div style={{ padding: '12px', backgroundColor: '#222', borderRadius: '6px', border: '1px solid #3a3a3a' }}>
+                {jacketUrl && !jacketError ? (
+                  <img
+                    src={jacketUrl}
+                    alt="Jacket"
+                    style={{
+                      width: '100%',
+                      maxHeight: '120px',
+                      objectFit: 'contain',
+                      borderRadius: '4px',
+                    }}
+                    onError={() => setJacketError(true)}
+                  />
+                ) : (
+                  <div style={{ padding: '20px 0', textAlign: 'center', color: '#666', fontSize: '12px' }}>
+                    Select a jacket image
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
 
         <div style={modalStyles.buttons}>
           <button style={modalStyles.saveBtn} onClick={handleSave} disabled={saveDisabled}>Save</button>

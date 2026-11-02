@@ -49,7 +49,7 @@ function setup(source: DocumentNoteEntity[] = [{ type: 'tap', kind: 'single', la
   // PlaybackController처럼 재생 상태가 바뀌면 store의 setIsPlaying을 부른다(App의 onPlayStateChange 배선).
   const playback = { togglePlay: () => current().setIsPlaying(!current().isPlaying) } as unknown as PlaybackController;
   const toasts: string[] = [];
-  const press = (key: string, modifiers: { ctrlKey?: boolean; shiftKey?: boolean; repeat?: boolean } = {}) => handleEditorKeyDown(
+  const press = (key: string, modifiers: { ctrlKey?: boolean; shiftKey?: boolean; repeat?: boolean; target?: EventTarget } = {}) => handleEditorKeyDown(
     { key, ctrlKey: false, metaKey: false, shiftKey: false, preventDefault: () => {}, ...modifiers },
     {
       mode: current().mode, selectMode: mode, playback, bpmChanges: [], offsetMs: 0, shortcutsBlocked: false,
@@ -282,5 +282,30 @@ describe('재생 중 단축키(RFD 0099)', () => {
     expect(current().selection.notes).toEqual(new Set([0]));
     expect(current().historyPast).toHaveLength(0);
     expect(current().editTransaction).toBeNull();
+  });
+});
+
+describe('곡 정보 드로어의 입력칸 포커스', () => {
+  /** DOM 없이 입력칸 포커스를 흉내 낸 keydown 대상. */
+  const field = (tagName: string, type?: string) => ({ tagName, type, isContentEditable: false }) as unknown as EventTarget;
+
+  it.each([['text', 'Title'], ['number', 'Offset (ms)']])('%s 입력칸(%s)에 포커스가 있으면 Space·S·Delete가 재생·모드·선택 노트를 바꾸지 않는다', type => {
+    const { mode, press } = setup();
+    mode.selectNote(0);
+    useEditorStore.setState({ mode: 'create' });
+
+    for (const key of [' ', 's', 'Delete']) press(key, { target: field('INPUT', type) });
+
+    expect(current().isPlaying).toBe(false);
+    expect(current().mode).toBe('create');
+    expect(notes()).toHaveLength(1);
+  });
+
+  it('체크박스에 포커스가 있으면 Space는 그대로 재생을 시작한다', () => {
+    const { press } = setup();
+
+    press(' ', { target: field('INPUT', 'checkbox') });
+
+    expect(current().isPlaying).toBe(true);
   });
 });

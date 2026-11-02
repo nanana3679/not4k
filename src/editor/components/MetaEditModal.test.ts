@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEditorSong, isSongDirty } from '../songState';
 import { useEditorStore } from '../stores/editorStore';
 import type { ChartMeta } from '../../shared';
-import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import { META_SONG_INFO_MOVED_COPY, PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import type { MetaAudioPick } from '../metaAudioSession';
 import { MetaEditModal } from './MetaEditModal';
 import { PreviewRangeSelector, type PreviewRangeState } from './PreviewRangeSelector';
@@ -335,5 +335,51 @@ describe('메타 편집 창의 음원 로드 결과', () => {
     const markup = renderToStaticMarkup(createElement(MetaEditModal, { meta, audioBuffer: { duration: 120 } as AudioBuffer,
       audioPick: { file: new File(['x'], 'next.ogg'), status: 'loading' }, onSave() {}, onClose() {}, onLoadAudio() {} }));
     expect(saveButton(markup)).toContain('disabled=""');
+  });
+});
+
+describe('곡 정보 드로어가 있는 차트의 Meta 창(차트 정보만)', () => {
+  const renderChartOnly = () => renderToStaticMarkup(createElement(MetaEditModal, {
+    meta, hasSongRow: true, songInfoInDrawer: true, audioBuffer: { duration: 120 } as AudioBuffer,
+    onSave() {}, onClose() {}, onLoadAudio() {},
+  }));
+
+  it('Title·Artist·Offset·음원·자켓·구간 없이 Difficulty Label(읽기 전용)·Level과 Song Info 안내만 보인다', () => {
+    const markup = renderChartOnly();
+
+    for (const name of ['Title', 'Artist', 'Offset \\(ms\\)']) expect(inputOf(markup, name)).toBe('');
+    expect(markup).not.toContain('accept="audio/*"');
+    expect(markup).not.toContain('accept="image/*"');
+    expect(markup).not.toMatch(/프리뷰 구간|인게임 구간/);
+    expect(inputOf(markup, 'Difficulty Label')).toContain('readOnly=""');
+    expect(inputOf(markup, 'Difficulty Level')).toContain('value="5"');
+    expect(markup).toContain(META_SONG_INFO_MOVED_COPY);
+  });
+
+  it('Level 5→9로 바꿔 적용하면 레벨 9만 보내고 제목·아티스트·오프셋·구간·파일은 보내지 않는다', () => {
+    const onSave = vi.fn();
+    let phase = 0;
+    let save: (() => void) | undefined;
+    function Probe() {
+      const tree = MetaEditModal({ meta, hasSongRow: true, songInfoInDrawer: true, audioBuffer: null,
+        onSave, onClose() {}, onLoadAudio() {} });
+      const fields = controls(tree);
+      if (phase++ === 0) fields.find(field => field.value === '5')!.onChange!({ target: { value: '9' } });
+      save = fields.find(field => field.children === 'Save')!.onClick;
+      return tree;
+    }
+    renderToStaticMarkup(createElement(Probe));
+    save!();
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith({ difficultyLevel: 9 }, null, null, null, null);
+  });
+
+  it('음원을 불러오는 중이어도 차트 정보만 다루므로 Save가 활성이다', () => {
+    const markup = renderToStaticMarkup(createElement(MetaEditModal, {
+      meta, hasSongRow: true, songInfoInDrawer: true, audioBuffer: null, audioLoading: true,
+      onSave() {}, onClose() {}, onLoadAudio() {},
+    }));
+
+    expect(markup).toMatch(/<button(?![^>]*disabled)[^>]*>Save<\/button>/);
   });
 });

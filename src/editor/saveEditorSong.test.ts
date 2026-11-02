@@ -523,6 +523,6 @@ it('프리뷰를 0～8초로 바꾸고 Offset 25→45까지 바꿨는데 재생 
   expect(await saveEditorSong(null, confirm)).toBe('aborted');
   expect(confirm).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
   expect(showToast).toHaveBeenCalledExactlyOnceWith(
-    '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Meta에서 음원을 불러온 뒤 다시 저장해주세요.', 'error');
+    '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Song Info에서 음원을 불러온 뒤 다시 저장해주세요.', 'error');
   expect(state().isSavingSong).toBe(false); expect(dirty()).toBe(true);
 });

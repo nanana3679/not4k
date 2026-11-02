@@ -355,12 +355,12 @@ for (const replaceAudio of [false, true]) test(`${replaceAudio ? '음원 교체�
   } });
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   if (replaceAudio) {
-    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
-    await page.getByRole('button', { name: 'Meta', exact: true }).click();
-    await page.locator('input[type="file"][accept="audio/*"]').setInputFiles(EDITOR_TEST_AUDIO_FILE);
-    const modal = page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..');
-    await expect(modal.getByText('Replace Audio', { exact: true })).toBeVisible();
-    await modal.getByRole('button', { name: 'Save', exact: true }).click();
+    // 곡 행이 있는 차트의 음원은 곡 정보 드로어에서 바꾸며, 불러오면 바로 곡 음원(대기 파일)으로 적용된다.
+    await page.getByRole('button', { name: 'Song Info', exact: true }).click();
+    const songInfo = page.getByRole('complementary', { name: 'Song Info', exact: true });
+    await songInfo.locator('input[type="file"][accept="audio/*"]').setInputFiles(EDITOR_TEST_AUDIO_FILE);
+    await expect(songInfo.getByText('Replace Audio', { exact: true })).toBeVisible();
+    await expect(songInfo.getByText('Loading audio…', { exact: true })).toHaveCount(0);
   }
   const position = await canvasPosition(page, 2, 3); await page.mouse.click(position.x, position.y);
   const edited = await notes(page);
@@ -387,7 +387,7 @@ for (const replaceAudio of [false, true]) test(`${replaceAudio ? '음원 교체�
   await page.getByRole('button', { name: 'Back to Songs', exact: true }).click();
   const leaveConfirm = page.getByRole('heading', { name: 'Unsaved Changes', exact: true });
   await expect(leaveConfirm).toBeVisible();
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: '취소', exact: true }).click();
   await expect(leaveConfirm).toHaveCount(0);
   await expect(page).toHaveURL(/\/editor\?songId=e2e-editor-song&difficulty=normal$/);
   await expect(page.locator('canvas')).toHaveCount(1);

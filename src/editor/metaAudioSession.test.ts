@@ -112,4 +112,28 @@ describe('Meta 창 한 번의 음원 선택', () => {
     expect(playback.restoreAudioBuffer).not.toHaveBeenCalled();
     expect(playback.audioBufferData).toBe(nextBuffer);
   });
+
+  it('load는 성공하면 loaded, 실패하면 failed, 뒤에 고른 파일에 밀린 a.ogg면 null을 돌려준다', async () => {
+    const { session, playback, loads } = harness();
+    const first = new File(['a'], 'a.ogg');
+    const next = new File(['x'], 'next.ogg');
+    const broken = new File(['b'], 'broken.ogg');
+    const firstLoading = session.load(playback, first);
+    const nextLoading = session.load(playback, next);
+    loads.get(next)!.resolve();
+    await expect(nextLoading).resolves.toBe('loaded');
+    loads.get(first)!.resolve();
+    await expect(firstLoading).resolves.toBeNull();
+
+    const brokenLoading = session.load(playback, broken);
+    loads.get(broken)!.reject(new Error('decode failed'));
+    await expect(brokenLoading).resolves.toBe('failed');
+  });
+
+  it('재생기가 아직 없으면 load는 파일을 고르지 않고 null을 돌려준다', async () => {
+    const { session, state } = harness();
+
+    await expect(session.load(null, new File(['x'], 'next.ogg'))).resolves.toBeNull();
+    expect(state.pick).toBeNull();
+  });
 });

@@ -1,6 +1,7 @@
-import type { ChartDocument, PlaybackRange } from '../shared';
+import type { ChartDocument, ChartMeta, PlaybackRange } from '../shared';
 import type { LoadedSongSharedData } from '../supabase/songSharedData';
 import { toSongTiming } from '../shared/songAssets/toSongTiming';
+import { applySongTimingEvents } from '../shared/songAssets/resolveSongChart';
 
 import type { SongValues } from '../supabase/saveSong';
 
@@ -31,12 +32,17 @@ export function songValues(chart: ChartDocument, song: EditorSong): SongValues {
   };
 }
 
+/** 저장된 플레이 구간 값. 시작·끝이 모두 있어야 구간이며 NULL 페이드는 0초다. */
+function gameplayRangeOf(values: Pick<SongValues, 'gameplayStart' | 'gameplayEnd' | 'gameplayFadeIn' | 'gameplayFadeOut'>): PlaybackRange | null {
+  return values.gameplayStart != null && values.gameplayEnd != null ? {
+    startTime: values.gameplayStart, endTime: values.gameplayEnd,
+    fadeInTime: values.gameplayFadeIn ?? 0, fadeOutTime: values.gameplayFadeOut ?? 0,
+  } : null;
+}
+
 /** resolveSongChart·초기 레인 배치·곡 음원 정보 적용 후에 기준을 만든다. */
 export function createEditorSong(loaded: LoadedSongSharedData, chart: ChartDocument): EditorSong {
-  const gameplayRange = loaded.gameplayStart != null && loaded.gameplayEnd != null ? {
-    startTime: loaded.gameplayStart, endTime: loaded.gameplayEnd,
-    fadeInTime: loaded.gameplayFadeIn ?? 0, fadeOutTime: loaded.gameplayFadeOut ?? 0,
-  } : null;
+  const gameplayRange = gameplayRangeOf(loaded);
   const song: EditorSong = {
     revision: loaded.revision, needsTimingMigration: loaded.timing === null,
     duration: loaded.duration, gameplayRange,
@@ -68,4 +74,27 @@ export function isSongDirty(chart: ChartDocument, song: EditorSong | null): bool
       .some(key => JSON.stringify(current[key]) !== JSON.stringify(song.baseline[key]));
   }
   catch { return true; }
+}
+
+/**
+ * 곡 정보 변경 취소(RFD 0098)의 결과. 곡이 소유한 값(제목·아티스트·자켓·음원·프리뷰 구간·오프셋·BPM·박자표 값과
+ * 플레이 구간·길이·대기 파일)만 마지막 곡 저장 기준으로 되돌리고, 노트·차트별 이벤트·난이도·보조 레인 수는 그대로 둔다.
+ * 타이밍 이벤트는 열 때와 같은 규칙(applySongTimingEvents)으로 되돌려 같은 종류·박의 이벤트는 차트의 보조 레인을 유지하고,
+ * 기준에 없는 박의 타이밍 이벤트는 사라진다. 곡 정보가 기준과 같으면 받은 차트 객체를 그대로 돌려준다.
+ */
+export function restoreSavedSongInfo(chart: ChartDocument, song: EditorSong): { chart: ChartDocument; song: EditorSong } {
+  const baseline = song.baseline;
+  const savedMeta: ChartMeta = { ...chart.meta, title: baseline.title, artist: baseline.artist,
+    imageFile: baseline.jacketUrl ?? '', audioFile: baseline.audioUrl, previewAudioFile: baseline.previewUrl ?? '',
+    previewStart: baseline.previewStart ?? undefined, previewEnd: baseline.previewEnd ?? undefined,
+    offsetMs: baseline.timing.offsetMs };
+  const sameMeta = (Object.keys(savedMeta) as (keyof ChartMeta)[]).every(key => savedMeta[key] === chart.meta[key]);
+  const events = applySongTimingEvents(chart.events, baseline.timing);
+  const restoredChart = sameMeta && events === chart.events ? chart
+    : { ...chart, meta: sameMeta ? chart.meta : savedMeta, events };
+  return {
+    chart: restoredChart,
+    song: { ...song, duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
+      pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null },
+  };
 }

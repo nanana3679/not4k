@@ -32,7 +32,7 @@ const DEFAULT_TIME_SIGNATURE_EDITOR_LANE = 2;
 export function resolveSongChart<T extends ChartDocument>(chart: T, song?: SongSharedData | null): T {
   if (!song) return chart;
   const timing = song.timing === null ? null : parseSongTiming(song.timing);
-  const events = timing ? resolveTimingEvents(chart.events, timing) : chart.events;
+  const events = timing ? applySongTimingEvents(chart.events, timing) : chart.events;
   const imageFile = song.jacketUrl ?? chart.meta.imageFile;
   const offsetMs = timing?.offsetMs ?? chart.meta.offsetMs;
   const sameMeta = chart.meta.title === song.title && chart.meta.artist === song.artist
@@ -41,8 +41,12 @@ export function resolveSongChart<T extends ChartDocument>(chart: T, song?: SongS
   return meta === chart.meta && events === chart.events ? chart : { ...chart, meta, events };
 }
 
-/** 곡 타이밍과 종류·박·값이 같으면 받은 events 참조를, 다르면 파일 레인을 이어받은 교체 결과를 돌려준다. */
-function resolveTimingEvents(events: ChartEvent[], timing: SongTiming): ChartEvent[] {
+/**
+ * 곡 타이밍과 종류·박·값이 같으면 받은 events 참조를, 다르면 파일 레인을 이어받은 교체 결과를 돌려준다.
+ * 값을 검증하지 않으므로 DB 값은 parseSongTiming을 거친 뒤 넘긴다. 에디터의 곡 정보 변경 취소도 마지막 곡 저장 기준을
+ * 이 규칙으로 되돌려, 같은 종류·박의 이벤트는 차트의 보조 레인을 유지한다.
+ */
+export function applySongTimingEvents(events: ChartEvent[], timing: SongTiming): ChartEvent[] {
   const existing = events.filter(isTimingEvent);
   const songEvents: TimingEvent[] = [
     ...timing.bpmChanges.map(change => ({ type: 'bpm' as const, beat: beatFromString(change.beat), bpm: change.bpm })),

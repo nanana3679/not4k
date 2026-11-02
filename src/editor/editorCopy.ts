@@ -1,9 +1,44 @@
+/**
+ * 에디터 이탈·다른 곡 이동, 그리고 곡 정보를 정리한 뒤에도 차트 변경이 남은 차트 전환의 확인(RFD 0098).
+ * 저장 후 이동은 Save(곡 → 차트)가 필요한 저장을 모두 끝낸 뒤에만 이동한다.
+ */
 export const LEAVE_CONFIRM_COPY = {
   title: "Unsaved Changes",
-  body: "You have unsaved changes. If you leave now, they will be lost.",
-  confirm: "Leave",
-  cancel: "Cancel",
+  body: "저장하지 않은 곡 정보 또는 차트 변경이 있습니다. 버리고 이동하면 저장하지 않은 변경이 사라집니다.",
+  save: "저장 후 이동",
+  discard: "버리고 이동",
+  cancel: "취소",
 } as const;
+
+/**
+ * 미저장 곡 정보가 있을 때 곡 정보 드로어를 닫거나 같은 곡의 다른 차트로 전환하는 확인(RFD 0098). 미저장 곡 정보를 남긴 채
+ * 닫거나 전환하는 선택은 없다. 변경 취소는 마지막으로 저장한 곡 정보로 되돌리며 차트 편집은 버리지 않는다.
+ */
+export const SONG_INFO_UNSAVED_COPY = {
+  title: "Unsaved Song Info",
+  closeBody: "저장하지 않은 곡 정보 변경이 있습니다. 저장하거나 변경을 취소해야 곡 정보를 닫을 수 있습니다.",
+  switchBody: "저장하지 않은 곡 정보 변경이 있습니다. 저장하거나 변경을 취소해야 다른 차트로 전환할 수 있습니다.",
+  discardNote: "변경 취소는 마지막으로 저장한 곡 정보로 되돌리며 노트·차트 이벤트 편집은 그대로 둡니다. Undo로 다시 되돌릴 수 있습니다.",
+  saveClose: "저장 후 닫기",
+  discardClose: "변경 취소 후 닫기",
+  saveSwitch: "저장 후 전환",
+  discardSwitch: "변경 취소 후 전환",
+  cancel: "취소",
+} as const;
+
+/** 곡 정보 드로어의 문구. 곡 공통 값이 이 곡의 모든 차트에 적용됨을 알린다(RFD 0095·0098). */
+export const SONG_INFO_DRAWER_COPY = {
+  title: "Song Info",
+  scope: "곡 공통 · 이 곡의 모든 차트에 적용됩니다. Save가 곡 정보를 함께 저장합니다.",
+  close: "Close song info",
+  charts: "Charts",
+  chartsLoading: "차트 목록을 불러오는 중…",
+  chartsFailed: "차트 목록을 불러오지 못했습니다.",
+  currentChart: "현재 차트",
+} as const;
+
+/** 곡 행이 있는 차트의 Meta 창 안내. 곡 공통 값은 곡 정보 드로어로 옮겼다(RFD 0098·0107). */
+export const META_SONG_INFO_MOVED_COPY = "제목·아티스트·자켓·음원·구간·오프셋은 Song Info에서 편집합니다.";
 
 /** 저장(Save·Save As)이 진행 중일 때 막힌 동작의 안내. 테스트 플레이 문구는 툴바 버튼 title에도 쓴다. */
 export const SAVE_IN_PROGRESS_COPY = {
@@ -46,7 +81,7 @@ export const SONG_SAVE_COPY = {
   /** 곡 행이 있는 차트의 곡 저장은 곡 추가(AddSongModal)처럼 비어 있지 않은 제목·아티스트를 요구한다. */
   titleArtistRequired: '제목과 아티스트는 비워 둘 수 없습니다.',
   /** 프리뷰 구간·음원을 바꿔 프리뷰 클립을 다시 만들어야 하는데 재생 음원이 없을 때(음원 로드 실패 등). */
-  previewAudioMissing: '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Meta에서 음원을 불러온 뒤 다시 저장해주세요.',
+  previewAudioMissing: '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Song Info에서 음원을 불러온 뒤 다시 저장해주세요.',
 } as const;
 
 /**

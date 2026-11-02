@@ -15,7 +15,22 @@ import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
 
 /** 단축키 처리가 읽는 키 입력 사실. 테스트는 이 필드만 채운 객체를 넘긴다(repeat는 생략하면 첫 입력). */
 export type EditorKeyEvent = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'preventDefault'>
-  & Partial<Pick<KeyboardEvent, 'repeat'>>;
+  & Partial<Pick<KeyboardEvent, 'repeat' | 'target'>>;
+
+/** 글자를 입력하는 칸이면 type이 이 목록에 없다(체크박스·범위 슬라이더 등은 글자 입력이 아니다). */
+const NON_TEXT_INPUT_TYPES = new Set(['checkbox', 'radio', 'range', 'button', 'submit', 'reset', 'file', 'color', 'image']);
+
+/**
+ * 키 입력 대상이 글자를 입력하는 칸인가(입력란·textarea·contenteditable). 곡 정보 드로어는 열린 채 단축키를 쓰게 두므로
+ * (RFD 0098) 제목·오프셋을 입력하는 동안에는 Space·S 같은 단축키가 재생·모드를 바꾸지 않게 이 대상을 건너뛴다.
+ */
+export function isTextEntryTarget(target: EventTarget | null | undefined): boolean {
+  if (!target || typeof target !== 'object' || !('tagName' in target)) return false;
+  const element = target as { tagName: string; type?: string; isContentEditable?: boolean };
+  if (element.isContentEditable) return true;
+  if (element.tagName === 'TEXTAREA') return true;
+  return element.tagName === 'INPUT' && !NON_TEXT_INPUT_TYPES.has((element.type ?? 'text').toLowerCase());
+}
 
 /**
  * 재생 중 막는 단축키인가(RFD 0099). 차트·history·선택을 바꾸거나 복사하는 키를 고른다:
@@ -53,6 +68,8 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
   const { mode, selectMode, playback, bpmChanges, offsetMs, shortcutsBlocked, isPlaying, setMode, addToast } = context;
   // Disable shortcuts while focused editor UI is open.
   if (shortcutsBlocked) return;
+  // 곡 정보 드로어의 입력칸에서 친 글자는 단축키가 아니다.
+  if (isTextEntryTarget(e.target)) return;
 
   // 재생 중 편집 제한(RFD 0099): 아무것도 확정·변경하지 않고 안내만 한다. 누르고 있어 반복되는 입력은 다시 안내하지 않는다.
   if (isPlaying && isPlaybackLockedKey(e, mode)) {
@@ -246,7 +263,7 @@ export function useEditorKeyboard(
   showMetaModal: boolean,
   showCustomSnapModal: boolean,
   showDeleteConfirm: boolean,
-  showLeaveConfirm: boolean,
+  showUnsavedDialog: boolean,
   showSaveAsModal: boolean,
   showOffsetToolbar: boolean,
   validationErrorsCount: number,
@@ -265,7 +282,7 @@ export function useEditorKeyboard(
       bpmChanges,
       offsetMs: chart.meta.offsetMs,
       shortcutsBlocked: Boolean(editingEvent) || showMetaModal || showCustomSnapModal || showDeleteConfirm
-        || showLeaveConfirm || showSaveAsModal || showOffsetToolbar || validationErrorsCount > 0 || showLegacyConversionModal,
+        || showUnsavedDialog || showSaveAsModal || showOffsetToolbar || validationErrorsCount > 0 || showLegacyConversionModal,
       // 키를 누른 순간의 재생 상태를 읽는다(렌더 사이에 Space로 재생이 시작됐을 수 있다).
       isPlaying: useEditorStore.getState().isPlaying,
       setMode,
@@ -276,7 +293,7 @@ export function useEditorKeyboard(
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     mode, setMode,
-    editingEvent, showMetaModal, showCustomSnapModal, showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar, validationErrorsCount,
+    editingEvent, showMetaModal, showCustomSnapModal, showDeleteConfirm, showUnsavedDialog, showSaveAsModal, showOffsetToolbar, validationErrorsCount,
     showLegacyConversionModal,
     addToast, bpmChanges, chart.meta.offsetMs,
     playbackRef, selectModeRef,

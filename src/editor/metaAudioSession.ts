@@ -9,7 +9,7 @@ export interface MetaAudioPick {
 export type MetaAudioPlayback = Pick<PlaybackController, 'audioBufferData' | 'loadAudioFile' | 'restoreAudioBuffer'>;
 
 /**
- * Meta 창 한 번의 음원 선택을 관리한다. 창을 열 때의 재생기 음원을 기억해 두고,
+ * Meta 창(곡 행이 없는 차트) 또는 곡 정보 드로어의 음원 선택 한 번을 관리한다. 창을 열 때의 재생기 음원을 기억해 두고,
  *
  * - 로드가 실패하면 재생기에 남은 이전 음원을 다시 표시하고 고른 파일을 실패로 남긴다(적용 대상이 아니다).
  * - 적용(`apply`)하면 새 음원을 유지한다.
@@ -40,9 +40,12 @@ export function createMetaAudioSession(deps: {
   };
 
   return {
-    /** 재생기는 호출 때 넘긴다(페이지가 렌더 중 ref를 읽지 않게). */
-    async load(playback: MetaAudioPlayback | null, file: File): Promise<void> {
-      if (!playback) return;
+    /**
+     * 재생기는 호출 때 넘긴다(페이지가 렌더 중 ref를 읽지 않게). 이 선택의 결과(`loaded`·`failed`)를 돌려준다.
+     * 재생기가 없거나 그 사이 다른 파일을 골랐거나 창을 닫았으면 null이다. 곡 정보 드로어는 `loaded`일 때 바로 적용한다.
+     */
+    async load(playback: MetaAudioPlayback | null, file: File): Promise<MetaAudioPick['status'] | null> {
+      if (!playback) return null;
       if (bufferAtOpen === undefined) bufferAtOpen = playback.audioBufferData;
       const request = ++latestRequest;
       loading = true;
@@ -55,17 +58,18 @@ export function createMetaAudioSession(deps: {
       } catch {
         loaded = false;
       }
-      if (request !== latestRequest) return;
+      if (request !== latestRequest) return null;
       loading = false;
       deps.setAudioLoading(false);
       if (loaded) {
         deps.setPick({ file, status: 'loaded' });
-        return;
+        return 'loaded';
       }
       // 실패한 로드는 재생기의 음원을 바꾸지 않는다. 구간 선택기·Save가 그 음원으로 다시 동작하게 표시를 되돌린다.
       deps.setLoadedAudioBuffer(playback.audioBufferData);
       deps.setPick({ file, status: 'failed' });
       deps.onLoadFailed();
+      return 'failed';
     },
     /** 고른 음원을 적용하고 창을 닫았다. */
     apply(): void {
