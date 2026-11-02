@@ -42,7 +42,7 @@ PR2의 알려진 제한:
 
 ### Meta의 난이도명 편집 (사용자 확인, 2026-11-02)
 
-`save_chart`는 열린 `charts` 행의 UUID로 저장하며 난이도명은 바꾸지 않는다. Meta에서 난이도명을 고치면 차트 JSON 사본만 바뀌어 실제 저장 대상과 어긋나므로, `charts` 행이 있는 차트의 Difficulty Label은 읽기 전용으로 두고 Save As에서 변경할 수 있음을 안내한다. Meta 적용도 난이도명·`activeDifficulty`를 바꾸지 않는다. Difficulty Level은 계속 편집하고 `save_chart`의 `p_difficulty_level`로 저장한다. 곡 행이 없어 `charts` 행도 없는 차트는 기존 난이도명 편집을 유지한다.
+`save_chart`는 열린 `charts` 행의 UUID로 저장하며 난이도명은 바꾸지 않는다. Meta에서 난이도명을 고치면 차트 JSON 사본만 바뀌어 실제 저장 대상과 어긋나므로, 곡 행이 있는 차트의 Difficulty Label은 읽기 전용으로 두고 Save As에서 변경할 수 있음을 안내한다. Meta 적용도 난이도명·`activeDifficulty`를 바꾸지 않는다. Difficulty Level은 계속 편집하고 `save_chart`의 `p_difficulty_level`로 저장한다. 곡 행이 없어 `charts` 행도 없는 차트는 기존 난이도명 편집을 유지한다.
 
 Meta에서 JSON 사본만 계속 고치는 대안과 `save_chart`에 행 이름 변경을 추가하는 대안은 채택하지 않는다. 난이도 변경은 Save As의 대상 선택·덮어쓰기 확인을 거치며, 직접 이름을 고치는 것보다 조작이 늘지만 저장 대상을 명확히 한다. `MetaEditModal`·App의 적용 경로·저장 테스트·E2E 명세·[Meta 스펙](../spec/chart-editor.md#메타데이터-편집-현재-모달과-곡-정보-드로어)·에디터 컨텍스트에 반영한다.
 

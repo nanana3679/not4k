@@ -395,6 +395,44 @@ it('Offset 25→45 변경에 같은 곡의 다른 차트가 hard 1개면 다른 
   expect(api.rpc).toHaveBeenCalledOnce();
 });
 
+it('chart-HARD 행으로 연 차트에서 Offset 25→45를 저장하면 대소문자만 다른 hard 행도 다른 차트로 세어 다른 차트 1개를 확인한다', async () => {
+  state().setChartRow({ id: 'chart-HARD', difficultyLabel: 'HARD', revision: 3, chartPath: null, chartExtraPath: null });
+  state().setActiveDifficulty('HARD');
+  state().setChart({ ...state().chart, meta: { ...state().chart.meta, offsetMs: 45 } });
+  api.eq.mockResolvedValue({ data: [
+    { id: 'chart-HARD', difficulty_label: 'HARD' }, { id: 'chart-hard', difficulty_label: 'hard' },
+  ], error: null });
+  const confirm = vi.fn(() => true);
+  expect(await saveEditorSong(null, confirm)).toBe('saved');
+  expect(confirm).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('다른 차트 1개'));
+  expect(api.select).toHaveBeenCalledWith('id,difficulty_label');
+});
+
+it('timing NULL에서 chart-HARD 행으로 연 차트의 JSON 난이도명이 expert여도 이행 확인은 UUID로 열린 차트만 빼고 BPM 180인 expert를 타이밍이 다른 차트로 보인다', async () => {
+  const loaded = { ...song, timing: null };
+  const document = { ...base, meta: { ...base.meta, difficultyLabel: 'expert' } };
+  openEditorChart(loadEditorChartAsset(toSavedChartJson(document, 2).chartJson, null, loaded), loaded);
+  state().setActiveSongId('song');
+  state().setChartRow({ id: 'chart-HARD', difficultyLabel: 'HARD', revision: 3, chartPath: null, chartExtraPath: null });
+  state().setActiveDifficulty('HARD');
+  const raw = JSON.parse(toSavedChartJson(state().chart, 2).chartJson);
+  api.eq.mockResolvedValue({ data: [
+    { id: 'chart-HARD', difficulty_label: 'HARD', chart_path: null },
+    { id: 'chart-expert', difficulty_label: 'expert', chart_path: null },
+  ], error: null });
+  vi.stubGlobal('fetch', vi.fn(async () => {
+    const file = structuredClone(raw);
+    file.events.find((e: { type: string }) => e.type === 'bpm').bpm = 180;
+    return new Response(JSON.stringify(file));
+  }));
+  const confirm = vi.fn<(message: string) => boolean>(() => false);
+  expect(await saveEditorSong(null, confirm)).toBe('migration-declined');
+  const message = confirm.mock.calls[0][0];
+  expect(message).toContain('타이밍이 다른 차트: expert');
+  expect(message).not.toContain('HARD');
+  expect(vi.mocked(fetch)).toHaveBeenCalledOnce();
+});
+
 it.each([
   ['title', '   '], ['artist', ''],
 ] as const)('곡 행이 있는 차트의 %s를 "%s"로 비우고 자켓 A.png와 저장하면 확인·업로드·RPC 0회로 거부하고 Title·Artist 필수 안내를 띄운다', async (field, value) => {

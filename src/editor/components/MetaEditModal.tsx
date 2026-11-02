@@ -32,8 +32,11 @@ function useRangeDraft() {
 
 export interface MetaEditModalProps {
   meta: ChartMeta;
-  /** charts 행의 난이도명은 Save As에서만 바꾼다. */
-  hasChartRow?: boolean;
+  /**
+   * 곡 행이 있으면 난이도명은 Save As에서만 바꾼다. `charts` 행이 아직 없어도 첫 Save가 열린 난이도로 행을 만들므로
+   * JSON 사본의 난이도명이 저장 대상과 어긋나지 않게 처음부터 읽기 전용이다. 곡 행이 없는 차트는 편집할 수 있다.
+   */
+  hasSongRow?: boolean;
   audioBuffer: AudioBuffer | null;
   audioLoading?: boolean;
   onSave: (
@@ -73,7 +76,7 @@ function initialMetaValues(meta: ChartMeta): Record<string, string> {
 
 export function MetaEditModal({
   meta,
-  hasChartRow = false,
+  hasSongRow = false,
   audioBuffer,
   audioLoading = false,
   onSave,
@@ -121,8 +124,8 @@ export function MetaEditModal({
       artist: values.artist,
       offsetMs: offsetLocked || isNaN(offset) ? meta.offsetMs : offset,
     };
-    // 행이 생겼으면 그 전에 입력한 이름도 버린다. 레벨은 이 창에서 바꾼 경우에만 적용한다.
-    if (!hasChartRow && values.difficultyLabel !== initialValues.difficultyLabel) updatedMeta.difficultyLabel = values.difficultyLabel;
+    // 곡 행이 있으면 입력한 이름을 적용하지 않는다. 레벨은 이 창에서 바꾼 경우에만 적용한다.
+    if (!hasSongRow && values.difficultyLabel !== initialValues.difficultyLabel) updatedMeta.difficultyLabel = values.difficultyLabel;
     if (values.difficultyLevel !== initialValues.difficultyLevel && !isNaN(level)) updatedMeta.difficultyLevel = level;
     // 저장 완료로 바뀐 경로를 모달을 열 때의 파일명으로 되돌리지 않는다.
     if (audioFile) updatedMeta.audioFile = audioFile.name;
@@ -151,7 +154,7 @@ export function MetaEditModal({
 
         {fields.map((f) => {
           const locked = offsetLocked && f.key === 'offsetMs';
-          const labelReadOnly = hasChartRow && f.key === 'difficultyLabel';
+          const labelReadOnly = hasSongRow && f.key === 'difficultyLabel';
           return (
             <Fragment key={f.key}>
               <label style={modalStyles.field}>

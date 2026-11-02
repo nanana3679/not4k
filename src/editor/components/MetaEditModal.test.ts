@@ -229,12 +229,12 @@ describe('메타 편집 창의 재생 중 오프셋 잠금', () => {
 });
 
 describe('메타 편집 창의 난이도 적용', () => {
-  it('charts 행 없이 NORMAL→EXPERT를 입력한 뒤 저장이 행을 만들면 NORMAL을 읽기 전용으로 표시하고 적용 시 Level 5→9만 보낸다', () => {
+  it('곡 행은 있고 charts 행은 아직 없는 NORMAL Lv.5에서 난이도명을 EXPERT로 바꾸려 해도 NORMAL을 읽기 전용으로 표시하고 적용 시 Level 5→9만 보낸다', () => {
     const onSave = vi.fn();
     let phase = 0;
     let save: (() => void) | undefined;
     function Probe() {
-      const tree = MetaEditModal({ meta, hasChartRow: phase > 0, audioBuffer: null,
+      const tree = MetaEditModal({ meta, hasSongRow: true, audioBuffer: null,
         onSave, onClose() {}, onLoadAudio() {} });
       const fields = controls(tree);
       if (phase === 0) fields.find(field => field.value === 'NORMAL')!.onChange!({ target: { value: 'EXPERT' } });
@@ -252,9 +252,9 @@ describe('메타 편집 창의 난이도 적용', () => {
     expect(inputOf(markup, 'Difficulty Label')).toContain('readOnly=""');
   });
 
-  it('charts 행이 있는 NORMAL Lv.5를 열면 Difficulty Label은 읽기 전용이고 Save As 안내를 표시하며 Level은 편집 가능하다', () => {
+  it('곡 행이 있는 NORMAL Lv.5를 열면 Difficulty Label은 읽기 전용이고 Save As 안내를 표시하며 Level은 편집 가능하다', () => {
     const markup = renderToStaticMarkup(createElement(MetaEditModal, {
-      meta, hasChartRow: true, audioBuffer: null, onSave() {}, onClose() {}, onLoadAudio() {},
+      meta, hasSongRow: true, audioBuffer: null, onSave() {}, onClose() {}, onLoadAudio() {},
     }));
 
     expect(inputOf(markup, 'Difficulty Label')).toContain('readOnly=""');
@@ -284,13 +284,13 @@ describe('메타 편집 창의 난이도 적용', () => {
     expect(applied).toMatchObject({ title: '새 제목', difficultyLabel: 'HARD', difficultyLevel: 8 });
   });
 
-  it('곡·charts 행이 없는 Meta에서 Difficulty Label NORMAL→EXPERT·Level 5→9로 바꾸면 안내 없이 두 값을 적용한다', () => {
+  it('곡 행이 없는 Meta에서 Difficulty Label NORMAL→EXPERT·Level 5→9로 바꾸면 안내 없이 두 값을 적용한다', () => {
     const onSave = vi.fn();
     let phase = 0;
     let save: (() => void) | undefined;
     const edits = [['NORMAL', 'EXPERT'], ['5', '9']];
     function Probe() {
-      const tree = MetaEditModal({ meta, hasChartRow: false, audioBuffer: null, onSave, onClose() {}, onLoadAudio() {} });
+      const tree = MetaEditModal({ meta, hasSongRow: false, audioBuffer: null, onSave, onClose() {}, onLoadAudio() {} });
       const fields = controls(tree);
       const edit = edits[phase++];
       if (edit) fields.find(field => field.value === edit[0])!.onChange!({ target: { value: edit[1] } });

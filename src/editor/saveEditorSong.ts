@@ -40,8 +40,10 @@ export async function saveEditorSong(
       start.addToast(SONG_SAVE_COPY.previewAudioMissing, 'error');
       return 'aborted';
     }
+    // 다른 차트는 Meta의 난이도명(JSON 사본)이 아니라 열린 `charts` 행(없으면 열린 난이도)을 빼고 고른다.
+    const openChart = { chartId: start.chartRow?.id ?? null, difficulty: start.activeDifficulty ?? start.chart.meta.difficultyLabel };
     if (song.needsTimingMigration) {
-      const { differing, uncompared } = await findDifferingSongCharts(start.activeSongId, song.sourceDifficulty, values.timing);
+      const { differing, uncompared } = await findDifferingSongCharts(start.activeSongId, openChart, values.timing);
       if (useEditorStore.getState().chartLoadGeneration !== start.chartLoadGeneration) return 'aborted';
       const details = [
         differing.length ? `${SONG_SAVE_COPY.differingCharts}: ${differing.join(', ')}` : null,
@@ -50,7 +52,7 @@ export async function saveEditorSong(
       const message = SONG_SAVE_COPY.migration + (details.length ? `\n\n${details.join('\n')}` : '');
       if (!confirm(message)) return 'migration-declined';
     } else if (isSongTimingDirty(start.chart, song)) {
-      const count = await countOtherSongCharts(start.activeSongId, song.sourceDifficulty);
+      const count = await countOtherSongCharts(start.activeSongId, openChart);
       if (useEditorStore.getState().chartLoadGeneration !== start.chartLoadGeneration) return 'aborted';
       // 다른 차트가 없으면 이 곡 전체에 퍼지는 영향이 없으므로 묻지 않는다(RFD 0098).
       if (count > 0 && !confirm(SONG_SAVE_COPY.sharedTiming(count))) return 'aborted';

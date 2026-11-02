@@ -400,6 +400,24 @@ describe("deleteChartAsset", () => {
     expect(fake.removes).toEqual([["songs/song-four/hard-saved.json", "songs/song-four/hard-saved.extra.json"]]);
   });
 
+  it("새 경로 hard-saved를 가리키는 HARD를 다른 행 참조 없이 삭제하면 새 파일 2개와 함께 RFD 0107 이전 고정 경로 hard.json·hard.extra.json도 지운다", async () => {
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "easy", chartPath: null, chartExtraPath: null }] });
+    fake.adapter.deleteChartRow = async (target) => {
+      fake.deletes.push(target);
+      return { difficultyLabel: "HARD", chartPath: "songs/song-four/hard-saved.json", chartExtraPath: "songs/song-four/hard-saved.extra.json" };
+    };
+
+    const result = await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.removes).toEqual([[
+      "songs/song-four/hard-saved.json",
+      "songs/song-four/hard-saved.extra.json",
+      "songs/song-four/hard.json",
+      "songs/song-four/hard.extra.json",
+    ]]);
+    expect(result.removedPaths).toHaveLength(4);
+  });
+
   it("NULL 경로 HARD만 있을 때 UUID로 삭제하면 행 삭제 후 hard.json·hard.extra.json을 제거한다", async () => {
     const fake = makeAdapter();
 
@@ -438,14 +456,14 @@ describe("deleteChartAsset", () => {
     expect(fake.removes).toEqual([["songs/song-four/hard.extra.json"]]);
   });
 
-  it("HARD의 저장 경로 2개를 expert도 참조할 때 HARD를 삭제하면 공유 파일 2개를 보존한다", async () => {
+  it("HARD의 저장 경로 2개를 expert도 참조할 때 HARD를 삭제하면 공유 파일 2개는 보존하고 고정 경로 hard.json·hard.extra.json만 지운다", async () => {
     const shared = { chartPath: "songs/song-four/hard-saved.json", chartExtraPath: "songs/song-four/hard-saved.extra.json" };
     const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "expert", ...shared }] });
     fake.adapter.deleteChartRow = async () => ({ difficultyLabel: "HARD", ...shared });
 
     await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
 
-    expect(fake.removes).toEqual([]);
+    expect(fake.removes).toEqual([["songs/song-four/hard.json", "songs/song-four/hard.extra.json"]]);
   });
 
   it("HARD UUID 삭제 후 살아 있는 행 조회가 실패하면 Storage 파일을 0개 삭제한다", async () => {

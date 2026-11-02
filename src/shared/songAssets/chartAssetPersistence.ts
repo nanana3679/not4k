@@ -228,7 +228,11 @@ export async function deleteSongAsset(
   return { removedPaths: paths };
 }
 
-/** 실제 삭제한 행의 파일만 정리하며, 다른 행이 참조하는 파일은 보존한다. */
+/**
+ * 실제 삭제한 행의 파일과 그 난이도의 고정 경로 파일을 정리하며, 다른 행이 참조하는 파일은 보존한다.
+ * 명시 경로 행도 고정 경로를 함께 지운다. RFD 0107 이전 저장이 남긴 `{난이도}.json`이 남으면, 행이 사라진 뒤 그 난이도를 열 때
+ * 로더가 고정 경로로 폴백해 옛 내용을 열고 다음 Save의 `create_chart`가 삭제한 차트를 되살린다.
+ */
 export async function deleteChartAsset(
   adapter: SongAssetPersistenceAdapter,
   input: DeleteChartAssetInput,
@@ -237,7 +241,11 @@ export async function deleteChartAsset(
   const deleted = await adapter.deleteChartRow({ ...input, difficulty });
   if (!deleted && input.chartId) return { removedPaths: [], difficulty };
   // 행 없이 연 파일도 구형 경로를 정리하되, 살아 있는 행의 NULL·명시 경로를 모두 보호한다.
-  const paths = chartAssetRowPaths(input.songId, deleted ?? { difficultyLabel: difficulty, chartPath: null, chartExtraPath: null });
+  const row = deleted ?? { difficultyLabel: difficulty, chartPath: null, chartExtraPath: null };
+  const paths = [
+    ...chartAssetRowPaths(input.songId, row),
+    ...chartAssetRowPaths(input.songId, { difficultyLabel: row.difficultyLabel, chartPath: null, chartExtraPath: null }),
+  ];
   const survivingRows = await adapter.listChartAssets(input.songId);
   const referencedPaths = new Set(survivingRows.flatMap(row => chartAssetRowPaths(input.songId, row)));
   const removedPaths = [...new Set(paths)].filter(path => !referencedPaths.has(path));

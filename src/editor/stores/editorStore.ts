@@ -3,7 +3,7 @@
  */
 
 import { create } from 'zustand';
-import type { ChartDocument, ChartMeta, LegacyConversionItem, LegacyConversionReport } from '../../shared';
+import type { ChartAssetFiles, ChartDocument, ChartMeta, LegacyConversionItem, LegacyConversionReport } from '../../shared';
 import { beat, convertLegacyChart, validateChartDocumentStructural } from '../../shared';
 import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
@@ -49,6 +49,13 @@ type HistorySnapshot = {
 export type EditingEvent =
   | { type: 'event'; index: number }
   | null;
+
+/** 행 확정 결과를 확인하지 못한 차트 업로드(RFD 0107). 업로드 경로는 저장마다 고유해 다른 저장과 겹치지 않는다. */
+export interface UnconfirmedChartUpload {
+  /** `save_chart`로 갱신하려던 행의 UUID. `create_chart`였으면 null이며 `files.difficulty`(만들려던 난이도명)로 찾는다. */
+  chartId: string | null;
+  files: ChartAssetFiles;
+}
 
 const HISTORY_LIMIT = 100;
 const HISTORY_COALESCE_MS = 600;
@@ -106,6 +113,12 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // 행 없이 연 차트는 null이며, 곡 행이 있으면 첫 저장이 `create_chart`로 행을 만든다. 곡 행이 없으면 행을 만들 수 없어(FK)
   // 계속 null이다. 불러올 때와 차트 저장 성공 때만 바뀌고 편집·Undo는 바꾸지 않는다. Save As는 `adoptChartIdentity`로 바꾼다.
   chartRow: StoredChartRow | null;
+  // 결과를 확인하지 못한 차트 업로드(RFD 0107). 행 확정 응답이 SQLSTATE 없이 실패하고 확인 조회로도 성공을 확인하지 못했을 때
+  // 남긴다. 다음 저장이 PT409·23505·SQLSTATE 없는 오류로 실패하면 행이 이 업로드를 가리키는지 보고 그 저장을 채택한다.
+  // 차트를 새로 열면 비운다.
+  unconfirmedChartUploads: readonly UnconfirmedChartUpload[];
+  /** 그 저장 세대가 아직 현재 차트의 것일 때만 미확인 업로드를 남긴다. */
+  rememberUnconfirmedChartUpload: (generation: number, upload: UnconfirmedChartUpload) => void;
   song: EditorSong | null;
   isSavingSong: boolean;
   setSong: (song: EditorSong | null) => void;
@@ -146,7 +159,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   adoptChartIdentity: (difficultyLabel: string, difficultyLevel: number, row: StoredChartRow | null) => void;
   setPendingAudioUrl: (url: string | null) => void;
   setChart: (chart: ChartDocument, options?: { separateHistory?: boolean; transaction?: symbol }) => void;
-  /** 현재 초안에 Meta 편집을 합친다. charts 행이 있으면 난이도명은 유지하고 레벨은 편집한다. */
+  /** 현재 초안에 Meta 편집을 합친다. 곡 행이 있으면 난이도명은 유지하고 레벨은 편집한다. */
   applyMetaEdit: (meta: Partial<ChartMeta>) => void;
   /** 업로드 결과의 미디어 경로만 반영한다. 편집·Undo 이력·열린 transaction은 만들거나 끝내지 않는다. */
   reconcileSongMedia: (media: Pick<ChartDocument['meta'], 'audioFile' | 'imageFile' | 'previewAudioFile'>) => void;
@@ -284,6 +297,14 @@ export function hasUncommittedEdit(state: Pick<EditorState, 'editTransaction' | 
 }
 
 /**
+ * 열린 차트에 곡 행이 있는가. 곡 행이 없으면 `charts` 행도 만들 수 없어(FK) 차트 저장은 RFD 0107 이전처럼 결정적 경로에
+ * 파일만 쓴다. 열린 `charts` 행이 있으면 곡 행도 있다. 곡 행이 있으면 Meta의 난이도명은 읽기 전용이다(첫 Save가 열린 난이도로 행을 만든다).
+ */
+export function selectHasSongRow(state: Pick<EditorState, 'song' | 'chartRow'>): boolean {
+  return state.song !== null || state.chartRow !== null;
+}
+
+/**
  * Undo 가능 여부. 불러온 직후 첫 붙여넣기처럼 transaction 안에만 있는 편집도 되돌릴 수 있다.
  * 재생 중에는 Undo하지 않는다(RFD 0099).
  */
@@ -326,6 +347,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   lastValidSnapshot: null,
   savedChartJson: null,
   chartRow: null,
+  unconfirmedChartUploads: [],
   song: null,
   isSavingSong: false,
   songlessMedia: EMPTY_SONGLESS_MEDIA,
@@ -366,7 +388,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   applyMetaEdit: (meta) => {
     const current = get();
     const updatedMeta = { ...current.chart.meta, ...meta };
-    if (current.chartRow) updatedMeta.difficultyLabel = current.chart.meta.difficultyLabel;
+    if (selectHasSongRow(current)) updatedMeta.difficultyLabel = current.chart.meta.difficultyLabel;
     current.setChart({ ...current.chart, meta: updatedMeta });
   },
   setChart: (chart, options) => {
@@ -463,6 +485,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selection: emptySelection(),
       savedChartJson: null,
       chartRow: null,
+      unconfirmedChartUploads: [],
       song: null,
       isSavingSong: false,
       songlessMedia: EMPTY_SONGLESS_MEDIA,
@@ -483,6 +506,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSonglessMedia: (songlessMedia) => set({ songlessMedia }),
   setSavedChartJson: (savedChartJson) => set({ savedChartJson }),
   setChartRow: (chartRow) => set({ chartRow }),
+  rememberUnconfirmedChartUpload: (generation, upload) => {
+    if (get().chartSaveGeneration !== generation) return;
+    set(state => ({ unconfirmedChartUploads: [...state.unconfirmedChartUploads, upload] }));
+  },
   beginChartSave: () => {
     const { isSavingChart, chartSaveGeneration } = get();
     if (isSavingChart || get().isSavingSong) return null;

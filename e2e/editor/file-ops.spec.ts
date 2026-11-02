@@ -132,6 +132,18 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
   });
 
+  test('곡 행만 있고 charts 행이 없는 normal의 Meta에서도 NORMAL은 읽기 전용이고 Save As 안내를 표시하며 Level은 편집할 수 있다', async ({ page }) => {
+    const editor = await openEditor(page, { chartRow: false, songTiming: { bpmChanges: [{ beat: '0', bpm: 120 }],
+      timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 } });
+    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+    await page.getByRole('button', { name: 'Meta', exact: true }).click();
+    await expect(page.getByLabel('Difficulty Label', { exact: true })).toHaveValue('NORMAL');
+    await expect(page.getByLabel('Difficulty Label', { exact: true })).toHaveAttribute('readonly', '');
+    await expect(page.getByText(DIFFICULTY_LABEL_READ_ONLY_COPY, { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Difficulty Level', { exact: true })).toBeEditable();
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  });
+
   test('Save를 누르면 v3 차트 JSON을 새 경로 songs/{songId}/normal-{UUID}.json·.extra.json에 올린 뒤 save_chart(normal 행·리비전 3)로 확정하고 Chart saved 토스트를 띄운다', async ({ page }) => {
     const editor = await openEditor(page);
 

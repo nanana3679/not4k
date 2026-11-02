@@ -4,6 +4,7 @@ import type { ChartDocument, Lane } from '../../shared';
 import { selectCanRedo, selectCanUndo, useEditorStore } from './editorStore';
 import { emptySelection } from './selectionSlice';
 import { isChartDirty, toSavedChartJson } from '../savedChart';
+import { createEditorSong } from '../songState';
 
 function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument['restZones']): ChartDocument {
   return {
@@ -46,6 +47,19 @@ describe('Meta 난이도 적용', () => {
     expect(useEditorStore.getState().chartRow).toEqual(row);
   });
 
+  it('곡 행만 있고 charts 행이 없을 때 Meta의 EXPERT·Lv.9를 적용하면 난이도명 NORMAL을 유지하고 레벨만 1→9로 바뀐다', () => {
+    const store = useEditorStore.getState();
+    store.setSong(createEditorSong({ title: 'Test', artist: '', jacketUrl: null, audioUrl: '', duration: null,
+      previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
+      gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 }, store.chart));
+    expect(useEditorStore.getState().chartRow).toBeNull();
+
+    useEditorStore.getState().applyMetaEdit({ difficultyLabel: 'EXPERT', difficultyLevel: 9 });
+
+    expect(useEditorStore.getState().chart.meta).toMatchObject({ difficultyLabel: 'NORMAL', difficultyLevel: 9 });
+    expect(useEditorStore.getState().activeDifficulty).toBe('normal');
+  });
+
   it('곡·charts 행이 없을 때 Meta의 EXPERT·Lv.9를 적용하면 NORMAL Lv.1→EXPERT Lv.9로 바뀌고 activeDifficulty normal은 유지한다', () => {
     const store = useEditorStore.getState();
     expect(store.song).toBeNull();
@@ -69,6 +83,25 @@ describe('Meta 난이도 적용', () => {
     expect(useEditorStore.getState().chart.meta).toMatchObject({ title: '새 제목', difficultyLabel: 'HARD', difficultyLevel: 8 });
     expect(useEditorStore.getState().activeDifficulty).toBe('hard');
     expect(useEditorStore.getState().chartRow?.id).toBe('chart-hard');
+  });
+});
+
+describe('결과를 확인하지 못한 차트 업로드', () => {
+  const files = { chartPath: 'songs/song/normal-t1.json', extraPath: 'songs/song/normal-t1.extra.json',
+    chartJson: '{}', extraJson: '{}', difficulty: 'normal' };
+
+  it('진행 중인 저장 세대로 normal-t1 업로드를 남기면 1개가 남고, 그 저장 도중 차트를 새로 연 뒤 같은 세대로 남기면 무시해 0개다', () => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    const first = useEditorStore.getState().beginChartSave()!;
+    useEditorStore.getState().rememberUnconfirmedChartUpload(first, { chartId: 'chart-normal', files });
+    expect(useEditorStore.getState().unconfirmedChartUploads).toEqual([{ chartId: 'chart-normal', files }]);
+    useEditorStore.getState().finishChartSave(first, null);
+
+    const second = useEditorStore.getState().beginChartSave()!;
+    useEditorStore.getState().loadChart(makeChart());
+    useEditorStore.getState().rememberUnconfirmedChartUpload(second, { chartId: null, files });
+
+    expect(useEditorStore.getState().unconfirmedChartUploads).toEqual([]);
   });
 });
 

@@ -14,7 +14,7 @@ import {
   extractTimeSignatureChanges,
   isMeasureBoundary,
 } from '../../shared';
-import type { ChartAssetWriteResult, CreateChartAssetInput, SaveChartAssetInput, Lane, TutorialDiagramId, ValidationError } from '../../shared';
+import type { ChartAssetFiles, ChartAssetWriteResult, ChartDocument, ChartRowRef, Lane, TutorialDiagramId, ValidationError } from '../../shared';
 import {
   createChartAsset as persistNewChartAsset,
   deleteChartAsset as persistDeleteChartAsset,
@@ -22,7 +22,7 @@ import {
   saveSonglessChartAsset as persistSonglessChartAsset,
 } from '../../supabase';
 import { fetchChartRows, findChartRow, type StoredChartRow } from '../../supabase/chartRows';
-import { useEditorStore } from '../stores';
+import { selectHasSongRow, useEditorStore, type UnconfirmedChartUpload } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { performPlayTest } from '../playtest/performPlayTest';
 import { editorChartErrors } from '../documentValidation';
@@ -42,14 +42,6 @@ type EditorStoreState = ReturnType<typeof useEditorStore.getState>;
  */
 function activeChartDifficulty(state: Pick<EditorStoreState, 'chartRow' | 'activeDifficulty' | 'chart'>): string {
   return state.chartRow?.difficultyLabel ?? state.activeDifficulty ?? state.chart.meta.difficultyLabel;
-}
-
-/**
- * 곡 행이 있는가. 곡 행이 없으면 `charts` 행도 만들 수 없어(FK) 차트 저장은 RFD 0107 이전처럼 결정적 경로에 파일만 쓴다.
- * 열린 `charts` 행이 있으면 곡 행도 있다.
- */
-function hasSongRow(state: Pick<EditorStoreState, 'song' | 'chartRow'>): boolean {
-  return state.song !== null || state.chartRow !== null;
 }
 
 /** 대상 행 조회 전후 모두 현재 저장 잠금과 음원 준비 상태를 확인한다. */
@@ -105,59 +97,92 @@ async function prepareSave(
   return { chart, activeSongId: start.activeSongId, extraLaneCount: start.extraLaneCount,
     chartLoadGeneration: start.chartLoadGeneration, difficulty: activeChartDifficulty(start),
     // 열 때 읽은(또는 마지막 저장이 확정한) `charts` 행. 차트 저장은 이 행의 ID·리비전으로 save_chart를 부른다.
-    chartRow: start.chartRow, hasSongRow: hasSongRow(start),
+    chartRow: start.chartRow, hasSongRow: selectHasSongRow(start),
     // 곡 행이 없으면 기존 규칙대로 차트와 함께 대기 미디어를 올린다.
-    songlessMedia: !hasSongRow(start) && hasSonglessMedia(start.songlessMedia) ? start.songlessMedia : null,
+    songlessMedia: !selectHasSongRow(start) && hasSonglessMedia(start.songlessMedia) ? start.songlessMedia : null,
     // 아무 변경도 없거나 이행을 거절했으면 곡 변경 여부와 관계없이 현재 차트를 저장한다.
     saveChart: chartDirty || !songDirty || songSaveResult === 'migration-declined' };
 }
 
-/** 저장 함수가 보존한 SQLSTATE(`code`)로 차트 저장 실패 안내를 고른다. 행 갱신 결과를 확인하지 못한 경우는 일반 업로드 실패와 구별한다. */
-function chartSaveErrorCopy(error: unknown, creatingCurrentChart = false): string {
+/**
+ * 저장 함수가 보존한 SQLSTATE(`code`)로 차트 저장 실패 안내를 고른다. 행 갱신 결과를 확인하지 못한 경우는 일반 업로드 실패와 구별한다.
+ * `create`는 곡 행만 있는 차트의 첫 Save, `saveAs`는 Save As다. Save As의 PT409는 열린 차트가 아니라 덮어쓸 대상 행의 충돌이다.
+ */
+function chartSaveErrorCopy(error: unknown, action: 'save' | 'create' | 'saveAs' = 'save'): string {
   const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
   switch (code) {
-    case 'PT409': return CHART_SAVE_COPY.conflict;
+    case 'PT409': return action === 'saveAs' ? CHART_SAVE_COPY.saveAsConflict : CHART_SAVE_COPY.conflict;
     case 'PT404': return CHART_SAVE_COPY.missing;
     case '42501': return CHART_SAVE_COPY.permission;
-    case '23505': return creatingCurrentChart ? CHART_SAVE_COPY.existsOnSave : CHART_SAVE_COPY.exists;
+    case '23505': return action === 'create' ? CHART_SAVE_COPY.existsOnSave : CHART_SAVE_COPY.exists;
     default: return !code && error instanceof ChartSaveError ? CHART_SAVE_COPY.unconfirmed : CHART_SAVE_COPY.failed;
   }
 }
 
-/** 응답 유실은 같은 UUID가 방금 올린 파일을 가리킬 때만 성공으로 복구한다. 다른 저장은 채택하지 않는다. */
-async function saveChartWithRecovery(input: SaveChartAssetInput): Promise<ChartAssetWriteResult> {
+/** 차트 저장 하나. `row`가 있으면 그 행을 `save_chart`로 갱신하고, 없으면 `create_chart`로 `difficulty` 행을 만든다. */
+interface ChartWrite {
+  songId: string;
+  difficulty: string;
+  chart: ChartDocument;
+  extraLaneCount: number;
+  row: ChartRowRef | null;
+}
+
+/** 행이 이 업로드의 메인·보조 파일을 가리키는가. 업로드 경로는 저장마다 고유하므로 일치하면 그 업로드의 저장이 확정된 것이다. */
+function pointsAt(row: StoredChartRow, files: ChartAssetFiles): boolean {
+  return row.chartPath === files.chartPath && row.chartExtraPath === files.extraPath;
+}
+
+/** 확정 여부를 확인할 행. 갱신은 저장하려던 UUID로, 생성은 만들려던 난이도명(정확한 이름 우선)으로 찾는다. 조회 실패는 null이다. */
+async function findWrittenRow(write: ChartWrite, files: ChartAssetFiles): Promise<StoredChartRow | null> {
   try {
-    return await persistChartAsset(input);
-  } catch (error) {
-    if (error instanceof ChartSaveError && (!error.code || error.code === 'PT409')) {
-      try {
-        const row = findChartRow(await fetchChartRows(input.songId), input.difficulty);
-        if (row?.id === input.row.chartId && row.chartPath === error.files.chartPath) {
-          return { ...error.files, row: { chartId: row.id, revision: row.revision } };
-        }
-      } catch {
-        // 확인 조회도 실패하면 원래 저장 오류와 미저장 편집을 유지한다.
-      }
-    }
-    throw error;
+    const rows = await fetchChartRows(write.songId);
+    const chartId = write.row?.chartId;
+    return chartId ? rows.find(row => row.id === chartId) ?? null : findChartRow(rows, files.difficulty);
+  } catch {
+    // 확인 조회도 실패하면 원래 저장 오류와 미저장 편집을 유지한다.
+    return null;
   }
 }
 
-/** 생성 응답 유실은 생성 시도에 쓴 난이도와 메인·보조 경로가 모두 같은 행만 채택한다. */
-async function createChartWithRecovery(input: CreateChartAssetInput): Promise<ChartAssetWriteResult> {
+/**
+ * 행 확정 응답 유실을 복구하며 차트를 저장한다(RFD 0107). 갱신은 `PT409`, 생성은 `23505`, 그리고 SQLSTATE 없는 오류일 때만
+ * 행을 다시 읽는다(`findWrittenRow`).
+ *
+ * 1. 행이 이번 업로드를 가리키면 이번 저장이 확정된 것으로 채택한다.
+ * 2. 행이 결과를 확인하지 못한 이전 업로드(`unconfirmed`, 같은 UUID 갱신 또는 같은 난이도명 생성)를 가리키면 그 저장이 확정된
+ *    것이다. 그 행·리비전을 채택하고, 이번 내용이 그 업로드와 같으면 그대로 성공으로 끝내고 다르면 채택한 리비전으로 한 번만
+ *    다시 저장한다. 다시 저장도 1의 복구를 거친다.
+ *
+ * 그 밖의 경우(확인 조회 실패, 다른 저장을 가리킴)는 원래 오류를 던진다. 결과를 알 수 없는 오류(SQLSTATE 없음)의 업로드는
+ * `remember`로 남겨 다음 저장의 2에 쓴다.
+ */
+async function writeChartWithRecovery(
+  write: ChartWrite,
+  unconfirmed: readonly UnconfirmedChartUpload[],
+  remember: (upload: UnconfirmedChartUpload) => void,
+  adoptPrevious = true,
+): Promise<ChartAssetWriteResult> {
   try {
-    return await persistNewChartAsset(input);
+    return write.row
+      ? await persistChartAsset({ ...write, row: write.row })
+      : await persistNewChartAsset(write);
   } catch (error) {
-    if (error instanceof ChartSaveError && (!error.code || error.code === '23505')) {
-      try {
-        const row = findChartRow(await fetchChartRows(input.songId), error.files.difficulty);
-        if (row && row.chartPath === error.files.chartPath && row.chartExtraPath === error.files.extraPath) {
-          return { ...error.files, row: { chartId: row.id, revision: row.revision } };
+    if (!(error instanceof ChartSaveError)) throw error;
+    if (!error.code || error.code === (write.row ? 'PT409' : '23505')) {
+      const row = await findWrittenRow(write, error.files);
+      if (row && pointsAt(row, error.files)) return { ...error.files, row: { chartId: row.id, revision: row.revision } };
+      const previous = row && adoptPrevious ? unconfirmed.find(upload => pointsAt(row, upload.files)
+        && (upload.chartId === null ? upload.files.difficulty === row.difficultyLabel : upload.chartId === row.id)) : undefined;
+      if (row && previous) {
+        const adopted = { chartId: row.id, revision: row.revision };
+        if (previous.files.chartJson === error.files.chartJson && previous.files.extraJson === error.files.extraJson) {
+          return { ...previous.files, row: adopted };
         }
-      } catch {
-        // 확인 조회도 실패하면 원래 생성 오류와 미저장 편집을 유지한다.
+        return writeChartWithRecovery({ ...write, row: adopted }, unconfirmed, remember, false);
       }
     }
+    if (!error.code) remember({ chartId: write.row?.chartId ?? null, files: error.files });
     throw error;
   }
 }
@@ -229,10 +254,10 @@ export function useFileOperations(
     try {
       if (prepared.hasSongRow) {
         // 새 경로에 올린 뒤 save_chart(열 때 본 리비전) 한 번으로 행을 확정한다. 실패하면 행은 이전 파일을 가리킨다(RFD 0107).
-        const written = chartRow
-          ? await saveChartWithRecovery({ songId: activeSongId, difficulty, chart, extraLaneCount,
-            row: { chartId: chartRow.id, revision: chartRow.revision } })
-          : await createChartWithRecovery({ songId: activeSongId, difficulty, chart, extraLaneCount });
+        const written = await writeChartWithRecovery({ songId: activeSongId, difficulty, chart, extraLaneCount,
+          row: chartRow ? { chartId: chartRow.id, revision: chartRow.revision } : null },
+        useEditorStore.getState().unconfirmedChartUploads,
+        upload => useEditorStore.getState().rememberUnconfirmedChartUpload(saveGeneration, upload));
         uploadedJson = { chartJson: written.chartJson, extraJson: written.extraJson };
         savedRow = savedChartRow(written, chartRow?.difficultyLabel ?? written.difficulty);
       } else {
@@ -250,7 +275,7 @@ export function useFileOperations(
       addToast(CHART_SAVE_COPY.saved, 'info');
     } catch (err: unknown) {
       console.error('useFileOperations:', err);
-      addToast(chartSaveErrorCopy(err, prepared.hasSongRow && !chartRow), 'error');
+      addToast(chartSaveErrorCopy(err, prepared.hasSongRow && !chartRow ? 'create' : 'save'), 'error');
     } finally {
       // 실패(uploadedJson null)면 savedChartJson·리비전을 그대로 둬 dirty가 남는다. 그 사이 차트를 새로 불러왔으면 store가 무시한다.
       finishChartSave(saveGeneration, uploadedJson, savedRow);
@@ -267,7 +292,7 @@ export function useFileOperations(
         addToast('No song selected — cannot save', 'error');
         return false;
       }
-      if (overwrite && hasSongRow(state)) {
+      if (overwrite && selectHasSongRow(state)) {
         // 확인 시점의 UUID·리비전을 곡 미디어 업로드 전에 잡는다. 이후 조회로 저장 대상을 바꾸지 않는다.
         return fetchChartRows(state.activeSongId).then(rows => {
           confirmed.row = findChartRow(rows, targetDifficulty);
@@ -311,10 +336,10 @@ export function useFileOperations(
       if (prepared.hasSongRow) {
         const target = confirmed.row;
         // 확인한 행만 갱신한다. 확인 없는 새 난이도는 create_chart가 중복을 23505로 거부한다.
-        const written = target
-          ? await saveChartWithRecovery({ songId: activeSongId, difficulty: target.difficultyLabel, chart: chartToSave, extraLaneCount,
-            row: { chartId: target.id, revision: target.revision } })
-          : await createChartWithRecovery({ songId: activeSongId, difficulty, chart: chartToSave, extraLaneCount });
+        const written = await writeChartWithRecovery({ songId: activeSongId, difficulty: target?.difficultyLabel ?? difficulty,
+          chart: chartToSave, extraLaneCount, row: target ? { chartId: target.id, revision: target.revision } : null },
+        useEditorStore.getState().unconfirmedChartUploads,
+        upload => useEditorStore.getState().rememberUnconfirmedChartUpload(saveGeneration, upload));
         uploadedJson = { chartJson: written.chartJson, extraJson: written.extraJson };
         savedRow = savedChartRow(written, target?.difficultyLabel ?? written.difficulty);
       } else {
@@ -328,16 +353,15 @@ export function useFileOperations(
       if (current.chartSaveGeneration === saveGeneration) {
         // 열린 차트의 정체성(난이도·`charts` 행) 변경은 편집이 아니다. 한 번에 바꾸고 Undo 이력에 남기지 않아,
         // Undo가 이전 난이도를 되살리거나 다음 Save가 원래 차트의 행에 쓰지 않게 한다.
+        // 다음 곡 이행·공통 타이밍 확인도 이 행(없으면 열린 난이도)을 열린 차트로 보고 비교 대상에서 제외한다.
         current.adoptChartIdentity(targetDifficulty, targetLevel, savedRow);
-        // 다음 곡 이행 확인에서는 Save As로 열린 차트를 비교 대상에서 제외한다.
-        if (current.song) current.setSong({ ...current.song, sourceDifficulty: targetDifficulty });
         window.history.replaceState(null, '', `?songId=${encodeURIComponent(activeSongId)}&difficulty=${encodeURIComponent(useEditorStore.getState().activeDifficulty!)}`);
       }
 
       addToast(`Chart saved as ${targetDifficulty.toUpperCase()} Lv.${targetLevel}`, 'info');
     } catch (err: unknown) {
       console.error('useFileOperations:', err);
-      addToast(chartSaveErrorCopy(err), 'error');
+      addToast(chartSaveErrorCopy(err, 'saveAs'), 'error');
     } finally {
       // 저장 대상 행(새 ID 또는 덮어쓴 행)은 위 adoptChartIdentity가 난이도와 함께 바꿨다. 여기서는 저장 기준만 정한다.
       finishChartSave(saveGeneration, uploadedJson);

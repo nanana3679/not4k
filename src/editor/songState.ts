@@ -6,7 +6,6 @@ import type { SongValues } from '../supabase/saveSong';
 
 export interface EditorSong {
   revision: number;
-  sourceDifficulty: string;
   needsTimingMigration: boolean;
   baseline: SongValues;
   duration: number | null;
@@ -39,7 +38,7 @@ export function createEditorSong(loaded: LoadedSongSharedData, chart: ChartDocum
     fadeInTime: loaded.gameplayFadeIn ?? 0, fadeOutTime: loaded.gameplayFadeOut ?? 0,
   } : null;
   const song: EditorSong = {
-    revision: loaded.revision, sourceDifficulty: chart.meta.difficultyLabel, needsTimingMigration: loaded.timing === null,
+    revision: loaded.revision, needsTimingMigration: loaded.timing === null,
     duration: loaded.duration, gameplayRange,
     pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null,
     baseline: {

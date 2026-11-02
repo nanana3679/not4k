@@ -13,7 +13,7 @@ import { syncTimelineRange } from './playback/syncTimelineRange';
 import { createEditorPlayback } from './playback/createEditorPlayback';
 import { activeEditorMode, type CreateMode, type SelectMode, type DeleteMode } from './modes';
 import { createEditorModes } from './createEditorModes';
-import { useEditorStore } from './stores';
+import { selectHasSongRow, useEditorStore } from './stores';
 import { viewportSourceFromStore } from './stores/viewportSlice';
 import { useGameStore } from '../game/stores';
 import { useAuth } from '../shared/hooks/useAuth';
@@ -281,7 +281,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const setEditingEvent = useEditorStore((s) => s.setEditingEvent);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const activeDifficulty = useEditorStore((s) => s.activeDifficulty);
-  const hasChartRow = useEditorStore((s) => s.chartRow !== null);
+  const hasSongRow = useEditorStore(selectHasSongRow);
   const mode = useEditorStore((s) => s.mode);
   const legacyConversionReview = useEditorStore((s) => s.legacyConversionReview);
   const legacyConversionReviewOpen = useEditorStore((s) => s.legacyConversionReviewOpen);
@@ -811,7 +811,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       {showMetaModal && (
         <MetaEditModal
           meta={chart.meta}
-          hasChartRow={hasChartRow}
+          hasSongRow={hasSongRow}
           audioBuffer={loadedAudioBuffer}
           initialJacketFile={pendingJacketFile}
           audioLoading={audioLoading}

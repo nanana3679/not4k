@@ -62,6 +62,8 @@ export const SAVE_AUDIO_LOADING_COPY = "Audio is still loading. Save again after
 export const CHART_SAVE_COPY = {
   saved: 'Chart saved',
   conflict: '다른 곳에서 이 차트를 저장했습니다. 편집 내용은 유지됩니다. 다시 불러오면 저장하지 않은 편집 내용이 사라집니다. 필요한 내용을 별도로 보관한 뒤 차트를 다시 불러와주세요.',
+  /** Save As 덮어쓰기의 PT409. 충돌은 덮어쓸 대상 행에서 났고, Save As를 다시 실행하면 대상 행의 최신 리비전을 다시 읽는다. */
+  saveAsConflict: '덮어쓰기를 확인한 뒤 다른 곳에서 대상 난이도의 차트를 저장했습니다. 편집 내용은 유지됩니다. Save As를 다시 실행하면 덮어쓰기를 다시 확인한 뒤 저장합니다.',
   unconfirmed: '차트 저장 결과를 확인하지 못했습니다. 편집 내용은 유지됩니다. 다시 불러오면 저장하지 않은 편집 내용이 사라집니다. 필요한 내용을 별도로 보관한 뒤 차트를 다시 불러와 확인해주세요.',
   permission: '차트를 저장할 관리자 권한이 없습니다. 편집 내용은 유지됩니다.',
   missing: '저장할 차트가 존재하지 않습니다. 다른 곳에서 삭제되었을 수 있습니다. 편집 내용은 유지됩니다. Save As에서 저장할 난이도를 선택해주세요.',

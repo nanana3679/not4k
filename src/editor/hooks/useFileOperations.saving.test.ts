@@ -152,7 +152,8 @@ beforeEach(() => {
   });
   useEditorStore.setState({
     chart: chart([]), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
-    song: null, chartRow: null, isSavingSong: false, isSavingChart: false, chartSaveGeneration: 0, activeSongId: 'song', activeDifficulty: null,
+    song: null, chartRow: null, unconfirmedChartUploads: [], isSavingSong: false, isSavingChart: false, chartSaveGeneration: 0,
+    activeSongId: 'song', activeDifficulty: null,
     songlessMedia: EMPTY_SONGLESS_MEDIA, currentTimeMs: 0, editingEvent: null, isPlaying: false,
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
   });
@@ -509,7 +510,7 @@ describe('Save·Save As의 곡 선행 저장', () => {
     'timing NULL·$edit에서 $action 이행을 승인하면 BPM 120·Offset 0을 리비전 57로 올린 뒤 차트도 저장한다', async ({ action, edit }) => {
       open(chart([single(1, 0)])); attachSong(false);
       if (edit === '2박 노트만 변경') current().setChart({ ...current().chart, notes: [...current().chart.notes, single(2, 2)] });
-      harness.charts.mockResolvedValue({ data: [{ difficulty_label: 'normal' }], error: null });
+      harness.charts.mockResolvedValue({ data: [{ id: 'chart-normal', difficulty_label: 'normal' }], error: null });
       let finishSong!: (value: { data: number; error: null }) => void;
       harness.rpc.mockImplementationOnce(() => new Promise(resolve => { finishSong = resolve; }));
       const saving = save(action);
@@ -656,7 +657,7 @@ it('timing NULL의 4박 BPM 180→150만 편집하고 Save하면 이행 확인 1
   const document = chart([]);
   document.events.push({ type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 });
   open(document); attachSong(false);
-  harness.charts.mockResolvedValue({ data: [{ difficulty_label: 'normal' }], error: null });
+  harness.charts.mockResolvedValue({ data: [{ id: 'chart-normal', difficulty_label: 'normal' }], error: null });
   current().setEditingEvent({ type: 'event', index: 2 });
   renderFileOperations().handleEventSave({ eventBpm: '150' });
   const saving = renderFileOperations().handleSaveChart();
@@ -673,14 +674,27 @@ it('timing NULL의 4박 BPM 180→150만 편집하고 Save하면 이행 확인 1
   expect(isSongDirty(current().chart, current().song)).toBe(false);
 });
 
-it('timing NULL 곡의 Save As HARD Lv.8 이행을 취소하면 열린 차트만 HARD로 바뀌고 곡 기준·리비전 42는 유지된다', async () => {
+it('timing NULL 곡의 Save As HARD Lv.8 이행을 취소하면 열린 차트만 created-hard 행·HARD로 바뀌고 곡 기준·리비전 42는 유지되며, 다음 Save의 이행 확인은 created-hard를 빼고 normal만 다른 차트로 보인다', async () => {
   open(chart([single(1, 0)])); attachSong(false);
   harness.confirm.mockReturnValue(false);
   const baseline = current().song!.baseline;
   const saving = renderFileOperations().handleSaveAs('HARD', 8);
   await flush(); harness.chartRows[0].resolve(); await saving;
-  expect(current().song).toMatchObject({ sourceDifficulty: 'HARD', revision: 42, needsTimingMigration: true });
+  expect(current().chartRow).toMatchObject({ id: 'created-hard', difficultyLabel: 'hard' });
+  expect(current().activeDifficulty).toBe('hard');
+  expect(current().song).toMatchObject({ revision: 42, needsTimingMigration: true });
   expect(current().song!.baseline).toBe(baseline);
+
+  harness.charts.mockResolvedValue({ data: [
+    { id: 'chart-normal', difficulty_label: 'normal', chart_path: null },
+    { id: 'created-hard', difficulty_label: 'hard', chart_path: 'songs/song/hard-t1.json' },
+  ], error: null });
+  const next = renderFileOperations().handleSaveChart(); await flush();
+  const message = harness.confirm.mock.calls[1][0] as string;
+  expect(message).toContain('normal');
+  expect(message).not.toContain('hard');
+  harness.chartRows[1].resolve(); await next;
+  expect(harness.chartRows[1].row).toMatchObject({ chartId: 'created-hard', expectedRevision: 0 });
 });
 
 it.each(['Save', 'Save As'])('제목·2박 노트 변경의 %s 곡 RPC 대기 중 제목·4박 노트를 더 바꾸면 시작 초안만 저장하고 최신 편집은 dirty다', async action => {
@@ -1203,7 +1217,13 @@ it.each([
   await saving;
   expect(attempted).toMatchObject({ kind: 'save', row: { chartId: 'chart-hard', expectedRevision: 7 } });
   expect(current().chartRow?.id).toBe('chart-normal');
-  expect(showToast).toHaveBeenCalledWith(code === 'PT409' ? CHART_SAVE_COPY.conflict : CHART_SAVE_COPY.missing, 'error');
+  expect(showToast).toHaveBeenCalledWith(code === 'PT409' ? CHART_SAVE_COPY.saveAsConflict : CHART_SAVE_COPY.missing, 'error');
+  expect(showToast).not.toHaveBeenCalledWith(CHART_SAVE_COPY.conflict, 'error');
+});
+
+it('Save As hard 덮어쓰기가 PT409로 거부되면 열린 차트를 다시 불러오라는 대신 Save As를 다시 실행하라고 안내한다', () => {
+  expect(CHART_SAVE_COPY.saveAsConflict).toContain('Save As를 다시 실행');
+  expect(CHART_SAVE_COPY.saveAsConflict).not.toContain('다시 불러');
 });
 
 
@@ -1288,6 +1308,119 @@ it('리비전 3 Save 응답 유실 뒤 행 재조회도 실패하면 편집 노�
   expect(dirty()).toBe(true);
   expect(showToast).toHaveBeenCalledWith(CHART_SAVE_COPY.unconfirmed, 'error');
   expect(CHART_SAVE_COPY.unconfirmed).toContain('다시 불러오면 저장하지 않은 편집 내용이 사라집니다');
+});
+
+it('열린 chart-HARD 행의 이름이 DB에서 Hard로 바뀌고 hard 행이 함께 있어도 Save 응답 유실 복구는 UUID로 행을 찾아 리비전 6을 채택한다', async () => {
+  open(chart([single(1, 0)]), openedRow('HARD'));
+  current().setChart({ ...current().chart, notes: [...current().chart.notes, single(2, 2)] });
+  harness.charts.mockResolvedValue({ data: [
+    { id: 'chart-hard', difficulty_label: 'hard', revision: 8, chart_path: 'songs/song/other.json', chart_extra_path: null },
+    { id: 'chart-HARD', difficulty_label: 'Hard', revision: 6,
+      chart_path: 'songs/song/hard-t1.json', chart_extra_path: 'songs/song/hard-t1.extra.json' },
+  ], error: null });
+  const saving = renderFileOperations().handleSaveChart(); await flush();
+  harness.chartRows[0].reject(new Error('response lost')); await saving;
+  expect(current().chartRow).toMatchObject({ id: 'chart-HARD', revision: 6, chartPath: 'songs/song/hard-t1.json' });
+  expect(dirty()).toBe(false);
+});
+
+describe('결과를 확인하지 못한 이전 차트 업로드의 복구', () => {
+  const offline = () => harness.charts.mockResolvedValue({ data: null, error: { message: 'offline' } });
+  const addNoteAt = (at: number) => current().setChart({ ...current().chart, notes: [...current().chart.notes, single(2, at)] });
+  const normalRowAt = (token: string, revision: number, id = 'chart-normal') => ({ data: [{
+    id, difficulty_label: 'normal', revision,
+    chart_path: `songs/song/normal-${token}.json`, chart_extra_path: `songs/song/normal-${token}.extra.json`,
+  }], error: null });
+  /** 첫 Save의 행 확정 응답을 잃고 확인 조회도 실패하게 한다. 서버에는 t1 업로드가 확정됐다고 본다. */
+  async function loseFirstSave() {
+    offline();
+    const saving = renderFileOperations().handleSaveChart(); await flush();
+    harness.chartRows[0].reject(new Error('response lost')); await saving;
+    expect(showToast).toHaveBeenCalledWith(CHART_SAVE_COPY.unconfirmed, 'error');
+    expect(dirty()).toBe(true);
+  }
+
+  it('리비전 3 Save 응답 유실·확인 조회 실패 뒤 같은 내용으로 다시 Save해 PT409가 나도 행이 앞 저장의 normal-t1·리비전 4를 가리키면 save_chart 재시도 없이 저장 성공으로 끝난다', async () => {
+    open(chart([single(1, 0)])); addNoteAt(2);
+    await loseFirstSave();
+    harness.charts.mockResolvedValue(normalRowAt('t1', 4));
+
+    const saving = renderFileOperations().handleSaveChart(); await flush();
+    expect(harness.chartRows[1].row).toMatchObject({ chartId: 'chart-normal', expectedRevision: 3, chartPath: 'songs/song/normal-t2.json' });
+    harness.chartRows[1].reject(Object.assign(new Error('conflict'), { code: 'PT409' })); await saving;
+
+    expect(harness.chartRows).toHaveLength(2);
+    expect(current().chartRow).toEqual({ id: 'chart-normal', difficultyLabel: 'normal', revision: 4,
+      chartPath: 'songs/song/normal-t1.json', chartExtraPath: 'songs/song/normal-t1.extra.json' });
+    expect(dirty()).toBe(false);
+    expect(showToast).toHaveBeenCalledWith(CHART_SAVE_COPY.saved, 'info');
+    expect(showToast).not.toHaveBeenCalledWith(CHART_SAVE_COPY.conflict, 'error');
+  });
+
+  it('리비전 3 Save 응답 유실·확인 조회 실패 뒤 4박 노트를 더해 Save하면 PT409에서 normal-t1·리비전 4를 채택하고 save_chart(chart-normal, 4)로 한 번 다시 저장해 리비전 5가 된다', async () => {
+    open(chart([single(1, 0)])); addNoteAt(2);
+    await loseFirstSave();
+    harness.charts.mockResolvedValue(normalRowAt('t1', 4));
+    addNoteAt(4);
+
+    const saving = renderFileOperations().handleSaveChart(); await flush();
+    harness.chartRows[1].reject(Object.assign(new Error('conflict'), { code: 'PT409' })); await flush();
+    expect(harness.chartRows[2]).toMatchObject({ kind: 'save', row: {
+      chartId: 'chart-normal', expectedRevision: 4, chartPath: 'songs/song/normal-t3.json', extraPath: 'songs/song/normal-t3.extra.json',
+    } });
+    expect(JSON.parse(harness.uploads.get('songs/song/normal-t3.json')!).notes).toHaveLength(3);
+    harness.chartRows[2].resolve(); await saving;
+
+    expect(current().chartRow).toMatchObject({ id: 'chart-normal', revision: 5, chartPath: 'songs/song/normal-t3.json' });
+    expect(dirty()).toBe(false);
+    expect(showToast).toHaveBeenCalledWith(CHART_SAVE_COPY.saved, 'info');
+  });
+
+  it('곡 행만 있는 normal 첫 Save의 create_chart 응답 유실·확인 조회 실패 뒤 4박 노트를 더해 Save하면 23505에서 normal-t1을 가리키는 created-normal을 채택하고 save_chart(created-normal, 0)으로 다시 저장한다', async () => {
+    open(chart([single(1, 0)]), null); attachSong(); current().setActiveDifficulty('normal'); addNoteAt(2);
+    await loseFirstSave();
+    harness.charts.mockResolvedValue(normalRowAt('t1', 0, 'created-normal'));
+    addNoteAt(4);
+
+    const saving = renderFileOperations().handleSaveChart(); await flush();
+    expect(harness.chartRows[1].kind).toBe('create');
+    harness.chartRows[1].reject(Object.assign(new Error('duplicate'), { code: '23505' })); await flush();
+    expect(harness.chartRows[2]).toMatchObject({ kind: 'save', row: {
+      chartId: 'created-normal', expectedRevision: 0, chartPath: 'songs/song/normal-t3.json',
+    } });
+    harness.chartRows[2].resolve(); await saving;
+
+    expect(current().chartRow).toMatchObject({ id: 'created-normal', difficultyLabel: 'normal', revision: 1, chartPath: 'songs/song/normal-t3.json' });
+    expect(dirty()).toBe(false);
+    expect(showToast).not.toHaveBeenCalledWith(CHART_SAVE_COPY.existsOnSave, 'error');
+  });
+
+  it('리비전 3 Save 결과를 확인하지 못한 뒤 다른 곳의 저장으로 행이 other.json·리비전 5를 가리키면 다음 Save의 PT409를 채택하지 않고 충돌 안내와 노트 2개를 유지한다', async () => {
+    open(chart([single(1, 0)])); addNoteAt(2);
+    await loseFirstSave();
+    harness.charts.mockResolvedValue({ data: [{ id: 'chart-normal', difficulty_label: 'normal', revision: 5,
+      chart_path: 'songs/song/other.json', chart_extra_path: 'songs/song/other.extra.json' }], error: null });
+
+    const saving = renderFileOperations().handleSaveChart(); await flush();
+    harness.chartRows[1].reject(Object.assign(new Error('conflict'), { code: 'PT409' })); await saving;
+
+    expect(harness.chartRows).toHaveLength(2);
+    expect(current().chartRow).toEqual(openedRow());
+    expect(current().chart.notes).toHaveLength(2);
+    expect(dirty()).toBe(true);
+    expect(showToast).toHaveBeenCalledWith(CHART_SAVE_COPY.conflict, 'error');
+  });
+
+  it('리비전 3 Save 결과를 확인하지 못한 채 다른 차트를 새로 열면 남은 미확인 업로드를 비운다', async () => {
+    open(chart([single(1, 0)])); addNoteAt(2);
+    await loseFirstSave();
+    expect(current().unconfirmedChartUploads).toEqual([{ chartId: 'chart-normal', files: expect.objectContaining({
+      chartPath: 'songs/song/normal-t1.json', extraPath: 'songs/song/normal-t1.extra.json' }) }]);
+
+    open(chart([single(1, 0)], 'EASY'));
+
+    expect(current().unconfirmedChartUploads).toEqual([]);
+  });
 });
 
 it.each(['23505', undefined])('행 없이 연 normal 첫 Save가 %s로 실패해도 두 경로가 normal-t1과 같으면 exact normal UUID·리비전 0을 채택하고 다음 Save가 갱신한다', async code => {
