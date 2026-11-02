@@ -75,10 +75,10 @@ export class ObserverPlayRuntime {
 
   constructor(private readonly options: ObserverPlayRuntimeOptions) {
     const { request, settings, canvas, width, height, inputTarget } = options;
-    // 설정 원본을 바꾸지 않는다. pitch 보존 감속은 후속 구현이며 진입은 항상 1.0x다.
+    // 설정 원본을 바꾸지 않는다. pitch 보존 경로를 쓰되 배속 UI 도입 전까지 진입은 항상 1.0x다.
     this.host = new ExplicitPlaybackHost({ audioBuffer: request.audioBuffer, playbackRange: request.playbackRange,
       difficultyLabel: request.document.meta.difficultyLabel, settings: { ...settings, playSpeed: 1 },
-      canvas, width, height, inputTarget });
+      canvas, width, height, inputTarget, preservePitch: true });
     this.bindings = Object.entries(settings.keyBindings).flatMap(([lane, keys]) =>
       keys.map((key: string) => ({ lane: Number(lane.slice(4)) as KeyBinding['lane'], key })));
   }

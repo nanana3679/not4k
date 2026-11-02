@@ -15,6 +15,7 @@ import { keepGearMotionAssets } from './gearMotionKeepAlive';
 export interface ExplicitPlaybackHostOptions {
   audioBuffer: AudioBuffer;
   playbackRange?: PlaybackRange | null;
+  preservePitch?: boolean;
   difficultyLabel: string;
   settings: GameSettings;
   canvas: HTMLCanvasElement;
@@ -54,7 +55,7 @@ export class ExplicitPlaybackHost {
     this.started = true;
     const { settings, audioBuffer, playbackRange, canvas, width, height, difficultyLabel } = this.options;
     try {
-      this.audio = new AudioEngine();
+      this.audio = this.options.preservePitch ? new AudioEngine({ preservePitch: true }) : new AudioEngine();
       this.skin = new SkinManager();
       this.explicitSkin = new ExplicitSkinLoader();
       const audio = this.audio;

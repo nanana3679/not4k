@@ -10,6 +10,7 @@ import type { GameSettings } from '../stores/gameStore';
 import { beat, normalizePlaybackRange } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import type { GameRenderer } from '../renderer/GameRenderer';
+import type { AudioEngineOptions } from '../audio/AudioEngine';
 
 const fixture = vi.hoisted(() => ({ now: 0, audio: [] as FakeAudio[], renderers: [] as FakeRenderer[],
   skins: [] as { dispose: ReturnType<typeof vi.fn> }[], explicit: [] as { dispose: ReturnType<typeof vi.fn> }[],
@@ -42,7 +43,7 @@ class FakeAudio {
   }
   pause = vi.fn(() => { this.position = this.currentTimeMs; this.running = false; });
   resume = vi.fn(); dispose = vi.fn(async () => { this.running = false; });
-  constructor() { fixture.audio.push(this); }
+  constructor(readonly options?: AudioEngineOptions) { fixture.audio.push(this); }
 }
 class FakeRenderer {
   init = vi.fn(() => fixture.init()); dispose = vi.fn();
@@ -124,6 +125,13 @@ function key(target: Target, type: 'keydown' | 'keyup', code: string, timeStamp 
 }
 
 describe('명시 실제 재생 runtime', () => {
+  it('설정 배속 0.5로 일반 플레이에 진입하면 pitch 보존 옵션 없이 기존 0.5배속 엔진을 사용한다', async () => {
+    const run = create(false, undefined, { playSpeed: 0.5 }, undefined, 4, {}); await run.player.start();
+    expect(fixture.audio[0].options).toBeUndefined();
+    expect(fixture.audio[0].playbackRate).toBe(0.5);
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
   it('일반 첫 시작과 Retry는 각각 준비 완료 즉시 play(0)·playing이며 음악 준비와 resumeAt을 호출하지 않는다', async () => {
     const resume = vi.spyOn(ExplicitJudgmentSession.prototype, 'resumeAt');
     for (let attempt = 0; attempt < 2; attempt++) {

@@ -42,6 +42,7 @@ interface MockAudioContext {
   createBuffer: Mock;
   sampleRate: number;
   createBufferSource: Mock<() => MockAudioSource>;
+  createMediaElementSource: Mock<() => { connect: Mock; disconnect: Mock }>;
   createGain: Mock<() => MockGainNode>;
   baseLatency?: number;
   outputLatency?: number;
@@ -75,6 +76,7 @@ function createMockAudioContext(): MockAudioContext {
     sampleRate: 48000,
     createBuffer: vi.fn(() => createMockBuffer(128 / 48000)),
     createBufferSource: vi.fn(createSource),
+    createMediaElementSource: vi.fn(() => ({ connect: vi.fn(), disconnect: vi.fn() })),
     createGain: vi.fn(() => ({
       gain: {
         value: 1,
@@ -1497,5 +1499,280 @@ describe("AudioEngine 옵저버 페이드 구간 재생", () => {
     const resumed = lastSource();
     expect(resumed.start).toHaveBeenCalledWith(0, pausedSeconds, 60 - pausedSeconds);
     expect(chainOf(resumed).spanGain).toBeNull();
+  });
+});
+
+// Node 환경에서 실제 DOM/오디오 장치 없이 element의 제어·이벤트·공식 위치를 모사한다.
+class FakeAudioElement extends EventTarget {
+  preload = ''; preservesPitch?: boolean = false;
+  src = ''; readyState = 2; error: { code: number } | null = null; ended = false;
+  position = 0; positionReads = 0; rate = 1;
+  onended: (() => void) | null = null;
+  operations: string[] = [];
+  get currentTime() { this.positionReads++; return this.position; }
+  set currentTime(value: number) { this.operations.push(`seek:${value}`); this.position = value; this.ended = false; }
+  get playbackRate() { return this.rate; }
+  set playbackRate(value: number) { this.operations.push(`rate:${value}`); this.rate = value; }
+  play = vi.fn(async () => { this.operations.push('play'); });
+  pause = vi.fn(() => { this.operations.push('pause'); });
+  load = vi.fn(() => { this.operations.push('load'); });
+  removeAttribute = vi.fn((name: string) => { if (name === 'src') this.src = ''; });
+}
+
+describe('AudioEngine pitch 보존 media 재생', () => {
+  let element: FakeAudioElement;
+  const engines: AudioEngine[] = [];
+  let blobs: Blob[];
+  beforeEach(() => {
+    element = new FakeAudioElement(); blobs = [];
+    vi.stubGlobal('Audio', vi.fn(function () { return element; }));
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(blob => {
+      blobs.push(blob as Blob); return `blob:audio-${blobs.length}`;
+    });
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  });
+  afterEach(async () => {
+    for (const engine of engines.splice(0)) await engine.dispose();
+    vi.unstubAllGlobals();
+  });
+  function pcmBuffer(seconds = 10): AudioBuffer {
+    return { duration: seconds, sampleRate: 1000, numberOfChannels: 1, length: seconds * 1000,
+      getChannelData: () => new Float32Array(seconds * 1000).fill(0.5) } as unknown as AudioBuffer;
+  }
+  function create(): AudioEngine {
+    const engine = new AudioEngine({ preservePitch: true }); engines.push(engine);
+    engine.loadBuffer(pcmBuffer()); return engine;
+  }
+  function spanGain(): MockGainNode { return mockCtx.createGain.mock.results.at(-1)!.value; }
+  function advance(seconds: number, mediaSeconds: number) {
+    mockCtx._advanceTime(seconds); element.position = mediaSeconds;
+  }
+  const span = { fromMs: 1000, fadeInUntilMs: 2000, fadeOutFromMs: 4000, toMs: 5000 };
+
+  it('기본 엔진으로 1000ms를 재생하면 Audio element·WAV URL은 0개이고 기존 buffer source 1개를 쓴다', () => {
+    const engine = new AudioEngine(); engines.push(engine); engine.loadBuffer(pcmBuffer()); engine.play(1000);
+    expect(Audio).not.toHaveBeenCalled(); expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(mockCtx.createMediaElementSource).not.toHaveBeenCalled();
+    expect(mockCtx.createBufferSource).toHaveBeenCalledOnce();
+    expect(mockCtx.createBufferSource.mock.results[0].value.start).toHaveBeenCalledWith(0, 1, 9);
+  });
+
+  it('pitch 보존 엔진을 2회 재생해도 element·media source는 각 1개이고 source→span→master gain으로 연결한다', () => {
+    const engine = create(); engine.masterVolume = 0.4; engine.play(); engine.play(1000);
+    expect(element.preload).toBe('auto'); expect(element.preservesPitch).toBe(true);
+    expect(Audio).toHaveBeenCalledOnce(); expect(mockCtx.createMediaElementSource).toHaveBeenCalledExactlyOnceWith(element);
+    expect(mockCtx.createBufferSource).not.toHaveBeenCalled();
+    const source = mockCtx.createMediaElementSource.mock.results[0].value;
+    const sourceGain = source.connect.mock.lastCall![0] as MockGainNode;
+    const master = mockCtx.createGain.mock.results[0].value;
+    expect(sourceGain.connect).toHaveBeenCalledWith(spanGain());
+    expect(spanGain().connect).toHaveBeenCalledWith(master); expect(master.connect).toHaveBeenCalledWith(mockCtx.destination);
+    expect(engine.masterVolume).toBe(0.4);
+  });
+
+  it.each(['mozPreservesPitch', 'webkitPreservesPitch'] as const)('표준 속성이 없고 %s=false이면 엔진 생성 때 true로 바꾼다', property => {
+    delete element.preservesPitch;
+    Object.defineProperty(element, property, { value: false, writable: true });
+    create(); expect(Reflect.get(element, property)).toBe(true); expect('preservesPitch' in element).toBe(false);
+  });
+
+  it('표준 preservesPitch=false와 mozPreservesPitch=false가 함께 있으면 표준만 true로 바꾼다', () => {
+    Object.defineProperty(element, 'mozPreservesPitch', { value: false, writable: true });
+    create(); expect(element.preservesPitch).toBe(true); expect(Reflect.get(element, 'mozPreservesPitch')).toBe(false);
+  });
+
+  it('10초 음원을 2～6초로 자르고 play(1000)하면 4초 WAV의 1초를 찾아 원본 3초부터 재생한다', async () => {
+    const engine = create(); engine.setPlaybackRange({ startTime: 2, endTime: 6, fadeInTime: 0, fadeOutTime: 0 });
+    const view = new DataView(await blobs.at(-1)!.arrayBuffer());
+    expect(view.getUint32(40, true)).toBe(8000); expect(engine.duration).toBe(4000);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:audio-1');
+    element.operations = []; engine.play(1000);
+    expect(element.operations).toEqual(['pause', 'rate:1', 'seek:1', 'play']);
+    expect(engine.currentTimeMs).toBe(1000);
+  });
+
+  it('0.5배속 span 1000～5000ms를 500ms 재생 후 pause·resume·stop하면 1250ms를 잇고 마지막 seek는 0이다', () => {
+    const engine = create(); engine.playbackRate = 0.5; element.operations = [];
+    engine.playFadedSpan(span);
+    expect(element.operations).toEqual(['pause', 'rate:0.5', 'seek:1', 'play']);
+    expect(spanGain().gain.linearRampToValueAtTime.mock.calls).toEqual([[1, 2], [0, 8]]);
+    advance(0.5, 1.25); engine.pause();
+    expect(engine.currentTimeMs).toBe(1250); expect(engine.playing).toBe(false);
+    advance(10, 1.25); expect(engine.currentTimeMs).toBe(1250);
+    element.operations = []; engine.resume();
+    expect(element.operations).toEqual(['pause', 'rate:0.5', 'seek:1.25', 'play']);
+    expect(engine.currentTimeMs).toBe(1250); expect(engine.playing).toBe(true);
+    engine.stop(); expect(element.operations.slice(-2)).toEqual(['pause', 'seek:0']);
+    expect(engine.currentTimeMs).toBe(0); expect(engine.playing).toBe(false);
+  });
+
+  it('1배속 2000ms에서 0.25배속으로 바꾸면 element는 즉시 0.25이고 400ms 뒤 곡 위치는 2100ms다', () => {
+    const engine = create(); engine.playFadedSpan(span); advance(1, 2);
+    const before = engine.currentTimeMs; const calls = element.play.mock.calls.length;
+    engine.playbackRate = 0.25;
+    expect(element.playbackRate).toBe(0.25); expect(engine.playbackRate).toBe(0.25);
+    expect(engine.currentTimeMs).toBe(before); expect(element.play).toHaveBeenCalledTimes(calls);
+    expect(spanGain().gain.setValueAtTime).toHaveBeenLastCalledWith(0, 13);
+    advance(0.4, 2.1); expect(engine.currentTimeMs).toBeCloseTo(2100);
+    expect(engine.positionMsAtRealOffset(-500)).toBeCloseTo(1900);
+  });
+
+  it.each([4000, 5000])('span fadeOutFrom=%sms·to=5000ms이면 gain은 5초에 0이며 늦은 5.1초 query가 element를 멈춘다', fadeOutFromMs => {
+    const engine = create(); engine.playFadedSpan({ fromMs: 0, fadeInUntilMs: 0, fadeOutFromMs, toMs: 5000 });
+    const gain = spanGain(); expect(gain.gain.setValueAtTime).toHaveBeenLastCalledWith(0, 5);
+    advance(5.1, 5.1); const pauses = element.pause.mock.calls.length;
+    expect(engine.positionMsAtRealOffset(0)).toBeCloseTo(5100);
+    expect(element.pause).toHaveBeenCalledTimes(pauses + 1); expect(engine.playing).toBe(false);
+    expect(gain.disconnect).toHaveBeenCalledOnce();
+    advance(0.1, 5.1); expect(engine.currentTimeMs).toBeCloseTo(5200);
+  });
+
+  it('to=5000ms부터 재생하면 시작 gain을 같은 시각 0으로 예약하고 element는 즉시 멈춘다', () => {
+    const engine = create(); engine.playFadedSpan(span, 5000);
+    expect(spanGain().gain.setValueAtTime).toHaveBeenLastCalledWith(0, 0);
+    expect(engine.playing).toBe(false); advance(0.1, 5); expect(engine.currentTimeMs).toBe(5100);
+  });
+
+  it('5000ms 끝 직전 element가 20ms 앞서면 모든 span gain 예약은 element의 5초 도달 시각 이하에 머문다', () => {
+    const engine = create(); engine.playFadedSpan(span);
+    advance(3.9, 4.92); const gain = spanGain();
+    gain.gain.setValueAtTime.mockClear(); gain.gain.linearRampToValueAtTime.mockClear();
+    expect(engine.currentTimeMs).toBeCloseTo(4900);
+    const endAt = 3.98;
+    for (const [, time] of [...gain.gain.setValueAtTime.mock.calls, ...gain.gain.linearRampToValueAtTime.mock.calls]) {
+      expect(time).toBeLessThanOrEqual(endAt + 1e-9);
+    }
+    expect(gain.gain.setValueAtTime.mock.lastCall![0]).toBe(0);
+    advance(0.081, 5.001); engine.currentTimeMs;
+    expect(engine.playing).toBe(false);
+  });
+
+  it('300ms 지연으로 시계가 동결되면 페이드는 유한한 시각만 예약하고 pause·resume 직전 300ms 위치를 보존한다', () => {
+    const engine = create(); engine.playFadedSpan({ fromMs: 0, fadeInUntilMs: 1000, fadeOutFromMs: 4000, toMs: 5000 });
+    advance(0.3, 0); expect(engine.currentTimeMs).toBe(300);
+    const gain = spanGain();
+    for (const [, time] of [...gain.gain.setValueAtTime.mock.calls, ...gain.gain.linearRampToValueAtTime.mock.calls]) {
+      expect(Number.isFinite(time)).toBe(true);
+    }
+    engine.pause(); const past = engine.positionMsAtRealOffset(-20);
+    advance(1, 0); engine.resume();
+    expect(engine.currentTimeMs).toBe(300); expect(engine.positionMsAtRealOffset(-20)).toBeCloseTo(past);
+    expect(element.position).toBe(0.3);
+  });
+
+  it('element가 300ms 뒤처져 동결한 뒤 ended가 오면 시계는 1배속으로 계속 돌고 pause·resume은 play를 추가하지 않는다', () => {
+    const engine = create(); engine.play(); advance(0.3, 0);
+    expect(engine.currentTimeMs).toBe(300); advance(0.1, 0); expect(engine.currentTimeMs).toBe(300);
+    element.ended = true; element.onended!(); expect(engine.playing).toBe(false);
+    advance(0.1, 0); expect(engine.currentTimeMs).toBeCloseTo(400);
+    engine.pause(); advance(10, 0); engine.resume(); advance(0.1, 0);
+    expect(engine.currentTimeMs).toBeCloseTo(500); expect(element.play).toHaveBeenCalledOnce();
+  });
+
+  it('element가 20ms 뒤처져 보정 중이어도 P·과거 조회는 연속이고 getter·element 배속은 1을 유지한다', () => {
+    const engine = create(); engine.play(1000);
+    advance(0.02, 1); const first = engine.currentTimeMs;
+    expect(first).toBe(1020); expect(engine.positionMsAtRealOffset(-10)).toBeCloseTo(1010);
+    advance(0.02, 1.02); const second = engine.currentTimeMs;
+    expect(second).toBeGreaterThan(first); expect(second).toBeLessThan(1040);
+    expect(engine.positionMsAtRealOffset(-20)).toBeCloseTo(first);
+    expect(engine.positionMsAtRealOffset(0)).toBeCloseTo(second);
+    expect(engine.playbackRate).toBe(1); expect(element.playbackRate).toBe(1);
+  });
+
+  it('300ms 시작 지연으로 동결한 뒤 element가 따라잡으면 점프 없이 재개하고 GameClock 과거 조회도 뒤로 가지 않는다', () => {
+    const engine = create(); engine.play(1000);
+    let previous = 1000; let previousPast = 970;
+    for (let i = 1; i <= 200; i++) {
+      advance(0.01, 1 + Math.max(0, i * 10 - 300) / 1000);
+      const position = engine.currentTimeMs; const past = engine.positionMsAtRealOffset(-30);
+      expect(position).toBeGreaterThanOrEqual(previous - 1e-9);
+      expect(position - previous).toBeLessThanOrEqual(10.5 + 1e-9);
+      expect(past).toBeGreaterThanOrEqual(previousPast - 1e-9);
+      previous = position; previousPast = past;
+    }
+    expect(Math.abs(previous - element.position * 1000)).toBeLessThan(3);
+  });
+
+  it('10ms 간격으로 1000회 보정하면 이력은 502개 이하이며 같은 AudioContext 시각의 query 3회는 element를 1회만 읽는다', () => {
+    const engine = create(); engine.loadBuffer(pcmBuffer(60)); engine.play();
+    for (let i = 1; i <= 1000; i++) {
+      advance(0.01, i * 0.01 + (i % 2 ? 0.02 : -0.02));
+      engine.currentTimeMs;
+    }
+    expect(engine['rateSegments'].length).toBeLessThanOrEqual(502);
+    advance(0.02, 10.02); element.positionReads = 0;
+    engine.currentTimeMs; engine.positionMsAtRealOffset(-30); engine.positionMsAtRealOffset(10);
+    expect(element.positionReads).toBe(1);
+  });
+
+  it('media 준비가 100ms 뒤에도 loadeddata 전이면 대기하고 readyState=2 이벤트 뒤 L₀=10ms로 끝난다', async () => {
+    const engine = create(); element.readyState = 0; mockCtx.outputLatency = 0.01;
+    const ready = engine.prepareForPlayback(); const completed = vi.fn(); void ready.then(completed);
+    expect(engine.prepareForPlayback()).toBe(ready);
+    await vi.advanceTimersByTimeAsync(100); expect(completed).not.toHaveBeenCalled();
+    element.readyState = 2; element.dispatchEvent(new Event('loadeddata')); await ready;
+    expect(completed).toHaveBeenCalledOnce(); expect(engine.getOutputLatencyMs()).toBe(10);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('loadeddata가 5000ms 동안 없으면 준비를 설명 있는 오류로 거부하고 이벤트 listener와 타이머를 정리한다', async () => {
+    const engine = create(); element.readyState = 0;
+    const removed = vi.spyOn(element, 'removeEventListener');
+    const rejection = expect(engine.prepareForPlayback()).rejects.toThrow('not ready after 5000ms');
+    await vi.advanceTimersByTimeAsync(5000); await rejection;
+    expect(removed).toHaveBeenCalledTimes(3); expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('준비 중 media 오류 code=4 이벤트가 오면 준비를 거부하고 5000ms 타이머를 해제한다', async () => {
+    const engine = create(); element.readyState = 0;
+    const rejection = expect(engine.prepareForPlayback()).rejects.toThrow('media error 4');
+    element.error = { code: 4 }; element.dispatchEvent(new Event('error')); await rejection;
+    await vi.advanceTimersByTimeAsync(500); expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['dispose', 'loadBuffer'] as const)('준비 중 %s하면 대기를 취소하고 blob:audio-1·src·media 연결을 해제한다', async action => {
+    const engine = create(); element.readyState = 0;
+    const rejection = expect(engine.prepareForPlayback()).rejects.toThrow('cancelled by load/dispose');
+    if (action === 'dispose') await engine.dispose(); else engine.loadBuffer(pcmBuffer(2));
+    await rejection; await vi.advanceTimersByTimeAsync(500);
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:audio-1');
+    expect(element.removeAttribute).toHaveBeenCalledWith('src');
+    expect(mockCtx.createMediaElementSource.mock.results[0].value.disconnect).toHaveBeenCalled();
+    expect(element.onended === null).toBe(action === 'dispose');
+    expect(element.src).toBe(action === 'dispose' ? '' : 'blob:audio-2');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('첫 준비 뒤 2초 음원을 다시 load하면 새 loadeddata를 기다리고 element·media source는 각 1개를 유지한다', async () => {
+    const engine = create(); const first = engine.prepareForPlayback(); await vi.advanceTimersByTimeAsync(100); await first;
+    engine.loadBuffer(pcmBuffer(2)); element.readyState = 0;
+    const completed = vi.fn(); const next = engine.prepareForPlayback(); void next.then(completed);
+    await vi.advanceTimersByTimeAsync(100); expect(completed).not.toHaveBeenCalled();
+    element.readyState = 2; element.dispatchEvent(new Event('canplaythrough')); await next;
+    expect(Audio).toHaveBeenCalledOnce(); expect(mockCtx.createMediaElementSource).toHaveBeenCalledOnce();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:audio-1');
+  });
+
+  it('play Promise가 NotAllowedError로 거부되면 RAF 호출은 던지지 않고 console.warn을 1회 남긴다', async () => {
+    const engine = create(); const failure = new DOMException('autoplay', 'NotAllowedError');
+    element.play.mockRejectedValueOnce(failure); const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(() => engine.playFadedSpan(span)).not.toThrow(); await Promise.resolve();
+    expect(warning).toHaveBeenCalledExactlyOnceWith('AudioEngine media play failed', failure);
+  });
+
+  it('첫 play를 pause한 뒤 두 번째 play 중 과거 AbortError가 도착하면 새 재생은 유지하고 경고는 0회다', async () => {
+    const engine = create(); let reject!: (reason: unknown) => void;
+    element.play.mockImplementationOnce(() => new Promise<void>((_, fail) => { reject = fail; }));
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    engine.play(); engine.pause(); engine.resume();
+    reject(new DOMException('interrupted', 'AbortError')); await Promise.resolve();
+    expect(engine.playing).toBe(true); expect(element.play).toHaveBeenCalledTimes(2);
+    expect(warning).not.toHaveBeenCalled();
+  });
+
+  it('playWithPreroll(-3000)을 호출하면 pitch 보존 미지원 오류를 내고 element.play는 호출하지 않는다', () => {
+    const engine = create(); expect(() => engine.playWithPreroll(-3000)).toThrow('does not support playWithPreroll');
+    expect(element.play).not.toHaveBeenCalled();
   });
 });

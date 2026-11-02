@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlaybackRange } from '../../shared';
+import type { AudioEngineOptions } from '../audio/AudioEngine';
 import type { GameRenderer } from '../renderer/GameRenderer';
 import { useGameStore } from '../stores/gameStore';
 
@@ -21,7 +22,7 @@ class FakeAudio {
   prepareForPlayback = vi.fn(() => { fixture.calls.push('audio.prepare'); return fixture.prepareAudio(); });
   getOutputLatencyMs = vi.fn(() => { fixture.calls.push('audio.latency'); return fixture.latency; });
   dispose = vi.fn(async () => { fixture.calls.push('audio.dispose'); });
-  constructor() { fixture.audio.push(this); }
+  constructor(readonly options?: AudioEngineOptions) { fixture.audio.push(this); }
 }
 class FakeSkin {
   loadSkin = vi.fn(() => { fixture.calls.push('skin.load'); return fixture.loadSkin(); });
@@ -86,13 +87,13 @@ afterEach(() => {
   vi.restoreAllMocks(); vi.unstubAllGlobals();
 });
 
-function create() {
+function create(preservePitch?: boolean) {
   const target = new Target();
   const settings = { ...useGameStore.getInitialState().settings, gearMotion: false, masterVolume: 0.4,
     playSpeed: 2, inputOffsetMs: 10, visualOffsetMs: 30, renderHeight: 1200 };
   const options = { audioBuffer: { duration: 4 } as AudioBuffer,
     playbackRange: { startTime: 1, endTime: 3, fadeInTime: 0, fadeOutTime: 0 },
-    difficultyLabel: 'Test', settings, canvas: {} as HTMLCanvasElement, width: 1200, height: 700, inputTarget: target };
+    difficultyLabel: 'Test', settings, canvas: {} as HTMLCanvasElement, width: 1200, height: 700, inputTarget: target, preservePitch };
   const host = new ExplicitPlaybackHost(options);
   hosts.push(host);
   return { host, target, options };
@@ -110,6 +111,13 @@ function key(target: Target, type: 'keydown' | 'keyup', code: string) {
 }
 
 describe('ExplicitPlaybackHost 자원 수명', () => {
+  it('preservePitch=true인 host만 엔진 옵션을 요청하고 생략한 host는 기존 인자 0개로 생성한다', async () => {
+    const observer = create(true); await observer.host.init();
+    const normal = create(); await normal.host.init();
+    expect(fixture.audio[0].options).toEqual({ preservePitch: true });
+    expect(fixture.audio[1].options).toBeUndefined();
+  });
+
   it('출력 지연 20ms 준비 뒤 2배속 clock은 곡 1000ms를 판정 960ms·시각 1020ms로 읽고 GPU 준비 후 listener 2개를 연결한다', async () => {
     fixture.prepareAudio = async () => { fixture.latency = 20; };
     const { host, target, options } = create();

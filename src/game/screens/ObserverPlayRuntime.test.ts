@@ -3,6 +3,7 @@ import { normalizePlaybackRange } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import type { ExplicitNoteEntity } from '../../shared/types/chart';
 import type { FadedAudioSpan } from '../audio/AudioEngine';
+import type { AudioEngineOptions } from '../audio/AudioEngine';
 import { compileExplicitJudgmentChart } from '../judgment/explicitCompiledChart';
 import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelease as r,
   explicitFixtureTick as t, makeExplicitReplayFixture } from '../judgment/explicitJudgmentTestHarness';
@@ -46,7 +47,7 @@ class FakeAudio {
   pause = vi.fn(() => { this.position = this.currentTimeMs; this.running = false; });
   resume = vi.fn(() => { this.startedAt = fixture.now; this.running = true; });
   dispose = vi.fn(async () => { this.running = false; });
-  constructor() { fixture.audio.push(this); }
+  constructor(readonly options?: AudioEngineOptions) { fixture.audio.push(this); }
 }
 class FakeRenderer {
   judgment: Parameters<GameRenderer['showJudgmentGroup']>[0] | null = null;
@@ -144,6 +145,13 @@ function expectKeys(pressed: boolean) {
 }
 
 describe('ObserverPlayRuntime 정지 자유 스크롤', () => {
+  it('설정 배속 0.5로 옵저버에 진입하면 pitch 보존 엔진을 요청하고 실제 배속은 1을 유지한다', async () => {
+    const run = create([p(1000)], { playSpeed: 0.5 }); await run.player.start();
+    expect(fixture.audio[0].options).toEqual({ preservePitch: true });
+    expect(fixture.audio[0].playbackRate).toBe(1);
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
   it('1000ms 정지에서 +1500ms 스크롤은 즉시 2500ms를 표시·알림하고 양끝은 0·4000ms로 제한한다', async () => {
     const run = create(); await run.player.start(); frame(1000); run.player.togglePause();
     const audio = fixture.audio[0]; const renderer = fixture.renderers[0];
