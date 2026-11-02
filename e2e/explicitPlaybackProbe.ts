@@ -32,7 +32,7 @@ export async function installProbe(page: Page) {
     const { AudioEngine } = await import(/* @vite-ignore */ moduleUrl('/src/game/audio/AudioEngine.ts')) as typeof import('../src/game/audio/AudioEngine');
     const { ExplicitPlayRuntime } = await import(/* @vite-ignore */ moduleUrl('/src/game/screens/ExplicitPlayRuntime.ts')) as typeof import('../src/game/screens/ExplicitPlayRuntime');
     const probe = { explicitCharts: 0, warmups: 0, rendererDisposals: 0, audioDisposals: 0, starts: [] as number[],
-      frames: 0, audioPlaying: false, audioPositionMs: 0, renderedTimeMs: 0,
+      frames: 0, audioPlaying: false, audioPositionMs: 0, mediaPositionMs: null as number | null, renderedTimeMs: 0,
       fadedSpans: [] as FadedSpanStart[], resumes: [] as number[], hud: [] as HudUpdate[],
       sourceStarts: [] as { offset: number; duration: number | undefined }[],
       preparations: [] as { positionMs: number; rate: number; latencyMs: number; startedAtMs: number; visibleAfterMs: number | null }[],
@@ -43,6 +43,7 @@ export async function installProbe(page: Page) {
       session: null as ExplicitSessionResult | null, chartVisible: false,
       partialFailure: false, partialSuccess: false };
     let currentAudio: InstanceType<typeof AudioEngine> | null = null;
+    let mediaElement: HTMLMediaElement | null = null;
     type RuntimeFields = {
       session: import('../src/game/judgment/ExplicitJudgmentSession').ExplicitJudgmentSession | null;
       onKeyDown: EventListener;
@@ -60,6 +61,8 @@ export async function installProbe(page: Page) {
     Object.defineProperty(probe, 'judgmentAt', { get: () => currentAudio ? currentAudio.currentTimeMs - currentAudio.getOutputLatencyMs() * currentAudio.playbackRate : -Infinity });
     Object.defineProperty(probe, 'audioPlaying', { get: () => currentAudio?.playing ?? false });
     Object.defineProperty(probe, 'audioPositionMs', { get: () => currentAudio?.currentTimeMs ?? 0 });
+    // 음높이 유지 경로의 실제 음원 위치. 시계 P는 Chromium 선행 보정을 포함하므로 재개 위치는 이 값과 비교한다.
+    Object.defineProperty(probe, 'mediaPositionMs', { get: () => mediaElement ? mediaElement.currentTime * 1000 : null });
     Object.assign(window, { explicitPlayProbe: probe });
     const keyboardListeners = new Set<EventListenerOrEventListenerObject>();
     const runtimeKeyboardListeners = new Set<EventListenerOrEventListenerObject>();
@@ -147,7 +150,10 @@ export async function installProbe(page: Page) {
     const mediaPlay = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
       // 옵저버의 음높이 유지 경로는 source 대신 이 element를 재생한다. 시작 위치는 play 직전에 맞춘 currentTime이다.
-      if (this.src.startsWith('blob:')) probe.sourceStarts.push({ offset: this.currentTime, duration: undefined });
+      if (this.src.startsWith('blob:')) {
+        mediaElement = this;
+        probe.sourceStarts.push({ offset: this.currentTime, duration: undefined });
+      }
       return mediaPlay.call(this);
     };
     const play = AudioEngine.prototype.play;
@@ -182,7 +188,7 @@ export async function installProbe(page: Page) {
 export async function probe(page: Page) {
   return page.evaluate(() => (window as unknown as { explicitPlayProbe: {
     explicitCharts: number; warmups: number; rendererDisposals: number; audioDisposals: number;
-    frames: number; audioPlaying: boolean; audioPositionMs: number; renderedTimeMs: number;
+    frames: number; audioPlaying: boolean; audioPositionMs: number; mediaPositionMs: number | null; renderedTimeMs: number;
     fadedSpans: FadedSpanStart[]; resumes: number[]; hud: HudUpdate[];
     sourceStarts: { offset: number; duration: number | undefined }[];
     starts: number[]; groups: string[]; hitCount: number; flightCount: number; webgl: boolean; spriteCount: number; keyboardListeners: number;

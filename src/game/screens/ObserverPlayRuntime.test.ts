@@ -4,6 +4,7 @@ import type { PlaybackRange } from '../../shared';
 import type { ExplicitNoteEntity } from '../../shared/types/chart';
 import type { FadedAudioSpan } from '../audio/AudioEngine';
 import type { AudioEngineOptions } from '../audio/AudioEngine';
+import { AudioEngine as RealAudioEngine } from '../audio/AudioEngine';
 import { compileExplicitJudgmentChart } from '../judgment/explicitCompiledChart';
 import { explicitFixtureBody as b, explicitFixtureTap as p, explicitFixtureRelease as r,
   explicitFixtureTick as t, makeExplicitReplayFixture } from '../judgment/explicitJudgmentTestHarness';
@@ -25,6 +26,9 @@ const fixture = vi.hoisted(() => ({ now: 0, latency: 0,
   prepareAudio: async () => {}, load: async () => {}, init: async () => {},
 }));
 class FakeAudio {
+  onPlaybackError: ((error: unknown) => void) | null = null;
+  endMs = Infinity;
+  get playing() { return this.running && this.currentTimeMs < this.endMs; }
   positionMsAtRealOffset(realOffsetMs: number): number {
     return this.currentTimeMs + realOffsetMs * this.playbackRate;
   }
@@ -41,6 +45,7 @@ class FakeAudio {
     if (range) this.duration = (range.endTime - range.startTime) * 1000;
   });
   playFadedSpan = vi.fn((_span: FadedAudioSpan, startMs = _span.fromMs) => {
+    this.endMs = _span.toMs;
     this.position = startMs; this.startedAt = fixture.now; this.running = true;
   });
   play = vi.fn(); playWithPreroll = vi.fn();
@@ -145,6 +150,85 @@ function expectKeys(pressed: boolean) {
 }
 
 describe('ObserverPlayRuntime 정지 자유 스크롤', () => {
+  it('실제 엔진 play가 100ms 뒤 NotAllowedError로 거부되면 J=70ms에서 paused가 되고 Play는 element=0ms·P=100ms를 잇는다', async () => {
+    const audioModule = await import('../audio');
+    let rejectPlay!: (reason: unknown) => void;
+    const element = Object.assign(new EventTarget(), {
+      currentTime: 0, playbackRate: 1, preservesPitch: false, readyState: 2, ended: false,
+      play: vi.fn(() => Promise.resolve()), pause: vi.fn(), load: vi.fn(), removeAttribute: vi.fn(),
+    });
+    element.play.mockImplementationOnce(() => new Promise<void>((_, reject) => { rejectPlay = reject; }));
+    vi.stubGlobal('Audio', vi.fn(function () { return element; }));
+    vi.stubGlobal('navigator', { userAgent: '' });
+    vi.stubGlobal('AudioContext', class {
+      get currentTime() { return fixture.now / 1000; }
+      state = 'running'; destination = {}; close = vi.fn(async () => {});
+      createMediaElementSource = () => ({ connect: vi.fn(), disconnect: vi.fn() });
+      createGain = () => ({ connect: vi.fn(), disconnect: vi.fn(), gain: {
+        value: 1, cancelScheduledValues: vi.fn(), setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(),
+      } });
+    });
+    let engine!: RealAudioEngine;
+    vi.spyOn(audioModule, 'AudioEngine').mockImplementation(function (options?: AudioEngineOptions) {
+      engine = new RealAudioEngine(options);
+      return engine;
+    } as unknown as typeof RealAudioEngine);
+    // L₀ 측정은 30ms로 고정한다. WAV·PitchPreservingMedia·엔진·GameClock·runtime은 실제 경로다.
+    vi.spyOn(RealAudioEngine.prototype, 'prepareForPlayback').mockResolvedValue();
+    vi.spyOn(RealAudioEngine.prototype, 'getOutputLatencyMs').mockReturnValue(30);
+    const run = create();
+    Object.assign(run.request.audioBuffer, { sampleRate: 1000, numberOfChannels: 1, length: 4000,
+      getChannelData: () => new Float32Array(4000) });
+    await run.player.start(); expect(run.onError).not.toHaveBeenCalled();
+    expect(run.onPhase).toHaveBeenLastCalledWith('playing');
+    fixture.now = 100;
+    rejectPlay(new DOMException('autoplay', 'NotAllowedError')); await Promise.resolve();
+    expect(run.onPhase).toHaveBeenLastCalledWith('paused'); expect(engine.playing).toBe(false);
+    expect(engine.currentTimeMs).toBe(100); expect(run.state().songTimeMs).toBe(70);
+    wallFrame(10000);
+    expect(engine.currentTimeMs).toBe(100); expect(run.state().songTimeMs).toBe(70);
+    run.player.togglePause();
+    expect(engine.playing).toBe(true); expect(run.onPhase).toHaveBeenLastCalledWith('playing');
+    expect(element.play).toHaveBeenCalledTimes(2); expect(element.currentTime).toBe(0);
+    expect(engine.currentTimeMs).toBe(100); expect(run.state().songTimeMs).toBe(70);
+    element.currentTime = 0.05; wallFrame(10050);
+    expect(engine.currentTimeMs).toBeGreaterThan(100); expect(run.onError).not.toHaveBeenCalled();
+  });
+
+  it('1500ms 재생 오류는 Pause와 같은 paused·세션·집계를 유지하고 Play는 1500ms에서 재개한다', async () => {
+    const run = create(); await run.player.start(); run.player.setAuto(false);
+    at(1000); key(run.target, 'keydown'); frame(1000); key(run.target, 'keyup');
+    frame(1500);
+    const audio = fixture.audio[0];
+    const before = snapshot(); const state = run.state();
+    // 엔진은 먼저 출력과 시계를 pause한 다음 현재 시도의 실패를 알린다.
+    audio.pause();
+    audio.onPlaybackError!(new DOMException('autoplay', 'NotAllowedError'));
+    expect(run.onPhase).toHaveBeenLastCalledWith('paused');
+    expect(run.state()).toEqual(state); expect(snapshot()).toEqual(before);
+    expect(run.state().manualStats?.combo).toBe(1);
+    wallFrame(10000); key(run.target, 'keydown'); key(run.target, 'keyup');
+    expect(audio.currentTimeMs).toBe(1500); expect(snapshot()).toEqual(before);
+    run.player.togglePause();
+    expect(run.onPhase).toHaveBeenLastCalledWith('playing');
+    expect(audio.currentTimeMs).toBe(1500); expect(audio.resume).toHaveBeenCalledOnce();
+    expect(audio.playFadedSpan).toHaveBeenCalledOnce();
+    at(2000); key(run.target, 'keydown'); frame(2000);
+    expect(run.state().manualStats?.combo).toBe(2); expect(run.onError).not.toHaveBeenCalled();
+    run.player.dispose(); expect(audio.onPlaybackError).toBeNull();
+  });
+
+  it('J=4100ms가 4000ms 끝을 지나도 media 재생 중이면 반복하지 않고 출력 종료 뒤 1회 반복한다', async () => {
+    const run = create(); await run.player.start();
+    const audio = fixture.audio[0];
+    const playing = vi.spyOn(audio, 'playing', 'get').mockReturnValue(true);
+    frame(4100); expect(audio.playFadedSpan).toHaveBeenCalledOnce();
+    playing.mockReturnValue(false);
+    frame(4200); expect(audio.playFadedSpan).toHaveBeenCalledTimes(2);
+    expect(audio.playFadedSpan.mock.lastCall![1]).toBe(0);
+    expect(run.onError).not.toHaveBeenCalled();
+  });
+
   it('설정 배속 0.5로 옵저버에 진입하면 pitch 보존 엔진을 요청하고 실제 배속은 1을 유지한다', async () => {
     const run = create([p(1000)], { playSpeed: 0.5 }); await run.player.start();
     expect(fixture.audio[0].options).toEqual({ preservePitch: true });

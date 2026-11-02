@@ -42,6 +42,8 @@ interface RateSegment {
 const RATE_HISTORY_SECONDS = 5;
 
 export class AudioEngine {
+  /** 현재 media play 시도가 실패하면 출력·시계를 pause한 뒤 알린다. 취소된 과거 시도는 알리지 않는다. */
+  onPlaybackError: ((error: unknown) => void) | null = null;
   private ctx: AudioContext;
   private source: AudioBufferSourceNode | null = null;
   private sourceGain: GainNode | null = null;
@@ -73,12 +75,16 @@ export class AudioEngine {
   private mediaClockRate = 1;
   private lastMediaSampleTime = -Infinity;
   private mediaPreparation: Promise<void> | null = null;
+  private encodedMedia: { buffer: AudioBuffer; startSeconds: number; endSeconds: number } | null = null;
 
   constructor(options: AudioEngineOptions = {}) {
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
     this.masterGain.connect(this.ctx.destination);
-    this.media = options.preservePitch ? new PitchPreservingMedia(this.ctx, () => this.endMediaPlayback()) : null;
+    this.media = options.preservePitch ? new PitchPreservingMedia(this.ctx, () => this.endMediaPlayback(), error => {
+      this.pause();
+      this.onPlaybackError?.(error);
+    }) : null;
   }
 
   /** Set master volume (0.0 to 1.0) */
@@ -108,7 +114,7 @@ export class AudioEngine {
         this.mediaClockRate = clamped;
       }
       if (this._playing) {
-        this.scheduleMediaFades(this.startOffset, this.ctx.currentTime,
+        this.scheduleMediaFades(this.ctx.currentTime,
           this.media.positionSeconds + getMediaPlaybackLeadMs(this._playbackRate) / 1000);
       }
       return;
@@ -165,7 +171,7 @@ export class AudioEngine {
 
       // Reset playback state when new audio is loaded
       this.stop();
-      this.loadMediaBuffer();
+      this.invalidateMediaBuffer();
     } catch (error) {
       throw new Error(
         `Failed to load audio: ${error instanceof Error ? error.message : String(error)}`,
@@ -182,14 +188,14 @@ export class AudioEngine {
     this.buffer = buffer;
     this.applyRequestedPlaybackRange();
     this.stop();
-    this.loadMediaBuffer();
+    this.invalidateMediaBuffer();
   }
 
   setPlaybackRange(range: PlaybackRange | null): void {
     this.requestedPlaybackRange = range;
     this.applyRequestedPlaybackRange();
     this.stop();
-    this.loadMediaBuffer();
+    this.invalidateMediaBuffer();
   }
 
   /**
@@ -245,6 +251,7 @@ export class AudioEngine {
       throw new Error('No audio loaded');
     }
     this.fadedSpan = span;
+    this.ensureMediaBuffer();
 
     // Resume AudioContext if suspended (autoplay policy)
     if (this.ctx.state === 'suspended') {
@@ -263,7 +270,9 @@ export class AudioEngine {
     }
     this.stopActiveSource();
 
-    const positionSeconds = allowPreroll ? offsetMs / 1000
+    // media 재개 때 P는 음원 끝보다 앞서 있을 수 있다. 위치를 clamp하면 P·J 이력이 끊긴다.
+    const resumingMedia = this.media && preserveRateHistory && this.attemptActive;
+    const positionSeconds = allowPreroll || resumingMedia ? offsetMs / 1000
       : Math.max(0, Math.min(offsetMs / 1000, this.getRangeDurationSeconds()));
     // resume은 정지 전 이력을 잇는다. 기존 resume의 음수 위치 클램프는 새 시작으로 취급한다.
     const freshAnchor = !preserveRateHistory || !this.attemptActive || positionSeconds !== offsetMs / 1000;
@@ -291,9 +300,10 @@ export class AudioEngine {
       this.spanGain.connect(this.masterGain);
       this._playing = true;
       this.audioEnded = false;
-      this.scheduleMediaFades(clockPositionSeconds, this.startTime, positionSeconds + leadSeconds);
-      this.media.start(this.sourceGain, positionSeconds, this._playbackRate);
-      if (positionSeconds + leadSeconds >= (span ? span.toMs / 1000 : this.getRangeDurationSeconds())) this.endMediaPlayback();
+      const mediaPosition = freshAnchor ? positionSeconds : this.media.positionSeconds;
+      this.scheduleMediaFades(this.startTime, mediaPosition + leadSeconds);
+      this.media.start(this.sourceGain, freshAnchor ? positionSeconds : null, this._playbackRate);
+      if (mediaPosition + leadSeconds >= (span ? span.toMs / 1000 : this.getRangeDurationSeconds())) this.endMediaPlayback();
       return;
     }
     if (allowPreroll && positionSeconds >= this.getRangeDurationSeconds()) {
@@ -377,7 +387,7 @@ export class AudioEngine {
 
     // 페이드 구간 재생이면 구간 끝 toMs에서 음원이 끝난다.
     const audioEndSeconds = this.fadedSpan ? this.fadedSpan.toMs / 1000 : this.getRangeDurationSeconds();
-    if (this.audioEnded || this.pauseTime >= audioEndSeconds) {
+    if (this.audioEnded || (!this.media && this.pauseTime >= audioEndSeconds)) {
       // 판정 대기 재개는 시계만 잇는다. 끝난 음원은 다시 재생하지 않는다.
       this.startOffset = this.pauseTime;
       this.startTime = this.ctx.currentTime;
@@ -525,6 +535,7 @@ export class AudioEngine {
   prepareForPlayback(): Promise<void> {
     this.preparation ??= this.captureOutputLatency();
     if (this.media) {
+      this.ensureMediaBuffer();
       this.mediaPreparation ??= Promise.all([this.preparation, this.media.prepare()]).then(() => {});
       return this.mediaPreparation;
     }
@@ -588,17 +599,31 @@ export class AudioEngine {
    * Call when engine is no longer needed
    */
   async dispose(): Promise<void> {
+    this.onPlaybackError = null;
     this.stop();
     this.media?.dispose();
+    this.encodedMedia = null;
     if (this.media) this.masterGain.disconnect();
     await this.ctx.close();
   }
 
-  private loadMediaBuffer(): void {
-    if (!this.media || !this.buffer) return;
+  private invalidateMediaBuffer(): void {
+    const encoded = this.encodedMedia;
+    if (!encoded || (encoded.buffer === this.buffer && encoded.startSeconds === this.getRangeStartSeconds()
+      && encoded.endSeconds === this.getRangeEndSeconds())) return;
+    // 1개 slice만 보관한다. 교체 시 이전 준비를 취소하고 Blob을 즉시 해제하되 인코딩은 미룬다.
+    this.media?.clear();
+    this.encodedMedia = null;
     this.mediaPreparation = null;
+  }
+
+  private ensureMediaBuffer(): void {
+    if (!this.media || !this.buffer || this.encodedMedia) return;
+    const startSeconds = this.getRangeStartSeconds();
+    const endSeconds = this.getRangeEndSeconds();
     // 원본 rangeStart는 WAV를 자를 때 이미 반영한다. element.currentTime은 논리 곡 위치다.
-    this.media.load(encodePcmWav(this.buffer, this.getRangeStartSeconds(), this.getRangeEndSeconds()));
+    this.media.load(encodePcmWav(this.buffer, startSeconds, endSeconds));
+    this.encodedMedia = { buffer: this.buffer, startSeconds, endSeconds };
   }
 
   /** 기존 위치에서 연속인 기울기만 추가한다. nominal playbackRate는 바꾸지 않는다. */
@@ -627,14 +652,14 @@ export class AudioEngine {
     const position = this.startOffset + (now - this.startTime) * this.mediaClockRate;
     const mediaPosition = this.media.positionSeconds + getMediaPlaybackLeadMs(this._playbackRate) / 1000;
     const end = this.fadedSpan ? this.fadedSpan.toMs / 1000 : this.getRangeDurationSeconds();
-    if (position >= end || mediaPosition >= end) {
+    if (mediaPosition >= end) {
       this.endMediaPlayback();
       return;
     }
     const rate = this.mediaCorrection.sample({ realTimeMs: now * 1000, clockPositionMs: position * 1000,
       mediaPositionMs: mediaPosition * 1000, nominalRate: this._playbackRate });
     this.appendMediaRate(rate, now);
-    this.scheduleMediaFades(position, now, mediaPosition);
+    this.scheduleMediaFades(now, mediaPosition);
   }
 
   private endMediaPlayback(): void {
@@ -645,16 +670,16 @@ export class AudioEngine {
     this.stopActiveSource();
   }
 
-  private scheduleMediaFades(position: number, now: number, mediaPosition: number): void {
+  private scheduleMediaFades(now: number, mediaPosition: number): void {
     if (!this.sourceGain || !this.spanGain) return;
-    this.scheduleRangeFade(this.sourceGain, position, now, this.mediaClockRate);
+    // 출력 페이드는 P의 예측·동결과 독립적으로 실제 media 위치를 따라간다.
+    this.scheduleRangeFade(this.sourceGain, mediaPosition, now, this._playbackRate);
     const span = this.fadedSpan;
     const gain = this.spanGain.gain;
     const end = span ? span.toMs / 1000 : this.getRangeDurationSeconds();
-    const clockRemaining = this.mediaClockRate > 0 ? (end - position) / this.mediaClockRate : Infinity;
     const mediaRemaining = (end - mediaPosition) / this._playbackRate;
-    const endAt = now + Math.max(0, Math.min(clockRemaining, mediaRemaining));
-    if (span) this.scheduleSpanFade(this.spanGain, span, position * 1000, now, this.mediaClockRate, endAt);
+    const endAt = now + Math.max(0, mediaRemaining);
+    if (span) this.scheduleSpanFade(this.spanGain, span, mediaPosition * 1000, now, this._playbackRate, endAt);
     else {
       gain.cancelScheduledValues(now);
       gain.setValueAtTime(1, now);

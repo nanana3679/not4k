@@ -7,7 +7,7 @@ export class PitchPreservingMedia {
   private cancelPreparation: (() => void) | null = null;
   private playGeneration = 0;
 
-  constructor(ctx: AudioContext, onEnded: () => void) {
+  constructor(ctx: AudioContext, onEnded: () => void, private readonly onPlaybackError: (error: unknown) => void) {
     const element = this.element;
     element.preload = 'auto';
     const pitch = element as Partial<HTMLAudioElement> & {
@@ -24,7 +24,7 @@ export class PitchPreservingMedia {
   set playbackRate(rate: number) { this.element.playbackRate = rate; }
 
   load(blob: Blob): void {
-    this.release();
+    this.clear();
     this.objectUrl = URL.createObjectURL(blob);
     this.element.src = this.objectUrl;
     this.element.load();
@@ -54,16 +54,20 @@ export class PitchPreservingMedia {
     return this.preparation;
   }
 
-  start(gain: GainNode, positionSeconds: number, rate: number): void {
+  /** null은 pause 당시 element 위치를 그대로 잇는다. 보정된 엔진 시계로 seek하지 않는다. */
+  start(gain: GainNode, positionSeconds: number | null, rate: number): void {
     this.source.connect(gain);
     this.playbackRate = rate;
-    this.seek(positionSeconds);
+    if (positionSeconds !== null) this.seek(positionSeconds);
     const generation = ++this.playGeneration;
     const failed = (error: unknown) => {
       // pause/load가 취소한 과거 play의 AbortError는 현재 시도의 실패가 아니다.
-      if (generation === this.playGeneration) console.warn('AudioEngine media play failed', error);
+      if (generation === this.playGeneration) this.onPlaybackError(error);
     };
-    try { void this.element.play().catch(failed); } catch (error) { failed(error); }
+    try { void this.element.play().catch(failed); } catch (error) {
+      // Promise 거부와 같은 순서로 전달해 호출자가 재생 상태를 설정한 뒤 pause하게 한다.
+      queueMicrotask(() => failed(error));
+    }
   }
 
   seek(positionSeconds: number): void { this.element.currentTime = positionSeconds; }
@@ -74,7 +78,7 @@ export class PitchPreservingMedia {
     this.source.disconnect();
   }
 
-  private release(): void {
+  clear(): void {
     this.cancelPreparation?.();
     this.preparation = null;
     this.pause();
@@ -86,6 +90,6 @@ export class PitchPreservingMedia {
 
   dispose(): void {
     this.element.onended = null;
-    this.release();
+    this.clear();
   }
 }

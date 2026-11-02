@@ -113,6 +113,10 @@ export class ObserverPlayRuntime {
       if (this.closed || !resources) return;
       const { audio, clock, renderer, explicitSkin } = resources;
       this.audio = audio; this.clock = clock; this.renderer = renderer;
+      audio.onPlaybackError = () => {
+        // 엔진이 이미 같은 위치에서 pause했다. 사용자 Pause와 같은 입력·세션·화면 상태로 전환한다.
+        if (!this.paused) this.togglePause();
+      };
       this.selectedRange = observerWholeSongRange(audio.duration);
       this.replaceRepetition();
       this.initialSnapshot = this.repetition!.session.snapshot;
@@ -148,7 +152,7 @@ export class ObserverPlayRuntime {
         const advanceAtMs = Math.min(songTimeMs, clock.toInputTimeMs(timestamp));
         // 끝의 효과도 같은 batch로 한 번 전달한 뒤 반복 상태를 버린다. finalize/result 경로는 없다.
         this.adapter!.sync(clock.visualTimeMs());
-        if (this.repetition!.isFinished(songTimeMs, advanceAtMs)) {
+        if (!audio.playing && this.repetition!.isFinished(songTimeMs, advanceAtMs)) {
           this.restartRepetition();
           return;
         }
@@ -384,6 +388,7 @@ export class ObserverPlayRuntime {
   dispose(): void {
     if (this.closed) return;
     this.closed = true;
+    if (this.audio) this.audio.onPlaybackError = null;
     this.options.inputTarget.removeEventListener('keydown', this.onPausedKey);
     this.options.inputTarget.removeEventListener('keyup', this.onPausedKey);
     this.host.stopFrames();
