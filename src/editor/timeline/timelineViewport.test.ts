@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createTimelineLayout } from "./TimelineLayout";
 import {
   clampHorizontalPan,
   clampVerticalScroll,
@@ -17,6 +18,17 @@ import {
 } from "./timelineViewport";
 
 describe("timeline viewport geometry", () => {
+  it("40px 공통 영역과 보조 2개이면 x=0·39·399는 편집 영역, x=-1·400과 고정 레일은 seek 영역이다", () => {
+    const layout = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: "common", width: 40 }] });
+    for (const timelineX of [0, 39, 399]) {
+      expect(isPlaybackCursorSeekArea({ layout, screenX: 100, timelineX })).toBe(false);
+    }
+    for (const timelineX of [-1, 400]) {
+      expect(isPlaybackCursorSeekArea({ layout, screenX: 100, timelineX })).toBe(true);
+    }
+    expect(isPlaybackCursorSeekArea({ layout, screenX: 20, timelineX: 100 })).toBe(true);
+  });
+
   it("keeps the timeline content anchored after the fixed left rail", () => {
     expect(getTimelineContentOffsetX({ leftRailWidth: 32, horizontalPanX: 0 })).toBe(32);
     expect(getTimelineContentOffsetX({ leftRailWidth: 32, horizontalPanX: 120 })).toBe(-88);

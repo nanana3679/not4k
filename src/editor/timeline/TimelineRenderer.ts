@@ -17,11 +17,8 @@ import type {
 } from "../../shared";
 import { beatToMs, measureStartBeat, extractBpmChanges, extractTimeSignatureChanges } from "../../shared";
 import {
-  TIMELINE_WIDTH,
   DEFAULT_MEASURES,
   TIMELINE_PADDING,
-  EXTRA_LANE_WIDTH,
-  MEASURE_LABEL_WIDTH,
   MINIMAP_WIDTH,
 } from "./constants";
 import {
@@ -53,6 +50,7 @@ import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 import { destroyChildren } from "./utils";
 import { laneToX, laneWidth } from "./laneGeometry";
+import { createTimelineLayout, type TimelineLayout } from "./TimelineLayout";
 import { clampToCursorRange, cursorRangeMsOf } from "./timelineRange";
 
 export interface TimelineRendererOptions {
@@ -75,6 +73,7 @@ export interface TimelineRendererOptions {
  * All positions are in pixels; time flows top-to-bottom.
  */
 export class TimelineRenderer {
+  private cachedLayout: TimelineLayout | null = null;
   private app!: Application;
   private initialized: boolean = false;
   private disposed = false;
@@ -363,6 +362,7 @@ export class TimelineRenderer {
 
     // GridRenderer host
     const gridHost: GridHost = {
+      get layout() { return self.layout; },
       get selectedEvents() { return self._selectedEvents; },
       get chart() { return self.chart; },
       get zoom() { return self._zoom; },
@@ -393,6 +393,7 @@ export class TimelineRenderer {
 
     // NoteRenderer host
     const noteHost: NoteHost = {
+      get layout() { return self.layout; },
       get chart() { return self.chart; },
       get selectedNotes() { return self._selectedNotes; },
       get cachedBpmChanges() { return self.cachedBpmChanges; },
@@ -412,6 +413,7 @@ export class TimelineRenderer {
 
     // OverlayRenderer host
     const overlayHost: OverlayHost = {
+      get layout() { return self.layout; },
       get extraLaneCount() { return self.extraLaneCount; },
       get chart() { return self.chart; },
       get selectedNotes() { return self._selectedNotes; },
@@ -509,7 +511,7 @@ export class TimelineRenderer {
       requestedPanX: this._horizontalPanX,
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
     this.render();
@@ -550,9 +552,21 @@ export class TimelineRenderer {
     this.updateHoverOverlay();
   }
 
+  /** 입력은 store의 최신 보조 레인 수를 넘겨 렌더 동기화 지연 없이 같은 배치를 읽는다. */
+  getLayout(auxiliaryLaneCount = this._extraLaneCount): TimelineLayout {
+    if (this.cachedLayout?.auxiliaryLaneCount !== auxiliaryLaneCount) {
+      this.cachedLayout = createTimelineLayout({ auxiliaryLaneCount });
+    }
+    return this.cachedLayout;
+  }
+
+  get layout(): TimelineLayout {
+    return this.getLayout();
+  }
+
   /** Dynamic timeline width including extra lanes */
   get currentTimelineWidth(): number {
-    return TIMELINE_WIDTH + this._extraLaneCount * EXTRA_LANE_WIDTH;
+    return this.layout.contentWidth;
   }
 
   private get rightRailWidth(): number {
@@ -564,7 +578,7 @@ export class TimelineRenderer {
       requestedPanX: value,
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
     if (next === this._horizontalPanX) return;
@@ -584,13 +598,13 @@ export class TimelineRenderer {
 
   /** 통합 레인 하나가 가로로 보이게 팬한다. 이미 보이면 그대로 둔다(변환 검토 목록의 위치 이동). */
   revealLane(lane: number): void {
-    const left = laneToX(lane);
+    const left = laneToX(lane, this.layout);
     this.horizontalPanX = panToRevealRange({
       left,
-      right: left + laneWidth(lane),
+      right: left + laneWidth(lane, this.layout),
       panX: this._horizontalPanX,
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
   }
@@ -636,7 +650,7 @@ export class TimelineRenderer {
   get contentCenterShiftX(): number {
     return getContentCenterShiftX({
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       timelineWidth: this.currentTimelineWidth,
       rightRailWidth: this.rightRailWidth,
     });
@@ -648,7 +662,7 @@ export class TimelineRenderer {
    */
   get contentOffsetX(): number {
     return getTimelineContentOffsetX({
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       horizontalPanX: this._horizontalPanX,
       centerShiftX: this.contentCenterShiftX,
     });
@@ -696,7 +710,7 @@ export class TimelineRenderer {
     const rect = getTimelineContentViewportRect({
       viewportWidth: this.options.width,
       viewportHeight: this.options.height,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
 
@@ -811,7 +825,7 @@ export class TimelineRenderer {
       layer.y = -this._scrollY;
     }
     this.measureLabels.x = getMeasureLabelLayerOffsetX({
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       horizontalPanX: this._horizontalPanX,
       centerShiftX: this.contentCenterShiftX,
     });
@@ -922,7 +936,7 @@ export class TimelineRenderer {
     }
 
     const hs = 8; // half-size of handle
-    const hx = MEASURE_LABEL_WIDTH - hs;
+    const hx = this.layout.measureRail.width - hs;
     this._cursorHandle.clear();
     this._cursorHandle.moveTo(hx, y - hs);
     this._cursorHandle.lineTo(hx + hs * 2, y);
@@ -1008,7 +1022,7 @@ export class TimelineRenderer {
       requestedPanX: this._horizontalPanX,
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
     if (this.initialized) {

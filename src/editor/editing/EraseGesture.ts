@@ -1,4 +1,4 @@
-import { boxColumnToEventLane } from '../timeline/laneGeometry';
+import { DEFAULT_TIMELINE_LAYOUT, type TimelineLayout } from '../timeline/TimelineLayout';
 import { deleteEvents } from './eventEditing';
 import type { ChartDocument, DocumentNoteEntity } from '../../shared';
 import { beatLte } from '../../shared';
@@ -6,6 +6,7 @@ import { DeleteMode } from '../modes/DeleteMode';
 import { hitTestEventAt, hitTestNoteAt, hitTestRestZoneAt, hitTestTrillZoneAt, isExplicitScoreNote } from '../timeline/hitTest';
 
 interface EraseCallbacks {
+  getLayout?: () => TimelineLayout;
   getChart: () => ChartDocument;
   getSelectedNotes: () => ReadonlySet<number>;
   onChartUpdate: (chart: ChartDocument, transaction: symbol) => void;
@@ -45,7 +46,8 @@ export class EraseGesture {
     const selected = this.callbacks.getSelectedNotes();
     const index = hitTestNoteAt(chart.notes, lane, beatFloat, undefined, selected);
     if (index === null) {
-      const eventLane = boxColumnToEventLane(lane);
+      const layout = this.callbacks.getLayout?.() ?? DEFAULT_TIMELINE_LAYOUT;
+      const eventLane = layout.noteLaneToAuxiliaryLane(lane);
       const eventIndex = eventLane === null ? null : hitTestEventAt(chart.events, eventLane, beatFloat);
       if (eventIndex === null) return false;
       const next = deleteEvents(chart, new Set([eventIndex]));

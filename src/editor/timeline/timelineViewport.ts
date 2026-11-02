@@ -1,3 +1,5 @@
+import type { TimelineLayout } from "./TimelineLayout";
+
 /**
  * 콘텐츠 블록(마디 레일 + 레인 영역)을 가로 중앙 정렬하기 위한 추가 오프셋(px).
  *
@@ -127,19 +129,20 @@ export function panToRevealRange(input: {
 export function isPlaybackCursorSeekArea(input: {
   screenX: number;
   timelineX: number;
-  timelineWidth: number;
-  leftRailWidth: number;
   railStartX?: number;
-}): boolean {
+} & ({ layout: TimelineLayout; timelineWidth?: never; leftRailWidth?: never }
+  | { layout?: undefined; timelineWidth: number; leftRailWidth: number })): boolean {
   // 레인 영역(0 ≤ timelineX < timelineWidth) 밖이면 seek 영역.
   // - 왼쪽: 레인 왼쪽 전체(중앙 정렬로 생긴 좌측 여백 + 마디 레일)
   // - 오른쪽: 레인 오른쪽 전체
   // 가로 팬 중에는 화면 고정 레일도 seek 영역으로 인정한다.
   return isFixedRailX({
     screenX: input.screenX,
-    leftRailWidth: input.leftRailWidth,
+    leftRailWidth: input.layout ? input.layout.measureRail.width : input.leftRailWidth,
     railStartX: input.railStartX,
-  }) || input.timelineX < 0 || input.timelineX >= input.timelineWidth;
+  }) || (input.layout
+    ? input.layout.classifyX(input.timelineX).kind === "outside"
+    : input.timelineX < 0 || input.timelineX >= input.timelineWidth);
 }
 
 export function clampVerticalScroll(input: {

@@ -8,19 +8,18 @@ import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, isVisibleLane } 
 import type { BpmChange, TimeSignatureChange } from "../../shared";
 import {
   LANE_COUNT,
-  LANE_WIDTH,
   NOTE_HEIGHT,
-  TIMELINE_WIDTH,
-  EXTRA_LANE_WIDTH,
   COLORS,
   REST_ZONE_STRIPE_WIDTH,
 } from "./constants";
 import { destroyChildren } from "./utils";
-import { eventLaneToX, laneToX, laneWidth } from "./laneGeometry";
+import { laneToX, laneWidth } from "./laneGeometry";
+import { createTimelineLayout, type TimelineLayout } from "./TimelineLayout";
 import { diagonalStripeBands } from "./restZoneHatch";
 
 /** GridRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface GridHost {
+  readonly layout?: TimelineLayout;
   readonly chart: import("../../shared").ChartDocument | null;
   readonly zoom: number;
   readonly snap: number;
@@ -53,6 +52,10 @@ export interface GridHost {
 export class GridRenderer {
   constructor(private host: GridHost) {}
 
+  private get layout(): TimelineLayout {
+    return this.host.layout ?? createTimelineLayout({ auxiliaryLaneCount: this.host.extraLaneCount });
+  }
+
   /**
    * 레인 배경 렌더링
    */
@@ -70,17 +73,18 @@ export class GridRenderer {
     for (let i = 0; i < LANE_COUNT; i++) {
       const bg = new Graphics();
       const color = i % 2 === 0 ? COLORS.LANE_BG_EVEN : COLORS.LANE_BG_ODD;
-      bg.rect(i * LANE_WIDTH, topY, LANE_WIDTH, laneHeight);
+      const { x, width } = this.layout.noteLaneRange(i + 1);
+      bg.rect(x, topY, width, laneHeight);
       bg.fill(color);
       this.host.laneBackgrounds.addChild(bg);
     }
 
     // Extra lanes (editor-only, right of note lanes)
-    const extraStartX = TIMELINE_WIDTH;
     for (let i = 0; i < this.host.extraLaneCount; i++) {
       const bg = new Graphics();
       const color = i % 2 === 0 ? COLORS.EXTRA_LANE_BG_EVEN : COLORS.EXTRA_LANE_BG_ODD;
-      bg.rect(extraStartX + i * EXTRA_LANE_WIDTH, topY, EXTRA_LANE_WIDTH, laneHeight);
+      const { x, width } = this.layout.auxiliaryLaneRange(i + 1);
+      bg.rect(x, topY, width, laneHeight);
       bg.fill(color);
       this.host.laneBackgrounds.addChild(bg);
     }
@@ -92,8 +96,8 @@ export class GridRenderer {
   renderWaveform(): void {
     if (!this.host.waveformPeaks || this.host.waveformDurationMs === 0) return;
 
-    const laneAreaWidth = LANE_COUNT * LANE_WIDTH;
-    const centerX = laneAreaWidth / 2;
+    const { x, width: laneAreaWidth } = this.layout.mainArea;
+    const centerX = x + laneAreaWidth / 2;
 
     const peaks = this.host.waveformPeaks;
     const peakCount = peaks.length;
@@ -179,7 +183,7 @@ export class GridRenderer {
       // Measure line
       const line = new Graphics();
       line.moveTo(0, y);
-      line.lineTo(this.host.currentTimelineWidth, y);
+      line.lineTo(this.layout.contentWidth, y);
       line.stroke({ width: 2, color: COLORS.MEASURE_LINE });
       this.host.measureLines.addChild(line);
 
@@ -211,7 +215,7 @@ export class GridRenderer {
         const bY = this.host.timeToY(bMs);
         const beatLine = new Graphics();
         beatLine.moveTo(0, bY);
-        beatLine.lineTo(this.host.currentTimelineWidth, bY);
+        beatLine.lineTo(this.layout.contentWidth, bY);
         beatLine.stroke({ width: 1, color: COLORS.BEAT_LINE });
         this.host.beatLines.addChild(beatLine);
       }
@@ -231,7 +235,7 @@ export class GridRenderer {
         const snapY = this.host.timeToY(snapMs);
         const snapLine = new Graphics();
         snapLine.moveTo(0, snapY);
-        snapLine.lineTo(this.host.currentTimelineWidth, snapY);
+        snapLine.lineTo(this.layout.contentWidth, snapY);
         snapLine.stroke({ width: 1, color: COLORS.SNAP_LINE, alpha: 0.3 });
         this.host.snapLines.addChild(snapLine);
       }
@@ -242,7 +246,7 @@ export class GridRenderer {
       const endY = this.host.timeToY(this.host.waveformDurationMs);
       const endLine = new Graphics();
       endLine.moveTo(0, endY);
-      endLine.lineTo(this.host.currentTimelineWidth, endY);
+      endLine.lineTo(this.layout.contentWidth, endY);
       endLine.stroke({ width: 1, color: 0x66aaff, alpha: 0.5 });
       this.host.measureLines.addChild(endLine);
     }
@@ -257,12 +261,11 @@ export class GridRenderer {
 
     const bpmChanges = this.host.cachedBpmChanges;
     const { events, meta } = chart;
-    const eventRenderWidth = EXTRA_LANE_WIDTH;
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
     for (let i = 0; i < events.length; i++) {
       const evt = events[i];
-      const eventRenderX = eventLaneToX(evt.editorLane ?? 1);
+      const { x: eventRenderX, width: eventRenderWidth } = this.layout.eventRange(evt);
 
       const startMs = beatToMs(evt.beat, bpmChanges, meta.offsetMs);
       const endMs = 'endBeat' in evt ? beatToMs(evt.endBeat, bpmChanges, meta.offsetMs) : startMs;
@@ -351,8 +354,8 @@ export class GridRenderer {
       const startY = this.host.timeToY(startMs);
       const endY = this.host.timeToY(endMs);
 
-      const x = laneToX(zone.lane);
-      const width = laneWidth(zone.lane);
+      const x = laneToX(zone.lane, this.layout);
+      const width = laneWidth(zone.lane, this.layout);
       const topY = Math.min(startY, endY);
       const rawHeight = Math.abs(endY - startY);
       const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;
@@ -401,8 +404,7 @@ export class GridRenderer {
       const startY = this.host.timeToY(startMs);
       const endY = this.host.timeToY(endMs);
 
-      const x = (zone.lane - 1) * LANE_WIDTH;
-      const width = LANE_WIDTH;
+      const { x, width } = this.layout.noteLaneRange(zone.lane);
       const topY = Math.min(startY, endY);
       const rawHeight = Math.abs(endY - startY);
       const height = rawHeight > 0 ? rawHeight : NOTE_HEIGHT;

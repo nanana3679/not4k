@@ -8,7 +8,6 @@ import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { CreateMode, SelectMode, EntityType, EditResult } from '../modes';
 import { DeleteMode, isEventEntityType, activeEditorMode } from '../modes';
-import { MEASURE_LABEL_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
 import { isPlaybackCursorSeekArea } from '../timeline/timelineViewport';
 import { noteExistsAtSnap } from '../timeline/hitTest';
 import { beatToMs, fromAuxIndex } from '../../shared';
@@ -106,6 +105,7 @@ export function useCanvasEvents(
 
   const rightPressPendingRef = useRef(false);
   const eraseGestureRef = useRef(new EraseGesture({
+    getLayout: () => space.layout,
     getChart: () => useEditorStore.getState().chart,
     getSelectedNotes: () => useEditorStore.getState().selection.notes,
     onChartUpdate: (chart, transaction) => useEditorStore.getState().setChart(chart, { transaction }),
@@ -495,12 +495,11 @@ export function useCanvasEvents(
 
     const renderer = rendererRef.current;
     const x = renderer?.screenXToTimelineX(rawX) ?? rawX;
-    const curTimelineWidth = rendererRef.current?.currentTimelineWidth ?? TIMELINE_WIDTH;
+    const layout = space.layout;
     if (renderer && isPlaybackCursorSeekArea({
       screenX: rawX,
       timelineX: x,
-      timelineWidth: curTimelineWidth,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      layout,
       railStartX: renderer.contentCenterShiftX,
     })) {
       isDraggingCursorRef.current = true;

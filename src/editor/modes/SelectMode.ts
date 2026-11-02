@@ -1,4 +1,3 @@
-import { eventLaneToBoxColumn } from '../timeline/laneGeometry';
 import { deleteEvents, eventInBounds, isInitialTimingEvent, translateEvent } from '../editing/eventEditing';
 import { placeEditedInitialTiming, withInitialTimingLane } from '../editing/initialTimingPlacement';
 import { INITIAL_TIMING_EXISTS_COPY } from '../editorCopy';
@@ -1093,7 +1092,7 @@ export class SelectMode implements EditorMode {
     const indices = new Set<number>();
     this.chart.events.forEach((event, index) => {
       if (isInitialTimingEvent(event)) return;
-      const column = eventLaneToBoxColumn(event.editorLane ?? 1);
+      const column = this.callbacks.space.layout.eventBoxColumn(event);
       const end = 'endBeat' in event ? event.endBeat : event.beat;
       if (column >= box.minLane && column <= box.maxLane
         && beatToFloat(event.beat) <= beatToFloat(box.maxBeat)

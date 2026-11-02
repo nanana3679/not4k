@@ -1,39 +1,15 @@
-/**
- * laneGeometry — lane(메인 1..4·보조 5+) → 타임라인 픽셀 x 투영 (RFD 0018 좌표 투영)
- *
- * laneAxis(경계 지식)의 직접 소비자. 보조 레인은 메인 영역(TIMELINE_WIDTH) 오른쪽의
- * 별도 영역에 그려진다 — 레인 연속성은 논리적(lane±1)이고 기하학적으로는 불연속이다.
- */
+/** 기존 숫자 레인 API의 어댑터. 가로 배치의 단일 소유자는 TimelineLayout이다. */
+import { DEFAULT_TIMELINE_LAYOUT, type TimelineLayout } from "./TimelineLayout";
 
-import { isMainLane, toAuxIndex } from "../../shared";
-import { LANE_COUNT, LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
-
-/** lane → 칸 왼쪽 x. 메인 (lane-1)*LANE_WIDTH, 보조 TIMELINE_WIDTH + (auxIndex-1)*EXTRA_LANE_WIDTH */
-export function laneToX(lane: number): number {
-  return isMainLane(lane)
-    ? (lane - 1) * LANE_WIDTH
-    : TIMELINE_WIDTH + (toAuxIndex(lane) - 1) * EXTRA_LANE_WIDTH;
+export function laneToX(lane: number, layout: TimelineLayout = DEFAULT_TIMELINE_LAYOUT): number {
+  return layout.noteLaneRange(lane).x;
 }
 
-/** lane의 칸 폭 */
-export function laneWidth(lane: number): number {
-  return isMainLane(lane) ? LANE_WIDTH : EXTRA_LANE_WIDTH;
+export function laneWidth(lane: number, layout: TimelineLayout = DEFAULT_TIMELINE_LAYOUT): number {
+  return layout.noteLaneRange(lane).width;
 }
 
-/**
- * 이벤트 editorLane(1-based) → 엑스트라 레인 칸 왼쪽 x.
- * 이벤트 전용 좌표계 — editorLane 1이 곧 첫 엑스트라 칸(TIMELINE_WIDTH)이다.
- * laneToX(메인 1..4·보조 5+)와는 별개 축이므로 editorLane을 laneToX에 넣으면 안 된다.
- */
-export function eventLaneToX(editorLane: number): number {
-  return TIMELINE_WIDTH + (editorLane - 1) * EXTRA_LANE_WIDTH;
-}
-
-/** 박스 선택의 화면 열로 투영한다. 이벤트의 저장 레인 의미는 바꾸지 않는다. */
-export function eventLaneToBoxColumn(editorLane: number): number {
-  return LANE_COUNT + editorLane;
-}
-
-export function boxColumnToEventLane(column: number): number | null {
-  return column > LANE_COUNT ? column - LANE_COUNT : null;
+/** editorLane은 보조 레인의 1-기반 번호다. 노트 lane과 구별한다. */
+export function eventLaneToX(editorLane: number, layout: TimelineLayout = DEFAULT_TIMELINE_LAYOUT): number {
+  return layout.auxiliaryLaneRange(editorLane).x;
 }

@@ -1,3 +1,4 @@
+import { xToLaneInRange } from "./TimelineLayout";
 import type { Beat, Lane } from "../../shared";
 
 export function timelineXToLane(input: {
@@ -5,10 +6,7 @@ export function timelineXToLane(input: {
   laneWidth: number;
   laneCount: number;
 }): Lane | null {
-  if (input.timelineX < 0 || input.laneWidth <= 0 || input.laneCount <= 0) return null;
-  const lane = Math.floor(input.timelineX / input.laneWidth) + 1;
-  if (lane < 1 || lane > input.laneCount) return null;
-  return lane as Lane;
+  return xToLaneInRange(input.timelineX, 0, input.laneWidth, input.laneCount) as Lane | null;
 }
 
 export function timelineXToExtraLane(input: {
@@ -17,11 +15,7 @@ export function timelineXToExtraLane(input: {
   extraLaneWidth: number;
   extraLaneCount: number;
 }): number | null {
-  if (input.extraLaneCount <= 0 || input.extraLaneWidth <= 0) return null;
-  if (input.timelineX < input.timelineWidth) return null;
-  const lane = Math.floor((input.timelineX - input.timelineWidth) / input.extraLaneWidth) + 1;
-  if (lane < 1 || lane > input.extraLaneCount) return null;
-  return lane;
+  return xToLaneInRange(input.timelineX, input.timelineWidth, input.extraLaneWidth, input.extraLaneCount);
 }
 
 export function getTimelineTotalHeight(input: {

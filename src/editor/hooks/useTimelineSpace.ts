@@ -17,6 +17,7 @@ import {
 } from "../timeline/TimelineSpace";
 import { extractBpmChanges } from "../../shared";
 import type { BpmChange } from "../../shared";
+import { createTimelineLayout } from "../timeline/TimelineLayout";
 import { useEditorStore } from "../stores";
 
 export function useTimelineSpace(rendererRef: RefObject<TimelineRenderer | null>): {
@@ -34,6 +35,11 @@ export function useTimelineSpace(rendererRef: RefObject<TimelineRenderer | null>
       getSnapDivision: () => useEditorStore.getState().snapDivision,
       getSelectedNotes: () => useEditorStore.getState().selection.notes,
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
+      getLayout: () => {
+        const auxiliaryLaneCount = useEditorStore.getState().extraLaneCount;
+        return rendererRef.current?.getLayout(auxiliaryLaneCount)
+          ?? createTimelineLayout({ auxiliaryLaneCount });
+      },
       yToTime: (y) => (rendererRef.current ? rendererRef.current.yToTime(y) : null),
       getTotalTimelineMs: () =>
         rendererRef.current ? rendererRef.current.getTotalTimelineMs() : null,
