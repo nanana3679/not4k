@@ -7,7 +7,11 @@ import {
   deleteChartAsset,
   deleteSongAsset,
   saveChartAsset,
+  saveSonglessChartAsset,
   SongHasChartsError,
+  type ChartAssetRow,
+  type ChartRowCreate,
+  type ChartRowSave,
   type SongAssetPersistenceAdapter,
 } from "./chartAssetPersistence";
 
@@ -37,13 +41,15 @@ function makeChart(input: {
   };
 }
 
-function makeAdapter(input: { songFiles?: string[] } = {}) {
+function makeAdapter(input: { songFiles?: string[]; tokens?: string[]; survivingRows?: ChartAssetRow[] } = {}) {
   const calls: string[] = [];
   const uploads: { path: string; content: string; contentType: string; upsert: boolean }[] = [];
   const removes: string[][] = [];
-  const upserts: unknown[] = [];
+  const rowSaves: ChartRowSave[] = [];
+  const rowCreates: ChartRowCreate[] = [];
   const deletes: unknown[] = [];
   const songDeletes: string[] = [];
+  const tokens = [...(input.tokens ?? ["token-1", "token-2"])];
 
   const adapter: SongAssetPersistenceAdapter = {
     uploadText: async (asset) => {
@@ -54,14 +60,22 @@ function makeAdapter(input: { songFiles?: string[] } = {}) {
       calls.push(`remove:${paths.join(",")}`);
       removes.push(paths);
     },
-    upsertChartRow: async (row) => {
-      calls.push(`upsert:${row.songId}:${row.difficulty}`);
-      upserts.push(row);
+    saveChartRow: async (row) => {
+      calls.push(`saveRow:${row.chartId}:${row.expectedRevision}`);
+      rowSaves.push(row);
+      return row.expectedRevision + 1;
+    },
+    createChartRow: async (row) => {
+      calls.push(`createRow:${row.songId}:${row.difficulty}`);
+      rowCreates.push(row);
+      return { chartId: `created-${row.difficulty}`, revision: 0 };
     },
     deleteChartRow: async (target) => {
       calls.push(`delete:${target.songId}:${target.difficulty}`);
       deletes.push(target);
+      return { difficultyLabel: target.difficulty, chartPath: null, chartExtraPath: null };
     },
+    listChartAssets: async () => input.survivingRows ?? [],
     listSongFiles: async (songId) => {
       calls.push(`list:${songId}`);
       return input.songFiles ?? [];
@@ -70,10 +84,13 @@ function makeAdapter(input: { songFiles?: string[] } = {}) {
       calls.push(`deleteSong:${songId}`);
       songDeletes.push(songId);
     },
+    newPathToken: () => tokens.shift() ?? "token-x",
   };
 
-  return { adapter, calls, uploads, removes, upserts, deletes, songDeletes };
+  return { adapter, calls, uploads, removes, rowSaves, rowCreates, deletes, songDeletes };
 }
+
+const ROW = { chartId: "chart-uuid-1", revision: 3 };
 
 describe("saveChartAsset", () => {
   it("혼합 main/aux 저장은 Grace·holdOnly·길이 0·독립 수량·메타데이터를 재불러오고 dirty 비교도 보존한다", async () => {
@@ -88,7 +105,7 @@ describe("saveChartAsset", () => {
       { type: "body", lane: 7, beat: beat(1), endBeat: beat(1), holdCount: 2 },
       { type: "tick", lane: 7, beat: beat(1), count: 2 },
     ] };
-    const saved = await saveChartAsset(fake.adapter, { songId: "mixed", difficulty: "Expert", chart, extraLaneCount: 4 });
+    const saved = await saveChartAsset(fake.adapter, { songId: "mixed", difficulty: "Expert", chart, extraLaneCount: 4, row: ROW });
     const parsed = deserializeChartDocument(saved.chartJson);
     const extra = parseExtraNotesDocument(JSON.parse(saved.extraJson));
     const restored = { ...parsed, notes: withAuxNotes(parsed.notes, extra.extraNotes) };
@@ -112,46 +129,64 @@ describe("saveChartAsset", () => {
       { type: "release", lane: 5, beat: beat(0), count: 1 },
     ] };
     const before = serializeChart(chart);
-    const saved = await saveChartAsset(fake.adapter, { songId: "aux-only", difficulty: "Easy", chart, extraLaneCount: 0 });
+    const saved = await saveChartAsset(fake.adapter, { songId: "aux-only", difficulty: "Easy", chart, extraLaneCount: 0, row: ROW });
     expect(JSON.parse(saved.chartJson).version).toBe(3);
     expect(JSON.parse(saved.extraJson).version).toBe(4);
     expect(fake.removes).toEqual([]);
     expect(serializeChart(chart)).toBe(before);
   });
 
-  it("uploads chart JSON, removes stale extra JSON, and upserts the chart row", async () => {
+  it("Hard 차트 저장은 메인·보조 JSON을 토큰 token-1의 새 경로에 upsert false로 올린 뒤 save_chart에 행 ID·예상 리비전 3·레벨 13·새 경로를 넘기고 리비전 4를 돌려준다", async () => {
     const fake = makeAdapter();
 
     const result = await saveChartAsset(fake.adapter, {
       songId: "song-one",
       difficulty: "Hard",
       chart: makeChart({ difficultyLevel: 13, offsetMs: -12 }),
-      extraLaneCount: 0,
+      extraLaneCount: 2,
+      row: ROW,
     });
 
-    expect(fake.uploads).toHaveLength(1);
-    expect(fake.uploads[0]).toMatchObject({
-      path: "songs/song-one/hard.json",
-      contentType: "application/json",
-      upsert: true,
-    });
+    expect(fake.uploads.map(({ path, contentType, upsert }) => ({ path, contentType, upsert }))).toEqual([
+      { path: "songs/song-one/hard-token-1.json", contentType: "application/json", upsert: false },
+      { path: "songs/song-one/hard-token-1.extra.json", contentType: "application/json", upsert: false },
+    ]);
     expect(JSON.parse(fake.uploads[0].content).meta.difficultyLevel).toBe(13);
-    expect(fake.removes).toEqual([["songs/song-one/hard.extra.json"]]);
-    expect(fake.upserts).toEqual([{
-      songId: "song-one",
-      difficulty: "hard",
+    expect(fake.calls.at(-1)).toBe("saveRow:chart-uuid-1:3");
+    expect(fake.rowSaves).toEqual([{
+      chartId: "chart-uuid-1",
+      expectedRevision: 3,
       difficultyLevel: 13,
-      offsetMs: -12,
+      chartPath: "songs/song-one/hard-token-1.json",
+      extraPath: "songs/song-one/hard-token-1.extra.json",
     }]);
+    expect(fake.rowCreates).toEqual([]);
+    expect(fake.removes).toEqual([]);
     expect(result).toMatchObject({
-      chartPath: "songs/song-one/hard.json",
-      extraPath: "songs/song-one/hard.extra.json",
+      chartPath: "songs/song-one/hard-token-1.json",
+      extraPath: "songs/song-one/hard-token-1.extra.json",
       difficulty: "hard",
+      row: { chartId: "chart-uuid-1", revision: 4 },
     });
-    expect(JSON.parse(result.extraJson)).toEqual({ extraNotes: [], extraLaneCount: 0 });
   });
 
-  it("uploads extra JSON when extra lanes or notes exist", async () => {
+  it("보조 레인 수 0·보조 노트 없음이면 기존 보조 파일을 지우지 않고 새 보조 경로에 빈 보조 JSON {extraNotes:[], extraLaneCount:0}을 올린다", async () => {
+    const fake = makeAdapter();
+
+    const result = await saveChartAsset(fake.adapter, {
+      songId: "song-one", difficulty: "Hard", chart: makeChart(), extraLaneCount: 0, row: ROW,
+    });
+
+    expect(fake.removes).toEqual([]);
+    expect(fake.uploads.map((upload) => upload.path)).toEqual([
+      "songs/song-one/hard-token-1.json",
+      "songs/song-one/hard-token-1.extra.json",
+    ]);
+    expect(JSON.parse(fake.uploads[1].content)).toEqual({ extraNotes: [], extraLaneCount: 0 });
+    expect(result.extraJson).toBe(fake.uploads[1].content);
+  });
+
+  it("보조 레인 3개·보조 노트 lane 6이 있으면 보조 JSON에 extraLane 2·extraLaneCount 3으로 올린다", async () => {
     const fake = makeAdapter();
     // 보조 노트는 chart.notes(lane 5+)에 산다 (RFD 0018 ③). extraLane 2 → lane 6.
     // buildChartAsset이 저장 시 메인/보조로 분리해 보조 파일에 extraLane으로 환원한다.
@@ -163,38 +198,134 @@ describe("saveChartAsset", () => {
         notes: [{ type: "single", lane: 6, beat: beat(1, 4) }],
       }),
       extraLaneCount: 3,
+      row: ROW,
     });
 
-    expect(fake.removes).toEqual([]);
     expect(fake.uploads.map((upload) => upload.path)).toEqual([
-      "songs/song-two/expert.json",
-      "songs/song-two/expert.extra.json",
+      "songs/song-two/expert-token-1.json",
+      "songs/song-two/expert-token-1.extra.json",
     ]);
     expect(JSON.parse(fake.uploads[1].content)).toEqual({
       extraNotes: [{ type: "single", extraLane: 2, beat: "1/4" }],
       extraLaneCount: 3,
     });
   });
+
+  it("같은 차트를 두 번 저장하면 매번 다른 토큰의 경로에 올려 이전 저장 파일을 덮지 않는다", async () => {
+    const fake = makeAdapter({ tokens: ["first", "second"] });
+    const input = { songId: "song-one", difficulty: "hard", chart: makeChart(), extraLaneCount: 2, row: ROW };
+
+    await saveChartAsset(fake.adapter, input);
+    await saveChartAsset(fake.adapter, { ...input, row: { ...ROW, revision: 4 } });
+
+    expect(fake.uploads.map((upload) => upload.path)).toEqual([
+      "songs/song-one/hard-first.json", "songs/song-one/hard-first.extra.json",
+      "songs/song-one/hard-second.json", "songs/song-one/hard-second.extra.json",
+    ]);
+  });
+
+  it("보조 JSON 업로드가 실패하면 save_chart를 부르지 않아 charts 행은 이전 파일을 계속 가리킨다", async () => {
+    const fake = makeAdapter();
+    fake.adapter.uploadText = async (asset) => {
+      if (asset.path.endsWith(".extra.json")) throw new Error("Storage upload failed");
+    };
+
+    await expect(saveChartAsset(fake.adapter, {
+      songId: "song-one", difficulty: "hard", chart: makeChart(), extraLaneCount: 2, row: ROW,
+    })).rejects.toThrow("Storage upload failed");
+    expect(fake.rowSaves).toEqual([]);
+  });
+
+  it("save_chart가 PT409로 거부하면 오류 code PT409를 그대로 던진다", async () => {
+    const fake = makeAdapter();
+    fake.adapter.saveChartRow = async () => { throw Object.assign(new Error("chart_revision_conflict"), { code: "PT409" }); };
+
+    await expect(saveChartAsset(fake.adapter, {
+      songId: "song-one", difficulty: "hard", chart: makeChart(), extraLaneCount: 2, row: ROW,
+    })).rejects.toMatchObject({ code: "PT409" });
+  });
 });
 
 describe("createChartAsset", () => {
-  it("creates an empty chart asset without touching extra JSON", async () => {
+  it("Normal 새 차트는 메인·빈 보조 JSON을 새 경로에 올린 뒤 create_chart에 곡·소문자 난이도 normal·레벨 5·새 경로를 넘기고 새 행 ID·리비전 0을 돌려준다", async () => {
     const fake = makeAdapter();
 
-    await createChartAsset(fake.adapter, {
+    const result = await createChartAsset(fake.adapter, {
       songId: "song-three",
       difficulty: "Normal",
       chart: makeChart({ difficultyLevel: 5 }),
     });
 
-    expect(fake.uploads.map((upload) => upload.path)).toEqual(["songs/song-three/normal.json"]);
+    expect(fake.uploads.map(({ path, upsert }) => ({ path, upsert }))).toEqual([
+      { path: "songs/song-three/normal-token-1.json", upsert: false },
+      { path: "songs/song-three/normal-token-1.extra.json", upsert: false },
+    ]);
+    expect(JSON.parse(fake.uploads[1].content)).toEqual({ extraNotes: [], extraLaneCount: 0 });
     expect(fake.removes).toEqual([]);
-    expect(fake.upserts).toEqual([{
+    expect(fake.calls.at(-1)).toBe("createRow:song-three:normal");
+    expect(fake.rowCreates).toEqual([{
       songId: "song-three",
       difficulty: "normal",
       difficultyLevel: 5,
-      offsetMs: 34,
+      chartPath: "songs/song-three/normal-token-1.json",
+      extraPath: "songs/song-three/normal-token-1.extra.json",
     }]);
+    expect(fake.rowSaves).toEqual([]);
+    expect(result.row).toEqual({ chartId: "created-normal", revision: 0 });
+  });
+
+  it("Save As처럼 보조 레인 3개를 넘기면 보조 JSON에 extraLaneCount 3을 담아 만든다", async () => {
+    const fake = makeAdapter();
+
+    const result = await createChartAsset(fake.adapter, {
+      songId: "song-three", difficulty: "LIFTOFF", chart: makeChart(), extraLaneCount: 3,
+    });
+
+    expect(JSON.parse(result.extraJson)).toEqual({ extraNotes: [], extraLaneCount: 3 });
+    expect(result.difficulty).toBe("liftoff");
+  });
+
+  it("create_chart가 23505(같은 곡·난이도 행 있음)로 거부하면 code 23505를 그대로 던진다", async () => {
+    const fake = makeAdapter();
+    fake.adapter.createChartRow = async () => { throw Object.assign(new Error("duplicate key"), { code: "23505" }); };
+
+    await expect(createChartAsset(fake.adapter, {
+      songId: "song-three", difficulty: "normal", chart: makeChart(),
+    })).rejects.toMatchObject({ code: "23505" });
+  });
+});
+
+describe("saveSonglessChartAsset", () => {
+  it("곡 행 없는 Hard 차트에 보조 레인 2개가 있으면 결정적 경로 hard.json·hard.extra.json에 upsert true로 덮어쓰고 charts 행은 만들거나 고치지 않는다", async () => {
+    const fake = makeAdapter();
+
+    const result = await saveSonglessChartAsset(fake.adapter, {
+      songId: "song-three", difficulty: "Hard", chart: makeChart(), extraLaneCount: 2,
+    });
+
+    expect(fake.uploads.map(({ path, upsert }) => ({ path, upsert }))).toEqual([
+      { path: "songs/song-three/hard.json", upsert: true },
+      { path: "songs/song-three/hard.extra.json", upsert: true },
+    ]);
+    expect(JSON.parse(fake.uploads[1].content)).toEqual({ extraNotes: [], extraLaneCount: 2 });
+    expect(fake.rowSaves).toEqual([]);
+    expect(fake.rowCreates).toEqual([]);
+    expect(fake.removes).toEqual([]);
+    expect(result).toMatchObject({ chartPath: "songs/song-three/hard.json", extraPath: "songs/song-three/hard.extra.json", difficulty: "hard" });
+    expect(result).not.toHaveProperty("row");
+  });
+
+  it("곡 행 없는 차트에 보조 레인 0·보조 노트가 없으면 메인만 덮어쓰고 결정적 경로의 보조 파일 hard.extra.json을 지운다", async () => {
+    const fake = makeAdapter();
+
+    await saveSonglessChartAsset(fake.adapter, {
+      songId: "song-three", difficulty: "hard", chart: makeChart(), extraLaneCount: 0,
+    });
+
+    expect(fake.uploads.map(({ path }) => path)).toEqual(["songs/song-three/hard.json"]);
+    expect(fake.removes).toEqual([["songs/song-three/hard.extra.json"]]);
+    expect(fake.rowSaves).toEqual([]);
+    expect(fake.rowCreates).toEqual([]);
   });
 });
 
@@ -256,15 +387,47 @@ describe("deleteSongAsset", () => {
 });
 
 describe("deleteChartAsset", () => {
-  it("deletes the chart row before removing chart and extra JSON assets", async () => {
+  it("HARD가 새 경로·hard가 NULL 경로일 때 HARD UUID를 삭제하면 새 파일 2개만 지우고 hard.json·hard.extra.json은 보존한다", async () => {
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "hard", chartPath: null, chartExtraPath: null }] });
+    fake.adapter.deleteChartRow = async (target) => {
+      fake.deletes.push(target);
+      return { difficultyLabel: "HARD", chartPath: "songs/song-four/hard-saved.json", chartExtraPath: "songs/song-four/hard-saved.extra.json" };
+    };
+
+    await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.deletes).toEqual([{ songId: "song-four", difficulty: "hard", chartId: "chart-HARD" }]);
+    expect(fake.removes).toEqual([["songs/song-four/hard-saved.json", "songs/song-four/hard-saved.extra.json"]]);
+  });
+
+  it("새 경로 hard-saved를 가리키는 HARD를 다른 행 참조 없이 삭제하면 새 파일 2개와 함께 RFD 0107 이전 고정 경로 hard.json·hard.extra.json도 지운다", async () => {
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "easy", chartPath: null, chartExtraPath: null }] });
+    fake.adapter.deleteChartRow = async (target) => {
+      fake.deletes.push(target);
+      return { difficultyLabel: "HARD", chartPath: "songs/song-four/hard-saved.json", chartExtraPath: "songs/song-four/hard-saved.extra.json" };
+    };
+
+    const result = await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.removes).toEqual([[
+      "songs/song-four/hard-saved.json",
+      "songs/song-four/hard-saved.extra.json",
+      "songs/song-four/hard.json",
+      "songs/song-four/hard.extra.json",
+    ]]);
+    expect(result.removedPaths).toHaveLength(4);
+  });
+
+  it("NULL 경로 HARD만 있을 때 UUID로 삭제하면 행 삭제 후 hard.json·hard.extra.json을 제거한다", async () => {
     const fake = makeAdapter();
 
     await deleteChartAsset(fake.adapter, {
       songId: "song-four",
       difficulty: "HARD",
+      chartId: "chart-HARD",
     });
 
-    expect(fake.deletes).toEqual([{ songId: "song-four", difficulty: "hard" }]);
+    expect(fake.deletes).toEqual([{ songId: "song-four", difficulty: "hard", chartId: "chart-HARD" }]);
     expect(fake.removes).toEqual([[
       "songs/song-four/hard.json",
       "songs/song-four/hard.extra.json",
@@ -273,5 +436,51 @@ describe("deleteChartAsset", () => {
       "delete:song-four:hard",
       "remove:songs/song-four/hard.json,songs/song-four/hard.extra.json",
     ]);
+  });
+
+  it("NULL 경로 HARD·hard가 함께 있을 때 HARD UUID를 삭제하면 hard.json·hard.extra.json을 모두 보존한다", async () => {
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "hard", chartPath: null, chartExtraPath: null }] });
+
+    const result = await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.deletes).toEqual([{ songId: "song-four", difficulty: "hard", chartId: "chart-HARD" }]);
+    expect(fake.removes).toEqual([]);
+    expect(result.removedPaths).toEqual([]);
+  });
+
+  it("expert가 hard.json을 명시적으로 참조할 때 NULL 경로 HARD를 삭제하면 hard.extra.json만 제거한다", async () => {
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "expert", chartPath: "songs/song-four/hard.json", chartExtraPath: "songs/song-four/expert.extra.json" }] });
+
+    await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.removes).toEqual([["songs/song-four/hard.extra.json"]]);
+  });
+
+  it("HARD의 저장 경로 2개를 expert도 참조할 때 HARD를 삭제하면 공유 파일 2개는 보존하고 고정 경로 hard.json·hard.extra.json만 지운다", async () => {
+    const shared = { chartPath: "songs/song-four/hard-saved.json", chartExtraPath: "songs/song-four/hard-saved.extra.json" };
+    const fake = makeAdapter({ survivingRows: [{ difficultyLabel: "expert", ...shared }] });
+    fake.adapter.deleteChartRow = async () => ({ difficultyLabel: "HARD", ...shared });
+
+    await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.removes).toEqual([["songs/song-four/hard.json", "songs/song-four/hard.extra.json"]]);
+  });
+
+  it("HARD UUID 삭제 후 살아 있는 행 조회가 실패하면 Storage 파일을 0개 삭제한다", async () => {
+    const fake = makeAdapter();
+    fake.adapter.listChartAssets = async () => { throw new Error("offline"); };
+
+    await expect(deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" })).rejects.toThrow("offline");
+
+    expect(fake.removes).toEqual([]);
+  });
+
+  it("HARD UUID가 이미 없으면 Delete Chart가 hard.json을 포함해 Storage 파일을 0개 삭제한다", async () => {
+    const fake = makeAdapter();
+    fake.adapter.deleteChartRow = async () => null;
+
+    await deleteChartAsset(fake.adapter, { songId: "song-four", difficulty: "HARD", chartId: "chart-HARD" });
+
+    expect(fake.removes).toEqual([]);
   });
 });

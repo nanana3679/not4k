@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
 import type { ChartMeta } from '../../shared';
 import type { PlaybackRange } from '../../shared';
 import { STORAGE_BUCKET } from '../../shared';
@@ -6,7 +6,7 @@ import { supabase } from '../../supabase';
 import { PreviewRangeSelector } from './PreviewRangeSelector';
 import type { PreviewRangeState } from './PreviewRangeSelector';
 import { modalStyles } from './modalStyles';
-import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import { DIFFICULTY_LABEL_READ_ONLY_COPY, PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import type { MetaAudioPick } from '../metaAudioSession';
 
 function getPublicUrl(path: string): string {
@@ -32,6 +32,11 @@ function useRangeDraft() {
 
 export interface MetaEditModalProps {
   meta: ChartMeta;
+  /**
+   * 곡 행이 있으면 난이도명은 Save As에서만 바꾼다. `charts` 행이 아직 없어도 첫 Save가 열린 난이도로 행을 만들므로
+   * JSON 사본의 난이도명이 저장 대상과 어긋나지 않게 처음부터 읽기 전용이다. 곡 행이 없는 차트는 편집할 수 있다.
+   */
+  hasSongRow?: boolean;
   audioBuffer: AudioBuffer | null;
   audioLoading?: boolean;
   onSave: (
@@ -71,6 +76,7 @@ function initialMetaValues(meta: ChartMeta): Record<string, string> {
 
 export function MetaEditModal({
   meta,
+  hasSongRow = false,
   audioBuffer,
   audioLoading = false,
   onSave,
@@ -118,8 +124,8 @@ export function MetaEditModal({
       artist: values.artist,
       offsetMs: offsetLocked || isNaN(offset) ? meta.offsetMs : offset,
     };
-    // 난이도는 이 창에서 바꾼 값만 적용한다. 창을 연 뒤 Save As가 바꾼 난이도를 창을 열 때의 값으로 되돌리지 않는다.
-    if (values.difficultyLabel !== initialValues.difficultyLabel) updatedMeta.difficultyLabel = values.difficultyLabel;
+    // 곡 행이 있으면 입력한 이름을 적용하지 않는다. 레벨은 이 창에서 바꾼 경우에만 적용한다.
+    if (!hasSongRow && values.difficultyLabel !== initialValues.difficultyLabel) updatedMeta.difficultyLabel = values.difficultyLabel;
     if (values.difficultyLevel !== initialValues.difficultyLevel && !isNaN(level)) updatedMeta.difficultyLevel = level;
     // 저장 완료로 바뀐 경로를 모달을 열 때의 파일명으로 되돌리지 않는다.
     if (audioFile) updatedMeta.audioFile = audioFile.name;
@@ -148,18 +154,28 @@ export function MetaEditModal({
 
         {fields.map((f) => {
           const locked = offsetLocked && f.key === 'offsetMs';
+          const labelReadOnly = hasSongRow && f.key === 'difficultyLabel';
           return (
-            <label key={f.key} style={modalStyles.field}>
-              <span>{f.label}</span>
-              <input
-                style={locked ? { ...modalStyles.input, opacity: 0.5 } : modalStyles.input}
-                type={f.type}
-                value={values[f.key]}
-                onChange={(e) => set(f.key, e.target.value)}
-                disabled={locked}
-                title={locked ? PAUSE_TO_EDIT_COPY : undefined}
-              />
-            </label>
+            <Fragment key={f.key}>
+              <label style={modalStyles.field}>
+                <span>{f.label}</span>
+                <input
+                  style={locked ? { ...modalStyles.input, opacity: 0.5 } : modalStyles.input}
+                  type={f.type}
+                  value={labelReadOnly ? meta.difficultyLabel : values[f.key]}
+                  onChange={(e) => set(f.key, e.target.value)}
+                  disabled={locked}
+                  readOnly={labelReadOnly}
+                  aria-describedby={labelReadOnly ? 'difficulty-label-read-only-hint' : undefined}
+                  title={locked ? PAUSE_TO_EDIT_COPY : undefined}
+                />
+              </label>
+              {labelReadOnly && (
+                <p id="difficulty-label-read-only-hint" style={{ fontSize: '13px', margin: '0 0 12px', color: '#aaa' }}>
+                  {DIFFICULTY_LABEL_READ_ONLY_COPY}
+                </p>
+              )}
+            </Fragment>
           );
         })}
 

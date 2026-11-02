@@ -229,6 +229,41 @@ describe('메타 편집 창의 재생 중 오프셋 잠금', () => {
 });
 
 describe('메타 편집 창의 난이도 적용', () => {
+  it('곡 행은 있고 charts 행은 아직 없는 NORMAL Lv.5에서 난이도명을 EXPERT로 바꾸려 해도 NORMAL을 읽기 전용으로 표시하고 적용 시 Level 5→9만 보낸다', () => {
+    const onSave = vi.fn();
+    let phase = 0;
+    let save: (() => void) | undefined;
+    function Probe() {
+      const tree = MetaEditModal({ meta, hasSongRow: true, audioBuffer: null,
+        onSave, onClose() {}, onLoadAudio() {} });
+      const fields = controls(tree);
+      if (phase === 0) fields.find(field => field.value === 'NORMAL')!.onChange!({ target: { value: 'EXPERT' } });
+      if (phase++ === 1) fields.find(field => field.value === '5')!.onChange!({ target: { value: '9' } });
+      save = fields.find(field => field.children === 'Save')!.onClick;
+      return tree;
+    }
+    const markup = renderToStaticMarkup(createElement(Probe));
+    save!();
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(
+      { title: '메타', artist: '작곡가', offsetMs: 30, difficultyLevel: 9 }, null, null, null, null,
+    );
+    expect(inputOf(markup, 'Difficulty Label')).toContain('value="NORMAL"');
+    expect(inputOf(markup, 'Difficulty Label')).toContain('readOnly=""');
+  });
+
+  it('곡 행이 있는 NORMAL Lv.5를 열면 Difficulty Label은 읽기 전용이고 Save As 안내를 표시하며 Level은 편집 가능하다', () => {
+    const markup = renderToStaticMarkup(createElement(MetaEditModal, {
+      meta, hasSongRow: true, audioBuffer: null, onSave() {}, onClose() {}, onLoadAudio() {},
+    }));
+
+    expect(inputOf(markup, 'Difficulty Label')).toContain('readOnly=""');
+    expect(inputOf(markup, 'Difficulty Label')).toContain('aria-describedby="difficulty-label-read-only-hint"');
+    expect(markup).toContain('난이도명은 Save As에서 변경할 수 있습니다.');
+    expect(inputOf(markup, 'Difficulty Level')).toContain('value="5"');
+    expect(inputOf(markup, 'Difficulty Level')).not.toMatch(/readOnly|disabled/);
+  });
+
   it('Meta를 NORMAL Lv.5로 연 뒤 Save As가 HARD Lv.8로 바꾸고 제목만 고쳐 적용하면 난이도를 보내지 않아 HARD Lv.8이 남는다', () => {
     const onSave = vi.fn();
     let phase = 0;
@@ -249,22 +284,24 @@ describe('메타 편집 창의 난이도 적용', () => {
     expect(applied).toMatchObject({ title: '새 제목', difficultyLabel: 'HARD', difficultyLevel: 8 });
   });
 
-  it('Meta에서 Difficulty Label NORMAL→EXPERT·Level 5→9로 바꾸면 두 값을 적용한다', () => {
+  it('곡 행이 없는 Meta에서 Difficulty Label NORMAL→EXPERT·Level 5→9로 바꾸면 안내 없이 두 값을 적용한다', () => {
     const onSave = vi.fn();
     let phase = 0;
     let save: (() => void) | undefined;
     const edits = [['NORMAL', 'EXPERT'], ['5', '9']];
     function Probe() {
-      const tree = MetaEditModal({ meta, audioBuffer: null, onSave, onClose() {}, onLoadAudio() {} });
+      const tree = MetaEditModal({ meta, hasSongRow: false, audioBuffer: null, onSave, onClose() {}, onLoadAudio() {} });
       const fields = controls(tree);
       const edit = edits[phase++];
       if (edit) fields.find(field => field.value === edit[0])!.onChange!({ target: { value: edit[1] } });
       save = fields.find(field => field.children === 'Save')!.onClick;
       return tree;
     }
-    renderToStaticMarkup(createElement(Probe));
+    const markup = renderToStaticMarkup(createElement(Probe));
     save!();
 
+    expect(inputOf(markup, 'Difficulty Label')).not.toMatch(/readOnly|disabled/);
+    expect(markup).not.toContain('difficulty-label-read-only-hint');
     expect(onSave).toHaveBeenCalledExactlyOnceWith(
       { title: '메타', artist: '작곡가', offsetMs: 30, difficultyLabel: 'EXPERT', difficultyLevel: 9 }, null, null, null, null,
     );

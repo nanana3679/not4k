@@ -2,5 +2,5 @@
  * Stores barrel export
  */
 
-export { useEditorStore, selectCanUndo, selectCanRedo } from './editorStore';
-export type { EditingEvent, EditorModeName } from './editorStore';
+export { useEditorStore, selectCanUndo, selectCanRedo, selectHasSongRow } from './editorStore';
+export type { EditingEvent, EditorModeName, UnconfirmedChartUpload } from './editorStore';

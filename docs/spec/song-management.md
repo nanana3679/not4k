@@ -35,13 +35,15 @@
 
 ## 현재 데이터 구조
 
-아래 표는 PR1 마이그레이션과 PR2 공용 로더의 계약이다. 운영 DB 적용 여부와 곡 단위 저장 연결 완료를 뜻하지 않는다. 앱보다 PR1 마이그레이션을 먼저 적용해야 하며 누락 열 조회 오류는 파일 타이밍 폴백으로 숨기지 않는다. 곡 하나는 두 저장소에 걸쳐 존재한다.
+아래 표는 PR1 마이그레이션과 PR2 공용 로더·PR4b 차트 경로 읽기의 계약이다. 운영 DB 적용 여부와 곡 단위 저장 연결 완료를 뜻하지 않는다. 앱보다 PR1 마이그레이션을 먼저 적용해야 하며 누락 열 조회 오류는 파일 타이밍 폴백으로 숨기지 않는다. 곡 하나는 두 저장소에 걸쳐 존재한다.
 
 | 위치 | 내용 |
 |------|------|
 | `songs` 테이블 | 곡 메타데이터·재생 구간·`timing`·`revision`. 타이밍 NULL은 미이행으로 파일 값 유지 |
-| `charts` 테이블 | 차트 메타데이터 (난이도 라벨/레벨, offset) |
-| Storage `songs/{song_id}/` | 음원, 자켓, 프리뷰, 차트 JSON(`{difficulty}.json`, `{difficulty}.extra.json`) |
+| `charts` 테이블 | 차트 메타데이터 (난이도 라벨/레벨, offset 사본), 메인·보조 JSON 경로(`chart_path`·`chart_extra_path`, NULL이면 결정적 경로)·저장 충돌 검사용 `revision` |
+| Storage `songs/{song_id}/` | 음원, 자켓, 프리뷰, 차트 JSON. 차트 행의 경로가 NULL이면 `{difficulty}.json`·`{difficulty}.extra.json`, 차트 저장 뒤에는 저장마다 새로 올린 `{difficulty}-{UUID}.json`·`.extra.json`([차트 포맷](chart-format.md#차트-파일-경로)). 이전 저장의 파일은 남으며 정리는 [#160](https://github.com/nanana3679/not4k/issues/160) |
+
+곡 선택의 New Chart는 생성 중 `23505`를 받으면 기존 차트가 있으므로 목록을 새로고침해 열도록 안내하고, `42501`이면 관리자 권한이 없다고 안내한다. 그 밖의 오류는 `Error`의 원인 메시지를 표시한다.
 
 ## 삭제 규칙
 
@@ -54,6 +56,7 @@
     `on delete restrict`)이 거부한다. 마이그레이션: `20260706000000_restrict_song_delete.sql`
 - 곡 삭제 순서는 **DB 행 먼저, Storage 파일 나중**이다. 클라이언트가 아는 차트 수가
   낡았더라도 FK가 행 삭제 단계에서 거부하므로, 거부 시점에 파일은 무손상이다.
+  Storage 파일 목록은 100개씩 마지막 페이지까지 읽은 뒤 삭제한다. 일부 페이지 조회가 실패하면 불완전한 목록으로 파일을 지우지 않는다.
   구현: `src/shared/songAssets/chartAssetPersistence.ts`의 `deleteSongAsset`
 
 ### 삭제 후 플레이 기록 `[미구현]`

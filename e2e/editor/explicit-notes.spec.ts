@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
-import { editorTestChart, openEditor, readUploadedJson, EDITOR_TEST_CHART_UPLOAD_PATH, EDITOR_TEST_EXTRA_UPLOAD_PATH } from './editorTestSetup';
+import { editorTestChart, openEditor, readUploadedJson, isChartUploadPath, isExtraUploadPath } from './editorTestSetup';
 
 const pageErrors = new WeakMap<Page, string[]>();
 test.beforeEach(({ page }) => {
@@ -31,8 +31,8 @@ test('Grace 더블 드래그는 Esc 취소·생성·Undo·Redo·v4 저장과 재
   await page.screenshot({ path: info.outputPath('grace-double-explicit.png') });
   await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-  const saved = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
-  const extra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
+  const saved = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
+  const extra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
   expect(saved.version).toBe(4);
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   await openEditor(page, { chart: saved, extra }); expect(await notes(page)).toEqual(created);
@@ -58,8 +58,8 @@ test('v4 혼합 main과 aux를 저장·재로드하면 구형 false·holdOnly와
   await page.screenshot({ path: info.outputPath('mixed-explicit-main-aux.png') });
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-  const savedMain = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
-  const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
+  const savedMain = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
+  const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
   expect(savedMain).toEqual(chart); expect(savedExtra).toEqual(extra);
   await openEditor(page, { chart: savedMain, extra: savedExtra }); expect(await notes(page)).toEqual(before);
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
@@ -112,8 +112,8 @@ test('보조 레인 수 3인 혼합 main과 명시 aux는 열자마자 Save에 �
   await page.getByLabel('Target Difficulty').selectOption('LIFTOFF');
   await page.getByRole('heading', { name: 'Save As (다른 이름으로 저장)', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(/difficulty=liftoff$/);
-  const saved = readUploadedJson(editor.supabaseWrites.find(write => write.path.endsWith('/liftoff.json'))!) as ChartJsonV4;
-  const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => write.path.endsWith('/liftoff.extra.json'))!) as ExtraNotesJson;
+  const saved = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path, 'liftoff'))!) as ChartJsonV4;
+  const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path, 'liftoff'))!) as ExtraNotesJson;
   expect(saved.notes).toEqual(chart.notes); expect(saved.version).toBe(4);
   expect(saved.meta).toEqual({ ...chart.meta, difficultyLabel: 'LIFTOFF' });
   expect(savedExtra).toEqual(extra);
@@ -159,8 +159,8 @@ test('보조 트릴 구간 생성·트릴 바디·구간 유닛 이동·Undo·�
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-  const main = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
-  const extra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
+  const main = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
+  const extra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
   expect(main.notes).toEqual([]); expect(main.trillZones).toEqual([]);
   expect(extra.extraTrillZones).toEqual([{ extraLane: 2, beat: '1', endBeat: '4' }]);
   expect(extra.extraNotes).toMatchObject([{ type: 'tap', kind: 'trill', extraLane: 2 }, { type: 'body', trill: true, extraLane: 2 }]);

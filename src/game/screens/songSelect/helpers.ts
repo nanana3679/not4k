@@ -175,3 +175,14 @@ export function getMobileSongCardActionState({
     showNewChart: isAdmin,
   };
 }
+
+
+/** New Chart의 SQLSTATE를 사용자 안내로 옮기고 그 밖의 Error는 원인을 보존한다. */
+export function chartCreateErrorMessage(error: unknown): string {
+  const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
+  if (code === '23505') return '대상 난이도에 이미 차트가 있습니다. 곡 목록을 새로고침한 뒤 기존 차트를 열어주세요.';
+  if (code === '42501') return '차트를 만들 관리자 권한이 없습니다.';
+  return error instanceof Error
+    ? `차트를 만들지 못했습니다: ${error.message}`
+    : '차트를 만들지 못했습니다. 잠시 후 다시 시도해주세요.';
+}

@@ -44,13 +44,13 @@ function parseExtraFileJson(extraText: string): unknown {
 }
 
 /**
- * 별도 보조 파일을 읽는다. 없는 객체만 null(별도 보조 없음)로 돌려준다.
+ * 별도 보조 파일을 읽는다. required가 false인 구형 경로에서만 없는 객체를 null로 돌려준다.
  * 권한·서버 오류나 네트워크 오류를 보조 없음으로 열면 저장이 기존 보조 파일을 지우므로 오류로 전달한다.
  */
-export async function fetchEditorExtraText(url: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
+export async function fetchEditorExtraText(url: string, fetchImpl: typeof fetch = fetch, required = false): Promise<string | null> {
   const response = await fetchImpl(url, { cache: "no-store" });
   if (response.ok) return response.text();
-  if (await isMissingStorageObject(response)) return null;
+  if (!required && await isMissingStorageObject(response)) return null;
   throw new Error(`Chart extra fetch failed: ${response.status}`);
 }
 

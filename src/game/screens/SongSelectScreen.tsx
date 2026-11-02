@@ -13,6 +13,7 @@ import type { DbSong } from './songSelect/types';
 import {
   getDifficultyColor,
   createEmptyChart,
+  chartCreateErrorMessage,
   getCircularDistance,
   resolveGameplayRange,
   resolveSongCardFocus,
@@ -151,8 +152,7 @@ export function SongSelectScreen({ mobileListOnly = false }: SongSelectScreenPro
       setNewChartTarget(null);
       window.location.href = `/editor?songId=${encodeURIComponent(song.id)}&difficulty=${encodeURIComponent(difficulty)}`;
     }).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      addToast(`Chart create failed: ${message}`, 'error');
+      addToast(chartCreateErrorMessage(err), 'error');
       setNewChartTarget(null);
     });
   }, [addToast]);

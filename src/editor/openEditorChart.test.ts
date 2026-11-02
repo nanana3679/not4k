@@ -29,6 +29,16 @@ beforeEach(() => {
 });
 
 describe('openEditorChart 불러온 기본 상태', () => {
+  it('normal 행(ID chart-1·리비전 6·저장 경로)과 함께 열면 store 차트 행이 그 행이고, 행 없이 다시 열면 null이다', () => {
+    const row = { id: 'chart-1', difficultyLabel: 'normal', revision: 6,
+      chartPath: 'songs/s/normal-t.json', chartExtraPath: 'songs/s/normal-t.extra.json' };
+    openEditorChart({ chart: chart([]), extraLaneCount: 2, hasExtraLaneCount: true }, null, row);
+    expect(store().chartRow).toEqual(row);
+
+    openEditorChart({ chart: chart([]), extraLaneCount: 2, hasExtraLaneCount: true });
+    expect(store().chartRow).toBeNull();
+  });
+
   it('파일 150 BPM을 곡 151 BPM·offsetMs 25로 열면 고정 레인 1·2와 곡 표시 정보가 dirty·Undo 없는 기준이다', () => {
     const source = chart([
       { type: 'bpm', beat: beat(0), bpm: 150, editorLane: 3 },

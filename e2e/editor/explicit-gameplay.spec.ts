@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
-import { editorTestChart, openEditor, readUploadedJson, EDITOR_TEST_AUDIO_FILE, EDITOR_TEST_CHART_UPLOAD_PATH, EDITOR_TEST_EXTRA_UPLOAD_PATH } from './editorTestSetup';
+import { editorTestChart, openEditor, readUploadedJson, EDITOR_TEST_AUDIO_FILE, isChartUploadPath, isExtraUploadPath } from './editorTestSetup';
 import { canvasPosition, drag, notes } from './explicitEditorTestHelpers';
 import { installProbe as installManualClock, probe, waitAt, preparationTarget, expectPreparation } from '../explicitPlaybackProbe';
 
@@ -50,8 +50,8 @@ test('새 에디터 Double 제작·Undo·저장·reload 후 처음부터 실제 
   expect(await notes(page)).toEqual(authored);
   await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible({ timeout: 15000 });
-  const main = readUploadedJson(initial.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
-  const extra = readUploadedJson(initial.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
+  const main = readUploadedJson(initial.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
+  const extra = readUploadedJson(initial.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
   expect(main.version).toBe(4);
   const reloaded = await openEditor(page, { chart: main, extra, audio: true });
   expect(await notes(page)).toEqual(authored);

@@ -13,7 +13,7 @@
 import type { ChartDocument } from '../shared';
 import { serializeChart, serializeExtraNotes, mainNotes, mainTrillZones, auxNotesAsExtra } from '../shared';
 
-/** Save가 쓰는 메인(`{difficulty}.json`)·보조(`{difficulty}.extra.json`) JSON 문자열. */
+/** Save가 새 경로에 올리는 메인·보조 JSON 문자열(RFD 0107). */
 export interface SavedChartJson {
   chartJson: string;
   extraJson: string;
