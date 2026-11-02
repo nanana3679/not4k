@@ -77,6 +77,23 @@ describe('일반 곡 문서 Storage 읽기', () => {
     expect(createChartTiming(loaded.chart).beatToMs(beat(1))).toBeCloseTo(422.3509933774834);
     expect(loaded.chart.notes).toEqual(chart.notes);
   });
+  it.each([180, 200])('보조 레인1 text [16,24)와 보조 레인3의 20박 BPM 180 차트를 곡 타이밍의 20박 BPM이 %i인 곡으로 읽으면 BPM이 레인3에 남아 게임 컴파일이 통과한다', async songBpm => {
+    const chart: ChartDocument = { ...explicitPlaytestCharts[0].chart, events: [
+      { type: 'bpm', beat: beat(0), bpm: 120 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'text', beat: beat(16), endBeat: beat(24), text: '간주', editorLane: 1 },
+      { type: 'bpm', beat: beat(20), bpm: 180, editorLane: 3 },
+    ] };
+    serve(chart);
+    songQuery.maybeSingle.mockResolvedValue({ error: null, data: {
+      title: chart.meta.title, artist: chart.meta.artist, jacket_url: null, revision: 3,
+      timing: { bpmChanges: [{ beat: '0', bpm: 120 }, { beat: '20', bpm: songBpm }],
+        timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: chart.meta.offsetMs },
+    } });
+    const loaded = await fetchChartDocument('song-1', 'EASY');
+    expect(loaded.events.find(event => event.type === 'bpm' && event.bpm === songBpm)?.editorLane).toBe(3);
+    expect(() => compileExplicitJudgmentChart(loaded)).not.toThrow();
+  });
   it('main 탭·Body·틱·Release와 별도 aux의 명시·legacy 항목 및 메타데이터를 모두 보존한다', async () => {
     const chart = structuredClone(explicitPlaytestCharts[0].chart);
     chart.meta = { ...chart.meta, title: '원본 제목', artist: '제작자', offsetMs: 17, difficultyLevel: 7 };

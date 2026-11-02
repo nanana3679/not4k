@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import type { ChartJsonV4, ExtraNotesJson } from '../../src/shared/chart';
-import { editorTestChart, openEditor, readUploadedJson, EDITOR_TEST_CHART_UPLOAD_PATH, EDITOR_TEST_EXTRA_UPLOAD_PATH } from './editorTestSetup';
+import { editorTestChart, openEditor, readUploadedJson, EDITOR_TEST_AUDIO_FILE, EDITOR_TEST_CHART_UPLOAD_PATH, EDITOR_TEST_EXTRA_UPLOAD_PATH } from './editorTestSetup';
 import { canvasPosition, drag, notes } from './explicitEditorTestHelpers';
 import { installProbe as installManualClock, probe, waitAt, preparationTarget, expectPreparation } from '../explicitPlaybackProbe';
 
@@ -48,7 +48,7 @@ test('새 에디터 Double 제작·Undo·저장·reload 후 처음부터 실제 
   expect((await notes(page)).map(note => note.lane)).toEqual([2, 2, 2, 2]);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   expect(await notes(page)).toEqual(authored);
-  await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible({ timeout: 15000 });
   const main = readUploadedJson(initial.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
   const extra = readUploadedJson(initial.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
@@ -341,20 +341,31 @@ test('aux의 소속 없는 틱은 새 테스트 버튼과 저장을 함께 차�
   await expect(page.getByRole('button', { name: '처음부터 시작 · 명시 차트', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: '커서부터 시작', exact: true })).toBeDisabled();
   await page.mouse.click(10, 100);
-  await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
   expect(editor.supabaseWrites).toEqual([]); await expect(page.getByTestId('explicit-play')).toHaveCount(0);
 });
 
-test('노트 1개를 추가한 뒤 처음부터 테스트 플레이하고 돌아오면 저장 안 됨 표시가 남고 Back to Songs가 Unsaved Changes 확인을 띄우며 Cancel이면 에디터에 남는다', async ({ page }) => {
+for (const replaceAudio of [false, true]) test(`${replaceAudio ? '음원 교체·Meta 적용과 ' : ''}노트 1개 추가 뒤 테스트 플레이에서 복귀하면 재생·미저장 상태를 유지하고 이탈 취소${replaceAudio ? ' 뒤 프리뷰를 재생성하여 저장한다' : ' 시 에디터에 남는다'}`, async ({ page }) => {
   const chart: ChartJsonV4 = { ...editorTestChart(), version: 4, notes: [{ type: 'tap', kind: 'single', lane: 1, beat: '2' }],
     events: [...editorTestChart().events, { type: 'auto', beat: '0', endBeat: '4', editorLane: 3 }] };
-  const editor = await openEditor(page, { chart, audio: true });
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  const editor = await openEditor(page, { chart, audio: true, songTiming: {
+    bpmChanges: [{ beat: '0', bpm: 120 }],
+    timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0,
+  } });
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+  if (replaceAudio) {
+    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
+    await page.getByRole('button', { name: 'Meta', exact: true }).click();
+    await page.locator('input[type="file"][accept="audio/*"]').setInputFiles(EDITOR_TEST_AUDIO_FILE);
+    const modal = page.getByRole('heading', { name: 'Chart Metadata', exact: true }).locator('..');
+    await expect(modal.getByText('Replace Audio', { exact: true })).toBeVisible();
+    await modal.getByRole('button', { name: 'Save', exact: true }).click();
+  }
   const position = await canvasPosition(page, 2, 3); await page.mouse.click(position.x, position.y);
   const edited = await notes(page);
   expect(edited).toHaveLength(2);
-  const unsavedSave = page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true });
+  const unsavedSave = page.getByRole('button', { name: 'Save, unsaved changes', exact: true });
   await expect(unsavedSave).toBeVisible();
 
   await startExplicit(page);
@@ -364,8 +375,12 @@ test('노트 1개를 추가한 뒤 처음부터 테스트 플레이하고 돌아
   await expect(page.locator('canvas')).toHaveCount(1);
   // 돌아온 에디터는 음원을 다시 읽는 동안 화면 전체를 덮는 로딩 표시로 입력을 막는다.
   await expect(page.getByRole('status').filter({ hasText: 'Loading audio...' })).toBeHidden({ timeout: 15000 });
+  await expect(page.getByText(/Audio load failed/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
   expect(await notes(page)).toEqual(edited);
-  // 페이지가 다시 마운트돼도 savedChartJson은 불러온 차트의 값이다. 돌아온 차트로 다시 만들면 여기서 'Save chart'가 된다.
+  // 페이지가 다시 마운트돼도 savedChartJson은 불러온 차트의 값이다. 돌아온 차트로 다시 만들면 여기서 'Save'가 된다.
   await expect(unsavedSave).toBeVisible();
 
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
@@ -379,4 +394,13 @@ test('노트 1개를 추가한 뒤 처음부터 테스트 플레이하고 돌아
   expect(await notes(page)).toEqual(edited);
   await expect(unsavedSave).toBeVisible();
   expect(editor.supabaseWrites).toEqual([]); expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  if (replaceAudio) {
+    await unsavedSave.click();
+    await expect(page.getByText('Song saved', { exact: true })).toBeVisible();
+    await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
+    expect(editor.supabaseWrites.filter(write => /\/audio[^/]*\.wav$/.test(write.path))).toHaveLength(1);
+    expect(editor.supabaseWrites.filter(write => /\/preview[^/]*\.wav$/.test(write.path))).toHaveLength(1);
+    expect(editor.supabaseWrites.filter(write => write.path === '/rest/v1/rpc/save_song')).toHaveLength(1);
+    expect(editor.unexpectedSupabaseRequests).toEqual([]);
+  }
 });

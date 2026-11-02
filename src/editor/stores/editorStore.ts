@@ -9,6 +9,8 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
+import type { EditorSong } from '../songState';
+import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
 import type { SavedChartJson } from '../savedChart';
 import type { CursorBeatKeeperState } from '../playback/cursorBeatKeeper';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
@@ -56,6 +58,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // Page navigation
   activePage: EditorPage;
   activeSongId: string | null;
+  /**
+   * 열린 차트의 난이도 경로(소문자). URL의 `difficulty`로 열고 Save As 성공 때만 바뀐다. Save·Delete는 이 경로를 쓰며,
+   * Meta에서 고칠 수 있는 `chart.meta.difficultyLabel`과 달라도 다른 난이도의 파일을 덮어쓰지 않는다.
+   */
+  activeDifficulty: string | null;
   pendingAudioUrl: string | null;
 
   // ChartDocument data
@@ -93,6 +100,12 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // dirty 표시·나가기 확인이 이것과 현재 차트를 비교한다. 차트를 새로 불러올 때와 저장(Save·Save As) 성공 때만 정한다.
   // 편집·Undo·테스트 플레이는 바꾸지 않는다. 페이지 컴포넌트가 아니라 store가 소유해, 테스트 플레이에서 돌아와 페이지가 다시 마운트돼도 유지된다.
   savedChartJson: SavedChartJson | null;
+  song: EditorSong | null;
+  isSavingSong: boolean;
+  setSong: (song: EditorSong | null) => void;
+  /** 곡 행 없이 연 차트의 대기 미디어·구간(src/editor/songlessMedia.ts). 차트를 새로 열면 비운다. */
+  songlessMedia: SonglessMedia;
+  setSonglessMedia: (media: SonglessMedia) => void;
 
   // 저장(Save·Save As)이 진행 중인가. 페이지 지역 상태가 아니라 store가 소유해, 페이지가 다시 마운트돼도
   // 진행 중인 저장을 잊지 않는다. 진행 중에는 두 번째 저장과 테스트 플레이를 시작하지 않는다.
@@ -117,8 +130,16 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // Actions
   setActivePage: (page: EditorPage) => void;
   setActiveSongId: (songId: string | null) => void;
+  setActiveDifficulty: (difficulty: string | null) => void;
+  /**
+   * Save As가 확정한 새 난이도를 열린 차트의 정체성으로 삼는다. 편집이 아니므로 Undo 이력을 남기지 않고,
+   * 이력·열린 편집·마지막 유효 상태의 난이도명·레벨도 함께 바꿔 Undo·취소·복원이 이전 난이도를 되살리지 않는다.
+   */
+  adoptChartIdentity: (difficultyLabel: string, difficultyLevel: number) => void;
   setPendingAudioUrl: (url: string | null) => void;
   setChart: (chart: ChartDocument, options?: { separateHistory?: boolean; transaction?: symbol }) => void;
+  /** 업로드 결과의 미디어 경로만 반영한다. 편집·Undo 이력·열린 transaction은 만들거나 끝내지 않는다. */
+  reconcileSongMedia: (media: Pick<ChartDocument['meta'], 'audioFile' | 'imageFile' | 'previewAudioFile'>) => void;
   /**
    * 로드 전용 통로 — 위반 차트도 수용해 열람·수리를 허용한다(경고만 표시).
    * 재저장은 저장 게이트(useFileOperations의 editorChartErrors)가 차단하므로
@@ -215,6 +236,15 @@ function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraLaneCoun
   };
 }
 
+/** 대기 파일과 미디어 경로는 곡 세션 소유다. 차트 이력만 복원해 파일과 경로가 분리되지 않게 한다(PR6 전). */
+function restoreChartSnapshot(state: EditorState, chart: ChartDocument): ChartDocument {
+  if (!state.song) return chart;
+  const { audioFile, imageFile, previewAudioFile } = state.chart.meta;
+  if (chart.meta.audioFile === audioFile && chart.meta.imageFile === imageFile
+    && chart.meta.previewAudioFile === previewAudioFile) return chart;
+  return { ...chart, meta: { ...chart.meta, audioFile, imageFile, previewAudioFile } };
+}
+
 function captureHistory(state: EditorState, separateHistory = false, transaction?: symbol): Partial<EditorState> {
   if (transaction && state.editTransaction?.token === transaction) return {};
   const now = Date.now();
@@ -266,6 +296,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Initial state
   activePage: 'songList',
   activeSongId: null,
+  activeDifficulty: null,
   pendingAudioUrl: null,
   chart: createDefaultChart(),
   mode: 'create',
@@ -282,6 +313,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   editTransaction: null,
   lastValidSnapshot: null,
   savedChartJson: null,
+  song: null,
+  isSavingSong: false,
+  songlessMedia: EMPTY_SONGLESS_MEDIA,
   isSavingChart: false,
   chartSaveGeneration: 0,
   chartLoadGeneration: 0,
@@ -292,6 +326,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Actions
   setActivePage: (activePage) => set({ activePage }),
   setActiveSongId: (activeSongId) => set({ activeSongId }),
+  setActiveDifficulty: (difficulty) => set({ activeDifficulty: difficulty?.toLowerCase() ?? null }),
+  adoptChartIdentity: (difficultyLabel, difficultyLevel) => set(state => {
+    const relabel = (chart: ChartDocument): ChartDocument =>
+      chart.meta.difficultyLabel === difficultyLabel && chart.meta.difficultyLevel === difficultyLevel
+        ? chart : { ...chart, meta: { ...chart.meta, difficultyLabel, difficultyLevel } };
+    const chart = relabel(state.chart);
+    // 현재 차트를 가리키던 스냅샷은 새 차트를 가리키게 해, 빈 gesture가 편집으로 보이거나 복원이 no-op 판정을 놓치지 않게 한다.
+    const relabelSnapshot = (snapshot: HistorySnapshot): HistorySnapshot => {
+      const next = snapshot.chart === state.chart ? chart : relabel(snapshot.chart);
+      return next === snapshot.chart ? snapshot : { ...snapshot, chart: next };
+    };
+    const transaction = state.editTransaction;
+    return { chart, activeDifficulty: difficultyLabel.toLowerCase(),
+      historyPast: state.historyPast.map(relabelSnapshot),
+      historyFuture: state.historyFuture.map(relabelSnapshot),
+      lastValidSnapshot: state.lastValidSnapshot ? relabelSnapshot(state.lastValidSnapshot) : null,
+      editTransaction: transaction ? { ...transaction,
+        before: relabelSnapshot(transaction.before),
+        lastValidSnapshot: transaction.lastValidSnapshot ? relabelSnapshot(transaction.lastValidSnapshot) : null,
+      } : null,
+    };
+  }),
   setPendingAudioUrl: (pendingAudioUrl) => set({ pendingAudioUrl }),
   setChart: (chart, options) => {
     if (options?.transaction && get().editTransaction?.token !== options.transaction) return;
@@ -352,6 +408,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     });
   },
+  reconcileSongMedia: (media) => set(state => {
+    const chart = { ...state.chart, meta: { ...state.chart.meta, ...media } };
+    // 저장 응답이 빈 gesture를 편집으로 만들거나 마지막 유효 상태의 경로를 되돌리지 않게 한다.
+    const reconcileSnapshot = (snapshot: HistorySnapshot): HistorySnapshot => ({ ...snapshot,
+      chart: snapshot.chart === state.chart ? chart : restoreChartSnapshot({ ...state, chart }, snapshot.chart),
+    });
+    const transaction = state.editTransaction;
+    return { chart,
+      lastValidSnapshot: state.lastValidSnapshot ? reconcileSnapshot(state.lastValidSnapshot) : null,
+      editTransaction: transaction ? { ...transaction,
+        before: reconcileSnapshot(transaction.before),
+        lastValidSnapshot: transaction.lastValidSnapshot ? reconcileSnapshot(transaction.lastValidSnapshot) : null,
+      } : null,
+    };
+  }),
   loadChart: (chart) => {
     get().commitEditTransaction();
     const errors = editorChartErrors({
@@ -371,6 +442,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       chart,
       selection: emptySelection(),
       savedChartJson: null,
+      song: null,
+      isSavingSong: false,
+      songlessMedia: EMPTY_SONGLESS_MEDIA,
       isSavingChart: false,
       chartSaveGeneration: state.chartSaveGeneration + 1,
       chartLoadGeneration: state.chartLoadGeneration + 1,
@@ -384,10 +458,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         : {}),
     }));
   },
+  setSong: (song) => set({ song }),
+  setSonglessMedia: (songlessMedia) => set({ songlessMedia }),
   setSavedChartJson: (savedChartJson) => set({ savedChartJson }),
   beginChartSave: () => {
     const { isSavingChart, chartSaveGeneration } = get();
-    if (isSavingChart) return null;
+    if (isSavingChart || get().isSavingSong) return null;
     const generation = chartSaveGeneration + 1;
     set({ isSavingChart: true, chartSaveGeneration: generation });
     return generation;
@@ -437,7 +513,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!previous) return {};
       const current = createHistorySnapshot(state);
       return {
-        chart: previous.chart,
+        chart: restoreChartSnapshot(state, previous.chart),
         extraLaneCount: previous.extraLaneCount,
         // 선택은 복원된 차트에 대해 무의미하므로 전체 clear(zones 포함) — 같은 set()에서 원자적으로
         selection: emptySelection(),
@@ -455,7 +531,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!next) return {};
       const current = createHistorySnapshot(state);
       return {
-        chart: next.chart,
+        chart: restoreChartSnapshot(state, next.chart),
         extraLaneCount: next.extraLaneCount,
         selection: emptySelection(),
         historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
@@ -478,7 +554,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!target || state.chart === target.chart) return {};
       const current = createHistorySnapshot(state);
       return {
-        chart: target.chart,
+        chart: restoreChartSnapshot(state, target.chart),
         extraLaneCount: target.extraLaneCount,
         // 복원된 차트에 대해 기존 선택은 무의미 — 전체 clear(undo/redo와 동일)
         selection: emptySelection(),
@@ -530,7 +606,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   cancelEditTransaction: token => {
     const transaction = get().editTransaction;
     if (!transaction || (token && transaction.token !== token)) return;
-    set({ ...transaction.before, selection: transaction.selection,
+    set({ ...transaction.before, chart: restoreChartSnapshot(get(), transaction.before.chart), selection: transaction.selection,
       lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
     if (!token) transaction.onInterrupt?.();
   },
@@ -538,7 +614,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const transaction = get().editTransaction;
     if (!transaction) return;
     // token 없는 취소라 소유 조작은 onInterrupt로 그 누름의 조작을 끝내, 같은 누름을 더 끌어도 아무것도 바꾸지 않는다.
-    set({ ...transaction.before, selection: transaction.selectionBeforePress,
+    set({ ...transaction.before, chart: restoreChartSnapshot(get(), transaction.before.chart), selection: transaction.selectionBeforePress,
       lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
     transaction.onInterrupt?.();
   },

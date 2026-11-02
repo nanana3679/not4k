@@ -25,16 +25,16 @@ test('Grace 더블 드래그는 Esc 취소·생성·Undo·Redo·v4 저장과 재
     { type: 'tap', kind: 'double', grace: true }, { type: 'body', holdCount: 2 }, { type: 'release', count: 2, grace: true },
   ]);
   expect(created[1]).not.toHaveProperty('holdOnly'); expect(created[1]).not.toHaveProperty('grace');
-  await expect(page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save, unsaved changes', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Undo', exact: true }).click(); expect(await notes(page)).toEqual([]);
   await page.getByRole('button', { name: 'Redo', exact: true }).click(); expect(await notes(page)).toEqual(created);
   await page.screenshot({ path: info.outputPath('grace-double-explicit.png') });
-  await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
   const saved = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
   const extra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
   expect(saved.version).toBe(4);
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   await openEditor(page, { chart: saved, extra }); expect(await notes(page)).toEqual(created);
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
@@ -56,13 +56,13 @@ test('v4 혼합 main과 aux를 저장·재로드하면 구형 false·holdOnly와
   ] };
   const editor = await openEditor(page, { chart, extra }); const before = await notes(page);
   await page.screenshot({ path: info.outputPath('mixed-explicit-main-aux.png') });
-  await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
   const savedMain = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
   const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
   expect(savedMain).toEqual(chart); expect(savedExtra).toEqual(extra);
   await openEditor(page, { chart: savedMain, extra: savedExtra }); expect(await notes(page)).toEqual(before);
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
 
@@ -88,13 +88,13 @@ test('숨은 aux3의 바디 밖 tick은 열람·확정이 가능하고 툴바 �
   await page.locator('select').filter({ has: page.locator('option[value="10"]') }).selectOption('2');
   await page.mouse.click(10, 100);
   await expect(page.getByRole('button', { name: '배치 제약 위반 1건 목록 열기', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
   await expect(page.getByText(/숨은 보조 레인\(3\)의 위반/)).toBeVisible();
   expect(editor.supabaseWrites).toEqual([]);
 });
 
-test('보조 레인 수 3인 혼합 main과 명시 aux는 열자마자 Save chart에 저장 안 됨 표시가 없고, Save As는 새 난이도·레벨만 바꾸고 노트와 독립 버전을 보존한다', async ({ page }) => {
+test('보조 레인 수 3인 혼합 main과 명시 aux는 열자마자 Save에 저장 안 됨 표시가 없고, Save As는 새 난이도·레벨만 바꾸고 노트와 독립 버전을 보존한다', async ({ page }) => {
   const chart = { ...editorTestChart(), version: 4 as const, notes: [
     { type: 'single' as const, lane: 4, beat: '0', grace: false },
     { type: 'release' as const, count: 2 as const, lane: 1, beat: '2', grace: true },
@@ -104,20 +104,20 @@ test('보조 레인 수 3인 혼합 main과 명시 aux는 열자마자 Save char
     { type: 'tick', count: 2, extraLane: 3, beat: '2' },
   ] };
   const editor = await openEditor(page, { chart, extra });
-  // 보조 레인 수 3을 정한 뒤 savedChartJson을 만들어야 편집 전 차트가 dirty가 아니다(기본 2로 만들면 'Save chart, unsaved changes').
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  // 보조 레인 수 3을 정한 뒤 savedChartJson을 만들어야 편집 전 차트가 dirty가 아니다(기본 2로 만들면 'Save, unsaved changes').
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   await page.route('**/rest/v1/charts?*', route => route.fulfill({ json: [] }));
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
   await page.getByRole('button', { name: 'Save As', exact: true }).click();
   await page.getByLabel('Target Difficulty').selectOption('LIFTOFF');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('heading', { name: 'Save As (다른 이름으로 저장)', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(/difficulty=liftoff$/);
   const saved = readUploadedJson(editor.supabaseWrites.find(write => write.path.endsWith('/liftoff.json'))!) as ChartJsonV4;
   const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => write.path.endsWith('/liftoff.extra.json'))!) as ExtraNotesJson;
   expect(saved.notes).toEqual(chart.notes); expect(saved.version).toBe(4);
   expect(saved.meta).toEqual({ ...chart.meta, difficultyLabel: 'LIFTOFF' });
   expect(savedExtra).toEqual(extra);
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
 });
 
 test('터치 double 롱프레스의 1→3박 드래그는 마우스와 같은 Grace 탭·Body·Release 수량2를 만든다', async ({ page }) => {
@@ -157,7 +157,7 @@ test('보조 트릴 구간 생성·트릴 바디·구간 유닛 이동·Undo·�
   await page.keyboard.press('Control+Shift+z');
   expect((await notes(page)).map(note => note.lane)).toEqual([6, 6]);
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
   const main = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
   const extra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
@@ -167,7 +167,7 @@ test('보조 트릴 구간 생성·트릴 바디·구간 유닛 이동·Undo·�
   const before = await notes(page);
   await openEditor(page, { chart: main, extra });
   expect(await notes(page)).toEqual(before);
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
 
@@ -175,7 +175,7 @@ test('기존 보조 zone 밖 trill은 자동 생성 없이 위반으로 열고 �
   const editor = await openEditor(page, { extra: { version: 3, extraLaneCount: 2,
     extraNotes: [{ type: 'trill', extraLane: 1, beat: '2' }] } });
   await expect(page.getByRole('button', { name: '배치 제약 위반 1건 목록 열기', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
   expect(await notes(page)).toMatchObject([{ type: 'trill', lane: 5 }]);
   expect(editor.supabaseWrites).toEqual([]);

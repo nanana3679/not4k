@@ -80,6 +80,18 @@ export class PlaybackController {
     this.callbacks.onAudioLoaded?.(audioBuffer);
   }
 
+  /**
+   * 이미 디코딩한 음원으로 되돌린다. 진행 중인 로드는 버려 늦게 끝나도 반영하지 않는다.
+   * Meta에서 고른 음원을 적용하지 않고 닫을 때 이전 음원으로 돌아가는 데 쓴다.
+   */
+  restoreAudioBuffer(buffer: AudioBuffer): void {
+    this.audioLoadGeneration++;
+    this.audioBuffer = buffer;
+    this.pause();
+    this.seedFromCursor();
+    this.callbacks.onAudioLoaded?.(buffer);
+  }
+
   /** Play/pause toggle */
   togglePlay(): void {
     if (this._isPlaying) {

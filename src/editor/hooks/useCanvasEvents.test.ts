@@ -18,6 +18,7 @@ import { INITIAL_TIMING_EXISTS_COPY, PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import { openEditorChart } from '../openEditorChart';
 import { useCanvasEvents, type CanvasEventHandlers } from './useCanvasEvents';
 import { handleEditorKeyDown } from './useEditorKeyboard';
+import { isChartDirty, toSavedChartJson } from '../savedChart';
 
 // DOM 대신 훅의 실제 effect를 마운트·해제한다. store 구독·타이머·모드·recognizer는 실제 구현을 쓴다.
 const lifecycle = vi.hoisted(() => ({ effects: [] as Array<() => void | (() => void)> }));
@@ -159,6 +160,25 @@ describe('우클릭 삭제', () => {
     handlers.handleContextMenu(contextMenu(1000));
     expect(notes()).toEqual([]);
   });
+});
+
+it.each(['create', 'select'] as const)('%s 모드에서 4박 BPM을 마우스로 더블클릭하면 편집 창이 열리고 Create만 보조 노트 1개로 dirty가 된다', mode => {
+  const document = chart([], { events: [
+    { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    { type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 },
+  ] });
+  const { handlers } = setup(document, mode);
+  const saved = toSavedChartJson(document, 2);
+  const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+  for (let click = 0; click < 2; click++) {
+    handlers.handlePointerDown(pointer(2000, { pointerType: 'mouse', x }));
+    handlers.handlePointerUp(pointer(2000, { pointerType: 'mouse', x, buttons: 0 }));
+  }
+  handlers.handleDoubleClick({ clientX: x, clientY: 2000 } as ReactMouseEvent<HTMLCanvasElement>);
+  expect(current().editingEvent).toEqual({ type: 'event', index: 2 });
+  expect(notes()).toHaveLength(mode === 'create' ? 1 : 0);
+  expect(isChartDirty(current().chart, 2, saved, true)).toBe(mode === 'create');
 });
 
 describe('Delete 모드 짧은 터치', () => {

@@ -92,8 +92,8 @@ async function isMissingObjectResponse(response: Response): Promise<boolean> {
   return code === 'NoSuchKey' || (String(statusCode) === '404' && error === 'not_found');
 }
 
-async function fetchChartText(songId: string, difficulty: string): Promise<string> {
-  const url = getPublicUrl(songChartPath(songId, difficulty));
+export async function fetchChartText(songId: string, difficulty: string, path?: string | null): Promise<string> {
+  const url = getPublicUrl(path ?? songChartPath(songId, difficulty));
   const response = await fetch(url, { cache: 'no-cache' });
   if (!response.ok) {
     throw new Error(`Failed to fetch chart: ${response.status}`);

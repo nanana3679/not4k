@@ -56,7 +56,7 @@ async function editInitialBpm(page: Page, bpm: number): Promise<void> {
   await page.mouse.dblclick(position.x, position.y);
   await expect(page.getByRole('heading', { name: 'Edit BPM Change Event', exact: true })).toBeVisible();
   await page.getByLabel('BPM', { exact: true }).fill(String(bpm));
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByRole('heading', { name: 'Edit BPM Change Event', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Edit BPM Change Event', exact: true })).toHaveCount(0);
 }
 

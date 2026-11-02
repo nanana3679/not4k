@@ -28,7 +28,7 @@ test('같은 레인으로 옮긴 text·auto는 배치 위반으로 저장·테�
   await expect(page.getByRole('button', { name: '처음부터 시작 · 명시 차트', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: '커서부터 시작', exact: true })).toBeDisabled();
   await page.mouse.click(10, 100);
-  await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByRole('heading', { name: '배치 제약 조건 위반', exact: true })).toBeVisible();
   await expect(page.getByText('[eventOverlap]', { exact: true })).toBeVisible();
   expect(editor.supabaseWrites).toEqual([]);
@@ -43,7 +43,7 @@ test('같은 레인으로 옮긴 text·auto는 배치 위반으로 저장·테�
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('button', { name: /배치 제약 위반.*목록 열기/ })).toHaveCount(0);
   // 원래 레인으로 돌려 원본과 같아졌으므로 dirty 표시도 사라진다.
-  await page.getByRole('button', { name: 'Save chart', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });

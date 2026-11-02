@@ -213,3 +213,44 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(selectCanUndo(store())).toBe(false);
   });
 });
+
+describe('openEditorChart 곡 타이밍 이벤트의 파일 레인 유지', () => {
+  const textOverBpmEvents: ChartEvent[] = [
+    { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    { type: 'text', beat: beat(16), endBeat: beat(24), text: '간주', editorLane: 1 },
+    { type: 'bpm', beat: beat(20), bpm: 180, editorLane: 3 },
+  ];
+  const song = {
+    title: 'Test', artist: '', jacketUrl: null,
+    timing: { bpmChanges: [{ beat: '0', bpm: 120 }, { beat: '20', bpm: 180 }],
+      timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 },
+  };
+  const songDirty = () => isChartDirty(store().chart, store().extraLaneCount, store().savedChartJson, true);
+
+  it('보조 레인1 text [16,24)와 보조 레인3의 20박 BPM 180 차트를 같은 값의 곡 타이밍으로 열면 BPM이 레인3에 남아 위반 0건·dirty 아님이다', () => {
+    openEditorChart(loadEditorChartAsset(serializeChart(chart(textOverBpmEvents)), null, song));
+
+    expect(store().chart.events.find(event => event.type === 'bpm' && event.bpm === 180)?.editorLane).toBe(3);
+    expect(editorChartErrors(store().chart)).toEqual([]);
+    expect(songDirty()).toBe(false);
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('20박 BPM을 보조 레인4로 옮겨 저장한 차트를 같은 값의 곡 타이밍으로 다시 열면 BPM이 레인4에 남고 dirty가 아니다', () => {
+    openEditorChart(loadEditorChartAsset(serializeChart(chart(textOverBpmEvents)), null, song));
+    store().setExtraLaneCount(4);
+    const opened = store().chart;
+    store().setChart({ ...opened, events: opened.events.map(event =>
+      event.type === 'bpm' && event.bpm === 180 ? { ...event, editorLane: 4 } : event) });
+    expect(songDirty()).toBe(true);
+    const saved = toSavedChartJson(store().chart, store().extraLaneCount);
+
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    openEditorChart(loadEditorChartAsset(saved.chartJson, saved.extraJson, song));
+
+    expect(store().chart.events.find(event => event.type === 'bpm' && event.bpm === 180)?.editorLane).toBe(4);
+    expect(editorChartErrors(store().chart)).toEqual([]);
+    expect(songDirty()).toBe(false);
+  });
+});

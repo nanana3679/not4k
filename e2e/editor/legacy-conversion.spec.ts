@@ -69,7 +69,7 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
   await expect(offer.getByLabel('변환하면 만들 노트 수')).toContainText(COUNTS);
   const legacyNotes = await notes(page);
   expect(legacyNotes.map(note => note.type)).toEqual(LEGACY_TYPES);
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
 
   await offer.getByRole('button', { name: '변환', exact: true }).click();
   const result = legacyConversionResult(page);
@@ -108,10 +108,10 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
   ].join('\n'));
 
   // 변환은 Undo 한 단위이고 store의 savedChartJson은 불러온 구형 차트의 직렬화라 변환 상태가 dirty다.
-  await expect(page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save, unsaved changes', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   expect(await notes(page)).toEqual(legacyNotes);
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
   await expect(review).toBeVisible();
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
@@ -123,7 +123,7 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
   await page.getByRole('button', { name: '변환 검토 2건', exact: true }).click();
   await expect(review).toBeVisible();
 
-  await page.getByRole('button', { name: 'Save chart, unsaved changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
   const savedMain = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_CHART_UPLOAD_PATH)!) as ChartJsonV4;
   const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => write.path === EDITOR_TEST_EXTRA_UPLOAD_PATH)!) as ExtraNotesJson;
@@ -142,7 +142,7 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
     { type: 'tap', kind: 'trill', extraLane: 2, beat: '2' },
     { type: 'body', holdCount: 1, trill: true, extraLane: 2, beat: '2', endBeat: '3' },
   ] });
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
 
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 
@@ -168,7 +168,7 @@ test('변환 모달은 Tab·Shift+Tab 포커스를 두 버튼 안에 가두고 �
   const offer = legacyConversionOffer(page);
   const convert = offer.getByRole('button', { name: '변환', exact: true });
   const decline = offer.getByRole('button', { name: '구형 그대로 열기', exact: true });
-  const saveChart = page.getByRole('button', { name: 'Save chart', exact: true });
+  const saveChart = page.getByRole('button', { name: 'Save', exact: true });
 
   // 열린 동안 포커스는 모달의 두 버튼 사이에서만 돌고, 뒤의 툴바 버튼은 포커스를 받지 않아 Enter로 누를 수 없다.
   await expect(convert).toBeFocused();
@@ -193,7 +193,7 @@ test('변환 모달은 Tab·Shift+Tab 포커스를 두 버튼 안에 가두고 �
 
   expect(await notes(page)).toEqual(before);
   expect(before.map(note => note.type)).toEqual(LEGACY_TYPES);
-  await expect(page.getByRole('button', { name: 'Save chart', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: /^변환 검토/ })).toHaveCount(0);
 
