@@ -301,12 +301,23 @@ describe('미저장 여부 판단', () => {
     expect(hasUnsavedEditorChanges(store())).toBe(true);
   });
 
-  it('곡 정보가 깨끗해도 드로어에서 고른 음원을 불러오는 중이면 곡 정보와 에디터가 모두 미저장이다', () => {
+  it('곡 정보가 깨끗해도 드로어에서 고른 음원을 불러오는 중(isLoadingSongAudio)이면 곡 정보와 에디터가 모두 미저장이다', () => {
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loadedSong), loadedSong);
+    expect(hasUnsavedSongInfo(store())).toBe(false);
+
+    useEditorStore.setState({ isLoadingSongAudio: true });
+
+    expect(hasUnsavedSongInfo(store())).toBe(true);
+    expect(hasUnsavedEditorChanges(store())).toBe(true);
+  });
+
+  it('드로어 음원을 불러오는 중 차트를 새로 열면 isLoadingSongAudio가 꺼져 깨끗하다', () => {
+    useEditorStore.setState({ isLoadingSongAudio: true });
+
     openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loadedSong), loadedSong);
 
-    expect(hasUnsavedSongInfo(store())).toBe(false);
-    expect(hasUnsavedSongInfo(store(), true)).toBe(true);
-    expect(hasUnsavedEditorChanges(store(), true)).toBe(true);
+    expect(store().isLoadingSongAudio).toBe(false);
+    expect(hasUnsavedEditorChanges(store())).toBe(false);
   });
 
   it('곡 행 없는 차트에 프리뷰 0～8초가 대기 중이면 에디터는 미저장이다', () => {

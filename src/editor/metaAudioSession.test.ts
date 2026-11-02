@@ -135,22 +135,6 @@ describe('Meta 창 한 번의 음원 선택', () => {
     expect(playback.audioBufferData).toBeNull();
   });
 
-  it('isLoading은 next.ogg를 불러오는 동안만 true이고 불러오거나 닫으면 false다', async () => {
-    const { session, playback, loads } = harness();
-    const next = new File(['x'], 'next.ogg');
-    expect(session.isLoading()).toBe(false);
-
-    const loading = session.load(playback, next);
-    expect(session.isLoading()).toBe(true);
-    loads.get(next)!.resolve();
-    await loading;
-    expect(session.isLoading()).toBe(false);
-
-    void session.load(playback, new File(['b'], 'b.ogg'));
-    session.cancel(playback);
-    expect(session.isLoading()).toBe(false);
-  });
-
   it('load는 성공하면 loaded, 실패하면 failed, 뒤에 고른 파일에 밀린 a.ogg면 null을 돌려준다', async () => {
     const { session, playback, loads } = harness();
     const first = new File(['a'], 'a.ogg');

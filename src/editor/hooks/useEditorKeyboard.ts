@@ -33,6 +33,20 @@ export function isTextEntryTarget(target: EventTarget | null | undefined): boole
   return element.tagName === 'INPUT' && !NON_TEXT_INPUT_TYPES.has((element.type ?? 'text').toLowerCase());
 }
 
+/**
+ * 이 속성을 단 영역(곡 정보 드로어) 안에 포커스가 있으면 키는 그 영역의 것이다. 대화 상자(role="dialog"·`<dialog>`)도 같다.
+ * 그 안의 버튼·체크박스는 Space·Enter로 눌리고, Delete·S·Ctrl+Z 같은 에디터 단축키는 타임라인을 바꾸지 않는다.
+ */
+export const OWN_KEYS_REGION_ATTRIBUTE = 'data-own-keys';
+const OWN_KEYS_REGION_SELECTOR = `[${OWN_KEYS_REGION_ATTRIBUTE}], [role="dialog"], dialog`;
+
+/** 키 입력 대상이 곡 정보 드로어·대화 상자 안에 있는가. */
+function isInOwnKeysRegion(target: EventTarget | null | undefined): boolean {
+  if (!target || typeof target !== 'object' || !('closest' in target)) return false;
+  const element = target as { closest?: (selector: string) => unknown };
+  return typeof element.closest === 'function' && element.closest(OWN_KEYS_REGION_SELECTOR) != null;
+}
+
 /** 키 입력 대상이 숫자 입력칸인가(오프셋·페이드). 숫자 입력칸에는 Space가 글자를 넣지 않는다. */
 function isNumberEntryTarget(target: EventTarget | null | undefined): target is EventTarget & { blur?: () => void } {
   if (!isTextEntryTarget(target)) return false;
@@ -76,10 +90,11 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
   const { mode, selectMode, playback, bpmChanges, offsetMs, shortcutsBlocked, isPlaying, setMode, addToast } = context;
   // Disable shortcuts while focused editor UI is open.
   if (shortcutsBlocked) return;
-  // 곡 정보 드로어의 입력칸에서 친 글자는 단축키가 아니다. 숫자 입력칸(Offset 등)의 Space만은 재생·정지로 쓴다(RFD 0099:
-  // 오프셋 입력을 연 채 재생·일시정지). 입력한 값은 포커스를 옮겨(blur) 먼저 적용하고, 적용이 커서 박 유지까지 반영된 다음 작업에서
-  // 재생을 토글한다. 재생 중에는 Offset 입력이 비활성이라 값이 남은 채 잠기지 않는다.
-  if (isTextEntryTarget(e.target)) {
+  // 입력칸에서 친 글자와 곡 정보 드로어·대화 상자 안의 키는 단축키가 아니다. preventDefault도 하지 않아 그 안의 버튼·체크박스가
+  // Space·Enter로 눌린다. 숫자 입력칸(Offset·페이드)의 Space만은 재생·정지로 쓴다(RFD 0099: 오프셋 입력을 연 채 재생·일시정지).
+  // 입력한 값은 포커스를 옮겨(blur) 먼저 적용하고, 적용이 커서 박 유지까지 반영된 다음 작업에서 재생을 토글한다.
+  // 재생 중에는 Offset 입력이 비활성이라 값이 남은 채 잠기지 않는다.
+  if (isTextEntryTarget(e.target) || isInOwnKeysRegion(e.target)) {
     if (e.key === ' ' && isNumberEntryTarget(e.target)) {
       e.preventDefault();
       e.target.blur?.();

@@ -71,10 +71,6 @@ export function createMetaAudioSession(deps: {
       deps.onLoadFailed();
       return 'failed';
     },
-    /** 고른 음원을 아직 불러오는 중인가. 곡 정보 드로어는 이 동안 곡 정보를 미저장으로 본다. */
-    isLoading(): boolean {
-      return loading;
-    },
     /** 고른 음원을 적용하고 창을 닫았다. */
     apply(): void {
       finish();

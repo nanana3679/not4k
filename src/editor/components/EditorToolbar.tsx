@@ -1,4 +1,3 @@
-import { isSongDirty } from '../songState';
 /**
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
@@ -8,11 +7,10 @@ import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
 import { buildViolationList, mainNotes, isExplicitNote } from '../../shared';
-import type { PlaybackRange } from '../../shared';
 import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
-import { isChartDirty } from '../savedChart';
+import { hasUnsavedEditorChanges } from '../unsavedChangesFlow';
 import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY, SONG_INFO_DRAWER_COPY } from '../editorCopy';
 import { editAudioOffset } from '../songInfoEditing';
 import { color, edge } from '../../shared/theme';
@@ -570,8 +568,6 @@ interface EditorToolbarProps {
   setShowPlayTestMenu: (v: boolean | ((prev: boolean) => boolean)) => void;
   saving: boolean;
   deleting: boolean;
-  pendingPreviewRange: PlaybackRange | null;
-  pendingGameplayRange: PlaybackRange | null;
   onPlayTest: (fromCursor: boolean) => void;
   onSaveChart: () => void;
   onSaveAs: () => void;
@@ -624,8 +620,6 @@ export function EditorToolbar({
   setShowPlayTestMenu,
   saving,
   deleting,
-  pendingPreviewRange,
-  pendingGameplayRange,
   onPlayTest,
   onSaveChart,
   onSaveAs,
@@ -671,6 +665,8 @@ export function EditorToolbar({
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const song = useEditorStore((s) => s.song);
   const savingSong = useEditorStore((s) => s.isSavingSong);
+  const isLoadingSongAudio = useEditorStore((s) => s.isLoadingSongAudio);
+  const songlessMedia = useEditorStore((s) => s.songlessMedia);
   const savedChartJson = useEditorStore((s) => s.savedChartJson);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const activeSongId = useEditorStore((s) => s.activeSongId);
@@ -697,14 +693,13 @@ export function EditorToolbar({
   const deleteSelectedDisabled = selectedCount === 0 || isPlaying;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
-  // 현재 차트를 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 store의 savedChartJson과 비교한다 (RFD 0018 ③).
+  // Save의 미저장 표시는 이탈·차트 전환 확인과 같은 판단(hasUnsavedEditorChanges)을 쓴다: 차트·곡 정보 변경, 불러오는 중인
+  // 드로어 음원, 곡 행 없는 차트의 대기 구간. 차트는 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 비교한다(RFD 0018 ③).
   // 재생 중에는 페이지가 currentTimeMs를 구독해 툴바도 매 프레임 다시 렌더된다. 차트 전체 직렬화는 비교 입력이 바뀔 때만 한다.
-  const chartDirty = useMemo(
-    () => isChartDirty(chart, extraLaneCount, savedChartJson, song !== null),
-    [chart, extraLaneCount, savedChartJson, song],
+  const isDirty = useMemo(
+    () => hasUnsavedEditorChanges({ chart, song, extraLaneCount, savedChartJson, songlessMedia, isLoadingSongAudio }),
+    [chart, song, extraLaneCount, savedChartJson, songlessMedia, isLoadingSongAudio],
   );
-  const songDirty = useMemo(() => isSongDirty(chart, song), [chart, song]);
-  const isDirty = chartDirty || songDirty || (!song && (pendingPreviewRange != null || pendingGameplayRange != null));
   const saveLocked = saving || savingSong || deleting;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
@@ -752,13 +747,10 @@ export function EditorToolbar({
     addToast('Redo', 'info');
   };
 
+  // Back to Songs는 언제나 에디터 페이지의 이탈 확인 흐름(editor:requestLeave)에 넘긴다. 미저장 판단·저장 중 안내·이동을 그 흐름
+  // 한 곳이 맡아, 툴바가 따로 판단해 확인 없이 떠나는 경로가 없다(RFD 0098). 미저장 변경이 없으면 흐름이 묻지 않고 /game으로 간다.
   const requestBackToSongs = () => {
-    // 저장 중이면 깨끗해 보여도 이탈 확인 흐름에 넘긴다. 흐름이 저장이 끝날 때까지 이동을 막는다(RFD 0098).
-    if (isDirty || saving || savingSong) {
-      window.dispatchEvent(new CustomEvent('editor:requestLeave'));
-    } else {
-      window.location.href = '/game';
-    }
+    window.dispatchEvent(new CustomEvent('editor:requestLeave'));
   };
 
   const applyOffset = (offsetMs: number) => {

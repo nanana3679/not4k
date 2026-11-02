@@ -15,6 +15,7 @@ export interface PreviewRangeSelectorProps {
   /**
    * 파형에서 손을 뗄 때 놓은 위치로 계산한 마지막 구간을 바로 알린다. onChange는 렌더 뒤에 오므로 손을 떼는 순간에는
    * 마지막 끌기가 아직 반영되지 않았을 수 있다. 끌기를 마치고 적용하는 쪽은 이 값을 쓴다. 사용을 꺼 두었으면 null이다.
+   * 브라우저가 끌기를 끊으면(pointercancel·lostpointercapture) 놓은 좌표가 없어 마지막으로 끈 구간을 알린다.
    */
   onDragEnd?: (state: PreviewRangeState | null) => void;
   initialStart?: number;
@@ -101,7 +102,6 @@ export function PreviewRangeSelector({
   const [fadeOutTime, setFadeOutTime] = useState(initial.fadeOutTime);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
-  const [dragMode, setDragMode] = useState<DragMode>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -111,8 +111,9 @@ export function PreviewRangeSelector({
   const rafRef = useRef<number>(0);
   const playStartRef = useRef<number>(0);
   const playOffsetRef = useRef<number>(0);
-  // 지금 끄는 중인 잡은 곳과 누른 순간의 x·구간. 끌기를 시작할 때 정하고 손을 떼면 비운다.
-  const dragRef = useRef<RangeDrag | null>(null);
+  // 누른 동안의 끌기: 잡은 곳과 누른 순간의 x·구간(drag, 구간 밖을 눌러 구간을 옮겼으면 null)과 마지막으로 정한 구간(last).
+  // 누를 때 정하고, 손을 떼거나 브라우저가 끌기를 끊으면(pointercancel·lostpointercapture) 비운다.
+  const pressRef = useRef<{ drag: RangeDrag | null; last: { startTime: number; endTime: number } } | null>(null);
 
   // Notify parent
   useEffect(() => {
@@ -306,7 +307,7 @@ export function PreviewRangeSelector({
 
   /** 끄는 중이면 포인터 위치의 구간(dragRangeAt), 아니면 null. */
   const rangeAt = useCallback((clientX: number): { startTime: number; endTime: number } | null => {
-    const drag = dragRef.current;
+    const drag = pressRef.current?.drag;
     const canvas = canvasRef.current;
     if (!drag || !canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -335,26 +336,25 @@ export function PreviewRangeSelector({
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     const mode = hitTest(e.clientX);
-    const clickTime = getTimeFromX(e.clientX);
-
     if (mode) {
-      setDragMode(mode);
-      dragRef.current = { mode, startX: e.clientX, startTime, endTime };
-    } else {
-      // Click outside → move selection centered on click
-      const selDuration = endTime - startTime;
-      const newStart = clamp(clickTime - selDuration / 2, 0, duration - selDuration);
-      const newEnd = newStart + selDuration;
-      setStartTime(newStart);
-      setEndTime(newEnd);
+      pressRef.current = { drag: { mode, startX: e.clientX, startTime, endTime }, last: { startTime, endTime } };
+      return;
     }
+    // Click outside → move selection centered on click
+    const selDuration = endTime - startTime;
+    const newStart = clamp(getTimeFromX(e.clientX) - selDuration / 2, 0, duration - selDuration);
+    const newEnd = newStart + selDuration;
+    pressRef.current = { drag: null, last: { startTime: newStart, endTime: newEnd } };
+    setStartTime(newStart);
+    setEndTime(newEnd);
   }, [enabled, hitTest, getTimeFromX, startTime, endTime, duration]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!enabled) return;
 
     // Update cursor based on hover
-    if (!dragMode) {
+    const press = pressRef.current;
+    if (!press?.drag) {
       const mode = hitTest(e.clientX);
       const canvas = canvasRef.current;
       if (canvas) {
@@ -367,18 +367,16 @@ export function PreviewRangeSelector({
 
     const range = rangeAt(e.clientX);
     if (!range) return;
+    press.last = range;
     setStartTime(range.startTime);
     setEndTime(range.endTime);
-  }, [enabled, dragMode, hitTest, rangeAt]);
+  }, [enabled, hitTest, rangeAt]);
 
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-    // 놓은 위치로 마지막 구간을 다시 계산한다. 끌지 않았으면(구간 밖 클릭은 누를 때 옮겼다) 지금 구간이다.
-    const range = rangeAt(e.clientX) ?? { startTime, endTime };
-    dragRef.current = null;
+  /** 끌기를 끝내고 마지막 구간을 정해 알린다(onDragEnd). */
+  const finishPress = useCallback((range: { startTime: number; endTime: number }) => {
+    pressRef.current = null;
     setStartTime(range.startTime);
     setEndTime(range.endTime);
-    setDragMode(null);
     if (!onDragEnd) return;
     const maxFade = Math.max(0, (range.endTime - range.startTime) / 2);
     onDragEnd(enabled ? {
@@ -387,7 +385,20 @@ export function PreviewRangeSelector({
       fadeInTime: clamp(fadeInTime, 0, maxFade),
       fadeOutTime: clamp(fadeOutTime, 0, maxFade),
     } : null);
-  }, [rangeAt, startTime, endTime, enabled, fadeInTime, fadeOutTime, onDragEnd]);
+  }, [enabled, fadeInTime, fadeOutTime, onDragEnd]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    // 놓은 위치로 마지막 구간을 다시 계산한다. 끌지 않았으면(구간 밖 클릭은 누를 때 옮겼다) 누를 때 정한 구간·지금 구간이다.
+    finishPress(rangeAt(e.clientX) ?? pressRef.current?.last ?? { startTime, endTime });
+  }, [rangeAt, startTime, endTime, finishPress]);
+
+  // 브라우저가 끌기를 끊으면(터치가 스크롤·확대로 넘어간 pointercancel, 손을 떼기 전에 캡처를 잃은 lostpointercapture) 손을 뗀
+  // 좌표가 없다. 마지막으로 정한 구간을 적용해 끝낸다. 이미 손을 떼 끝낸 끌기(pointerup 뒤의 lostpointercapture)는 다시 적용하지 않는다.
+  const handlePointerInterrupted = useCallback(() => {
+    const press = pressRef.current;
+    if (press) finishPress(press.last);
+  }, [finishPress]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -430,10 +441,13 @@ export function PreviewRangeSelector({
         <canvas
           ref={canvasRef}
           height={CANVAS_HEIGHT}
-          style={{ display: 'block', width: '100%', height: `${CANVAS_HEIGHT}px` }}
+          // 끄는 동안 터치가 스크롤·확대로 넘어가지 않게 한다(넘어가면 pointercancel로 끌기가 끊긴다).
+          style={{ display: 'block', width: '100%', height: `${CANVAS_HEIGHT}px`, touchAction: 'none' }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerInterrupted}
+          onLostPointerCapture={handlePointerInterrupted}
         />
       </div>
 

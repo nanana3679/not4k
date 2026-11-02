@@ -99,6 +99,16 @@ export class PlaybackController {
     this.audioLoadGeneration++;
   }
 
+  /**
+   * 음원을 비우고 진행 중인 로드도 버린다. 재생 중이면 정지한다. 곡 정보 변경 취소가 버린 음원을 되돌릴 버퍼 없이 저장된 음원을 다시
+   * 불러올 때, 그 사이(또는 다시 받기가 실패해도) 버린 음원으로 재생·테스트 플레이·프리뷰 생성을 하지 않게 쓴다.
+   */
+  clearAudio(): void {
+    this.audioLoadGeneration++;
+    this.pause();
+    this.audioBuffer = null;
+  }
+
   /** Play/pause toggle */
   togglePlay(): void {
     if (this._isPlaying) {

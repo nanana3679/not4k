@@ -7,8 +7,10 @@ import { toSavedChartJson } from '../savedChart';
 import { isSongDirty } from '../songState';
 import { useEditorStore } from '../stores/editorStore';
 import { PAUSE_TO_EDIT_COPY, SONG_INFO_DRAWER_COPY } from '../editorCopy';
+import { OWN_KEYS_REGION_ATTRIBUTE } from '../hooks/useEditorKeyboard';
 import { PreviewRangeSelector } from './PreviewRangeSelector';
 import { RangeField, SongInfoDrawer, type SongInfoDrawerProps } from './SongInfoDrawer';
+import { editGameplayRange } from '../songInfoEditing';
 
 // 서버 렌더의 zustand 훅은 store 초기값을 읽는다. 훅이 테스트가 넣은 현재 store 값을 읽게 한다.
 vi.mock('../stores', async importOriginal => {
@@ -40,14 +42,14 @@ type ElementProps = {
   onClick?: () => void;
   onChange?: (event: { currentTarget: { files: File[] } }) => void;
 };
-/** 렌더하지 않은 요소 트리에서 태그(또는 컴포넌트)와 props를 모은다. 함수 컴포넌트는 펼치지 않는다. */
-function elements(node: ReactNode): { type: unknown; props: ElementProps }[] {
+/** 렌더하지 않은 요소 트리에서 태그(또는 컴포넌트)와 key·props를 모은다. 함수 컴포넌트는 펼치지 않는다. */
+function elements(node: ReactNode): { type: unknown; key: string | null; props: ElementProps }[] {
   return Children.toArray(node).flatMap(child => isValidElement<ElementProps>(child)
-    ? [{ type: child.type, props: child.props }, ...elements(child.props.children)] : []);
+    ? [{ type: child.type, key: child.key, props: child.props }, ...elements(child.props.children)] : []);
 }
 /** 드로어를 한 번 렌더하며 트리를 받는다. 훅은 이 Probe의 것이다. */
 function tree(overrides: Partial<SongInfoDrawerProps> = {}) {
-  let found: { type: unknown; props: ElementProps }[] = [];
+  let found: ReturnType<typeof elements> = [];
   function Probe() {
     const node = SongInfoDrawer(props(overrides));
     found = elements(node);
@@ -77,6 +79,10 @@ describe('곡 정보 드로어의 곡 공통 값', () => {
     expect(inputOf(markup, 'Artist')).toContain('value="작곡가"');
     expect(inputOf(markup, 'Offset \\(ms\\)')).toContain('value="0"');
     expect(markup).toContain(SONG_INFO_DRAWER_COPY.scope);
+  });
+
+  it('드로어 aside는 키를 자기가 쓰는 영역(OWN_KEYS_REGION_ATTRIBUTE)이라 안의 버튼·체크박스 키를 에디터 단축키가 가로채지 않는다', () => {
+    expect(render()).toMatch(new RegExp(`<aside[^>]*${OWN_KEYS_REGION_ATTRIBUTE}=""[^>]*aria-label="Song Info"`));
   });
 
   it('Title 입력칸을 새 제목으로 바꾸고 포커스를 옮기면 곡 제목이 새 제목이 되어 곡이 미저장이다', () => {
@@ -216,19 +222,31 @@ describe('곡 정보 드로어의 차트 목록·닫기', () => {
 
 describe('드로어의 구간 선택기 적용(RangeField)', () => {
   const initial = { startTime: 10, endTime: 20, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 };
+  type Range = typeof initial;
+  /** 선택기 안의 다른 입력칸(Fade Out). 포커스가 이리로 옮겨 가면 선택기를 떠난 것이 아니다. */
+  const fadeOut = {};
+  const wrapperNode = { contains: (node: unknown) => node === fadeOut };
   /**
-   * RangeField 한 번의 렌더에서 선택기 알림과 손 떼기(선택기의 onDragEnd) 또는 포커스 이동을 흉내 낸다.
-   * 손 떼기는 선택기가 놓은 위치로 계산한 구간을 넘긴다.
+   * RangeField 한 번의 렌더에서 선택기 알림 뒤 손 떼기(선택기의 onDragEnd)·포커스 이동을 차례로 흉내 낸다. 손 떼기는 선택기가 놓은
+   * 위치로 계산한 구간을 넘긴다. 포커스 이동은 선택기 안의 Fade Out(inside) 또는 선택기 밖(outside)으로 간다.
    */
-  function probe(notifications: (typeof initial | null)[], finish: { dragEnd: typeof initial | null } | 'blur') {
+  function probe(notifications: (Range | null)[], finishes: ({ dragEnd: Range | null } | { blurTo: 'inside' | 'outside' })[]) {
     const onCommit = vi.fn();
+    let done = false;
     function Probe() {
-      const node = RangeField({ selector: { audioBuffer: { duration: 120 } as AudioBuffer, label: '프리뷰 구간' }, onCommit });
-      const wrapper = node as { props: { onBlur: () => void; children: ReactNode } };
+      const outer = RangeField({ selector: { audioBuffer: { duration: 120 } as AudioBuffer, label: '프리뷰 구간' }, onCommit }) as
+        { type: (props: unknown) => ReactNode; props: unknown };
+      // RangeField는 선택기를 감싼 칸(key로 다시 그린다)을 돌려준다. 그 칸도 이 Probe의 훅으로 그린다.
+      const wrapper = outer.type(outer.props) as { props: { onBlur: (event: unknown) => void; children: ReactNode } };
+      if (done) return null;
+      done = true;
       const selector = elements(wrapper.props.children).find(e => e.type === PreviewRangeSelector)!
-        .props as unknown as { onChange: (range: typeof initial | null) => void; onDragEnd: (range: typeof initial | null) => void };
+        .props as unknown as { onChange: (range: Range | null) => void; onDragEnd: (range: Range | null) => void };
       for (const range of notifications) selector.onChange(range);
-      if (finish === 'blur') wrapper.props.onBlur(); else selector.onDragEnd(finish.dragEnd);
+      for (const finish of finishes) {
+        if ('dragEnd' in finish) selector.onDragEnd(finish.dragEnd);
+        else wrapper.props.onBlur({ currentTarget: wrapperNode, relatedTarget: finish.blurTo === 'inside' ? fadeOut : null });
+      }
       return null;
     }
     renderToStaticMarkup(createElement(Probe));
@@ -236,26 +254,53 @@ describe('드로어의 구간 선택기 적용(RangeField)', () => {
   }
 
   it('선택기의 첫 알림 10～20초는 적용하지 않고 손을 뗀 구간도 10～20초 그대로면 적용하지 않는다', () => {
-    expect(probe([initial], { dragEnd: initial })).not.toHaveBeenCalled();
+    expect(probe([initial], [{ dragEnd: initial }])).not.toHaveBeenCalled();
   });
 
   it('30～40초로 끈 뒤 손을 떼면 30～40초·페이드 0.5초를 한 번 적용한다', () => {
     const dragged = { ...initial, startTime: 30, endTime: 40 };
-    expect(probe([initial, dragged], { dragEnd: dragged }))
+    expect(probe([initial, dragged], [{ dragEnd: dragged }]))
       .toHaveBeenCalledExactlyOnceWith({ startTime: 30, endTime: 40, fadeInTime: 0.5, fadeOutTime: 0.5 });
   });
 
   it('마지막 알림이 25～35초에 머문 채 30～40초에서 손을 떼면 알림이 아니라 손을 뗀 위치 30～40초를 적용한다', () => {
-    expect(probe([initial, { ...initial, startTime: 25, endTime: 35 }], { dragEnd: { ...initial, startTime: 30, endTime: 40 } }))
+    expect(probe([initial, { ...initial, startTime: 25, endTime: 35 }], [{ dragEnd: { ...initial, startTime: 30, endTime: 40 } }]))
       .toHaveBeenCalledExactlyOnceWith({ startTime: 30, endTime: 40, fadeInTime: 0.5, fadeOutTime: 0.5 });
   });
 
-  it('페이드 입력을 1초로 바꾸고 포커스를 옮기면 페이드 1초를 적용한다', () => {
-    expect(probe([initial, { ...initial, fadeInTime: 1 }], 'blur'))
+  it('30～40초를 적용한 뒤 다시 10～20초로 끌어 손을 떼면 처음 구간이어도 10～20초를 적용한다', () => {
+    const onCommit = probe([initial], [{ dragEnd: { ...initial, startTime: 30, endTime: 40 } }, { dragEnd: initial }]);
+
+    expect(onCommit).toHaveBeenCalledTimes(2);
+    expect(onCommit).toHaveBeenLastCalledWith({ startTime: 10, endTime: 20, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('페이드 입력을 1초로 바꾸고 선택기 밖으로 포커스를 옮기면 페이드 1초를 적용한다', () => {
+    expect(probe([initial, { ...initial, fadeInTime: 1 }], [{ blurTo: 'outside' }]))
+      .toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 20, fadeInTime: 1, fadeOutTime: 0.5 });
+  });
+
+  it('Fade In을 1초로 바꾸고 같은 선택기의 Fade Out으로 포커스를 옮기면 아직 적용하지 않고, 선택기를 떠날 때 한 번 적용한다', () => {
+    const changed = { ...initial, fadeInTime: 1 };
+    expect(probe([initial, changed], [{ blurTo: 'inside' }])).not.toHaveBeenCalled();
+    expect(probe([initial, changed], [{ blurTo: 'inside' }, { blurTo: 'outside' }]))
       .toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 20, fadeInTime: 1, fadeOutTime: 0.5 });
   });
 
   it('프리뷰 사용을 꺼 null을 알리면 구간을 지우지 않는다', () => {
-    expect(probe([initial, null], 'blur')).not.toHaveBeenCalled();
+    expect(probe([initial, null], [{ blurTo: 'outside' }])).not.toHaveBeenCalled();
+  });
+});
+
+describe('드로어의 구간 선택기 key', () => {
+  it('120초 음원에서 인게임 페이드를 1초로 적용해도 두 구간 선택기의 key는 음원으로만 정해져 그대로다', () => {
+    const audioBuffer = { duration: 120 } as AudioBuffer;
+    const keys = () => tree({ audioBuffer }).filter(e => e.type === RangeField).map(e => e.key);
+    const before = keys();
+
+    editGameplayRange({ startTime: 0, endTime: 120, fadeInTime: 1, fadeOutTime: 0 });
+
+    expect(keys()).toEqual(before);
+    expect(before).toHaveLength(2);
   });
 });

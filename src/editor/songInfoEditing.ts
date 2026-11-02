@@ -103,8 +103,11 @@ export function editSongAudio(file: File, duration: number): void {
 export interface DiscardSongInfoResult {
   /** 곡 정보를 마지막 저장 상태로 되돌렸는가. 재생 중 타이밍을 되돌려야 하거나 곡 행이 없으면 false다. */
   discarded: boolean;
-  /** 대기 음원을 버려 재생기에 다시 불러올 저장된 음원 경로. 바꾸지 않았거나 저장된 음원이 없으면 null이다. */
-  reloadAudioUrl: string | null;
+  /**
+   * 드로어에서 바꾼 음원(대기 음원)을 버렸으면 재생기를 되돌릴 저장된 음원의 경로(`savedAudioUrl`, 저장된 음원이 없으면 null).
+   * 음원을 바꾸지 않았으면 null이다. 재생기를 되돌리는 일은 드로어 음원(drawerSongAudio)이 맡는다.
+   */
+  discardedAudio: { savedAudioUrl: string | null } | null;
 }
 
 /**
@@ -123,11 +126,11 @@ export interface DiscardSongInfoResult {
 export function discardSongInfoChanges(): DiscardSongInfoResult {
   const state = useEditorStore.getState();
   const song = state.song;
-  if (!song) return { discarded: false, reloadAudioUrl: null };
+  if (!song) return { discarded: false, discardedAudio: null };
   const restored = restoreSavedSongInfo(state.chart, song, savedChartEvents(state.savedChartJson));
   if (state.isPlaying && isPlaybackLockedChange(state.chart, restored.chart)) {
     state.addToast(PAUSE_TO_EDIT_COPY, 'warn');
-    return { discarded: false, reloadAudioUrl: null };
+    return { discarded: false, discardedAudio: null };
   }
   // 차트를 바꿀 때는 열린 편집(붙여넣기 대기 등)을 먼저 확정해, 아래의 이력 없는 되돌림이 그 편집의 시작 상태와 섞이지 않게 한다.
   if (restored.chart !== state.chart) state.commitEditTransaction();
@@ -146,12 +149,12 @@ export function discardSongInfoChanges(): DiscardSongInfoResult {
     // 구조 검증 등으로 거부되면 먼저 되돌린 미디어 경로·프리뷰 구간을 원래대로 돌리고 대기 파일·구간도 그대로 둔다.
     if (useEditorStore.getState().chart !== next) {
       useEditorStore.getState().reconcileSongMedia(previousSessionMeta);
-      return { discarded: false, reloadAudioUrl: null };
+      return { discarded: false, discardedAudio: null };
     }
     if (restored.chart.events !== current.events) keepEventSelection(selection, current.events, next.events);
   }
   useEditorStore.getState().setSong(restored.song);
-  return { discarded: true, reloadAudioUrl: song.pendingAudioFile && song.baseline.audioUrl ? song.baseline.audioUrl : null };
+  return { discarded: true, discardedAudio: song.pendingAudioFile ? { savedAudioUrl: song.baseline.audioUrl || null } : null };
 }
 
 /**

@@ -129,7 +129,7 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
     editAudioOffset(45);
     store().setChart({ ...store().chart, notes: [tap] });
 
-    expect(discardSongInfoChanges()).toEqual({ discarded: true, reloadAudioUrl: null });
+    expect(discardSongInfoChanges()).toEqual({ discarded: true, discardedAudio: null });
 
     expect(store().chart.meta).toMatchObject({ title: '곡', offsetMs: 0 });
     expect(store().chart.notes).toEqual([tap]);
@@ -156,7 +156,7 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
     const historyLength = store().historyPast.length;
     store().setIsPlaying(true);
 
-    expect(discardSongInfoChanges()).toEqual({ discarded: false, reloadAudioUrl: null });
+    expect(discardSongInfoChanges()).toEqual({ discarded: false, discardedAudio: null });
 
     expect(store().chart.meta.offsetMs).toBe(45);
     expect(store().historyPast).toHaveLength(historyLength);
@@ -171,10 +171,19 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
     expect(store().chart.meta.title).toBe('곡');
   });
 
-  it('음원 next.ogg를 바꿨으면 변경 취소가 대기 파일을 비우고 저장된 음원 audio.ogg를 다시 불러오라고 돌려준다', () => {
+  it('저장된 곡에 음원이 없으면 next.ogg를 바꾼 변경 취소는 버린 음원과 저장된 음원 없음(savedAudioUrl null)을 돌려준다', () => {
+    const silent = { ...loadedSong, audioUrl: '', duration: null };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, silent), silent);
     editSongAudio(new File(['a'], 'next.ogg'), 5);
 
-    expect(discardSongInfoChanges()).toEqual({ discarded: true, reloadAudioUrl: 'audio.ogg' });
+    expect(discardSongInfoChanges()).toEqual({ discarded: true, discardedAudio: { savedAudioUrl: null } });
+    expect(store().chart.meta.audioFile).toBe('');
+  });
+
+  it('음원 next.ogg를 바꿨으면 변경 취소가 대기 파일을 비우고 재생기를 되돌릴 저장된 음원 audio.ogg를 돌려준다', () => {
+    editSongAudio(new File(['a'], 'next.ogg'), 5);
+
+    expect(discardSongInfoChanges()).toEqual({ discarded: true, discardedAudio: { savedAudioUrl: 'audio.ogg' } });
     expect(store().song).toMatchObject({ pendingAudioFile: null, duration: 120 });
     expect(store().chart.meta).toMatchObject({ audioFile: 'audio.ogg', previewStart: 10, previewEnd: 20 });
     expect(songDirty()).toBe(false);
@@ -219,7 +228,7 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
     openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null));
     store().setChart({ ...store().chart, meta: { ...store().chart.meta, title: '새 제목' } });
 
-    expect(discardSongInfoChanges()).toEqual({ discarded: false, reloadAudioUrl: null });
+    expect(discardSongInfoChanges()).toEqual({ discarded: false, discardedAudio: null });
     expect(store().chart.meta.title).toBe('새 제목');
   });
 });

@@ -7,9 +7,12 @@
  *
  * - 입력칸은 포커스를 옮기거나 Enter를 누를 때 적용한다. Undo·변경 취소처럼 바깥에서 값이 바뀌면 입력칸을 새 값으로 다시 그린다.
  * - 오프셋은 타이밍 값이라 재생 중 입력·증감 버튼이 비활성이고, 다른 경로의 시도도 값을 바꾸지 않는다(RFD 0099).
- * - 구간 선택기는 끌기를 마치고 손을 떼거나 페이드 입력에서 포커스를 옮길 때 적용한다. 선택기가 마운트하며 알리는 처음 구간은
- *   편집이 아니다. 음원 교체가 새 길이에 맞춘 구간을 적용하는 일은 호출한 쪽(editSongAudio)이 맡는다.
+ * - 구간 선택기는 끌기를 마치고 손을 떼거나 페이드 입력에서 선택기 밖으로 포커스를 옮길 때 적용한다. 선택기가 마운트하며 알리는
+ *   처음 구간은 편집이 아니다. 자기가 적용한 값으로는 다시 그리지 않고 바깥 변경(변경 취소·Undo)과 음원 교체 때만 다시 그린다.
+ *   음원 교체가 새 길이에 맞춘 구간을 적용하는 일은 호출한 쪽(editSongAudio)이 맡는다.
  * - 닫기와 차트 전환은 미저장 곡 정보 확인을 거치도록 호출한 쪽에 요청만 한다.
+ * - 포커스가 드로어 안에 있으면 키는 드로어의 것이다. 버튼·체크박스는 Space·Enter로 눌리고 Delete·S·Ctrl+Z 같은 에디터 단축키는
+ *   실행하지 않는다. 숫자 입력칸의 Space만 값을 적용한 뒤 재생·정지한다(useEditorKeyboard).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, FocusEvent, KeyboardEvent, RefObject } from 'react';
@@ -18,6 +21,7 @@ import { formatDifficultyLabel } from '../../shared/chartDifficulty';
 import { color, font, primitives, radius, surface } from '../../shared/theme';
 import type { StoredChartRow } from '../../supabase/chartRows';
 import { PAUSE_TO_EDIT_COPY, SONG_INFO_DRAWER_COPY } from '../editorCopy';
+import { OWN_KEYS_REGION_ATTRIBUTE } from '../hooks/useEditorKeyboard';
 import type { MetaAudioPick } from '../metaAudioSession';
 import {
   editAudioOffset,
@@ -29,7 +33,7 @@ import {
 } from '../songInfoEditing';
 import { useEditorStore } from '../stores';
 import { PreviewRangeSelector, type PreviewRangeSelectorProps } from './PreviewRangeSelector';
-import { notifiedRange, type PreviewRangeState } from './previewRangeState';
+import { followRangeInput, notifiedRange, type PreviewRangeState, type RangeFieldMount, type RangeInput } from './previewRangeState';
 
 /** 드로어가 보이는 같은 곡의 차트 목록. 드로어를 열 때 불러온다. */
 export type SongChartList =
@@ -78,32 +82,62 @@ function sameRangeState(a: PreviewRangeState, b: PreviewRangeState): boolean {
 }
 
 /**
- * 구간 선택기 하나. 선택기는 마운트할 때만 처음 구간을 읽고 바뀔 때마다 알린다. 첫 알림은 처음 구간이라 적용하지 않는다.
- * 파형에서 손을 떼면 선택기가 놓은 위치로 계산해 바로 넘기는 구간(onDragEnd)을, 페이드 입력·체크박스에서 포커스를 옮기면(blur)
- * 마지막 알림을 처음 구간과 비교해 다르면 적용한다. 손을 떼는 순간에는 마지막 끌기의 알림이 아직 오지 않았을 수 있어 알림을 쓰지 않는다.
- * 선택기를 끈(null) 알림은 구간을 지우지 않는다(기존 Meta 창과 같다). 적용한 값이 store에 들어가면 드로어가 key로 다시 마운트한다.
+ * 구간 선택기 하나. 선택기가 적용한 값이 store에 들어와도 선택기는 이미 그 값을 보이므로 다시 그리지 않는다(포커스·끌기·미리듣기가
+ * 끊기지 않게). 변경 취소·Undo처럼 바깥에서 값이 바뀌면 선택기를 새 값으로 다시 그린다(followRangeInput). 음원이 바뀌면 드로어가
+ * key로 이 칸 전체를 다시 그린다.
  */
 export function RangeField({ selector, onCommit }: {
   selector: Omit<PreviewRangeSelectorProps, 'onChange' | 'onDragEnd'>;
   onCommit: (range: PlaybackRange) => void;
 }) {
-  const initialRef = useRef<PreviewRangeState | null | undefined>(undefined);
+  const input: RangeInput = { initialStart: selector.initialStart, initialEnd: selector.initialEnd,
+    initialFadeInTime: selector.initialFadeInTime, initialFadeOutTime: selector.initialFadeOutTime };
+  const [mount, setMount] = useState<RangeFieldMount>({ shown: input, generation: 0 });
+  const next = followRangeInput(mount, input);
+  if (next !== mount) setMount(next);
+  const commit = (range: PlaybackRange) => {
+    // 적용한 값을 선택기가 보이는 값으로 둔다. store가 그 값을 받으면 위 비교가 같아 다시 그리지 않는다.
+    setMount(current => ({ ...current, shown: { initialStart: range.startTime, initialEnd: range.endTime,
+      initialFadeInTime: range.fadeInTime, initialFadeOutTime: range.fadeOutTime } }));
+    onCommit(range);
+  };
+  return <RangeSelectorField key={next.generation} selector={selector} onCommit={commit} />;
+}
+
+/**
+ * 구간 선택기와 그 적용. 선택기는 마운트할 때만 처음 구간을 읽고 바뀔 때마다 알린다. 첫 알림은 처음 구간이라 적용하지 않는다.
+ * 파형에서 손을 떼면 선택기가 놓은 위치로 계산해 바로 넘기는 구간(onDragEnd)을, 페이드 입력·체크박스에서 선택기 밖으로 포커스를
+ * 옮기면(blur) 마지막 알림을 적용한 값과 비교해 다르면 적용한다. 같은 선택기 안에서 포커스를 옮기면(Fade In → Fade Out) 아직
+ * 적용하지 않는다. 손을 떼는 순간에는 마지막 끌기의 알림이 아직 오지 않았을 수 있어 알림을 쓰지 않는다.
+ * 선택기를 끈(null) 알림은 구간을 지우지 않는다(기존 Meta 창과 같다).
+ */
+function RangeSelectorField({ selector, onCommit }: {
+  selector: Omit<PreviewRangeSelectorProps, 'onChange' | 'onDragEnd'>;
+  onCommit: (range: PlaybackRange) => void;
+}) {
+  // store에 있는 구간. 처음엔 선택기의 첫 알림(처음 구간)이고 적용할 때마다 그 값이 된다.
+  const appliedRef = useRef<PreviewRangeState | null | undefined>(undefined);
   const latestRef = useRef<PreviewRangeState | null>(null);
   const handleChange = useCallback((range: PreviewRangeState | null) => {
-    if (initialRef.current === undefined) initialRef.current = range;
+    if (appliedRef.current === undefined) appliedRef.current = range;
     latestRef.current = range;
   }, []);
   const commit = (range: PreviewRangeState | null) => {
-    const initial = initialRef.current;
-    if (!range || (initial && sameRangeState(range, initial))) return;
+    const applied = appliedRef.current;
+    if (!range || (applied && sameRangeState(range, applied))) return;
+    appliedRef.current = range;
     onCommit(notifiedRange(range));
   };
   const handleDragEnd = (range: PreviewRangeState | null) => {
     latestRef.current = range;
     commit(range);
   };
+  const handleBlur = (e: FocusEvent<HTMLDivElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    commit(latestRef.current);
+  };
   return (
-    <div onBlur={() => commit(latestRef.current)}>
+    <div onBlur={handleBlur}>
       <PreviewRangeSelector {...selector} onChange={handleChange} onDragEnd={handleDragEnd} />
     </div>
   );
@@ -196,11 +230,10 @@ export function SongInfoDrawer({
   const preview = song?.pendingPreviewRange ?? null;
   const gameplay = song?.gameplayRange ?? null;
   const bufferKey = audioBuffer ? audioBufferKey(audioBuffer) : 0;
-  const previewKey = ['preview', bufferKey, meta.previewStart, meta.previewEnd, preview?.fadeInTime, preview?.fadeOutTime].join(':');
-  const gameplayKey = ['gameplay', bufferKey, gameplay?.startTime, gameplay?.endTime, gameplay?.fadeInTime, gameplay?.fadeOutTime].join(':');
 
   return (
-    <aside aria-label={SONG_INFO_DRAWER_COPY.title} style={{ ...styles.panel, ...(compact ? styles.panelCompact : styles.panelSide) }}>
+    // 포커스가 드로어 안에 있으면 키는 드로어의 것이다(에디터 단축키가 버튼·체크박스의 Space·Enter와 Delete를 가로채지 않는다).
+    <aside {...{ [OWN_KEYS_REGION_ATTRIBUTE]: '' }} aria-label={SONG_INFO_DRAWER_COPY.title} style={{ ...styles.panel, ...(compact ? styles.panelCompact : styles.panelSide) }}>
       <div style={styles.header}>
         <h2 style={styles.title}>{SONG_INFO_DRAWER_COPY.title}</h2>
         <button
@@ -295,7 +328,7 @@ export function SongInfoDrawer({
           ) : audioBuffer ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <RangeField
-                key={previewKey}
+                key={`preview:${bufferKey}`}
                 selector={{
                   audioBuffer,
                   label: '프리뷰 구간',
@@ -308,7 +341,7 @@ export function SongInfoDrawer({
                 onCommit={editPreviewRange}
               />
               <RangeField
-                key={gameplayKey}
+                key={`gameplay:${bufferKey}`}
                 selector={{
                   audioBuffer,
                   label: '인게임 구간',

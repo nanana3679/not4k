@@ -121,6 +121,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   rememberUnconfirmedChartUpload: (generation: number, upload: UnconfirmedChartUpload) => void;
   song: EditorSong | null;
   isSavingSong: boolean;
+  /**
+   * 곡 정보 드로어에서 고른 음원을 불러오는 중인가(src/editor/drawerSongAudio.ts). 불러오면 곡 음원으로 적용되므로 미저장 곡 정보로
+   * 본다. Save의 미저장 표시와 닫기·전환·이탈 확인이 이 값을 함께 읽는다(unsavedChangesFlow). 차트를 새로 열면 끈다.
+   */
+  isLoadingSongAudio: boolean;
   setSong: (song: EditorSong | null) => void;
   /** 곡 행 없이 연 차트의 대기 미디어·구간(src/editor/songlessMedia.ts). 차트를 새로 열면 비운다. */
   songlessMedia: SonglessMedia;
@@ -353,6 +358,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   unconfirmedChartUploads: [],
   song: null,
   isSavingSong: false,
+  isLoadingSongAudio: false,
   songlessMedia: EMPTY_SONGLESS_MEDIA,
   isSavingChart: false,
   chartSaveGeneration: 0,
@@ -491,6 +497,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       unconfirmedChartUploads: [],
       song: null,
       isSavingSong: false,
+      isLoadingSongAudio: false,
       songlessMedia: EMPTY_SONGLESS_MEDIA,
       isSavingChart: false,
       chartSaveGeneration: state.chartSaveGeneration + 1,

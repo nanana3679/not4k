@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dragRangeAt, initialRangeState, notifiedRange } from './previewRangeState';
+import { dragRangeAt, followRangeInput, initialRangeState, notifiedRange } from './previewRangeState';
 
 describe('구간 선택기의 처음 구간(initialRangeState)', () => {
   it('프리뷰 값이 없으면 120초 음원에서 30～45초·페이드 0.5초로 시작한다', () => {
@@ -48,5 +48,26 @@ describe('구간 선택기를 끈 위치의 구간(dragRangeAt)', () => {
     const drag = { mode: 'move' as const, startX: 30, startTime: 10, endTime: 20 };
     expect(dragRangeAt(drag, 90, rect, limits)).toEqual({ startTime: 40, endTime: 50 });
     expect(dragRangeAt(drag, 1000, rect, limits)).toEqual({ startTime: 110, endTime: 120 });
+  });
+});
+
+describe('구간 선택기를 다시 그리는 때(followRangeInput)', () => {
+  const shown = { initialStart: 10, initialEnd: 20, initialFadeInTime: 1, initialFadeOutTime: 0.5 };
+
+  it('선택기가 적용한 10～20초·페이드 1초가 store에 들어와 같은 값이 오면 다시 그리지 않는다(같은 key)', () => {
+    const mount = { shown, generation: 3 };
+
+    expect(followRangeInput(mount, { ...shown })).toBe(mount);
+  });
+
+  it('변경 취소·Undo로 페이드가 1초에서 저장된 0초로 바뀌면 새 값으로 다시 그린다(key 3→4)', () => {
+    expect(followRangeInput({ shown, generation: 3 }, { ...shown, initialFadeInTime: 0 }))
+      .toEqual({ shown: { ...shown, initialFadeInTime: 0 }, generation: 4 });
+  });
+
+  it('인게임 구간이 없던(undefined) 선택기에 저장된 2～110초가 오면 다시 그린다', () => {
+    const empty = { initialStart: undefined, initialEnd: undefined, initialFadeInTime: undefined, initialFadeOutTime: undefined };
+
+    expect(followRangeInput({ shown: empty, generation: 0 }, { ...empty, initialStart: 2, initialEnd: 110 }).generation).toBe(1);
   });
 });

@@ -9,6 +9,7 @@ import type { ChartDocument } from '../../shared';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import { useEditorStore } from '../stores/editorStore';
 import { emptySelection } from '../stores/selectionSlice';
+import { confirmLeave, hasUnsavedEditorChanges, type UnsavedChangesFlow } from '../unsavedChangesFlow';
 import { EditorToolbar } from './EditorToolbar';
 
 // 서버 렌더의 zustand 훅은 store 초기값을 읽는다. 훅이 테스트가 넣은 현재 store 값을 읽게 한다.
@@ -38,8 +39,6 @@ const toolbarProps = (props: { compact?: boolean; showOffsetToolbar?: boolean; s
   setShowPlayTestMenu() {},
   saving: props.saving ?? false,
   deleting: false,
-  pendingPreviewRange: null,
-  pendingGameplayRange: null,
   onPlayTest() {},
   onSaveChart() {},
   onSaveAs() {},
@@ -56,9 +55,34 @@ afterEach(() => vi.unstubAllGlobals());
 /** 접근 이름(aria-label)이 name인 버튼의 여는 태그. */
 const buttonTag = (markup: string, name: string) => markup.match(new RegExp(`<button[^>]*aria-label="${name}"[^>]*>`))?.[0] ?? '';
 
+/** More 메뉴를 연 툴바에서 Back to Songs 버튼의 onClick을 꺼낸다. */
+function backToSongs(props: Parameters<typeof toolbarProps>[0] = {}): () => void {
+  let openedMenu = false;
+  let leave: (() => void) | undefined;
+  function inspect(node: ReactNode) {
+    Children.forEach(node, child => {
+      if (!isValidElement<{ children?: ReactNode; 'aria-label'?: string; onClick?: () => void }>(child)) return;
+      if (child.props['aria-label'] === 'More editor actions' && !openedMenu) {
+        openedMenu = true;
+        child.props.onClick?.();
+      }
+      if (child.props.children === 'Back to Songs') leave = child.props.onClick;
+      inspect(child.props.children);
+    });
+  }
+  function Probe() {
+    const tree = EditorToolbar(toolbarProps(props));
+    inspect(tree);
+    return tree;
+  }
+  renderToStaticMarkup(createElement(Probe));
+  expect(leave).toBeDefined();
+  return leave!;
+}
+
 beforeEach(() => {
   useEditorStore.setState({
-    song: null, isSavingSong: false, savedChartJson: toSavedChartJson(chart(), 2),
+    song: null, isSavingSong: false, isLoadingSongAudio: false, savedChartJson: toSavedChartJson(chart(), 2),
     chart: chart(), extraLaneCount: 2, selection: emptySelection(), mode: 'select', isPlaying: false, editTransaction: null,
     historyPast: [{ chart: chart(), extraLaneCount: 2 }], historyFuture: [{ chart: chart(), extraLaneCount: 2 }],
   });
@@ -120,59 +144,52 @@ describe('저장 버튼 하나의 표시', () => {
 
     const dispatchEvent = vi.fn();
     vi.stubGlobal('window', { dispatchEvent, location: { href: '/editor' } });
-    let openedMenu = false;
-    let leave: (() => void) | undefined;
-    function inspect(node: ReactNode) {
-      Children.forEach(node, child => {
-        if (!isValidElement<{ children?: ReactNode; 'aria-label'?: string; onClick?: () => void }>(child)) return;
-        if (child.props['aria-label'] === 'More editor actions' && !openedMenu) {
-          openedMenu = true;
-          child.props.onClick?.();
-        }
-        if (child.props.children === 'Back to Songs') leave = child.props.onClick;
-        inspect(child.props.children);
-      });
-    }
-    function Probe() {
-      const tree = EditorToolbar(toolbarProps());
-      inspect(tree);
-      return tree;
-    }
-    renderToStaticMarkup(createElement(Probe));
-    expect(leave).toBeDefined();
-    leave!();
+    backToSongs()();
     expect(dispatchEvent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: 'editor:requestLeave' }));
     expect(window.location.href).toBe('/editor');
   });
 
   it.each([
+    ['곡·차트가 깨끗할 때', {}, {}],
     ['차트 저장 중', { saving: true }, {}],
     ['곡 저장 중', {}, { isSavingSong: true }],
-  ] as const)('곡·차트가 깨끗해도 %s에 Back to Songs를 누르면 바로 /game으로 가지 않고 이탈 확인 흐름(editor:requestLeave)에 넘긴다', (_, props, state) => {
+    ['드로어에서 고른 음원을 불러오는 중', {}, { isLoadingSongAudio: true }],
+  ] as const)('%s Back to Songs를 누르면 바로 /game으로 가지 않고 언제나 이탈 확인 흐름(editor:requestLeave)에 넘긴다', (_, props, state) => {
     useEditorStore.setState(state);
     const dispatchEvent = vi.fn();
     vi.stubGlobal('window', { dispatchEvent, location: { href: '/editor' } });
-    let openedMenu = false;
-    let leave: (() => void) | undefined;
-    function inspect(node: ReactNode) {
-      Children.forEach(node, child => {
-        if (!isValidElement<{ children?: ReactNode; 'aria-label'?: string; onClick?: () => void }>(child)) return;
-        if (child.props['aria-label'] === 'More editor actions' && !openedMenu) {
-          openedMenu = true;
-          child.props.onClick?.();
-        }
-        if (child.props.children === 'Back to Songs') leave = child.props.onClick;
-        inspect(child.props.children);
-      });
-    }
-    function Probe() {
-      const tree = EditorToolbar(toolbarProps(props));
-      inspect(tree);
-      return tree;
-    }
-    renderToStaticMarkup(createElement(Probe));
-    leave!();
+
+    backToSongs(props)();
+
     expect(dispatchEvent).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: 'editor:requestLeave' }));
+    expect(window.location.href).toBe('/editor');
+  });
+
+  it.each([false, true])('곡·차트가 깨끗해도 드로어에서 고른 음원을 불러오는 중이면 compact=%s에서 Save가 미저장이다', compact => {
+    useEditorStore.setState({ isLoadingSongAudio: true });
+
+    expect(buttonTag(render({ compact }), 'Save, unsaved changes')).not.toBe('');
+  });
+
+  it('드로어 음원을 불러오는 중 Back to Songs를 누르면 이탈 확인 흐름이 Save 표시와 같은 미저장 판단으로 저장 후 이동·버리고 이동·취소를 묻고, 취소하면 머문다', async () => {
+    useEditorStore.setState({ isLoadingSongAudio: true });
+    const askLeave = vi.fn(async () => 'cancel' as const);
+    // 에디터 페이지(App)의 editor:requestLeave 처리와 같은 흐름: 미저장 판단은 Save 표시와 같은 hasUnsavedEditorChanges다.
+    const flow: UnsavedChangesFlow = {
+      saving: () => false, notifySaving() {}, commitDrafts() {},
+      songInfoDirty: () => false, anyDirty: () => hasUnsavedEditorChanges(useEditorStore.getState()),
+      askSongInfo: async () => 'cancel', askLeave, save: async () => {}, discardSongInfo: () => true,
+    };
+    let leaving: Promise<boolean> | undefined;
+    vi.stubGlobal('window', {
+      location: { href: '/editor' },
+      dispatchEvent: (event: Event) => { if (event.type === 'editor:requestLeave') leaving = confirmLeave(flow); },
+    });
+
+    backToSongs()();
+
+    await expect(leaving).resolves.toBe(false);
+    expect(askLeave).toHaveBeenCalledExactlyOnceWith('leave');
     expect(window.location.href).toBe('/editor');
   });
 
@@ -192,9 +209,11 @@ describe('저장 버튼 하나의 표시', () => {
   });
   it.each(['preview', 'gameplay'] as const)('곡 행 없는 차트에 %s 구간 0～8초가 대기 중이면 Save가 미저장이고, Save가 대기 구간을 비우면 깨끗하다', kind => {
     const range = { startTime: 0, endTime: 8, fadeInTime: 0, fadeOutTime: 0 };
-    const pending = renderToStaticMarkup(createElement(EditorToolbar, { ...toolbarProps(),
-      pendingPreviewRange: kind === 'preview' ? range : null, pendingGameplayRange: kind === 'gameplay' ? range : null }));
-    expect(buttonTag(pending, 'Save, unsaved changes')).not.toBe('');
+    const empty = useEditorStore.getState().songlessMedia;
+    useEditorStore.setState({ songlessMedia: { ...empty, [kind === 'preview' ? 'previewRange' : 'gameplayRange']: range } });
+    expect(buttonTag(render(), 'Save, unsaved changes')).not.toBe('');
+
+    useEditorStore.setState({ songlessMedia: empty });
     expect(buttonTag(render(), 'Save')).not.toBe('');
   });
 

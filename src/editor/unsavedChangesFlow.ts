@@ -48,21 +48,22 @@ export interface UnsavedChangesFlow {
 
 /**
  * 곡 정보에 미저장 변경이 있는가. 곡 행이 없는 차트는 곡 정보가 없어 항상 false다.
- * 드로어에서 고른 음원을 아직 불러오는 중이면(`audioPickLoading`) 그 음원도 미저장 곡 정보다. 불러오면 곡 음원으로 적용되므로
+ * 드로어에서 고른 음원을 아직 불러오는 중이면(`isLoadingSongAudio`) 그 음원도 미저장 곡 정보다. 불러오면 곡 음원으로 적용되므로
  * 그 전에 드로어를 닫거나 떠나면 늦게 끝난 로드가 닫힌 뒤에 곡 정보를 바꾼다.
  */
-export function hasUnsavedSongInfo(state: Pick<EditorStoreState, 'chart' | 'song'>, audioPickLoading = false): boolean {
-  return audioPickLoading || isSongDirty(state.chart, state.song);
+export function hasUnsavedSongInfo(state: Pick<EditorStoreState, 'chart' | 'song' | 'isLoadingSongAudio'>): boolean {
+  return state.isLoadingSongAudio || isSongDirty(state.chart, state.song);
 }
 
-/** Save의 미저장 표시와 같은 판단에 불러오는 중인 드로어 음원을 더한다. 곡 행이 없는 차트는 대기 프리뷰·인게임 구간도 미저장이다. */
+/**
+ * 에디터에 미저장 변경이 있는가. Save의 미저장 표시와 이탈·차트 전환 확인이 함께 쓰는 하나의 판단이다: 차트·곡 정보 변경과
+ * 불러오는 중인 드로어 음원, 곡 행이 없는 차트의 대기 프리뷰·인게임 구간.
+ */
 export function hasUnsavedEditorChanges(
-  state: Pick<EditorStoreState, 'chart' | 'song' | 'extraLaneCount' | 'savedChartJson' | 'songlessMedia'>,
-  audioPickLoading = false,
+  state: Pick<EditorStoreState, 'chart' | 'song' | 'extraLaneCount' | 'savedChartJson' | 'songlessMedia' | 'isLoadingSongAudio'>,
 ): boolean {
-  return audioPickLoading
+  return hasUnsavedSongInfo(state)
     || isChartDirty(state.chart, state.extraLaneCount, state.savedChartJson, state.song !== null)
-    || isSongDirty(state.chart, state.song)
     || (!state.song && (state.songlessMedia.previewRange !== null || state.songlessMedia.gameplayRange !== null));
 }
 

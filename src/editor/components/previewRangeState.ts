@@ -106,3 +106,30 @@ export function dragRangeAt(
   const upper = Math.min(duration, drag.startTime + maxRangeDuration);
   return { startTime: drag.startTime, endTime: clamp(t, lower, Math.max(lower, upper)) };
 }
+
+/** 구간 선택기에 넘기는 처음 구간(store 값). 선택기는 마운트할 때만 이 값을 읽는다. */
+export interface RangeInput {
+  initialStart?: number;
+  initialEnd?: number;
+  initialFadeInTime?: number;
+  initialFadeOutTime?: number;
+}
+
+/** 곡 정보 드로어의 구간 선택기가 지금 보이는 store 값과 선택기를 다시 그린 횟수(선택기의 key). */
+export interface RangeFieldMount {
+  shown: RangeInput;
+  generation: number;
+}
+
+function sameRangeInput(a: RangeInput, b: RangeInput): boolean {
+  return a.initialStart === b.initialStart && a.initialEnd === b.initialEnd
+    && a.initialFadeInTime === b.initialFadeInTime && a.initialFadeOutTime === b.initialFadeOutTime;
+}
+
+/**
+ * store 값이 바뀌었을 때 선택기를 다시 그릴지 정한다. 선택기가 보이는 값과 같으면(선택기가 방금 적용한 값) 그대로 두고,
+ * 다르면(변경 취소·Undo처럼 바깥에서 바꾼 값) 새 값으로 다시 그린다. 같으면 받은 객체를 그대로 돌려준다.
+ */
+export function followRangeInput(mount: RangeFieldMount, input: RangeInput): RangeFieldMount {
+  return sameRangeInput(mount.shown, input) ? mount : { shown: input, generation: mount.generation + 1 };
+}

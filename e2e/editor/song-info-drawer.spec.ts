@@ -105,13 +105,21 @@ test.describe('곡 정보 드로어', () => {
     expect(editor.supabaseWrites).toEqual([]);
   });
 
-  test('Upload Jacket 버튼에 키보드 포커스를 두고 Enter를 누르면 파일 선택 창이 열리고 고른 new.png가 미리보기에 보인다', async ({ page }) => {
+  test('S로 Select 모드에 둔 뒤 Upload Jacket 버튼에 키보드 포커스를 두고 Enter를 누르면 배치 확정 단축키가 아니라 파일 선택 창이 열리고 고른 new.png가 미리보기에 보인다', async ({ page }) => {
     await openEditor(page, { songTiming: timing });
+    // 파일 선택 창 가로채기는 기다리기 시작한 뒤 비동기로 켜진다(Playwright가 응답을 기다리지 않는다). 키 한 번은 그보다 먼저
+    // 창을 열 수 있으므로, 드로어를 열기 전에 기다리기 시작해 Enter를 누를 때는 가로채기가 켜져 있게 한다.
+    const chooser = page.waitForEvent('filechooser');
     await openSongInfo(page);
+    // 포커스는 드로어 밖(툴바의 Song Info)이라 S는 단축키다. Select 모드의 Enter는 배치 확정 단축키다.
+    await page.keyboard.press('s');
+    await expect.poll(() => page.evaluate(async () => {
+      const path = '/src/editor/stores/editorStore.ts';
+      return (await import(path)).useEditorStore.getState().mode as string;
+    })).toBe('select');
     const upload = songInfo(page).getByRole('button', { name: 'Upload Jacket', exact: true });
 
     await upload.focus();
-    const chooser = page.waitForEvent('filechooser');
     await page.keyboard.press('Enter');
     await (await chooser).setFiles({ name: 'new.png', mimeType: 'image/png',
       buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') });
