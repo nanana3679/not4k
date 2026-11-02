@@ -144,6 +144,12 @@ export async function installProbe(page: Page) {
       if (this.buffer && this.buffer.duration > 1) probe.sourceStarts.push({ offset: offset ?? 0, duration });
       return sourceStart.call(this, when, offset, duration);
     };
+    const mediaPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+      // 옵저버의 음높이 유지 경로는 source 대신 이 element를 재생한다. 시작 위치는 play 직전에 맞춘 currentTime이다.
+      if (this.src.startsWith('blob:')) probe.sourceStarts.push({ offset: this.currentTime, duration: undefined });
+      return mediaPlay.call(this);
+    };
     const play = AudioEngine.prototype.play;
     AudioEngine.prototype.play = function (at) { currentAudio = this; probe.starts.push(at ?? 0); return play.call(this, at); };
     const playFadedSpan = AudioEngine.prototype.playFadedSpan;

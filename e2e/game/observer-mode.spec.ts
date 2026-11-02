@@ -180,8 +180,9 @@ test('1.2초 이후 Esc로 일시정지하고 다시 Esc를 누르면 되감기 
   expect(resumed.fadedSpans).toEqual(paused.fadedSpans);
   expect(resumed.preparations).toEqual([]);
   expect(resumed.sourceStarts).toHaveLength(paused.sourceStarts.length + 1);
-  // 실제 AudioBufferSourceNode.start의 offset을 비교해 재개 후 경과 시간에 의존하지 않는다.
-  expect(resumed.sourceStarts.at(-1)!.offset).toBeCloseTo(paused.audioPositionMs / 1000, 6);
+  // 실제 재생 시작 위치(음높이 유지 element의 currentTime)를 비교해 재개 후 경과 시간에 의존하지 않는다.
+  // Chromium은 currentTime을 1µs 단위로 돌려주므로 소수 5자리(10µs)까지 비교한다.
+  expect(resumed.sourceStarts.at(-1)!.offset).toBeCloseTo(paused.audioPositionMs / 1000, 5);
   await expect.poll(async () => (await probe(page)).audioPositionMs).toBeGreaterThan(paused.audioPositionMs + 200);
   await expect.poll(async () => (await probe(page)).frames).toBeGreaterThan(paused.frames);
   await exitObserver(page, fixture);
@@ -226,7 +227,7 @@ test('수동 연습을 3초 이후 멈추고 휠로 2초 뒤를 보면 음원은
     expect(resumed.fadedSpans).toEqual(paused.fadedSpans);
     expect(resumed.preparations).toEqual(paused.preparations);
     expect(resumed.sourceStarts).toHaveLength(paused.sourceStarts.length + 1);
-    expect(resumed.sourceStarts.at(-1)!.offset).toBeCloseTo(paused.audioPositionMs / 1000, 6);
+    expect(resumed.sourceStarts.at(-1)!.offset).toBeCloseTo(paused.audioPositionMs / 1000, 5);
     await expect.poll(async () => (await probe(page)).hud.some(update =>
       update.span === manualSpan && update.combo > paused.hud.at(-1)!.combo)).toBe(true);
     const continued = await probe(page);
