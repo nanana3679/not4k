@@ -85,7 +85,6 @@ export function createTimelineLayout(input: {
     auxiliaryLaneRange,
     classifyX,
     xToNoteLane,
-    noteLaneToAuxiliaryLane: (lane: number) => lane > LANE_COUNT ? toAuxIndex(lane) : null,
     eventPlacement,
     eventRange,
     columnRangeAtX: (x: number): TimelineXRange | null => {

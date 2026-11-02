@@ -22,7 +22,6 @@ import {
   clampTrillBeatOffset,
   translateTrillZone,
   selectionFromBox,
-  trillZoneIndexOfNote,
 } from "./trillZoneSelection";
 import { clampRestBeatOffset, translateRestZone } from "./restZoneSelection";
 import type { TrillZone, RestZone } from "../../shared";
@@ -351,25 +350,16 @@ export class SelectMode implements EditorMode {
     return this.withTrillPairs(bodyCompanionIndices(this.chart.notes, index));
   }
 
+  /**
+   * Ctrl+A는 화면 열과 무관하게 0박부터 끝까지 모든 레인을 감싼 박스와 같다. 구간 감쌈·바디 짝·정규화를 박스 선택과
+   * 같은 규칙으로 따르므로 0박 이전에 걸친 구간은 구간째 고르지 않는다.
+   */
   selectAll(): void {
-    const notes = new Set<number>();
-    this.chart.notes.forEach((note, index) => {
-      // 구간에 속한 트릴은 구간 유닛이 대표한다. 고아 트릴은 기존처럼 선택 후보에 남긴다.
-      if (trillZoneIndexOfNote(this.chart.trillZones, note) === null) notes.add(index);
-    });
-    for (const index of [...notes]) {
-      if (this.chart.notes[index].type === 'body') {
-        for (const companion of bodyCompanionIndices(this.chart.notes, index)) notes.add(companion);
-      }
-    }
-    const events = new Set<number>();
-    this.chart.events.forEach((event, index) => {
-      if (!isInitialTimingEvent(event)) events.add(index);
-    });
-    this.callbacks.setSelection({ notes, events,
-      zones: new Set(this.chart.trillZones.map((_, index) => index)),
-      restZones: new Set((this.chart.restZones ?? []).map((_, index) => index)),
-    });
+    const minBeat = { n: 0, d: 1 };
+    const maxBeat = { n: Number.MAX_SAFE_INTEGER, d: 1 };
+    const selection = selectionFromBox(this.chart.trillZones, this.chart.notes, this.chart.restZones ?? [],
+      { includesLane: lane => lane >= 1, minBeat, maxBeat });
+    this.callbacks.setSelection({ ...selection, events: this.eventsInBox(null, minBeat, maxBeat) });
   }
 
   private beginTransaction(selectionBefore?: Selection): void {
@@ -1100,13 +1090,13 @@ export class SelectMode implements EditorMode {
     this.commitSelectionTransient({ notes, zones, restZones, events: this.eventsInBox(range, minBeat, maxBeat) });
   }
 
-  private eventsInBox(range: TimelineXRange, minBeat: Beat, maxBeat: Beat): Set<number> {
+  /** `range`가 null이면 가로 범위를 따지지 않는다(Ctrl+A). */
+  private eventsInBox(range: TimelineXRange | null, minBeat: Beat, maxBeat: Beat): Set<number> {
     const indices = new Set<number>();
     this.chart.events.forEach((event, index) => {
       if (isInitialTimingEvent(event)) return;
-      const eventRange = this.callbacks.space.layout.eventRange(event);
       const end = 'endBeat' in event ? event.endBeat : event.beat;
-      if (xRangesOverlap(eventRange, range)
+      if ((range === null || xRangesOverlap(this.callbacks.space.layout.eventRange(event), range))
         && beatToFloat(event.beat) <= beatToFloat(maxBeat)
         && beatToFloat(end) >= beatToFloat(minBeat)) indices.add(index);
     });

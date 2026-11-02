@@ -49,7 +49,6 @@ function makeHost(chart: ChartDocument): GridHost {
     selectedTrillZones: new Set(),
     selectedRestZones: new Set(),
     selectedEvents: new Set(),
-    currentTimelineWidth: TIMELINE_WIDTH + 3 * EXTRA_LANE_WIDTH,
     waveformPeaks: null,
     waveformDurationMs: 0,
     cachedBpmChanges: bpmChanges,
@@ -104,7 +103,7 @@ describe("GridRenderer.renderEvents 이벤트 기하", () => {
     expect(gfx.getLocalBounds().minX).toBe(TIMELINE_WIDTH - STROKE);
   });
 
-  it("editorLane 3 이벤트는 x=TIMELINE_WIDTH+2*EXTRA_LANE_WIDTH 칸에 폭 EXTRA_LANE_WIDTH로 그려진다 (eventLaneToX)", () => {
+  it("editorLane 3 이벤트는 x=TIMELINE_WIDTH+2*EXTRA_LANE_WIDTH 칸에 폭 EXTRA_LANE_WIDTH로 그려진다", () => {
     const layer = renderEvents([
       { type: "text", beat: beat(0), endBeat: beat(2), text: "hi", editorLane: 3 },
     ]);

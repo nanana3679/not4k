@@ -27,7 +27,6 @@ export interface GridHost {
   readonly selectedTrillZones: ReadonlySet<number>;
   readonly selectedRestZones: ReadonlySet<number>;
   readonly selectedEvents: ReadonlySet<number>;
-  readonly currentTimelineWidth: number;
   readonly waveformPeaks: Float32Array | null;
   readonly waveformDurationMs: number;
   readonly cachedBpmChanges: BpmChange[];

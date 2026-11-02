@@ -8,8 +8,3 @@ export function laneToX(lane: number, layout: TimelineLayout): number {
 export function laneWidth(lane: number, layout: TimelineLayout): number {
   return layout.noteLaneRange(lane).width;
 }
-
-/** editorLane은 보조 레인의 1-기반 번호다. 노트 lane과 구별한다. */
-export function eventLaneToX(editorLane: number, layout: TimelineLayout): number {
-  return layout.auxiliaryLaneRange(editorLane).x;
-}

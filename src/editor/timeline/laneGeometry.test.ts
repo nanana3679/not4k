@@ -1,7 +1,7 @@
 import { getContentCenterShiftX, getTimelineContentOffsetX } from "./timelineViewport";
 import { createTimelineLayout, getEditorTimelineLayoutConfig } from "./TimelineLayout";
 import { describe, it, expect } from "vitest";
-import { laneToX, laneWidth, eventLaneToX } from "./laneGeometry";
+import { laneToX, laneWidth } from "./laneGeometry";
 import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
 
 const layout = createTimelineLayout(getEditorTimelineLayoutConfig(3));
@@ -26,15 +26,15 @@ describe("laneGeometry", () => {
   });
 
   it("이벤트 editorLane 1 → x TIMELINE_WIDTH — 첫 엑스트라 칸", () => {
-    expect(eventLaneToX(1, layout)).toBe(TIMELINE_WIDTH);
+    expect(layout.auxiliaryLaneRange(1).x).toBe(TIMELINE_WIDTH);
   });
 
   it("이벤트 editorLane 3 → x TIMELINE_WIDTH + 2*EXTRA_LANE_WIDTH", () => {
-    expect(eventLaneToX(3, layout)).toBe(TIMELINE_WIDTH + 2 * EXTRA_LANE_WIDTH);
+    expect(layout.auxiliaryLaneRange(3).x).toBe(TIMELINE_WIDTH + 2 * EXTRA_LANE_WIDTH);
   });
 
   it("이벤트 editorLane 2와 보조 lane 6은 같은 두 번째 엑스트라 칸 x를 가리킨다 — 축은 달라도 기하는 일치", () => {
-    expect(eventLaneToX(2, layout)).toBe(laneToX(6, layout));
+    expect(layout.auxiliaryLaneRange(2).x).toBe(laneToX(6, layout));
   });
 });
 

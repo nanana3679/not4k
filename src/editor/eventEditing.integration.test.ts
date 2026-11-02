@@ -172,6 +172,19 @@ describe('이벤트와 노트의 공통 선택·편집', () => {
     expect(store().chart.events[2].beat).toEqual(beat(5));
   });
 
+  it('Ctrl+A는 0박 이전에 걸친 -1～3박 트릴 구간을 구간째 고르지 않고 0박 이후 항목만 박스 선택과 같은 규칙으로 고른다', () => {
+    useEditorStore.getState().loadChart({ ...chartFixture(),
+      notes: [{ type: 'trill', lane: 1, beat: beat(1) }, { type: 'single', lane: 2, beat: beat(2) }],
+      trillZones: [{ lane: 1, beat: beat(-1), endBeat: beat(3) }],
+      events: [...chartFixture().events, { type: 'text', beat: beat(-4), endBeat: beat(-2), text: 'pre', editorLane: 3 }],
+    });
+    const { mode, store } = editor();
+    mode.selectAll();
+    expect(store().selection.zones).toEqual(new Set());
+    expect(store().selection.notes).toEqual(new Set([0]));
+    expect(store().selection.events).toEqual(new Set([2, 3]));
+  });
+
   it('4박 BPM 이벤트를 클릭하면 events에 인덱스 2가 선택되고 박스 선택은 끝난다', () => {
     const { mode, store } = editor();
     const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;

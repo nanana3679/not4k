@@ -374,7 +374,6 @@ export class TimelineRenderer {
       get extraLaneCount() { return self.extraLaneCount; },
       get selectedTrillZones() { return self._selectedTrillZones; },
       get selectedRestZones() { return self._selectedRestZones; },
-      get currentTimelineWidth() { return self.currentTimelineWidth; },
       get waveformPeaks() { return self.waveformPeaks; },
       get waveformDurationMs() { return self.waveformDurationMs; },
       get cachedBpmChanges() { return self.cachedBpmChanges; },
