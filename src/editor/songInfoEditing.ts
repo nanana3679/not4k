@@ -127,33 +127,33 @@ export function discardSongInfoChanges(): DiscardSongInfoResult {
   const state = useEditorStore.getState();
   const song = state.song;
   if (!song) return { discarded: false, discardedAudio: null };
-  const restored = restoreSavedSongInfo(state.chart, song, savedChartEvents(state.savedChartJson));
-  if (state.isPlaying && isPlaybackLockedChange(state.chart, restored.chart)) {
+  const target = restoreSavedSongInfo(state.chart, song, savedChartEvents(state.savedChartJson));
+  if (state.isPlaying && isPlaybackLockedChange(state.chart, target.chart)) {
     state.addToast(PAUSE_TO_EDIT_COPY, 'warn');
     return { discarded: false, discardedAudio: null };
   }
   // 차트를 바꿀 때는 열린 편집(붙여넣기 대기 등)을 먼저 확정해, 아래의 이력 없는 되돌림이 그 편집의 시작 상태와 섞이지 않게 한다.
-  if (restored.chart !== state.chart) state.commitEditTransaction();
-  const before = useEditorStore.getState();
-  const sessionMeta = songSessionMetaOf(restored.chart.meta);
-  const previousSessionMeta = songSessionMetaOf(before.chart.meta);
-  if (SONG_SESSION_META_KEYS.some(key => sessionMeta[key] !== previousSessionMeta[key])) before.reconcileSongMedia(sessionMeta);
+  if (target.chart !== state.chart) state.commitEditTransaction();
+  const beforeDiscard = useEditorStore.getState();
+  const sessionMeta = songSessionMetaOf(target.chart.meta);
+  const previousSessionMeta = songSessionMetaOf(beforeDiscard.chart.meta);
+  if (SONG_SESSION_META_KEYS.some(key => sessionMeta[key] !== previousSessionMeta[key])) beforeDiscard.reconcileSongMedia(sessionMeta);
 
   const current = useEditorStore.getState().chart;
-  const restMetaChanged = (Object.keys(restored.chart.meta) as (keyof typeof restored.chart.meta)[])
-    .some(key => restored.chart.meta[key] !== current.meta[key]);
-  if (restMetaChanged || restored.chart.events !== current.events) {
+  const restMetaChanged = (Object.keys(target.chart.meta) as (keyof typeof target.chart.meta)[])
+    .some(key => target.chart.meta[key] !== current.meta[key]);
+  if (restMetaChanged || target.chart.events !== current.events) {
     const selection = useEditorStore.getState().selection;
-    const next = { ...current, meta: restored.chart.meta, events: restored.chart.events };
+    const next = { ...current, meta: target.chart.meta, events: target.chart.events };
     useEditorStore.getState().setChart(next, { separateHistory: true });
     // 구조 검증 등으로 거부되면 먼저 되돌린 미디어 경로·프리뷰 구간을 원래대로 돌리고 대기 파일·구간도 그대로 둔다.
     if (useEditorStore.getState().chart !== next) {
       useEditorStore.getState().reconcileSongMedia(previousSessionMeta);
       return { discarded: false, discardedAudio: null };
     }
-    if (restored.chart.events !== current.events) keepEventSelection(selection, current.events, next.events);
+    if (target.chart.events !== current.events) keepEventSelection(selection, current.events, next.events);
   }
-  useEditorStore.getState().setSong(restored.song);
+  useEditorStore.getState().setSong(target.song);
   return { discarded: true, discardedAudio: song.pendingAudioFile ? { savedAudioUrl: song.baseline.audioUrl || null } : null };
 }
 
