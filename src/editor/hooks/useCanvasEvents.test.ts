@@ -38,7 +38,7 @@ vi.mock('../stores', async importOriginal => {
 
 // 실제 TimelineSpace: lane 1 중심 x=30, y=ms 항등이라 120 BPM에서 y=500이 1박이다.
 /** 곡 공통 열까지 있는 에디터 배치. 위 x=30 기준은 이 배치를 넘기지 않은 테스트에만 해당한다. */
-const editorLayout = createTimelineLayout(getEditorTimelineLayoutConfig(2));
+const editorLayout = createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: false }));
 const centerOf = ({ x, width }: { x: number; width: number }) => x + width / 2;
 const BPM_X = centerOf(editorLayout.commonColumnRange('bpm')!);
 const SIGNATURE_X = centerOf(editorLayout.commonColumnRange('timeSignature')!);
@@ -93,6 +93,8 @@ afterEach(() => {
 /** 렌더러·재생 컨트롤러가 필요한 테스트(커서 레일 seek)만 넘긴다. 기본은 둘 다 없다. */
 type SetupOptions = {
   layout?: TimelineLayout;
+  /** 접기·펼치기처럼 누름 도중 바뀌는 배치. 입력은 매번 라이브로 읽는다. */
+  getLayout?: () => TimelineLayout;
   renderer?: TimelineRenderer;
   playback?: PlaybackController;
   onPinchZoom?: (previous: number, current: number, centerY: number) => void;
@@ -107,7 +109,7 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, isPlaying: false,
   });
   const space = createTimelineSpace({
-    getLayout: options.layout ? () => options.layout! : undefined,
+    getLayout: options.getLayout ?? (options.layout ? () => options.layout! : undefined),
     getChart: () => current().chart, getSnapDivision: () => 4, getSelectedNotes: () => new Set(current().selection.notes),
     getExtraLaneCount: () => current().extraLaneCount, yToTime: y => y, getTotalTimelineMs: () => 20000,
   });
@@ -1239,6 +1241,190 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
 
     expect(seekTo).toHaveBeenCalledExactlyOnceWith(1500);
     expect(pauseToasts()).toHaveLength(0);
+  });
+});
+
+describe('곡 공통 영역을 접거나 펼쳐 끊긴 캔버스 조작(RFD 0095)', () => {
+  const liveLayout = () => createTimelineLayout(getEditorTimelineLayoutConfig(current()));
+  const tap = (at: number): DocumentNoteEntity => ({ type: 'tap', kind: 'single', lane: 1, beat: beat(at) });
+  // 펼친 배치의 메인 레인 1 가운데. 접으면 같은 숫자가 메인 레인 3이다.
+  const LANE_1_X = centerOf(editorLayout.noteLaneRange(1));
+  const mouse = (y: number, init: PointerInit = {}) => pointer(y, { pointerType: 'mouse', x: LANE_1_X, ...init });
+  const touch = (y: number, init: PointerInit = {}) => pointer(y, { x: LANE_1_X, ...init });
+  const fakeRenderer = () => ({
+    handleMinimapPointerDown: () => false, handleMinimapPointerMove: () => false, handleMinimapPointerUp: () => {},
+    screenXToTimelineX: (x: number) => x, contentCenterShiftX: 32, yToTime: (y: number) => y,
+    hideGhostNote: vi.fn(), clearMoveOrigins: vi.fn(), clearBoxSelectRect: vi.fn(),
+    setHoveredNote: () => {}, setHoveredTrillZone: () => {}, setHoveredRestZone: () => {}, setResizeHoverNote: () => {},
+  });
+
+  beforeEach(() => useEditorStore.setState({ songCommonCollapsed: false }));
+
+  it('1박 탭을 고르고 빈 곳에서 시작한 마우스 박스를 끄는 중 접으면 박스가 끝나 탭 선택이 돌아오고 같은 누름의 이동·뗌은 선택을 바꾸지 않는다', () => {
+    const { handlers, selectMode } = setup(chart([tap(1)]), 'select', 'single', { getLayout: liveLayout });
+    current().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    handlers.handlePointerDown(mouse(3000));
+    handlers.handlePointerMove(mouse(4000));
+    expect(selectMode.isBoxSelecting).toBe(true);
+
+    current().setSongCommonCollapsed(true);
+
+    expect(selectMode.isBoxSelecting).toBe(false);
+    expect(current().selection.notes).toEqual(new Set([0]));
+    handlers.handlePointerMove(mouse(100));
+    handlers.handlePointerUp(mouse(100));
+    expect(selectMode.isBoxSelecting).toBe(false);
+    expect(current().selection.notes).toEqual(new Set([0]));
+  });
+
+  it('4박 BPM을 고르고 시작한 박스를 끄는 중 접으면 시작 전 선택으로 돌아가되 숨은 BPM은 빠진다', () => {
+    const { handlers, selectMode } = setup(chart([], { events: [
+      { type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+      { type: 'bpm', beat: beat(4), bpm: 120 },
+    ] }), 'select', 'single', { getLayout: liveLayout });
+    current().setSelection({ ...emptySelection(), events: new Set([2]) });
+    handlers.handlePointerDown(mouse(3000));
+    expect(selectMode.isBoxSelecting).toBe(true);
+
+    current().setSongCommonCollapsed(true);
+
+    expect(selectMode.isBoxSelecting).toBe(false);
+    expect(current().selection.events).toEqual(new Set());
+  });
+
+  it('박스를 끄는 중 펼쳐도 박스가 끝나고 같은 누름의 이동이 박스를 다시 열지 않는다', () => {
+    useEditorStore.setState({ songCommonCollapsed: true });
+    const { handlers, selectMode } = setup(chart([]), 'select', 'single', { getLayout: liveLayout });
+    handlers.handlePointerDown(mouse(3000));
+    current().setSongCommonCollapsed(false);
+    handlers.handlePointerMove(mouse(4000));
+    expect(selectMode.isBoxSelecting).toBe(false);
+  });
+
+  it('Create 모드로 레인을 눌러 끄는 중 접으면 생성이 취소돼 뗀 자리에 노트가 없다', () => {
+    const { handlers, createMode } = setup(chart([]), 'create', 'single', { getLayout: liveLayout });
+    handlers.handlePointerDown(mouse(500));
+    expect(createMode.dragging).toBe(true);
+
+    current().setSongCommonCollapsed(true);
+
+    expect(createMode.dragging).toBe(false);
+    handlers.handlePointerUp(mouse(1500));
+    expect(notes()).toEqual([]);
+  });
+
+  it('bpm 열을 터치한 채 접으면 뗄 때 옛 좌표로 레인에 탭이나 BPM을 만들지 않는다', () => {
+    const { handlers } = setup(chart([]), 'create', 'single', { getLayout: liveLayout });
+    handlers.handlePointerDown(touch(2000, { x: BPM_X }));
+    current().setSongCommonCollapsed(true);
+    handlers.handlePointerUp(touch(2000, { x: BPM_X }));
+    expect(notes()).toEqual([]);
+    expect(current().chart.events).toHaveLength(2);
+  });
+
+  it('Select 모드 빈 곳 터치 후보가 살아 있는 채 접으면 끌어도 박스를 시작하지 않는다', () => {
+    const { handlers, selectMode } = setup(chart([]), 'select', 'single', { getLayout: liveLayout });
+    handlers.handlePointerDown(touch(2000));
+    current().setSongCommonCollapsed(true);
+    handlers.handlePointerMove(touch(3000));
+    expect(selectMode.isBoxSelecting).toBe(false);
+    handlers.handlePointerUp(touch(3000));
+    expect(selectMode.isBoxSelecting).toBe(false);
+  });
+
+  it('1박 탭을 터치한 채 접으면 뗄 때 옛 좌표로 탭을 고르지 않는다', () => {
+    const { handlers } = setup(chart([tap(1)]), 'select', 'single', { getLayout: liveLayout });
+    handlers.handlePointerDown(touch(500));
+    current().setSongCommonCollapsed(true);
+    handlers.handlePointerUp(touch(500));
+    expect(current().selection.notes).toEqual(new Set());
+  });
+
+  it('Delete 모드 롱프레스 대기 중 접으면 450ms 뒤 발화하지 않아 1박 탭이 남는다', () => {
+    const { handlers } = setup(chart([tap(1)]), 'delete', 'single', { getLayout: liveLayout });
+    handlers.handlePointerDown(touch(500));
+    current().setSongCommonCollapsed(true);
+    vi.advanceTimersByTime(450);
+    handlers.handlePointerUp(touch(500));
+    expect(notes()).toHaveLength(1);
+  });
+
+  it('우클릭으로 1박 탭을 지우며 끄는 중 접으면 그 삭제를 확정하고 2박 위로 끌어도 2박 탭이 남는다', () => {
+    const { handlers } = setup(chart([tap(1), tap(2)]), 'select', 'single', { getLayout: liveLayout });
+    const right = (y: number) => mouse(y, { button: 2, buttons: 2 });
+    handlers.handlePointerDown(right(500));
+    expect(notes()).toHaveLength(1);
+
+    current().setSongCommonCollapsed(true);
+
+    handlers.handlePointerMove(mouse(1000, { x: 30, button: 2, buttons: 2 }));
+    handlers.handlePointerUp(mouse(1000, { x: 30, button: 2, buttons: 0 }));
+    expect(notes()).toEqual([tap(2)]);
+    expect(current().historyPast).toHaveLength(1);
+  });
+
+  it('1박 탭을 3박까지 끄는 중 접으면 3박으로 확정하고 같은 누름을 5박까지 끌어도 움직이지 않는다', () => {
+    const { handlers, selectMode } = setup(chart([tap(1)]), 'select', 'single', { getLayout: liveLayout });
+    handlers.handlePointerDown(mouse(500));
+    handlers.handlePointerMove(mouse(1500));
+    current().setSongCommonCollapsed(true);
+    handlers.handlePointerMove(mouse(2500, { x: 30 }));
+    handlers.handlePointerUp(mouse(2500, { x: 30 }));
+    expect(selectMode.isMoveDragging).toBe(false);
+    expect(beatToFloat(notes()[0].beat)).toBe(3);
+    expect(notes()[0].lane).toBe(1);
+    expect(current().historyPast).toHaveLength(1);
+  });
+
+  it('접은 조작을 뗀 뒤 새 마우스 클릭은 접힌 배치의 x=30 레인 1에 탭을 놓는다', () => {
+    const { handlers } = setup(chart([]), 'create', 'single', { getLayout: liveLayout });
+    handlers.handlePointerDown(mouse(500));
+    current().setSongCommonCollapsed(true);
+    handlers.handlePointerUp(mouse(500));
+
+    handlers.handlePointerDown(mouse(500, { x: 30 }));
+    handlers.handlePointerUp(mouse(500, { x: 30 }));
+
+    expect(notes()).toHaveLength(1);
+    expect(notes()[0].lane).toBe(1);
+  });
+
+  it('접으면 고스트와 이동·박스 미리보기를 걷는다', () => {
+    const renderer = fakeRenderer();
+    setup(chart([]), 'create', 'single', { getLayout: liveLayout, renderer: renderer as unknown as TimelineRenderer });
+    current().setSongCommonCollapsed(true);
+    expect(renderer.hideGhostNote).toHaveBeenCalled();
+    expect(renderer.clearMoveOrigins).toHaveBeenCalled();
+    expect(renderer.clearBoxSelectRect).toHaveBeenCalled();
+  });
+
+  it('이미 접힌 값을 다시 넣으면 진행 중인 박스를 끊지 않는다', () => {
+    useEditorStore.setState({ songCommonCollapsed: true });
+    const { handlers, selectMode } = setup(chart([]), 'select', 'single', { getLayout: liveLayout });
+    handlers.handlePointerDown(mouse(3000));
+    current().setSongCommonCollapsed(true);
+    expect(selectMode.isBoxSelecting).toBe(true);
+    selectMode.cancel();
+  });
+
+  it('박스를 끄는 중 BPM을 붙여 자동으로 펼쳐지면 박스만 끝나고 붙여넣기 대기는 남는다', () => {
+    const { handlers, selectMode } = setup(chart([], { events: [
+      { type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+      { type: 'bpm', beat: beat(4), bpm: 120 },
+    ] }), 'select', 'single', { getLayout: liveLayout });
+    current().setSelection({ ...emptySelection(), events: new Set([2]) });
+    selectMode.copy();
+    current().setSongCommonCollapsed(true);
+    handlers.handlePointerDown(mouse(3000));
+
+    selectMode.paste(beat(8));
+
+    expect(current().songCommonCollapsed).toBe(false);
+    expect(selectMode.isBoxSelecting).toBe(false);
+    expect(selectMode.isPendingPaste).toBe(true);
+    expect(current().chart.events).toHaveLength(4);
+    expect(current().selection.events).toEqual(new Set([3]));
+    selectMode.cancelPaste();
   });
 });
 

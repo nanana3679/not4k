@@ -10,6 +10,7 @@ import {
   getTimelineContentViewportRect,
   getTimelineContentOffsetX,
   isFixedRailX,
+  panAfterSongCommonResize,
   isPlaybackCursorSeekArea,
   isRightRailX,
   panToRevealRange,
@@ -242,5 +243,23 @@ describe("panToRevealRange", () => {
 
   it("보이는 폭 40px보다 넓은 x 60～120 레인은 왼쪽 끝을 맞춰 팬 60을 요청한다", () => {
     expect(panToRevealRange({ viewportWidth: 104, leftRailWidth: 32, rightRailWidth: 32, left: 60, right: 120, panX: 0 })).toBe(60);
+  });
+});
+
+describe("곡 공통 영역을 접거나 펼친 뒤의 가로 팬", () => {
+  it("곡 공통 폭 108→0px로 접으면 팬 200px가 92px로 줄어 메인 레인 1이 화면 같은 자리에 남는다", () => {
+    expect(panAfterSongCommonResize({ panX: 200, previousWidth: 108, nextWidth: 0 })).toBe(92);
+  });
+
+  it("팬 50px에서 108→0px로 접으면 요청값이 -58px이고 범위 보정이 0으로 맞춘다", () => {
+    expect(panAfterSongCommonResize({ panX: 50, previousWidth: 108, nextWidth: 0 })).toBe(-58);
+  });
+
+  it("곡 공통 폭 0→108px로 펼치면 팬 200px가 0으로 돌아가 나타난 열이 보인다", () => {
+    expect(panAfterSongCommonResize({ panX: 200, previousWidth: 0, nextWidth: 108 })).toBe(0);
+  });
+
+  it("보조 레인 수만 바뀌어 곡 공통 폭이 108px로 같으면 팬 200px를 유지한다", () => {
+    expect(panAfterSongCommonResize({ panX: 200, previousWidth: 108, nextWidth: 108 })).toBe(200);
   });
 });

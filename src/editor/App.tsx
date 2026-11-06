@@ -1,4 +1,4 @@
-import { getEditorTimelineLayoutConfig } from "./timeline/TimelineLayout";
+import { createTimelineLayout, getEditorTimelineLayoutConfig } from "./timeline/TimelineLayout";
 /**
  * not4k Chart Editor — Main App Component
  */
@@ -7,6 +7,8 @@ import React, { useEffect, useLayoutEffect, useRef, useCallback, useState, useMe
 import { useNavigate } from 'react-router-dom';
 import { TimelineRenderer } from './timeline/TimelineRenderer';
 import { cursorRangeMsOf, setChartAndReadTimelineRange, timelineRangeMsOf } from './timeline/timelineRange';
+import { MINIMAP_WIDTH } from './timeline/constants';
+import { getContentCenterShiftX } from './timeline/timelineViewport';
 import type { WaveformFeed } from './waveformFeed';
 import type { PlaybackController } from './playback/PlaybackController';
 import { createCursorBeatKeeper } from './playback/cursorBeatKeeper';
@@ -45,6 +47,8 @@ import {
 } from './legacyConversionReview';
 import { modalStyles } from './components/modalStyles';
 import { EditorToolbar } from './components/EditorToolbar';
+import { SongCommonToggle } from './components/SongCommonToggle';
+import { COMPACT_EDITOR_QUERY, isCompactEditorScreen } from './songCommonCollapse';
 import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorAudioLoad } from './hooks/useEditorAudioLoad';
@@ -73,8 +77,6 @@ import {
   type UnsavedChangesFlow,
 } from './unsavedChangesFlow';
 
-const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
-
 // 페이지는 재생 중 매 프레임 다시 렌더한다(currentTimeMs 구독). 드로어는 받은 값이 바뀔 때만 다시 그린다.
 const SongInfoDrawerPanel = React.memo(SongInfoDrawer);
 
@@ -84,9 +86,7 @@ function getPublicUrl(path: string): string {
 }
 
 function useCompactEditorLayout(): boolean {
-  const [compact, setCompact] = useState(() => (
-    typeof window !== 'undefined' && window.matchMedia(COMPACT_EDITOR_QUERY).matches
-  ));
+  const [compact, setCompact] = useState(isCompactEditorScreen);
 
   useEffect(() => {
     const media = window.matchMedia(COMPACT_EDITOR_QUERY);
@@ -306,6 +306,11 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
+  const songCommonCollapsed = useEditorStore((s) => s.songCommonCollapsed);
+  const timelineLayoutConfig = useMemo(
+    () => getEditorTimelineLayoutConfig({ extraLaneCount, songCommonCollapsed }),
+    [extraLaneCount, songCommonCollapsed],
+  );
   const savedChartJson = useEditorStore((s) => s.savedChartJson);
   // 저장 진행은 store가 소유한다 — 테스트 플레이 복귀로 페이지가 다시 마운트돼도 진행 중인 저장을 잊지 않는다.
   const saving = useEditorStore((s) => s.isSavingChart);
@@ -489,7 +494,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
     const renderer = new TimelineRenderer({
       canvas,
-      layoutConfig: getEditorTimelineLayoutConfig(useEditorStore.getState().extraLaneCount),
+      layoutConfig: getEditorTimelineLayoutConfig(useEditorStore.getState()),
       width: initWidth,
       height: initHeight,
       // 렌더러는 뷰포트 소유자(뷰포트 슬라이스)를 구독만 한다 — setter 없음.
@@ -504,8 +509,8 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
       // init()이 async라 그 사이 차트가 바뀌었을 수 있다(렌더러 준비 전에 구형 차트 변환을 승인 등).
       // [chart] 반응형 effect는 렌더러가 없어 그 변경을 건너뛰었으므로, 첫 렌더의 chart가 아니라 지금 store의 차트를 그린다.
-      const { chart: currentChart, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
-      renderer.setLayoutConfig(getEditorTimelineLayoutConfig(storedExtraLaneCount));
+      const currentChart = useEditorStore.getState().chart;
+      renderer.setLayoutConfig(getEditorTimelineLayoutConfig(useEditorStore.getState()));
       renderer.setSongCommonLabelVisible(selectHasSongRow(useEditorStore.getState()));
       // chart.notes가 곧 통합 배열이다 (RFD 0018 ③) — 보조 노트도 lane 5+로 한 배열에서 그린다.
       renderer.setChart(currentChart);
@@ -718,10 +723,21 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     });
   }, [chart, cursorBeatKeeper]);
 
-  // extraLaneCount → renderer
+  // 보조 레인 수·곡 공통 영역 접힘 → renderer
   useEffect(() => {
-    if (rendererRef.current) rendererRef.current.setLayoutConfig(getEditorTimelineLayoutConfig(extraLaneCount));
-  }, [extraLaneCount]);
+    rendererRef.current?.setLayoutConfig(timelineLayoutConfig);
+  }, [timelineLayoutConfig]);
+
+  // 곡 공통 영역 토글이 붙는 마디 레일의 시작 x. 렌더러의 contentCenterShiftX와 같은 입력·공식이다.
+  const measureRailStartX = useMemo(() => {
+    const layout = createTimelineLayout(timelineLayoutConfig);
+    return getContentCenterShiftX({
+      viewportWidth: canvasSize.width,
+      leftRailWidth: layout.measureRail.width,
+      timelineWidth: layout.contentWidth,
+      rightRailWidth: MINIMAP_WIDTH,
+    });
+  }, [timelineLayoutConfig, canvasSize.width]);
 
   // 곡 행 유무 → 곡 공통 영역 헤더 표기
   useEffect(() => {
@@ -888,6 +904,12 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         )}
         <div ref={canvasContainerRef} style={styles.canvasContainer}>
           {audioLoadingSurface === 'overlay' && <OverlayLoading message="Loading audio..." />}
+          <SongCommonToggle
+            collapsed={songCommonCollapsed}
+            compact={compactEditor}
+            left={measureRailStartX}
+            onToggle={() => useEditorStore.getState().setSongCommonCollapsed(!songCommonCollapsed)}
+          />
           <canvas
             ref={canvasRef}
             data-testid="timeline-canvas"

@@ -126,6 +126,20 @@ export function panToRevealRange(input: {
   return input.panX;
 }
 
+/**
+ * 곡 공통 영역을 접거나 펼친 뒤의 가로 팬 요청값. 접으면 레인이 줄어든 폭만큼 왼쪽으로 붙으므로 팬도 그만큼 줄여 보던 레인을
+ * 화면 같은 자리에 둔다. 펼치면 나타난 열이 보이게 왼쪽 끝으로 돌아간다. 폭이 같으면 지금 팬을 유지한다.
+ * 범위 보정은 clampHorizontalPan이 한다.
+ */
+export function panAfterSongCommonResize(input: {
+  panX: number;
+  previousWidth: number;
+  nextWidth: number;
+}): number {
+  if (input.nextWidth > input.previousWidth) return 0;
+  return input.panX - (input.previousWidth - input.nextWidth);
+}
+
 export function isPlaybackCursorSeekArea(input: {
   screenX: number;
   timelineX: number;

@@ -4,6 +4,7 @@ import type { ChartDocument, Lane } from '../../shared';
 import { selectCanRedo, selectCanUndo, useEditorStore } from './editorStore';
 import { emptySelection } from './selectionSlice';
 import { isChartDirty, toSavedChartJson } from '../savedChart';
+import { SONG_COMMON_COLLAPSED_STORAGE_KEY } from '../songCommonCollapse';
 import { createEditorSong } from '../songState';
 
 function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument['restZones']): ChartDocument {
@@ -514,6 +515,130 @@ describe('editorStore 편집 transaction 중단 알림', () => {
 
     expect(onInterrupt).not.toHaveBeenCalled();
     expect(useEditorStore.getState().editTransaction).toBeNull();
+  });
+});
+
+describe('editorStore 곡 공통 영역 접기(RFD 0095)', () => {
+  const store = () => useEditorStore.getState();
+  const tap = (at: number): ChartDocument['notes'][number] => ({ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(at) });
+  const chartWithEvents = (): ChartDocument => ({ ...makeChart([tap(1)]), events: [
+    { type: 'bpm', beat: beat(0), bpm: 120 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+    { type: 'bpm', beat: beat(4), bpm: 180 },
+    { type: 'text', beat: beat(8), endBeat: beat(9), text: '메모', editorLane: 1 },
+  ] });
+  const selectEvents = (...indices: number[]) => store().setSelection({ ...emptySelection(), events: new Set(indices) });
+  let stored: Map<string, string>;
+
+  beforeEach(() => {
+    stored = new Map();
+    vi.stubGlobal('window', { localStorage: {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => { stored.set(key, value); },
+    } });
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    store().loadChart(chartWithEvents());
+    store().setSavedChartJson(toSavedChartJson(store().chart, store().extraLaneCount));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('접으면 접힘 true를 브라우저에 저장하고 같은 차트 객체·history 0개·미저장 없음을 유지한다', () => {
+    const before = store().chart;
+    store().setSongCommonCollapsed(true);
+    expect(store().songCommonCollapsed).toBe(true);
+    expect(stored.get(SONG_COMMON_COLLAPSED_STORAGE_KEY)).toBe('true');
+    expect(store().chart).toBe(before);
+    expect(store().historyPast).toEqual([]);
+    expect(isChartDirty(store().chart, store().extraLaneCount, store().savedChartJson, false)).toBe(false);
+  });
+
+  it('다시 펼치면 접힘 false를 저장한다', () => {
+    store().setSongCommonCollapsed(true);
+    store().setSongCommonCollapsed(false);
+    expect(store().songCommonCollapsed).toBe(false);
+    expect(stored.get(SONG_COMMON_COLLAPSED_STORAGE_KEY)).toBe('false');
+  });
+
+  it('4박 BPM·8박 text를 고른 채 접으면 text만 선택에 남는다', () => {
+    selectEvents(2, 3);
+    store().setSongCommonCollapsed(true);
+    expect(store().selection.events).toEqual(new Set([3]));
+  });
+
+  it('재생 중에도 접을 수 있고 고른 4박 BPM은 선택에서 빠진다', () => {
+    selectEvents(2);
+    store().setIsPlaying(true);
+    store().setSongCommonCollapsed(true);
+    expect(store().songCommonCollapsed).toBe(true);
+    expect(store().selection.events).toEqual(new Set());
+  });
+
+  it.each(['setSelection', 'setSelectionTransient'] as const)('접힌 동안 %s로 4박 BPM·8박 text를 넣으면 text만 고른다', action => {
+    store().setSongCommonCollapsed(true);
+    store()[action]({ ...emptySelection(), events: new Set([2, 3]) });
+    expect(store().selection.events).toEqual(new Set([3]));
+  });
+
+  it('접힌 동안 setChart가 이벤트 개수를 유지해도 선택 정규화가 숨은 BPM을 넣지 않는다', () => {
+    store().setSongCommonCollapsed(true);
+    useEditorStore.setState({ selection: { ...emptySelection(), events: new Set([2]) } });
+    store().setChart({ ...store().chart, notes: [tap(2)] });
+    expect(store().selection.events).toEqual(new Set());
+  });
+
+  it('3박 이동 transaction이 열린 채 접으면 그 위치로 확정해 Undo 1개를 남기고 소유자 onInterrupt를 1번 부른다', () => {
+    const onInterrupt = vi.fn();
+    const token = store().beginEditTransaction('selectModeEdit', onInterrupt)!;
+    store().setChart({ ...store().chart, notes: [tap(3)] }, { transaction: token });
+    store().setSongCommonCollapsed(true);
+    expect(onInterrupt).toHaveBeenCalledOnce();
+    expect(store().editTransaction).toBeNull();
+    expect(store().historyPast).toHaveLength(1);
+    expect(store().chart.notes).toEqual([tap(3)]);
+  });
+
+  it('이미 접힌 상태에서 다시 접어도 열린 transaction을 끝내지 않는다', () => {
+    store().setSongCommonCollapsed(true);
+    const onInterrupt = vi.fn();
+    store().beginEditTransaction('selectModeEdit', onInterrupt);
+    store().setSongCommonCollapsed(true);
+    expect(onInterrupt).not.toHaveBeenCalled();
+    expect(store().editTransaction).not.toBeNull();
+  });
+
+  it('revealSongCommon은 열린 붙여넣기 transaction을 유지한 채 펼치고 저장값 true를 바꾸지 않는다', () => {
+    store().setSongCommonCollapsed(true);
+    const onInterrupt = vi.fn();
+    store().beginEditTransaction('selectModeEdit', onInterrupt);
+    store().revealSongCommon();
+    expect(store().songCommonCollapsed).toBe(false);
+    expect(onInterrupt).not.toHaveBeenCalled();
+    expect(store().editTransaction).not.toBeNull();
+    expect(stored.get(SONG_COMMON_COLLAPSED_STORAGE_KEY)).toBe('true');
+  });
+
+  it('펼친 곡 공통 열에서 지운 4박 BPM을 접은 뒤 Undo·Redo해도 접힘 true가 유지되고 Undo가 BPM을 차트에 되돌린다', () => {
+    store().setChart({ ...store().chart, events: store().chart.events.filter((_event, index) => index !== 2) }, { separateHistory: true });
+    store().setSongCommonCollapsed(true);
+    store().undo();
+    expect(store().chart.events).toHaveLength(4);
+    expect(store().songCommonCollapsed).toBe(true);
+    store().redo();
+    expect(store().chart.events).toHaveLength(3);
+    expect(store().songCommonCollapsed).toBe(true);
+  });
+
+  it('접은 뒤 다른 차트를 열어도 접힘 true가 유지된다', () => {
+    store().setSongCommonCollapsed(true);
+    store().loadChart(makeChart());
+    expect(store().songCommonCollapsed).toBe(true);
+  });
+
+  it('접힘은 차트·history 스냅샷에 들어가지 않아 저장 파일에 쓰이지 않는다', () => {
+    store().setSongCommonCollapsed(true);
+    store().setChart({ ...store().chart, notes: [tap(2)] }, { separateHistory: true });
+    expect(JSON.stringify(toSavedChartJson(store().chart, store().extraLaneCount))).not.toContain('ollapsed');
+    expect(Object.keys(store().historyPast[0])).not.toContain('songCommonCollapsed');
   });
 });
 

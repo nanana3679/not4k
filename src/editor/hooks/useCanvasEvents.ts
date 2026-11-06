@@ -115,9 +115,10 @@ export function useCanvasEvents(
     onWarn: message => useEditorStore.getState().addToast(message),
   }));
   const recognizerRef = useRef(new GestureRecognizer());
-  // 재생을 겪은 누름은 정지해도 up/cancel까지 편집 자격을 되찾지 않는다. 내비게이션 추적은 유지한다.
+  // 재생을 겪었거나 누른 채 가로 배치가 바뀐(곡 공통 영역 접기·펼치기) 누름은 up/cancel까지 편집 자격을 되찾지 않는다.
+  // 내비게이션 추적은 유지한다.
   const activePointerIdsRef = useRef(new Set<number>());
-  const playbackLockedPointerIdsRef = useRef(new Set<number>());
+  const sealedPointerIdsRef = useRef(new Set<number>());
   // 재생 중 누른 터치의 안내는 뗄 때로 미룬다. 두 번째 손가락이 닿으면 탐색이라 편집 시도가 아니다.
   const deferredPauseToastPointerIdsRef = useRef(new Set<number>());
   // 롱프레스 hold 생명주기(arm/moved/발화/결말)는 recognizer가 소유한다.
@@ -310,10 +311,10 @@ export function useCanvasEvents(
     };
     const finishErase = () => eraseGestureRef.current.finish();
     // blur는 삭제를 확정한다. 정지 중 이동·리사이즈·생성 드래그와 롱프레스는 그대로 이어 간다.
-    // 재생을 겪은 접촉(RFD 0099)은 release를 놓치면 봉인이 풀리지 않으므로 그 접촉의 기록만 지운다.
+    // 봉인된 접촉은 release를 놓치면 봉인이 풀리지 않으므로 그 접촉의 기록만 지운다.
     const finishEraseAndReleaseLockedContacts = () => {
       finishErase();
-      const lockedPointerIds = playbackLockedPointerIdsRef.current;
+      const lockedPointerIds = sealedPointerIdsRef.current;
       if (lockedPointerIds.size === 0) return;
       for (const pointerId of lockedPointerIds) {
         activePointerIdsRef.current.delete(pointerId);
@@ -343,14 +344,15 @@ export function useCanvasEvents(
     };
   }, [clearHoldTimer, isDraggingCursorRef, rendererRef]);
 
-  // 재생 중 편집 제한(RFD 0099): 누름에 남은 편집·선택 조작을 버리고 미리보기를 걷는다.
-  // 이동·리사이즈 드래그·붙여넣기 대기·우클릭 삭제는 재생기가 시작 직전에 store로 이미 취소했다
-  // (cancelEditTransactionForPlaybackStart). 여기서는 편집
+  // 누름에 남은 편집·선택 조작을 버리고 미리보기를 걷는다. 지금 누른 접촉은 손을 뗄 때까지 편집하지 않는다.
+  // 재생 시작(RFD 0099)과 곡 공통 영역 접기·펼치기(RFD 0095)가 쓴다. 접기·펼치기에서는 박스 열 범위·롱프레스 대기·터치 후보가
+  // 옛 배치의 타임라인 x를 들고 있어, 그대로 두면 다른 레인에 적용된다.
+  // 이동·리사이즈 드래그·붙여넣기 대기·우클릭 삭제는 store가 이미 끝냈다(재생은 취소, 접기·펼치기는 확정). 여기서는 편집
   // transaction이 없는 조작 — 생성 드래그, 박스 선택(시작 전 선택으로 되돌린다), 롱프레스 대기, 터치 선택 후보 — 를 버린다.
-  // 재생이 시작될 때와 재생 중 캔버스 이동·뗌마다 부른다. 버릴 조작이 없으면 아무것도 바꾸지 않는다.
-  const abandonInteractionForPlayback = useCallback(() => {
+  // 재생이 시작될 때, 재생 중 캔버스 이동·뗌마다, 접힘이 바뀔 때 부른다. 버릴 조작이 없으면 아무것도 바꾸지 않는다.
+  const abandonPressedInteraction = useCallback(() => {
     for (const pointerId of activePointerIdsRef.current) {
-      playbackLockedPointerIdsRef.current.add(pointerId);
+      sealedPointerIdsRef.current.add(pointerId);
     }
     clearHoldTimer();
     eraseGestureRef.current.finish();
@@ -364,12 +366,14 @@ export function useCanvasEvents(
   }, [clearHoldTimer, createModeRef, selectModeRef, rendererRef]);
 
   useEffect(() => {
-    if (useEditorStore.getState().isPlaying) abandonInteractionForPlayback();
+    if (useEditorStore.getState().isPlaying) abandonPressedInteraction();
     // React가 재생→정지를 한 렌더로 합쳐도 시작 순간의 접촉·미리보기는 즉시 취소한다.
     return useEditorStore.subscribe((state, previous) => {
-      if (state.isPlaying && !previous.isPlaying) abandonInteractionForPlayback();
+      if ((state.isPlaying && !previous.isPlaying) || state.songCommonCollapsed !== previous.songCommonCollapsed) {
+        abandonPressedInteraction();
+      }
     });
-  }, [abandonInteractionForPlayback]);
+  }, [abandonPressedInteraction]);
 
   const routeViewportGestures = useCallback((gestures: Gesture[], rect: DOMRect) => {
     for (const g of gestures) {
@@ -422,7 +426,7 @@ export function useCanvasEvents(
   const handlePointerCancel = useCallback((e: CanvasPointerInput) => {
     // 정상 up 뒤의 암시적 capture 해제는 이미 끝난 접촉의 후속 contextmenu 처리를 바꾸지 않는다.
     if (!activePointerIdsRef.current.delete(e.pointerId)) return;
-    playbackLockedPointerIdsRef.current.delete(e.pointerId);
+    sealedPointerIdsRef.current.delete(e.pointerId);
     deferredPauseToastPointerIdsRef.current.delete(e.pointerId);
     if (activePointerIdsRef.current.size === 0) {
       rightPressPendingRef.current = false;
@@ -459,13 +463,13 @@ export function useCanvasEvents(
     // 우클릭이 아닌 새 누름 시점에는 그 메뉴가 더 오지 않으므로 대기를 풀어, 뒤의 키보드 메뉴 키 삭제를 삼키지 않는다.
     if (e.button !== 2) rightPressPendingRef.current = false;
     if (isEditLockedByPlayback()) {
-      playbackLockedPointerIdsRef.current.add(e.pointerId);
+      sealedPointerIdsRef.current.add(e.pointerId);
       // 재생 중 우클릭은 미니맵·커서 레일에서 눌러도 이 누름이 만들 contextmenu를 삭제·안내로 해석하지 않게 대기를 건다.
       // 뗌 뒤에 오는 메뉴(Windows)가 이 대기를 쓰고, 뗌 전에 온 메뉴(macOS)는 handleContextMenu가 대기를 푼다.
       if (e.button === 2) rightPressPendingRef.current = true;
     }
     // 새 down은 새 접촉이다. 이전 up/cancel이 유실돼 같은 id가 남아 있어도 봉인을 이어받지 않는다.
-    else playbackLockedPointerIdsRef.current.delete(e.pointerId);
+    else sealedPointerIdsRef.current.delete(e.pointerId);
     // 캔버스 밖에서 떼어도 같은 접촉의 봉인을 해제할 수 있어야 한다(마우스 포함).
     canvasRef.current?.setPointerCapture(e.pointerId);
     if (e.pointerType === 'touch') {
@@ -512,7 +516,7 @@ export function useCanvasEvents(
 
     // 재생 중 편집 제한(RFD 0099): 미니맵·커서 레일 seek 뒤, 편집·선택을 시작하기 전에 막고 누름마다 한 번 안내한다.
     // Select 모드의 클릭·Shift/Alt 클릭·박스 선택·터치 토글도 선택을 바꾸므로 함께 막는다.
-    if (isEditLockedByPlayback() || playbackLockedPointerIdsRef.current.has(e.pointerId)) {
+    if (isEditLockedByPlayback() || sealedPointerIdsRef.current.has(e.pointerId)) {
       // 우클릭 누름의 contextmenu 대기는 위에서 미니맵·커서 레일보다 먼저 걸었다.
       // 마우스·펜은 누를 때 안내한다. 터치는 두 번째 손가락이 닿으면 탐색이 되므로 뗄 때 안내한다.
       if (e.pointerType === 'touch') deferredPauseToastPointerIdsRef.current.add(e.pointerId);
@@ -668,8 +672,8 @@ export function useCanvasEvents(
     const x = rendererRef.current?.screenXToTimelineX(rawX) ?? rawX;
 
     // 재생 중(RFD 0099)에는 이 누름에 남은 편집·선택 조작을 버리고, hover 표시와 커서 레일 seek 드래그만 이어 간다.
-    if (isEditLockedByPlayback()) abandonInteractionForPlayback();
-    const editLocked = isEditLockedByPlayback() || playbackLockedPointerIdsRef.current.has(e.pointerId);
+    if (isEditLockedByPlayback()) abandonPressedInteraction();
+    const editLocked = isEditLockedByPlayback() || sealedPointerIdsRef.current.has(e.pointerId);
 
     // hold 생명주기는 recognizer가 소유 — 이 pointer의 발화/이동 상태를 조회해 연속 처리를 가른다.
     const holdState = e.pointerType === 'touch'
@@ -898,14 +902,14 @@ export function useCanvasEvents(
     routeViewportGestures, canvasRef, createModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, deleteAtPoint, clearHoldTimer, isTouchContactInterrupted,
-    onNavigationInteraction, applyEditResult, abandonInteractionForPlayback, handlePointerCancel, createsOnTouchUp,
+    onNavigationInteraction, applyEditResult, abandonPressedInteraction, handlePointerCancel, createsOnTouchUp,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     activePointerIdsRef.current.delete(e.pointerId);
-    const playbackLocked = playbackLockedPointerIdsRef.current.delete(e.pointerId);
+    const sealed = sealedPointerIdsRef.current.delete(e.pointerId);
     const deferredPauseToast = deferredPauseToastPointerIdsRef.current.delete(e.pointerId);
-    if (playbackLocked && e.pointerType === 'touch') suppressContextMenuUntilRef.current = Date.now() + 1200;
+    if (sealed && e.pointerType === 'touch') suppressContextMenuUntilRef.current = Date.now() + 1200;
     // 우클릭 누름의 contextmenu 대기는 여기서 다시 걸지 않는다. 누를 때 건 대기를 뗌 뒤에 오는 메뉴(Windows)가 쓰고,
     // 뗌 전에 온 메뉴(macOS)는 handleContextMenu가 이미 대기를 풀었다.
     let wasPinching = false;
@@ -952,8 +956,8 @@ export function useCanvasEvents(
     // 떼기 전에 정지했으면 지금은 편집할 수 있으므로 "정지하라"는 안내를 띄우지 않는다(이 누름은 여전히 편집하지 않는다).
     if (deferredPauseToast && isEditLockedByPlayback()) addToast(PAUSE_TO_EDIT_COPY, 'warn');
 
-    // recognizer에는 up을 전달해 접촉을 닫되, 재생을 겪은 holdEnd·클릭·마우스 up은 편집에 쓰지 않는다.
-    if (playbackLocked) return;
+    // recognizer에는 up을 전달해 접촉을 닫되, 봉인된 누름의 holdEnd·클릭·마우스 up은 편집에 쓰지 않는다.
+    if (sealed) return;
 
     // 끊긴 누름의 up은 지연 박스 재생·클릭 토글을 하지 않는다. 다중선택 래치만 남은 선택에 맞춘다.
     if (interruptedTouchContact) {
@@ -974,7 +978,7 @@ export function useCanvasEvents(
 
     // 재생 중(RFD 0099)의 뗌은 배치·삭제·선택을 확정하지 않고, 재생 전에 시작한 생성 드래그·박스 선택도 버린다.
     if (isEditLockedByPlayback()) {
-      abandonInteractionForPlayback();
+      abandonPressedInteraction();
       return;
     }
 
@@ -1076,7 +1080,7 @@ export function useCanvasEvents(
     mode, entityType, isTimeInBounds, toSample, clearHoldTimer, createsOnTouchUp,
     updateTouchMovement, canvasRef, createModeRef, deleteModeRef, isDraggingCursorRef,
     deleteAtPoint, rendererRef, selectModeRef, applyEditResult, isTouchContactInterrupted,
-    abandonInteractionForPlayback, addToast,
+    abandonPressedInteraction, addToast,
   ]);
 
   const handlePointerLeave = useCallback(() => {
@@ -1101,7 +1105,7 @@ export function useCanvasEvents(
     e.preventDefault();
     // 오래 누른 접촉의 네이티브 메뉴도 정지 후 삭제로 해석하지 않는다. macOS처럼 뗌 전에 온 우클릭 메뉴면
     // 그 누름의 contextmenu가 이미 왔으므로 대기를 풀어, 정지 뒤 키보드 메뉴 키를 삼키지 않게 한다.
-    if (playbackLockedPointerIdsRef.current.size > 0) {
+    if (sealedPointerIdsRef.current.size > 0) {
       rightPressPendingRef.current = false;
       return;
     }

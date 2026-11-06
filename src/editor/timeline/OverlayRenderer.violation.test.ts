@@ -168,7 +168,7 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
       { type: "bpm", beat: beat(2), bpm: 180 }, // 같은 박 BPM 중복
     ]);
     const host: OverlayHost = { ...makeHost(chart, new Set(), new Set(), new Set([0, 1])),
-      layout: createTimelineLayout(getEditorTimelineLayoutConfig(4)) };
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 4, songCommonCollapsed: false })) };
     const r = new OverlayRenderer(host);
     const spy = spyHatchCore(r);
     r.renderViolationOverlay();
@@ -177,6 +177,20 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     expect(spy).toHaveBeenNthCalledWith(1, 0, BPM_COLUMN_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
     expect(spy).toHaveBeenNthCalledWith(2, 0, BPM_COLUMN_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
     expect(host.violationLayer.children.length).toBe(2);
+  });
+
+  it("곡 공통 영역을 접으면 BPM 중복 위반 2개는 그릴 열이 없어 해칭이 0개다", () => {
+    const chart = makeChart([], [], [
+      { type: "bpm", beat: beat(2), bpm: 120 },
+      { type: "bpm", beat: beat(2), bpm: 180 },
+    ]);
+    const host: OverlayHost = { ...makeHost(chart, new Set(), new Set(), new Set([0, 1])),
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 4, songCommonCollapsed: true })) };
+    const r = new OverlayRenderer(host);
+    const spy = spyHatchCore(r);
+    r.renderViolationOverlay();
+    expect(spy).not.toHaveBeenCalled();
+    expect(host.violationLayer.children).toHaveLength(0);
   });
 
   it("StopEvent 구간 위반(editorLane 2)은 x=TIMELINE_WIDTH+EXTRA_LANE_WIDTH에 beat 0→4(0→2000ms) 구간 해칭 (RFD 0017 §7)", () => {

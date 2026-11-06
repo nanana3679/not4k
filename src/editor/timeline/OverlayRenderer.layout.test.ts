@@ -34,7 +34,7 @@ describe('OverlayRenderer 가로 배치', () => {
   });
 
   it('에디터 배치의 박자 고스트는 timeSignature 열 x=60·폭 48px에 그린다', () => {
-    const host = hostWithLayout(createTimelineLayout(getEditorTimelineLayoutConfig(2)));
+    const host = hostWithLayout(createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: false })));
     new OverlayRenderer(host).showGhostEvent({ type: 'timeSignature' }, 1000);
     const bounds = (host.ghostLayer.children[0] as Graphics).getLocalBounds();
     expect(bounds.minX).toBe(60);

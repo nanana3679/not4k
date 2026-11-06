@@ -50,6 +50,8 @@ export interface SelectModeCallbacks {
   getExtraLaneCount?: () => number;
   /** 붙여넣기가 보조 레인 초과 시 자동 확장(RFD 0018 §8-6 D3) */
   setExtraLaneCount?: (count: number, transaction?: symbol) => void;
+  /** 붙여넣은 BPM·박자가 접힌 곡 공통 영역에 숨지 않게 펼친다(RFD 0095). */
+  onTimingEventsPasted?: () => void;
   onWarn?: (msg: string) => void;
   /**
    * 독립 명령의 확정·취소는 onInterrupt로 알린다. selectionBefore는 드래그를 시작한 누름의 선택 변경 전 값이며,
@@ -351,7 +353,8 @@ export class SelectMode implements EditorMode {
 
   /**
    * Ctrl+A는 화면 열과 무관하게 0박부터 끝까지 모든 레인을 감싼 박스와 같다. 구간 감쌈·바디 짝·정규화를 박스 선택과
-   * 같은 규칙으로 따르므로 0박 이전에 걸친 구간은 구간째 고르지 않는다.
+   * 같은 규칙으로 따르므로 0박 이전에 걸친 구간은 구간째 고르지 않는다. 배치를 읽지 않으므로 접힌 곡 공통 영역의 BPM·박자는
+   * 여기서 가리지 않고 setSelection의 정규화가 뺀다(RFD 0095).
    */
   selectAll(): void {
     const minBeat = { n: 0, d: 1 };
@@ -1048,11 +1051,13 @@ export class SelectMode implements EditorMode {
     } else if (this.dragType === "move") {
       this.rollbackMove();
     }
-    // boxSelect 취소는 차트를 건드리지 않고 시작 전 선택만 복원한다.
-    if (this.dragType === "boxSelect" && this.preDragSelection) {
-      this.callbacks.setSelectionTransient(this.preDragSelection);
+    // boxSelect 취소는 차트를 건드리지 않고 시작 전 선택만 복원한다. 박스는 transaction이 없으므로
+    // 그 사이 붙여넣기가 연 transaction을 대신 되돌리지 않는다.
+    if (this.dragType === "boxSelect") {
+      if (this.preDragSelection) this.callbacks.setSelectionTransient(this.preDragSelection);
+    } else {
+      this.finishTransaction(true);
     }
-    this.finishTransaction(true);
     this.resizeOriginalNotes = null;
     this.preDragSelection = null;
     this._pendingZoneSelect = null;
@@ -1309,6 +1314,10 @@ export class SelectMode implements EditorMode {
     if (result === null) { this.finishTransaction(true); return 0; }
 
     this.chart = result.chart;
+    // 접힌 동안에는 정규화가 BPM·박자 선택을 빼므로 선택을 커밋하기 전에 펼친다.
+    if ([...result.pastedEventIndices].some(index => isTimingEvent(result.chart.events[index]))) {
+      this.callbacks.onTimingEventsPasted?.();
+    }
     // 차트 갱신(onChartUpdate) 후 커밋 — 붙여넣은 인덱스가 게이트 범위 보정에서 살아남는다.
     // 노트+restZone 혼합 붙여넣기는 두 공존 축을 함께 선택한다 (RFD 0019).
     this.commitSelection({

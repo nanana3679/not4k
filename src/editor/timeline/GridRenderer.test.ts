@@ -121,7 +121,7 @@ describe("GridRenderer.renderEvents 이벤트 기하", () => {
 
   it("포인트 이벤트(BpmChangeEvent)는 beat 위치(120 BPM에서 beat 2=1000ms→y100) 중심 NOTE_HEIGHT 높이 이벤트", () => {
     const host: GridHost = { ...makeHost(makeChart([{ type: "bpm", beat: beat(2), bpm: 120 }])),
-      layout: createTimelineLayout(getEditorTimelineLayoutConfig(2)) };
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: false })) };
     const layer = new Container();
     new GridRenderer(host).renderEvents(layer, null, () => undefined);
     const gfx = layer.children[0] as Graphics;
@@ -146,7 +146,7 @@ describe("GridRenderer.renderEvents 이벤트 기하", () => {
         { type: "bpm", beat: beat(0), bpm: 174.25 },
         { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(7, 2) },
       ])),
-      layout: createTimelineLayout(getEditorTimelineLayoutConfig(2)),
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: false })),
     };
     const layer = new Container();
     new GridRenderer(host).renderEvents(layer, null, () => undefined);
@@ -171,7 +171,7 @@ describe("GridRenderer.renderEvents 이벤트 기하", () => {
   it("첫 이벤트가 폭 48px 박자여도 이벤트 라벨의 줄바꿈 폭은 보조 레인 기준 56px이다", () => {
     const host: GridHost = {
       ...makeHost(makeChart([{ type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) }])),
-      layout: createTimelineLayout(getEditorTimelineLayoutConfig(2)),
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: false })),
     };
     const created: { wordWrapWidth: number }[] = [];
     new GridRenderer(host).renderEvents(new Container(), null, style => created.push(style as unknown as { wordWrapWidth: number }));
@@ -192,7 +192,7 @@ describe("GridRenderer.renderEvents 이벤트 기하", () => {
 describe("GridRenderer 곡 공통 영역", () => {
   const editorHost = (songCommonLabelVisible: boolean): GridHost => ({
     ...makeHost(makeChart([])),
-    layout: createTimelineLayout(getEditorTimelineLayoutConfig(2)),
+    layout: createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: false })),
     songCommonLabelVisible,
   });
 
@@ -223,6 +223,26 @@ describe("GridRenderer 곡 공통 영역", () => {
     new GridRenderer(host).renderSongCommonHeader();
     new GridRenderer({ ...host, songCommonLabelVisible: false }).renderSongCommonHeader();
     expect(textsOf(host.songCommonHeaderLayer)).toEqual(["BPM", "TS"]);
+  });
+
+  it.each([["있는", true], ["없는", false]] as const)("곡 행이 %s 차트에서 곡 공통 영역을 접으면 헤더를 그리지 않는다", (_label, visible) => {
+    const host: GridHost = { ...editorHost(visible),
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: true })) };
+    const grid = new GridRenderer(host);
+    grid.renderSongCommonHeader();
+    expect(host.songCommonHeaderLayer.children).toHaveLength(0);
+  });
+
+  it("펼친 헤더를 그린 뒤 접은 배치로 다시 그리면 이전 헤더가 지워진다", () => {
+    const expanded = { ...editorHost(true),
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: false })) };
+    let host: GridHost = expanded;
+    const grid = new GridRenderer(new Proxy({} as GridHost, { get: (_target, key) => host[key as keyof GridHost] }));
+    grid.renderSongCommonHeader();
+    expect(expanded.songCommonHeaderLayer.children.length).toBeGreaterThan(0);
+    host = { ...expanded, layout: createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: true })) };
+    grid.renderSongCommonHeader();
+    expect(expanded.songCommonHeaderLayer.children).toHaveLength(0);
   });
 
   it("곡 공통 열이 없는 배치에서는 헤더를 그리지 않는다", () => {

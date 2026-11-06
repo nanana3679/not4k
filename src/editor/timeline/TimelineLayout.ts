@@ -33,9 +33,19 @@ const SONG_COMMON_COLUMNS: readonly SongCommonColumn[] = [
   { id: "timeSignature", width: TIME_SIGNATURE_COLUMN_WIDTH },
 ];
 
-/** 앱·입력·E2E가 공유하는 현재 표시 설정. */
-export function getEditorTimelineLayoutConfig(auxiliaryLaneCount: number): TimelineLayoutConfig {
-  return { auxiliaryLaneCount, songCommonColumns: SONG_COMMON_COLUMNS };
+/** 앱·입력·E2E가 공유하는 현재 표시 설정. 곡 공통 영역을 접으면 열이 없어 BPM·박자가 어느 입력·렌더에도 잡히지 않는다. */
+export function getEditorTimelineLayoutConfig(display: {
+  extraLaneCount: number;
+  songCommonCollapsed: boolean;
+}): TimelineLayoutConfig {
+  return {
+    auxiliaryLaneCount: display.extraLaneCount,
+    songCommonColumns: display.songCommonCollapsed ? [] : SONG_COMMON_COLUMNS,
+  };
+}
+
+export function songCommonWidthOf(config: TimelineLayoutConfig): number {
+  return config.songCommonColumns.reduce((sum, column) => sum + column.width, 0);
 }
 
 export type TimelineColumn =

@@ -212,13 +212,32 @@ describe('zoneContainedNoteIndices — 실행 시점 파생 규칙 (RFD 0016 §4
   });
 });
 
+describe('normalizeSelection — 숨은 BPM·박자(RFD 0095)', () => {
+  const events: ChartDocument['events'] = [
+    { type: 'bpm', beat: beat(4), bpm: 180 },
+    { type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(3) },
+    { type: 'text', beat: beat(12), endBeat: beat(13), text: '메모', editorLane: 1 },
+  ];
+
+  it('곡 공통 영역이 접혀 있으면 4박 BPM·8박 박자는 빠지고 12박 text는 남는다', () => {
+    const input = sel({ events: new Set([0, 1, 2]) });
+    expect(normalizeSelection(input, { ...chart, events }, true).events).toEqual(new Set([2]));
+  });
+
+  it('곡 공통 영역이 펼쳐져 있으면 4박 BPM·8박 박자·12박 text가 모두 남는다', () => {
+    const input = sel({ events: new Set([0, 1, 2]) });
+    expect(normalizeSelection(input, { ...chart, events }, false).events).toEqual(new Set([0, 1, 2]));
+    expect(normalizeSelection(input, { ...chart, events }).events).toEqual(new Set([0, 1, 2]));
+  });
+});
+
 // ---------------------------------------------------------------------------
 // createSelectionSlice — fake set/get 하네스 단위 검증.
 // editorStore 합성(다음 슬라이스) 전이므로 store 경유가 아니라 슬라이스 계약만 본다.
 // 합성 후에는 setChart 선택 보정·undo clear 등 store 경유 테스트가 추가된다.
 // ---------------------------------------------------------------------------
 
-type HarnessState = SelectionSlice & { chart: ChartDocument; isPlaying: boolean };
+type HarnessState = SelectionSlice & { chart: ChartDocument; isPlaying: boolean; songCommonCollapsed: boolean };
 
 function makeSliceHarness() {
   let state: HarnessState;
@@ -231,7 +250,7 @@ function makeSliceHarness() {
   const get = () => state;
   const slice = createSelectionSlice(set, get);
   // §3-5 게이트가 validateChart를 읽으므로 events까지 채운다 (meta는 게이트가 안 읽어 생략)
-  state = { chart: { ...chart, events: [] } as unknown as ChartDocument, isPlaying: false, ...slice };
+  state = { chart: { ...chart, events: [] } as unknown as ChartDocument, isPlaying: false, songCommonCollapsed: false, ...slice };
   return { getState: () => state };
 }
 
