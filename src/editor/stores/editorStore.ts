@@ -9,7 +9,7 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
-import { songDraftOf, sameSongDraft, type EditorSong, type SongDraft } from '../songState';
+import { previewClipIdentity, songDraftOf, sameSongDraft, type EditorSong, type SongDraft } from '../songState';
 import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
 import { initialSongCommonCollapsed, storeSongCommonCollapsed } from '../songCommonCollapse';
 import type { SavedChartJson } from '../savedChart';
@@ -245,6 +245,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    */
   revertToLastValid: () => void;
   resetHistory: () => void;
+  /**
+   * 지금까지의 편집을 Undo 한 단위로 끝낸다. 다음 편집은 병합창(600ms) 안이어도 앞 편집과 합치지 않는다.
+   * 타임라인 누름이 드로어 입력을 먼저 적용했을 때처럼, 서로 다른 조작이 잇달아 쓰는 자리에서 부른다.
+   */
+  endHistoryCoalescing: () => void;
   /**
    * 한 gesture의 편집을 Undo 1개로 묶는다. 소유자 token 없는 편집·모드 전환·Undo 등
    * 독립 명령이 transaction을 먼저 확정하거나 재생 시작이 취소하면 onInterrupt로 소유자에게 알린다.
@@ -507,7 +512,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (draft.audioId === savedDraft.audioId && (meta.previewStart ?? null) === values.previewStart
         && (meta.previewEnd ?? null) === values.previewEnd) {
         meta.previewAudioFile = values.previewUrl ?? '';
-        nextDraft.previewClipAudioId = savedDraft.audioId;
+        nextDraft.previewClip = previewClipIdentity(savedDraft.audioId, values.previewStart, values.previewEnd);
         if ((draft.pendingPreviewRange?.fadeInTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeInTime ?? 0)
           && (draft.pendingPreviewRange?.fadeOutTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeOutTime ?? 0)) {
           nextDraft.pendingPreviewRange = null;
@@ -715,6 +720,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // lastValidSnapshot은 의도적으로 유지한다 — 씨앗은 loadChart가 검증 통과 시 세팅하고
   // resetHistory는 그 직후 호출되므로 여기서 밀면 씨앗이 날아간다. 현재 곡 전환은 전체 페이지
   // 내비게이션이라 크로스-곡 잔존 경로가 없다. SPA 내 곡 전환을 도입하면 이 계약을 재검토할 것.
+  endHistoryCoalescing: () => set({ historyLastCaptureAt: 0 }),
   resetHistory: () => {
     const transaction = get().editTransaction;
     set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null });

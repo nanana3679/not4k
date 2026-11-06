@@ -278,7 +278,7 @@ describe('editorStore 차트 변이 게이트', () => {
 
 describe('editorStore lastValidSnapshot·revertToLastValid', () => {
   it('곡 초안이 있는 유효 차트에서 보조 레인 수를 3으로 바꾸면 씨앗이 레인 수 3과 그 초안을 함께 담는다', () => {
-    const song = { audioId: 1, baselineAudioId: 1, previewClipAudioId: 1, revision: 1, needsTimingMigration: false, duration: 120,
+    const song = { audioId: 1, baselineAudioId: 1, previewClip: null, revision: 1, needsTimingMigration: false, duration: 120,
       gameplayRange: null, pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null,
       baseline: {} as NonNullable<ReturnType<typeof useEditorStore.getState>['song']>['baseline'] };
     useEditorStore.setState({ chart: makeChart(), song });
@@ -286,7 +286,7 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
     useEditorStore.getState().setExtraLaneCount(3);
 
     expect(useEditorStore.getState().lastValidSnapshot).toMatchObject({ extraLaneCount: 3, songDraft: {
-      audioId: 1, previewClipAudioId: 1, duration: 120, gameplayRange: null } });
+      audioId: 1, previewClip: null, duration: 120, gameplayRange: null } });
   });
 
   beforeEach(() => {
@@ -396,6 +396,25 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
 
     useEditorStore.getState().undo();
     expect(useEditorStore.getState().chart.notes).toHaveLength(2); // 위반 상태로 복원 — 안전망
+  });
+
+  it('제목을 A로 적용하고 endHistoryCoalescing을 부른 뒤 600ms 안에 B로 적용하면 Undo 1회는 B만 되돌려 A가 남는다', () => {
+    const store = () => useEditorStore.getState();
+    store().applyMetaEdit({ title: 'A' });
+    store().endHistoryCoalescing();
+    store().applyMetaEdit({ title: 'B' });
+
+    expect(store().historyPast).toHaveLength(2);
+    store().undo();
+    expect(store().chart.meta.title).toBe('A');
+  });
+
+  it('제목을 A로 적용한 뒤 600ms 안에 B로 적용하면 endHistoryCoalescing이 없을 때는 Undo 1개로 합친다', () => {
+    const store = () => useEditorStore.getState();
+    store().applyMetaEdit({ title: 'A' });
+    store().applyMetaEdit({ title: 'B' });
+
+    expect(store().historyPast).toHaveLength(1);
   });
 
   it('revertToLastValid는 600ms 병합창과 무관하게 past에 스냅샷을 쌓는다', () => {

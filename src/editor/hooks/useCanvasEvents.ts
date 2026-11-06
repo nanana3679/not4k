@@ -36,6 +36,7 @@ import {
   type HoldHits,
 } from './touchEditRouting';
 import { resolveContextMenuDelete } from './contextMenuRouting';
+import { commitFocusedDrawerInput } from './useEditorKeyboard';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
 
 export interface CanvasEventHandlers {
@@ -456,7 +457,22 @@ export function useCanvasEvents(
     return () => canvas?.removeEventListener('lostpointercapture', handlePointerCancel);
   }, [canvasRef, handlePointerCancel]);
 
+  // 드로어에 입력 중인 값을 이 누름의 편집보다 먼저 적용한다. 적용은 token 없는 독립 명령이라 뒤에 오면 드래그가 끊긴다.
+  // 모드의 차트는 App의 [chart] effect가 맞추는데 그 effect는 이 핸들러 안에서 돌지 않는다. 그대로 넘기면 모드가 옛 차트를 펼쳐 써서
+  // 방금 적용한 값을 되돌리므로 여기서 맞춘다. 적용과 이 누름의 편집은 다른 조작이라 600ms 안이어도 Undo 한 단위로 합치지 않는다.
+  const commitDrawerDraft = useCallback(() => {
+    const before = useEditorStore.getState();
+    commitFocusedDrawerInput();
+    const after = useEditorStore.getState();
+    if (after.chart === before.chart && after.song === before.song) return;
+    after.endHistoryCoalescing();
+    createModeRef.current?.setChart(after.chart);
+    selectModeRef.current?.setChart(after.chart);
+    deleteModeRef.current?.setChart(after.chart);
+  }, [createModeRef, selectModeRef, deleteModeRef]);
+
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    commitDrawerDraft();
     activePointerIdsRef.current.add(e.pointerId);
     deferredPauseToastPointerIdsRef.current.delete(e.pointerId);
     // 캔버스 밖에서 뗀 우클릭은 Windows에서 그 contextmenu가 뗀 자리의 다른 요소로 가 대기가 남는다.
@@ -608,7 +624,7 @@ export function useCanvasEvents(
       ?.handlePointerDown({ x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false });
   }, [
     mode, entityType,
-    toSample, handleEditCancel, armHoldTimer, space, createsOnTouchUp,
+    commitDrawerDraft, toSample, handleEditCancel, armHoldTimer, space, createsOnTouchUp,
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,

@@ -5,11 +5,21 @@ import { applySongTimingEvents } from '../shared/songAssets/resolveSongChart';
 
 import type { SongValues } from '../supabase/saveSong';
 
+/** 프리뷰 클립을 잘라 낸 음원과 구간. */
+export interface PreviewClipIdentity {
+  audioId: number;
+  startTime: number;
+  endTime: number;
+}
+
 export interface SongDraft {
   /** 세션 내 음원 정체성. 저장해 경로가 바뀌어도 유지한다. */
   audioId: number;
-  /** 지금 차트의 프리뷰 클립(`meta.previewAudioFile`)을 잘라 낸 음원의 id. audioId와 다르면 다음 곡 저장이 클립을 다시 만든다. */
-  previewClipAudioId: number;
+  /**
+   * 지금 차트의 프리뷰 클립(`meta.previewAudioFile`)의 출처. 프리뷰 구간이 없는 곡은 null이다.
+   * 지금 음원·프리뷰 구간과 다르면 다음 곡 저장이 클립을 다시 만든다.
+   */
+  previewClip: PreviewClipIdentity | null;
   duration: number | null;
   gameplayRange: PlaybackRange | null;
   pendingPreviewRange: PlaybackRange | null;
@@ -32,8 +42,8 @@ export function createSongAudioId(): number { return ++nextSongAudioId; }
 
 /** File·구간 참조는 유지한다. 초안의 필드는 직접 수정하지 않고 새 객체로 교체한다. */
 export function songDraftOf(song: SongDraft): SongDraft {
-  const { audioId, previewClipAudioId, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile } = song;
-  return { audioId, previewClipAudioId, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile };
+  const { audioId, previewClip, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile } = song;
+  return { audioId, previewClip, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile };
 }
 
 function sameRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
@@ -42,9 +52,19 @@ function sameRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
     && a.fadeInTime === b.fadeInTime && a.fadeOutTime === b.fadeOutTime);
 }
 
+/** 이 음원·프리뷰 구간에서 잘라 낼 클립의 identity. 시작·끝이 모두 있어야 구간이며 없으면 null이다. */
+export function previewClipIdentity(audioId: number, startTime: number | null | undefined, endTime: number | null | undefined): PreviewClipIdentity | null {
+  return startTime != null && endTime != null ? { audioId, startTime, endTime } : null;
+}
+
+export function samePreviewClip(a: PreviewClipIdentity | null, b: PreviewClipIdentity | null): boolean {
+  return a === b || (a !== null && b !== null
+    && a.audioId === b.audioId && a.startTime === b.startTime && a.endTime === b.endTime);
+}
+
 export function sameSongDraft(a: SongDraft | null, b: SongDraft | null): boolean {
   if (!a || !b) return a === b;
-  return a.audioId === b.audioId && a.previewClipAudioId === b.previewClipAudioId && a.duration === b.duration
+  return a.audioId === b.audioId && samePreviewClip(a.previewClip, b.previewClip) && a.duration === b.duration
     && a.pendingAudioFile === b.pendingAudioFile && a.pendingJacketFile === b.pendingJacketFile
     && sameRange(a.gameplayRange, b.gameplayRange)
     && sameRange(a.pendingPreviewRange, b.pendingPreviewRange);
@@ -92,7 +112,8 @@ export function createEditorSong(loaded: LoadedSongSharedData, chart: ChartDocum
   const gameplayRange = gameplayRangeOf(loaded);
   const audioId = createSongAudioId();
   const song: EditorSong = {
-    audioId, baselineAudioId: audioId, previewClipAudioId: audioId,
+    audioId, baselineAudioId: audioId,
+    previewClip: previewClipIdentity(audioId, chart.meta.previewStart, chart.meta.previewEnd),
     revision: loaded.revision, needsTimingMigration: loaded.timing === null,
     duration: loaded.duration, gameplayRange,
     pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null,
@@ -143,8 +164,9 @@ export function restoreSavedSongInfo(chart: ChartDocument, song: EditorSong): { 
     : { ...chart, meta: sameMeta ? chart.meta : savedMeta, events };
   return {
     chart: restoredChart,
-    // 저장 기준의 클립은 저장할 때 그 음원으로 맞췄으므로 클립의 음원도 기준 음원이다.
-    song: { ...song, audioId: song.baselineAudioId, previewClipAudioId: song.baselineAudioId,
+    // 저장 기준의 클립은 저장할 때 그 음원·구간으로 맞췄다.
+    song: { ...song, audioId: song.baselineAudioId,
+      previewClip: previewClipIdentity(song.baselineAudioId, baseline.previewStart, baseline.previewEnd),
       duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
       pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null },
   };

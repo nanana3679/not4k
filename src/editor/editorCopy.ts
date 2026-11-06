@@ -42,6 +42,16 @@ export const SONG_INFO_DRAWER_COPY = {
 /** 곡 행이 있는 차트의 Meta 창 안내. 곡 공통 값은 곡 정보 드로어로 옮겼다(RFD 0098·0107). */
 export const META_SONG_INFO_MOVED_COPY = "제목·아티스트·자켓·음원·구간·오프셋은 Song Info에서 편집합니다.";
 
+/**
+ * 음원을 바꿀 때 새 음원에 들어가지 않아 기본값으로 돌린 구간의 안내(#444). 키는 돌린 구간(`rangesForNewAudio`의 `reset`)이다.
+ * 곡 정보 드로어는 음원을 적용할 때, 곡 행이 없는 차트의 Meta는 선택기를 새 음원으로 다시 그릴 때 알린다.
+ */
+export const AUDIO_RANGE_RESET_COPY = {
+  preview: "새 음원에 들어가지 않는 프리뷰 구간을 기본값으로 되돌렸습니다.",
+  gameplay: "새 음원에 들어가지 않는 인게임 구간을 기본값으로 되돌렸습니다.",
+  both: "새 음원에 들어가지 않는 프리뷰·인게임 구간을 기본값으로 되돌렸습니다.",
+} as const;
+
 /** 저장(Save·Save As)이 진행 중일 때 막힌 동작의 안내. 테스트 플레이 문구는 툴바 버튼 title에도 쓴다. */
 export const SAVE_IN_PROGRESS_COPY = {
   secondSave: "이전 저장이 끝난 뒤 다시 시도해주세요",
@@ -89,10 +99,10 @@ export const SONG_SAVE_COPY = {
   uncomparedCharts: '파일을 읽지 못해 비교하지 못한 차트',
   /** 곡 행이 있는 차트의 곡 저장은 곡 추가(AddSongModal)처럼 비어 있지 않은 제목·아티스트를 요구한다. */
   titleArtistRequired: '제목과 아티스트는 비워 둘 수 없습니다.',
-  /** 프리뷰 구간·음원을 바꿔 프리뷰 클립을 다시 만들어야 하는데 재생 음원이 없을 때(음원 로드 실패 등). */
+  /** 프리뷰 클립을 다시 만들어야 하는데 재생 음원이 없을 때(음원 로드 실패 등). */
   previewAudioMissing: '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Song Info에서 음원을 불러온 뒤 다시 저장해주세요.',
-  /** 다시 만들 프리뷰 구간이 디코딩한 음원 길이를 넘을 때. 저장된 구간 값의 유효성 안내다. */
-  previewOutOfRange: '프리뷰 구간이 음원 길이를 넘습니다. Song Info에서 프리뷰 구간을 다시 정한 뒤 저장해주세요.',
+  /** 다시 만들 프리뷰 구간에서 샘플을 얻을 수 없거나 구간이 음원 끝을 넘을 때. */
+  previewOutOfRange: '프리뷰 구간이 음원 범위를 벗어났습니다. Song Info에서 프리뷰 구간을 다시 정한 뒤 저장해주세요.',
 } as const;
 
 /**
@@ -100,6 +110,12 @@ export const SONG_SAVE_COPY = {
  * 직후처럼 음원이 아직 준비되지 않았으면 곡·차트 저장을 모두 시작하지 않는다.
  */
 export const SAVE_AUDIO_LOADING_COPY = "Audio is still loading. Save again after it finishes.";
+
+/**
+ * 드로어에서 고른 음원을 불러오는 중에 테스트 플레이를 시작한 안내. 지금 시작하면 게임이 이전 음원으로 열리고 고른 음원은
+ * 적용되지 않으므로 로드가 끝날 때까지 시작하지 않는다.
+ */
+export const PLAY_TEST_AUDIO_LOADING_COPY = "음원을 불러오는 중에는 테스트 플레이를 시작할 수 없습니다";
 
 /**
  * 차트 저장(Save의 차트 단계·Save As)의 결과 안내(RFD 0107). DB 거부는 이전 파일을 유지한다. 응답 유실은

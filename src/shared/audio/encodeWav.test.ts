@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { encodeWavBlob } from "./encodeWav";
+import { canEncodeWavRange, encodeWavBlob } from "./encodeWav";
 
 // Mock AudioBuffer
 function createMockAudioBuffer(
@@ -130,5 +130,35 @@ describe("encodeWavBlob", () => {
 
     expect(view.getInt16(60, true)).toBe(16383);
     expect(view.getInt16(62, true)).toBe(0);
+  });
+});
+
+describe("encodeWavBlob 음원 끝을 넘은 구간", () => {
+  it("10Hz 5샘플 음원을 끝이 한 샘플 넘친 0～0.6초로 인코딩하면 음원 길이로 잘라 헤더 44바이트+샘플 5개 54바이트다", () => {
+    const buf = createMockAudioBuffer(10, 1, [new Float32Array(5)]);
+
+    expect(encodeWavBlob(buf, 0, 0.6).size).toBe(54);
+  });
+});
+
+describe("canEncodeWavRange", () => {
+  /** 10Hz·10초(100샘플) 음원. 범위 판단은 샘플 수만 쓴다. */
+  const buffer = { sampleRate: 10, length: 100 };
+
+  it.each([
+    ["0～10초는 음원 전체라 샘플 100개", 0, 10, true],
+    ["끝이 한 샘플(0.1초) 넘친 9～10.1초는 잘라서 인코딩할 수 있음", 9, 10.1, true],
+    ["끝이 두 샘플 넘친 9～10.2초는 음원 밖", 9, 10.2, false],
+    ["시작과 끝이 같은 9～9초는 샘플 0개", 9, 9, false],
+    ["음원 끝에 붙은 10～10초는 샘플 0개", 10, 10, false],
+    ["한 샘플보다 짧아 같은 샘플로 내려가는 9.01～9.05초는 샘플 0개", 9.01, 9.05, false],
+    ["음원 끝 뒤에서 시작하는 10～10.1초는 샘플 0개", 10, 10.1, false],
+    ["끝이 시작보다 앞선 9～8초는 샘플 0개", 9, 8, false],
+  ])("%s이면 startTime=%s·endTime=%s에서 %s다", (_situation, startTime, endTime, encodable) => {
+    expect(canEncodeWavRange(buffer, startTime, endTime)).toBe(encodable);
+  });
+
+  it("44100Hz 149.97056689342404초 음원에서 끝이 2.8e-14초 넘친 149.97056689342406초는 같은 샘플 끝이라 인코딩할 수 있다", () => {
+    expect(canEncodeWavRange({ sampleRate: 44100, length: 6613702 }, 135, 149.97056689342406)).toBe(true);
   });
 });

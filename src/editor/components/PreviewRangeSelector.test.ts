@@ -99,6 +99,91 @@ describe('구간 선택기의 터치 끌기(PreviewRangeSelector)', () => {
     expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 50, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
   });
 
+  it('10～20초의 끝 핸들(40px) 2px 옆 42px을 움직임 없이 클릭하면 끝이 21초로 튀지 않고 10～20초를 알린다', () => {
+    const { onDragEnd } = probe(canvas => {
+      canvas.onPointerDown(pointer(42));
+      canvas.onPointerUp(pointer(42));
+    });
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 20, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('10～20초의 시작 핸들(20px) 2px 옆 18px을 움직임 없이 클릭하면 시작이 9초로 튀지 않고 10～20초를 알린다', () => {
+    const { onDragEnd } = probe(canvas => {
+      canvas.onPointerDown(pointer(18));
+      canvas.onPointerUp(pointer(18));
+    });
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 20, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('끝 핸들 옆 42px을 누른 채 좌표가 같은 pointermove가 와도 뗀 구간은 10～20초다', () => {
+    const { onDragEnd } = probe(canvas => {
+      canvas.onPointerDown(pointer(42));
+      canvas.onPointerMove(pointer(42));
+      canvas.onPointerUp(pointer(42));
+    });
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 20, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('터치로 끝 핸들 옆 42px을 눌러 42.4px로 떨린 채 떼면 끝이 21.2초로 튀지 않고 10～20초를 알린다', () => {
+    const { onDragEnd } = probe(canvas => {
+      canvas.onPointerDown(pointer(42));
+      canvas.onPointerMove(pointer(42.4));
+      canvas.onPointerUp(pointer(42.4));
+    });
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 20, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('끝 핸들 옆 42px에서 눌러 pointermove 없이 2.9px 옆 44.9px에서 떼도 클릭이라 10～20초를 알린다', () => {
+    const { onDragEnd } = probe(canvas => {
+      canvas.onPointerDown(pointer(42));
+      canvas.onPointerUp(pointer(44.9));
+    });
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 20, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('끝 핸들 옆 42px에서 눌러 3px 옮긴 45px에서 떼면 끌기라 놓은 위치의 10～22.5초를 알린다', () => {
+    const { onDragEnd } = probe(canvas => {
+      canvas.onPointerDown(pointer(42));
+      canvas.onPointerMove(pointer(45));
+      canvas.onPointerUp(pointer(45));
+    });
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 22.5, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('끝 핸들 옆 42px에서 눌러 pointermove 없이 100px에서 떼면 놓은 위치의 10～50초를 알린다', () => {
+    const { onDragEnd } = probe(canvas => {
+      canvas.onPointerDown(pointer(42));
+      canvas.onPointerUp(pointer(100));
+    });
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 50, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('끝 핸들 옆 42px에서 눌러 100px까지 끈 뒤 누른 자리 42px에서 떼면 놓은 위치의 10～21초를 알린다', () => {
+    const { onDragEnd } = probe(canvas => {
+      canvas.onPointerDown(pointer(42));
+      canvas.onPointerMove(pointer(100));
+      canvas.onPointerUp(pointer(42));
+    });
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 10, endTime: 21, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
+  it('구간 밖 200px(100초)을 클릭하면 구간이 95～105초로 옮겨 가는 동작은 그대로다', () => {
+    const { onDragEnd } = probe(canvas => {
+      canvas.onPointerDown(pointer(200));
+      canvas.onPointerUp(pointer(200));
+    });
+
+    expect(onDragEnd).toHaveBeenCalledExactlyOnceWith({ startTime: 95, endTime: 105, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  });
+
   it('누르지 않은 채 오는 pointercancel은 아무것도 적용하지 않는다', () => {
     const { onDragEnd } = probe(canvas => canvas.onPointerCancel!(pointer(0)));
 

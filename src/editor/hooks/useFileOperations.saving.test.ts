@@ -8,7 +8,7 @@ import { beat } from '../../shared';
 import type { ChartDocument, ChartRowCreate, ChartRowRef, ChartRowSave, Lane, SongAssetPersistenceAdapter } from '../../shared';
 import { showToast } from '../../shared/toast';
 import type { PlaybackController } from '../playback/PlaybackController';
-import { CHART_SAVE_COPY, PAUSE_TO_EDIT_COPY, SAVE_AUDIO_LOADING_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { CHART_SAVE_COPY, PAUSE_TO_EDIT_COPY, PLAY_TEST_AUDIO_LOADING_COPY, SAVE_AUDIO_LOADING_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 import { isChartDirty, toSavedChartJson } from '../savedChart';
 import { useEditorStore } from '../stores/editorStore';
 import { emptySelection } from '../stores/selectionSlice';
@@ -152,7 +152,7 @@ beforeEach(() => {
   });
   useEditorStore.setState({
     chart: chart([]), extraLaneCount: 2, selection: emptySelection(), savedChartJson: null,
-    song: null, chartRow: null, unconfirmedChartUploads: [], isSavingSong: false, isSavingChart: false, chartSaveGeneration: 0,
+    song: null, chartRow: null, unconfirmedChartUploads: [], isSavingSong: false, isSavingChart: false, isLoadingSongAudio: false, chartSaveGeneration: 0,
     activeSongId: 'song', activeDifficulty: null,
     songlessMedia: EMPTY_SONGLESS_MEDIA, currentTimeMs: 0, editingEvent: null, isPlaying: false,
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, lastValidSnapshot: null,
@@ -236,6 +236,23 @@ describe('useFileOperations 저장 진행', () => {
     // A 이후에 더한 노트(3레인 2박)는 저장되지 않았으므로 dirty다.
     expect(dirty()).toBe(true);
     renderFileOperations().handlePlayTest(false);
+    expect(navigateTo).toHaveBeenCalledExactlyOnceWith('/game');
+  });
+
+  it('드로어에서 고른 음원을 불러오는 중(isLoadingSongAudio)이면 테스트 플레이가 이전 버퍼로 /game에 가지 않고 안내 1개만 띄우며, 로드가 끝나면 시작한다', () => {
+    open(chart([single(1, 0)]));
+    useEditorStore.setState({ isLoadingSongAudio: true });
+    useGameStore.setState({ audioBuffer: null });
+
+    renderFileOperations().handlePlayTest(false);
+
+    expect(navigateTo).not.toHaveBeenCalled();
+    expect(useGameStore.getState().audioBuffer).toBeNull();
+    expect(vi.mocked(showToast).mock.calls).toEqual([[PLAY_TEST_AUDIO_LOADING_COPY, 'error']]);
+
+    useEditorStore.setState({ isLoadingSongAudio: false });
+    renderFileOperations().handlePlayTest(false);
+
     expect(navigateTo).toHaveBeenCalledExactlyOnceWith('/game');
   });
 

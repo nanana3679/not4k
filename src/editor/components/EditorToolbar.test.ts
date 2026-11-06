@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat } from '../../shared';
 import type { ChartDocument } from '../../shared';
-import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import { PAUSE_TO_EDIT_COPY, PLAY_TEST_AUDIO_LOADING_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 import { useEditorStore } from '../stores/editorStore';
 import { emptySelection } from '../stores/selectionSlice';
 import { confirmLeave, hasUnsavedEditorChanges, type UnsavedChangesFlow } from '../unsavedChangesFlow';
@@ -78,6 +78,38 @@ function backToSongs(props: Parameters<typeof toolbarProps>[0] = {}): () => void
   renderToStaticMarkup(createElement(Probe));
   expect(leave).toBeDefined();
   return leave!;
+}
+
+/** Playback options 메뉴를 연 툴바에서 처음부터·커서부터 시작 버튼의 props를 꺼낸다. */
+function playTestButtons(props: Parameters<typeof toolbarProps>[0] = {}) {
+  type ButtonProps = { children?: ReactNode; 'aria-label'?: string; disabled?: boolean; title?: string;
+    onClick?: () => void; ref?: { current: unknown } };
+  let menuOpen = false;
+  let requestedOpen = false;
+  let buttons: ButtonProps[] = [];
+  function inspect(node: ReactNode) {
+    Children.forEach(node, child => {
+      if (!isValidElement<ButtonProps>(child)) return;
+      if (child.props['aria-label'] === 'Playback options' && !requestedOpen) {
+        requestedOpen = true;
+        child.props.ref!.current = { getBoundingClientRect: () => ({ bottom: 0, left: 0 }) };
+        child.props.onClick?.();
+      }
+      const label = Children.toArray(child.props.children).join('');
+      if (label.includes('처음부터 시작') || label === '커서부터 시작') buttons.push(child.props);
+      inspect(child.props.children);
+    });
+  }
+  function Probe() {
+    buttons = [];
+    const tree = EditorToolbar({ ...toolbarProps(props), showPlayTestMenu: menuOpen,
+      setShowPlayTestMenu: next => { menuOpen = Boolean(next); } });
+    inspect(tree);
+    return tree;
+  }
+  renderToStaticMarkup(createElement(Probe));
+  expect(buttons).toHaveLength(2);
+  return buttons;
 }
 
 beforeEach(() => {
@@ -324,6 +356,34 @@ describe('Song Info 버튼의 곡 정보 미저장 표시', () => {
     useEditorStore.setState({ song: savedSong(document), isLoadingSongAudio: true });
 
     expect(render({ onToggleSongInfo: () => {} })).toMatch(UNSAVED_SONG_INFO_BUTTON);
+  });
+});
+
+describe('테스트 플레이 시작 버튼', () => {
+  // 0박 BPM·박자를 두어 배치 제약 위반 없이 음원 로드·저장 조건만 본다.
+  beforeEach(() => useEditorStore.setState({ chart: { ...chart(), events: [
+    { type: 'bpm', beat: beat(0), bpm: 120 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+  ] } }));
+
+  it('음원 로드·저장이 없으면 처음부터·커서부터 시작이 활성이고 title이 없다', () => {
+    for (const button of playTestButtons()) expect(button).toMatchObject({ disabled: false, title: undefined });
+  });
+
+  it('드로어에서 고른 음원을 불러오는 중이면 처음부터·커서부터 시작이 비활성이고 title에 불러오는 중 안내를 단다', () => {
+    useEditorStore.setState({ isLoadingSongAudio: true });
+
+    for (const button of playTestButtons()) {
+      expect(button).toMatchObject({ disabled: true, title: PLAY_TEST_AUDIO_LOADING_COPY });
+    }
+  });
+
+  it('저장 중에 드로어 음원도 불러오는 중이면 title은 저장 안내를 먼저 보인다', () => {
+    useEditorStore.setState({ isLoadingSongAudio: true });
+
+    for (const button of playTestButtons({ saving: true })) {
+      expect(button).toMatchObject({ disabled: true, title: SAVE_IN_PROGRESS_COPY.playTest });
+    }
   });
 });
 

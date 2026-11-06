@@ -133,6 +133,8 @@ test.describe('정지 중 타이밍 값 수정 뒤 커서 박 유지', () => {
 
     await expect.poll(async () => (await cursor(page)).currentTimeMs).toBeCloseTo(before + 100, 3);
 
+    // Enter는 포커스를 입력칸에 두고, 포커스가 드로어 안이면 Ctrl+Z는 입력칸의 키다. 에디터 Undo는 포커스를 옮긴 뒤 누른다.
+    await offsetInput.blur();
     await page.keyboard.press('Control+z');
     await expect.poll(async () => (await cursor(page)).currentTimeMs).toBeCloseTo(before, 3);
   });
