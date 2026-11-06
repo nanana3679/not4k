@@ -6,6 +6,7 @@ import type { ChartDocument, ChartEvent, RestZone, BpmChange, TimeSignatureChang
 import { NOTE_HEIGHT, LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, COLORS } from "./constants";
 import { GridRenderer } from "./GridRenderer";
 import type { GridHost } from "./GridRenderer";
+import { createTimelineLayout } from "./TimelineLayout";
 
 // Pixi Text는 node 환경에서 캔버스 텍스트 측정(DOM)을 요구하므로 Container 기반 스텁으로 대체한다.
 // 이 테스트의 관심사는 이벤트 Graphics 기하뿐이다.
@@ -48,7 +49,6 @@ function makeHost(chart: ChartDocument): GridHost {
     selectedTrillZones: new Set(),
     selectedRestZones: new Set(),
     selectedEvents: new Set(),
-    currentTimelineWidth: TIMELINE_WIDTH + 3 * EXTRA_LANE_WIDTH,
     waveformPeaks: null,
     waveformDurationMs: 0,
     cachedBpmChanges: bpmChanges,
@@ -81,13 +81,29 @@ function renderEvents(events: ChartEvent[]): Container {
 const STROKE = 1.5;
 
 describe("GridRenderer.renderEvents 이벤트 기하", () => {
+  it("40px 공통 영역을 주입하면 메인 배경은 x=40, 보조 배경과 BPM은 x=280에서 시작한다", () => {
+    const host: GridHost = {
+      ...makeHost(makeChart([{ type: "bpm", beat: beat(0), bpm: 120 }])),
+      layout: createTimelineLayout({ auxiliaryLaneCount: 3, songCommonColumns: [{ id: "common", width: 40 }] }),
+    };
+    const renderer = new GridRenderer(host);
+    renderer.renderLaneBackgrounds();
+    const main = host.laneBackgrounds.children[0] as Graphics;
+    const auxiliary = host.laneBackgrounds.children[4] as Graphics;
+    expect(main.getLocalBounds().minX).toBe(40);
+    expect(auxiliary.getLocalBounds().minX).toBe(280);
+    const events = new Container();
+    renderer.renderEvents(events, null, () => undefined);
+    expect((events.children[0] as Graphics).getLocalBounds().minX).toBe(278.5);
+  });
+
   it("editorLane 없는 이벤트는 기본 1로 첫 엑스트라 칸(x=TIMELINE_WIDTH)에 그려진다", () => {
     const layer = renderEvents([{ type: "bpm", beat: beat(0), bpm: 120 }]);
     const gfx = layer.children[0] as Graphics;
     expect(gfx.getLocalBounds().minX).toBe(TIMELINE_WIDTH - STROKE);
   });
 
-  it("editorLane 3 이벤트는 x=TIMELINE_WIDTH+2*EXTRA_LANE_WIDTH 칸에 폭 EXTRA_LANE_WIDTH로 그려진다 (eventLaneToX)", () => {
+  it("editorLane 3 이벤트는 x=TIMELINE_WIDTH+2*EXTRA_LANE_WIDTH 칸에 폭 EXTRA_LANE_WIDTH로 그려진다", () => {
     const layer = renderEvents([
       { type: "text", beat: beat(0), endBeat: beat(2), text: "hi", editorLane: 3 },
     ]);

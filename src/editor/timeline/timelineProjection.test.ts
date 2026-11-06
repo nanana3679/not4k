@@ -7,60 +7,9 @@ import {
   getVisibleTimelineTimeRange,
   screenYToTimelineTime,
   timeToTimelineY,
-  timelineXToExtraLane,
-  timelineXToLane,
 } from "./timelineProjection";
 
 describe("timeline projection geometry", () => {
-  it("projects timeline-local x into main lanes with boundary-safe nulls", () => {
-    expect(timelineXToLane({ timelineX: -1, laneWidth: 60, laneCount: 4 })).toBeNull();
-    expect(timelineXToLane({ timelineX: 0, laneWidth: 60, laneCount: 4 })).toBe(1);
-    expect(timelineXToLane({ timelineX: 59.9, laneWidth: 60, laneCount: 4 })).toBe(1);
-    expect(timelineXToLane({ timelineX: 60, laneWidth: 60, laneCount: 4 })).toBe(2);
-    expect(timelineXToLane({ timelineX: 239.9, laneWidth: 60, laneCount: 4 })).toBe(4);
-    expect(timelineXToLane({ timelineX: 240, laneWidth: 60, laneCount: 4 })).toBeNull();
-  });
-
-  it("projects timeline-local x into extra lanes after the main timeline", () => {
-    expect(timelineXToExtraLane({
-      timelineX: 240,
-      timelineWidth: 240,
-      extraLaneWidth: 60,
-      extraLaneCount: 0,
-    })).toBeNull();
-
-    expect(timelineXToExtraLane({
-      timelineX: 239.9,
-      timelineWidth: 240,
-      extraLaneWidth: 60,
-      extraLaneCount: 2,
-    })).toBeNull();
-    expect(timelineXToExtraLane({
-      timelineX: 240,
-      timelineWidth: 240,
-      extraLaneWidth: 60,
-      extraLaneCount: 2,
-    })).toBe(1);
-    expect(timelineXToExtraLane({
-      timelineX: 299.9,
-      timelineWidth: 240,
-      extraLaneWidth: 60,
-      extraLaneCount: 2,
-    })).toBe(1);
-    expect(timelineXToExtraLane({
-      timelineX: 300,
-      timelineWidth: 240,
-      extraLaneWidth: 60,
-      extraLaneCount: 2,
-    })).toBe(2);
-    expect(timelineXToExtraLane({
-      timelineX: 360,
-      timelineWidth: 240,
-      extraLaneWidth: 60,
-      extraLaneCount: 2,
-    })).toBeNull();
-  });
-
   it("keeps time/y projection invertible while accounting for scroll", () => {
     const totalHeight = getTimelineTotalHeight({
       totalTimelineMs: 4000,

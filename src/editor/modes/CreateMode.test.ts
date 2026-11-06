@@ -817,3 +817,15 @@ describe('보조 trillZone 생성', () => {
     expect(cb.onChartUpdate).not.toHaveBeenCalled();
   });
 });
+
+it('auxiliary lane 2에서 text 드래그를 시작하고 도구를 single로 바꿔도 고스트 배치는 남고 취소하면 비워진다', () => {
+  const chart = makeChart();
+  const mode = new CreateMode(chart, makeCallbacks(chart, { xToExtraLane: () => 2 }));
+  mode.entityType = 'text';
+  mode.onPointerDown(10, 2);
+  expect(mode.dragEventPlacement).toEqual({ type: 'text', editorLane: 2 });
+  mode.entityType = 'single';
+  expect(mode.dragEventPlacement).toEqual({ type: 'text', editorLane: 2 });
+  mode.cancelDrag();
+  expect(mode.dragEventPlacement).toBeNull();
+});
