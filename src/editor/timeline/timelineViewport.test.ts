@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createTimelineLayout } from "./TimelineLayout";
 import {
   clampHorizontalPan,
   clampVerticalScroll,
@@ -17,6 +18,17 @@ import {
 } from "./timelineViewport";
 
 describe("timeline viewport geometry", () => {
+  it("40px 공통 영역과 보조 2개이면 x=0·39·399는 편집 영역, x=-1·400과 고정 레일은 seek 영역이다", () => {
+    const layout = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: "common", width: 40 }] });
+    for (const timelineX of [0, 39, 399]) {
+      expect(isPlaybackCursorSeekArea({ layout, screenX: 100, timelineX })).toBe(false);
+    }
+    for (const timelineX of [-1, 400]) {
+      expect(isPlaybackCursorSeekArea({ layout, screenX: 100, timelineX })).toBe(true);
+    }
+    expect(isPlaybackCursorSeekArea({ layout, screenX: 20, timelineX: 100 })).toBe(true);
+  });
+
   it("keeps the timeline content anchored after the fixed left rail", () => {
     expect(getTimelineContentOffsetX({ leftRailWidth: 32, horizontalPanX: 0 })).toBe(32);
     expect(getTimelineContentOffsetX({ leftRailWidth: 32, horizontalPanX: 120 })).toBe(-88);
@@ -88,25 +100,23 @@ describe("timeline viewport geometry", () => {
   });
 
   it("treats the fixed left rail as a playback cursor seek area", () => {
+    const layout = createTimelineLayout({ auxiliaryLaneCount: 0 });
     expect(isPlaybackCursorSeekArea({
       screenX: 24,
       timelineX: -8,
-      timelineWidth: 240,
-      leftRailWidth: 32,
+      layout,
     })).toBe(true);
 
     expect(isPlaybackCursorSeekArea({
       screenX: 120,
       timelineX: 88,
-      timelineWidth: 240,
-      leftRailWidth: 32,
+      layout,
     })).toBe(false);
 
     expect(isPlaybackCursorSeekArea({
       screenX: 300,
       timelineX: 268,
-      timelineWidth: 240,
-      leftRailWidth: 32,
+      layout,
     })).toBe(true);
   });
 
@@ -198,17 +208,18 @@ describe("center-shift를 적용한 오프셋/레일 계산", () => {
   });
 
   it("seek 영역: 이동한 좌측 레일과 좌측 여백 모두 인식한다", () => {
+    const layout = createTimelineLayout({ auxiliaryLaneCount: 0 });
     // 이동한 레일
     expect(isPlaybackCursorSeekArea({
-      screenX: 360, timelineX: -20, timelineWidth: 240, leftRailWidth: 32, railStartX: 348,
+      screenX: 360, timelineX: -20, layout, railStartX: 348,
     })).toBe(true);
     // 중앙 정렬로 생긴 좌측 여백(레인 왼쪽 = timelineX < 0)도 seek 영역
     expect(isPlaybackCursorSeekArea({
-      screenX: 10, timelineX: -370, timelineWidth: 240, leftRailWidth: 32, railStartX: 348,
+      screenX: 10, timelineX: -370, layout, railStartX: 348,
     })).toBe(true);
-    // 레인 영역 안(0 ≤ timelineX < timelineWidth)은 seek 영역 아님
+    // 콘텐츠 영역 안은 seek 영역 아님
     expect(isPlaybackCursorSeekArea({
-      screenX: 500, timelineX: 100, timelineWidth: 240, leftRailWidth: 32, railStartX: 348,
+      screenX: 500, timelineX: 100, layout, railStartX: 348,
     })).toBe(false);
   });
 });

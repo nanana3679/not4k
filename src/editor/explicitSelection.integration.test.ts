@@ -1,3 +1,4 @@
+import { createTimelineLayout } from './timeline/TimelineLayout';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat, beatToFloat, deriveExplicitNoteRelations } from '../shared';
 import type { ChartDocument, DocumentNoteEntity } from '../shared';
@@ -52,6 +53,7 @@ function setup(source = family(), zoneEndHit: number | null = null) {
   });
   const click = (lane: number, at: number, toggle = false) => { mode.onPointerDown(lane, at, false, false, toggle); mode.onPointerUp(lane, at); };
   const erase = new EraseGesture({
+    getLayout: () => createTimelineLayout({ auxiliaryLaneCount: current().extraLaneCount }),
     getChart: () => current().chart, getSelectedNotes: selection, onChartUpdate: (value, transaction) => { current().setChart(value, { transaction }); mode.setChart(value); },
     beginTransaction: onInterrupt => current().beginEditTransaction('erase', onInterrupt), commitTransaction: token => current().commitEditTransaction(token), cancelTransaction: token => current().cancelEditTransaction(token), onWarn: warn,
   });
@@ -377,12 +379,12 @@ describe('명시 바디 끝 resize와 삭제 보호', () => {
     expect(current().chart).toEqual(initial); expect(current().historyPast).toHaveLength(0);
   });
   it('미선택 Body 우클릭은 연결 4개만 지우고 중간 탭을 남기며 Undo 1개로 복구한다', () => {
-    const { erase } = setup(); const initial = current().chart; erase.begin(); erase.erase(1, 2); erase.finish();
+    const { erase } = setup(); const initial = current().chart; erase.begin(); erase.erase(30, 2); erase.finish();
     expect(notes()).toEqual([initial.notes[4]]); expect(current().historyPast).toHaveLength(1); current().undo(); expect(current().chart).toEqual(initial);
   });
   it('선택된 Body 우클릭은 그쪽 현재 set만 지우고 제외 Release·다른 선택 Body를 index 보정해 남긴다', () => {
     const { erase, mode, click } = setup([...family(), ...family(2)]); mode.selectAll(); click(1, 5, true);
-    erase.begin(); erase.erase(1, 2); erase.finish();
+    erase.begin(); erase.erase(30, 2); erase.finish();
     expect(notes().slice(0, 2)).toEqual([family()[3], family()[4]]); expect(notes().slice(2)).toEqual(family(2));
     expect(selection()).toEqual(new Set([1, 2, 3, 4, 5, 6]));
   });
@@ -397,7 +399,7 @@ describe('명시 바디 끝 resize와 삭제 보호', () => {
   it('틱 제외 Body의 Delete와 직접 우클릭 모두 chart·set·history를 바꾸지 않는다', () => {
     const { mode, click, erase, warn } = setup(); click(1, 2); click(1, 3, true); const initial = current();
     mode.deleteSelected(); expect(current().chart).toBe(initial.chart); expect(current().selection).toBe(initial.selection);
-    erase.begin(); erase.erase(1, 2); erase.finish();
+    erase.begin(); erase.erase(30, 2); erase.finish();
     expect(current().chart).toBe(initial.chart); expect(current().selection).toBe(initial.selection); expect(current().historyPast).toBe(initial.historyPast);
     expect(warn).toHaveBeenCalledTimes(2); expect(mode.copy()).toBe(3);
   });
@@ -413,30 +415,30 @@ describe('명시 바디 끝 resize와 삭제 보호', () => {
   });
   it.each(['tap', 'release'] as const)('double %s 직접 삭제는 수량 2 전체를 한 번에 지운다', type => {
     const node: DocumentNoteEntity = type === 'tap' ? { type, lane: 1, beat: beat(0), kind: 'double' } : { type, lane: 1, beat: beat(0), count: 2 };
-    const { erase } = setup([node]); erase.begin(); erase.erase(1, 0); erase.finish(); expect(notes()).toEqual([]);
+    const { erase } = setup([node]); erase.begin(); erase.erase(30, 0); erase.finish(); expect(notes()).toEqual([]);
   });
 });
 
 describe('우클릭 gesture transaction·취소·Undo 수명', () => {
   it('3초 넘는 연속 삭제 전체는 Undo 1개이며 직후 새 gesture와 일반 편집은 각각 독립 Undo다', () => {
     vi.useFakeTimers(); const { erase } = setup([1, 2, 3, 4].map(at => ({ type: 'tap', kind: 'single', lane: 1, beat: beat(at) })));
-    erase.begin(); erase.erase(1, 1); vi.advanceTimersByTime(3000); erase.erase(1, 2); erase.finish(); expect(current().historyPast).toHaveLength(1);
-    erase.begin(); erase.erase(1, 3); erase.finish(); expect(current().historyPast).toHaveLength(2);
+    erase.begin(); erase.erase(30, 1); vi.advanceTimersByTime(3000); erase.erase(30, 2); erase.finish(); expect(current().historyPast).toHaveLength(1);
+    erase.begin(); erase.erase(30, 3); erase.finish(); expect(current().historyPast).toHaveLength(2);
     current().setChart({ ...current().chart, notes: [...notes(), { type: 'release', lane: 2, beat: beat(7), count: 1 }] });
     expect(current().historyPast).toHaveLength(3); current().undo(); expect(notes()).toHaveLength(1); current().undo(); expect(notes()).toHaveLength(2); current().undo(); expect(notes()).toHaveLength(4);
     current().redo(); expect(notes()).toHaveLength(2);
   });
   it('틱 삭제 후 같은 3박에서 반복 이동해도 드러난 Body는 남고 새 gesture에서는 지울 수 있다', () => {
-    const { erase } = setup(); erase.begin(); erase.erase(1, 3); erase.erase(1, 3); erase.erase(1, 3.02); erase.finish();
+    const { erase } = setup(); erase.begin(); erase.erase(30, 3); erase.erase(30, 3); erase.erase(30, 3.02); erase.finish();
     expect(notes().some(note => note.type === 'body')).toBe(true); expect(notes().some(note => note.type === 'tick')).toBe(false);
-    erase.begin(); erase.erase(1, 3); erase.finish(); expect(notes().some(note => note.type === 'body')).toBe(false);
+    erase.begin(); erase.erase(30, 3); erase.finish(); expect(notes().some(note => note.type === 'body')).toBe(false);
   });
   it('노트를 지운 자리 보호는 다른 위치의 바디 직접 삭제를 막지 않는다', () => {
-    const { erase } = setup(); erase.begin(); erase.erase(1, 3); erase.erase(1, 2); erase.finish(); expect(notes().some(note => note.type === 'body')).toBe(false);
+    const { erase } = setup(); erase.begin(); erase.erase(30, 3); erase.erase(30, 2); erase.finish(); expect(notes().some(note => note.type === 'body')).toBe(false);
   });
   it('이전 편집 뒤 erase 중 Esc는 해당 삭제만 복구하고 버튼 up 전 move를 무시하며 past/future를 보존한다', () => {
     const { erase } = setup(); current().setChart({ ...current().chart, notes: [...notes(), { type: 'release', lane: 2, beat: beat(8), count: 1 }] });
-    const before = current(); erase.begin(); erase.erase(1, 3); erase.cancel(); erase.erase(1, 1); erase.erase(2, 8);
+    const before = current(); erase.begin(); erase.erase(30, 3); erase.cancel(); erase.erase(30, 1); erase.erase(90, 8);
     expect(current().chart).toBe(before.chart); expect(current().historyPast).toBe(before.historyPast); expect(current().historyFuture).toBe(before.historyFuture);
     erase.finish(); expect(current().historyPast).toHaveLength(1); current().undo(); expect(notes()).toEqual(family());
   });
@@ -446,23 +448,23 @@ describe('우클릭 gesture transaction·취소·Undo 수명', () => {
       current().setChart({ ...current().chart, notes: [...notes(), { type: 'release', lane: 2, beat: beat(9), count: 1 }] });
       current().undo();
     }
-    erase.begin(); erase.erase(1, 3);
+    erase.begin(); erase.erase(30, 3);
     if (command === '편집') current().setChart({ ...current().chart, notes: [...notes(), { type: 'tap', kind: 'single', lane: 2, beat: beat(8) }] });
     if (command === 'Undo') current().undo();
     if (command === 'Redo') current().redo();
     if (command === 'mode') current().setMode('create');
     if (command === 'load') current().loadChart(chart([{ type: 'release', lane: 3, beat: beat(8), count: 1 }]));
-    const afterCommand = current(); erase.cancel(); erase.erase(1, 1); erase.finish();
+    const afterCommand = current(); erase.cancel(); erase.erase(30, 1); erase.finish();
     expect(current().chart).toBe(afterCommand.chart); expect(current().historyPast).toBe(afterCommand.historyPast); expect(current().historyFuture).toBe(afterCommand.historyFuture);
     expect(current().editTransaction).toBeNull();
   });
   it('Redo 기록이 있는 상태의 삭제 gesture를 Esc로 취소하면 future와 이전 선택을 그대로 복구한다', () => {
     const { mode, erase } = setup(); current().setChart({ ...current().chart, notes: [...notes(), { type: 'release', lane: 2, beat: beat(7), count: 1 }] }); current().undo();
-    mode.setChart(current().chart); mode.selectNote(0); const before = current(); erase.begin(); erase.erase(1, 3); erase.cancel(); erase.finish();
+    mode.setChart(current().chart); mode.selectNote(0); const before = current(); erase.begin(); erase.erase(30, 3); erase.cancel(); erase.finish();
     expect(current().chart).toBe(before.chart); expect(current().selection).toBe(before.selection); expect(current().historyFuture).toBe(before.historyFuture);
     current().redo(); expect(notes()).toHaveLength(6);
   });
   it('빈 gesture와 같은 위치 클릭만 한 move는 새 history를 만들지 않는다', () => {
-    const { erase, click } = setup(); erase.begin(); erase.erase(2, 9); erase.finish(); click(1, 2); expect(current().historyPast).toHaveLength(0);
+    const { erase, click } = setup(); erase.begin(); erase.erase(90, 9); erase.finish(); click(1, 2); expect(current().historyPast).toHaveLength(0);
   });
 });

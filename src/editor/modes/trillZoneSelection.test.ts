@@ -287,23 +287,23 @@ describe("boxEnclosesZone", () => {
   const zone: TrillZone = { lane: 2, beat: beat(2), endBeat: beat(6) };
 
   it("박스가 zone beat·lane을 완전히 포함하면(레인1~3, 박0~8 ⊇ 존 레인2, 2~6) true", () => {
-    expect(boxEnclosesZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(8) })).toBe(true);
+    expect(boxEnclosesZone(zone, { includesLane: (lane: number) => lane >= 1 && lane <= 3, minBeat: beat(0), maxBeat: beat(8) })).toBe(true);
   });
 
   it("박스 maxBeat(4)가 zone.endBeat(6)보다 작으면(부분 겹침) false", () => {
-    expect(boxEnclosesZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(4) })).toBe(false);
+    expect(boxEnclosesZone(zone, { includesLane: (lane: number) => lane >= 1 && lane <= 3, minBeat: beat(0), maxBeat: beat(4) })).toBe(false);
   });
 
   it("박스 minBeat(3)가 zone.beat(2)보다 크면 false", () => {
-    expect(boxEnclosesZone(zone, { minLane: 1, maxLane: 3, minBeat: beat(3), maxBeat: beat(8) })).toBe(false);
+    expect(boxEnclosesZone(zone, { includesLane: (lane: number) => lane >= 1 && lane <= 3, minBeat: beat(3), maxBeat: beat(8) })).toBe(false);
   });
 
   it("zone.lane(2)이 박스 lane 범위(3~4) 밖이면 박이 다 감싸여도 false", () => {
-    expect(boxEnclosesZone(zone, { minLane: 3, maxLane: 4, minBeat: beat(0), maxBeat: beat(8) })).toBe(false);
+    expect(boxEnclosesZone(zone, { includesLane: (lane: number) => lane >= 3 && lane <= 4, minBeat: beat(0), maxBeat: beat(8) })).toBe(false);
   });
 
   it("박스 경계와 zone 경계가 정확히 같으면(레인2~2, 박2~6 == 존) true — 폐구간", () => {
-    expect(boxEnclosesZone(zone, { minLane: 2, maxLane: 2, minBeat: beat(2), maxBeat: beat(6) })).toBe(true);
+    expect(boxEnclosesZone(zone, { includesLane: (lane: number) => lane >= 2 && lane <= 2, minBeat: beat(2), maxBeat: beat(6) })).toBe(true);
   });
 });
 
@@ -324,9 +324,9 @@ describe("selectionFromBox", () => {
     { type: "single", lane: 3, beat: beat(9) },  // 4: 일반 (박스 밖)
   ];
   // 두 zone(2~4)을 모두 완전히 감싸는 박스
-  const enclosingBox = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(5) };
+  const enclosingBox = { includesLane: (lane: number) => lane >= 1 && lane <= 3, minBeat: beat(0), maxBeat: beat(5) };
   // maxBeat(3) < zone.endBeat(4) → 어떤 zone도 완전히 못 감싸는 통과(부분 겹침) 박스
-  const partialBox = { minLane: 1, maxLane: 3, minBeat: beat(0), maxBeat: beat(3) };
+  const partialBox = { includesLane: (lane: number) => lane >= 1 && lane <= 3, minBeat: beat(0), maxBeat: beat(3) };
 
   it("빈 박스에서 zone을 완전히 안 감싸면(통과) 그 zone 트릴 노트 중 박스 안 것만 개별 선택하고 zone 유닛은 미픽업", () => {
     const sel = selectionFromBox(zones, notes, [], partialBox);
@@ -354,7 +354,7 @@ describe("selectionFromBox", () => {
       { lane: 1, beat: beat(2), endBeat: beat(4) }, // 구간0
       { lane: 2, beat: beat(2), endBeat: beat(6) }, // 구간1
     ];
-    const box = { minLane: 1, maxLane: 2, minBeat: beat(0), maxBeat: beat(5) };
+    const box = { includesLane: (lane: number) => lane >= 1 && lane <= 2, minBeat: beat(0), maxBeat: beat(5) };
     const sel = selectionFromBox(mixedZones, notes, [], box);
     expect(sel.zones).toEqual(new Set([0]));   // 감싼 구간0만 유닛
     expect(sel.notes).toEqual(new Set([2]));   // 통과한 구간1의 박스 안 트릴(beat3)만 개별
@@ -364,7 +364,7 @@ describe("selectionFromBox", () => {
     expect(selectionFromBox(zones, notes, [], enclosingBox).notes.has(4)).toBe(false); // beat9 > maxBeat5
 
     // 레인 3만 덮는 박스: 두 zone(레인1·2) 모두 레인 밖 → zones ∅, 트릴도 박스 밖
-    const lane3Box = { minLane: 3, maxLane: 3, minBeat: beat(0), maxBeat: beat(5) };
+    const lane3Box = { includesLane: (lane: number) => lane >= 3 && lane <= 3, minBeat: beat(0), maxBeat: beat(5) };
     const sel = selectionFromBox(zones, notes, [], lane3Box);
     expect(sel.zones).toEqual(new Set());
     expect(sel.notes).toEqual(new Set([3]));
@@ -406,7 +406,7 @@ describe("selectionFromBox", () => {
   });
 
   it("restZone.lane(3)이 박스 레인 범위(1~2) 밖이면 박이 다 감싸여도 미픽업", () => {
-    const lane12Box = { minLane: 1, maxLane: 2, minBeat: beat(0), maxBeat: beat(8) };
+    const lane12Box = { includesLane: (lane: number) => lane >= 1 && lane <= 2, minBeat: beat(0), maxBeat: beat(8) };
     const sel = selectionFromBox(zones, notes, restZones, lane12Box);
     expect(sel.restZones).toEqual(new Set());
   });
