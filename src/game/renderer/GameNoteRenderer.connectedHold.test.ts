@@ -167,11 +167,11 @@ describe("이어진 롱노트 held 전파", () => {
 });
 
 function unit(unitIndex = 0, overrides: Partial<JudgmentBodyUnitView> = {}): JudgmentBodyUnitView {
-  return { unitIndex, active: false, failed: false, complete: false, registeredKeys: [], ...overrides };
+  return { unitIndex, hasStarted: false, failed: false, complete: false, held: false, ...overrides };
 }
 
 function heldUnit(unitIndex = 0): JudgmentBodyUnitView {
-  return unit(unitIndex, { active: true, registeredKeys: [`Key${unitIndex}`] });
+  return unit(unitIndex, { hasStarted: true, held: true });
 }
 
 function connectStates(renderer: GameNoteRenderer, states: JudgmentBodyStateView[], trillLongIndices: ReadonlySet<number> = new Set()) {
@@ -235,11 +235,11 @@ describe("판정 상태 조회를 사용하는 연결 롱노트 표시", () => {
     expect(calledWithTex(getTexture, 'bodyTrillHeld')).toBe(false);
   });
 
-  it.each([false, true])('중간 트릴의 실제 홀드가 %s여도 앞 싱글의 켜짐을 트릴 너머 싱글에 전파하지 않는다', active => {
+  it.each([false, true])('중간 트릴의 실제 홀드가 %s여도 앞 싱글의 켜짐을 트릴 너머 싱글에 전파하지 않는다', held => {
     const { renderer, getTexture } = createRenderer();
     connectStates(renderer, [
       { units: [heldUnit()], successorIndex: 1 },
-      { units: [active ? heldUnit() : unit()], successorIndex: 2 },
+      { units: [held ? heldUnit() : unit()], successorIndex: 2 },
       { units: [unit()] },
     ], new Set([1]));
     renderer.renderLongNote(body(400, 600), 2, 400, 600, 300);
@@ -249,9 +249,9 @@ describe("판정 상태 조회를 사용하는 연결 롱노트 표시", () => {
 
   it.each([
     ["입력 전", unit()],
-    ["등록 키를 놓친 상태", unit(0, { active: true })],
-    ["실패", unit(0, { active: true, failed: true })],
-    ["완료", unit(0, { active: true, complete: true, registeredKeys: ["KeyF"] })],
+    ["시작했지만 유지하지 않는 상태", unit(0, { hasStarted: true })],
+    ["실패", unit(0, { hasStarted: true, failed: true })],
+    ["완료", unit(0, { hasStarted: true, complete: true })],
   ])("선행 구간이 %s이면 시작 시각을 지났어도 후속 바디는 대기 상태다", (_, predecessor) => {
     const { renderer, getTexture } = createRenderer();
     connectStates(renderer, [
@@ -263,6 +263,28 @@ describe("판정 상태 조회를 사용하는 연결 롱노트 표시", () => {
 
     expect(calledWithTex(getTexture, "bodySingle")).toBe(true);
     expect(calledWithTex(getTexture, "bodySingleHeld")).toBe(false);
+  });
+
+  it("앞 구간이 held여도 자기 unit이 hasStarted이고 held가 아니면 자기 바디는 bodySingleHeld가 아니라 bodySingle", () => {
+    const { renderer, getTexture } = createRenderer();
+    connectStates(renderer, [
+      { units: [heldUnit()], successorIndex: 1 },
+      { units: [unit(0, { hasStarted: true })] },
+    ]);
+
+    renderer.renderLongNote(body(200, 400), 1, 200, 400, 300);
+
+    expect(calledWithTex(getTexture, "bodySingle")).toBe(true);
+    expect(calledWithTex(getTexture, "bodySingleHeld")).toBe(false);
+  });
+
+  it("trillLong unit이 hasStarted이고 실패·완료하지 않았어도 held가 false면 bodyTrillHeld가 아니라 bodyTrill", () => {
+    const { renderer, bodyLayer } = createRenderer();
+    connectStates(renderer, [{ units: [unit(0, { hasStarted: true })] }], new Set([0]));
+
+    renderer.renderLongNote(body(0, 200, "trillLong"), 0, 0, 200, 100);
+
+    expect((bodyLayer.children.at(-1) as unknown as { texture: { key: string } }).texture.key).toBe("bodyTrill");
   });
 
   it("첫 구간이 켜져 있어도 중간 구간이 실패하면 세 번째 구간으로 전파하지 않는다", () => {
@@ -318,7 +340,7 @@ describe("판정 상태 조회를 사용하는 연결 롱노트 표시", () => {
   it("더블의 한 unit이 실패해도 건강한 1개 유지 표시는 다음 더블에 1/2로 이어진다", () => {
     const { renderer, getTexture } = createRenderer();
     connectStates(renderer, [
-      { units: [unit(0, { active: true, failed: true }), heldUnit(1)], successorIndex: 1 },
+      { units: [unit(0, { hasStarted: true, failed: true }), heldUnit(1)], successorIndex: 1 },
       { units: [unit(), unit(1)] },
     ]);
 
@@ -334,7 +356,7 @@ describe("판정 상태 조회를 사용하는 연결 롱노트 표시", () => {
     const h = createHarness(notes);
     renderer.setLongNoteConnections(new Map([[1, 0]]), new Map([[0, 0], [1, 1000]]));
     new SessionRendererAdapter({
-      notes, connections: h.compiled.connections, bodyStates: () => h.core.bodyStates,
+      notes, connections: h.compiled.connections, unitStates: () => h.core.unitStates,
       scoreAccuracy: () => h.score.getState().achievementRate,
       port: {
         showJudgment: vi.fn(), recordFlightJudgment: vi.fn(), showBombEffect: vi.fn(),
@@ -344,11 +366,11 @@ describe("판정 상태 조회를 사용하는 연결 롱노트 표시", () => {
     });
     const textureKey = () => (bodyLayer.children.at(-1) as unknown as { texture: { key: string } }).texture.key;
     h.at(0, down("A"));
-    const beforeRender = h.core.bodyStates;
+    const beforeRender = h.core.unitStates;
     renderer.renderLongNote(notes[1], 1, 1000, 2000, 500);
     expect(textureKey()).toBe("bodySingleHeld");
-    expect(h.core.bodyStates).toEqual(beforeRender);
-    expect(h.core.bodyStates.find(u => u.noteIndex === 1)?.active).toBe(false);
+    expect(h.core.unitStates).toEqual(beforeRender);
+    expect(h.core.unitStates.find(u => u.noteIndex === 1)?.hasStarted).toBe(false);
 
     h.at(500, up("A"));
     h.at(700);

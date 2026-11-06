@@ -27,8 +27,8 @@ describe("compiled chart test-play selection", () => {
     const session = new NoteJudgmentSession(selected);
     session.processBatch(500, [down("A")]);
     session.advance(1121);
-    expect(session.bodyStates).toHaveLength(1);
-    expect(session.bodyStates[0]).toMatchObject({ noteIndex: 1, active: false, failed: true });
+    expect(session.unitStates).toHaveLength(1);
+    expect(session.unitStates[0]).toMatchObject({ noteIndex: 1, hasStarted: false, failed: true });
     expect(session.finalize()).toMatchObject({ achievementRate: 0, processedNotes: 1 });
     expect(session.events.every(event => event.noteIndex === 1)).toBe(true);
   });

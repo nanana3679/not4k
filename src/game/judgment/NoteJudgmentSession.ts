@@ -5,7 +5,7 @@ import {
   decideConfirmedJudgmentEffects,
   type ConfirmedJudgmentEffects,
 } from "./confirmedJudgmentEffects";
-import type { JudgmentCore, JudgmentCoreFactory, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+import type { JudgmentCore, JudgmentCoreFactory, JudgmentInput, JudgmentUnitState, NoteJudgmentEvent } from "./JudgmentCore";
 import { createNoteJudgmentCore } from "./NoteJudgmentCore";
 import type { CompiledJudgmentChart } from "./compiledJudgmentChart";
 
@@ -86,8 +86,8 @@ export class NoteJudgmentSession {
   get events(): readonly NoteJudgmentEvent[] { return this.core.confirmed; }
   get effects(): readonly ConfirmedJudgmentEffects[] { return this.effectsByEvent; }
   get combo(): number { return this.core.combo; }
-  get unitStates() { return this.core.bodyStates; }
-  get bodyStates() { return this.core.bodyStates; }
+  /** 렌더러와 사례 이미지 도구가 읽는 unit 상태. 코어 경계 그대로다. */
+  get unitStates(): readonly JudgmentUnitState[] { return this.core.unitStates; }
   get connections() { return this.chart.connections; }
 
   private applyConfirmedEvent(event: NoteJudgmentEvent): void {

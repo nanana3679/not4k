@@ -19,7 +19,7 @@ describe("PlayScreen perspective surface altitude", () => {
       setJudgmentBodyStateQuery: () => undefined,
     };
     const session = new NoteJudgmentSession(chart, { onBatchConfirmed: view => adapter.apply(view) });
-    const adapter = new SessionRendererAdapter({ notes, connections: [], bodyStates: () => session.bodyStates, scoreAccuracy: () => session.score.getState().achievementRate, port });
+    const adapter = new SessionRendererAdapter({ notes, connections: [], unitStates: () => session.unitStates, scoreAccuracy: () => session.score.getState().achievementRate, port });
     session.processBatch(1000, [{ key: "A", lane: 1, type: "down" }]);
     expect(altitude).toBe(1);
   });

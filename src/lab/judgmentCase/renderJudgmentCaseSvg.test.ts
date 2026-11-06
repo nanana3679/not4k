@@ -89,12 +89,30 @@ function labelsOf(text: string, overrides: Partial<JudgmentCaseRun> = {}): strin
 }
 
 function unitState(overrides: Partial<JudgmentCaseUnitState>): JudgmentCaseUnitState {
-  return { noteIndex: 0, unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: [], ...overrides };
+  return { noteIndex: 0, unitIndex: 0, hasStarted: true, failed: false, complete: false, registeredKeys: [], ...overrides };
 }
 
 /** run.unitStates에서 noteIndex 유닛만 바꾼 run */
 function withUnit(run: JudgmentCaseRun, noteIndex: number, overrides: Partial<JudgmentCaseUnitState>): JudgmentCaseRun {
   return { ...run, unitStates: run.unitStates!.map((state) => (state.noteIndex === noteIndex ? { ...state, ...overrides } : state)) };
+}
+
+/**
+ * compile은 실제 엔진을 쓰고, 세션은 고정 이벤트와 `unitStates`만 내는 엔진. unit 상태에는 `hasStarted`만 있고
+ * `active`·`registeredKeys`와 세션의 `bodyStates`는 없다(경계만 구현한 코어를 쓰는 세션).
+ */
+function unitStatesOnlyEngine(events: JudgmentCaseRunEvent[], unitStates: readonly object[]): JudgmentEngine {
+  class UnitStatesOnlySession {
+    readonly events = events;
+    readonly unitStates = unitStates;
+    readonly score = {
+      getState: () => ({ judgmentCounts: { perfect: 0, great: 0, good: 0, goodTrill: 0, miss: 1 }, achievementRate: 0, isFullCombo: false, processedNotes: 1, totalNotes: 1 }),
+    };
+    advance() {}
+    processBatch() {}
+    finalize() {}
+  }
+  return { compileJudgmentChart, NoteJudgmentSession: UnitStatesOnlySession, validateChart } as unknown as JudgmentEngine;
 }
 
 function noteLabelsOf(text: string, options: { showLane?: boolean } = {}): string[] {
@@ -290,8 +308,16 @@ describe("describeJudgmentEvent — 시작·유지 실패는 엔진 유닛 상�
     expect(labelsOf("노트: head 1000 | long 1000-2000\n입력: A 1000-1120 | D 1120-1300")).toContain("N2 유지 실패 1120 — A↑1120 (끝−Good 1880 전)");
   });
 
-  it("엔진이 유닛 상태(bodyStates)를 주지 않으면 시작·유지를 가리지 않고 N1 실패 1120, 이유 없음", () => {
+  it("엔진이 유닛 상태(unitStates·bodyStates)를 주지 않으면 시작·유지를 가리지 않고 N1 실패 1120, 이유 없음", () => {
     expect(labelsOf(UNSTARTED_UP_AT_DEADLINE, { unitStates: null, unitStatesBeforeBatch: null })).toContain("N1 실패 1120");
+  });
+
+  it("unitStates만 있는 세션에서 hasStarted인 실패 unit은 사례 이미지에 유지 실패로 표시됨", () => {
+    const judgmentCase = judgmentCaseFromSource("노트: long 1000-2000\n입력: A 1000-1500");
+    const maintenanceMiss = event({ kind: "maintenanceMiss", noteIndex: 0, unitIndex: 0, grade: "miss", deltaMs: 520, confirmedAt: 1520 });
+    const fake = unitStatesOnlyEngine([maintenanceMiss], [{ noteIndex: 0, unitIndex: 0, hasStarted: true, failed: true, complete: false, held: false }]);
+    const panel: JudgmentCasePanel = { judgmentCase, run: runJudgmentCase(judgmentCase, fake), engineLabel: "fake", enginePath: "/repo/fake" };
+    expect(panel.run.events.map((candidate) => fullLabel(candidate, panel))).toEqual(["N1 유지 실패 1520"]);
   });
 });
 
@@ -323,12 +349,12 @@ describe("describeFailureReason — 확실하지 않으면 생략", () => {
 
   it("앞 바디를 쥔 키 A가 끝−Good 1440 뒤(1450)에 떼졌으면 키 조각을 빼고 시작 창 입력만 남김(N2를 시작 실패로 바꾼 엔진 상태)", () => {
     const later = panelFor(D4.replace("A 1000-1430", "A 1000-1450"));
-    const run = withUnit(later.run, 1, { active: false, failed: true, complete: false, registeredKeys: [] });
+    const run = withUnit(later.run, 1, { hasStarted: false, failed: true, complete: false, registeredKeys: [] });
     expect(labelText(describeFailureReason(startFailure, later.judgmentCase, run))).toBe("D↓1490 → N3 head");
   });
 
   it("앞 바디 N1이 시작하지 않았으면(등록 키 없음) A↑1430 조각을 빼고 D↓1490 → N3 head만", () => {
-    const run = withUnit(panel.run, 0, { active: false, failed: true, complete: false, registeredKeys: [] });
+    const run = withUnit(panel.run, 0, { hasStarted: false, failed: true, complete: false, registeredKeys: [] });
     expect(labelText(describeFailureReason(startFailure, panel.judgmentCase, run))).toBe("D↓1490 → N3 head");
   });
 
@@ -344,7 +370,7 @@ describe("describeFailureReason — 확실하지 않으면 생략", () => {
 
   it("시작했던 N2가 끝 + Good(1680)에 유지 실패로 확정되면 바디 밖이라 이유를 붙이지 않음", () => {
     const endFailure = event({ kind: "maintenanceMiss", noteIndex: 1, unitIndex: 0, grade: "miss", deltaMs: 120, confirmedAt: 1680 });
-    const run = withUnit(panel.run, 1, { active: true, failed: true, registeredKeys: ["A"] });
+    const run = withUnit(panel.run, 1, { hasStarted: true, failed: true, registeredKeys: ["A"] });
     expect(describeFailureReason(endFailure, panel.judgmentCase, run)).toEqual([]);
   });
 });

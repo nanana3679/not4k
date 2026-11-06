@@ -271,7 +271,7 @@ describe("NJ-H08: 늦게 시작한 holdOnly의 승계", () => {
     expect(h.events.filter((event) => event.kind === "maintenanceMiss").map((event) => [event.noteIndex, event.confirmedAt])).toEqual([
       [2, 1620], [3, 2120], [4, 2620],
     ]);
-    expect(h.core.bodyStates.every((state) => !state.active && state.failed)).toBe(true);
+    expect(h.core.unitStates.every((state) => !state.hasStarted && state.failed)).toBe(true);
   });
 
   it("NJ-H08 대조: head 1000을 A 1050ms에 늦게 쳐 일반 [1000,1060]을 시작하고 B 1060ms로 doubleLong [1060,2000] 증가분을 채우면 A/B up 2000ms가 release Perfect 2개", () => {

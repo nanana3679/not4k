@@ -6,12 +6,21 @@ import { LaneHoldTracker, type LaneHoldView } from "./LaneHoldTracker";
 import { compileJudgmentChart, type CompiledJudgmentChart } from "./compiledJudgmentChart";
 import { PointJudgmentState } from "./PointJudgmentState";
 import { ZeroHoldOnlyState } from "./ZeroHoldOnlyState";
-import type { JudgmentBodyState, JudgmentCore, JudgmentCoreFactory, JudgmentCoreOptions, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
+import type { JudgmentCore, JudgmentCoreFactory, JudgmentCoreOptions, JudgmentGrade, JudgmentInput, JudgmentUnitState, NoteJudgmentEvent } from "./JudgmentCore";
 
 /** 공용 타입을 JudgmentCore.ts로 옮기기 전의 import 경로(`./NoteJudgmentCore`)를 그대로 쓸 수 있게 다시 내보낸다. */
 export type { JudgmentEventKind, JudgmentGrade, JudgmentInput, NoteJudgmentEvent } from "./JudgmentCore";
 /** 이 코어의 생성 옵션. 코어 공용 이름은 `JudgmentCoreOptions`이고 이 이름은 기존 import를 위해 남긴다. */
 export type NoteJudgmentCoreOptions = JudgmentCoreOptions;
+
+/**
+ * 이 코어의 unit 상태. 경계(`JudgmentUnitState`) 밖 필드로 등록 키를 함께 싣는다. 사례 이미지 도구가 실패 이유를 적을 때 읽으며,
+ * 렌더러는 읽지 않는다(#287 6c까지).
+ */
+export interface NoteJudgmentCoreUnitState extends JudgmentUnitState {
+  /** 이 unit에 등록한 유지 키. */
+  readonly registeredKeys: readonly string[];
+}
 
 /** A deliberately small seam between chart compilation and the judgment runtime. */
 export interface JudgmentChartLike {
@@ -225,8 +234,18 @@ export class NoteJudgmentCore implements JudgmentCore {
   get combo(): number { return this.currentCombo; }
   /** 레인별 hold 수와 기준별 부족 시각의 읽기 전용 view (RFD 0032 §2-1, §2-2). */
   get laneHolds(): LaneHoldView { return this.holdView; }
-  get bodyStates(): readonly JudgmentBodyState[] {
-    return this.units.map(u => ({ noteIndex: u.noteIndex, unitIndex: u.unitIndex, active: u.active, failed: u.failed, complete: u.complete, registeredKeys: [...u.registered] }));
+  /**
+   * `held`는 시작했고 실패·완료하지 않았으며 등록 키가 있는 unit이다(렌더러가 직접 계산하던 켜짐 조건과 같다). 이 코어는 등록 키를
+   * 지우지 않고 시작할 때 키를 등록하므로, `held`는 사실상 시작했고 실패·완료하지 않은 unit이다. 키를 떼도 실패·완료가 확정될
+   * 때까지 true로 남는다(doubleLong을 A·B로 잡고 A를 떼면 B를 등록한 뒤 unit이 실패하고, A를 등록한 앞 unit은 true로 남는다). hold 수 코어는 레인
+   * hold 수가 요구보다 모자라면 false로 둘 수 있다(코어마다 유지 판단이 다르다).
+   */
+  get unitStates(): readonly NoteJudgmentCoreUnitState[] {
+    return this.units.map(u => ({
+      noteIndex: u.noteIndex, unitIndex: u.unitIndex, hasStarted: u.active, failed: u.failed, complete: u.complete,
+      held: u.active && !u.failed && !u.complete && u.registered.size > 0,
+      registeredKeys: [...u.registered],
+    }));
   }
   private orderInputs(inputs: readonly JudgmentInput[]): JudgmentInput[] {
     const buckets = new Map<string, JudgmentInput[]>();

@@ -38,16 +38,19 @@ export interface JudgmentCoreOptions {
 
 export interface JudgmentInput { key: string; lane?: number; type: "press" | "release" | "down" | "up" }
 
-/** 렌더러가 켜짐·실패 표시에 쓰는 unit(몫) 하나의 상태. */
-export interface JudgmentBodyState {
+/** 렌더러가 켜짐·실패 표시에, 사례 이미지 도구가 시작·유지 실패 구분에 쓰는 unit(몫) 하나의 상태. */
+export interface JudgmentUnitState {
   readonly noteIndex: number;
   readonly unitIndex: number;
-  /** 시작했는가. 시작한 뒤 끝나도 true로 남는다. */
-  readonly active: boolean;
+  /** 한 번이라도 시작했는가. 실패·완료 뒤에도 true로 남는다. */
+  readonly hasStarted: boolean;
   readonly failed: boolean;
   readonly complete: boolean;
-  /** 켜짐 표시에 쓰는 유지 키. `NoteJudgmentCore`에서는 이 unit에 등록한 키다. */
-  readonly registeredKeys: readonly string[];
+  /**
+   * 지금 유지되고 있는가 — 코어가 정한다. 렌더러는 이 값으로 바디를 켠다(켜짐 표시). 실패·완료한 unit은 false다.
+   * 유지 판단은 코어마다 다르다. 예를 들어 `NoteJudgmentCore`는 키를 떼도 실패·완료가 확정될 때까지 true로 둔다.
+   */
+  readonly held: boolean;
 }
 
 /** `NoteJudgmentSession`과 판정 테스트 harness가 쓰는 코어의 최소 경계. */
@@ -65,7 +68,7 @@ export interface JudgmentCore {
   readonly time: number;
   readonly confirmed: readonly NoteJudgmentEvent[];
   readonly combo: number;
-  readonly bodyStates: readonly JudgmentBodyState[];
+  readonly unitStates: readonly JudgmentUnitState[];
 }
 
 /**

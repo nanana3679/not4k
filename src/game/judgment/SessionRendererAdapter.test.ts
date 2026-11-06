@@ -30,7 +30,7 @@ function session(notes: readonly NoteEntity[]) {
   const sessionRef: { current?: NoteJudgmentSession } = {};
   const p = port();
   let latestView: NoteJudgmentSessionView | undefined;
-  const adapter = new SessionRendererAdapter({ notes, connections: compiled.connections, bodyStates: () => sessionRef.current?.bodyStates ?? [], scoreAccuracy: () => sessionRef.current?.score.getState().achievementRate ?? 0, port: p.value });
+  const adapter = new SessionRendererAdapter({ notes, connections: compiled.connections, unitStates: () => sessionRef.current?.unitStates ?? [], scoreAccuracy: () => sessionRef.current?.score.getState().achievementRate ?? 0, port: p.value });
   const liveSession = new NoteJudgmentSession(compiled, { onBatchConfirmed: view => { latestView = view; adapter.apply(view); } });
   sessionRef.current = liveSession;
   return { session: liveSession, adapter, calls: p.calls, accuracy: p.accuracy, query: p.query, latestView: () => latestView };
@@ -40,17 +40,17 @@ describe("SessionRendererAdapter", () => {
   it("같은 렌더 시각의 여러 body 조회는 상태를 한 번만 복사하며 새 입력 묶음 뒤 같은 시각에도 갱신한다", () => {
     const p = port();
     let reads = 0;
-    let active = false;
+    let hasStarted = false;
     const adapter = new SessionRendererAdapter({
       notes: [body(0, 1000), body(1000, 2000)], connections: [], scoreAccuracy: () => 0, port: p.value,
-      bodyStates: () => { reads++; return [0, 1].map(noteIndex => ({ noteIndex, unitIndex: 0, active, failed: false, complete: false, registeredKeys: [] })); },
+      unitStates: () => { reads++; return [0, 1].map(noteIndex => ({ noteIndex, unitIndex: 0, hasStarted, failed: false, complete: false, held: false })); },
     });
-    expect(p.query(0, 1000)?.units[0].active).toBe(false);
+    expect(p.query(0, 1000)?.units[0].hasStarted).toBe(false);
     p.query(1, 1000);
     expect(reads).toBe(1);
-    active = true;
+    hasStarted = true;
     adapter.apply({ at: 1000, events: [], effects: [], combo: 0 });
-    expect(p.query(0, 1000)?.units[0].active).toBe(true);
+    expect(p.query(0, 1000)?.units[0].hasStarted).toBe(true);
     p.query(1, 1000);
     expect(reads).toBe(2);
     adapter.reset();
@@ -109,14 +109,14 @@ describe("SessionRendererAdapter", () => {
     h.session.processBatch(1500, [up("A")]);
     const states = h.query(0, 1500)?.units;
     expect(states?.filter(state => state.failed)).toHaveLength(1);
-    expect(states?.filter(state => state.active && !state.failed && !state.complete)).toHaveLength(1);
+    expect(states?.filter(state => state.hasStarted && !state.failed && !state.complete)).toHaveLength(1);
     expect(h.calls.some(call => call.startsWith("note:0:"))).toBe(false);
   });
 
   it("연결 source query는 successorIndex와 unit 상태를 함께 전달함", () => {
     const h = session([point(0), body(0, 1000), point(1000), body(1000, 2000)]);
     h.session.processBatch(0, [down("A")]);
-    expect(h.query(1, 0)).toMatchObject({ successorIndex: 3, units: [{ active: true, failed: false }] });
+    expect(h.query(1, 0)).toMatchObject({ successorIndex: 3, units: [{ hasStarted: true, failed: false }] });
     expect(h.query(3, 0)?.successorIndex).toBeUndefined();
   });
 });

@@ -37,13 +37,15 @@ const TRILL_BODY_END_INSET = playfieldPx(10);
 const WIRE_MIN_PX = playfieldPx(5);
 const GRACE_GLOW_RADIUS = playfieldPx(4);
 
-/** Core 타입에 의존하지 않는 unit별 body 표시 조회 계약. */
+/** Core 타입에 의존하지 않는 unit별 body 표시 조회 계약. 판정 코어의 `JudgmentUnitState`에서 노트 번호만 뺀 모양이다. */
 export interface JudgmentBodyUnitView {
   readonly unitIndex: number;
-  readonly active: boolean;
+  /** 한 번이라도 시작했는가. 실패·완료 뒤에도 true로 남는다. */
+  readonly hasStarted: boolean;
   readonly failed: boolean;
   readonly complete: boolean;
-  readonly registeredKeys: readonly string[];
+  /** 지금 유지되고 있는가. 켜짐 표시는 이 값만 본다. 실패·완료한 unit은 false다. */
+  readonly held: boolean;
 }
 
 export interface JudgmentBodyStateView {
@@ -289,7 +291,7 @@ export class GameNoteRenderer {
     const queryCompleted = queryUnits.length > 0 && queryUnits.every((unit) => unit.complete);
     const heldUnitCount = bodyState
       ? entity.type === 'trillLong'
-        ? queryUnits.filter(unit => unit.active && !unit.failed && !unit.complete && unit.registeredKeys.length > 0).length
+        ? queryUnits.filter(unit => unit.held).length
         : this.getJudgmentHeldUnitCount(index, bodyState, songTimeMs)
       : 0;
     const requiredUnitCount = queryUnits.length;
@@ -676,9 +678,9 @@ export class GameNoteRenderer {
       capacity = Math.min(capacity, available.length);
       if (capacity === 0) return 0;
 
-      const held = available.filter((unit) => unit.active && unit.registeredKeys.length > 0).length;
-      if (held > 0) return Math.min(capacity, held);
-      if (state.units.some((unit) => unit.active)) return 0;
+      const heldCount = available.filter((unit) => unit.held).length;
+      if (heldCount > 0) return Math.min(capacity, heldCount);
+      if (state.units.some((unit) => unit.hasStarted)) return 0;
 
       const predecessor = this.connectedPredecessor.get(current);
       if (predecessor === undefined || this.trillLongIndices.has(predecessor)) return 0;

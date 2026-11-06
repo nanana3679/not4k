@@ -32,6 +32,18 @@ function recordingEngine(behavior: { throwAt?: number } = {}) {
   return { engine: fake, calls };
 }
 
+/**
+ * recordingEngine의 세션에 유닛 상태 getter(`unitStates`·`bodyStates`)를 붙인 엔진. `--engine`으로 고른 다른 워크트리 세션 대역이다.
+ * 실제 세션처럼 prototype getter로 붙인다. 값이 undefined인 getter도 속성으로는 있다.
+ */
+function engineWithSessionGetters(getters: Record<string, unknown>): JudgmentEngine {
+  const { engine: fake } = recordingEngine();
+  const Base = (fake as unknown as { NoteJudgmentSession: new () => object }).NoteJudgmentSession;
+  class SessionWithGetters extends Base {}
+  for (const [name, value] of Object.entries(getters)) Object.defineProperty(SessionWithGetters.prototype, name, { get: () => value });
+  return { ...fake, NoteJudgmentSession: SessionWithGetters } as unknown as JudgmentEngine;
+}
+
 describe("runJudgmentCase — 실제 엔진 재현", () => {
   it("NJ-R16: A 0-1015 | B 1020-2000이면 head Perfect 0(A)·head Perfect +20(B)·release Perfect(B↑2000), 유지 Miss 없이 Perfect 3", () => {
     const run = runJudgmentCase(judgmentCaseFromSource(R16), engine);
@@ -74,16 +86,16 @@ describe("runJudgmentCase — 실제 엔진 재현", () => {
     ]);
   });
 
-  it("A↓500이 시작 창 밖인 long 1000-2000은 재생 뒤 유닛 상태가 failed이고 한 번도 active가 아님(S+Good 1120의 A↑와 무관)", () => {
+  it("A↓500이 시작 창 밖인 long 1000-2000은 재생 뒤 유닛 상태가 failed이고 한 번도 hasStarted가 아님(S+Good 1120의 A↑와 무관)", () => {
     const run = runJudgmentCase(judgmentCaseFromSource("노트: long 1000-2000\n입력: A 500-1120"), engine);
-    expect(run.unitStates).toEqual([{ noteIndex: 0, unitIndex: 0, active: false, failed: true, complete: false, registeredKeys: [] }]);
+    expect(run.unitStates).toEqual([{ noteIndex: 0, unitIndex: 0, hasStarted: false, failed: true, complete: false, registeredKeys: [] }]);
   });
 
-  it("head 1000 | long 1000-2000을 A 1000-1500으로 치면 1000 batch 직전 바디는 등록 키 없음, 1500 batch 직전에는 active·등록 키 [A]", () => {
+  it("head 1000 | long 1000-2000을 A 1000-1500으로 치면 1000 batch 직전 바디는 등록 키 없음, 1500 batch 직전에는 hasStarted·등록 키 [A]", () => {
     const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-1500"), engine);
     expect(run.unitStatesBeforeBatch?.map((batch) => batch.atMs)).toEqual([1000, 1500]);
-    expect(run.unitStatesBeforeBatch?.[0].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, active: false, failed: false, complete: false, registeredKeys: [] }]);
-    expect(run.unitStatesBeforeBatch?.[1].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] }]);
+    expect(run.unitStatesBeforeBatch?.[0].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, hasStarted: false, failed: false, complete: false, registeredKeys: [] }]);
+    expect(run.unitStatesBeforeBatch?.[1].unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, hasStarted: true, failed: false, complete: false, registeredKeys: ["A"] }]);
   });
 
   it("validateChart 오류(같은 레인 long 1000-2000과 head 1500 겹침)를 rule·message로 담고 그래도 엔진을 돌림", () => {
@@ -137,11 +149,37 @@ describe("runJudgmentCase — 세션 구동 순서", () => {
     expect(run.validationErrors).toEqual([]);
   });
 
-  it("세션에 bodyStates가 없는 엔진이면 unitStates·unitStatesBeforeBatch는 null", () => {
+  it("세션에 unitStates·bodyStates가 모두 없는 엔진이면 unitStates·unitStatesBeforeBatch는 null", () => {
     const { engine: fake } = recordingEngine();
     const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), fake);
     expect(run.unitStates).toBeNull();
     expect(run.unitStatesBeforeBatch).toBeNull();
+  });
+
+  it.each([
+    ["unitStates 없이 bodyStates만 있는", ["bodyStates"]],
+    ["bodyStates와 unitStates가 같은 값을 주는(PR #335 전)", ["bodyStates", "unitStates"]],
+  ])("%s 이전 엔진이면 bodyStates의 active true·등록 키 [A]인 unit을 hasStarted true로 읽음", (_, names) => {
+    const legacy = { noteIndex: 1, unitIndex: 0, active: true, failed: false, complete: false, registeredKeys: ["A"] };
+    const getters = Object.fromEntries(names.map((name) => [name, [legacy]]));
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), engineWithSessionGetters(getters));
+    const expected = { noteIndex: 1, unitIndex: 0, hasStarted: true, failed: false, complete: false, registeredKeys: ["A"] };
+    expect(run.unitStates).toEqual([expected]);
+    expect(run.unitStatesBeforeBatch?.map((batch) => batch.unitStates)).toEqual([[expected], [expected]]);
+  });
+
+  it("bodyStates getter가 undefined를 주는 세션(사례 이미지 엔진 워크트리 new-core-v1)이면 unitStates가 있어도 unitStates·unitStatesBeforeBatch는 null", () => {
+    const started = { noteIndex: 1, unitIndex: 0, active: true, failed: true, complete: false, registeredKeys: ["A"] };
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-1500"),
+      engineWithSessionGetters({ bodyStates: undefined, unitStates: [started] }));
+    expect(run.unitStates).toBeNull();
+    expect(run.unitStatesBeforeBatch).toBeNull();
+  });
+
+  it("bodyStates 없이 unitStates만 hasStarted·held로 주는 세션이면 unitStates를 읽고 등록 키는 빈 배열", () => {
+    const state = { noteIndex: 1, unitIndex: 0, hasStarted: true, failed: false, complete: false, held: true };
+    const run = runJudgmentCase(judgmentCaseFromSource("노트: head 1000 | long 1000-2000\n입력: A 1000-2000"), engineWithSessionGetters({ unitStates: [state] }));
+    expect(run.unitStates).toEqual([{ noteIndex: 1, unitIndex: 0, hasStarted: true, failed: false, complete: false, registeredKeys: [] }]);
   });
 
   it("프레임 간격은 기본 16ms, frameMs 5를 주면 run.frameMs 5", () => {
