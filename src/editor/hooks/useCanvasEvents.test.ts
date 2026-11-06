@@ -18,8 +18,10 @@ import { showToast } from '../../shared/toast';
 import { INITIAL_TIMING_EXISTS_COPY, PAUSE_TO_EDIT_COPY, TIMING_EVENT_EXISTS_COPY } from '../editorCopy';
 import { openEditorChart } from '../openEditorChart';
 import { useCanvasEvents, type CanvasEventHandlers } from './useCanvasEvents';
-import { handleEditorKeyDown } from './useEditorKeyboard';
+import { handleEditorKeyDown, OWN_KEYS_REGION_ATTRIBUTE } from './useEditorKeyboard';
 import { isChartDirty, toSavedChartJson } from '../savedChart';
+import { editAudioOffset, editGameplayRange, editSongTitle } from '../songInfoEditing';
+import { createEditorSong } from '../songState';
 
 // DOM 대신 훅의 실제 effect를 마운트·해제한다. store 구독·타이머·모드·recognizer는 실제 구현을 쓴다.
 const lifecycle = vi.hoisted(() => ({ effects: [] as Array<() => void | (() => void)> }));
@@ -75,6 +77,7 @@ let unsubscribe = () => {};
 let unmountEffects = () => {};
 beforeEach(() => {
   vi.stubGlobal('window', globalThis);
+  vi.stubGlobal('document', { activeElement: null });
   const events = new EventTarget();
   vi.stubGlobal('addEventListener', events.addEventListener.bind(events));
   vi.stubGlobal('removeEventListener', events.removeEventListener.bind(events));
@@ -113,11 +116,25 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
   });
   const { createMode, selectMode, deleteMode } = createEditorModes(current().chart, { space, isTimeInBounds: () => true });
   createMode.entityType = entityType;
-  unsubscribe = useEditorStore.subscribe(state => {
-    createMode.setChart(state.chart);
-    selectMode.setChart(state.chart);
-    deleteMode.setChart(state.chart);
-  });
+  // App.tsx의 [chart] effect처럼 모드 차트는 핸들러가 끝난 뒤에 맞춘다. 핸들러 안의 store 변경은 그 핸들러의 모드 호출에 보이지 않는다.
+  // 핸들러 밖의 store 변경(테스트가 직접 부르는 Undo·재생·타이머)은 그 사이에 렌더가 있으므로 바로 맞춘다.
+  let insideHandler = false;
+  const syncModes = () => {
+    const live = current().chart;
+    createMode.setChart(live);
+    selectMode.setChart(live);
+    deleteMode.setChart(live);
+  };
+  unsubscribe = useEditorStore.subscribe(() => { if (!insideHandler) syncModes(); });
+  const asEvent = <Args extends unknown[], Result>(handler: (...args: Args) => Result) => (...args: Args): Result => {
+    insideHandler = true;
+    try {
+      return handler(...args);
+    } finally {
+      insideHandler = false;
+      syncModes();
+    }
+  };
   const ref = <T,>(value: T) => ({ current: value });
   const setPointerCapture = vi.fn();
   const canvas = Object.assign(new EventTarget(), {
@@ -131,11 +148,17 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
     ));
     return null;
   }
-  let handlers: CanvasEventHandlers | undefined;
-  renderToStaticMarkup(createElement(CanvasEventsProbe, { onRender: rendered => { handlers = rendered; } }));
+  let rendered: CanvasEventHandlers | undefined;
+  renderToStaticMarkup(createElement(CanvasEventsProbe, { onRender: value => { rendered = value; } }));
   const cleanups = lifecycle.effects.map(effect => effect());
   unmountEffects = () => cleanups.forEach(cleanup => cleanup?.());
-  return { handlers: handlers!, createMode, selectMode, deleteMode, setPointerCapture, canvas };
+  const raw = rendered!;
+  const handlers: CanvasEventHandlers = { ...raw,
+    handlePointerDown: asEvent(raw.handlePointerDown), handlePointerMove: asEvent(raw.handlePointerMove),
+    handlePointerUp: asEvent(raw.handlePointerUp), handlePointerCancel: asEvent(raw.handlePointerCancel),
+    handlePointerLeave: asEvent(raw.handlePointerLeave), handleDoubleClick: asEvent(raw.handleDoubleClick),
+    handleContextMenu: asEvent(raw.handleContextMenu) };
+  return { handlers, createMode, selectMode, deleteMode, setPointerCapture, canvas };
 }
 
 describe('우클릭 삭제', () => {
@@ -521,6 +544,182 @@ describe('[text, 초기 BPM, 초기 박자] 순서 파일의 0박 입력(RFD 008
     handlers.handlePointerMove(pointer(0, { pointerType: 'mouse', buttons: 0, x }));
 
     expect(canvas.style.cursor).toBe('move');
+  });
+});
+
+describe('드로어에 입력 중인 값과 타임라인 누름', () => {
+  const tapAt = (at: number): DocumentNoteEntity => ({ type: 'tap', kind: 'single', lane: 1, beat: beat(at) });
+  const mouse = (y: number) => pointer(y, { pointerType: 'mouse' });
+  /** 드로어 입력칸에 입력 중인 포커스. blur는 브라우저처럼 포커스를 거두고 입력칸의 onBlur(commit)를 부른다. */
+  function focusDrawer(commit: () => void) {
+    const field = {
+      closest: (selector: string) => selector.includes(`[${OWN_KEYS_REGION_ATTRIBUTE}]`) ? {} : null,
+      blur: () => {
+        if (document.activeElement !== (field as unknown as Element)) return;
+        vi.stubGlobal('document', { activeElement: null });
+        commit();
+      },
+    };
+    vi.stubGlobal('document', { activeElement: field });
+  }
+  const focusDrawerTitle = (draft: string) => focusDrawer(() => editSongTitle(draft));
+  /** 브라우저가 pointerdown 뒤 mousedown에서 하는 포커스 이동. 포커스가 입력칸에 남아 있으면 이때 입력칸이 적용한다. */
+  const browserMouseDownBlur = () => (document.activeElement as HTMLElement | null)?.blur();
+  /** 누르고 브라우저의 mousedown을 거쳐 떼어 클릭 한 번을 끝낸다. */
+  function click(handlers: CanvasEventHandlers, event: ReactPointerEvent<HTMLCanvasElement>) {
+    handlers.handlePointerDown(event);
+    browserMouseDownBlur();
+    handlers.handlePointerUp(event);
+  }
+  /** bpm 열의 y(120 BPM에서 y=2000이 4박)를 누른다. */
+  const bpmColumn = (y: number) => pointer(y, { pointerType: 'mouse', x: BPM_X });
+  /** 0박 BPM·박자 이벤트. 뒤에 extra를 잇는다. */
+  const timingEvents = (...extra: ChartDocument['events']): ChartDocument['events'] => [
+    { type: 'bpm', beat: beat(0), bpm: 120 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+    ...extra,
+  ];
+  /** 드로어 값과 이어진 편집이 모두 남고, Undo 1회는 편집만, 2회는 제목까지 되돌린다. */
+  function expectTitleThenEditAsTwoUndoSteps(edited: () => boolean) {
+    expect(edited()).toBe(true);
+    expect(current().chart.meta.title).toBe('새 제목');
+    expect(current().historyPast).toHaveLength(2);
+
+    current().undo();
+    expect(edited()).toBe(false);
+    expect(current().chart.meta.title).toBe('새 제목');
+
+    current().undo();
+    expect(current().chart.meta.title).toBe('캔버스 입력');
+  }
+
+  it('Delete 모드에서 Title에 새 제목을 입력하던 중 1박 탭을 클릭하면 탭이 지워지고 제목이 남으며 Undo 1회는 탭만, 2회는 제목까지 되돌린다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'delete');
+    focusDrawerTitle('새 제목');
+
+    click(handlers, mouse(500));
+
+    expectTitleThenEditAsTwoUndoSteps(() => notes().length === 0);
+  });
+
+  it('Delete 모드에서 Title에 새 제목을 입력하던 중 4박 BPM 이벤트를 클릭하면 이벤트가 지워지고 제목이 남으며 Undo 2회로 나뉜다', () => {
+    const { handlers } = setup(chart([], { events: timingEvents({ type: 'bpm', beat: beat(4), bpm: 180 }) }), 'delete', 'single', { layout: editorLayout });
+    focusDrawerTitle('새 제목');
+
+    click(handlers, bpmColumn(2000));
+
+    expectTitleThenEditAsTwoUndoSteps(() => current().chart.events.length === 2);
+  });
+
+  it('Create 모드 Tick으로 Title에 새 제목을 입력하던 중 1～5박 바디 안 2박을 클릭하면 Tick이 생기고 제목이 남으며 Undo 2회로 나뉜다', () => {
+    const { handlers } = setup(chart(bodyWithEndRelease()), 'create', 'tick');
+    focusDrawerTitle('새 제목');
+
+    click(handlers, mouse(1000));
+
+    expectTitleThenEditAsTwoUndoSteps(() => notes().length === 4);
+  });
+
+  it('Create 모드 Release로 Title에 새 제목을 입력하던 중 빈 레인 1박을 클릭하면 Release가 생기고 제목이 남으며 Undo 2회로 나뉜다', () => {
+    const { handlers } = setup(chart([]), 'create', 'release');
+    focusDrawerTitle('새 제목');
+
+    click(handlers, mouse(500));
+
+    expectTitleThenEditAsTwoUndoSteps(() => notes().length === 1);
+  });
+
+  it('Create 모드 Single로 Title에 새 제목을 입력하던 중 bpm 열의 4박을 클릭하면 BPM이 생기고 제목이 남으며 Undo 2회로 나뉜다', () => {
+    const { handlers } = setup(chart([], { events: timingEvents() }), 'create', 'single', { layout: editorLayout });
+    focusDrawerTitle('새 제목');
+
+    click(handlers, bpmColumn(2000));
+
+    expectTitleThenEditAsTwoUndoSteps(() => current().chart.events.length === 3);
+  });
+
+  it('Create 모드 Release로 Offset에 45를 입력하던 중 빈 레인을 클릭하면 Release가 생기고 오프셋이 0으로 돌아가지 않는다', () => {
+    const { handlers } = setup(chart([]), 'create', 'release');
+    focusDrawer(() => { editAudioOffset(45); });
+
+    click(handlers, mouse(500));
+
+    expect(notes()).toHaveLength(1);
+    expect(current().chart.meta.offsetMs).toBe(45);
+  });
+
+  it('인게임 구간 페이드를 입력하던 중(차트는 그대로고 곡 초안만 바뀐다) Delete 모드로 1박 탭을 클릭해도 Undo 1회는 탭만 되돌린다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'delete');
+    useEditorStore.setState({ song: createEditorSong({ title: '캔버스 입력', artist: '', jacketUrl: null, audioUrl: '', duration: null,
+      previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null,
+      gameplayFadeOut: null, timing: null, revision: 42 }, current().chart) });
+    focusDrawer(() => editGameplayRange({ startTime: 2, endTime: 110, fadeInTime: 1, fadeOutTime: 0 }));
+
+    click(handlers, mouse(500));
+    expect(notes()).toHaveLength(0);
+
+    current().undo();
+
+    expect(notes()).toHaveLength(1);
+    expect(current().song?.gameplayRange).toMatchObject({ fadeInTime: 1 });
+  });
+
+  it('Title에 새 제목을 입력하던 중 누르면 그 누름이 모드로 넘어가기 전에 Create·Select·Delete 세 모드의 차트가 새 제목이 된다', () => {
+    const { handlers, createMode, selectMode, deleteMode } = setup(chart([tapAt(1)]), 'delete');
+    const synced = [createMode, selectMode, deleteMode].map(mode => vi.spyOn(mode, 'setChart'));
+    const dispatched = vi.spyOn(deleteMode, 'onPointerDown').mockImplementation(() => {
+      for (const setChart of synced) expect(setChart.mock.lastCall?.[0].meta.title).toBe('새 제목');
+    });
+    focusDrawerTitle('새 제목');
+
+    handlers.handlePointerDown(mouse(500));
+
+    expect(dispatched).toHaveBeenCalledOnce();
+  });
+
+  it('드로어에 포커스만 있고 바뀐 값이 없으면 600ms 안의 앞 편집과 이어지는 Delete 클릭은 평소처럼 Undo 1개로 합친다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'delete');
+    editSongTitle('앞선 제목');
+    focusDrawerTitle('앞선 제목');
+
+    click(handlers, mouse(500));
+
+    expect(notes()).toHaveLength(1);
+    expect(current().historyPast).toHaveLength(1);
+  });
+
+  it('Title에 새 제목을 입력하던 중 Select 모드에서 고른 1박 탭을 3박까지 끌면 제목이 적용되고 탭도 3박으로 옮겨지며 Undo 1회는 이동만 되돌린다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'select');
+    current().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    focusDrawerTitle('새 제목');
+
+    handlers.handlePointerDown(mouse(500));
+    browserMouseDownBlur();
+    handlers.handlePointerMove(mouse(1500));
+    handlers.handlePointerUp(mouse(1500));
+
+    expect(notes()[0].beat).toEqual(beat(3));
+    expect(current().chart.meta.title).toBe('새 제목');
+    expect(current().editTransaction).toBeNull();
+    current().undo();
+    expect(notes()[0].beat).toEqual(beat(1));
+    expect(current().chart.meta.title).toBe('새 제목');
+  });
+
+  it('Title에 새 제목을 입력하던 중 1박 탭을 우클릭해 2박 탭 위로 끌면 제목이 적용되고 끊기지 않아 두 탭이 모두 지워지며 Undo 1회로 둘 다 돌아온다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    focusDrawerTitle('새 제목');
+
+    handlers.handlePointerDown(rightPointer(500));
+    browserMouseDownBlur();
+    handlers.handlePointerMove(rightPointer(1000));
+    handlers.handlePointerUp(rightPointer(1000));
+
+    expect(notes()).toHaveLength(0);
+    expect(current().chart.meta.title).toBe('새 제목');
+    current().undo();
+    expect(notes()).toHaveLength(2);
+    expect(current().chart.meta.title).toBe('새 제목');
   });
 });
 

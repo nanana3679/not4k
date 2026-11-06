@@ -58,10 +58,46 @@ describe('곡·차트 저장 기준 분리', () => {
   });
 });
 
-it('다른 값이 같아도 프리뷰 클립을 잘라 낸 음원 id가 1과 2로 다르면 같은 곡 초안이 아니다', () => {
-  const draft = songDraftOf(store().song!);
-  expect(sameSongDraft({ ...draft, previewClipAudioId: 1 }, { ...draft, previewClipAudioId: 1 })).toBe(true);
-  expect(sameSongDraft({ ...draft, previewClipAudioId: 1 }, { ...draft, previewClipAudioId: 2 })).toBe(false);
+describe('프리뷰 클립 identity', () => {
+  it.each([
+    ['음원 id', { audioId: 2, startTime: 10, endTime: 20 }],
+    ['시작', { audioId: 1, startTime: 11, endTime: 20 }],
+    ['끝', { audioId: 1, startTime: 10, endTime: 21 }],
+  ])('다른 값이 같아도 클립의 %s 값이 다르면 같은 곡 초안이 아니다', (_field, other) => {
+    const draft = { ...songDraftOf(store().song!), previewClip: { audioId: 1, startTime: 10, endTime: 20 } };
+    expect(sameSongDraft(draft, { ...draft, previewClip: { audioId: 1, startTime: 10, endTime: 20 } })).toBe(true);
+    expect(sameSongDraft(draft, { ...draft, previewClip: other })).toBe(false);
+    expect(sameSongDraft(draft, { ...draft, previewClip: null })).toBe(false);
+  });
+
+  it('프리뷰 10～20초 행을 열면 클립 identity가 그 음원 id와 10～20초다', () => {
+    const row = { ...loadedSong, previewStart: 10, previewEnd: 20, previewUrl: 'clip.wav' };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
+    const song = store().song!;
+    expect(song.previewClip).toEqual({ audioId: song.audioId, startTime: 10, endTime: 20 });
+  });
+
+  it.each([
+    ['시작·끝이 모두 NULL', null, null],
+    ['시작 10·끝 NULL의 부분 구간', 10, null],
+  ])('%s인 행을 열면 프리뷰 구간이 없어 클립 identity가 null이다', (_row, previewStart, previewEnd) => {
+    const row = { ...loadedSong, previewStart, previewEnd };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
+    expect(store().song?.previewClip).toBeNull();
+  });
+
+  it('프리뷰 10～20초 저장 기준에서 클립 identity가 다른 초안을 변경 취소로 되돌리면 저장 기준의 음원 id와 10～20초를 쓴다', () => {
+    const row = { ...loadedSong, previewStart: 10, previewEnd: 20, previewUrl: 'clip.wav' };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
+    const song = { ...store().song!, audioId: 999, previewClip: { audioId: 7, startTime: 50, endTime: 65 } };
+    expect(restoreSavedSongInfo(store().chart, song).song.previewClip)
+      .toEqual({ audioId: song.baselineAudioId, startTime: 10, endTime: 20 });
+  });
+
+  it('프리뷰 구간이 없는 저장 기준으로 변경 취소하면 클립 identity가 null이다', () => {
+    const song = { ...store().song!, previewClip: { audioId: 7, startTime: 50, endTime: 65 } };
+    expect(restoreSavedSongInfo(store().chart, song).song.previewClip).toBeNull();
+  });
 });
 
 describe('곡 초안의 플레이 구간 null(songValues)', () => {

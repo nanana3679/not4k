@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { beat } from '../shared';
+import { beat, beatEq } from '../shared';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
 import { isChartDirty, toSavedChartJson } from './savedChart';
 import { createSongAudioId, isSongDirty, songValues } from './songState';
-import type { ChartDocument } from '../shared';
+import type { ChartDocument, ChartEvent } from '../shared';
+import type { LoadedSongSharedData } from '../supabase/songSharedData';
 import { useEditorStore } from './stores/editorStore';
-import { PAUSE_TO_EDIT_COPY } from './editorCopy';
+import { AUDIO_RANGE_RESET_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
 import {
   discardSongInfoChanges,
   editAudioOffset,
@@ -111,12 +112,12 @@ describe('드로어의 음원·구간 편집', () => {
     const after = store().song;
     expect(store().historyPast).toHaveLength(1);
     expect(after).toMatchObject({ audioId, duration: 120, pendingAudioFile: file,
-      gameplayRange: { startTime: 2, endTime: 120 }, pendingPreviewRange: { startTime: 120, endTime: 120 } });
+      gameplayRange: { startTime: 0, endTime: 120 }, pendingPreviewRange: { startTime: 30, endTime: 45 } });
     store().undo();
     expect(store().chart.meta).toMatchObject({ audioFile: 'A.ogg', previewStart: 150, previewEnd: 165 });
     expect(store().song).toEqual(before);
     store().redo();
-    expect(store().chart.meta).toMatchObject({ audioFile: 'B.ogg', previewStart: 120, previewEnd: 120 });
+    expect(store().chart.meta).toMatchObject({ audioFile: 'B.ogg', previewStart: 30, previewEnd: 45 });
     expect(store().song).toEqual(after);
     expect(store().song?.pendingAudioFile).toBe(file);
   });
@@ -135,13 +136,13 @@ describe('드로어의 음원·구간 편집', () => {
     now.mockRestore();
   });
 
-  it('120초 곡의 프리뷰 10～20초에서 5초 음원 next.ogg를 적용하면 경로·대기 파일·길이 5와 5초에 맞춘 프리뷰 5～5초·인게임 0～5초를 함께 적용한다', () => {
+  it('120초 곡의 프리뷰 10～20초에서 5초 음원 next.ogg를 적용하면 경로·대기 파일·길이 5와 곡 전체인 프리뷰 0～5초·인게임 0～5초를 함께 적용한다', () => {
     const audio = new File(['a'], 'next.ogg');
     editSongAudio(audio, 5, createSongAudioId());
 
-    expect(store().chart.meta).toMatchObject({ audioFile: 'next.ogg', previewStart: 5, previewEnd: 5 });
+    expect(store().chart.meta).toMatchObject({ audioFile: 'next.ogg', previewStart: 0, previewEnd: 5 });
     expect(store().song).toMatchObject({ duration: 5, pendingAudioFile: audio,
-      pendingPreviewRange: { startTime: 5, endTime: 5, fadeInTime: 0, fadeOutTime: 0 },
+      pendingPreviewRange: { startTime: 0, endTime: 5, fadeInTime: 0.5, fadeOutTime: 0.5 },
       gameplayRange: { startTime: 0, endTime: 5, fadeInTime: 0, fadeOutTime: 0 } });
   });
 
@@ -173,6 +174,124 @@ describe('드로어의 음원·구간 편집', () => {
 
     expect(store().song?.gameplayRange).toEqual({ startTime: 2, endTime: 110, fadeInTime: 1, fadeOutTime: 1 });
     expect(songDirty()).toBe(true);
+  });
+});
+
+describe('음원을 바꿀 때 구간마다 유지하거나 기본값으로 돌림', () => {
+  /** 180초 음원에 프리뷰·인게임 구간을 저장한 곡을 연다. 기본은 프리뷰 60～75초·인게임 5～170초·페이드 1·2초다. */
+  function openSong(row: Partial<LoadedSongSharedData> = {}) {
+    const saved: LoadedSongSharedData = { ...loadedSong, audioUrl: 'A.ogg', duration: 180, previewStart: 60, previewEnd: 75,
+      gameplayStart: 5, gameplayEnd: 170, gameplayFadeIn: 1, gameplayFadeOut: 2, ...row };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, saved), saved);
+  }
+  const replaceAudio = (duration: number) => editSongAudio(new File(['B'], 'B.ogg'), duration, createSongAudioId());
+  const ranges = () => ({ previewStart: store().chart.meta.previewStart, previewEnd: store().chart.meta.previewEnd,
+    pendingPreviewRange: store().song?.pendingPreviewRange, gameplayRange: store().song?.gameplayRange });
+
+  it('프리뷰 60～75초·인게임 5～170초를 180초 음원으로 바꾸면 두 구간과 인게임 페이드 1·2초를 유지하고 알리지 않는다', () => {
+    openSong();
+    replaceAudio(180);
+
+    expect(ranges()).toEqual({ previewStart: 60, previewEnd: 75,
+      pendingPreviewRange: { startTime: 60, endTime: 75, fadeInTime: 0.5, fadeOutTime: 0.5 },
+      gameplayRange: { startTime: 5, endTime: 170, fadeInTime: 1, fadeOutTime: 2 } });
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('프리뷰 페이드 1·2초로 고른 프리뷰 60～75초를 180초 음원으로 바꾸면 고른 페이드까지 유지한다', () => {
+    openSong();
+    const range = { startTime: 60, endTime: 75, fadeInTime: 1, fadeOutTime: 2 };
+    editPreviewRange(range);
+    replaceAudio(180);
+
+    expect(store().song?.pendingPreviewRange).toEqual(range);
+  });
+
+  it('프리뷰 60～75초·인게임 5～170초를 70초 음원으로 바꾸면 17.5～32.5초·0～70초로 돌리고 두 구간을 한 번에 알린다', () => {
+    openSong();
+    replaceAudio(70);
+
+    expect(ranges()).toEqual({ previewStart: 17.5, previewEnd: 32.5,
+      pendingPreviewRange: { startTime: 17.5, endTime: 32.5, fadeInTime: 0.5, fadeOutTime: 0.5 },
+      gameplayRange: { startTime: 0, endTime: 70, fadeInTime: 0, fadeOutTime: 0 } });
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.both, 'warn');
+  });
+
+  it('프리뷰 60～75초·인게임 5～170초를 50초 음원으로 바꾸면 12.5～27.5초·0～50초로 돌린다', () => {
+    openSong();
+    replaceAudio(50);
+
+    expect(ranges()).toMatchObject({ previewStart: 12.5, previewEnd: 27.5,
+      gameplayRange: { startTime: 0, endTime: 50, fadeInTime: 0, fadeOutTime: 0 } });
+  });
+
+  it('프리뷰 60～75초·인게임 5～60초를 70초 음원으로 바꾸면 프리뷰만 17.5～32.5초로 돌리고 프리뷰만 알린다', () => {
+    openSong({ gameplayEnd: 60 });
+    replaceAudio(70);
+
+    expect(ranges()).toMatchObject({ previewStart: 17.5, previewEnd: 32.5,
+      gameplayRange: { startTime: 5, endTime: 60, fadeInTime: 1, fadeOutTime: 2 } });
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.preview, 'warn');
+  });
+
+  it('프리뷰 10～25초·인게임 5～170초를 70초 음원으로 바꾸면 인게임만 0～70초로 돌리고 인게임만 알린다', () => {
+    openSong({ previewStart: 10, previewEnd: 25 });
+    replaceAudio(70);
+
+    expect(ranges()).toMatchObject({ previewStart: 10, previewEnd: 25,
+      gameplayRange: { startTime: 0, endTime: 70, fadeInTime: 0, fadeOutTime: 0 } });
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.gameplay, 'warn');
+  });
+
+  it('저장된 프리뷰·인게임 구간이 없는 곡에 120초 음원을 넣으면 기본값 30～45초·0～120초를 쓰고 알리지 않는다', () => {
+    openSong({ previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
+      gameplayFadeIn: null, gameplayFadeOut: null });
+    replaceAudio(120);
+
+    expect(ranges()).toMatchObject({ previewStart: 30, previewEnd: 45, gameplayRange: { startTime: 0, endTime: 120 } });
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('프리뷰 60～75초·인게임 5～170초를 70초 음원으로 바꾼 뒤 Undo 1회면 음원 A·프리뷰·인게임·페이드를 한 번에 복원하고 Redo 1회면 B와 돌린 구간을 복원한다', () => {
+    openSong();
+    const beforeSong = store().song;
+    const beforeRanges = ranges();
+    replaceAudio(70);
+    const afterSong = store().song;
+    expect(store().historyPast).toHaveLength(1);
+
+    store().undo();
+    expect(store().chart.meta.audioFile).toBe('A.ogg');
+    expect(ranges()).toEqual(beforeRanges);
+    expect(store().song).toEqual(beforeSong);
+    expect(store().historyPast).toHaveLength(0);
+
+    store().redo();
+    expect(store().chart.meta).toMatchObject({ audioFile: 'B.ogg', previewStart: 17.5, previewEnd: 32.5 });
+    expect(store().song).toEqual(afterSong);
+  });
+
+  it('음원 교체가 Undo로 돌아와도 돌린 구간 안내는 교체 때 한 번뿐이다', () => {
+    openSong();
+    replaceAudio(70);
+    store().undo();
+    store().redo();
+
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.both, 'warn');
+  });
+
+  it('역전 restZone이 남아 70초 음원 적용이 구조 위반으로 거부되면 구간·이력이 그대로이고 구간 안내를 띄우지 않는다', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    openSong();
+    useEditorStore.setState({ chart: { ...store().chart, restZones: [{ lane: 1, beat: beat(1), endBeat: beat(0) }] } });
+    const before = ranges();
+
+    replaceAudio(70);
+
+    expect(ranges()).toEqual(before);
+    expect(store().historyPast).toHaveLength(0);
+    expect(showToast).toHaveBeenCalledOnce();
+    expect(showToast).not.toHaveBeenCalledWith(AUDIO_RANGE_RESET_COPY.both, 'warn');
   });
 });
 
@@ -355,6 +474,68 @@ describe('곡 정보 변경 취소의 타이밍 이벤트와 선택(RFD 0098)', 
     const selected = [...store().selection.events];
     expect(selected).toEqual([3]);
     expect(store().chart.events[selected[0]].type).toBe('auto');
+  });
+
+  /** matches에 맞는 이벤트를 edit로 바꾸고, 바꾼 이벤트와 also 종류의 이벤트를 고른다. */
+  function editAndSelect(matches: (event: ChartEvent) => boolean, edit: (event: ChartEvent) => ChartEvent, also: ChartEvent['type'][] = []) {
+    const events = store().chart.events;
+    const edited = events.findIndex(matches);
+    store().setChart({ ...store().chart, events: events.map((event, index) => index === edited ? edit(event) : event) });
+    store().setSelection({ notes: new Set(), zones: new Set(), restZones: new Set(),
+      events: new Set([edited, ...also.map(type => events.findIndex(event => event.type === type))]) });
+  }
+  const selectedEvents = () => [...store().selection.events].map(index => store().chart.events[index]);
+  const bpmAt = (at: number) => (event: ChartEvent) => event.type === 'bpm' && beatEq(event.beat, beat(at));
+
+  it('저장한 4박 BPM 150을 180으로 바꿔 고른 뒤 변경 취소하면 BPM은 150으로 돌아오고 새 객체인 그 4박 BPM이 선택에 남는다', () => {
+    openWithBpmAt4();
+    editAndSelect(bpmAt(4), event => ({ ...event, bpm: 180 }) as ChartEvent);
+
+    expect(discardSongInfoChanges()).toEqual({ discarded: true });
+
+    expect(selectedEvents()).toEqual([expect.objectContaining({ type: 'bpm', beat: beat(4), bpm: 150 })]);
+  });
+
+  it('값을 바꾼 4박 BPM과 auto 이벤트를 함께 고른 뒤 변경 취소하면 둘 다 선택에 남는다', () => {
+    openWithBpmAt4();
+    editAndSelect(bpmAt(4), event => ({ ...event, bpm: 180 }) as ChartEvent, ['auto']);
+
+    discardSongInfoChanges();
+
+    expect(selectedEvents().map(event => event.type).sort()).toEqual(['auto', 'bpm']);
+  });
+
+  it('4박에 BPM과 박자표 3이 함께 저장된 곡에서 박자표를 5로 바꿔 고른 뒤 변경 취소하면 같은 4박의 BPM이 아니라 박자표 3이 선택에 남는다', () => {
+    const signatureAt4 = { type: 'timeSignature' as const, beat: beat(4), beatPerMeasure: beat(3) };
+    const chart: ChartDocument = { ...base, events: [...base.events, bpmAt4, signatureAt4] };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(chart, 2).chartJson, null, loadedSong), loadedSong);
+    editAndSelect(event => event.type === 'timeSignature' && beatEq(event.beat, beat(4)),
+      event => ({ ...event, beatPerMeasure: beat(5) }) as ChartEvent);
+
+    discardSongInfoChanges();
+
+    expect(selectedEvents()).toEqual([expect.objectContaining({ type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(3) })]);
+  });
+
+  it('저장한 4박 BPM을 8박으로 옮겨 고른 뒤 변경 취소하면 8박 BPM이 사라져 4박 BPM을 대신 고르지 않고 선택이 빈다', () => {
+    openWithBpmAt4();
+    editAndSelect(bpmAt(4), event => ({ ...event, beat: beat(8) }) as ChartEvent);
+
+    discardSongInfoChanges();
+
+    expect(store().selection.events.size).toBe(0);
+  });
+
+  it('저장에 없는 12박 BPM을 새로 놓아 고른 뒤 변경 취소하면 그 BPM이 사라져 선택이 빈다', () => {
+    openWithBpmAt4();
+    store().setChart({ ...store().chart, events: [...store().chart.events, { type: 'bpm', beat: beat(12), bpm: 200 }] });
+    store().setSelection({ notes: new Set(), zones: new Set(), restZones: new Set(),
+      events: new Set([store().chart.events.findIndex(bpmAt(12))]) });
+
+    discardSongInfoChanges();
+
+    expect(store().chart.events.some(bpmAt(12))).toBe(false);
+    expect(store().selection.events.size).toBe(0);
   });
 });
 

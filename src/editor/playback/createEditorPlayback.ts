@@ -14,7 +14,7 @@ export function createEditorPlayback({ store, cursorBeatKeeper, getRenderer, set
   getRenderer: () => Pick<TimelineRenderer, 'setChart' | 'setWaveformData' | 'getTotalTimelineMs' | 'updatePlaybackCursor'> | null;
   setLoadedAudioBuffer: (buffer: AudioBuffer) => void;
 }) {
-  // 파형과 음원 길이가 정하는 타임라인 범위·커서를 함께 바꾼다. 비울 때는 커서 박 유지가 다시 불러온 뒤의 위치를 복원한다.
+  // 파형과 음원 길이가 정하는 타임라인 범위·커서를 함께 바꾼다.
   const applyWaveform = (peaks: Float32Array | null, durationMs: number) => {
     const renderer = getRenderer();
     if (!renderer) return;
@@ -29,7 +29,8 @@ export function createEditorPlayback({ store, cursorBeatKeeper, getRenderer, set
     (buffer) => {
       if (getRenderer()) applyWaveform(getWaveformPeaks(buffer, Math.ceil(buffer.sampleRate / 50)), buffer.duration * 1000);
     },
-    () => applyWaveform(null, 0),
+    // 비워도 곡 길이를 유지한다. 타임라인이 줄면 스크롤이 잘려, 음원을 다시 불러온 뒤 보던 위치로 돌아오지 못한다.
+    () => applyWaveform(null, (store.getState().song?.duration ?? 0) * 1000),
   );
   const playback = new PlaybackController({
     onAudioLoaded: (buffer) => {

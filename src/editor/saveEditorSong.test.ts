@@ -121,7 +121,7 @@ it('새 자켓 2개를 차례로 저장하면 서로 다른 새 경로에 upsert
 
 it('오디오 A.ogg와 10～20초 프리뷰를 저장하면 새 파일 2개를 먼저 올리고 길이 150초를 함께 확정한다', async () => {
   const audio = new File(['A'], 'A.ogg');
-  state().setSong({ ...state().song!, pendingAudioFile: audio, duration: 150 });
+  state().setSong({ ...state().song!, audioId: createSongAudioId(), pendingAudioFile: audio, duration: 150 });
   const buffer = { duration: 150, length: 1500, sampleRate: 10, numberOfChannels: 1,
     getChannelData: () => new Float32Array(1500) } as unknown as AudioBuffer;
   await saveEditorSong(buffer, vi.fn());
@@ -209,7 +209,7 @@ it('자켓 A.png 업로드 중 B.png로 교체하면 A 경로만 저장하고 B 
 
 it.each(['완료 전', '완료 후'])('replacement.ogg 저장 중 Meta를 열고 %s 제목만 적용하면 다음 Save도 업로드 경로를 쓰고 재업로드하지 않는다', async when => {
   state().setChart({ ...state().chart, meta: { ...state().chart.meta, audioFile: 'replacement.ogg' } });
-  state().setSong({ ...state().song!,
+  state().setSong({ ...state().song!, audioId: createSongAudioId(),
     pendingAudioFile: new File(['audio'], 'replacement.ogg'),
     pendingJacketFile: new File(['jacket'], 'replacement.png'),
   });
@@ -720,6 +720,101 @@ describe('저장을 넘은 Undo 뒤 곡 저장 값', () => {
     expect(api.rpc.mock.calls[2][1]).toMatchObject({ p_preview_url: api.upload.mock.calls[3][0] });
   });
 
+  it('10～20초 C1에서 50～65초 C2를 저장하고 10～20초로 끌어 B를 저장한 뒤 Undo하면 음원은 A여도 클립이 50～65초 것이라 Save가 A의 10～20초로 다시 만든다', async () => {
+    editPreviewRange(previewRange(50, 65));
+    expect(await saveEditorSong(audioBufferOf(120), vi.fn())).toBe('saved');
+    const c2 = api.upload.mock.calls[0][0];
+    editPreviewRange(previewRange(10, 20));
+    editSongAudio(new File(['B'], 'B.ogg'), 120, createSongAudioId());
+    expect(await saveEditorSong(audioBufferOf(120), vi.fn())).toBe('saved');
+    expect(api.upload).toHaveBeenCalledTimes(3);
+
+    state().undo();
+    expect(state().chart.meta).toMatchObject({ audioFile: 'old.ogg', previewStart: 10, previewEnd: 20, previewAudioFile: c2 });
+    expect(await saveEditorSong(audioBufferOf(120), vi.fn())).toBe('saved');
+
+    expect(api.upload).toHaveBeenCalledTimes(4);
+    expect(api.rpc.mock.calls[2][1]).toMatchObject({ p_audio_url: 'old.ogg',
+      p_preview_url: api.upload.mock.calls[3][0], p_preview_start: 10, p_preview_end: 20 });
+    expect(state().song?.previewClip).toEqual({ audioId: state().song?.audioId, startTime: 10, endTime: 20 });
+  });
+
+  it('프리뷰 10～20초 old.wav에서 30～45초·페이드 0.5초를 저장하고 Undo해 다시 저장하면 old.wav가 그 구간의 클립이라 업로드 없이 재생 음원도 없이 old.wav를 보낸다', async () => {
+    editPreviewRange({ startTime: 30, endTime: 45, fadeInTime: 0.5, fadeOutTime: 0.5 });
+    expect(await saveEditorSong(audioBufferOf(120), vi.fn())).toBe('saved');
+    state().undo();
+    expect(state().song?.pendingPreviewRange).toBeNull();
+
+    expect(await saveEditorSong(null, vi.fn())).toBe('saved');
+
+    expect(api.upload).toHaveBeenCalledOnce();
+    expect(api.rpc.mock.calls[1][1]).toMatchObject({ p_preview_url: 'old.wav', p_preview_start: 10, p_preview_end: 20 });
+    expect(dirty()).toBe(false);
+  });
+
+  it('프리뷰 10～20초에서 30～40초로 저장한 뒤 다시 10～20초로 끌어 저장하면 저장 기준과 달라도 초안의 클립이 30～40초 것이라 다시 만든다', async () => {
+    editPreviewRange(previewRange(30, 40));
+    expect(await saveEditorSong(audioBufferOf(120), vi.fn())).toBe('saved');
+    editPreviewRange(previewRange(10, 20));
+
+    expect(await saveEditorSong(audioBufferOf(120), vi.fn())).toBe('saved');
+
+    expect(api.upload).toHaveBeenCalledTimes(2);
+    expect(api.rpc.mock.calls[1][1]).toMatchObject({ p_preview_url: api.upload.mock.calls[1][0], p_preview_start: 10, p_preview_end: 20 });
+  });
+
+  it('프리뷰 구간이 없는 행에 B를 저장해 기본 구간 클립을 만든 뒤 Undo해 저장하면 클립 없이 프리뷰 경로·구간 NULL을 보내고 다음 저장도 클립을 만들지 않는다', async () => {
+    reopen({ previewUrl: null, previewStart: null, previewEnd: null });
+    editSongAudio(new File(['B'], 'B.ogg'), 120, createSongAudioId());
+    expect(await saveEditorSong(audioBufferOf(120), vi.fn())).toBe('saved');
+    expect(api.upload).toHaveBeenCalledTimes(2);
+
+    state().undo();
+    expect(state().song?.previewClip).toBeNull();
+    expect(await saveEditorSong(null, vi.fn())).toBe('saved');
+    expect(api.rpc.mock.calls[1][1]).toMatchObject({ p_audio_url: 'old.ogg', p_preview_url: null, p_preview_start: null, p_preview_end: null });
+
+    editTitle('새 제목');
+    expect(await saveEditorSong(null, vi.fn())).toBe('saved');
+
+    expect(api.upload).toHaveBeenCalledTimes(2);
+    expect(state().song?.previewClip).toBeNull();
+  });
+
+  it('프리뷰 구간이 없는 행의 제목만 바꿔 저장하면 재생 음원이 없어도 클립 없이 저장한다', async () => {
+    reopen({ previewUrl: null, previewStart: null, previewEnd: null });
+    editTitle('새 제목');
+
+    expect(await saveEditorSong(null, vi.fn())).toBe('saved');
+
+    expect(api.upload).not.toHaveBeenCalled();
+    expect(api.rpc.mock.calls[0][1]).toMatchObject({ p_preview_url: null, p_preview_start: null, p_preview_end: null });
+  });
+
+  it('프리뷰 구간이 없는 행에 0～8초를 처음 정해 저장하면 클립을 만들고 다음 저장은 다시 만들지 않는다', async () => {
+    reopen({ previewUrl: null, previewStart: null, previewEnd: null });
+    editPreviewRange(previewRange(0, 8));
+    expect(await saveEditorSong(audioBufferOf(120), vi.fn())).toBe('saved');
+    expect(api.upload).toHaveBeenCalledOnce();
+
+    editTitle('새 제목');
+    expect(await saveEditorSong(null, vi.fn())).toBe('saved');
+
+    expect(api.upload).toHaveBeenCalledOnce();
+  });
+
+  it('대기 구간 없이 프리뷰 구간만 0～8초로 바뀐 초안을 저장하면 구간 선택기 기본 페이드 0.5초로 클립을 만든다', async () => {
+    state().setChart({ ...state().chart, meta: { ...state().chart.meta, previewStart: 0, previewEnd: 8 } });
+    const buffer = { ...audioBufferOf(120), getChannelData: () => new Float32Array(1200).fill(1) } as unknown as AudioBuffer;
+
+    expect(await saveEditorSong(buffer, vi.fn())).toBe('saved');
+
+    const wav = new DataView(await (api.upload.mock.calls[0][1] as Blob).arrayBuffer());
+    expect(wav.getInt16(44, true)).toBe(0); // 첫 샘플은 fade-in으로 무음
+    expect(wav.getInt16(44 + 2, true)).toBe(Math.trunc(0x7FFF / 5)); // 10Hz라 페이드 0.5초는 5샘플이다
+    expect(wav.getInt16(44 + 79 * 2, true)).toBe(0); // 8초 80샘플의 마지막 샘플은 fade-out으로 무음
+  });
+
   it('자켓 A.png 저장 중 중복 노트를 둔 transaction을 취소하면 되돌린 마지막 유효 상태도 업로드 경로와 대기 파일 null을 쓴다', async () => {
     editSongJacket(new File(['A'], 'A.png'));
     const token = state().beginEditTransaction('selectModeEdit')!;
@@ -734,33 +829,86 @@ describe('저장을 넘은 Undo 뒤 곡 저장 값', () => {
   });
 });
 
-describe('저장된 프리뷰 구간의 유효성 검사', () => {
-  it.each([[240, 265], [250, 265]])(
-    '행의 프리뷰 %i～%i초가 250초 음원 끝을 넘을 때 10～20초 저장을 Undo해 그 구간을 다시 만들면 확인·업로드·RPC 없이 거부하고 구간 안내를 띄운다', async (startTime, endTime) => {
-      reopen({ duration: 250, previewStart: startTime, previewEnd: endTime });
-      editPreviewRange(previewRange(10, 20));
-      expect(await saveEditorSong(audioBufferOf(250), vi.fn())).toBe('saved');
-      state().undo();
-      vi.mocked(showToast).mockClear();
-      const confirm = vi.fn(() => true);
+describe('프리뷰 클립을 만들 수 없는 구간의 거부', () => {
+  /** 구간이 250초 음원의 끝을 넘은 초안. 클립은 행의 10～20초 것이라 Save가 이 구간으로 다시 만들려 한다. */
+  const setPreview = (previewStart: number, previewEnd: number) =>
+    state().setChart({ ...state().chart, meta: { ...state().chart.meta, previewStart, previewEnd, offsetMs: 45 } });
 
-      expect(await saveEditorSong(audioBufferOf(250), confirm)).toBe('aborted');
+  it.each([
+    [240, 265], // 끝이 음원을 15초 넘어 잘린 클립이 된다
+    [250, 265], // 음원 끝에서 시작해 샘플이 0개다
+    [240, 250.2], // 끝이 음원을 두 샘플 넘는다
+  ])('프리뷰 %s～%s초를 250초 음원으로 다시 만들어야 하면 확인·업로드·RPC 0회로 구간 안내를 띄운다', async (startTime, endTime) => {
+    setPreview(startTime, endTime);
+    const confirm = vi.fn(() => true);
 
-      expect(confirm).not.toHaveBeenCalled();
-      expect(api.upload).toHaveBeenCalledOnce(); expect(api.rpc).toHaveBeenCalledOnce();
-      expect(showToast).toHaveBeenCalledExactlyOnceWith(SONG_SAVE_COPY.previewOutOfRange, 'error');
-      expect(state().isSavingSong).toBe(false); expect(dirty()).toBe(true);
-    },
-  );
+    expect(await saveEditorSong(audioBufferOf(250), confirm)).toBe('aborted');
 
-  it('행의 프리뷰 240～250초의 끝이 250초 음원 길이와 같으면 Undo로 다시 만들어도 거부하지 않고 저장한다', async () => {
-    reopen({ duration: 250, previewStart: 240, previewEnd: 250 });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(SONG_SAVE_COPY.previewOutOfRange, 'error');
+    expect(state().isSavingSong).toBe(false); expect(dirty()).toBe(true);
+  });
+
+  it.each([
+    [240, 250], // 끝이 음원 길이와 같다
+    [240, 250.1], // 끝이 음원을 한 샘플만 넘는다
+  ])('프리뷰 %s～%s초는 250초 음원 안에서 잘라 낼 수 있어 거부하지 않고 저장한다', async (startTime, endTime) => {
+    setPreview(startTime, endTime);
+
+    expect(await saveEditorSong(audioBufferOf(250), vi.fn())).toBe('saved');
+
+    expect(api.upload).toHaveBeenCalledOnce();
+    expect(api.rpc.mock.calls[0][1]).toMatchObject({ p_preview_start: startTime, p_preview_end: endTime });
+  });
+
+  it('행의 프리뷰 240～265초가 250초 음원 끝을 넘어도 10～20초 저장을 Undo해 행의 클립에 돌아오면 다시 만들지 않으므로 거부 없이 old.wav를 보낸다', async () => {
+    reopen({ duration: 250, previewStart: 240, previewEnd: 265 });
     editPreviewRange(previewRange(10, 20));
     expect(await saveEditorSong(audioBufferOf(250), vi.fn())).toBe('saved');
     state().undo();
 
     expect(await saveEditorSong(audioBufferOf(250), vi.fn())).toBe('saved');
 
-    expect(api.rpc.mock.calls[1][1]).toMatchObject({ p_preview_start: 240, p_preview_end: 250 });
+    expect(api.upload).toHaveBeenCalledOnce();
+    expect(api.rpc.mock.calls[1][1]).toMatchObject({ p_preview_url: 'old.wav', p_preview_start: 240, p_preview_end: 265 });
+  });
+
+  it('150～165초 행의 200초 곡을 90초 파일로 바꾸면 구간이 22.5～37.5초로 돌아가 그 구간의 클립을 만들어 저장한다', async () => {
+    reopen({ duration: 200, previewStart: 150, previewEnd: 165 });
+    editSongAudio(new File(['short'], 'short.ogg'), 90, createSongAudioId());
+    expect(state().chart.meta).toMatchObject({ previewStart: 22.5, previewEnd: 37.5 });
+
+    expect(await saveEditorSong(audioBufferOf(90), vi.fn())).toBe('saved');
+
+    expect(api.rpc.mock.calls[0][1]).toMatchObject({ p_preview_start: 22.5, p_preview_end: 37.5 });
+  });
+
+  it('200초 곡을 90초 파일로 바꾼 뒤 프리뷰를 90～90초로 두면 음원 업로드·RPC 없이 거부하고 다시 저장해도 업로드가 쌓이지 않는다', async () => {
+    reopen({ duration: 200, previewStart: 150, previewEnd: 165 });
+    editSongAudio(new File(['short'], 'short.ogg'), 90, createSongAudioId());
+    editPreviewRange(previewRange(90, 90));
+    const confirm = vi.fn(() => true);
+
+    expect(await saveEditorSong(audioBufferOf(90), confirm)).toBe('aborted');
+    expect(await saveEditorSong(audioBufferOf(90), confirm)).toBe('aborted');
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(api.upload).not.toHaveBeenCalled(); expect(api.rpc).not.toHaveBeenCalled();
+    expect(showToast).toHaveBeenCalledWith(SONG_SAVE_COPY.previewOutOfRange, 'error');
+    expect(SONG_SAVE_COPY.previewOutOfRange).toBe('프리뷰 구간이 음원 범위를 벗어났습니다. Song Info에서 프리뷰 구간을 다시 정한 뒤 저장해주세요.');
+  });
+
+  it('44100Hz 149.97056689342404초 음원에서 프리뷰 끝이 2.8e-14초 넘친 149.97056689342406초면 거부하지 않고 클립을 만든다', async () => {
+    reopen({ duration: 149.97056689342404 });
+    editPreviewRange(previewRange(149, 149.97056689342406));
+    const samples = new Float32Array(6613702);
+    const buffer = { duration: 149.97056689342404, length: samples.length, sampleRate: 44100, numberOfChannels: 1,
+      getChannelData: () => samples } as unknown as AudioBuffer;
+
+    expect(await saveEditorSong(buffer, vi.fn())).toBe('saved');
+
+    expect(api.upload).toHaveBeenCalledOnce();
+    expect(api.rpc.mock.calls[0][1]).toMatchObject({ p_preview_end: 149.97056689342406 });
   });
 });
