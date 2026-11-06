@@ -42,6 +42,16 @@ export const SONG_INFO_DRAWER_COPY = {
 /** 곡 행이 있는 차트의 Meta 창 안내. 곡 공통 값은 곡 정보 드로어로 옮겼다(RFD 0098·0107). */
 export const META_SONG_INFO_MOVED_COPY = "제목·아티스트·자켓·음원·구간·오프셋은 Song Info에서 편집합니다.";
 
+/**
+ * 음원을 바꿀 때 새 음원에 들어가지 않아 기본값으로 돌린 구간의 안내(#444). 키는 돌린 구간(`rangesForNewAudio`의 `reset`)이다.
+ * 곡 정보 드로어는 음원을 적용할 때, 곡 행이 없는 차트의 Meta는 선택기를 새 음원으로 다시 그릴 때 알린다.
+ */
+export const AUDIO_RANGE_RESET_COPY = {
+  preview: "새 음원에 들어가지 않는 프리뷰 구간을 기본값으로 되돌렸습니다.",
+  gameplay: "새 음원에 들어가지 않는 인게임 구간을 기본값으로 되돌렸습니다.",
+  both: "새 음원에 들어가지 않는 프리뷰·인게임 구간을 기본값으로 되돌렸습니다.",
+} as const;
+
 /** 저장(Save·Save As)이 진행 중일 때 막힌 동작의 안내. 테스트 플레이 문구는 툴바 버튼 title에도 쓴다. */
 export const SAVE_IN_PROGRESS_COPY = {
   secondSave: "이전 저장이 끝난 뒤 다시 시도해주세요",

@@ -29,7 +29,7 @@ export interface RangeInitOptions {
 /**
  * 선택기가 마운트할 때 쓰는 구간. 저장된 시작·끝을 음원 길이 안으로 자르고, 없으면 기본 구간을 쓴다.
  * 페이드는 자르지 않은 입력값이며, 선택기가 알릴 때 `notifiedRange`처럼 구간 길이의 절반으로 자른다.
- * 곡 정보 드로어가 음원을 바꿀 때 새 길이에 맞춘 구간을 이 함수로 계산해 선택기와 같은 값을 적용한다.
+ * 음원을 바꿀 때는 자르지 않는다. 구간을 유지할지 기본값으로 돌릴지는 `rangesForNewAudio`가 정한다.
  */
 export function initialRangeState(duration: number, options: RangeInitOptions): PreviewRangeState {
   const defaultDuration = options.defaultDuration ?? DEFAULT_RANGE_DURATION;
@@ -62,6 +62,40 @@ export function notifiedRange(state: PreviewRangeState): PlaybackRange {
     fadeInTime: Math.max(0, Math.min(state.fadeInTime, maxFade)),
     fadeOutTime: Math.max(0, Math.min(state.fadeOutTime, maxFade)),
   };
+}
+
+/** 음원을 바꾸기 전의 구간. 값이 없으면(저장된 구간 없음) 이전 구간이 없는 것이다. */
+type PreviousRange = Partial<PlaybackRange> | null | undefined;
+
+/** 음원을 바꾼 뒤의 프리뷰·인게임 구간. `reset`은 기본값으로 돌린 구간이며 없으면 null이다. */
+export interface NewAudioRanges {
+  preview: PlaybackRange;
+  gameplay: PlaybackRange;
+  reset: 'preview' | 'gameplay' | 'both' | null;
+}
+
+/** 구간 하나의 음원 교체 결과. 이전 구간이 없어 기본값을 쓴 경우는 돌린 것이 아니다. */
+function keepOrResetRange(duration: number, previous: PreviousRange, defaults: RangeInitOptions): { range: PlaybackRange; reset: boolean } {
+  const { startTime, endTime, fadeInTime, fadeOutTime } = previous ?? {};
+  const hasPrevious = startTime != null && endTime != null;
+  if (hasPrevious && startTime >= 0 && startTime < endTime && endTime <= duration) {
+    const kept = { ...defaults, initialStart: startTime, initialEnd: endTime, initialFadeInTime: fadeInTime, initialFadeOutTime: fadeOutTime };
+    return { range: notifiedRange(initialRangeState(duration, kept)), reset: false };
+  }
+  return { range: notifiedRange(initialRangeState(duration, defaults)), reset: hasPrevious };
+}
+
+/**
+ * 음원을 바꿀 때의 프리뷰·인게임 구간(#444). 구간마다 따로 판단한다. 이전 구간이 새 음원에 통째로 들어가면(0 ≤ 시작 < 끝 ≤ 새 길이)
+ * 페이드까지 유지해 같은 곡의 다른 파일로 바꿔도 제작자가 고른 구간을 지키고, 들어가지 않으면 그 구간만 선택기가 저장된 값 없이
+ * 처음 그리는 기본값으로 돌린다. 곡 정보 드로어와 곡 행이 없는 차트의 Meta 창이 함께 쓴다.
+ */
+export function rangesForNewAudio(duration: number, previousPreview: PreviousRange, previousGameplay: PreviousRange): NewAudioRanges {
+  const preview = keepOrResetRange(duration, previousPreview, {});
+  const gameplay = keepOrResetRange(duration, previousGameplay,
+    { defaultStart: 0, defaultEnd: duration, defaultDuration: duration, showFadeControls: true });
+  const reset = preview.reset && gameplay.reset ? 'both' : preview.reset ? 'preview' : gameplay.reset ? 'gameplay' : null;
+  return { preview: preview.range, gameplay: gameplay.range, reset };
 }
 
 /** 구간 선택기에서 잡은 곳(시작·끝 핸들 또는 구간 안)과 누른 순간의 x·구간. */

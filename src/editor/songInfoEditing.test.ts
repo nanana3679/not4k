@@ -5,8 +5,9 @@ import { openEditorChart } from './openEditorChart';
 import { isChartDirty, toSavedChartJson } from './savedChart';
 import { createSongAudioId, isSongDirty, songValues } from './songState';
 import type { ChartDocument } from '../shared';
+import type { LoadedSongSharedData } from '../supabase/songSharedData';
 import { useEditorStore } from './stores/editorStore';
-import { PAUSE_TO_EDIT_COPY } from './editorCopy';
+import { AUDIO_RANGE_RESET_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
 import {
   discardSongInfoChanges,
   editAudioOffset,
@@ -111,12 +112,12 @@ describe('드로어의 음원·구간 편집', () => {
     const after = store().song;
     expect(store().historyPast).toHaveLength(1);
     expect(after).toMatchObject({ audioId, duration: 120, pendingAudioFile: file,
-      gameplayRange: { startTime: 2, endTime: 120 }, pendingPreviewRange: { startTime: 120, endTime: 120 } });
+      gameplayRange: { startTime: 0, endTime: 120 }, pendingPreviewRange: { startTime: 30, endTime: 45 } });
     store().undo();
     expect(store().chart.meta).toMatchObject({ audioFile: 'A.ogg', previewStart: 150, previewEnd: 165 });
     expect(store().song).toEqual(before);
     store().redo();
-    expect(store().chart.meta).toMatchObject({ audioFile: 'B.ogg', previewStart: 120, previewEnd: 120 });
+    expect(store().chart.meta).toMatchObject({ audioFile: 'B.ogg', previewStart: 30, previewEnd: 45 });
     expect(store().song).toEqual(after);
     expect(store().song?.pendingAudioFile).toBe(file);
   });
@@ -135,13 +136,13 @@ describe('드로어의 음원·구간 편집', () => {
     now.mockRestore();
   });
 
-  it('120초 곡의 프리뷰 10～20초에서 5초 음원 next.ogg를 적용하면 경로·대기 파일·길이 5와 5초에 맞춘 프리뷰 5～5초·인게임 0～5초를 함께 적용한다', () => {
+  it('120초 곡의 프리뷰 10～20초에서 5초 음원 next.ogg를 적용하면 경로·대기 파일·길이 5와 곡 전체인 프리뷰 0～5초·인게임 0～5초를 함께 적용한다', () => {
     const audio = new File(['a'], 'next.ogg');
     editSongAudio(audio, 5, createSongAudioId());
 
-    expect(store().chart.meta).toMatchObject({ audioFile: 'next.ogg', previewStart: 5, previewEnd: 5 });
+    expect(store().chart.meta).toMatchObject({ audioFile: 'next.ogg', previewStart: 0, previewEnd: 5 });
     expect(store().song).toMatchObject({ duration: 5, pendingAudioFile: audio,
-      pendingPreviewRange: { startTime: 5, endTime: 5, fadeInTime: 0, fadeOutTime: 0 },
+      pendingPreviewRange: { startTime: 0, endTime: 5, fadeInTime: 0.5, fadeOutTime: 0.5 },
       gameplayRange: { startTime: 0, endTime: 5, fadeInTime: 0, fadeOutTime: 0 } });
   });
 
@@ -173,6 +174,124 @@ describe('드로어의 음원·구간 편집', () => {
 
     expect(store().song?.gameplayRange).toEqual({ startTime: 2, endTime: 110, fadeInTime: 1, fadeOutTime: 1 });
     expect(songDirty()).toBe(true);
+  });
+});
+
+describe('음원을 바꿀 때 구간마다 유지하거나 기본값으로 돌림', () => {
+  /** 180초 음원에 프리뷰·인게임 구간을 저장한 곡을 연다. 기본은 프리뷰 60～75초·인게임 5～170초·페이드 1·2초다. */
+  function openSong(row: Partial<LoadedSongSharedData> = {}) {
+    const saved: LoadedSongSharedData = { ...loadedSong, audioUrl: 'A.ogg', duration: 180, previewStart: 60, previewEnd: 75,
+      gameplayStart: 5, gameplayEnd: 170, gameplayFadeIn: 1, gameplayFadeOut: 2, ...row };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, saved), saved);
+  }
+  const replaceAudio = (duration: number) => editSongAudio(new File(['B'], 'B.ogg'), duration, createSongAudioId());
+  const ranges = () => ({ previewStart: store().chart.meta.previewStart, previewEnd: store().chart.meta.previewEnd,
+    pendingPreviewRange: store().song?.pendingPreviewRange, gameplayRange: store().song?.gameplayRange });
+
+  it('프리뷰 60～75초·인게임 5～170초를 180초 음원으로 바꾸면 두 구간과 인게임 페이드 1·2초를 유지하고 알리지 않는다', () => {
+    openSong();
+    replaceAudio(180);
+
+    expect(ranges()).toEqual({ previewStart: 60, previewEnd: 75,
+      pendingPreviewRange: { startTime: 60, endTime: 75, fadeInTime: 0.5, fadeOutTime: 0.5 },
+      gameplayRange: { startTime: 5, endTime: 170, fadeInTime: 1, fadeOutTime: 2 } });
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('프리뷰 페이드 1·2초로 고른 프리뷰 60～75초를 180초 음원으로 바꾸면 고른 페이드까지 유지한다', () => {
+    openSong();
+    const range = { startTime: 60, endTime: 75, fadeInTime: 1, fadeOutTime: 2 };
+    editPreviewRange(range);
+    replaceAudio(180);
+
+    expect(store().song?.pendingPreviewRange).toEqual(range);
+  });
+
+  it('프리뷰 60～75초·인게임 5～170초를 70초 음원으로 바꾸면 17.5～32.5초·0～70초로 돌리고 두 구간을 한 번에 알린다', () => {
+    openSong();
+    replaceAudio(70);
+
+    expect(ranges()).toEqual({ previewStart: 17.5, previewEnd: 32.5,
+      pendingPreviewRange: { startTime: 17.5, endTime: 32.5, fadeInTime: 0.5, fadeOutTime: 0.5 },
+      gameplayRange: { startTime: 0, endTime: 70, fadeInTime: 0, fadeOutTime: 0 } });
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.both, 'warn');
+  });
+
+  it('프리뷰 60～75초·인게임 5～170초를 50초 음원으로 바꾸면 12.5～27.5초·0～50초로 돌린다', () => {
+    openSong();
+    replaceAudio(50);
+
+    expect(ranges()).toMatchObject({ previewStart: 12.5, previewEnd: 27.5,
+      gameplayRange: { startTime: 0, endTime: 50, fadeInTime: 0, fadeOutTime: 0 } });
+  });
+
+  it('프리뷰 60～75초·인게임 5～60초를 70초 음원으로 바꾸면 프리뷰만 17.5～32.5초로 돌리고 프리뷰만 알린다', () => {
+    openSong({ gameplayEnd: 60 });
+    replaceAudio(70);
+
+    expect(ranges()).toMatchObject({ previewStart: 17.5, previewEnd: 32.5,
+      gameplayRange: { startTime: 5, endTime: 60, fadeInTime: 1, fadeOutTime: 2 } });
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.preview, 'warn');
+  });
+
+  it('프리뷰 10～25초·인게임 5～170초를 70초 음원으로 바꾸면 인게임만 0～70초로 돌리고 인게임만 알린다', () => {
+    openSong({ previewStart: 10, previewEnd: 25 });
+    replaceAudio(70);
+
+    expect(ranges()).toMatchObject({ previewStart: 10, previewEnd: 25,
+      gameplayRange: { startTime: 0, endTime: 70, fadeInTime: 0, fadeOutTime: 0 } });
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.gameplay, 'warn');
+  });
+
+  it('저장된 프리뷰·인게임 구간이 없는 곡에 120초 음원을 넣으면 기본값 30～45초·0～120초를 쓰고 알리지 않는다', () => {
+    openSong({ previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
+      gameplayFadeIn: null, gameplayFadeOut: null });
+    replaceAudio(120);
+
+    expect(ranges()).toMatchObject({ previewStart: 30, previewEnd: 45, gameplayRange: { startTime: 0, endTime: 120 } });
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it('프리뷰 60～75초·인게임 5～170초를 70초 음원으로 바꾼 뒤 Undo 1회면 음원 A·프리뷰·인게임·페이드를 한 번에 복원하고 Redo 1회면 B와 돌린 구간을 복원한다', () => {
+    openSong();
+    const beforeSong = store().song;
+    const beforeRanges = ranges();
+    replaceAudio(70);
+    const afterSong = store().song;
+    expect(store().historyPast).toHaveLength(1);
+
+    store().undo();
+    expect(store().chart.meta.audioFile).toBe('A.ogg');
+    expect(ranges()).toEqual(beforeRanges);
+    expect(store().song).toEqual(beforeSong);
+    expect(store().historyPast).toHaveLength(0);
+
+    store().redo();
+    expect(store().chart.meta).toMatchObject({ audioFile: 'B.ogg', previewStart: 17.5, previewEnd: 32.5 });
+    expect(store().song).toEqual(afterSong);
+  });
+
+  it('음원 교체가 Undo로 돌아와도 돌린 구간 안내는 교체 때 한 번뿐이다', () => {
+    openSong();
+    replaceAudio(70);
+    store().undo();
+    store().redo();
+
+    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.both, 'warn');
+  });
+
+  it('역전 restZone이 남아 70초 음원 적용이 구조 위반으로 거부되면 구간·이력이 그대로이고 구간 안내를 띄우지 않는다', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    openSong();
+    useEditorStore.setState({ chart: { ...store().chart, restZones: [{ lane: 1, beat: beat(1), endBeat: beat(0) }] } });
+    const before = ranges();
+
+    replaceAudio(70);
+
+    expect(ranges()).toEqual(before);
+    expect(store().historyPast).toHaveLength(0);
+    expect(showToast).toHaveBeenCalledOnce();
+    expect(showToast).not.toHaveBeenCalledWith(AUDIO_RANGE_RESET_COPY.both, 'warn');
   });
 });
 
