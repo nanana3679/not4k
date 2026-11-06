@@ -1,3 +1,4 @@
+import type { BoxSelectRect } from "./editorMode";
 import { describe, it, expect, vi } from "vitest";
 import { SelectMode, type SelectModeCallbacks } from "./SelectMode";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
@@ -6,6 +7,12 @@ import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { emptySelection, normalizeSelection, type Selection } from "../stores/selectionSlice";
 import { beat, beatToFloat, withAuxNotes } from "../../shared";
 import type { ChartDocument, Beat, Lane, DocumentNoteEntity, DocumentExtraNoteEntity, TrillZone } from "../../shared";
+
+// x=lane 페이크의 새 범위 프리뷰를 기존 레인 기대값으로 관찰한다.
+function boxSelectLanes(rect: BoxSelectRect | null | undefined) {
+  return rect && { startY: rect.startY, startLane: rect.startRange.x,
+    endY: rect.endY, endLane: rect.endRange.x };
+}
 
 function makeChart(overrides?: Partial<ChartDocument>): ChartDocument {
   return {
@@ -223,7 +230,7 @@ describe("SelectMode — onPointerMove 프리뷰 반환", () => {
     const result = mode.onPointerMove(2, 5);
 
     expect(mode.isBoxSelecting).toBe(true);
-    expect(result.preview?.boxSelectRect).toBeDefined();
+    expect(boxSelectLanes(result.preview?.boxSelectRect)).toBeDefined();
   });
 
   it("드래그 중이 아니면 preview는 비어 있다", () => {
@@ -233,7 +240,7 @@ describe("SelectMode — onPointerMove 프리뷰 반환", () => {
 
     const result = mode.onPointerMove(2, 5);
 
-    expect(result.preview?.boxSelectRect).toBeUndefined();
+    expect(boxSelectLanes(result.preview?.boxSelectRect)).toBeUndefined();
     expect(result.preview?.moveOrigins).toBeUndefined();
   });
 });
@@ -843,7 +850,7 @@ describe("SelectMode — 짧은 터치 clickAt (down+up 한 쌍, #154)", () => {
     const result = mode.onPointerMove(2, 0);
 
     expect(mode.isBoxSelecting).toBe(true);
-    expect(result.preview?.boxSelectRect).toEqual({ startY: 5, startLane: 3, endY: 0, endLane: 2 });
+    expect(boxSelectLanes(result.preview?.boxSelectRect)).toEqual({ startY: 5, startLane: 3, endY: 0, endLane: 2 });
 
     mode.onPointerDown(3, 5, false, false);
     mode.onPointerUp(2, 0);
@@ -861,7 +868,7 @@ describe("SelectMode — 짧은 터치 clickAt (down+up 한 쌍, #154)", () => {
     const result = mode.onPointerMove(4, 3);
 
     expect(mode.isBoxSelecting).toBe(true);
-    expect(result.preview?.boxSelectRect).toEqual({ startY: 1, startLane: 2, endY: 3, endLane: 4 });
+    expect(boxSelectLanes(result.preview?.boxSelectRect)).toEqual({ startY: 1, startLane: 2, endY: 3, endLane: 4 });
 
     mode.onPointerDown(2, 1, false, false);
     mode.onPointerUp(4, 3);
@@ -1585,7 +1592,7 @@ describe("SelectMode — 박스 선택 보조 레인 (통합 인덱스, RFD 0018
 
     mode.onPointerDown(5, 0, false, false); // 보조 레인 1(x=5), beat 0
     mode.onPointerMove(6, 2);               // 보조 레인 2(x=6), beat 2
-    expect(mode.boxSelectPixelRect).toMatchObject({ startLane: 5, endLane: 6 });
+    expect(boxSelectLanes(mode.boxSelectPixelRect)).toMatchObject({ startLane: 5, endLane: 6 });
     mode.onPointerUp(6, 2);
 
     const selNotes = cb.getSelectionState().notes;

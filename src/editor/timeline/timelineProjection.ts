@@ -1,28 +1,4 @@
-import type { Beat, Lane } from "../../shared";
-
-export function timelineXToLane(input: {
-  timelineX: number;
-  laneWidth: number;
-  laneCount: number;
-}): Lane | null {
-  if (input.timelineX < 0 || input.laneWidth <= 0 || input.laneCount <= 0) return null;
-  const lane = Math.floor(input.timelineX / input.laneWidth) + 1;
-  if (lane < 1 || lane > input.laneCount) return null;
-  return lane as Lane;
-}
-
-export function timelineXToExtraLane(input: {
-  timelineX: number;
-  timelineWidth: number;
-  extraLaneWidth: number;
-  extraLaneCount: number;
-}): number | null {
-  if (input.extraLaneCount <= 0 || input.extraLaneWidth <= 0) return null;
-  if (input.timelineX < input.timelineWidth) return null;
-  const lane = Math.floor((input.timelineX - input.timelineWidth) / input.extraLaneWidth) + 1;
-  if (lane < 1 || lane > input.extraLaneCount) return null;
-  return lane;
-}
+import type { Beat } from "../../shared";
 
 export function getTimelineTotalHeight(input: {
   totalTimelineMs: number;

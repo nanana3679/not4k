@@ -6,6 +6,7 @@
  * Vertical timeline (time flows bottom-to-top)
  */
 
+import type { BoxSelectRect } from "../modes/editorMode";
 import { Application, Container, Graphics, TextStyle, FillGradient } from "pixi.js";
 import type { ViewportSource } from "../stores/viewportSlice";
 import type {
@@ -17,11 +18,8 @@ import type {
 } from "../../shared";
 import { beatToMs, measureStartBeat, extractBpmChanges, extractTimeSignatureChanges } from "../../shared";
 import {
-  TIMELINE_WIDTH,
   DEFAULT_MEASURES,
   TIMELINE_PADDING,
-  EXTRA_LANE_WIDTH,
-  MEASURE_LABEL_WIDTH,
   MINIMAP_WIDTH,
 } from "./constants";
 import {
@@ -53,10 +51,12 @@ import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 import { destroyChildren } from "./utils";
 import { laneToX, laneWidth } from "./laneGeometry";
+import { createTimelineLayout, type TimelineLayout, type EventPlacementInput, type TimelineLayoutConfig } from "./TimelineLayout";
 import { clampToCursorRange, cursorRangeMsOf } from "./timelineRange";
 
 export interface TimelineRendererOptions {
   canvas: HTMLCanvasElement;
+  layoutConfig: TimelineLayoutConfig;
   width: number;
   height: number;
   /**
@@ -75,6 +75,9 @@ export interface TimelineRendererOptions {
  * All positions are in pixels; time flows top-to-bottom.
  */
 export class TimelineRenderer {
+  private cachedLayout: TimelineLayout | null = null;
+  private cachedLayoutConfig: TimelineLayoutConfig | null = null;
+  private layoutConfig: TimelineLayoutConfig;
   private app!: Application;
   private initialized: boolean = false;
   private disposed = false;
@@ -123,10 +126,9 @@ export class TimelineRenderer {
   private _selectedRestZones: Set<number> = new Set();
   private _selectedEvents: Set<number> = new Set();
   private _moveOrigins: { note: DocumentNoteEntity; beat: Beat; endBeat?: Beat; lane: number }[] | null = null;
-  private _boxSelectRect: { startY: number; startLane: number; endY: number; endLane: number } | null = null;
+  private _boxSelectRect: BoxSelectRect | null = null;
 
-  // Extra lane state
-  private _extraLaneCount: number = 0;
+  // Hover state
   private _hoveredNoteIndex: number | null = null;
   private _hoveredTrillZoneIndex: number | null = null;
   private _hoveredRestZoneIndex: number | null = null;
@@ -195,6 +197,7 @@ export class TimelineRenderer {
 
   constructor(options: TimelineRendererOptions) {
     this.options = options;
+    this.layoutConfig = this.copyLayoutConfig(options.layoutConfig);
     // 뷰포트 초기값은 소유자(뷰포트 슬라이스)에서 온다.
     const viewport = options.viewport.get();
     this._zoom = viewport.zoom;
@@ -363,14 +366,14 @@ export class TimelineRenderer {
 
     // GridRenderer host
     const gridHost: GridHost = {
+      get layout() { return self.layout; },
       get selectedEvents() { return self._selectedEvents; },
       get chart() { return self.chart; },
       get zoom() { return self._zoom; },
       get snap() { return self._snap; },
-      get extraLaneCount() { return self._extraLaneCount; },
+      get extraLaneCount() { return self.extraLaneCount; },
       get selectedTrillZones() { return self._selectedTrillZones; },
       get selectedRestZones() { return self._selectedRestZones; },
-      get currentTimelineWidth() { return self.currentTimelineWidth; },
       get waveformPeaks() { return self.waveformPeaks; },
       get waveformDurationMs() { return self.waveformDurationMs; },
       get cachedBpmChanges() { return self.cachedBpmChanges; },
@@ -393,6 +396,7 @@ export class TimelineRenderer {
 
     // NoteRenderer host
     const noteHost: NoteHost = {
+      get layout() { return self.layout; },
       get chart() { return self.chart; },
       get selectedNotes() { return self._selectedNotes; },
       get cachedBpmChanges() { return self.cachedBpmChanges; },
@@ -412,6 +416,7 @@ export class TimelineRenderer {
 
     // OverlayRenderer host
     const overlayHost: OverlayHost = {
+      get layout() { return self.layout; },
       get extraLaneCount() { return self.extraLaneCount; },
       get chart() { return self.chart; },
       get selectedNotes() { return self._selectedNotes; },
@@ -502,22 +507,22 @@ export class TimelineRenderer {
     if (this.initialized) this.render();
   }
 
-  /** Set extra lane count */
-  setExtraLaneCount(count: number): void {
-    this._extraLaneCount = count;
+  /** 가로 배치 전체를 갱신하고 팬·커서·렌더링을 같은 설정으로 맞춘다. */
+  setLayoutConfig(config: TimelineLayoutConfig): void {
+    this.layoutConfig = this.copyLayoutConfig(config);
     this._horizontalPanX = clampHorizontalPan({
       requestedPanX: this._horizontalPanX,
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
     this.render();
-    this.updatePlaybackCursor(this._lastCursorTimeMs);
+    if (this.initialized) this.updatePlaybackCursor(this._lastCursorTimeMs);
   }
 
   get extraLaneCount(): number {
-    return this._extraLaneCount;
+    return this.layoutConfig.auxiliaryLaneCount;
   }
 
 
@@ -550,9 +555,32 @@ export class TimelineRenderer {
     this.updateHoverOverlay();
   }
 
+  private copyLayoutConfig(config: TimelineLayoutConfig): TimelineLayoutConfig {
+    return { auxiliaryLaneCount: config.auxiliaryLaneCount,
+      songCommonColumns: config.songCommonColumns.map(column => ({ ...column })) };
+  }
+
+  /** 입력도 최신 설정 전체를 넘겨 렌더 동기화 지연 없이 같은 배치를 읽는다. */
+  getLayout(config: TimelineLayoutConfig = this.layoutConfig): TimelineLayout {
+    const cached = this.cachedLayoutConfig;
+    if (!this.cachedLayout || !cached
+      || cached.auxiliaryLaneCount !== config.auxiliaryLaneCount
+      || cached.songCommonColumns.length !== config.songCommonColumns.length
+      || cached.songCommonColumns.some((column, index) =>
+        column.id !== config.songCommonColumns[index].id || column.width !== config.songCommonColumns[index].width)) {
+      this.cachedLayoutConfig = this.copyLayoutConfig(config);
+      this.cachedLayout = createTimelineLayout(this.cachedLayoutConfig);
+    }
+    return this.cachedLayout;
+  }
+
+  get layout(): TimelineLayout {
+    return this.getLayout();
+  }
+
   /** Dynamic timeline width including extra lanes */
   get currentTimelineWidth(): number {
-    return TIMELINE_WIDTH + this._extraLaneCount * EXTRA_LANE_WIDTH;
+    return this.layout.contentWidth;
   }
 
   private get rightRailWidth(): number {
@@ -564,7 +592,7 @@ export class TimelineRenderer {
       requestedPanX: value,
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
     if (next === this._horizontalPanX) return;
@@ -584,13 +612,13 @@ export class TimelineRenderer {
 
   /** 통합 레인 하나가 가로로 보이게 팬한다. 이미 보이면 그대로 둔다(변환 검토 목록의 위치 이동). */
   revealLane(lane: number): void {
-    const left = laneToX(lane);
+    const left = laneToX(lane, this.layout);
     this.horizontalPanX = panToRevealRange({
       left,
-      right: left + laneWidth(lane),
+      right: left + laneWidth(lane, this.layout),
       panX: this._horizontalPanX,
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
   }
@@ -609,7 +637,7 @@ export class TimelineRenderer {
   }
 
   /** Set box select rectangle for visual feedback (pixel Y coords) */
-  setBoxSelectRect(rect: { startY: number; startLane: number; endY: number; endLane: number }): void {
+  setBoxSelectRect(rect: BoxSelectRect): void {
     this._boxSelectRect = rect;
   }
 
@@ -636,7 +664,7 @@ export class TimelineRenderer {
   get contentCenterShiftX(): number {
     return getContentCenterShiftX({
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       timelineWidth: this.currentTimelineWidth,
       rightRailWidth: this.rightRailWidth,
     });
@@ -648,7 +676,7 @@ export class TimelineRenderer {
    */
   get contentOffsetX(): number {
     return getTimelineContentOffsetX({
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       horizontalPanX: this._horizontalPanX,
       centerShiftX: this.contentCenterShiftX,
     });
@@ -696,7 +724,7 @@ export class TimelineRenderer {
     const rect = getTimelineContentViewportRect({
       viewportWidth: this.options.width,
       viewportHeight: this.options.height,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
 
@@ -811,7 +839,7 @@ export class TimelineRenderer {
       layer.y = -this._scrollY;
     }
     this.measureLabels.x = getMeasureLabelLayerOffsetX({
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       horizontalPanX: this._horizontalPanX,
       centerShiftX: this.contentCenterShiftX,
     });
@@ -922,7 +950,7 @@ export class TimelineRenderer {
     }
 
     const hs = 8; // half-size of handle
-    const hx = MEASURE_LABEL_WIDTH - hs;
+    const hx = this.layout.measureRail.width - hs;
     this._cursorHandle.clear();
     this._cursorHandle.moveTo(hx, y - hs);
     this._cursorHandle.lineTo(hx + hs * 2, y);
@@ -938,12 +966,9 @@ export class TimelineRenderer {
     this.overlayRenderer.showGhostNote(lane, timeMs);
   }
 
-  /**
-   * Show a semi-transparent ghost event in an auxiliary lane.
-   * @param auxIndex 0=event
-   */
-  showGhostEvent(auxIndex: number, timeMs: number): void {
-    this.overlayRenderer.showGhostEvent(auxIndex, timeMs);
+  /** 일반 이벤트와 같은 배치에 반투명 고스트를 그린다. */
+  showGhostEvent(event: EventPlacementInput, timeMs: number): void {
+    this.overlayRenderer.showGhostEvent(event, timeMs);
   }
 
   /**
@@ -1008,7 +1033,7 @@ export class TimelineRenderer {
       requestedPanX: this._horizontalPanX,
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
-      leftRailWidth: MEASURE_LABEL_WIDTH,
+      leftRailWidth: this.layout.measureRail.width,
       rightRailWidth: this.rightRailWidth,
     });
     if (this.initialized) {
