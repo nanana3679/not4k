@@ -58,7 +58,6 @@ import { isChartDirty } from './savedChart';
 import { openEditorChart } from './openEditorChart';
 import { restoreSongAudioAfterPlayTest } from './playtest/restoreSongAudioAfterPlayTest';
 import { createMetaAudioSession, type MetaAudioPick } from './metaAudioSession';
-import { pickMetaAudio } from './songInfoEditing';
 import { fetchChartRows } from '../supabase/chartRows';
 import { isSongTimingDirty } from './songState';
 import { createDrawerSongAudio, subscribeDrawerSongAudio } from './drawerSongAudio';
@@ -977,7 +976,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
             metaAudio.cancel(playbackRef.current);
             setShowMetaModal(false);
           }}
-          onLoadAudio={(file) => { void pickMetaAudio(metaAudio, playbackRef.current, file, songGameplayRange); }}
+          onLoadAudio={(file) => { void metaAudio.load(playbackRef.current, file); }}
         />
       )}
 

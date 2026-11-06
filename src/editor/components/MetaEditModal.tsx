@@ -5,7 +5,6 @@ import { STORAGE_BUCKET } from '../../shared';
 import { supabase } from '../../supabase';
 import { PreviewRangeSelector } from './PreviewRangeSelector';
 import type { PreviewRangeState } from './PreviewRangeSelector';
-import { rangesForNewAudio } from './previewRangeState';
 import { modalStyles } from './modalStyles';
 import { DIFFICULTY_LABEL_READ_ONLY_COPY, META_SONG_INFO_MOVED_COPY, PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import type { MetaAudioPick } from '../metaAudioSession';
@@ -121,14 +120,6 @@ export function MetaEditModal({
       ? getPublicUrl(meta.imageFile) + (jacketCacheBust ? `?t=${jacketCacheBust}` : '')
       : null);
 
-  // 음원을 고르면 선택기가 새 음원으로 다시 마운트하며, 마운트할 때만 처음 구간을 읽는다. 로드가 끝나면 재생기가 새 음원을 먼저
-  // 알리므로 loading이어도 보이는 음원은 새 음원이다. 실패하면 이전 음원으로 돌아가 이전 구간을 그대로 그린다.
-  const newAudioRanges = audioBuffer && audioPick && audioPick.status !== 'failed'
-    ? rangesForNewAudio(audioBuffer.duration, { startTime: meta.previewStart, endTime: meta.previewEnd }, initialGameplayRange)
-    : null;
-  const previewInitial = newAudioRanges?.preview ?? { startTime: meta.previewStart, endTime: meta.previewEnd };
-  const gameplayInitial = newAudioRanges?.gameplay ?? initialGameplayRange;
-
   // 차트 정보만 다루는 창은 음원 로딩과 관계없다.
   const saveDisabled = !songInfoInDrawer
     && (audioLoading || audioPick?.status === 'loading' || (audioFile !== null && audioBuffer === null));
@@ -153,7 +144,7 @@ export function MetaEditModal({
     if (values.difficultyLevel !== initialValues.difficultyLevel && !isNaN(level)) updatedMeta.difficultyLevel = level;
     // 저장 완료로 바뀐 경로를 모달을 열 때의 파일명으로 되돌리지 않는다.
     if (audioFile) updatedMeta.audioFile = audioFile.name;
-    // 음원을 교체했다면 그 음원의 구간(rangesForNewAudio로 처음 그린 값이나 그 뒤 고친 값)도 적용한다.
+    // 음원을 교체했다면 새 길이로 정규화한 구간도 적용한다.
     const previewRange = previewDraft.changed || audioFile ? previewDraft.current : null;
     const gameplayRange = gameplayDraft.changed || audioFile ? gameplayDraft.current : null;
     if (previewRange) {
@@ -242,8 +233,8 @@ export function MetaEditModal({
                       label="프리뷰 구간"
                       enabledLabel="프리뷰 사용"
                       onChange={previewDraft.onChange}
-                      initialStart={previewInitial.startTime}
-                      initialEnd={previewInitial.endTime}
+                      initialStart={meta.previewStart}
+                      initialEnd={meta.previewEnd}
                     />
                     <PreviewRangeSelector
                       audioBuffer={audioBuffer}
@@ -254,10 +245,10 @@ export function MetaEditModal({
                       defaultDuration={audioBuffer.duration}
                       minDuration={1}
                       showFadeControls
-                      initialStart={gameplayInitial?.startTime}
-                      initialEnd={gameplayInitial?.endTime}
-                      initialFadeInTime={gameplayInitial?.fadeInTime}
-                      initialFadeOutTime={gameplayInitial?.fadeOutTime}
+                      initialStart={initialGameplayRange?.startTime}
+                      initialEnd={initialGameplayRange?.endTime}
+                      initialFadeInTime={initialGameplayRange?.fadeInTime}
+                      initialFadeOutTime={initialGameplayRange?.fadeOutTime}
                       onChange={gameplayDraft.onChange}
                     />
                   </div>

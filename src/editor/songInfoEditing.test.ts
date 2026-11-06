@@ -17,7 +17,6 @@ import {
   editSongAudio,
   editSongJacket,
   editSongTitle,
-  pickMetaAudio,
 } from './songInfoEditing';
 
 const { showToast } = vi.hoisted(() => ({ showToast: vi.fn() }));
@@ -293,45 +292,6 @@ describe('음원을 바꿀 때 구간마다 유지하거나 기본값으로 돌�
     expect(store().historyPast).toHaveLength(0);
     expect(showToast).toHaveBeenCalledOnce();
     expect(showToast).not.toHaveBeenCalledWith(AUDIO_RANGE_RESET_COPY.both, 'warn');
-  });
-});
-
-describe('곡 행이 없는 차트의 Meta에서 고른 음원의 구간 안내', () => {
-  const gameplay = { startTime: 5, endTime: 170, fadeInTime: 0, fadeOutTime: 0 };
-  const file = new File(['B'], 'B.ogg');
-  const playbackOf = (duration: number) => ({ audioBufferData: { duration } as AudioBuffer }) as Parameters<typeof pickMetaAudio>[1];
-  const sessionOf = (status: 'loaded' | 'failed' | null) => ({ load: vi.fn(async () => status) });
-
-  beforeEach(() => {
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null));
-    store().applyMetaEdit({ previewStart: 60, previewEnd: 75 });
-  });
-
-  it('프리뷰 60～75초·인게임 5～170초에 70초 음원을 불러오면 두 구간 안내를 한 번 띄운다', async () => {
-    const session = sessionOf('loaded');
-    const playback = playbackOf(70);
-    await pickMetaAudio(session, playback, file, gameplay);
-
-    expect(session.load).toHaveBeenCalledExactlyOnceWith(playback, file);
-    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.both, 'warn');
-  });
-
-  it('프리뷰 60～75초·인게임 5～60초에 70초 음원을 불러오면 프리뷰 안내만 띄운다', async () => {
-    await pickMetaAudio(sessionOf('loaded'), playbackOf(70), file, { ...gameplay, endTime: 60 });
-
-    expect(showToast).toHaveBeenCalledExactlyOnceWith(AUDIO_RANGE_RESET_COPY.preview, 'warn');
-  });
-
-  it('프리뷰 60～75초·인게임 5～170초에 180초 음원을 불러오면 두 구간이 들어가 안내가 없다', async () => {
-    await pickMetaAudio(sessionOf('loaded'), playbackOf(180), file, gameplay);
-
-    expect(showToast).not.toHaveBeenCalled();
-  });
-
-  it.each(['failed', null] as const)('음원 로드 결과가 %s이면 재생기가 70초여도 구간 안내를 띄우지 않는다', async status => {
-    await pickMetaAudio(sessionOf(status), playbackOf(70), file, gameplay);
-
-    expect(showToast).not.toHaveBeenCalled();
   });
 });
 
