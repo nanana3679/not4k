@@ -104,16 +104,16 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
   // Space·Enter로 눌린다. 숫자 입력칸(Offset·페이드)의 Space만은 재생·정지로 쓴다(RFD 0099: 오프셋 입력을 연 채 재생·일시정지).
   // 입력한 값은 포커스를 옮겨(blur) 먼저 적용하고, 적용이 커서 박 유지까지 반영된 다음 작업에서 재생을 토글한다.
   // 재생 중에는 Offset 입력이 비활성이라 값이 남은 채 잠기지 않는다.
-  // 음원이 없어 재생이 시작되지 않으면 포커스를 입력칸에 돌려준다. BODY에 남기면 뒤이은 Backspace가 고른 노트를 지운다.
+  // 토글 뒤 재생 중이 아니면(음원이 없어 시작되지 않았거나 페이드 입력에서 일시정지했으면) 포커스를 입력칸에 돌려준다.
+  // BODY에 남기면 뒤이은 Backspace가 고른 노트를 지운다. 재생이 시작되면 돌려주지 않는다(재생 중 Offset은 비활성이다).
   if (isTextEntryTarget(e.target) || isInOwnKeysRegion(e.target)) {
     if (e.key === ' ' && isNumberEntryTarget(e.target)) {
       e.preventDefault();
       const field = e.target;
       field.blur?.();
       setTimeout(() => {
-        const wasPlaying = useEditorStore.getState().isPlaying;
         playback?.togglePlay();
-        if (!wasPlaying && !useEditorStore.getState().isPlaying) field.focus?.();
+        if (!useEditorStore.getState().isPlaying) field.focus?.();
       }, 0);
     }
     return;

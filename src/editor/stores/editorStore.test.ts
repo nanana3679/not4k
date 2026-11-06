@@ -397,6 +397,25 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
     expect(useEditorStore.getState().chart.notes).toHaveLength(2); // 위반 상태로 복원 — 안전망
   });
 
+  it('제목을 A로 적용하고 endHistoryCoalescing을 부른 뒤 600ms 안에 B로 적용하면 Undo 1회는 B만 되돌려 A가 남는다', () => {
+    const store = () => useEditorStore.getState();
+    store().applyMetaEdit({ title: 'A' });
+    store().endHistoryCoalescing();
+    store().applyMetaEdit({ title: 'B' });
+
+    expect(store().historyPast).toHaveLength(2);
+    store().undo();
+    expect(store().chart.meta.title).toBe('A');
+  });
+
+  it('제목을 A로 적용한 뒤 600ms 안에 B로 적용하면 endHistoryCoalescing이 없을 때는 Undo 1개로 합친다', () => {
+    const store = () => useEditorStore.getState();
+    store().applyMetaEdit({ title: 'A' });
+    store().applyMetaEdit({ title: 'B' });
+
+    expect(store().historyPast).toHaveLength(1);
+  });
+
   it('revertToLastValid는 600ms 병합창과 무관하게 past에 스냅샷을 쌓는다', () => {
     const valid = makeChart([{ type: 'single', lane: 1 as Lane, beat: beat(1) }]);
     useEditorStore.getState().setChart(valid);

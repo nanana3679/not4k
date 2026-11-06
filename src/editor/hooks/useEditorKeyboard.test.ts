@@ -380,7 +380,7 @@ describe('숫자 입력칸의 Space 뒤 포커스', () => {
     expect(offset.focus).not.toHaveBeenCalled();
   });
 
-  it('재생 중 페이드 입력칸의 Space로 일시정지하면 시작 실패가 아니므로 포커스를 돌려주지 않는다', async () => {
+  it('재생 중 페이드 입력칸의 Space로 일시정지하면 값을 적용(blur)한 뒤 포커스를 페이드 입력칸에 돌려준다', async () => {
     const { press } = setup();
     current().setIsPlaying(true);
     const fade = offsetField();
@@ -389,7 +389,8 @@ describe('숫자 입력칸의 Space 뒤 포커스', () => {
     await nextTask();
 
     expect(current().isPlaying).toBe(false);
-    expect(fade.focus).not.toHaveBeenCalled();
+    expect(fade.blur).toHaveBeenCalledOnce();
+    expect(fade.focus).toHaveBeenCalledOnce();
   });
 });
 

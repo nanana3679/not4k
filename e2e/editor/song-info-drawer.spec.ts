@@ -126,6 +126,30 @@ test.describe('곡 정보 드로어', () => {
     await expect(title).toHaveValue('E2E 에디터 곡');
   });
 
+  test('Delete 모드에서 Title에 새 제목을 입력만 한 채 1레인 2박 탭을 클릭하면 탭이 지워지고 제목이 남으며 Ctrl+Z 1회는 탭만, 2회는 제목까지 되돌린다', async ({ page }) => {
+    await openEditor(page, { songTiming: timing });
+    await openSongInfo(page);
+    const point = await canvasPosition(page, 1, 2);
+    await page.mouse.click(point.x, point.y);
+    await expect.poll(async () => (await editorState(page)).notes).toBe(1);
+    await page.keyboard.press('d');
+    const title = songInfo(page).getByLabel('Title', { exact: true });
+
+    await title.fill('새 제목');
+    await page.mouse.click(point.x, point.y);
+    await expect.poll(async () => (await editorState(page)).notes).toBe(0);
+    expect((await editorState(page)).title).toBe('새 제목');
+    await expect(title).toHaveValue('새 제목');
+
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => (await editorState(page)).notes).toBe(1);
+    expect((await editorState(page)).title).toBe('새 제목');
+
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => (await editorState(page)).title).toBe('E2E 에디터 곡');
+    await expect(title).toHaveValue('E2E 에디터 곡');
+  });
+
   test('음원 없는 곡에서 1레인 2박 탭을 고른 채 Offset에 45를 넣고 Space를 누르면 45를 적용하고 재생되지 않아 포커스가 Offset에 돌아오며 Backspace는 글자만 지우고 탭과 선택이 남는다', async ({ page }) => {
     await openEditor(page, { songTiming: timing });
     await openSongInfo(page);
