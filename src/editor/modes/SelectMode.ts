@@ -1007,7 +1007,8 @@ export class SelectMode implements EditorMode {
       }
     }
 
-    this.finishTransaction();
+    // 박스는 transaction이 없다. 그 사이 붙여넣기가 연 transaction은 대기가 끝날 때 닫는다.
+    if (this.dragType !== "boxSelect") this.finishTransaction();
     this.resizeOriginalNotes = null;
     this._pendingZoneSelect = null;
     this._pendingRestZoneSelect = null;
@@ -1322,6 +1323,8 @@ export class SelectMode implements EditorMode {
     // 노트+restZone 혼합 붙여넣기는 두 공존 축을 함께 선택한다 (RFD 0019).
     this.commitSelection({
       notes: result.selectedIndices,
+      // 자동 펼침이 박스를 취소하면 드래그 전 선택이 돌아오므로 구간도 여기서 비운다.
+      zones: new Set(),
       restZones: new Set(result.pastedRestZoneIndices),
       events: new Set(result.pastedEventIndices),
     });

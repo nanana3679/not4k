@@ -90,7 +90,7 @@ async function seekOnRail(page: Page, at: number) {
 }
 
 test.describe('넓은 화면', () => {
-  test('저장값이 없으면 펼친 채 시작하고 접으면 펼치기 버튼만 남아 메인 레인 1이 108px의 절반인 54px 왼쪽으로 온다', async ({ page }) => {
+  test('저장값이 없으면 펼친 채 시작하고 접으면 펼치기 버튼만 남아 메인 레인 1이 곡 공통 폭 108px만큼 왼쪽으로 온다', async ({ page }) => {
     await openEditor(page);
     await expect(collapseButton(page)).toBeVisible();
     await expect(collapseButton(page)).toHaveAttribute('aria-expanded', 'true');
@@ -103,7 +103,7 @@ test.describe('넓은 화면', () => {
     await expect(collapseButton(page)).toHaveCount(0);
     expect((await editorState(page)).songCommonCollapsed).toBe(true);
     const after = await canvasPosition(page, 1, 1);
-    expect(before.x - after.x).toBeCloseTo(54, 0);
+    expect(before.x - after.x).toBeCloseTo(108, 0);
     expect(after.y).toBeCloseTo(before.y, 3);
   });
 
@@ -120,6 +120,30 @@ test.describe('넓은 화면', () => {
     const collapsed = (await expandButton(page).boundingBox())!;
     const lane = await canvasPosition(page, 1, 1);
     expect(collapsed.x + collapsed.width).toBeLessThanOrEqual(lane.x - 29);
+  });
+
+  test('마우스를 옮기지 않고 같은 좌표를 세 번 누르면 접고 펼치고 접으며 BPM이 생기지 않고 커서도 움직이지 않는다', async ({ page }) => {
+    await openEditor(page);
+    const button = (await collapseButton(page).boundingBox())!;
+    const x = button.x + button.width / 2;
+    const y = button.y + button.height / 2;
+    const before = await editorState(page);
+
+    await page.mouse.click(x, y);
+    await expect(expandButton(page)).toBeVisible();
+    await page.mouse.click(x, y);
+    await expect(collapseButton(page)).toBeVisible();
+    await page.mouse.click(x, y);
+    await expect(expandButton(page)).toBeVisible();
+
+    expect((await expandButton(page).boundingBox())!.x).toBeCloseTo(button.x, 0);
+    const after = await editorState(page);
+    expect(after.bpmCount).toBe(before.bpmCount);
+    const currentTimeMs = await page.evaluate(async () => {
+      const path = '/src/editor/stores/editorStore.ts';
+      return (await import(path)).useEditorStore.getState().currentTimeMs as number;
+    });
+    expect(currentTimeMs).toBe(0);
   });
 
   test('접고 다시 불러와도 접힌 채 시작하고 펼치면 다시 불러온 뒤에도 펼쳐져 있다', async ({ page }) => {

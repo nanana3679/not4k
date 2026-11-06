@@ -16,6 +16,11 @@ describe("곡 공통 영역을 접은 배치(RFD 0095)", () => {
     expect(collapsed.auxiliaryLaneRange(1).x).toBe(240);
   });
 
+  it("접어도 중앙 정렬 폭은 펼친 콘텐츠 폭 468px 그대로다", () => {
+    expect(expanded.centeringWidth).toBe(468);
+    expect(collapsed.centeringWidth).toBe(468);
+  });
+
   it("접으면 x=10이 bpm 열이 아니라 메인 레인 1이고 x<0은 콘텐츠 밖이다", () => {
     expect(expanded.classifyX(10)).toEqual({ kind: "common", column: "bpm" });
     expect(collapsed.classifyX(10)).toEqual({ kind: "main", lane: 1 });

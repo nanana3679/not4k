@@ -734,7 +734,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     return getContentCenterShiftX({
       viewportWidth: canvasSize.width,
       leftRailWidth: layout.measureRail.width,
-      timelineWidth: layout.contentWidth,
+      timelineWidth: layout.centeringWidth,
       rightRailWidth: MINIMAP_WIDTH,
     });
   }, [timelineLayoutConfig, canvasSize.width]);

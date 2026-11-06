@@ -74,7 +74,7 @@ it('곡 공통 표기는 기본으로 꺼져 있고 setSongCommonLabelVisible(tr
 
 describe('곡 공통 영역을 접고 펼칠 때의 가로 배치(RFD 0095)', () => {
   const expanded = { auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'bpm' as const, width: 60 }, { id: 'timeSignature' as const, width: 48 }] };
-  const collapsed = { auxiliaryLaneCount: 2, songCommonColumns: [] };
+  const collapsed = { auxiliaryLaneCount: 2, songCommonColumns: [], collapsedSongCommonWidth: 108 };
   const withPan = (timeline: TimelineRenderer, panX: number) =>
     Object.assign(timeline as unknown as { _horizontalPanX: number }, { _horizontalPanX: panX });
   const laneOneScreenX = (timeline: TimelineRenderer) => timeline.contentOffsetX + timeline.layout.noteLaneRange(1).x;
@@ -98,13 +98,24 @@ describe('곡 공통 영역을 접고 펼칠 때의 가로 배치(RFD 0095)', ()
     expect(timeline.contentOffsetX + timeline.layout.commonColumnRange('bpm')!.x).toBe(32);
   });
 
-  it('너비 1000px에서 접으면 콘텐츠 폭이 줄어 중앙 정렬 여백이 234px→288px로 늘고 팬은 0이다', () => {
+  it('너비 1000px에서 접어도 중앙 정렬 여백이 234px로 같아 마디 레일과 버튼이 움직이지 않고 메인 레인 1만 108px 왼쪽으로 온다', () => {
     const timeline = renderer(1000);
     timeline.setLayoutConfig(expanded);
     expect(timeline.contentCenterShiftX).toBe(234);
+    const before = laneOneScreenX(timeline);
     timeline.setLayoutConfig(collapsed);
-    expect(timeline.contentCenterShiftX).toBe(288);
+    expect(timeline.contentCenterShiftX).toBe(234);
+    expect(laneOneScreenX(timeline)).toBe(before - 108);
     expect(timeline.horizontalPanX).toBe(0);
+  });
+
+  it('너비 500px에서 펼친 폭이 가용 폭보다 넓으면 접어도 중앙 정렬 여백이 0px라 왼쪽 빈칸이 생기지 않는다', () => {
+    const timeline = renderer(500);
+    timeline.setLayoutConfig(expanded);
+    expect(timeline.contentCenterShiftX).toBe(0);
+    timeline.setLayoutConfig(collapsed);
+    expect(timeline.contentCenterShiftX).toBe(0);
+    expect(laneOneScreenX(timeline)).toBe(32);
   });
 
   it('보조 레인 수만 바꾸면 곡 공통 폭이 같아 팬 150px를 범위 안에서 유지한다', () => {

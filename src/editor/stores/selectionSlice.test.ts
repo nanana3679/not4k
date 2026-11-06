@@ -3,13 +3,20 @@ import { useEditorStore } from './editorStore';
 import {
   createSelectionSlice,
   emptySelection,
-  normalizeSelection,
+  normalizeSelection as normalizeSelectionWith,
   selectionEquals,
   zoneContainedNoteIndices,
   type Selection,
   type SelectionSlice,
 } from './selectionSlice';
 import { beat } from '../../shared';
+
+/** 접기와 무관한 검증이 많아 펼친 상태를 기본으로 둔다. 접힌 경우만 셋째 인자를 넘긴다. */
+const normalizeSelection = (...[input, chart, collapsed = false]: [
+  Parameters<typeof normalizeSelectionWith>[0],
+  Parameters<typeof normalizeSelectionWith>[1],
+  boolean?,
+]) => normalizeSelectionWith(input, chart, collapsed);
 import type { ChartDocument, DocumentNoteEntity, TrillZone, RestZone } from '../../shared';
 
 // ---------------------------------------------------------------------------
@@ -227,7 +234,6 @@ describe('normalizeSelection — 숨은 BPM·박자(RFD 0095)', () => {
   it('곡 공통 영역이 펼쳐져 있으면 4박 BPM·8박 박자·12박 text가 모두 남는다', () => {
     const input = sel({ events: new Set([0, 1, 2]) });
     expect(normalizeSelection(input, { ...chart, events }, false).events).toEqual(new Set([0, 1, 2]));
-    expect(normalizeSelection(input, { ...chart, events }).events).toEqual(new Set([0, 1, 2]));
   });
 });
 

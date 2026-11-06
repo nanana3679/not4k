@@ -25,6 +25,8 @@ export interface SongCommonColumn {
 export interface TimelineLayoutConfig {
   readonly auxiliaryLaneCount: number;
   readonly songCommonColumns: readonly SongCommonColumn[];
+  /** 접혀서 빠진 곡 공통 폭. 배치에는 쓰지 않고 중앙 정렬 폭에만 더해 마디 레일과 그 위 버튼을 제자리에 둔다. */
+  readonly collapsedSongCommonWidth?: number;
 }
 
 /** 곡 공통 영역의 열. 배열 순서가 왼쪽부터의 배치이며, 이 목록만 바꿔도 입력·렌더링이 함께 따라간다. */
@@ -41,10 +43,11 @@ export function getEditorTimelineLayoutConfig(display: {
   return {
     auxiliaryLaneCount: display.extraLaneCount,
     songCommonColumns: display.songCommonCollapsed ? [] : SONG_COMMON_COLUMNS,
+    collapsedSongCommonWidth: display.songCommonCollapsed ? songCommonWidthOf({ songCommonColumns: SONG_COMMON_COLUMNS }) : 0,
   };
 }
 
-export function songCommonWidthOf(config: TimelineLayoutConfig): number {
+export function songCommonWidthOf(config: Pick<TimelineLayoutConfig, "songCommonColumns">): number {
   return config.songCommonColumns.reduce((sum, column) => sum + column.width, 0);
 }
 
@@ -78,6 +81,7 @@ function xToLaneInRange(x: number, startX: number, width: number, count: number)
 export function createTimelineLayout(input: {
   auxiliaryLaneCount: number;
   songCommonColumns?: TimelineLayoutConfig["songCommonColumns"];
+  collapsedSongCommonWidth?: number;
 }) {
   const { auxiliaryLaneCount } = input;
   const songCommonColumns = input.songCommonColumns ?? [];
@@ -128,6 +132,8 @@ export function createTimelineLayout(input: {
   return {
     auxiliaryLaneCount,
     contentWidth,
+    /** 콘텐츠 블록을 가운데에 놓을 때 쓰는 폭. 접혀도 펼친 폭이라 접기가 마디 레일을 옮기지 않는다. */
+    centeringWidth: contentWidth + (input.collapsedSongCommonWidth ?? 0),
     measureRail: { x: -MEASURE_LABEL_WIDTH, width: MEASURE_LABEL_WIDTH },
     mainArea,
     songCommonWidth,

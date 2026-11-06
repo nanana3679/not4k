@@ -581,7 +581,8 @@ export class TimelineRenderer {
 
   private copyLayoutConfig(config: TimelineLayoutConfig): TimelineLayoutConfig {
     return { auxiliaryLaneCount: config.auxiliaryLaneCount,
-      songCommonColumns: config.songCommonColumns.map(column => ({ ...column })) };
+      songCommonColumns: config.songCommonColumns.map(column => ({ ...column })),
+      collapsedSongCommonWidth: config.collapsedSongCommonWidth };
   }
 
   /** 입력도 최신 설정 전체를 넘겨 렌더 동기화 지연 없이 같은 배치를 읽는다. */
@@ -589,6 +590,7 @@ export class TimelineRenderer {
     const cached = this.cachedLayoutConfig;
     if (!this.cachedLayout || !cached
       || cached.auxiliaryLaneCount !== config.auxiliaryLaneCount
+      || cached.collapsedSongCommonWidth !== config.collapsedSongCommonWidth
       || cached.songCommonColumns.length !== config.songCommonColumns.length
       || cached.songCommonColumns.some((column, index) =>
         column.id !== config.songCommonColumns[index].id || column.width !== config.songCommonColumns[index].width)) {
@@ -689,7 +691,7 @@ export class TimelineRenderer {
     return getContentCenterShiftX({
       viewportWidth: this.options.width,
       leftRailWidth: this.layout.measureRail.width,
-      timelineWidth: this.currentTimelineWidth,
+      timelineWidth: this.layout.centeringWidth,
       rightRailWidth: this.rightRailWidth,
     });
   }

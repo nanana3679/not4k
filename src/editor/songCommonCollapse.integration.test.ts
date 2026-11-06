@@ -345,6 +345,63 @@ describe('열린 조작 중의 접기', () => {
   });
 });
 
+describe('드래그 도중의 붙여넣기', () => {
+  it('접힌 채 노트 이동 드래그 중 BPM을 붙여넣으면 열을 펼치고 붙여넣은 BPM을 고른다', () => {
+    const { selectMode } = editor();
+    selectEvents(BPM_4);
+    selectMode.copy();
+    store().setSongCommonCollapsed(true);
+    selectMode.selectNote(0);
+    selectMode.beginMoveDrag(laneX(1), yAt(2));
+    selectMode.onPointerMove(laneX(1), yAt(3));
+
+    expect(selectMode.paste(beat(16))).toBe(1);
+
+    expect(store().chart.events.at(-1)).toMatchObject({ type: 'bpm', beat: beat(16) });
+    expect(store().songCommonCollapsed).toBe(false);
+    expect(store().selection.events).toEqual(new Set([5]));
+  });
+
+  it('트릴 구간을 고른 채 접고 박스 드래그 중 BPM을 붙여넣으면 박스 취소가 구간을 되살리지 않아 선택은 BPM뿐이다', () => {
+    store().loadChart({ ...fixture(), trillZones: [{ lane: 2, beat: beat(10), endBeat: beat(12) }] });
+    const { selectMode } = editor();
+    selectEvents(BPM_4);
+    selectMode.copy();
+    store().setSongCommonCollapsed(true);
+    selectMode.selectZoneUnit(0);
+    selectMode.onPointerDown(laneX(3), yAt(1), false, false);
+    expect(selectMode.isBoxSelecting).toBe(true);
+    // App에서는 useCanvasEvents의 abandonPressedInteraction이 접힘 변화를 구독해 부른다.
+    const unsubscribeAbandon = useEditorStore.subscribe((state, previous) => {
+      if (state.songCommonCollapsed !== previous.songCommonCollapsed) selectMode.cancel();
+    });
+
+    selectMode.paste(beat(16));
+    unsubscribeAbandon();
+
+    expect(store().selection.zones.size).toBe(0);
+    expect(store().selection.events).toEqual(new Set([5]));
+  });
+
+  it('박스 드래그 중 BPM을 붙여넣고 놓아도 붙여넣기 대기가 열려 있고 접으면 16박에 확정되어 ArrowUp이 움직이지 않는다', () => {
+    const { selectMode } = editor();
+    selectEvents(BPM_4);
+    selectMode.copy();
+    store().clearSelection();
+    selectMode.onPointerDown(laneX(3), yAt(1), false, false);
+    selectMode.paste(beat(16));
+
+    selectMode.onPointerUp(laneX(3), yAt(2));
+    expect(selectMode.isPendingPaste).toBe(true);
+    expect(store().editTransaction).not.toBeNull();
+
+    store().setSongCommonCollapsed(true);
+    expect(selectMode.isPendingPaste).toBe(false);
+    selectMode.movePasteBySnap('up');
+    expect(beatToFloat(store().chart.events[5].beat)).toBe(16);
+  });
+});
+
 describe('접은 뒤에도 공통 타이밍은 그대로 적용된다', () => {
   it('접어도 4박 BPM 180의 박→시각 변환이 같고 차트 이벤트 수가 5개다', () => {
     const chart = fixture();

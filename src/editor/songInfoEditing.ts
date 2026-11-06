@@ -131,5 +131,5 @@ function keepEventSelection(
   }));
   const state = useEditorStore.getState();
   // 차트 변경이 하는 선택 보정이라 재생 여부와 관계없이 store에 직접 쓴다(setChart·Undo와 같다).
-  useEditorStore.setState({ selection: normalizeSelection({ ...state.selection, events }, state.chart) });
+  useEditorStore.setState({ selection: normalizeSelection({ ...state.selection, events }, state.chart, state.songCommonCollapsed) });
 }

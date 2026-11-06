@@ -112,7 +112,7 @@ function pruneBounds(indices: ReadonlySet<number>, length: number): Set<number> 
 export function normalizeSelection(
   input: Selection,
   chart: Pick<ChartDocument, 'notes' | 'trillZones' | 'restZones' | 'events'>,
-  songCommonCollapsed = false,
+  songCommonCollapsed: boolean,
 ): Selection {
   const zones = pruneBounds(input.zones, chart.trillZones.length);
 

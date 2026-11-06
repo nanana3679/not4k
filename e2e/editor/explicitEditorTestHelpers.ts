@@ -18,7 +18,7 @@ export async function canvasPosition(page: Page, lane: number, at: number) {
     const range = state.timelineRangeMs;
     const contentHeight = Math.max(box.height, projection.getTimelineTotalHeight({ ...range, zoom: state.zoom, padding: constants.TIMELINE_PADDING }));
     const centerShiftX = viewport.getContentCenterShiftX({ viewportWidth: box.width, leftRailWidth: layout.measureRail.width,
-      timelineWidth: layout.contentWidth, rightRailWidth: constants.MINIMAP_WIDTH });
+      timelineWidth: layout.centeringWidth, rightRailWidth: constants.MINIMAP_WIDTH });
     return {
       x: box.x + layout.measureRail.width + centerShiftX - state.horizontalPanX + geometry.laneToX(lane, layout) + geometry.laneWidth(lane, layout) / 2,
       y: box.y + projection.timeToTimelineY({ timeMs: at * 500 + state.chart.meta.offsetMs, contentHeight,

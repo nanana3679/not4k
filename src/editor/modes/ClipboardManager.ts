@@ -272,6 +272,13 @@ export class ClipboardManager {
 
     this._isPendingPaste = true;
 
+    // 드래그 중 붙여넣기는 onChartUpdate가 그 드래그의 transaction을 확정해 대기 상태를 비울 수 있어 결과를 먼저 복사한다.
+    const pastedResult = {
+      pastedNoteIndices: new Set(this.pastedNoteIndices),
+      pastedEventIndices: new Set(this.pastedEventIndices),
+      pastedRestZoneIndices: new Set(this.pastedRestZoneIndices),
+    };
+
     callbacks.onChartUpdate(newChart);
     // D3 자동 확장 — 붙여넣은 보조 노트가 현재 레인 수를 넘으면 늘린다 (RFD 0018 §8-6).
     this.expandExtraLanesForPasted(newChart, callbacks);
@@ -279,9 +286,7 @@ export class ClipboardManager {
     return {
       chart: newChart,
       selectedIndices: newSelectedIndices,
-      pastedNoteIndices: new Set(this.pastedNoteIndices),
-      pastedEventIndices: new Set(this.pastedEventIndices),
-      pastedRestZoneIndices: new Set(this.pastedRestZoneIndices),
+      ...pastedResult,
       count: clipNotes.length + clipZones.length + clipRestZones.length + clipEvents.length,
     };
   }
