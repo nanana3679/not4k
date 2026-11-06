@@ -7,15 +7,10 @@ import { hitTestEventAt } from './hitTest';
  * **호출 시점에 라이브로 읽는다**(클로저 스냅샷 없음 — ref 이중화가 불필요해진다).
  * React 조립은 `useTimelineSpace` 훅이 담당한다.
  *
- * 그리기 방향(도메인 → 픽셀)은 `timelineProjection`(Projection)의 소관 — 여긴 입력 방향만.
+ * 가로 배치는 `TimelineLayout`, 세로 시간 투영은 `timelineProjection`이 소유한다.
  */
 
-import {
-  LANE_WIDTH,
-  LANE_COUNT,
-  TIMELINE_WIDTH,
-  EXTRA_LANE_WIDTH,
-} from "./constants";
+import { createTimelineLayout, type TimelineLayout } from "./TimelineLayout";
 import {
   hitTestNoteAt,
   hitTestExtraNoteAt,
@@ -26,14 +21,11 @@ import {
 import {
   beatFloatToRawBeat,
   beatFloatToSnapBeat,
-  timelineXToExtraLane,
-  timelineXToLane,
 } from "./timelineProjection";
 import {
   msToBeat,
   beatToFloat,
   auxNotesAsExtra,
-  fromAuxIndex,
   extractBpmChanges,
 } from "../../shared";
 import type { Beat, Lane, BpmChange, ChartDocument, ChartEvent } from "../../shared";
@@ -47,6 +39,7 @@ export interface TimelineSpaceSource {
   getSnapDivision(): number;
   getSelectedNotes(): Set<number>;
   getExtraLaneCount(): number;
+  getLayout?(): TimelineLayout;
   /** 렌더러 부재 시 null */
   yToTime(y: number): number | null;
   /** 렌더러 부재 시 null */
@@ -54,6 +47,7 @@ export interface TimelineSpaceSource {
 }
 
 export interface TimelineSpace {
+  readonly layout: TimelineLayout;
   xToLane(x: number): Lane | null;
   xToExtraLane(x: number): number | null;
   xToUnifiedLane(x: number): number | null;
@@ -106,29 +100,20 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
 
   // --- 기본 좌표 변환 ---
 
+  const getLayout = (): TimelineLayout => source.getLayout?.()
+    ?? createTimelineLayout({ auxiliaryLaneCount: source.getExtraLaneCount() });
+
   const xToLane = (x: number): Lane | null => {
-    return timelineXToLane({
-      timelineX: x,
-      laneWidth: LANE_WIDTH,
-      laneCount: LANE_COUNT,
-    });
+    const column = getLayout().classifyX(x);
+    return column.kind === "main" ? column.lane as Lane : null;
   };
 
   const xToExtraLane = (x: number): number | null => {
-    return timelineXToExtraLane({
-      timelineX: x,
-      timelineWidth: TIMELINE_WIDTH,
-      extraLaneWidth: EXTRA_LANE_WIDTH,
-      extraLaneCount: source.getExtraLaneCount(),
-    });
+    const column = getLayout().classifyX(x);
+    return column.kind === "auxiliary" ? column.lane : null;
   };
 
-  const xToUnifiedLane = (x: number): number | null => {
-    const mainLane = xToLane(x);
-    if (mainLane !== null) return mainLane;
-    const auxIndex = xToExtraLane(x);
-    return auxIndex === null ? null : fromAuxIndex(auxIndex);
-  };
+  const xToUnifiedLane = (x: number): number | null => getLayout().xToNoteLane(x);
 
   const yToBeat = (y: number): Beat => {
     const timeMs = source.yToTime(y);
@@ -211,9 +196,10 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
   };
 
   const hitTestEvent = (x: number, y: number): number | null => {
-    const extraLane = xToExtraLane(x);
-    if (extraLane === null) return null;
-    return hitTestEventAt(source.getChart().events, extraLane, beatToFloat(yToBeatRaw(y)));
+    const layout = getLayout();
+    const column = layout.classifyX(x);
+    if (column.kind === "outside" || column.kind === "main") return null;
+    return hitTestEventAt(source.getChart().events, event => layout.isEventAtX(event, x), beatToFloat(yToBeatRaw(y)));
   };
 
   const captureBeatProjection = (): ((y: number) => Beat) => {
@@ -226,15 +212,16 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
   };
 
   const hitTestEventEnd = (x: number, y: number): number | null => {
-    const extraLane = xToExtraLane(x);
-    if (extraLane === null) return null;
+    const layout = getLayout();
+    const column = layout.classifyX(x);
+    if (column.kind === "outside" || column.kind === "main") return null;
     const beat = yToBeatRaw(y);
     const testBeatFloat = beat.n / beat.d;
     const tolerance = 1 / 16;
     const events = source.getChart().events;
     for (let i = 0; i < events.length; i++) {
       const evt = events[i];
-      if ((evt.editorLane ?? 1) !== extraLane) continue;
+      if (!layout.isEventAtX(evt, x)) continue;
       if (!("endBeat" in evt)) continue;
       const endBeatFloat = evt.endBeat.n / evt.endBeat.d;
       if (Math.abs(testBeatFloat - endBeatFloat) < tolerance) return i;
@@ -300,6 +287,7 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
   };
 
   return {
+    get layout() { return getLayout(); },
     xToLane,
     xToExtraLane,
     xToUnifiedLane,

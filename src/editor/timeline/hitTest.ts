@@ -27,10 +27,14 @@ const MAX_Z_ORDER = Math.max(...Object.values(NOTE_Z_ORDER));
 const SELECTED_BONUS = MAX_Z_ORDER + 1;
 
 /** 이벤트도 노트와 같은 raw 박·허용 오차로 찾는다. 나중에 그린 이벤트가 앞이다. */
-export function hitTestEventAt(events: readonly ChartEvent[], editorLane: number, beatFloat: number): number | null {
+export function hitTestEventAt(
+  events: readonly ChartEvent[],
+  matchesPlacement: (event: ChartEvent) => boolean,
+  beatFloat: number,
+): number | null {
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index];
-    if ((event.editorLane ?? 1) !== editorLane) continue;
+    if (!matchesPlacement(event)) continue;
     const start = event.beat.n / event.beat.d;
     const end = 'endBeat' in event ? event.endBeat.n / event.endBeat.d : start;
     if (beatFloat >= start - POINT_NOTE_TOLERANCE && beatFloat <= end + POINT_NOTE_TOLERANCE) return index;

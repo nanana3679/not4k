@@ -8,15 +8,16 @@ import { Container, Graphics, FillGradient } from "pixi.js";
 import { beatToMs, beatEq, isGraceNote, isHoldOnlyNote, isMainLane, isExplicitNote } from "../../shared";
 import type { ChartDocument, Beat, DocumentNoteEntity, PointNote, RangeNote, BpmChange } from "../../shared";
 import {
-  LANE_WIDTH,
   NOTE_HEIGHT,
   COLORS,
   NOTE_Z_ORDER,
 } from "./constants";
 import { laneToX, laneWidth } from "./laneGeometry";
+import { DEFAULT_TIMELINE_LAYOUT, type TimelineLayout } from "./TimelineLayout";
 
 /** NoteRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface NoteHost {
+  readonly layout?: TimelineLayout;
   readonly chart: ChartDocument | null;
   readonly selectedNotes: Set<number>;
   readonly cachedBpmChanges: BpmChange[];
@@ -45,6 +46,10 @@ export class NoteRenderer {
   private poolIdx = 0;
 
   constructor(private host: NoteHost) {}
+
+  private get layout(): TimelineLayout {
+    return this.host.layout ?? DEFAULT_TIMELINE_LAYOUT;
+  }
 
   /**
    * 렌더 사이클 시작 — 풀 인덱스 리셋 및 노트 레이어 자식 분리 (destroy 없이)
@@ -159,7 +164,7 @@ export class NoteRenderer {
     const meta = chart.meta;
     const timeMs = beatToMs(note.beat, bpmChanges, meta.offsetMs);
     const y = this.host.timeToY(timeMs);
-    const x = (note.lane - 1) * LANE_WIDTH;
+    const { x, width: laneW } = this.layout.noteLaneRange(note.lane);
 
     let color: number;
     let shape: "rect" | "diamond" = "rect";
@@ -185,7 +190,7 @@ export class NoteRenderer {
       const glow = this.acquireGraphics();
       const noteW = NOTE_HEIGHT * 5;
       const noteH = NOTE_HEIGHT;
-      const noteX = x + (LANE_WIDTH - noteW) / 2;
+      const noteX = x + (laneW - noteW) / 2;
       // 안쪽→바깥쪽 겹쳐 그려 중심에서 멀어질수록 약해지는 글로우
       for (let i = 0; i < steps; i++) {
         const stepPad = pad * (i + 1) / steps;
@@ -204,7 +209,7 @@ export class NoteRenderer {
     if (shape === "diamond") {
       const w = NOTE_HEIGHT * 5;
       const h = NOTE_HEIGHT;
-      const cx = x + LANE_WIDTH / 2;
+      const cx = x + laneW / 2;
       const cy = y;
 
       noteGfx.moveTo(cx, cy - h / 2);
@@ -216,7 +221,7 @@ export class NoteRenderer {
     } else {
       const w = NOTE_HEIGHT * 5;
       const h = NOTE_HEIGHT;
-      const rectX = x + (LANE_WIDTH - w) / 2;
+      const rectX = x + (laneW - w) / 2;
       const rectY = y - h / 2;
 
       noteGfx.rect(rectX, rectY, w, h);
@@ -249,7 +254,7 @@ export class NoteRenderer {
     const startY = this.host.timeToY(startMs);
     const endY = this.host.timeToY(endMs);
 
-    const x = (note.lane - 1) * LANE_WIDTH;
+    const { x, width: laneW } = this.layout.noteLaneRange(note.lane);
     const w = NOTE_HEIGHT * 5;
     const h = NOTE_HEIGHT;
 
@@ -276,7 +281,7 @@ export class NoteRenderer {
 
     if (bodyHeight > 0) {
       const body = this.acquireGraphics();
-      const bodyX = x + (LANE_WIDTH - w) / 2;
+      const bodyX = x + (laneW - w) / 2;
       const bodyGradient = this.getBodyGradient(bodyColor);
       if (note.type === "trillLong") {
         const extTop = h / 2;
@@ -300,7 +305,7 @@ export class NoteRenderer {
       const baseAlpha = COLORS.GRACE_GLOW_ALPHA;
       const steps = 4;
       const glow = this.acquireGraphics();
-      const glowX = x + (LANE_WIDTH - w) / 2;
+      const glowX = x + (laneW - w) / 2;
       for (let i = 0; i < steps; i++) {
         const stepPad = pad * (i + 1) / steps;
         glow.roundRect(glowX - stepPad, endY - h / 2 - stepPad, w + stepPad * 2, h + stepPad * 2, 3 + stepPad * 0.3);
@@ -312,7 +317,7 @@ export class NoteRenderer {
     const headGradient = this.getBodyGradient(bodyColor);
     const end = this.acquireGraphics();
     if (note.type === "trillLong") {
-      const cx = x + LANE_WIDTH / 2;
+      const cx = x + laneW / 2;
       end.moveTo(cx, endY - h / 2);
       end.lineTo(cx + w / 2, endY);
       end.lineTo(cx, endY + h / 2);
@@ -320,7 +325,7 @@ export class NoteRenderer {
       end.lineTo(cx, endY - h / 2);
       end.fill(COLORS.TRILL_LONG_END);
     } else {
-      const endX = x + (LANE_WIDTH - w) / 2;
+      const endX = x + (laneW - w) / 2;
       const endNoteY = endY - h / 2;
       end.rect(endX, endNoteY, w, h);
       end.fill({ fill: headGradient, alpha: 0.5 });
@@ -340,7 +345,7 @@ export class NoteRenderer {
     if (!hasHead) {
       const startCap = this.acquireGraphics();
       if (note.type === "trillLong") {
-        const cx = x + LANE_WIDTH / 2;
+        const cx = x + laneW / 2;
         startCap.moveTo(cx, startY - h / 2);
         startCap.lineTo(cx + w / 2, startY);
         startCap.lineTo(cx, startY + h / 2);
@@ -348,7 +353,7 @@ export class NoteRenderer {
         startCap.lineTo(cx, startY - h / 2);
         startCap.fill(headGradient);
       } else {
-        const capX = x + (LANE_WIDTH - w) / 2;
+        const capX = x + (laneW - w) / 2;
         startCap.rect(capX, startY - h / 2, w, h);
         startCap.fill(headGradient);
       }
@@ -360,7 +365,7 @@ export class NoteRenderer {
     }
 
     if (isSelected) {
-      this.drawRangeNoteOutline(topY, bottomY, x, LANE_WIDTH, w, h, COLORS.SELECTED_OUTLINE, 2, this.host.selectedLongBodyLayer);
+      this.drawRangeNoteOutline(topY, bottomY, x, laneW, w, h, COLORS.SELECTED_OUTLINE, 2, this.host.selectedLongBodyLayer);
     }
   }
 
@@ -529,7 +534,7 @@ export class NoteRenderer {
       if (isExplicitNote(note)) {
         const startY = this.host.timeToY(noteStartMs);
         const endY = 'endBeat' in note ? this.host.timeToY(beatToMs(note.endBeat, bpmChanges, meta.offsetMs)) : startY;
-        this.explicitRenderer.render(note, laneToX(note.lane), laneWidth(note.lane), startY, endY,
+        this.explicitRenderer.render(note, laneToX(note.lane, this.layout), laneWidth(note.lane, this.layout), startY, endY,
           this.host.longNoteBodyLayer,
           isSelected ? this.host.selectedNoteLayer : this.host.noteLayer, isSelected);
         continue;
@@ -538,8 +543,8 @@ export class NoteRenderer {
       // 보조 레인(5+)은 보조 영역 x로 투영해 그린다 (RFD 0018 — 단일 배열, 시각만 분기).
       // 표시 범위 밖 보조 레인의 숨김(§8-4)은 현행대로 캔버스 폭 클리핑이 담당한다.
       if (!isMainLane(note.lane)) {
-        const x = laneToX(note.lane);
-        const w = laneWidth(note.lane);
+        const x = laneToX(note.lane, this.layout);
+        const w = laneWidth(note.lane, this.layout);
         if (this.isPointNote(note)) {
           this.renderPointNoteAt(x, w, note.beat, note.type, isSelected, bpmChanges, meta);
         } else {

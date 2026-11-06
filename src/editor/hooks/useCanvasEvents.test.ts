@@ -11,6 +11,7 @@ import type { EntityType } from '../modes/CreateMode';
 import { createEditorModes } from '../createEditorModes';
 import { createTimelineSpace } from '../timeline/TimelineSpace';
 import { EXTRA_LANE_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
+import { createTimelineLayout, type TimelineLayout } from '../timeline/TimelineLayout';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
 import { showToast } from '../../shared/toast';
@@ -89,6 +90,7 @@ afterEach(() => {
 
 /** 렌더러·재생 컨트롤러가 필요한 테스트(커서 레일 seek)만 넘긴다. 기본은 둘 다 없다. */
 type SetupOptions = {
+  layout?: TimelineLayout;
   renderer?: TimelineRenderer;
   playback?: PlaybackController;
   onPinchZoom?: (previous: number, current: number, centerY: number) => void;
@@ -103,6 +105,7 @@ function setup(source: ChartDocument, mode: EditorModeName, entityType: EntityTy
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null, isPlaying: false,
   });
   const space = createTimelineSpace({
+    getLayout: options.layout ? () => options.layout! : undefined,
     getChart: () => current().chart, getSnapDivision: () => 4, getSelectedNotes: () => new Set(current().selection.notes),
     getExtraLaneCount: () => current().extraLaneCount, yToTime: y => y, getTotalTimelineMs: () => 20000,
   });
@@ -1301,4 +1304,33 @@ describe('재생 중 캔버스 편집 제한(RFD 0099)', () => {
     expect(seekTo).toHaveBeenCalledExactlyOnceWith(1500);
     expect(pauseToasts()).toHaveLength(0);
   });
+});
+
+describe('song-common area의 삭제 입력', () => {
+  it.each(['mouse', 'touch'] as const)(
+    'song-common 열 x=30의 1·2박 BPM을 %s로 연속 삭제하면 초기 0박 BPM만 남고 Undo 1번에 복구된다',
+    pointerType => {
+      const base = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'bpm', width: 60 }] });
+      const layout: TimelineLayout = { ...base, isEventAtX: (event, x) =>
+        event.type === 'bpm' ? x >= 0 && x < 60 : base.isEventAtX(event, x) };
+      const initial = chart([], { events: [
+        { type: 'bpm', beat: beat(0), bpm: 120 },
+        { type: 'bpm', beat: beat(1), bpm: 120 },
+        { type: 'bpm', beat: beat(2), bpm: 120 },
+      ] });
+      const { handlers } = setup(initial, 'delete', 'single', { layout });
+      const input = (y: number) => pointer(y, {
+        pointerType, x: 30, button: pointerType === 'mouse' ? 2 : 0, buttons: pointerType === 'mouse' ? 2 : 1,
+      });
+      handlers.handlePointerDown(input(500));
+      if (pointerType === 'touch') vi.advanceTimersByTime(450);
+      expect(current().chart.events).toEqual([initial.events[0], initial.events[2]]);
+      handlers.handlePointerMove(input(1000));
+      handlers.handlePointerUp(input(1000));
+      expect(current().chart.events).toEqual([initial.events[0]]);
+      expect(current().historyPast).toHaveLength(1);
+      current().undo();
+      expect(current().chart).toEqual(initial);
+    },
+  );
 });

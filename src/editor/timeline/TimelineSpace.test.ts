@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTimelineSpace, type TimelineSpaceSource } from "./TimelineSpace";
+import { createTimelineLayout } from "./TimelineLayout";
 import { beat } from "../../shared";
 import type { ChartDocument, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 
@@ -58,6 +59,43 @@ function makeFakeSource(overrides?: Partial<FakeSourceState>) {
 // LANE_WIDTH=60, LANE_COUNT=4, TIMELINE_WIDTH=240, EXTRA_LANE_WIDTH=60
 
 describe("TimelineSpace — 라이브 읽기 (no-stale)", () => {
+  it("보조 레인 수 0→2→1을 읽으면 같은 space의 폭은 240→360→300px이고 x=310 히트도 갱신된다", () => {
+    const { source, state } = makeFakeSource({ extraLaneCount: 0 });
+    const space = createTimelineSpace(source);
+    expect(space.layout.contentWidth).toBe(240);
+    expect(space.xToUnifiedLane(310)).toBeNull();
+    state.extraLaneCount = 2;
+    expect(space.layout.contentWidth).toBe(360);
+    expect(space.xToUnifiedLane(310)).toBe(6);
+    expect(space.hitTestEvent(310, 0)).toBe(1);
+    state.extraLaneCount = 1;
+    expect(space.layout.contentWidth).toBe(300);
+    expect(space.xToUnifiedLane(310)).toBeNull();
+    expect(space.hitTestEvent(310, 0)).toBeNull();
+  });
+
+  it("주입 layout에 40px 공통 열을 추가하면 같은 space의 노트·이벤트 히트가 40px 이동한다", () => {
+    const { source } = makeFakeSource({ chart: makeChart({
+      notes: [{ type: "tap", kind: "single", lane: 1, beat: beat(0) }],
+      events: [
+        { type: "stop", editorLane: 1, beat: beat(0), endBeat: beat(4) },
+        { type: "bpm", editorLane: 2, beat: beat(0), bpm: 120 },
+      ],
+    }) });
+    let layout = createTimelineLayout({ auxiliaryLaneCount: 2 });
+    source.getLayout = () => layout;
+    const space = createTimelineSpace(source);
+    expect(space.hitTestNote(0, 0)).toBe(0);
+    expect(space.hitTestEvent(240, 0)).toBe(0);
+    layout = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: "common", width: 40 }] });
+    expect(space.layout).toBe(layout);
+    expect(space.xToUnifiedLane(0)).toBeNull();
+    expect(space.hitTestNote(0, 0)).toBeNull();
+    expect(space.hitTestNote(40, 0)).toBe(0);
+    expect(space.hitTestEvent(240, 0)).toBeNull();
+    expect(space.hitTestEvent(280, 0)).toBe(0);
+    expect(space.hitTestEventEnd(280, 2000)).toBe(0);
+  });
   it("source의 snapDivision을 4→8로 바꾸면 space 재생성 없이 snapBeat가 새 값으로 스냅", () => {
     const { source, state } = makeFakeSource();
     const space = createTimelineSpace(source);
