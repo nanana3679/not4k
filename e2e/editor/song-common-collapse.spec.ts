@@ -271,18 +271,15 @@ test.describe('넓은 화면', () => {
     await expect.poll(async () => (await editorState(page)).bpmCount).toBe(2);
   });
 
-  test('접은 채 Create 모드로 펼친 배치의 bpm 열 자리를 눌러도 BPM이 생기지 않고 커서만 그 자리로 옮겨진다', async ({ page }) => {
+  test('접은 채 Create 모드로 펼친 배치의 bpm 열 자리를 누르면 그 자리로 온 메인 레인 1에 노트가 생기고 BPM은 생기지 않는다', async ({ page }) => {
     await openEditor(page);
     const column = await timingColumnPosition(page, 'bpm', 2);
     await collapseButton(page).click();
 
     await page.mouse.click(column.x, column.y);
 
-    await expect.poll(() => page.evaluate(async () => {
-      const path = '/src/editor/stores/editorStore.ts';
-      return (await import(path)).useEditorStore.getState().currentTimeMs as number;
-    })).toBeGreaterThan(0);
-    expect(await editorState(page)).toMatchObject({ bpmCount: 1, noteCount: 0 });
+    await expect.poll(async () => (await editorState(page)).noteCount).toBe(1);
+    expect(await editorState(page)).toMatchObject({ bpmCount: 1 });
   });
 });
 
