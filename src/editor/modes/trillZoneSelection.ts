@@ -11,6 +11,13 @@ import { beatAdd, beatSub, beatToFloat } from "../../shared";
 import { bodyCompanionIndices } from '../editing/explicitEditing';
 import { restZoneOverlapsBox } from "./restZoneSelection";
 
+/** 노트·구간의 가로 포함 여부와 박 범위. 가로 좌표 해석은 호출자의 layout이 맡는다. */
+export interface NoteSelectionBox {
+  includesLane(lane: number): boolean;
+  minBeat: Beat;
+  maxBeat: Beat;
+}
+
 /** 노트가 트릴존과 같은 레인에서 구간이 겹치는지 판정한다. */
 export function trillZoneOverlapsNote(zone: TrillZone, note: DocumentNoteEntity): boolean {
   if (zone.lane !== note.lane) return false;
@@ -49,11 +56,10 @@ export function trillZoneOverlapsBox(
  */
 export function boxEnclosesZone(
   zone: TrillZone,
-  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+  box: NoteSelectionBox,
 ): boolean {
   return (
-    box.minLane <= zone.lane &&
-    zone.lane <= box.maxLane &&
+    box.includesLane(zone.lane) &&
     beatToFloat(box.minBeat) <= beatToFloat(zone.beat) &&
     beatToFloat(zone.endBeat) <= beatToFloat(box.maxBeat)
   );
@@ -197,11 +203,10 @@ export function filterHomogeneousSelection(
 /** 노트가 박스 범위(레인·박 폐구간) 안에 있는지 — 기존 박스 커밋과 동일한 판정. */
 function noteInBox(
   note: DocumentNoteEntity,
-  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+  box: NoteSelectionBox,
 ): boolean {
   return (
-    note.lane >= box.minLane &&
-    note.lane <= box.maxLane &&
+    box.includesLane(note.lane) &&
     beatSub(note.type === "body" ? note.endBeat : note.beat, box.minBeat).n >= 0 &&
     beatSub(box.maxBeat, note.beat).n >= 0
   );
@@ -222,7 +227,7 @@ export function selectionFromBox(
   trillZones: readonly TrillZone[],
   notes: readonly DocumentNoteEntity[],
   restZones: readonly RestZone[],
-  box: { minLane: number; maxLane: number; minBeat: Beat; maxBeat: Beat },
+  box: NoteSelectionBox,
 ): { notes: Set<number>; zones: Set<number>; restZones: Set<number>; events: Set<number> } {
   const selectedNotes = new Set<number>();
   const selectedZones = new Set<number>();

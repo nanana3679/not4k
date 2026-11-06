@@ -20,6 +20,7 @@ import type {
 } from "../../shared";
 import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex, isMainLane, beatEq, deriveExplicitNoteRelations } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
+import type { EventPlacementInput } from "../timeline/TimelineLayout";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
 import { placeEditedInitialTiming } from "../editing/initialTimingPlacement";
@@ -61,7 +62,7 @@ const ENTITY_TYPES: readonly EntityType[] = [
 const EVENT_ENTITY_TYPES: EntityType[] = ["bpm", "timeSignature", "text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
 
 /** Check if an entity type is an event type */
-export function isEventEntityType(t: EntityType): boolean {
+export function isEventEntityType(t: EntityType): t is ChartEvent["type"] {
   return EVENT_ENTITY_TYPES.includes(t);
 }
 
@@ -96,6 +97,7 @@ export class CreateMode implements EditorMode {
   private dragStartLane: number | null = null;
   private _dragType: DragType = null;
   private _dragExtraLane: number | null = null;
+  private _dragEventType: ChartEvent["type"] | null = null;
   private _createEventLane: number | null = null;
   private _dragEntityTypeOverride: RangeNoteEntityType | null = null;
   // single/double로 시작한 드래그에서, 길이 0이면 점노트로 떨어뜨리기 위한 폴백 타입.
@@ -151,6 +153,15 @@ export class CreateMode implements EditorMode {
     return this.dragStartBeat;
   }
 
+  /** 드래그 중 도구를 바꿔도 기존 이벤트 고스트는 누름이 끝날 때까지 유지한다. */
+  get dragEventPlacement(): EventPlacementInput | null {
+    if (this._dragEventType === null || this._dragExtraLane === null) return null;
+    return {
+      type: isEventEntityType(this.selectedEntityType) ? this.selectedEntityType : this._dragEventType,
+      editorLane: this._dragExtraLane,
+    };
+  }
+
   /** The lane where the drag started (null if not dragging) */
   get dragLane(): number | null {
     return this.dragStartLane;
@@ -195,6 +206,7 @@ export class CreateMode implements EditorMode {
     this.dragStartBeat = beat;
     this.dragStartLane = lane;
     this._dragExtraLane = null;
+    this._dragEventType = null;
     this._dragType = "rangeNote";
     this._dragEntityTypeOverride = type;
     return true;
@@ -302,6 +314,7 @@ export class CreateMode implements EditorMode {
           this.dragStartLane = null;
           this._dragExtraLane = extraLane;
           this._dragType = "event";
+          this._dragEventType = this.selectedEntityType;
           return;
         }
         return;
@@ -384,6 +397,7 @@ export class CreateMode implements EditorMode {
     this.dragStartLane = null;
     this._dragType = null;
     this._dragExtraLane = null;
+    this._dragEventType = null;
     this._dragEntityTypeOverride = null;
     this._dragTapFallback = null;
   }
@@ -436,6 +450,7 @@ export class CreateMode implements EditorMode {
     this.dragStartLane = null;
     this._dragType = null;
     this._dragExtraLane = null;
+    this._dragEventType = null;
     this._dragEntityTypeOverride = null;
     this._dragTapFallback = null;
   }

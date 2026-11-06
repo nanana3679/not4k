@@ -1,3 +1,4 @@
+import type { TimelineXRange } from "../timeline/TimelineLayout";
 import type { EntityType } from "./CreateMode";
 import type { EditorModeName } from "../stores/editorStore";
 import type { DocumentNoteEntity, Beat } from "../../shared";
@@ -10,12 +11,12 @@ export interface MoveOriginDatum {
   lane: number;
 }
 
-/** 박스 셀렉트 사각형(픽셀/레인 좌표). */
+/** 박스 셀렉트 사각형(가로 범위/픽셀 Y 좌표). */
 export interface BoxSelectRect {
   startY: number;
-  startLane: number;
+  startRange: TimelineXRange;
   endY: number;
-  endLane: number;
+  endRange: TimelineXRange;
 }
 
 /**
