@@ -1,7 +1,7 @@
 import { parseSongTiming } from '../shared/songAssets/songTiming';
 import { encodeWavBlob } from '../shared';
 import { countOtherSongCharts, findDifferingSongCharts, saveSong, uploadSongMedia } from '../supabase/saveSong';
-import { isSongTimingDirty, songValues } from './songState';
+import { isSongTimingDirty, songDraftOf, songValues } from './songState';
 import { useEditorStore } from './stores/editorStore';
 import { SONG_SAVE_COPY, SAVE_IN_PROGRESS_COPY } from './editorCopy';
 
@@ -40,12 +40,6 @@ export async function saveEditorSong(
       start.addToast(SONG_SAVE_COPY.previewAudioMissing, 'error');
       return 'aborted';
     }
-    // 프리뷰 구간은 차트 사본(Undo 대상)에 있고 음원 파일·길이는 곡 세션 값이라, Undo가 다른 음원 길이에 맞춘 구간을 되살릴 수
-    // 있다(통합 이력 PR6 전). 재생 음원 밖의 구간으로 클립을 만들거나 저장하지 않는다.
-    if (previewRange && audioBuffer && previewRange.endTime > audioBuffer.duration) {
-      start.addToast(SONG_SAVE_COPY.previewOutOfRange, 'error');
-      return 'aborted';
-    }
     // 다른 차트는 Meta의 난이도명(JSON 사본)이 아니라 열린 `charts` 행(없으면 열린 난이도)을 빼고 고른다.
     const openChart = { chartId: start.chartRow?.id ?? null, difficulty: start.activeDifficulty ?? start.chart.meta.difficultyLabel };
     if (song.needsTimingMigration) {
@@ -72,22 +66,7 @@ export async function saveEditorSong(
     const revision = await saveSong(start.activeSongId, song.revision, values);
     const current = useEditorStore.getState();
     if (current.chartLoadGeneration !== start.chartLoadGeneration || !current.song) return 'aborted';
-    const sameJacket = current.song.pendingJacketFile === song.pendingJacketFile;
-    const sameAudio = current.song.pendingAudioFile === song.pendingAudioFile;
-    const samePreview = current.song.pendingPreviewRange === song.pendingPreviewRange && sameAudio;
-    const meta = { ...current.chart.meta };
-    if (sameJacket && meta.imageFile === start.chart.meta.imageFile) meta.imageFile = values.jacketUrl ?? '';
-    if (sameAudio && meta.audioFile === start.chart.meta.audioFile) meta.audioFile = values.audioUrl;
-    if (samePreview && meta.previewAudioFile === start.chart.meta.previewAudioFile) meta.previewAudioFile = values.previewUrl ?? '';
-    if (meta.imageFile !== current.chart.meta.imageFile || meta.audioFile !== current.chart.meta.audioFile
-      || meta.previewAudioFile !== current.chart.meta.previewAudioFile) {
-      current.reconcileSongMedia({ audioFile: meta.audioFile, imageFile: meta.imageFile, previewAudioFile: meta.previewAudioFile });
-    }
-    current.setSong({ ...current.song, revision, baseline: values, needsTimingMigration: false,
-      pendingJacketFile: sameJacket ? null : current.song.pendingJacketFile,
-      pendingAudioFile: sameAudio ? null : current.song.pendingAudioFile,
-      pendingPreviewRange: samePreview ? null : current.song.pendingPreviewRange,
-    });
+    current.completeSongSave(songDraftOf(song), values, revision);
     current.addToast(SONG_SAVE_COPY.saved, 'info');
     return 'saved';
   } catch (error) {

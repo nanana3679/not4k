@@ -32,13 +32,13 @@ export function openEditorChart(
     previewAudioFile: song.previewUrl ?? '', previewStart: song.previewStart ?? undefined,
     previewEnd: song.previewEnd ?? undefined };
   store.loadChart(chart);
-  // 레인 수를 차트와 같이 정해야 lastValidSnapshot이 (차트, 레인 수) 짝을 맞춘다. 이때 쌓인 이력은 아래에서 비운다.
+  store.setSong(song ? createEditorSong(song, chart) : null);
+  // 곡 초안을 먼저 정해 lastValidSnapshot이 차트·레인 수·초안을 함께 담는다. 이때 쌓인 이력은 아래에서 비운다.
   store.setExtraLaneCount(placed.extraLaneCount);
   // savedChartJson은 보조 레인 수를 정한 뒤 만든다. 먼저 만들면 기본값 2로 직렬화해, 보조 레인 수 3인 차트가
   // 열자마자 dirty가 된다.
   const loaded = useEditorStore.getState();
   loaded.setSavedChartJson(toSavedChartJson(loaded.chart, loaded.extraLaneCount));
-  loaded.setSong(song ? createEditorSong(song, loaded.chart) : null);
   loaded.setChartRow(chartRow);
   loaded.resetHistory();
 }

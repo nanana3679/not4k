@@ -5,28 +5,45 @@ import { applySongTimingEvents } from '../shared/songAssets/resolveSongChart';
 
 import type { SongValues } from '../supabase/saveSong';
 
-/**
- * 차트 사본에 있지만 곡 세션(대기 파일·음원 길이)과 짝을 이루는 값: 미디어 경로와 프리뷰 구간. 곡 정보 변경 취소는 이 값을 이력 없이
- * 되돌려, 변경 취소의 Undo가 버린 음원 경로나 그 음원 길이에 맞춘 프리뷰 구간을 저장된 음원 위에 되살리지 않게 한다(통합 이력 PR6 전).
- */
-export const SONG_SESSION_META_KEYS = ['audioFile', 'imageFile', 'previewAudioFile', 'previewStart', 'previewEnd'] as const;
-export type SongSessionMeta = Pick<ChartMeta, typeof SONG_SESSION_META_KEYS[number]>;
-
-/** meta에서 곡 세션과 짝을 이루는 값만 고른다. */
-export function songSessionMetaOf(meta: ChartMeta): SongSessionMeta {
-  return { audioFile: meta.audioFile, imageFile: meta.imageFile, previewAudioFile: meta.previewAudioFile,
-    previewStart: meta.previewStart, previewEnd: meta.previewEnd };
-}
-
-export interface EditorSong {
-  revision: number;
-  needsTimingMigration: boolean;
-  baseline: SongValues;
+export interface SongDraft {
+  /** 세션 내 음원 정체성. 저장해 경로가 바뀌어도 유지한다. */
+  audioId: number;
   duration: number | null;
   gameplayRange: PlaybackRange | null;
   pendingPreviewRange: PlaybackRange | null;
   pendingJacketFile: File | null;
   pendingAudioFile: File | null;
+}
+
+export interface EditorSong extends SongDraft {
+  revision: number;
+  needsTimingMigration: boolean;
+  baseline: SongValues;
+  /** 마지막 저장 음원의 정체성. 초안과 별도로 유지해 Undo 후 변경 취소도 저장 음원으로 돌아간다. */
+  baselineAudioId: number;
+}
+
+let nextSongAudioId = 0;
+export function createSongAudioId(): number { return ++nextSongAudioId; }
+
+/** File·구간 참조는 유지한다. 초안의 필드는 직접 수정하지 않고 새 객체로 교체한다. */
+export function songDraftOf(song: SongDraft): SongDraft {
+  const { audioId, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile } = song;
+  return { audioId, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile };
+}
+
+function sameRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
+  return a === b || (a !== null && b !== null
+    && a.startTime === b.startTime && a.endTime === b.endTime
+    && a.fadeInTime === b.fadeInTime && a.fadeOutTime === b.fadeOutTime);
+}
+
+export function sameSongDraft(a: SongDraft | null, b: SongDraft | null): boolean {
+  if (!a || !b) return a === b;
+  return a.audioId === b.audioId && a.duration === b.duration
+    && a.pendingAudioFile === b.pendingAudioFile && a.pendingJacketFile === b.pendingJacketFile
+    && sameRange(a.gameplayRange, b.gameplayRange)
+    && sameRange(a.pendingPreviewRange, b.pendingPreviewRange);
 }
 
 export function songValues(chart: ChartDocument, song: EditorSong): SongValues {
@@ -56,7 +73,9 @@ function gameplayRangeOf(values: Pick<SongValues, 'gameplayStart' | 'gameplayEnd
 /** resolveSongChart·초기 레인 배치·곡 음원 정보 적용 후에 기준을 만든다. */
 export function createEditorSong(loaded: LoadedSongSharedData, chart: ChartDocument): EditorSong {
   const gameplayRange = gameplayRangeOf(loaded);
+  const audioId = createSongAudioId();
   const song: EditorSong = {
+    audioId, baselineAudioId: audioId,
     revision: loaded.revision, needsTimingMigration: loaded.timing === null,
     duration: loaded.duration, gameplayRange,
     pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null,
@@ -112,7 +131,7 @@ export function restoreSavedSongInfo(
     : { ...chart, meta: sameMeta ? chart.meta : savedMeta, events };
   return {
     chart: restoredChart,
-    song: { ...song, duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
+    song: { ...song, audioId: song.baselineAudioId, duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
       pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null },
   };
 }

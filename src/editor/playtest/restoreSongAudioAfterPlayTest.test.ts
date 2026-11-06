@@ -16,8 +16,9 @@ beforeEach(() => {
 });
 
 describe('restoreSongAudioAfterPlayTest', () => {
-  it('곡 행 음원이 songs/a/audio.ogg이고 대기 File이 없으면 공개 URL https://audio.invalid/songs/a/audio.ogg를 pendingAudioUrl로 정한다', async () => {
-    vi.mocked(fetchSongSharedData).mockResolvedValue({ audioUrl: 'songs/a/audio.ogg' } as Awaited<ReturnType<typeof fetchSongSharedData>>);
+  it('곡 행은 songs/b/audio.ogg여도 Undo한 초안이 songs/a/audio.ogg이면 A의 공개 URL을 요청한다', async () => {
+    useEditorStore.getState().applyMetaEdit({ audioFile: 'songs/a/audio.ogg' });
+    vi.mocked(fetchSongSharedData).mockResolvedValue({ audioUrl: 'songs/b/audio.ogg' } as Awaited<ReturnType<typeof fetchSongSharedData>>);
 
     await restoreSongAudioAfterPlayTest('a', toPublicUrl);
 

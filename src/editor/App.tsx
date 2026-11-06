@@ -286,7 +286,8 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const [metaAudioPick, setMetaAudioPick] = useState<MetaAudioPick | null>(null);
   // 음원을 불러오는 중에는 Save·Save As를 시작하지 않는다. 아래 useEditorAudioLoad의 상태를 저장 핸들러가 읽는다.
   const audioLoadingRef = useRef(false);
-  const isAudioLoading = useCallback(() => audioLoadingRef.current, []);
+  const isAudioLoading = useCallback(() => audioLoadingRef.current
+    || useEditorStore.getState().isLoadingSongAudio || Boolean(useEditorStore.getState().pendingAudioUrl), []);
   // 구형 차트 변환 모달(RFD 0037 §8-1). 불러올 때 store의 savedChartJson을 구형 차트로 정했으므로 변환하면 dirty가 된다.
   // 변환 전 개수는 같은 순수 함수의 dry-run이다. 지금 차트에 구형 노트가 없으면 묻지 않는다.
   const [legacyConversionDialog, setLegacyConversionDialog] = useState<LegacyConversionDialog | null>(
@@ -585,7 +586,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     onLoadFailed: () => useEditorStore.getState().addToast('Audio load failed', 'error'),
   }));
   // 곡 정보 드로어의 음원 선택. Meta 창과 따로 두어 서로의 되돌리기에 섞이지 않는다.
-  // 변경 취소는 바꾸기 전 저장된 음원의 버퍼로 재생기를 되돌리고, 그 버퍼가 없으면 재생기를 비운 뒤 저장된 음원을 다시 불러온다.
+  // Undo·Redo·변경 취소로 바뀐 audioId를 따라 버퍼를 복원하거나 다시 불러온다.
   const [drawerAudio] = useState(() => createDrawerSongAudio({
     setPick: setDrawerAudioPick,
     setAudioLoading,
@@ -594,9 +595,13 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     reloadSavedAudio: path => useEditorStore.getState().setPendingAudioUrl(getPublicUrl(path)),
   }));
   const pickDrawerAudio = useCallback((file: File) => { void drawerAudio.pick(playbackRef.current, file); }, [drawerAudio]);
-  // 곡 저장으로 저장된 음원이 바뀌면 기억해 둔 이전 음원 버퍼를 놓는다(더 쓰지 않는 디코딩 음원을 붙잡지 않게).
-  const savedSongAudioUrl = song?.baseline.audioUrl ?? null;
-  useEffect(() => { drawerAudio.forgetSavedAudioUnless(savedSongAudioUrl); }, [drawerAudio, savedSongAudioUrl]);
+  useEffect(() => useEditorStore.subscribe((state, before) => {
+    if (state.song?.audioId !== before.song?.audioId || state.chartLoadGeneration !== before.chartLoadGeneration) {
+      // store 쓰기 안에서 동기화해 다음 렌더 전에 Save를 눌러도 이전 음원으로 저장하지 않는다.
+      void drawerAudio.sync(playbackRef.current, state);
+    }
+    if (state.song && state.songInfoReopenRequest !== before.songInfoReopenRequest) setSongInfoOpen(true);
+  }), [drawerAudio]);
 
   // 미저장 변경 확인 흐름(RFD 0098). 확인 창의 선택을 기다리고, 저장은 툴바의 Save와 같은 저장을 쓴다.
   // 드로어에서 고른 음원을 불러오는 중이면 미저장 곡 정보로 보고, 변경 취소·닫기는 그 선택을 버려 늦은 로드가 적용되지 않게 한다.
@@ -623,8 +628,8 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     discardSongInfo: () => {
       const result = discardSongInfoChanges();
       if (!result.discarded) return false;
-      // 불러오는 중인 드로어 음원은 버리고, 바꾼 음원을 버렸으면 재생기·파형을 저장된 음원으로 되돌린다.
-      drawerAudio.discard(playbackRef.current, result.discardedAudio);
+      // 음원 id가 같아도 아직 적용하지 않은 파일 선택은 버린다. id 변경의 복원은 위 구독이 맡는다.
+      drawerAudio.close(playbackRef.current);
       return true;
     },
   }), [askUnsaved, handleSaveChart, drawerAudio]);

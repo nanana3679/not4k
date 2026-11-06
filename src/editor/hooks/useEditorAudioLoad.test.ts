@@ -143,7 +143,7 @@ it('2초 음원을 Meta에 적용하고 미저장 테스트 플레이에서 복�
   expect(isSongDirty(state().chart, state().song)).toBe(true);
 });
 
-it('대기 File 없이 복귀하면 초안의 stale.wav 대신 다시 조회한 latest.wav를 1회 로드하고 초안·저장 기준은 유지한다', async () => {
+it('대기 File 없이 복귀하면 조회한 latest.wav 대신 초안의 stale.wav를 1회 로드하고 초안·저장 기준은 유지한다', async () => {
   state().setChart({ ...state().chart, meta: { ...state().chart.meta, audioFile: 'stale.wav' } });
   const draft = state().chart;
   const song = state().song;
@@ -153,7 +153,7 @@ it('대기 File 없이 복귀하면 초안의 stale.wav 대신 다시 조회한 
   const restored = await returnToEditor();
   await vi.waitFor(() => expect(restored.playback.audioBufferData).toBe(decoded));
 
-  expect(fetch).toHaveBeenCalledExactlyOnceWith('https://audio.invalid/latest.wav');
+  expect(fetch).toHaveBeenCalledExactlyOnceWith('https://audio.invalid/stale.wav');
   expect(state().chart).toBe(draft);
   expect(state().song).toBe(song);
   expect(state().pendingAudioUrl).toBeNull();
@@ -162,14 +162,12 @@ it('대기 File 없이 복귀하면 초안의 stale.wav 대신 다시 조회한 
 it.each([
   ['곡 행이 없음', null],
   ['곡 음원 경로가 빈 문자열', { ...loadedSong, audioUrl: '' }],
-] as const)('%s이고 대기 File 없이 복귀하면 차트의 음원 경로를 대신 fetch하지 않는다', async (_condition, loaded) => {
+] as const)('%s여도 대기 File 없이 복귀하면 초안의 saved.wav를 요청한다', async (_condition, loaded) => {
   vi.mocked(fetchSongSharedData).mockResolvedValue(loaded);
   const restored = await returnToEditor();
 
+  expect(fetch).toHaveBeenCalledExactlyOnceWith('https://audio.invalid/saved.wav');
   expect(restored.playback.audioBufferData).toBeNull();
-  expect(restored.setLoadedAudioBuffer).not.toHaveBeenCalled();
-  expect(fetch).not.toHaveBeenCalled();
-  expect(showToast).not.toHaveBeenCalled();
 });
 
 it('대기 File 없이 복귀할 때 곡 행 재조회가 Failed to load song 오류로 실패하면 오류 화면 대신 초안·저장 기준·리비전 42를 유지하고 음원 미로드 오류 알림을 1회 띄운다', async () => {

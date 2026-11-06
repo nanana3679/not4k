@@ -209,7 +209,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(JSON.parse(store().savedChartJson!.extraJson).extraLaneCount).toBe(2);
     expect(dirty()).toBe(false);
     expect(selectCanUndo(store())).toBe(false);
-    expect(store().lastValidSnapshot).toEqual({ chart: store().chart, extraLaneCount: 2 });
+    expect(store().lastValidSnapshot).toEqual({ chart: store().chart, extraLaneCount: 2, songDraft: null });
   });
 
   it('옮길 것이 없어도 파일의 보조 레인 수 5를 적용하고 Undo가 없다', () => {

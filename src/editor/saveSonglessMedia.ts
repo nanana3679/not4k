@@ -79,7 +79,7 @@ export function settleSonglessMedia(saved: SonglessMedia, paths: SonglessMediaPa
   const imageFile = paths.jacketPath && same('jacketFile') ? paths.jacketPath : meta.imageFile;
   const audioFile = paths.audioPath && same('audioFile') ? paths.audioPath : meta.audioFile;
   if (imageFile !== meta.imageFile || audioFile !== meta.audioFile) {
-    state.reconcileSongMedia({ imageFile, audioFile, previewAudioFile: meta.previewAudioFile });
+    state.reconcileSonglessMedia({ imageFile, audioFile, previewAudioFile: meta.previewAudioFile });
   }
   state.setSonglessMedia({
     previewRange: same('previewRange') ? null : current.previewRange,

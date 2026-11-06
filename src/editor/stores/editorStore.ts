@@ -9,9 +9,10 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
-import type { EditorSong, SongSessionMeta } from '../songState';
+import { songDraftOf, sameSongDraft, type EditorSong, type SongDraft } from '../songState';
 import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
 import type { SavedChartJson } from '../savedChart';
+import type { SongValues } from '../../supabase/saveSong';
 import type { StoredChartRow } from '../../supabase/chartRows';
 import type { CursorBeatKeeperState } from '../playback/cursorBeatKeeper';
 import { createViewportSlice, type ViewportSlice } from './viewportSlice';
@@ -44,7 +45,19 @@ type EditTransaction = {
 type HistorySnapshot = {
   chart: ChartDocument;
   extraLaneCount: number;
+  /** File을 JSON 복제하지 않는다. 초안·구간은 불변 객체로 취급해 참조를 유지한다. */
+  songDraft: SongDraft | null;
+  reopensSongInfo?: boolean;
 };
+
+interface SetChartOptions {
+  separateHistory?: boolean;
+  transaction?: symbol;
+  songDraft?: Partial<SongDraft>;
+  /** 앞뒤 편집 모두 600ms 병합에서 제외한다. */
+  isolated?: boolean;
+  reopensSongInfo?: boolean;
+}
 
 export type EditingEvent =
   | { type: 'event'; index: number }
@@ -97,6 +110,8 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   historyPast: HistorySnapshot[];
   historyFuture: HistorySnapshot[];
   historyLastCaptureAt: number;
+  /** 변경 취소의 Undo 때마다 증가한다. 드로어는 요청을 소비해 열기만 한다. */
+  songInfoReopenRequest: number;
   editTransaction: EditTransaction | null;
 
   // 막다른 상태 탈출(RFD 0017 §7) — 마지막으로 차트 전체가 valid였던 스냅샷.
@@ -122,8 +137,8 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   song: EditorSong | null;
   isSavingSong: boolean;
   /**
-   * 곡 정보 드로어에서 고른 음원을 불러오는 중인가(src/editor/drawerSongAudio.ts). 불러오면 곡 음원으로 적용되므로 미저장 곡 정보로
-   * 본다. Save의 미저장 표시와 닫기·전환·이탈 확인이 이 값을 함께 읽는다(unsavedChangesFlow). 차트를 새로 열면 끈다.
+   * 드로어에서 고르거나 이력으로 복원한 대기 File을 불러오는 중인가(src/editor/drawerSongAudio.ts).
+   * Save 차단·미저장 표시와 닫기·전환·이탈 확인이 이 값을 함께 읽는다. 차트를 새로 열면 끈다.
    */
   isLoadingSongAudio: boolean;
   setSong: (song: EditorSong | null) => void;
@@ -163,14 +178,13 @@ interface EditorState extends ViewportSlice, SelectionSlice {
    */
   adoptChartIdentity: (difficultyLabel: string, difficultyLevel: number, row: StoredChartRow | null) => void;
   setPendingAudioUrl: (url: string | null) => void;
-  setChart: (chart: ChartDocument, options?: { separateHistory?: boolean; transaction?: symbol }) => void;
+  setChart: (chart: ChartDocument, options?: SetChartOptions) => void;
   /** 현재 초안에 Meta 편집을 합친다. 곡 행이 있으면 난이도명은 유지하고 레벨은 편집한다. */
   applyMetaEdit: (meta: Partial<ChartMeta>) => void;
-  /**
-   * 곡 세션과 짝을 이루는 차트 사본 값(업로드 결과의 미디어 경로, 곡 정보 변경 취소의 미디어 경로·프리뷰 구간)만 반영한다.
-   * 편집·Undo 이력·열린 transaction은 만들거나 끝내지 않는다.
-   */
-  reconcileSongMedia: (media: Partial<SongSessionMeta>) => void;
+  /** 저장한 File·음원 id·프리뷰 구간이 같은 초안의 경로를 현재 상태와 모든 스냅샷에 반영한다. 이력·Redo는 유지한다. */
+  completeSongSave: (savedDraft: SongDraft, values: SongValues, revision: number) => void;
+  /** 곡 행 없는 차트의 업로드 경로만 반영한다. 현재 차트와 같은 참조의 복원 씨앗만 갱신하고 과거·미래 이력은 유지한다. */
+  reconcileSonglessMedia: (media: Partial<Pick<ChartMeta, 'audioFile' | 'imageFile' | 'previewAudioFile'>>) => void;
   /**
    * 로드 전용 통로 — 위반 차트도 수용해 열람·수리를 허용한다(경고만 표시).
    * 재저장은 저장 게이트(useFileOperations의 editorChartErrors)가 차단하므로
@@ -262,46 +276,45 @@ const createDefaultChart = (): ChartDocument => ({
 
 const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraLaneCount'>): HistorySnapshot {
+function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraLaneCount' | 'song'>): HistorySnapshot {
   return {
     chart: cloneJson(state.chart),
     extraLaneCount: state.extraLaneCount,
+    songDraft: state.song ? songDraftOf(state.song) : null,
   };
 }
 
-/** 대기 파일과 미디어 경로는 곡 세션 소유다. 차트 이력만 복원해 파일과 경로가 분리되지 않게 한다(PR6 전). */
-function restoreChartSnapshot(state: EditorState, chart: ChartDocument): ChartDocument {
-  if (!state.song) return chart;
-  const { audioFile, imageFile, previewAudioFile } = state.chart.meta;
-  if (chart.meta.audioFile === audioFile && chart.meta.imageFile === imageFile
-    && chart.meta.previewAudioFile === previewAudioFile) return chart;
-  return { ...chart, meta: { ...chart.meta, audioFile, imageFile, previewAudioFile } };
+/** 모든 복원 경로는 초안만 되돌리고 서버 리비전·이행 여부·저장 기준을 유지한다. */
+function restoreSnapshot(state: EditorState, snapshot: HistorySnapshot): Partial<EditorState> {
+  return { chart: snapshot.chart, extraLaneCount: snapshot.extraLaneCount,
+    ...(state.song && snapshot.songDraft ? { song: { ...state.song, ...snapshot.songDraft } } : {}) };
 }
 
-function captureHistory(state: EditorState, separateHistory = false, transaction?: symbol): Partial<EditorState> {
+function captureHistory(state: EditorState, separateHistory = false, transaction?: symbol, reopensSongInfo?: boolean): Partial<EditorState> {
   if (transaction && state.editTransaction?.token === transaction) return {};
   const now = Date.now();
-  if (!separateHistory && state.historyPast.length > 0 && now - state.historyLastCaptureAt < HISTORY_COALESCE_MS) {
+  if (!separateHistory && state.historyPast.length > 0 && state.historyLastCaptureAt !== 0 && now - state.historyLastCaptureAt < HISTORY_COALESCE_MS) {
     return {
       historyFuture: [],
     };
   }
 
   return {
-    historyPast: [...state.historyPast, createHistorySnapshot(state)].slice(-HISTORY_LIMIT),
+    historyPast: [...state.historyPast, { ...createHistorySnapshot(state), reopensSongInfo }].slice(-HISTORY_LIMIT),
     historyFuture: [],
     historyLastCaptureAt: now,
   };
 }
 
 /**
- * 열린 편집 transaction이 아직 history에 넣지 않은 변경을 가졌는가. 참조만 비교하므로
- * 버튼 상태처럼 store가 바뀔 때마다 계산해도 된다.
+ * 열린 편집 transaction이 아직 history에 넣지 않은 변경을 가졌는가.
+ * 차트는 참조로, 곡 초안은 File 참조와 구간 값으로 비교한다.
  */
-export function hasUncommittedEdit(state: Pick<EditorState, 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
+export function hasUncommittedEdit(state: Pick<EditorState, 'editTransaction' | 'chart' | 'extraLaneCount' | 'song'>): boolean {
   const transaction = state.editTransaction;
   return transaction !== null
-    && (transaction.before.chart !== state.chart || transaction.before.extraLaneCount !== state.extraLaneCount);
+    && (transaction.before.chart !== state.chart || transaction.before.extraLaneCount !== state.extraLaneCount
+      || !sameSongDraft(transaction.before.songDraft, state.song));
 }
 
 /**
@@ -316,7 +329,7 @@ export function selectHasSongRow(state: Pick<EditorState, 'song' | 'chartRow'>):
  * Undo 가능 여부. 불러온 직후 첫 붙여넣기처럼 transaction 안에만 있는 편집도 되돌릴 수 있다.
  * 재생 중에는 Undo하지 않는다(RFD 0099).
  */
-export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'isPlaying'>): boolean {
+export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'song' | 'isPlaying'>): boolean {
   return !state.isPlaying && (state.historyPast.length > 0 || hasUncommittedEdit(state));
 }
 
@@ -324,7 +337,7 @@ export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTran
  * Redo 가능 여부. 변경이 있는 transaction을 확정하면 Redo 기록이 사라지므로 그동안은 불가다.
  * 재생 중에는 Redo하지 않는다(RFD 0099).
  */
-export function selectCanRedo(state: Pick<EditorState, 'historyFuture' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'isPlaying'>): boolean {
+export function selectCanRedo(state: Pick<EditorState, 'historyFuture' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'song' | 'isPlaying'>): boolean {
   return !state.isPlaying && state.historyFuture.length > 0 && !hasUncommittedEdit(state);
 }
 
@@ -351,6 +364,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   historyPast: [],
   historyFuture: [],
   historyLastCaptureAt: 0,
+  songInfoReopenRequest: 0,
   editTransaction: null,
   lastValidSnapshot: null,
   savedChartJson: null,
@@ -450,20 +464,66 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         restZones: remap(state.selection.restZones, state.chart.restZones ?? [], chart.restZones ?? []),
         events: remap(state.selection.events, state.chart.events, chart.events),
       }, chart);
+      const song = state.song && options?.songDraft ? { ...state.song, ...options.songDraft } : state.song;
       return {
-        ...captureHistory(state, options?.separateHistory, options?.transaction),
-        chart,
+        ...captureHistory(state, options?.isolated || options?.separateHistory, options?.transaction, options?.reopensSongInfo),
+        ...(options?.isolated ? { historyLastCaptureAt: 0 } : {}),
+        chart, song,
         selection: selectionEquals(normalized, state.selection) ? state.selection : normalized,
         // 전체 valid일 때만 갱신 — 위반 커밋이면 이전 valid 스냅샷 유지(탈출 목적지 보존)
-        ...(fullyValid ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } } : {}),
+        ...(fullyValid ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount, songDraft: song ? songDraftOf(song) : null } } : {}),
       };
     });
   },
-  reconcileSongMedia: (media) => set(state => {
+  completeSongSave: (savedDraft, values, revision) => set(state => {
+    if (!state.song) return {};
+    const mapSnapshot = (snapshot: HistorySnapshot): HistorySnapshot => {
+      const draft = snapshot.songDraft;
+      if (!draft) return snapshot;
+      const meta = { ...snapshot.chart.meta };
+      const nextDraft = { ...draft };
+      if (savedDraft.pendingAudioFile && draft.pendingAudioFile === savedDraft.pendingAudioFile) {
+        meta.audioFile = values.audioUrl;
+        nextDraft.pendingAudioFile = null;
+      }
+      if (savedDraft.pendingJacketFile && draft.pendingJacketFile === savedDraft.pendingJacketFile) {
+        meta.imageFile = values.jacketUrl ?? '';
+        nextDraft.pendingJacketFile = null;
+      }
+      if (draft.audioId === savedDraft.audioId && (meta.previewStart ?? null) === values.previewStart
+        && (meta.previewEnd ?? null) === values.previewEnd) {
+        meta.previewAudioFile = values.previewUrl ?? '';
+        if ((draft.pendingPreviewRange?.fadeInTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeInTime ?? 0)
+          && (draft.pendingPreviewRange?.fadeOutTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeOutTime ?? 0)) {
+          nextDraft.pendingPreviewRange = null;
+        }
+      }
+      const chart = meta.audioFile === snapshot.chart.meta.audioFile && meta.imageFile === snapshot.chart.meta.imageFile
+        && meta.previewAudioFile === snapshot.chart.meta.previewAudioFile ? snapshot.chart : { ...snapshot.chart, meta };
+      const songDraft = sameSongDraft(draft, nextDraft) ? draft : nextDraft;
+      return chart === snapshot.chart && songDraft === draft ? snapshot : { ...snapshot, chart, songDraft };
+    };
+    const current = mapSnapshot({ chart: state.chart, extraLaneCount: state.extraLaneCount, songDraft: songDraftOf(state.song) });
+    // 빈 transaction과 현재 유효 상태는 같은 차트 참조를 유지해야 저장 응답이 가짜 편집을 만들지 않는다.
+    const rewrite = (snapshot: HistorySnapshot): HistorySnapshot =>
+      snapshot.chart === state.chart && sameSongDraft(snapshot.songDraft, state.song)
+        ? { ...snapshot, chart: current.chart, songDraft: current.songDraft } : mapSnapshot(snapshot);
+    const transaction = state.editTransaction;
+    return {
+      chart: current.chart,
+      song: { ...state.song, ...current.songDraft, revision, baseline: values,
+        baselineAudioId: savedDraft.audioId, needsTimingMigration: false },
+      historyPast: state.historyPast.map(rewrite), historyFuture: state.historyFuture.map(rewrite),
+      lastValidSnapshot: state.lastValidSnapshot ? rewrite(state.lastValidSnapshot) : null,
+      editTransaction: transaction ? { ...transaction, before: rewrite(transaction.before),
+        lastValidSnapshot: transaction.lastValidSnapshot ? rewrite(transaction.lastValidSnapshot) : null } : null,
+    };
+  }),
+  reconcileSonglessMedia: (media) => set(state => {
     const chart = { ...state.chart, meta: { ...state.chart.meta, ...media } };
     // 저장 응답이 빈 gesture를 편집으로 만들거나 마지막 유효 상태의 경로를 되돌리지 않게 한다.
     const reconcileSnapshot = (snapshot: HistorySnapshot): HistorySnapshot => ({ ...snapshot,
-      chart: snapshot.chart === state.chart ? chart : restoreChartSnapshot({ ...state, chart }, snapshot.chart),
+      chart: snapshot.chart === state.chart ? chart : snapshot.chart,
     });
     const transaction = state.editTransaction;
     return { chart,
@@ -508,7 +568,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       legacyConversionReview: null,
       legacyConversionReviewOpen: false,
       ...(errors.length === 0
-        ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } }
+        ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount, songDraft: null } }
         : {}),
     }));
   },
@@ -561,7 +621,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         ...captureHistory(state, false, transaction),
         extraLaneCount,
-        ...(fullyValid ? { lastValidSnapshot: { chart: state.chart, extraLaneCount } } : {}),
+        ...(fullyValid ? { lastValidSnapshot: { chart: state.chart, extraLaneCount, songDraft: state.song ? songDraftOf(state.song) : null } } : {}),
       };
     });
   },
@@ -571,10 +631,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => {
       const previous = state.historyPast.at(-1);
       if (!previous) return {};
-      const current = createHistorySnapshot(state);
+      const current = { ...createHistorySnapshot(state), reopensSongInfo: previous.reopensSongInfo };
       return {
-        chart: restoreChartSnapshot(state, previous.chart),
-        extraLaneCount: previous.extraLaneCount,
+        songInfoReopenRequest: state.songInfoReopenRequest + (previous.reopensSongInfo && state.song ? 1 : 0),
+        ...restoreSnapshot(state, previous),
         // 선택은 복원된 차트에 대해 무의미하므로 전체 clear(zones 포함) — 같은 set()에서 원자적으로
         selection: emptySelection(),
         historyPast: state.historyPast.slice(0, -1),
@@ -589,10 +649,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => {
       const next = state.historyFuture[0];
       if (!next) return {};
-      const current = createHistorySnapshot(state);
+      const current = { ...createHistorySnapshot(state), reopensSongInfo: next.reopensSongInfo };
       return {
-        chart: restoreChartSnapshot(state, next.chart),
-        extraLaneCount: next.extraLaneCount,
+        ...restoreSnapshot(state, next),
         selection: emptySelection(),
         historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
         historyFuture: state.historyFuture.slice(1),
@@ -614,8 +673,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!target || state.chart === target.chart) return {};
       const current = createHistorySnapshot(state);
       return {
-        chart: restoreChartSnapshot(state, target.chart),
-        extraLaneCount: target.extraLaneCount,
+        ...restoreSnapshot(state, target),
         // 복원된 차트에 대해 기존 선택은 무의미 — 전체 clear(undo/redo와 동일)
         selection: emptySelection(),
         historyPast: [...state.historyPast, current].slice(-HISTORY_LIMIT),
@@ -638,7 +696,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (state.editTransaction || state.isPlaying) return null;
     const token = Symbol("editor transaction");
     set({ editTransaction: {
-      token, kind, before: { chart: state.chart, extraLaneCount: state.extraLaneCount },
+      token, kind, before: { chart: state.chart, extraLaneCount: state.extraLaneCount, songDraft: state.song ? songDraftOf(state.song) : null },
       selection: state.selection, selectionBeforePress: selectionBefore ?? state.selection,
       lastValidSnapshot: state.lastValidSnapshot, onInterrupt,
     } });
@@ -649,7 +707,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!transaction || (token && transaction.token !== token)) return;
     set(state => {
       const changed = transaction.before.extraLaneCount !== state.extraLaneCount
-        || JSON.stringify(transaction.before.chart) !== JSON.stringify(state.chart);
+        || JSON.stringify(transaction.before.chart) !== JSON.stringify(state.chart)
+        || !sameSongDraft(transaction.before.songDraft, state.song);
       return {
         editTransaction: null,
         ...(changed ? {
@@ -666,7 +725,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   cancelEditTransaction: token => {
     const transaction = get().editTransaction;
     if (!transaction || (token && transaction.token !== token)) return;
-    set({ ...transaction.before, chart: restoreChartSnapshot(get(), transaction.before.chart), selection: transaction.selection,
+    set({ ...restoreSnapshot(get(), transaction.before), selection: transaction.selection,
       lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
     if (!token) transaction.onInterrupt?.();
   },
@@ -674,7 +733,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const transaction = get().editTransaction;
     if (!transaction) return;
     // token 없는 취소라 소유 조작은 onInterrupt로 그 누름의 조작을 끝내, 같은 누름을 더 끌어도 아무것도 바꾸지 않는다.
-    set({ ...transaction.before, chart: restoreChartSnapshot(get(), transaction.before.chart), selection: transaction.selectionBeforePress,
+    set({ ...restoreSnapshot(get(), transaction.before), selection: transaction.selectionBeforePress,
       lastValidSnapshot: transaction.lastValidSnapshot, editTransaction: null });
     transaction.onInterrupt?.();
   },

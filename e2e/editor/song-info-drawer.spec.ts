@@ -145,7 +145,7 @@ test.describe('곡 정보 드로어', () => {
     expect(editor.supabaseWrites).toEqual([]);
   });
 
-  test('드로어를 연 채 1레인 2박에 탭을 놓고 Title을 바꾼 뒤 변경 취소 후 닫기를 고르면 제목만 돌아가 Song Info 점은 사라지고 탭과 Save 표시는 남으며 Ctrl+Z로 새 제목과 점이 돌아온다', async ({ page }) => {
+  test('드로어를 연 채 1레인 2박에 탭을 놓고 Title을 바꾼 뒤 변경 취소 후 닫기를 고르면 제목만 돌아가 Song Info 점은 사라지고 탭과 Save 표시는 남으며 Ctrl+Z로 드로어가 다시 열려 새 제목과 점이 돌아온다', async ({ page }) => {
     const editor = await openEditor(page, { songTiming: timing });
     await openSongInfo(page);
     const point = await canvasPosition(page, 1, 2);
@@ -166,6 +166,8 @@ test.describe('곡 정보 드로어', () => {
 
     await page.keyboard.press('Control+z');
     await expect.poll(async () => (await editorState(page)).title).toBe('새 제목');
+    await expect(songInfo(page)).toBeVisible();
+    await expect(songInfo(page).getByLabel('Title', { exact: true })).toHaveValue('새 제목');
     expect((await editorState(page)).notes).toBe(1);
     await expect(songInfoButton(page)).toHaveAttribute('title', SONG_INFO_DRAWER_COPY.unsavedTitle);
   });

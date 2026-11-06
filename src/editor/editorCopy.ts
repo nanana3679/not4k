@@ -18,7 +18,7 @@ export const SONG_INFO_UNSAVED_COPY = {
   title: "Unsaved Song Info",
   closeBody: "저장하지 않은 곡 정보 변경이 있습니다. 저장하거나 변경을 취소해야 곡 정보를 닫을 수 있습니다.",
   switchBody: "저장하지 않은 곡 정보 변경이 있습니다. 저장하거나 변경을 취소해야 다른 차트로 전환할 수 있습니다.",
-  discardNote: "변경 취소는 마지막으로 저장한 곡 정보로 되돌리며 노트·차트 이벤트 편집은 그대로 둡니다. Undo는 제목·아티스트·오프셋·BPM·박자표만 되살리고 자켓·음원·구간은 되살리지 않습니다.",
+  discardNote: "변경 취소는 마지막으로 저장한 곡 정보로 되돌리며 노트·차트 이벤트 편집은 그대로 둡니다. Undo하면 자켓·음원·구간을 포함한 곡 정보를 복원하고 드로어를 다시 엽니다.",
   saveClose: "저장 후 닫기",
   discardClose: "변경 취소 후 닫기",
   saveSwitch: "저장 후 전환",
@@ -87,7 +87,6 @@ export const SONG_SAVE_COPY = {
   /** 프리뷰 구간·음원을 바꿔 프리뷰 클립을 다시 만들어야 하는데 재생 음원이 없을 때(음원 로드 실패 등). */
   previewAudioMissing: '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Song Info에서 음원을 불러온 뒤 다시 저장해주세요.',
   /** 다시 만들 프리뷰 구간이 재생 음원 길이를 넘을 때(Undo가 다른 음원에 맞춘 구간을 되살린 경우 등). */
-  previewOutOfRange: '프리뷰 구간이 음원 길이를 넘습니다. Song Info에서 프리뷰 구간을 다시 정한 뒤 저장해주세요.',
 } as const;
 
 /**

@@ -135,7 +135,7 @@ describe('transaction 안의 첫 편집 Undo', () => {
 
   it('history가 빈 첫 붙여넣기 대기 중 selectCanUndo는 true이고 Redo 기록 1개가 있어도 selectCanRedo는 false다', () => {
     const { pasteCopyOfFirstNoteAt8 } = setup();
-    useEditorStore.setState({ historyFuture: [{ chart: current().chart, extraLaneCount: 2 }] });
+    useEditorStore.setState({ historyFuture: [{ chart: current().chart, extraLaneCount: 2, songDraft: null }] });
     expect(selectCanUndo(current())).toBe(false);
     expect(selectCanRedo(current())).toBe(true);
 
@@ -173,7 +173,7 @@ describe('재생 중 단축키(RFD 0099)', () => {
       { type: 'body', lane: 2, beat: beat(2), endBeat: beat(4), holdCount: 1 },
     ]);
     mode.selectNote(0); mode.copy();
-    const history = { historyPast: [{ chart: chart([]), extraLaneCount: 2 }], historyFuture: [{ chart: chart([]), extraLaneCount: 2 }] };
+    const history = { historyPast: [{ chart: chart([]), extraLaneCount: 2, songDraft: null }], historyFuture: [{ chart: chart([]), extraLaneCount: 2, songDraft: null }] };
     useEditorStore.setState({ ...history, isPlaying: true });
     const before = current().chart;
 
@@ -387,7 +387,7 @@ describe('곡 정보 드로어·대화 상자 안의 컨트롤 포커스', () =>
   it('1박 탭을 고르고 history가 1개일 때 드로어 버튼의 S·D·G·Ctrl+Z·Ctrl+A는 모드·노트·history를 바꾸지 않는다', () => {
     const { mode, press } = setup();
     mode.selectNote(0);
-    useEditorStore.setState({ mode: 'create', historyPast: [{ chart: chart([]), extraLaneCount: 2 }] });
+    useEditorStore.setState({ mode: 'create', historyPast: [{ chart: chart([]), extraLaneCount: 2, songDraft: null }] });
     const button = asTarget(keyTarget('BUTTON', { region: 'drawer' }));
 
     for (const key of ['s', 'd', 'g']) press(key, { target: button });

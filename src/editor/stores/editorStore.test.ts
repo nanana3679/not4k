@@ -426,7 +426,7 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
     useEditorStore.getState().setChart(invalid);
     useEditorStore.setState({
       selection: { events: new Set(), notes: new Set([0]), zones: new Set(), restZones: new Set() },
-      historyFuture: [{ chart: makeChart(), extraLaneCount: 2 }],
+      historyFuture: [{ chart: makeChart(), extraLaneCount: 2, songDraft: null }],
     });
 
     useEditorStore.getState().revertToLastValid();
@@ -944,7 +944,7 @@ describe('editorStore 재생 중 편집 제한', () => {
     expect(state().chart).toBe(edited);
     expect(state().historyPast).toHaveLength(1);
 
-    useEditorStore.setState({ historyFuture: [{ chart: makeChart([tap(1), tap(3), tap(5)]), extraLaneCount: 2 }] });
+    useEditorStore.setState({ historyFuture: [{ chart: makeChart([tap(1), tap(3), tap(5)]), extraLaneCount: 2, songDraft: null }] });
     state().redo();
     expect(state().chart).toBe(edited);
     expect(state().historyFuture).toHaveLength(1);
@@ -957,7 +957,7 @@ describe('editorStore 재생 중 편집 제한', () => {
   it('재생 중 revertToLastValid는 위반 차트를 마지막 유효 차트로 되돌리지 않는다', () => {
     const valid = state().chart;
     state().setChart(makeChart([tap(2), tap(2)]));
-    useEditorStore.setState({ lastValidSnapshot: { chart: valid, extraLaneCount: 2 } });
+    useEditorStore.setState({ lastValidSnapshot: { chart: valid, extraLaneCount: 2, songDraft: null } });
     const invalid = state().chart;
     state().setIsPlaying(true);
 
@@ -968,8 +968,8 @@ describe('editorStore 재생 중 편집 제한', () => {
 
   it('history가 1개·Redo 기록이 1개 있어도 재생 중 selectCanUndo·selectCanRedo는 false이고 정지하면 true다', () => {
     useEditorStore.setState({
-      historyPast: [{ chart: makeChart(), extraLaneCount: 2 }],
-      historyFuture: [{ chart: makeChart([tap(1), tap(3)]), extraLaneCount: 2 }],
+      historyPast: [{ chart: makeChart(), extraLaneCount: 2, songDraft: null }],
+      historyFuture: [{ chart: makeChart([tap(1), tap(3)]), extraLaneCount: 2, songDraft: null }],
       isPlaying: true,
     });
     expect(selectCanUndo(state())).toBe(false);
