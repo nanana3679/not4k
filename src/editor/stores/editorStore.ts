@@ -9,7 +9,7 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
-import { songDraftOf, sameSongDraft, type EditorSong, type SongDraft } from '../songState';
+import { previewClipIdentity, songDraftOf, sameSongDraft, type EditorSong, type SongDraft } from '../songState';
 import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
 import type { SavedChartJson } from '../savedChart';
 import type { SongValues } from '../../supabase/saveSong';
@@ -492,7 +492,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (draft.audioId === savedDraft.audioId && (meta.previewStart ?? null) === values.previewStart
         && (meta.previewEnd ?? null) === values.previewEnd) {
         meta.previewAudioFile = values.previewUrl ?? '';
-        nextDraft.previewClipAudioId = savedDraft.audioId;
+        nextDraft.previewClip = previewClipIdentity(savedDraft.audioId, values.previewStart, values.previewEnd);
         if ((draft.pendingPreviewRange?.fadeInTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeInTime ?? 0)
           && (draft.pendingPreviewRange?.fadeOutTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeOutTime ?? 0)) {
           nextDraft.pendingPreviewRange = null;

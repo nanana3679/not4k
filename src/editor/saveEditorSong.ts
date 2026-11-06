@@ -1,7 +1,8 @@
 import { parseSongTiming } from '../shared/songAssets/songTiming';
-import { encodeWavBlob } from '../shared';
+import { canEncodeWavRange, encodeWavBlob } from '../shared';
 import { countOtherSongCharts, findDifferingSongCharts, saveSong, uploadSongMedia } from '../supabase/saveSong';
-import { isSongTimingDirty, songDraftOf, songValues } from './songState';
+import { DEFAULT_PREVIEW_FADE } from './components/previewRangeState';
+import { isSongTimingDirty, previewClipIdentity, samePreviewClip, songDraftOf, songValues } from './songState';
 import { useEditorStore } from './stores/editorStore';
 import { SONG_SAVE_COPY, SAVE_IN_PROGRESS_COPY } from './editorCopy';
 
@@ -31,19 +32,21 @@ export async function saveEditorSong(
   try {
     const values = songValues(start.chart, song);
     parseSongTiming(values.timing);
-    const previewChanged = values.previewStart !== song.baseline.previewStart || values.previewEnd !== song.baseline.previewEnd;
-    // Undo가 저장을 넘으면 구간이 저장 기준과 같아도 초안의 클립이 다른 음원에서 잘렸을 수 있다.
-    const needsPreviewClip = previewChanged || song.pendingAudioFile || song.previewClipAudioId !== song.audioId;
-    const previewRange = needsPreviewClip && values.previewStart != null && values.previewEnd != null
-      ? { startTime: values.previewStart, endTime: values.previewEnd,
-        fadeInTime: song.pendingPreviewRange?.fadeInTime ?? 0, fadeOutTime: song.pendingPreviewRange?.fadeOutTime ?? 0 } : null;
+    // 저장 기준이 아니라 초안이 가진 클립과 비교한다. Undo가 저장을 넘으면 구간이 기준과 달라도 그 구간의 클립을 가지고 있을 수 있고,
+    // 기준과 같아도 다른 음원·구간의 클립일 수 있다. 구간이 없으면 만들 클립이 없다.
+    const wantedClip = previewClipIdentity(song.audioId, values.previewStart, values.previewEnd);
+    const previewRange = wantedClip && !samePreviewClip(song.previewClip, wantedClip)
+      ? { startTime: wantedClip.startTime, endTime: wantedClip.endTime,
+        fadeInTime: song.pendingPreviewRange?.fadeInTime ?? DEFAULT_PREVIEW_FADE,
+        fadeOutTime: song.pendingPreviewRange?.fadeOutTime ?? DEFAULT_PREVIEW_FADE } : null;
     // 프리뷰 클립은 재생 중인 음원으로 만든다. 만들 수 없으면 확인·파일·행보다 먼저 거부한다(음원 로딩 중이면 Save가 먼저 막는다).
     if (previewRange && !audioBuffer) {
       start.addToast(SONG_SAVE_COPY.previewAudioMissing, 'error');
       return 'aborted';
     }
-    // 저장된 값의 유효성 검사다. 행의 구간이 디코딩한 음원 끝을 넘으면 잘린 클립을 올리거나 업로드 뒤 일반 오류로 실패하므로 먼저 거부한다.
-    if (previewRange && audioBuffer && previewRange.endTime > audioBuffer.duration) {
+    // 음원 교체가 구간을 0초로 줄이면(#444) 샘플이 없고, 구간이 음원 끝을 넘으면 잘린 클립이 된다. 인코더가 던지면 이미 올린 음원이
+    // 고아가 되고 재시도마다 쌓이므로 음원 업로드 전에 거부한다.
+    if (previewRange && audioBuffer && !canEncodeWavRange(audioBuffer, previewRange.startTime, previewRange.endTime)) {
       start.addToast(SONG_SAVE_COPY.previewOutOfRange, 'error');
       return 'aborted';
     }
