@@ -1,16 +1,17 @@
 import { useGameStore, PRESET_BINDINGS } from '../../stores';
 import { AVAILABLE_SKINS } from '../../skin';
-import { lazy, Suspense, useState, useEffect, useRef, type ReactNode } from 'react';
+import { lazy, Suspense, useState, useReducer, useEffect, useRef, type ReactNode } from 'react';
 import { font, color, surface, edge, radius } from '../../../shared/theme';
 import { KB_TKL_KEYS, KB_NUMPAD_KEYS } from '../../renderer/keyboardLayout';
 import { OffsetRow } from './OffsetRow';
+import { ProfileSection } from './ProfileSection';
+import { createSettingsSectionState, selectSettingsSection, type SettingsSection } from './settingsSections';
 
 const DevSkinVersionSelect = import.meta.env.DEV
   ? lazy(() => import('../../../lab/DevSkinVersionSelect'))
   : null;
 
 type Lane = 'lane1' | 'lane2' | 'lane3' | 'lane4';
-type SectionId = 'controls' | 'gameplay' | 'skin' | 'advanced';
 type ToastTone = 'info' | 'error';
 
 interface SettingsPanelProps {
@@ -21,11 +22,12 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
-const SECTIONS: { id: SectionId; label: string }[] = [
+const SECTIONS: { id: SettingsSection; label: string }[] = [
   { id: 'controls', label: 'Controls' },
   { id: 'gameplay', label: 'Gameplay' },
   { id: 'skin', label: 'Skin' },
   { id: 'advanced', label: 'Advanced' },
+  { id: 'profile', label: 'Profile' },
 ];
 
 const LANES: Lane[] = ['lane1', 'lane2', 'lane3', 'lane4'];
@@ -39,9 +41,21 @@ const KB_W = Math.max(...KB_KEYS.map((k) => k.x + (k.w ?? 1)));
 const KB_H = Math.max(...KB_KEYS.map((k) => k.y + (k.h ?? 1)));
 
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
-  const { settings, updateSettings } = useGameStore();
-  const [section, setSection] = useState<SectionId>('controls');
+  const { settings, updateSettings, settingsInitialSection } = useGameStore();
+  const [{ section, profileMounted }, setSection] = useReducer(
+    selectSettingsSection, settingsInitialSection, createSettingsSectionState,
+  );
   const [listeningLane, setListeningLane] = useState<Lane | null>(null);
+  // Profile 복귀는 setScreen과 settingsOpen을 같은 틱에 바꾸므로, 설정이 이미 열려 있었다면 패널이 다시 마운트되지 않는다.
+  // 그때도 Profile 탭으로 옮기도록 초기 탭 요청이 'profile'로 바뀌면 렌더 중에 탭을 바꾼다. 탭 클릭처럼 키 입력 대기도 끝낸다.
+  const [seenInitialSection, setSeenInitialSection] = useState(settingsInitialSection);
+  if (settingsInitialSection !== seenInitialSection) {
+    setSeenInitialSection(settingsInitialSection);
+    if (settingsInitialSection === 'profile') {
+      setListeningLane(null);
+      setSection('profile');
+    }
+  }
   const [toast, setToast] = useState<{ message: string; tone: ToastTone } | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [inputOffsetText, setInputOffsetText] = useState(String(settings.inputOffsetMs));
@@ -157,6 +171,13 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
         </nav>
 
         <div className="stg-content" role="region" aria-label={SECTIONS.find((s) => s.id === section)?.label}>
+          {/* 첫 방문에 인증을 시작하고 이후 탭 전환에서도 요청을 유지한다. 모달 종료 때 언마운트된다. */}
+          {profileMounted && (
+            <div hidden={section !== 'profile'}>
+              <ProfileSection />
+            </div>
+          )}
+
           {section === 'controls' && (
             <ControlsSection
               keyBindings={settings.keyBindings}
@@ -552,6 +573,10 @@ const settingsPanelCss = `
 .stg-content { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 22px; scrollbar-width: none; }
 .stg-content::-webkit-scrollbar { display: none; }
 .stg-section { display: flex; flex-direction: column; gap: 22px; }
+.stg-profile-row { flex-wrap: wrap; }
+.stg-profile-status { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.stg-profile-error { margin: 8px 0 0; color: ${color.danger}; overflow-wrap: anywhere; }
+.stg-profile-row .stg-btn:disabled { opacity: 0.5; cursor: wait; }
 .stg-group { display: flex; flex-direction: column; gap: 4px; }
 .stg-group-title {
   margin: 0 0 6px; font-family: ${font.display}; font-size: 12px; font-weight: 700;
