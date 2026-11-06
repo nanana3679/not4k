@@ -80,7 +80,7 @@ describe('normalizeSelection — 범위 보정', () => {
   it('초기 BPM·박자 0·1을 제외하고 4박 BPM과 0박 텍스트 2·3만 선택하며 입력 집합을 보존한다', () => {
     const events: ChartDocument['events'] = [
       { type: 'bpm', beat: beat(0), bpm: 120 },
-      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
       { type: 'bpm', beat: beat(4), bpm: 180 },
       { type: 'text', beat: beat(0), endBeat: beat(2), text: 'text', editorLane: 3 },
     ];
@@ -289,8 +289,8 @@ function makeFullChart(chartNotes: DocumentNoteEntity[], restZones?: RestZone[])
     trillZones: [],
     ...(restZones ? { restZones } : {}),
     events: [
-      { type: 'bpm', beat: beat(0, 1), bpm: 120, editorLane: 1 },
-      { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
+      { type: 'bpm', beat: beat(0, 1), bpm: 120 },
+      { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1) },
     ],
   };
 }

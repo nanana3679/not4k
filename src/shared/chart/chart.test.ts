@@ -363,19 +363,34 @@ describe("grace 플래그 직렬화/역직렬화", () => {
 });
 
 describe("editorLane 직렬화/역직렬화", () => {
-  it("editorLane이 있는 이벤트를 직렬화하면 JSON에 editorLane 포함", () => {
+  it("editorLane이 있는 text·stop을 직렬화하면 JSON에 editorLane 포함", () => {
     const chart: Chart = {
       meta: SAMPLE_CHART.meta,
       notes: [],
       trillZones: [],
       events: [
-        { type: "bpm", beat: beat(0), bpm: 120, editorLane: 2 },
-        { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 3 },
+        { type: "text", beat: beat(0), endBeat: beat(4), text: "msg", editorLane: 2 },
+        { type: "stop", beat: beat(4), endBeat: beat(8), editorLane: 3 },
       ],
     };
     const json = chartToJson(chart);
     expect(json.events[0].editorLane).toBe(2);
     expect(json.events[1].editorLane).toBe(3);
+  });
+
+  it("메모리의 BPM·박자에 editorLane 2·3이 남아 있어도 직렬화한 JSON에는 쓰지 않는다", () => {
+    const chart = {
+      meta: SAMPLE_CHART.meta,
+      notes: [],
+      trillZones: [],
+      events: [
+        { type: "bpm", beat: beat(0), bpm: 120 },
+        { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+      ],
+    } as Chart;
+    const json = chartToJson(chart);
+    expect(json.events[0]).not.toHaveProperty("editorLane");
+    expect(json.events[1]).not.toHaveProperty("editorLane");
   });
 
   it("editorLane이 없는 이벤트를 직렬화하면 JSON에 editorLane 미포함", () => {
@@ -389,7 +404,7 @@ describe("editorLane 직렬화/역직렬화", () => {
     expect(json.events[0]).not.toHaveProperty("editorLane");
   });
 
-  it("editorLane이 있는 JSON을 역직렬화하면 ChartEvent에 editorLane 복원", () => {
+  it("editorLane이 있는 구형 JSON을 역직렬화하면 text·auto·stop은 복원하고 BPM·박자의 값은 버린다", () => {
     const json = {
       version: 3,
       meta: SAMPLE_CHART.meta,
@@ -404,11 +419,11 @@ describe("editorLane 직렬화/역직렬화", () => {
       ],
     };
     const chart = chartFromJson(json);
-    expect(chart.events[0].editorLane).toBe(2);
-    expect(chart.events[1].editorLane).toBe(5);
-    expect(chart.events[2].editorLane).toBe(1);
-    expect(chart.events[3].editorLane).toBe(3);
-    expect(chart.events[4].editorLane).toBe(4);
+    expect(chart.events[0]).not.toHaveProperty("editorLane");
+    expect(chart.events[1]).toMatchObject({ editorLane: 5 });
+    expect(chart.events[2]).toMatchObject({ editorLane: 1 });
+    expect(chart.events[3]).toMatchObject({ editorLane: 3 });
+    expect(chart.events[4]).not.toHaveProperty("editorLane");
   });
 
   it("editorLane이 없는 JSON을 역직렬화하면 editorLane 프로퍼티 없음", () => {
@@ -429,15 +444,15 @@ describe("editorLane 직렬화/역직렬화", () => {
       notes: [],
       trillZones: [],
       events: [
-        { type: "bpm", beat: beat(0), bpm: 120, editorLane: 2 },
+        { type: "auto", beat: beat(0), endBeat: beat(4), editorLane: 2 },
         { type: "text", beat: beat(0), endBeat: beat(4), text: "msg" },
         { type: "stop", beat: beat(4), endBeat: beat(8), editorLane: 3 },
       ],
     };
     const restored = deserializeChart(serializeChart(chart));
-    expect(restored.events[0].editorLane).toBe(2);
+    expect(restored.events[0]).toMatchObject({ editorLane: 2 });
     expect(restored.events[1]).not.toHaveProperty("editorLane");
-    expect(restored.events[2].editorLane).toBe(3);
+    expect(restored.events[2]).toMatchObject({ editorLane: 3 });
   });
 
   it("레거시 이벤트 마이그레이션에서 editorLane 없음 (기본값 1로 취급)", () => {

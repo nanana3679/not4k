@@ -51,6 +51,8 @@ export {
   type TutorialDiagramEvent,
   type ChartEvent,
   type RangeEvent,
+  type TimingEvent,
+  isTimingEvent,
   type Chart,
   type ExtraPointNote,
   type ExtraRangeNote,

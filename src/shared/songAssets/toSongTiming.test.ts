@@ -8,10 +8,10 @@ const chart: ChartDocument = {
   meta: { title: '곡', artist: '작곡가', difficultyLabel: 'normal', difficultyLevel: 5,
     imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: -25.5 },
   notes: [], trillZones: [], events: [
-    { type: 'bpm', beat: beat(3, 2), bpm: 180, editorLane: 3 },
-    { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(7, 2), editorLane: 4 },
-    { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
-    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    { type: 'bpm', beat: beat(3, 2), bpm: 180 },
+    { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(7, 2) },
+    { type: 'bpm', beat: beat(0), bpm: 120 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
   ],
 };
 describe('toSongTiming', () => {
@@ -20,7 +20,6 @@ describe('toSongTiming', () => {
     expect(timing).toEqual({ bpmChanges: [{ beat: '0', bpm: 120 }, { beat: '3/2', bpm: 180 }],
       timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }, { beat: '4', beatPerMeasure: '7/2' }], offsetMs: -25.5 });
     expect(toSongTiming(resolveSongChart(chart, { title: '곡', artist: '작곡가', jacketUrl: null, timing }))).toEqual(timing);
-    expect(chart.events[0]).toMatchObject({ editorLane: 3 });
   });
 });
 

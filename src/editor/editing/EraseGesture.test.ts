@@ -138,7 +138,7 @@ describe('우클릭 드래그 삭제 경로의 구형·보조 노트', () => {
 });
 
 it('song-common 열 x=0～60의 4박 BPM을 x=30에서 지우면 0박 BPM은 남고 Undo 1번에 복구된다', () => {
-  const base = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'timing', width: 60 }] });
+  const base = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'bpm', width: 60 }] });
   // 전용 배치 정책은 후속 PR에서 정한다. 소비자가 노트 레인 없이 배치를 따르는지 검증한다.
   const layout: TimelineLayout = { ...base, isEventAtX: (event, x) =>
     event.type === 'bpm' ? x >= 0 && x < 60 : base.isEventAtX(event, x) };

@@ -7,7 +7,6 @@ import { beatEq, type ChartEvent, type PlaybackRange } from '../shared';
 import { isPlaybackLockedChange } from './editing/playbackEditLock';
 import { AUDIO_RANGE_RESET_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
 import { rangesForNewAudio, type NewAudioRanges } from './components/previewRangeState';
-import { savedChartEvents } from './savedChart';
 import { restoreSavedSongInfo, sameSongDraft, songDraftOf } from './songState';
 import { useEditorStore } from './stores/editorStore';
 import { normalizeSelection } from './stores/selectionSlice';
@@ -99,7 +98,7 @@ export interface DiscardSongInfoResult {
 export function discardSongInfoChanges(): DiscardSongInfoResult {
   const state = useEditorStore.getState();
   if (!state.song) return { discarded: false };
-  const target = restoreSavedSongInfo(state.chart, state.song, savedChartEvents(state.savedChartJson));
+  const target = restoreSavedSongInfo(state.chart, state.song);
   if (state.isPlaying && isPlaybackLockedChange(state.chart, target.chart)) {
     state.addToast(PAUSE_TO_EDIT_COPY, 'warn');
     return { discarded: false };

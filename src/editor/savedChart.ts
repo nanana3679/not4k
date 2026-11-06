@@ -10,8 +10,8 @@
  * `savedChartJson`은 에디터 store가 차트와 함께 소유한다. 페이지 컴포넌트가 마운트될 때 현재 차트로 만들면 테스트
  * 플레이에서 돌아와 다시 마운트될 때 저장하지 않은 편집이 비교 대상이 되어 dirty 표시·나가기 확인이 사라진다.
  */
-import type { ChartDocument, ChartEvent } from '../shared';
-import { deserializeChartDocument, serializeChart, serializeExtraNotes, mainNotes, mainTrillZones, auxNotesAsExtra } from '../shared';
+import type { ChartDocument } from '../shared';
+import { serializeChart, serializeExtraNotes, mainNotes, mainTrillZones, auxNotesAsExtra } from '../shared';
 
 /** Save가 새 경로에 올리는 메인·보조 JSON 문자열(RFD 0107). */
 export interface SavedChartJson {
@@ -25,19 +25,6 @@ export function toSavedChartJson(chart: ChartDocument, extraLaneCount: number): 
     chartJson: serializeChart({ ...chart, notes: mainNotes(chart.notes), trillZones: mainTrillZones(chart.trillZones) }),
     extraJson: serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount, chart.trillZones),
   };
-}
-
-/**
- * 마지막으로 불러오거나 저장한 차트의 이벤트. 곡 정보 변경 취소가 BPM·박자 이벤트의 저장된 보조 레인을 찾는 데 쓴다.
- * 기준이 없거나 읽지 못하면 빈 배열이다(그러면 기본 레인을 쓴다).
- */
-export function savedChartEvents(saved: SavedChartJson | null): ChartEvent[] {
-  if (!saved) return [];
-  try {
-    return deserializeChartDocument(saved.chartJson).events;
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -72,12 +59,7 @@ function chartOnlyJson(json: string): string {
   for (const key of ['title', 'artist', 'imageFile', 'audioFile', 'previewAudioFile', 'previewStart', 'previewEnd', 'offsetMs']) {
     delete document.meta[key];
   }
-  // 값은 곡 소유다. 차트에는 종류·박에 연결된 보조 레인을 남겨 같은 값 이벤트의 자리 교환도 감지한다.
-  const timingEvents: { type: string; beat: string; editorLane?: number }[] = document.events
-    .filter((event: { type: string }) => event.type === 'bpm' || event.type === 'timeSignature');
-  document.timingLayout = timingEvents.map(event => ({
-    type: event.type, beat: event.beat, editorLane: event.editorLane ?? 1,
-  })).sort((a, b) => a.type.localeCompare(b.type) || a.beat.localeCompare(b.beat) || a.editorLane - b.editorLane);
+  // BPM·박자의 종류·박·값은 모두 곡 소유이고 차트가 소유한 배치가 없다.
   document.events = document.events.filter((event: { type: string }) => event.type !== 'bpm' && event.type !== 'timeSignature');
   return JSON.stringify(document);
 }

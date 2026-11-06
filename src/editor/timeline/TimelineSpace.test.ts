@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTimelineSpace, type TimelineSpaceSource } from "./TimelineSpace";
-import { createTimelineLayout } from "./TimelineLayout";
+import { createTimelineLayout, getEditorTimelineLayoutConfig } from "./TimelineLayout";
 import { beat } from "../../shared";
 import type { ChartDocument, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
 
@@ -17,8 +17,8 @@ function makeChart(overrides?: Partial<ChartDocument>): ChartDocument {
     notes: [],
     trillZones: [],
     events: [
-      { type: "bpm" as const, beat: beat(0, 1), bpm: 120, editorLane: 1 },
-      { type: "timeSignature" as const, beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
+      { type: "bpm" as const, beat: beat(0, 1), bpm: 120 },
+      { type: "timeSignature" as const, beat: beat(0, 1), beatPerMeasure: beat(4, 1) },
     ],
     ...overrides,
   };
@@ -60,7 +60,10 @@ function makeFakeSource(overrides?: Partial<FakeSourceState>) {
 
 describe("TimelineSpace — 라이브 읽기 (no-stale)", () => {
   it("보조 레인 수 0→2→1을 읽으면 같은 space의 폭은 240→360→300px이고 x=310 히트도 갱신된다", () => {
-    const { source, state } = makeFakeSource({ extraLaneCount: 0 });
+    const { source, state } = makeFakeSource({ extraLaneCount: 0, chart: makeChart({ events: [
+      { type: "bpm", beat: beat(0), bpm: 120 },
+      { type: "stop", beat: beat(0), endBeat: beat(1), editorLane: 2 },
+    ] }) });
     const space = createTimelineSpace(source);
     expect(space.layout.contentWidth).toBe(240);
     expect(space.xToUnifiedLane(310)).toBeNull();
@@ -79,7 +82,7 @@ describe("TimelineSpace — 라이브 읽기 (no-stale)", () => {
       notes: [{ type: "tap", kind: "single", lane: 1, beat: beat(0) }],
       events: [
         { type: "stop", editorLane: 1, beat: beat(0), endBeat: beat(4) },
-        { type: "bpm", editorLane: 2, beat: beat(0), bpm: 120 },
+        { type: "bpm", beat: beat(0), bpm: 120 },
       ],
     }) });
     let layout = createTimelineLayout({ auxiliaryLaneCount: 2 });
@@ -87,7 +90,7 @@ describe("TimelineSpace — 라이브 읽기 (no-stale)", () => {
     const space = createTimelineSpace(source);
     expect(space.hitTestNote(0, 0)).toBe(0);
     expect(space.hitTestEvent(240, 0)).toBe(0);
-    layout = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: "common", width: 40 }] });
+    layout = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: "bpm", width: 40 }] });
     expect(space.layout).toBe(layout);
     expect(space.xToUnifiedLane(0)).toBeNull();
     expect(space.hitTestNote(0, 0)).toBeNull();
@@ -96,6 +99,26 @@ describe("TimelineSpace — 라이브 읽기 (no-stale)", () => {
     expect(space.hitTestEvent(280, 0)).toBe(0);
     expect(space.hitTestEventEnd(280, 2000)).toBe(0);
   });
+  it("에디터 배치에서 x=30은 bpm 열, x=70은 timeSignature 열이고 노트 레인·보조 레인이 아니며 BPM·박자를 각 열에서만 찾는다", () => {
+    const { source, state } = makeFakeSource({ chart: makeChart({ events: [
+      { type: "bpm", beat: beat(0), bpm: 120 },
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
+      { type: "text", beat: beat(0), endBeat: beat(4), text: "hi", editorLane: 1 },
+    ] }) });
+    source.getLayout = () => createTimelineLayout(getEditorTimelineLayoutConfig(state.extraLaneCount));
+    const space = createTimelineSpace(source);
+    expect(space.xToTimingColumn(30)).toBe("bpm");
+    expect(space.xToTimingColumn(70)).toBe("timeSignature");
+    expect(space.xToTimingColumn(110)).toBeNull();
+    expect(space.xToUnifiedLane(30)).toBeNull();
+    expect(space.xToExtraLane(30)).toBeNull();
+    expect(space.hitTestEvent(30, 0)).toBe(0);
+    expect(space.hitTestEvent(70, 0)).toBe(1);
+    expect(space.hitTestEvent(350, 0)).toBe(2);
+    expect(space.xToDragLane(30)).toBe(-1);
+    expect(space.xToDragLane(110)).toBe(1);
+  });
+
   it("source의 snapDivision을 4→8로 바꾸면 space 재생성 없이 snapBeat가 새 값으로 스냅", () => {
     const { source, state } = makeFakeSource();
     const space = createTimelineSpace(source);
@@ -189,9 +212,9 @@ describe("TimelineSpace — 좌표 변환", () => {
 
   it("getBpmChanges는 chart.events의 bpm 이벤트를 추출·정렬해 반환 — 4박 180·0박 120 순서로 넣어도 [120@0, 180@4]", () => {
     const events: ChartEvent[] = [
-      { type: "bpm", beat: beat(4, 1), bpm: 180, editorLane: 1 },
-      { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
-      { type: "timeSignature", beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
+      { type: "bpm", beat: beat(4, 1), bpm: 180 },
+      { type: "bpm", beat: beat(0, 1), bpm: 120 },
+      { type: "timeSignature", beat: beat(0, 1), beatPerMeasure: beat(4, 1) },
     ];
     const { source } = makeFakeSource({ chart: makeChart({ events }) });
     const space = createTimelineSpace(source);
@@ -210,7 +233,7 @@ describe("TimelineSpace — bpmChanges 라이브 일관성 (no-stale)", () => {
     expect(space.getBpmChanges()).toEqual([{ beat: beat(0, 1), bpm: 120 }]);
     expect(space.yToBeat(1000)).toEqual({ n: 8, d: 4 });
     state.chart = makeChart({
-      events: [{ type: "bpm", beat: beat(0, 1), bpm: 180, editorLane: 1 }],
+      events: [{ type: "bpm", beat: beat(0, 1), bpm: 180 }],
     });
     // 180 BPM: 1박 = 333.33ms → 같은 y=1000이 3박
     expect(space.getBpmChanges()).toEqual([{ beat: beat(0, 1), bpm: 180 }]);
@@ -219,13 +242,13 @@ describe("TimelineSpace — bpmChanges 라이브 일관성 (no-stale)", () => {
 
   it("동일 events 참조를 유지하면 extractBpmChanges를 재호출하지 않는다(identity 캐시) — in-place 교체(120→240)는 옛 캐시값, 배열 참조 교체 시 재계산", () => {
     const events: ChartEvent[] = [
-      { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
+      { type: "bpm", beat: beat(0, 1), bpm: 120 },
     ];
     const { source, state } = makeFakeSource({ chart: makeChart({ events }) });
     const space = createTimelineSpace(source);
     expect(space.getBpmChanges()).toEqual([{ beat: beat(0, 1), bpm: 120 }]);
     // 같은 배열 참조 안에서 이벤트만 바꿔치기 — identity가 같으므로 캐시가 유지된다
-    events[0] = { type: "bpm", beat: beat(0, 1), bpm: 240, editorLane: 1 };
+    events[0] = { type: "bpm", beat: beat(0, 1), bpm: 240 };
     expect(space.getBpmChanges()).toEqual([{ beat: beat(0, 1), bpm: 120 }]);
     // 배열 참조 자체를 교체하면 재계산된다
     state.chart = { ...state.chart, events: [...events] };
@@ -370,7 +393,7 @@ describe("TimelineSpace — 히트테스트", () => {
 
   it("hitTestEventEnd: editorLane 1 구간 이벤트 endBeat=2를 보조 x=250·y=1000에서 히트, editorLane 2 위치(x=310)는 미스", () => {
     const events: ChartEvent[] = [
-      { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
+      { type: "bpm", beat: beat(0, 1), bpm: 120 },
       { type: "auto", beat: beat(0, 1), endBeat: beat(2, 1), editorLane: 1 },
     ];
     const { source } = makeFakeSource({ chart: makeChart({ events }) });

@@ -155,8 +155,6 @@ export default function EditorApp() {
         // 보조 형식·내용 오류는 빈 보조 데이터로 열지 않고 아래 catch의 로드 오류로 보낸다.
         // 열린 뒤 저장이 보조 정보를 비운 새 보조 파일을 올리는 유실을 막는다.
         const asset = loadEditorChartAsset(chartText, extraText, song);
-        // 초기 BPM·박자만 보조 레인1·2에 둔 상태가 불러온 기본 상태다(dirty·Undo 없음, 서버에 쓰지 않음).
-        // 그 자리와 겹친 일반 이벤트는 옮기지 않고 배치 위반으로 남긴다.
         openEditorChart(asset, song, chartRow);
         setActiveSongId(songId);
         // Save·Delete는 Meta의 난이도명이 아니라 연 차트의 난이도 경로를 쓴다. Save As만 바꾼다.
@@ -508,6 +506,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       // [chart] 반응형 effect는 렌더러가 없어 그 변경을 건너뛰었으므로, 첫 렌더의 chart가 아니라 지금 store의 차트를 그린다.
       const { chart: currentChart, extraLaneCount: storedExtraLaneCount } = useEditorStore.getState();
       renderer.setLayoutConfig(getEditorTimelineLayoutConfig(storedExtraLaneCount));
+      renderer.setSongCommonLabelVisible(selectHasSongRow(useEditorStore.getState()));
       // chart.notes가 곧 통합 배열이다 (RFD 0018 ③) — 보조 노트도 lane 5+로 한 배열에서 그린다.
       renderer.setChart(currentChart);
 
@@ -723,6 +722,11 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   useEffect(() => {
     if (rendererRef.current) rendererRef.current.setLayoutConfig(getEditorTimelineLayoutConfig(extraLaneCount));
   }, [extraLaneCount]);
+
+  // 곡 행 유무 → 곡 공통 영역 헤더 표기
+  useEffect(() => {
+    rendererRef.current?.setSongCommonLabelVisible(hasSongRow);
+  }, [hasSongRow]);
 
   // zoom·snapDivision·scrollY → renderer 동기화 useEffect는 삭제됨:
   // 렌더러가 ViewportSource(뷰포트 슬라이스)를 직접 구독한다.

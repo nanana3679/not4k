@@ -27,6 +27,21 @@ export async function canvasPosition(page: Page, lane: number, at: number) {
   }, { box, lane, at });
 }
 
+/** `at`박의 곡 공통 열 가운데 좌표. 세로 투영은 `canvasPosition`과 같고 가로만 메인 레인1에서 그 열까지 옮긴다. */
+export async function timingColumnPosition(page: Page, column: 'bpm' | 'timeSignature', at: number) {
+  const lane = await canvasPosition(page, 1, at);
+  const shift = await page.evaluate(async column => {
+    const storePath = '/src/editor/stores/editorStore.ts';
+    const layoutPath = '/src/editor/timeline/TimelineLayout.ts';
+    const [{ useEditorStore }, layouts] = await Promise.all([import(storePath), import(layoutPath)]);
+    const layout = layouts.createTimelineLayout(layouts.getEditorTimelineLayoutConfig(useEditorStore.getState().extraLaneCount));
+    const columnRange = layout.commonColumnRange(column);
+    const laneRange = layout.noteLaneRange(1);
+    return columnRange.x + columnRange.width / 2 - (laneRange.x + laneRange.width / 2);
+  }, column);
+  return { x: lane.x + shift, y: lane.y };
+}
+
 export async function drag(page: Page, lane: number, start: number, end: number, cancel = false) {
   const a = await canvasPosition(page, lane, start); const b = await canvasPosition(page, lane, end);
   await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(b.x, b.y, { steps: 5 });

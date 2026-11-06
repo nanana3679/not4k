@@ -11,9 +11,9 @@ const chart: ChartDocument = {
   notes: [],
   trillZones: [],
   events: [
-    { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
-    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
-    { type: 'bpm', beat: beat(8), bpm: 150, editorLane: 1 },
+    { type: 'bpm', beat: beat(0), bpm: 120 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+    { type: 'bpm', beat: beat(8), bpm: 150 },
   ],
 };
 

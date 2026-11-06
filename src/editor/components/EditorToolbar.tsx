@@ -597,7 +597,7 @@ interface EditorToolbarProps {
 
 const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'release', 'doubleRelease', 'tick', 'trillZone', 'restZone'];
 const compactNoteTypeOptions: EntityType[] = noteTypeOptions;
-const eventTypeOptions: EntityType[] = ['bpm', 'timeSignature', 'text', 'auto', 'stop', 'tutorialInput', 'tutorialDiagram'];
+const eventTypeOptions: EntityType[] = ['text', 'auto', 'stop', 'tutorialInput', 'tutorialDiagram'];
 const standardSnapOptions = [4, 8, 16, 32, 3, 6, 12, 24, 48];
 const extraLaneOptions = [2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -611,8 +611,6 @@ const entityLabels: Record<EntityType, string> = {
   doubleLong: 'Body 2',
   trillZone: 'Trill',
   restZone: 'Rest',
-  bpm: 'BPM',
-  timeSignature: 'Time',
   text: 'Text',
   auto: 'Auto',
   stop: 'Stop',

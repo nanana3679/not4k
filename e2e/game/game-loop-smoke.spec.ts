@@ -244,8 +244,8 @@ async function startAutoPlay(page: Page, { escapeAtFirstComboOfRendererIndex, ed
       ],
       trillZones: [],
       events: [
-        { type: 'bpm', beat: b(0), bpm: 120, editorLane: 1 },
-        { type: 'timeSignature', beat: b(0), beatPerMeasure: b(4), editorLane: 2 },
+        { type: 'bpm', beat: b(0), bpm: 120 },
+        { type: 'timeSignature', beat: b(0), beatPerMeasure: b(4) },
         { type: 'auto', beat: b(0), endBeat: b(10), editorLane: 3 },
       ],
     };

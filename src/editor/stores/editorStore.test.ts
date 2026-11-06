@@ -22,8 +22,8 @@ function makeChart(notes: ChartDocument['notes'] = [], restZones?: ChartDocument
     trillZones: [],
     ...(restZones ? { restZones } : {}),
     events: [
-      { type: 'bpm', beat: beat(0, 1), bpm: 120, editorLane: 1 },
-      { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
+      { type: 'bpm', beat: beat(0, 1), bpm: 120 },
+      { type: 'timeSignature', beat: beat(0, 1), beatPerMeasure: beat(4, 1) },
     ],
   };
 }
@@ -943,7 +943,7 @@ describe('editorStore 재생 중 편집 제한', () => {
     state().setIsPlaying(true);
     const current = state().chart;
 
-    state().setChart({ ...current, events: [{ type: 'bpm', beat: beat(0, 1), bpm: 90, editorLane: 1 }, current.events[1]] });
+    state().setChart({ ...current, events: [{ type: 'bpm', beat: beat(0, 1), bpm: 90 }, current.events[1]] });
 
     expect(state().chart.events[0]).toMatchObject({ type: 'bpm', bpm: 120 });
   });

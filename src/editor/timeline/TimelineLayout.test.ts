@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createTimelineLayout } from "./TimelineLayout";
-import type { ChartEvent } from "../../shared";
+import { createTimelineLayout, eventPlacement, getEditorTimelineLayoutConfig } from "./TimelineLayout";
+import type { RangeEvent } from "../../shared";
 
 describe("TimelineLayout", () => {
-  it("보조 레인 2개에서 editorLane 0·1.5·3인 이벤트는 메인·보조·숨겨진 위치에서 히트하지 않는다", () => {
+  it("보조 레인 2개에서 editorLane 0·1.5·3인 text는 메인·보조·숨겨진 위치에서 히트하지 않는다", () => {
     const layout = createTimelineLayout({ auxiliaryLaneCount: 2 });
-    expect(layout.isEventAtX({ type: "bpm", editorLane: 0 }, 180)).toBe(false);
-    expect(layout.isEventAtX({ type: "bpm", editorLane: 1.5 }, 280)).toBe(false);
-    expect(layout.isEventAtX({ type: "bpm", editorLane: 3 }, 360)).toBe(false);
+    expect(layout.isEventAtX({ type: "text", editorLane: 0 }, 180)).toBe(false);
+    expect(layout.isEventAtX({ type: "text", editorLane: 1.5 }, 280)).toBe(false);
+    expect(layout.isEventAtX({ type: "text", editorLane: 3 }, 360)).toBe(false);
   });
 
   it.each([
@@ -17,16 +17,16 @@ describe("TimelineLayout", () => {
     expect(layout.contentWidth).toBe(width);
     expect(layout.classifyX(310).kind).toBe(kind);
     expect(layout.songCommonWidth).toBe(0);
-    expect(layout.commonColumnRange("absent")).toBeUndefined();
+    expect(layout.commonColumnRange("bpm")).toBeUndefined();
   });
-  it("BPM·박자표를 포함한 7종 이벤트는 editorLane 생략 시 보조 1번, 지정 시 보조 2번에 놓인다", () => {
+  it("text 등 5종 구간 이벤트는 editorLane 생략 시 보조 1번, 지정 시 보조 2번에 놓인다", () => {
     const layout = createTimelineLayout({ auxiliaryLaneCount: 2 });
-    const types: ChartEvent["type"][] = ["bpm", "timeSignature", "text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
+    const types: RangeEvent["type"][] = ["text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
     for (const type of types) {
       expect(layout.eventPlacement({ type })).toEqual({ kind: "auxiliary", lane: 1 });
       expect(layout.eventRange({ type })).toEqual({ x: 240, width: 60 });
       expect(layout.eventRange({ type, editorLane: 2 })).toEqual({ x: 300, width: 60 });
-      expect(layout.xToNoteLane(layout.eventRange({ type, editorLane: 2 }).x)).toBe(6);
+      expect(layout.xToNoteLane(layout.eventRange({ type, editorLane: 2 })!.x)).toBe(6);
       expect(layout.isEventAtX({ type, editorLane: 2 }, 299.9)).toBe(false);
       expect(layout.isEventAtX({ type, editorLane: 2 }, 300)).toBe(true);
       expect(layout.isEventAtX({ type, editorLane: 2 }, 360)).toBe(false);
@@ -35,22 +35,22 @@ describe("TimelineLayout", () => {
   it("곡 공통 열 폭 40·50px이면 메인·보조는 90px 이동하고 공통 열은 노트 레인이 아니다", () => {
     const layout = createTimelineLayout({
       auxiliaryLaneCount: 2,
-      songCommonColumns: [{ id: "first", width: 40 }, { id: "second", width: 50 }],
+      songCommonColumns: [{ id: "bpm", width: 40 }, { id: "timeSignature", width: 50 }],
     });
     expect(layout.contentWidth).toBe(450);
-    expect(layout.commonColumnRange("first")).toEqual({ x: 0, width: 40 });
-    expect(layout.commonColumnRange("second")).toEqual({ x: 40, width: 50 });
+    expect(layout.commonColumnRange("bpm")).toEqual({ x: 0, width: 40 });
+    expect(layout.commonColumnRange("timeSignature")).toEqual({ x: 40, width: 50 });
     expect(layout.mainArea).toEqual({ x: 90, width: 240 });
     expect(layout.noteLaneRange(1)).toEqual({ x: 90, width: 60 });
     expect(layout.noteLaneRange(4)).toEqual({ x: 270, width: 60 });
     expect(layout.auxiliaryLaneRange(1)).toEqual({ x: 330, width: 60 });
     expect(layout.auxiliaryLaneRange(2)).toEqual({ x: 390, width: 60 });
-    expect(layout.eventRange({ type: "bpm" })).toEqual({ x: 330, width: 60 });
-    expect(layout.isEventAtX({ type: "bpm" }, 40)).toBe(false);
-    expect(layout.isEventAtX({ type: "bpm" }, 330)).toBe(true);
+    expect(layout.eventRange({ type: "text" })).toEqual({ x: 330, width: 60 });
+    expect(layout.isEventAtX({ type: "text" }, 40)).toBe(false);
+    expect(layout.isEventAtX({ type: "text" }, 330)).toBe(true);
     expect([0, 39.9, 40, 89.9, 90, 330, 450].map(layout.classifyX)).toEqual([
-      { kind: "common", column: "first" }, { kind: "common", column: "first" },
-      { kind: "common", column: "second" }, { kind: "common", column: "second" },
+      { kind: "common", column: "bpm" }, { kind: "common", column: "bpm" },
+      { kind: "common", column: "timeSignature" }, { kind: "common", column: "timeSignature" },
       { kind: "main", lane: 1 }, { kind: "auxiliary", lane: 1 }, { kind: "outside" },
     ]);
     expect(layout.xToNoteLane(40)).toBeNull();
@@ -82,5 +82,57 @@ describe("TimelineLayout", () => {
       expect(layout.xToNoteLane(range.x)).toBe(lane);
       expect(layout.xToNoteLane(range.x + range.width / 2)).toBe(lane);
     }
+  });
+
+  describe("곡 공통 영역의 BPM·박자 열", () => {
+    const layout = createTimelineLayout(getEditorTimelineLayoutConfig(2));
+
+    it("에디터 설정의 곡 공통 영역은 왼쪽부터 bpm 60px·timeSignature 48px이고 메인 영역은 x=108에서 시작한다", () => {
+      expect(layout.songCommonColumns).toEqual([{ id: "bpm", width: 60 }, { id: "timeSignature", width: 48 }]);
+      expect(layout.commonColumnRange("bpm")).toEqual({ x: 0, width: 60 });
+      expect(layout.commonColumnRange("timeSignature")).toEqual({ x: 60, width: 48 });
+      expect(layout.mainArea).toEqual({ x: 108, width: 240 });
+      expect(layout.contentWidth).toBe(468);
+    });
+
+    it("editorLane 없는 BPM·박자는 종류에 맞는 열에 놓이고 text는 보조 레인1에 놓인다", () => {
+      expect(eventPlacement({ type: "bpm" })).toEqual({ kind: "common", column: "bpm" });
+      expect(eventPlacement({ type: "timeSignature" })).toEqual({ kind: "common", column: "timeSignature" });
+      expect(eventPlacement({ type: "text" })).toEqual({ kind: "auxiliary", lane: 1 });
+    });
+
+    it("구형 값 editorLane 2가 남은 BPM도 보조 레인2가 아니라 bpm 열에 놓인다", () => {
+      expect(eventPlacement({ type: "bpm", editorLane: 2 })).toEqual({ kind: "common", column: "bpm" });
+      expect(layout.eventRange({ type: "bpm", editorLane: 2 })).toEqual({ x: 0, width: 60 });
+    });
+
+    it("BPM은 bpm 열 x=30에서만, 박자는 timeSignature 열 x=70에서만 히트하고 보조 레인1 x=350에서는 히트하지 않는다", () => {
+      expect(layout.isEventAtX({ type: "bpm" }, 30)).toBe(true);
+      expect(layout.isEventAtX({ type: "bpm" }, 70)).toBe(false);
+      expect(layout.isEventAtX({ type: "timeSignature" }, 70)).toBe(true);
+      expect(layout.isEventAtX({ type: "timeSignature" }, 30)).toBe(false);
+      expect(layout.isEventAtX({ type: "bpm" }, 350)).toBe(false);
+      expect(layout.isEventAtX({ type: "text" }, 30)).toBe(false);
+    });
+
+    it("곡 공통 열은 x=30이 노트 레인이 아니고 열 범위는 그 열 전체다", () => {
+      expect(layout.xToNoteLane(30)).toBeNull();
+      expect(layout.columnRangeAtX(70)).toEqual({ x: 60, width: 48 });
+    });
+
+    it("곡 공통 열이 없는 배치에서 BPM의 eventRange는 null이고 어떤 x에서도 히트하지 않는다", () => {
+      const collapsed = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [] });
+      expect(collapsed.eventRange({ type: "bpm" })).toBeNull();
+      expect(collapsed.isEventAtX({ type: "bpm" }, 30)).toBe(false);
+    });
+
+    it("드래그 앵커 번호는 메인 1번 왼쪽으로 이어져 timeSignature 열 0, bpm 열 -1이고 레인은 통합 번호, 콘텐츠 밖은 null이다", () => {
+      expect(layout.xToDragLane(70)).toBe(0);
+      expect(layout.xToDragLane(30)).toBe(-1);
+      expect(layout.xToDragLane(110)).toBe(1);
+      expect(layout.xToDragLane(350)).toBe(5);
+      expect(layout.xToDragLane(-1)).toBeNull();
+      expect(layout.xToDragLane(468)).toBeNull();
+    });
   });
 });

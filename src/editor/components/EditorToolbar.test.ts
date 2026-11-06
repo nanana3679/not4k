@@ -157,11 +157,21 @@ describe('툴바의 재생 중 잠금', () => {
   });
 });
 
+describe('엔티티 타입 드롭다운', () => {
+  it('Create 모드 드롭다운에 single·text는 있고 곡 공통 열이 정하는 BPM·박자는 없다', () => {
+    useEditorStore.setState({ mode: 'create' });
+    const markup = render();
+    expect(markup).toContain('value="single"');
+    expect(markup).toContain('value="text"');
+    expect(markup).not.toContain('value="bpm"');
+    expect(markup).not.toContain('value="timeSignature"');
+  });
+});
+
 describe('저장 버튼 하나의 표시', () => {
-  it('timing NULL의 4박 BPM을 보조 레인 1→2로 옮기면 곡은 깨끗하고 차트 dirty·이탈 확인이 남는다', () => {
+  it('timing NULL의 4박 text를 보조 레인 1→2로 옮기면 곡은 깨끗하고 차트 dirty·이탈 확인이 남는다', () => {
     const document = chart();
-    document.events[1] = { ...document.events[1], editorLane: 2 };
-    document.events.push({ type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 });
+    document.events.push({ type: 'text', beat: beat(4), endBeat: beat(8), text: 'hi', editorLane: 1 });
     const song = createEditorSong({ title: '툴바', artist: '', jacketUrl: null, audioUrl: '', duration: null,
       previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
       gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 }, document);
@@ -350,10 +360,10 @@ describe('Song Info 버튼의 곡 정보 미저장 표시', () => {
 });
 
 describe('테스트 플레이 시작 버튼', () => {
-  // 0박 BPM·박자를 다른 보조 레인에 두어 배치 제약 위반 없이 음원 로드·저장 조건만 본다.
+  // 0박 BPM·박자를 두어 배치 제약 위반 없이 음원 로드·저장 조건만 본다.
   beforeEach(() => useEditorStore.setState({ chart: { ...chart(), events: [
-    { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
-    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    { type: 'bpm', beat: beat(0), bpm: 120 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
   ] } }));
 
   it('음원 로드·저장이 없으면 처음부터·커서부터 시작이 활성이고 title이 없다', () => {

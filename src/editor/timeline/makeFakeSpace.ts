@@ -18,6 +18,8 @@ export function makeFakeSpace(overrides: Partial<TimelineSpace> = {}): TimelineS
     xToLane: (x: number): Lane | null => (x >= 1 && x <= 4 ? (x as Lane) : null),
     xToExtraLane: () => null,
     xToUnifiedLane: (x: number) => (x >= 1 && x <= 4 ? x : null),
+    xToTimingColumn: () => null,
+    xToDragLane: (x: number) => space.xToUnifiedLane(x),
     yToBeat: (y: number): Beat => beat(y),
     yToBeatRaw: (y: number): Beat => beat(y),
     snapBeat: (b: Beat): Beat => b,

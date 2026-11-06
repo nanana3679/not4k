@@ -66,6 +66,7 @@ interface BpmChangeEventJson {
   type: "bpm";
   beat: string;
   bpm: number;
+  /** 구형 파일에만 있다. 읽을 때 버리고 저장할 때 쓰지 않는다(RFD 0082). */
   editorLane?: number;
 }
 
@@ -73,6 +74,7 @@ interface TimeSignatureChangeEventJson {
   type: "timeSignature";
   beat: string;
   beatPerMeasure: string;
+  /** 구형 파일에만 있다. 읽을 때 버리고 저장할 때 쓰지 않는다(RFD 0082). */
   editorLane?: number;
 }
 
@@ -186,9 +188,9 @@ function serializeRestZone(z: RestZone): RestZoneJson {
 function serializeEvent(e: ChartEvent): ChartEventJson {
   switch (e.type) {
     case "bpm":
-      return { type: "bpm", beat: beatToString(e.beat), bpm: e.bpm, ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
+      return { type: "bpm", beat: beatToString(e.beat), bpm: e.bpm };
     case "timeSignature":
-      return { type: "timeSignature", beat: beatToString(e.beat), beatPerMeasure: beatToString(e.beatPerMeasure), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
+      return { type: "timeSignature", beat: beatToString(e.beat), beatPerMeasure: beatToString(e.beatPerMeasure) };
     case "text":
       return { type: "text", beat: beatToString(e.beat), endBeat: beatToString(e.endBeat), text: e.text, ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "auto":
@@ -278,9 +280,9 @@ function parseRestZone(z: RestZoneJson): RestZone {
 function parseEvent(e: ChartEventJson): ChartEvent {
   switch (e.type) {
     case "bpm":
-      return { type: "bpm", beat: beatFromString(e.beat), bpm: e.bpm, ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
+      return { type: "bpm", beat: beatFromString(e.beat), bpm: e.bpm };
     case "timeSignature":
-      return { type: "timeSignature", beat: beatFromString(e.beat), beatPerMeasure: beatFromString(e.beatPerMeasure), ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
+      return { type: "timeSignature", beat: beatFromString(e.beat), beatPerMeasure: beatFromString(e.beatPerMeasure) };
     case "text":
       return { type: "text", beat: beatFromString(e.beat), endBeat: beatFromString(e.endBeat), text: e.text, ...(e.editorLane !== undefined && { editorLane: e.editorLane }) };
     case "auto":

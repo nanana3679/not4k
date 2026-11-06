@@ -262,7 +262,7 @@ describe('createEditorPlayback — 일시정지 경계', () => {
 
 describe('createEditorPlayback — 재생 시작 전 편집 취소(RFD 0099)', () => {
   // 120 BPM에서 4박에 BPM 60으로 바뀐다. 6박 = 4박(2000ms) + 2박 × 1000ms = 4000ms.
-  const bpm60At = (at: number) => ({ type: 'bpm' as const, beat: beat(at), bpm: 60, editorLane: 1 });
+  const bpm60At = (at: number) => ({ type: 'bpm' as const, beat: beat(at), bpm: 60 });
 
   it.each<[string, 'selectModeEdit' | 'erase', ReturnType<typeof bpm60At>[]]>([
     ['4박 BPM 60 이벤트를 8박으로 옮기는 이동 드래그', 'selectModeEdit', [bpm60At(8)]],

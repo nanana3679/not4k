@@ -1,10 +1,10 @@
 import { getContentCenterShiftX, getTimelineContentOffsetX } from "./timelineViewport";
-import { createTimelineLayout, getEditorTimelineLayoutConfig } from "./TimelineLayout";
+import { createTimelineLayout } from "./TimelineLayout";
 import { describe, it, expect } from "vitest";
 import { laneToX, laneWidth } from "./laneGeometry";
 import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
 
-const layout = createTimelineLayout(getEditorTimelineLayoutConfig(3));
+const layout = createTimelineLayout({ auxiliaryLaneCount: 3 });
 
 describe("laneGeometry", () => {
   it("메인 lane 1 → x 0, lane 4 → x 3*LANE_WIDTH", () => {
@@ -41,9 +41,8 @@ describe("laneGeometry", () => {
 it.each([[0, 350], [120, 410]])(
   '1000px 캔버스·32px 미니맵·song-common 폭 %ipx에서 메인 1번 중심은 x=%ipx이다',
   (commonWidth, expectedX) => {
-    const config = getEditorTimelineLayoutConfig(2);
-    const layout = createTimelineLayout({ ...config,
-      ...(commonWidth ? { songCommonColumns: [{ id: 'timing', width: commonWidth }] } : {}),
+    const layout = createTimelineLayout({ auxiliaryLaneCount: 2,
+      ...(commonWidth ? { songCommonColumns: [{ id: 'bpm', width: commonWidth }] } : {}),
     });
     const centerShiftX = getContentCenterShiftX({ viewportWidth: 1000, leftRailWidth: layout.measureRail.width,
       timelineWidth: layout.contentWidth, rightRailWidth: 32 });

@@ -173,6 +173,10 @@ export function useCanvasEvents(
     } else deleteModeRef.current?.onPointerDown(x, y);
   }, [deleteModeRef, space]);
 
+  // 터치 create가 down이 아니라 뗄 때 정해지는 누름인가. 범위 노트 도구이거나, 도구와 관계없는 곡 공통 열이면 그렇다.
+  const createsOnTouchUp = useCallback((x: number, type: EntityType) =>
+    getLongPressRangeType(type) !== null || space.xToTimingColumn(x) !== null, [space]);
+
   // 터치 down에서 롱프레스 hold 타이머를 무장한다. arm 여부는 (mode, rangeType, 히트)로 결정한다.
   // 발화(~450ms)하면 recognizer.advanceTo를 poke해 longPress를 확인하고, 발화 좌표를 다시 히트테스트해
   // 액션(범위 생성/선택 드래그/삭제)을 재도출한다 — 후보 payload를 훅에 두지 않아 form A를 지킨다.
@@ -184,7 +188,8 @@ export function useCanvasEvents(
     mode: EditorTouchMode,
     entityType: EntityType,
   ) => {
-    const rangeType = getLongPressRangeType(entityType);
+    // 곡 공통 열에는 범위 노트를 만들 수 없으므로 도구와 관계없이 범위 없는 도구처럼 다룬다.
+    const rangeType = space.xToTimingColumn(x) !== null ? null : getLongPressRangeType(entityType);
     const placementBlocked = mode === 'create'
       ? (createModeRef.current?.isPlacementBlocked(x, y) ?? false)
       : false;
@@ -582,9 +587,10 @@ export function useCanvasEvents(
 
       if (mode === 'create' && createModeRef.current) {
         // 범위 엔티티(single/double 롱프레스)는 hold가 처리 — down에서 점노트를 배치하지 않는다.
-        if (getLongPressRangeType(entityType as EntityType)) return;
-        // 점노트·BPM·박자는 아래 다형 디스패치로 폴스루(down 즉시 배치). 배치 제약과 초기 설정 중복 안내는
-        // 마우스와 같이 CreateMode.handlePointerDown이 검사한다.
+        // 곡 공통 열도 도구와 관계없이 움직이지 않고 뗄 때 createPointClick이 만든다.
+        if (createsOnTouchUp(x, entityType as EntityType)) return;
+        // 점노트는 아래 다형 디스패치로 폴스루(down 즉시 배치). 배치 제약은 마우스와 같이
+        // CreateMode.handlePointerDown이 검사한다.
       } else if (mode === 'select' && selectModeRef.current) {
         // grab 우선순위 사다리는 SelectMode.resolveGrabAt(마우스 down과 공유)이 단독 소유한다(#143).
         // 터치는 그 GrabTarget을 2택 스케줄로 접기만 한다 — 존끝 선택게이트(RFD 0016 §6-6)를
@@ -614,7 +620,7 @@ export function useCanvasEvents(
       ?.handlePointerDown({ x, y, shiftKey: e.shiftKey, altKey: e.altKey, toggleSelection: false });
   }, [
     mode, entityType,
-    commitDrawerDraft, toSample, handleEditCancel, armHoldTimer, space,
+    commitDrawerDraft, toSample, handleEditCancel, armHoldTimer, space, createsOnTouchUp,
     startTouchEmptySelectCandidate,
     canvasRef, createModeRef, deleteModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
@@ -696,7 +702,7 @@ export function useCanvasEvents(
     // (범위 엔티티일 때만 — 점노트 모드에서 노트를 롱프레스한 hold는 select-drag 의도라 여기서 걸지 않는다.)
     if (
       mode === 'create' &&
-      getLongPressRangeType(entityType as EntityType) &&
+      createsOnTouchUp(x, entityType as EntityType) &&
       holdState &&
       holdState.moved &&
       !holdState.fired
@@ -861,8 +867,13 @@ export function useCanvasEvents(
           }
         } else {
           const snappedBeatFloat = snapped.n / snapped.d;
+          const timingColumn = space.xToTimingColumn(x);
           const extraLane = space.xToExtraLane(x);
-          if (extraLane) {
+          if (timingColumn) {
+            // 곡 공통 열은 도구와 무관하게 그 열의 종류를 만든다. 만들 수 없는 자리에는 고스트를 그리지 않는다.
+            if (createModeRef.current.isPlacementBlocked(x, y)) rendererRef.current.hideGhostNote();
+            else rendererRef.current.showGhostEvent({ type: timingColumn }, timeMs);
+          } else if (extraLane) {
             if (isEventEntityType(entityType)) {
               // Show ghost event for event entity types on extra lanes
               rendererRef.current.showGhostEvent({ type: entityType, editorLane: extraLane }, timeMs);
@@ -903,7 +914,7 @@ export function useCanvasEvents(
     routeViewportGestures, canvasRef, createModeRef,
     isDraggingCursorRef, playbackRef, rendererRef,
     selectModeRef, deleteAtPoint, clearHoldTimer, isTouchContactInterrupted,
-    onNavigationInteraction, applyEditResult, abandonInteractionForPlayback, handlePointerCancel,
+    onNavigationInteraction, applyEditResult, abandonInteractionForPlayback, handlePointerCancel, createsOnTouchUp,
   ]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -1024,9 +1035,9 @@ export function useCanvasEvents(
       return;
     }
 
-    // 범위 노트 후보의 up: create 모드 + 범위 엔티티(single/double)에서 hold가 있었을 때만.
+    // 뗄 때 정해지는 create 후보의 up: 범위 엔티티(single/double) 또는 곡 공통 열에서 hold가 있었을 때만.
     // (점노트 모드에서 노트를 롱프레스한 hold는 select-drag 의도라 발화 시 select 모드로 넘어가 있다.)
-    if (mode === 'create' && getLongPressRangeType(entityType as EntityType) && holdDown && createModeRef.current) {
+    if (mode === 'create' && holdDown && createModeRef.current && createsOnTouchUp(holdDown.x, entityType as EntityType)) {
       const createAction = resolveTouchCreateUpAction({
         fired: holdFired,
         moved: holdMoved,
@@ -1078,7 +1089,7 @@ export function useCanvasEvents(
       touchClickToggleRef.current = null;
     }
   }, [
-    mode, entityType, isTimeInBounds, toSample, clearHoldTimer,
+    mode, entityType, isTimeInBounds, toSample, clearHoldTimer, createsOnTouchUp,
     updateTouchMovement, canvasRef, createModeRef, deleteModeRef, isDraggingCursorRef,
     deleteAtPoint, rendererRef, selectModeRef, applyEditResult, isTouchContactInterrupted,
     abandonInteractionForPlayback, addToast,

@@ -55,8 +55,8 @@ function chartWithOffset(offsetMs: number, bpm: number): ChartDocument {
     notes: [],
     trillZones: [],
     events: [
-      { type: 'bpm', beat: beat(0), bpm, editorLane: 1 },
-      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'bpm', beat: beat(0), bpm },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
     ],
   };
 }

@@ -178,20 +178,19 @@ describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
     expect(restored.chart.meta).toMatchObject({ title: '곡', artist: '작곡가', offsetMs: 0, audioFile: 'audio.ogg' });
     expect(restored.chart.meta.previewStart).toBeUndefined();
     expect(restored.chart.meta.previewEnd).toBeUndefined();
-    expect(restored.chart.events.find(event => event.type === 'bpm')).toMatchObject({ bpm: 120, editorLane: 1 });
+    expect(restored.chart.events.find(event => event.type === 'bpm')).toMatchObject({ bpm: 120 });
     expect(restored.chart.notes).toEqual([tap]);
     expect(restored.song.pendingPreviewRange).toBeNull();
     expect(isSongDirty(restored.chart, restored.song)).toBe(false);
   });
 
-  it('4박에 새로 놓은 BPM 180은 복원하면 사라지고 0박 BPM·박자의 보조 레인 1·2는 그대로다', () => {
+  it('4박에 새로 놓은 BPM 180은 복원하면 사라지고 0박 BPM·박자는 그대로다', () => {
     const chart = store().chart;
-    const added = { ...chart, events: [...chart.events, { type: 'bpm' as const, beat: beat(4), bpm: 180, editorLane: 3 }] };
+    const added = { ...chart, events: [...chart.events, { type: 'bpm' as const, beat: beat(4), bpm: 180 }] };
 
     const restored = restoreSavedSongInfo(added, store().song!);
 
-    expect(restored.chart.events.map(event => [event.type, event.beat.n, event.editorLane]))
-      .toEqual(chart.events.map(event => [event.type, event.beat.n, event.editorLane]));
+    expect(restored.chart.events).toEqual(chart.events);
   });
 
   it('자켓 next.png·음원 next.ogg 대기 파일과 5초 길이·인게임 2～4초를 복원하면 대기 파일이 비고 길이 120·인게임 구간 NULL로 돌아간다', () => {

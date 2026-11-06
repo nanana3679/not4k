@@ -1,7 +1,7 @@
 import { editorChartErrors } from '../documentValidation';
 import { describe, it, expect, vi } from "vitest";
 import { CreateMode, isEventEntityType } from "./CreateMode";
-import { INITIAL_TIMING_EXISTS_COPY } from "../editorCopy";
+import { INITIAL_TIMING_EXISTS_COPY, TIMING_EVENT_EXISTS_COPY } from "../editorCopy";
 import { beat, violationsInvolving } from "../../shared";
 import { hitTestNoteAt } from "../timeline/hitTest";
 import { makeFakeSpace } from "../timeline/makeFakeSpace";
@@ -177,9 +177,7 @@ describe("CreateMode — 명시 탭·바디·릴리즈 생성", () => {
 // ---------------------------------------------------------------------------
 
 describe("isEventEntityType", () => {
-  it("bpm, timeSignature, text, auto, stop, tutorialInput, tutorialDiagram은 이벤트 타입", () => {
-    expect(isEventEntityType("bpm")).toBe(true);
-    expect(isEventEntityType("timeSignature")).toBe(true);
+  it("text, auto, stop, tutorialInput, tutorialDiagram은 이벤트 타입", () => {
     expect(isEventEntityType("text")).toBe(true);
     expect(isEventEntityType("auto")).toBe(true);
     expect(isEventEntityType("stop")).toBe(true);
@@ -208,38 +206,6 @@ describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
       xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
     });
   }
-
-  it("bpm 타입 선택 후 Extra 레인 클릭 시 BPM 이벤트 즉시 생성 (드래그 불필요)", () => {
-    const chart = makeChart();
-    const callbacks = makeEventCallbacks(chart);
-    const mode = new CreateMode(chart, callbacks);
-    mode.entityType = "bpm";
-
-    mode.onPointerDown(10, 4); // extraLane 1, beat(4)
-    // 드래그 없이 바로 생성됨 — pointerUp 불필요
-
-    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
-    const updated = callbacks.onChartUpdate.mock.calls[0][0] as ChartDocument;
-    expect(updated.events).toHaveLength(1);
-    expect(updated.events[0].type).toBe("bpm");
-    expect(updated.events[0]).toHaveProperty("bpm", 120);
-    expect("endBeat" in updated.events[0]).toBe(false);
-  });
-
-  it("timeSignature 타입 선택 후 Extra 레인 클릭 시 박자표 이벤트 즉시 생성", () => {
-    const chart = makeChart();
-    const callbacks = makeEventCallbacks(chart);
-    const mode = new CreateMode(chart, callbacks);
-    mode.entityType = "timeSignature";
-
-    mode.onPointerDown(10, 0); // extraLane 1, beat(0)
-
-    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
-    const updated = callbacks.onChartUpdate.mock.calls[0][0] as ChartDocument;
-    expect(updated.events).toHaveLength(1);
-    expect(updated.events[0].type).toBe("timeSignature");
-    expect(updated.events[0]).toHaveProperty("beatPerMeasure");
-  });
 
   it("text 타입 선택 후 Extra 레인 드래그 시 TextEvent 생성 (구간)", () => {
     const chart = makeChart();
@@ -333,65 +299,11 @@ describe("CreateMode — Extra 레인에서 이벤트 생성", () => {
     });
   });
 
-  it("0박 BPM 120이 보조 레인1에 있을 때 보조 레인3의 0박을 BPM 도구로 누르면 만들지 않고 INITIAL_TIMING_EXISTS_COPY 경고를 한 번 띄운다", () => {
-    const chart = makeChart({ events: [
-      { type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 },
-      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
-    ] });
-    const callbacks = { ...makeEventCallbacks(chart), onWarn: vi.fn() };
-    const mode = new CreateMode(chart, callbacks);
-    mode.entityType = "bpm";
-
-    mode.onPointerDown(12, 0); // extraLane 3, beat(0)
-
-    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
-    expect(callbacks.onWarn).toHaveBeenCalledTimes(1);
-    expect(callbacks.onWarn).toHaveBeenCalledWith(INITIAL_TIMING_EXISTS_COPY);
-  });
-
-  it("0박 박자가 없을 때 보조 레인1의 0박을 박자 도구로 누르면 고정 자리인 보조 레인2에 박자 4/4를 만든다", () => {
-    const chart = makeChart({ events: [{ type: "bpm", beat: beat(0), bpm: 120, editorLane: 3 }] });
-    const callbacks = { ...makeEventCallbacks(chart), onWarn: vi.fn() };
-    const mode = new CreateMode(chart, callbacks);
-    mode.entityType = "timeSignature";
-
-    mode.onPointerDown(10, 0); // extraLane 1, beat(0)
-
-    const updated = callbacks.onChartUpdate.mock.calls[0][0] as ChartDocument;
-    expect(updated.events[1]).toEqual({ type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 });
-    expect(callbacks.onWarn).not.toHaveBeenCalled();
-  });
-
-  it("0박 BPM이 없을 때 보조 레인3의 0박을 BPM 도구로 누르면 고정 자리인 보조 레인1에 BPM 120을 만든다", () => {
-    const chart = makeChart({ events: [{ type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }] });
-    const callbacks = makeEventCallbacks(chart);
-    const mode = new CreateMode(chart, callbacks);
-    mode.entityType = "bpm";
-
-    mode.onPointerDown(12, 0); // extraLane 3, beat(0)
-
-    const updated = callbacks.onChartUpdate.mock.calls[0][0] as ChartDocument;
-    expect(updated.events[1]).toEqual({ type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 });
-  });
-
-  it("0박 BPM이 있어도 보조 레인3의 4박을 BPM 도구로 누르면 보조 레인3에 그대로 만든다", () => {
-    const chart = makeChart({ events: [{ type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 }] });
-    const callbacks = { ...makeEventCallbacks(chart), onWarn: vi.fn() };
-    const mode = new CreateMode(chart, callbacks);
-    mode.entityType = "bpm";
-
-    mode.onPointerDown(12, 4); // extraLane 3, beat(4)
-
-    const updated = callbacks.onChartUpdate.mock.calls[0][0] as ChartDocument;
-    expect(updated.events[1]).toEqual({ type: "bpm", beat: beat(4), bpm: 120, editorLane: 3 });
-    expect(callbacks.onWarn).not.toHaveBeenCalled();
-  });
-
   it("이벤트 타입 선택 시 노트 레인 클릭하면 아무것도 생성되지 않음", () => {
     const chart = makeChart();
     const callbacks = makeEventCallbacks(chart);
     const mode = new CreateMode(chart, callbacks);
-    mode.entityType = "bpm";
+    mode.entityType = "text";
 
     // x=1 is outside extra lane range (10~12), and xToLane returns null
     mode.onPointerDown(1, 2);
@@ -554,25 +466,6 @@ describe("CreateMode — 생성 낙관 커밋 (RFD 0017 낙관적 편집)", () =
     expect(violationsInvolving(editorChartErrors(updated), [{ kind: "trillZone", index: 1 }])).not.toHaveLength(0);
   });
 
-  it("같은 beat에 bpm 이벤트를 두 번 생성하면 중복 위반이어도 두 번째도 커밋된다", () => {
-    const chart = makeChart();
-    const callbacks = makeCallbacks(chart, {
-      xToLane: () => null,
-      xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
-    });
-    const mode = new CreateMode(chart, callbacks);
-    mode.entityType = "bpm";
-
-    mode.onPointerDown(10, 4); // 첫 번째 bpm@4 — 즉시 생성
-    mode.onPointerDown(10, 4); // 두 번째 bpm@4 — 중복 위반이지만 커밋
-
-    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(2);
-    const updated = callbacks.onChartUpdate.mock.calls[1][0] as ChartDocument;
-    expect(updated.events).toHaveLength(2); // 기존 1 + 중복 신규 1
-    expect(updated.events[0]).toMatchObject({ type: "bpm", beat: beat(4) });
-    expect(updated.events[1]).toMatchObject({ type: "bpm", beat: beat(4) });
-    expect(violationsInvolving(editorChartErrors(updated), [{ kind: "event", index: 1 }])).not.toHaveLength(0);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -828,4 +721,204 @@ it('auxiliary lane 2에서 text 드래그를 시작하고 도구를 single로 �
   expect(mode.dragEventPlacement).toEqual({ type: 'text', editorLane: 2 });
   mode.cancelDrag();
   expect(mode.dragEventPlacement).toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// 곡 공통 열 생성 — 열이 종류를 정한다
+// ---------------------------------------------------------------------------
+
+describe("CreateMode — 곡 공통 열의 BPM·박자 생성", () => {
+  const BPM_COLUMN_X = 100;
+  const SIGNATURE_COLUMN_X = 200;
+
+  function makeTimingCallbacks(spaceOverrides: Partial<TimelineSpace> = {}, inBounds = true) {
+    return {
+      ...makeCallbacks(makeChart(), {
+        xToTimingColumn: (x: number) => x === BPM_COLUMN_X ? "bpm" : x === SIGNATURE_COLUMN_X ? "timeSignature" : null,
+        xToExtraLane: (x: number) => (x >= 10 && x <= 12 ? x - 9 : null),
+        ...spaceOverrides,
+      }, { isTimeInBounds: () => inBounds }),
+      onWarn: vi.fn(),
+    };
+  }
+  const press = (mode: CreateMode, x: number, y: number) =>
+    mode.handlePointerDown({ x, y, shiftKey: false, altKey: false, toggleSelection: false });
+
+  it.each(["single", "long", "trillZone", "tick", "text"] as const)(
+    "도구가 %s여도 bpm 열 4박을 누르면 드래그 없이 BPM 120을 editorLane 없이 만든다", entity => {
+      const chart = makeChart();
+      const callbacks = makeTimingCallbacks();
+      const mode = new CreateMode(chart, callbacks);
+      mode.entityType = entity;
+
+      press(mode, BPM_COLUMN_X, 4);
+
+      expect(mode.dragging).toBe(false);
+      expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+      expect(callbacks.onChartUpdate.mock.calls[0][0].events).toEqual([{ type: "bpm", beat: beat(4), bpm: 120 }]);
+    },
+  );
+
+  it("도구가 single이어도 timeSignature 열 8박을 누르면 박자 4/4를 editorLane 없이 만든다", () => {
+    const chart = makeChart();
+    const callbacks = makeTimingCallbacks();
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, SIGNATURE_COLUMN_X, 8);
+
+    expect(callbacks.onChartUpdate.mock.calls[0][0].events).toEqual([
+      { type: "timeSignature", beat: beat(8), beatPerMeasure: beat(4) },
+    ]);
+  });
+
+  it("터치 단일 탭처럼 onPointerDown을 바로 불러도 bpm 열 4박에 BPM을 만든다", () => {
+    const chart = makeChart();
+    const callbacks = makeTimingCallbacks();
+    const mode = new CreateMode(chart, callbacks);
+
+    mode.onPointerDown(BPM_COLUMN_X, 4);
+    mode.onPointerUp(BPM_COLUMN_X, 4);
+
+    expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("0박 BPM이 있고 누른 자리가 그 BPM이 아니지만 스냅이 0박이면 만들지 않고 INITIAL_TIMING_EXISTS_COPY를 한 번 띄운다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(0), bpm: 120 }] });
+    const callbacks = makeTimingCallbacks({ hitTestEvent: () => null });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 0);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).toHaveBeenCalledTimes(1);
+    expect(callbacks.onWarn).toHaveBeenCalledWith(INITIAL_TIMING_EXISTS_COPY);
+  });
+
+  it("4박 BPM이 있고 누른 자리가 그 BPM이 아니지만 스냅이 4박이면 만들지 않고 TIMING_EVENT_EXISTS_COPY를 띄운다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(4), bpm: 180 }] });
+    const callbacks = makeTimingCallbacks({ hitTestEvent: () => null });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 4);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).toHaveBeenCalledWith(TIMING_EVENT_EXISTS_COPY);
+  });
+
+  it.each([["0박", 0], ["4박", 4]] as const)("%s BPM을 직접 누르면 더블클릭 편집의 일부라 만들지 않고 안내도 없다", (_name, at) => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(at), bpm: 180 }] });
+    const callbacks = makeTimingCallbacks({ hitTestEvent: () => 0 });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, at);
+    press(mode, BPM_COLUMN_X, at);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("터치 단일 탭 경로로 4박 BPM 근처를 누르면 만들지 않고 안내한다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(4), bpm: 180 }] });
+    const callbacks = makeTimingCallbacks({ hitTestEvent: () => null });
+    const mode = new CreateMode(chart, callbacks);
+
+    mode.onPointerDown(BPM_COLUMN_X, 4);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).toHaveBeenCalledWith(TIMING_EVENT_EXISTS_COPY);
+  });
+
+  it("스냅이 -2박이면 시간 범위 안이어도 bpm 열에 만들지 않고 안내도 없다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(0), bpm: 120 }] });
+    const callbacks = makeTimingCallbacks({ snapBeat: () => ({ n: -8, d: 4 }) });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 0);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("같은 종류가 -2박에 이미 있어도 스냅이 -2박이면 중복 안내 없이 막는다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: { n: -2, d: 1 }, bpm: 120 }] });
+    const callbacks = makeTimingCallbacks({ snapBeat: () => ({ n: -8, d: 4 }) });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 0);
+
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("스냅 16에서 4박이 {64,16}으로 오면 BPM을 약분한 {4,1}에 저장한다", () => {
+    const chart = makeChart();
+    const callbacks = makeTimingCallbacks({ snapBeat: () => ({ n: 64, d: 16 }) });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 4);
+
+    expect(callbacks.onChartUpdate.mock.calls[0][0].events[0].beat).toEqual({ n: 4, d: 1 });
+  });
+
+  it("4박에 박자만 있으면 bpm 열 4박에 BPM을 만들 수 있다", () => {
+    const chart = makeChart({ events: [{ type: "timeSignature", beat: beat(4), beatPerMeasure: beat(4) }] });
+    const callbacks = makeTimingCallbacks();
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 4);
+
+    expect(callbacks.onChartUpdate.mock.calls[0][0].events[1]).toEqual({ type: "bpm", beat: beat(4), bpm: 120 });
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("스냅 박은 비었지만 허용 오차 안의 BPM에 히트하면 안내 없이 만들지 않는다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(4), bpm: 180 }] });
+    const callbacks = makeTimingCallbacks({ hitTestEvent: () => 0, snapBeat: () => beat(5) });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 4);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("시간 범위 밖의 bpm 열을 누르면 만들지 않는다", () => {
+    const chart = makeChart();
+    const callbacks = makeTimingCallbacks({}, false);
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 4);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+  });
+
+  it("isPlacementBlocked는 도구가 single이어도 곡 공통 열의 이벤트에 히트하면 true, 빈 자리면 false다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(4), bpm: 180 }] });
+    const hit = new CreateMode(chart, makeTimingCallbacks({ hitTestEvent: () => 0 }));
+    const empty = new CreateMode(chart, makeTimingCallbacks());
+
+    expect(hit.isPlacementBlocked(BPM_COLUMN_X, 8)).toBe(true);
+    expect(empty.isPlacementBlocked(BPM_COLUMN_X, 8)).toBe(false);
+  });
+
+  it("isPlacementBlocked는 히트가 없어도 스냅 박에 같은 종류가 있거나 스냅이 -2박이면 true이고 다른 종류만 있으면 false다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(4), bpm: 180 }] });
+    const near = new CreateMode(chart, makeTimingCallbacks());
+    const belowZero = new CreateMode(chart, makeTimingCallbacks({ snapBeat: () => ({ n: -8, d: 4 }) }));
+
+    expect(near.isPlacementBlocked(BPM_COLUMN_X, 4)).toBe(true);
+    expect(near.isPlacementBlocked(SIGNATURE_COLUMN_X, 4)).toBe(false);
+    expect(belowZero.isPlacementBlocked(BPM_COLUMN_X, 4)).toBe(true);
+  });
+
+  it("도구가 text일 때 보조 레인1을 누르면 BPM·박자가 아니라 text 드래그를 시작한다", () => {
+    const chart = makeChart();
+    const callbacks = makeTimingCallbacks();
+    const mode = new CreateMode(chart, callbacks);
+    mode.entityType = "text";
+
+    press(mode, 10, 4);
+    mode.onPointerUp(10, 8);
+
+    expect(callbacks.onChartUpdate.mock.calls[0][0].events[0]).toMatchObject({ type: "text", editorLane: 1 });
+  });
 });

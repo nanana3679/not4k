@@ -178,7 +178,7 @@ function EventFields({ evt, values, setValues }: {
 export interface EventEditModalProps {
   editingEvent: NonNullable<EditingEvent>;
   chart: ChartDocument;
-  /** 0박 초기 BPM·박자다. 값만 편집하고 삭제는 막는다. 보조 레인은 BPM 1·박자 2로 고정이라 고를 수 없다(RFD 0082). */
+  /** 0박 초기 BPM·박자다. 값만 편집하고 삭제는 막는다(RFD 0082). */
   isBeatZero: boolean;
   /** 에디터가 재생 중이다. 값 입력·Save·Delete를 비활성으로 두고 Cancel만 쓴다(RFD 0099). */
   editLocked?: boolean;
