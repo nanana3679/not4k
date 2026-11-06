@@ -308,13 +308,12 @@ function captureHistory(state: EditorState, separateHistory = false, transaction
 
 /**
  * 열린 편집 transaction이 아직 history에 넣지 않은 변경을 가졌는가.
- * 차트는 참조로, 곡 초안은 File 참조와 구간 값으로 비교한다.
+ * 곡 초안은 비교하지 않는다. 초안을 쓰는 편집은 transaction 없이 setChart를 불러 열린 transaction을 먼저 확정한다.
  */
-export function hasUncommittedEdit(state: Pick<EditorState, 'editTransaction' | 'chart' | 'extraLaneCount' | 'song'>): boolean {
+export function hasUncommittedEdit(state: Pick<EditorState, 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
   const transaction = state.editTransaction;
   return transaction !== null
-    && (transaction.before.chart !== state.chart || transaction.before.extraLaneCount !== state.extraLaneCount
-      || !sameSongDraft(transaction.before.songDraft, state.song));
+    && (transaction.before.chart !== state.chart || transaction.before.extraLaneCount !== state.extraLaneCount);
 }
 
 /**
@@ -329,7 +328,7 @@ export function selectHasSongRow(state: Pick<EditorState, 'song' | 'chartRow'>):
  * Undo 가능 여부. 불러온 직후 첫 붙여넣기처럼 transaction 안에만 있는 편집도 되돌릴 수 있다.
  * 재생 중에는 Undo하지 않는다(RFD 0099).
  */
-export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'song' | 'isPlaying'>): boolean {
+export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'isPlaying'>): boolean {
   return !state.isPlaying && (state.historyPast.length > 0 || hasUncommittedEdit(state));
 }
 
@@ -337,7 +336,7 @@ export function selectCanUndo(state: Pick<EditorState, 'historyPast' | 'editTran
  * Redo 가능 여부. 변경이 있는 transaction을 확정하면 Redo 기록이 사라지므로 그동안은 불가다.
  * 재생 중에는 Redo하지 않는다(RFD 0099).
  */
-export function selectCanRedo(state: Pick<EditorState, 'historyFuture' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'song' | 'isPlaying'>): boolean {
+export function selectCanRedo(state: Pick<EditorState, 'historyFuture' | 'editTransaction' | 'chart' | 'extraLaneCount' | 'isPlaying'>): boolean {
   return !state.isPlaying && state.historyFuture.length > 0 && !hasUncommittedEdit(state);
 }
 
@@ -493,6 +492,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (draft.audioId === savedDraft.audioId && (meta.previewStart ?? null) === values.previewStart
         && (meta.previewEnd ?? null) === values.previewEnd) {
         meta.previewAudioFile = values.previewUrl ?? '';
+        nextDraft.previewClipAudioId = savedDraft.audioId;
         if ((draft.pendingPreviewRange?.fadeInTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeInTime ?? 0)
           && (draft.pendingPreviewRange?.fadeOutTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeOutTime ?? 0)) {
           nextDraft.pendingPreviewRange = null;
@@ -707,8 +707,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!transaction || (token && transaction.token !== token)) return;
     set(state => {
       const changed = transaction.before.extraLaneCount !== state.extraLaneCount
-        || JSON.stringify(transaction.before.chart) !== JSON.stringify(state.chart)
-        || !sameSongDraft(transaction.before.songDraft, state.song);
+        || JSON.stringify(transaction.before.chart) !== JSON.stringify(state.chart);
       return {
         editTransaction: null,
         ...(changed ? {

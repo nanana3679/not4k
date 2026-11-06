@@ -4,7 +4,8 @@ import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
 import { useEditorStore } from './stores/editorStore';
 import { isChartDirty, toSavedChartJson } from './savedChart';
-import { createEditorSong, isSongDirty, isSongTimingDirty, restoreSavedSongInfo } from './songState';
+import { editGameplayRange } from './songInfoEditing';
+import { createEditorSong, isSongDirty, isSongTimingDirty, restoreSavedSongInfo, sameSongDraft, songDraftOf, songValues } from './songState';
 
 const store = () => useEditorStore.getState();
 const base = useEditorStore.getInitialState().chart;
@@ -54,6 +55,38 @@ describe('곡·차트 저장 기준 분리', () => {
   it('곡 리비전 42로 기준을 만들면 길이 120초와 NULL 프리뷰·구간을 보존한다', () => {
     expect(createEditorSong(loadedSong, store().chart)).toMatchObject({ revision: 42, duration: 120,
       baseline: { duration: 120, previewUrl: null, gameplayStart: null, gameplayEnd: null } });
+  });
+});
+
+it('다른 값이 같아도 프리뷰 클립을 잘라 낸 음원 id가 1과 2로 다르면 같은 곡 초안이 아니다', () => {
+  const draft = songDraftOf(store().song!);
+  expect(sameSongDraft({ ...draft, previewClipAudioId: 1 }, { ...draft, previewClipAudioId: 1 })).toBe(true);
+  expect(sameSongDraft({ ...draft, previewClipAudioId: 1 }, { ...draft, previewClipAudioId: 2 })).toBe(false);
+});
+
+describe('곡 초안의 플레이 구간 null(songValues)', () => {
+  it('구간 NULL 곡에 3～100초·페이드 1·2초를 저장한 뒤 Undo하면 곡이 dirty이고 저장 값의 시작·끝·페이드가 모두 NULL이다', () => {
+    editGameplayRange({ startTime: 3, endTime: 100, fadeInTime: 1, fadeOutTime: 2 });
+    const song = store().song!;
+    store().completeSongSave(songDraftOf(song), songValues(store().chart, song), 43);
+    expect(isSongDirty(store().chart, store().song)).toBe(false);
+
+    store().undo();
+
+    expect(store().song?.gameplayRange).toBeNull();
+    expect(isSongDirty(store().chart, store().song)).toBe(true);
+    expect(songValues(store().chart, store().song!)).toMatchObject({
+      gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null, gameplayFadeOut: null });
+  });
+
+  it('시작 5·끝 NULL·페이드 1의 부분 구간 행은 초안 구간이 null이어도 열자마자 깨끗하고 저장 값은 행의 값 그대로다', () => {
+    const partial = { ...loadedSong, gameplayStart: 5, gameplayFadeIn: 1 };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, partial), partial);
+
+    expect(store().song?.gameplayRange).toBeNull();
+    expect(isSongDirty(store().chart, store().song)).toBe(false);
+    expect(songValues(store().chart, store().song!)).toMatchObject({
+      gameplayStart: 5, gameplayEnd: null, gameplayFadeIn: 1, gameplayFadeOut: null });
   });
 });
 

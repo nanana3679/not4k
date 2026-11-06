@@ -13,13 +13,17 @@ export interface WaveformFeed {
   rendererReady(): void;
   /** 오디오 버퍼가 도착했음을 알린다(최초 로드 또는 재-import). */
   audioArrived(buffer: AudioBuffer): void;
+  /** 음원이 비워졌음을 알린다. 아직 적용하지 않은 버퍼는 버린다. */
+  audioCleared(): void;
 }
 
 /**
  * @param apply - 렌더러와 버퍼가 모두 준비된 순간 호출되는 콜백. 재-import 시 새 버퍼로 재호출된다.
+ * @param clear - 렌더러가 준비된 뒤 음원이 비워지면 호출되는 콜백. 준비 전이면 지울 파형이 없어 호출하지 않는다.
  */
 export function createWaveformFeed(
-  apply: (buffer: AudioBuffer) => void
+  apply: (buffer: AudioBuffer) => void,
+  clear?: () => void,
 ): WaveformFeed {
   let ready = false;
   // 렌더러 준비 전에 먼저 도착한, 아직 적용되지 않은 버퍼.
@@ -41,6 +45,10 @@ export function createWaveformFeed(
       } else {
         pending = buffer; // 준비 전이면 보류(마지막 버퍼가 이김)
       }
+    },
+    audioCleared() {
+      pending = null;
+      if (ready) clear?.();
     },
   };
 }

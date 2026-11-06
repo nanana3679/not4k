@@ -160,6 +160,38 @@ describe('PlaybackController.restoreAudioBuffer', () => {
 });
 
 describe('PlaybackController.clearAudio', () => {
+  it('음원을 비우면 onAudioCleared를 1회 부르고 그 시점의 audioBufferData는 null이며 onAudioLoaded는 부르지 않는다', async () => {
+    const context = setupAudioContextMock();
+    context.decodeAudioData.mockResolvedValueOnce({ duration: 10 } as AudioBuffer);
+    const onAudioLoaded = vi.fn();
+    const clearedWith: (AudioBuffer | null)[] = [];
+    const controller: PlaybackController = new PlaybackController({ onTimeUpdate: vi.fn(), onPlayStateChange: vi.fn(), onAudioLoaded,
+      onAudioCleared: () => { clearedWith.push(controller.audioBufferData); } });
+    await controller.loadAudioFile(new File([''], 'old.wav'));
+    onAudioLoaded.mockClear();
+
+    controller.clearAudio();
+
+    expect(clearedWith).toEqual([null]);
+    expect(onAudioLoaded).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+
+  it('진행 중 로드가 있으면 새 로드·복원·비우기·취소·dispose마다 audioLoadGeneration이 올라 시작 때 값과 달라진다', async () => {
+    const context = setupAudioContextMock();
+    context.decodeAudioData.mockResolvedValue({ duration: 10 } as AudioBuffer);
+    const controller = new PlaybackController({ onTimeUpdate: vi.fn(), onPlayStateChange: vi.fn() });
+    const seen = [controller.audioLoadGeneration];
+    const remember = () => seen.push(controller.audioLoadGeneration);
+    void controller.loadAudioFile(new File([''], 'a.wav')); remember();
+    controller.restoreAudioBuffer({ duration: 1 } as AudioBuffer); remember();
+    controller.clearAudio(); remember();
+    controller.cancelAudioLoad(); remember();
+    controller.dispose(); remember();
+
+    expect(new Set(seen).size).toBe(6);
+  });
+
   it('10초 old 음원 재생 중 60초 next.wav 디코딩 중에 비우면 정지하고 음원이 없어 play가 시작하지 않으며 늦은 next 완료도 버린다', async () => {
     const context = setupAudioContextMock();
     const oldBuffer = { duration: 10 } as AudioBuffer;

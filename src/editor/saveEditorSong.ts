@@ -32,12 +32,19 @@ export async function saveEditorSong(
     const values = songValues(start.chart, song);
     parseSongTiming(values.timing);
     const previewChanged = values.previewStart !== song.baseline.previewStart || values.previewEnd !== song.baseline.previewEnd;
-    const previewRange = (previewChanged || song.pendingAudioFile) && values.previewStart != null && values.previewEnd != null
+    // Undo가 저장을 넘으면 구간이 저장 기준과 같아도 초안의 클립이 다른 음원에서 잘렸을 수 있다.
+    const needsPreviewClip = previewChanged || song.pendingAudioFile || song.previewClipAudioId !== song.audioId;
+    const previewRange = needsPreviewClip && values.previewStart != null && values.previewEnd != null
       ? { startTime: values.previewStart, endTime: values.previewEnd,
         fadeInTime: song.pendingPreviewRange?.fadeInTime ?? 0, fadeOutTime: song.pendingPreviewRange?.fadeOutTime ?? 0 } : null;
     // 프리뷰 클립은 재생 중인 음원으로 만든다. 만들 수 없으면 확인·파일·행보다 먼저 거부한다(음원 로딩 중이면 Save가 먼저 막는다).
     if (previewRange && !audioBuffer) {
       start.addToast(SONG_SAVE_COPY.previewAudioMissing, 'error');
+      return 'aborted';
+    }
+    // 저장된 값의 유효성 검사다. 행의 구간이 디코딩한 음원 끝을 넘으면 잘린 클립을 올리거나 업로드 뒤 일반 오류로 실패하므로 먼저 거부한다.
+    if (previewRange && audioBuffer && previewRange.endTime > audioBuffer.duration) {
+      start.addToast(SONG_SAVE_COPY.previewOutOfRange, 'error');
       return 'aborted';
     }
     // 다른 차트는 Meta의 난이도명(JSON 사본)이 아니라 열린 `charts` 행(없으면 열린 난이도)을 빼고 고른다.

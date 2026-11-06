@@ -4,7 +4,7 @@
  */
 import { createMetaAudioSession, type MetaAudioPick, type MetaAudioPlayback } from './metaAudioSession';
 import type { PlaybackController } from './playback/PlaybackController';
-import { editSongAudio } from './songInfoEditing';
+import { discardSongInfoChanges, editSongAudio } from './songInfoEditing';
 import { createSongAudioId } from './songState';
 import { useEditorStore } from './stores/editorStore';
 
@@ -40,21 +40,47 @@ export function createDrawerSongAudio(deps: {
   };
 
   return {
-    /** 로드 성공 뒤 새 정체성과 길이·구간을 한 번에 적용한다. 실패하면 이전 음원을 유지한다. */
+    /**
+     * 로드 성공 뒤 새 정체성과 길이·구간을 한 번에 적용한다. 실패하면 이전 음원을 유지한다.
+     * 구조 위반이 남은 차트는 setChart가 적용을 거부한다(사유는 setChart가 알린다). 그때도 이전 음원으로 되돌린다.
+     */
     async pick(playback: DrawerSongAudioPlayback | null, file: File): Promise<void> {
       remember(loadedAudioId, playback?.audioBufferData ?? null);
       const status = await loader.load(playback, file);
       if (status === null) return;
-      if (status === 'loaded' && playback?.audioBufferData) {
-        loadedAudioId = createSongAudioId();
-        remember(loadedAudioId, playback.audioBufferData);
-        editSongAudio(file, playback.audioBufferData.duration, loadedAudioId);
+      const buffer = playback?.audioBufferData;
+      if (status === 'loaded' && playback && buffer) {
+        const previousAudioId = loadedAudioId;
+        const audioId = createSongAudioId();
+        // store 구독이 setChart 안에서 sync를 부른다. id를 먼저 옮겨 두어야 sync가 이 적용을 Undo로 오인하지 않는다.
+        loadedAudioId = audioId;
+        editSongAudio(file, buffer.duration, audioId);
+        if (useEditorStore.getState().song?.audioId !== audioId) {
+          loadedAudioId = previousAudioId;
+          loader.cancel(playback);
+          // 이전 버퍼가 없으면 cancel이 되돌릴 음원이 없어 거부된 버퍼가 재생기에 남는다.
+          if (playback.audioBufferData === buffer) {
+            playback.clearAudio();
+            deps.setLoadedAudioBuffer(null);
+          }
+          return;
+        }
+        remember(audioId, buffer);
       }
       loader.apply();
     },
     /** 불러오는 중인 선택을 버린다. 이미 적용된 음원의 이력은 바꾸지 않는다. */
     close(playback: DrawerSongAudioPlayback | null): void {
       loader.cancel(playback);
+    },
+    /**
+     * 곡 정보를 변경 취소한다. 막혔으면 false다. 음원 id가 같아도 아직 적용하지 않은 파일 선택은 버려 늦은 로드가 적용되지 않게 한다.
+     * id가 바뀌면 재생기 복원은 store 구독의 sync가 맡는다.
+     */
+    discard(playback: DrawerSongAudioPlayback | null): boolean {
+      if (!discardSongInfoChanges().discarded) return false;
+      loader.cancel(playback);
+      return true;
     },
     async sync(playback: DrawerSongAudioPlayback | null, state: AudioState): Promise<void> {
       if (state.chartLoadGeneration !== chartLoadGeneration) {
@@ -97,3 +123,20 @@ export function createDrawerSongAudio(deps: {
 }
 
 export type DrawerSongAudio = ReturnType<typeof createDrawerSongAudio>;
+
+/**
+ * 음원 id·열린 차트가 바뀌면 재생기를 맞추고, 변경 취소의 Undo가 요청하면 드로어를 다시 연다.
+ * store 쓰기 안에서 동기화해 다음 렌더 전에 Save를 눌러도 이전 음원으로 저장하지 않는다. 구독 해제 함수를 돌려준다.
+ */
+export function subscribeDrawerSongAudio(
+  audio: Pick<DrawerSongAudio, 'sync'>,
+  getPlayback: () => DrawerSongAudioPlayback | null,
+  reopenSongInfo: () => void,
+): () => void {
+  return useEditorStore.subscribe((state, before) => {
+    if (state.song?.audioId !== before.song?.audioId || state.chartLoadGeneration !== before.chartLoadGeneration) {
+      void audio.sync(getPlayback(), state);
+    }
+    if (state.song && state.songInfoReopenRequest !== before.songInfoReopenRequest) reopenSongInfo();
+  });
+}

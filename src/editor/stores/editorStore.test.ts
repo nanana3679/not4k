@@ -276,6 +276,18 @@ describe('editorStore 차트 변이 게이트', () => {
 // ---------------------------------------------------------------------------
 
 describe('editorStore lastValidSnapshot·revertToLastValid', () => {
+  it('곡 초안이 있는 유효 차트에서 보조 레인 수를 3으로 바꾸면 씨앗이 레인 수 3과 그 초안을 함께 담는다', () => {
+    const song = { audioId: 1, baselineAudioId: 1, previewClipAudioId: 1, revision: 1, needsTimingMigration: false, duration: 120,
+      gameplayRange: null, pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null,
+      baseline: {} as NonNullable<ReturnType<typeof useEditorStore.getState>['song']>['baseline'] };
+    useEditorStore.setState({ chart: makeChart(), song });
+
+    useEditorStore.getState().setExtraLaneCount(3);
+
+    expect(useEditorStore.getState().lastValidSnapshot).toMatchObject({ extraLaneCount: 3, songDraft: {
+      audioId: 1, previewClipAudioId: 1, duration: 120, gameplayRange: null } });
+  });
+
   beforeEach(() => {
     useEditorStore.setState({
       chart: makeChart(),

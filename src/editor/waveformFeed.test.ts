@@ -78,6 +78,31 @@ describe("createWaveformFeed", () => {
     expect(apply).toHaveBeenLastCalledWith(second);
   });
 
+  it("렌더러가 준비된 뒤 음원을 비우면 clear가 1번 호출되고 apply는 호출되지 않는다", () => {
+    const apply = vi.fn();
+    const clear = vi.fn();
+    const feed = createWaveformFeed(apply, clear);
+    feed.rendererReady();
+
+    feed.audioCleared();
+
+    expect(clear).toHaveBeenCalledOnce();
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it("렌더러 준비 전 도착한 버퍼를 음원 비우기가 버리면 준비돼도 apply·clear가 호출되지 않는다", () => {
+    const apply = vi.fn();
+    const clear = vi.fn();
+    const feed = createWaveformFeed(apply, clear);
+    feed.audioArrived(fakeBuffer("cleared"));
+
+    feed.audioCleared();
+    feed.rendererReady();
+
+    expect(apply).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+  });
+
   it("렌더러 준비 전 오디오가 두 번 도착하면 마지막 버퍼로만 apply된다", () => {
     const apply = vi.fn();
     const feed = createWaveformFeed(apply);

@@ -14,22 +14,29 @@ export function createEditorPlayback({ store, cursorBeatKeeper, getRenderer, set
   getRenderer: () => Pick<TimelineRenderer, 'setChart' | 'setWaveformData' | 'getTotalTimelineMs' | 'updatePlaybackCursor'> | null;
   setLoadedAudioBuffer: (buffer: AudioBuffer) => void;
 }) {
-  // 렌더러 준비·오디오 도착 순서와 무관하게 최신 파형의 범위와 커서를 함께 반영한다.
-  const waveformFeed = createWaveformFeed((buffer) => {
+  // 파형과 음원 길이가 정하는 타임라인 범위·커서를 함께 바꾼다. 비울 때는 커서 박 유지가 다시 불러온 뒤의 위치를 복원한다.
+  const applyWaveform = (peaks: Float32Array | null, durationMs: number) => {
     const renderer = getRenderer();
     if (!renderer) return;
-    const peaks = getWaveformPeaks(buffer, Math.ceil(buffer.sampleRate / 50));
-    renderer.setWaveformData(peaks, buffer.duration * 1000);
+    renderer.setWaveformData(peaks, durationMs);
     syncTimelineRange({
       store, playback, cursorBeatKeeper, renderer,
       timelineRange: timelineRangeMsOf(store.getState().chart.meta.offsetMs, renderer.getTotalTimelineMs()),
     });
-  });
+  };
+  // 렌더러 준비·오디오 도착 순서와 무관하게 최신 파형을 반영한다.
+  const waveformFeed = createWaveformFeed(
+    (buffer) => {
+      if (getRenderer()) applyWaveform(getWaveformPeaks(buffer, Math.ceil(buffer.sampleRate / 50)), buffer.duration * 1000);
+    },
+    () => applyWaveform(null, 0),
+  );
   const playback = new PlaybackController({
     onAudioLoaded: (buffer) => {
       setLoadedAudioBuffer(buffer);
       waveformFeed.audioArrived(buffer);
     },
+    onAudioCleared: () => waveformFeed.audioCleared(),
     getCursorTimeMs: () => store.getState().currentTimeMs,
     beforePlay: () => {
       // 재생 시작은 열린 편집을 취소한다(RFD 0099). BPM 이벤트 드래그처럼 타이밍을 바꾼 편집이면 커서 박 유지가

@@ -452,10 +452,10 @@ export class TimelineRenderer {
   /**
    * Set waveform data for audio visualization
    *
-   * @param peaks - Pre-computed peak amplitude array (0.0 to 1.0)
-   * @param durationMs - Audio duration in milliseconds
+   * @param peaks - Pre-computed peak amplitude array (0.0 to 1.0). 음원을 비우면 null이다.
+   * @param durationMs - Audio duration in milliseconds. 음원을 비우면 0이고 타임라인 길이는 기본 마디 수로 돌아간다.
    */
-  setWaveformData(peaks: Float32Array, durationMs: number): void {
+  setWaveformData(peaks: Float32Array | null, durationMs: number): void {
     this.waveformPeaks = peaks;
     this.waveformDurationMs = durationMs;
     this._cachedTotalTimelineMs = null;

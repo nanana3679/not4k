@@ -17,12 +17,14 @@ export interface PlaybackCallbacks {
   beforePlay?: () => void;
   /** 최신 음원 로드가 반영된 뒤 파형·범위를 갱신한다. 오래된 로드·dispose 뒤에는 부르지 않는다. */
   onAudioLoaded?: (buffer: AudioBuffer) => void;
+  /** clearAudio로 음원을 비운 뒤 파형·범위를 비운다. */
+  onAudioCleared?: () => void;
 }
 
 export class PlaybackController {
   private audioContext: AudioContext | null = null;
   private audioBuffer: AudioBuffer | null = null;
-  private audioLoadGeneration = 0;
+  private _audioLoadGeneration = 0;
   private sourceNode: AudioBufferSourceNode | null = null;
   private gainNode: GainNode | null = null;
   private pendingVolume: number = 1;
@@ -45,14 +47,14 @@ export class PlaybackController {
 
   /** Load an audio file from File object */
   async loadAudioFile(file: File): Promise<void> {
-    const generation = ++this.audioLoadGeneration;
+    const generation = ++this._audioLoadGeneration;
     const arrayBuffer = await file.arrayBuffer();
     await this.loadAudioBuffer(arrayBuffer, generation);
   }
 
   /** Load an audio file from URL */
   async loadAudioUrl(url: string): Promise<void> {
-    const generation = ++this.audioLoadGeneration;
+    const generation = ++this._audioLoadGeneration;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
@@ -62,7 +64,7 @@ export class PlaybackController {
   }
 
   private async loadAudioBuffer(arrayBuffer: ArrayBuffer, generation: number): Promise<void> {
-    if (generation !== this.audioLoadGeneration) return;
+    if (generation !== this._audioLoadGeneration) return;
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
       this.gainNode = this.audioContext.createGain();
@@ -71,7 +73,7 @@ export class PlaybackController {
     }
 
     const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-    if (generation !== this.audioLoadGeneration) return;
+    if (generation !== this._audioLoadGeneration) return;
     this.audioBuffer = audioBuffer;
 
     // Reset playback state
@@ -85,7 +87,7 @@ export class PlaybackController {
    * Meta에서 고른 음원을 적용하지 않고 닫을 때 이전 음원으로 돌아가는 데 쓴다.
    */
   restoreAudioBuffer(buffer: AudioBuffer): void {
-    this.audioLoadGeneration++;
+    this._audioLoadGeneration++;
     this.audioBuffer = buffer;
     this.pause();
     this.seedFromCursor();
@@ -96,7 +98,7 @@ export class PlaybackController {
    * 진행 중인 로드를 버린다. 늦게 끝나도 지금 음원을 바꾸지 않는다. 되돌릴 음원 없이 고른 음원 선택을 취소할 때 쓴다.
    */
   cancelAudioLoad(): void {
-    this.audioLoadGeneration++;
+    this._audioLoadGeneration++;
   }
 
   /**
@@ -104,9 +106,10 @@ export class PlaybackController {
    * 불러올 때, 그 사이(또는 다시 받기가 실패해도) 버린 음원으로 재생·테스트 플레이·프리뷰 생성을 하지 않게 쓴다.
    */
   clearAudio(): void {
-    this.audioLoadGeneration++;
+    this._audioLoadGeneration++;
     this.pause();
     this.audioBuffer = null;
+    this.callbacks.onAudioCleared?.();
   }
 
   /** Play/pause toggle */
@@ -250,9 +253,14 @@ export class PlaybackController {
     return this.audioBuffer;
   }
 
+  /** 음원 로드 세대. 새 로드·복원·비우기·취소·dispose가 올린다. 로드를 시작한 뒤 값이 달라졌으면 그 로드는 밀려났다. */
+  get audioLoadGeneration(): number {
+    return this._audioLoadGeneration;
+  }
+
   /** Dispose resources */
   dispose(): void {
-    this.audioLoadGeneration++;
+    this._audioLoadGeneration++;
     this.pause();
     this.stopAnimationLoop();
 

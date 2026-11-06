@@ -10,6 +10,7 @@ import type { ChartJsonV4 } from '../../src/shared/chart';
 import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY, SONG_INFO_DRAWER_COPY, SONG_INFO_UNSAVED_COPY } from '../../src/editor/editorCopy';
 import { editorTestChart, isChartUploadPath, openEditor, timelineCanvas } from './editorTestSetup';
 import { canvasPosition } from './explicitEditorTestHelpers';
+import { generateSilentWav } from '../global-setup';
 
 test.setTimeout(60_000);
 
@@ -37,6 +38,17 @@ async function editorState(page: Page) {
     const store = (await import(path)).useEditorStore.getState();
     return { title: store.chart.meta.title as string, offsetMs: store.chart.meta.offsetMs as number,
       notes: store.chart.notes.length as number, isPlaying: store.isPlaying as boolean };
+  });
+}
+
+/** 곡 초안의 음원과, 재생기가 파형으로 알린 음원 길이로 정해지는 타임라인 끝. */
+async function songAudioState(page: Page) {
+  return page.evaluate(async () => {
+    const path = '/src/editor/stores/editorStore.ts';
+    const store = (await import(path)).useEditorStore.getState();
+    return { audioFile: store.chart.meta.audioFile as string, audioId: store.song.audioId as number,
+      duration: store.song.duration as number | null, pendingAudioName: (store.song.pendingAudioFile?.name ?? null) as string | null,
+      timelineEndMs: store.timelineRangeMs?.totalTimelineMs as number };
   });
 }
 
@@ -170,6 +182,25 @@ test.describe('곡 정보 드로어', () => {
     await expect(songInfo(page).getByLabel('Title', { exact: true })).toHaveValue('새 제목');
     expect((await editorState(page)).notes).toBe(1);
     await expect(songInfoButton(page)).toHaveAttribute('title', SONG_INFO_DRAWER_COPY.unsavedTitle);
+  });
+
+  test('0.5초 음원을 3초 next.wav로 바꾼 뒤 Ctrl+Z를 누르면 곡 음원 경로·id·길이와 재생기를 따르는 타임라인 끝이 원래 음원으로 돌아온다', async ({ page }) => {
+    await openEditor(page, { audio: true, songTiming: timing });
+    await openSongInfo(page);
+    const original = await songAudioState(page);
+    expect(original.pendingAudioName).toBeNull();
+
+    await songInfo(page).locator('input[type="file"][accept="audio/*"]').setInputFiles({
+      name: 'next.wav', mimeType: 'audio/wav', buffer: generateSilentWav(3) });
+    await expect.poll(async () => (await songAudioState(page)).pendingAudioName).toBe('next.wav');
+    const replaced = await songAudioState(page);
+    expect(replaced.duration).toBeGreaterThan(1);
+    expect(replaced.timelineEndMs).toBeGreaterThan(original.timelineEndMs);
+
+    await page.keyboard.press('Control+z');
+
+    await expect.poll(() => songAudioState(page)).toEqual(original);
+    await expect(songInfo(page).getByText('Replace Audio', { exact: true })).toBeVisible();
   });
 
   test('Title을 바꾼 뒤 저장 후 닫기를 고르면 save_song 1회 뒤 드로어가 닫히고 Save 표시가 깨끗하다', async ({ page }) => {

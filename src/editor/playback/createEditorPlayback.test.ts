@@ -20,7 +20,8 @@ function setupPlayback() {
   const cursorBeatKeeper = createCursorBeatKeeper(store);
   let totalTimelineMs = 60000;
   const renderer = {
-    setWaveformData: vi.fn((_peaks: Float32Array, durationMs: number) => { totalTimelineMs = durationMs; }),
+    // 실제 렌더러처럼 파형이 없으면(길이 0) 기본 길이로 돌아간다.
+    setWaveformData: vi.fn((_peaks: Float32Array | null, durationMs: number) => { totalTimelineMs = durationMs > 0 ? durationMs : 16000; }),
     getTotalTimelineMs: () => totalTimelineMs,
     setChart: vi.fn(),
     updatePlaybackCursor: vi.fn(),
@@ -108,6 +109,34 @@ describe('createEditorPlayback — 음원 로드 완료', () => {
     expect(store.getState().currentTimeMs).toBe(20000);
     expect(playback.currentTimeMs).toBe(20000);
     expect(renderer.updatePlaybackCursor).toHaveBeenLastCalledWith(20000);
+    playback.dispose();
+  });
+});
+
+describe('createEditorPlayback — 음원 비우기', () => {
+  it('60초 음원을 비우면 파형과 타임라인 끝을 기본 16000ms로 되돌려 커서를 16000ms로 자르고, 60초를 다시 불러오면 30000ms를 복원한다', async () => {
+    vi.stubGlobal('AudioContext', function () {
+      return {
+        createGain: () => ({ gain: { value: 1 }, connect: () => {} }),
+        decodeAudioData: vi.fn().mockResolvedValue(audioBuffer(60)), close: () => {},
+      };
+    });
+    const { store, playback, waveformFeed, renderer } = setupPlayback();
+    waveformFeed.rendererReady();
+    await playback.loadAudioFile(new File([''], 'a.wav'));
+    expect(store.getState().timelineRangeMs?.totalTimelineMs).toBe(60000);
+
+    playback.clearAudio();
+
+    expect(renderer.setWaveformData).toHaveBeenLastCalledWith(null, 0);
+    expect(store.getState().timelineRangeMs?.totalTimelineMs).toBe(16000);
+    expect(store.getState().currentTimeMs).toBe(16000);
+    expect(renderer.updatePlaybackCursor).toHaveBeenLastCalledWith(16000);
+
+    await playback.loadAudioFile(new File([''], 'a.wav'));
+
+    expect(store.getState().timelineRangeMs?.totalTimelineMs).toBe(60000);
+    expect(store.getState().currentTimeMs).toBe(30000);
     playback.dispose();
   });
 });
