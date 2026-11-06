@@ -7,13 +7,20 @@ const nextBuffer = { duration: 5 } as AudioBuffer;
 /** 재생기처럼 로드에 성공하면 버퍼를 바꾸고, 실패하면 이전 버퍼를 그대로 둔다. */
 function harness() {
   const loads = new Map<File, { resolve: () => void; reject: (error: Error) => void }>();
+  // 재생기의 로드 세대. restoreAudioBuffer·cancelAudioLoad가 올리면 늦게 끝난 로드는 버퍼를 바꾸지 않는다.
+  let generation = 0;
   const playback: MetaAudioPlayback & { buffer: AudioBuffer | null } = {
     buffer: oldBuffer as AudioBuffer | null,
     get audioBufferData() { return this.buffer; },
     loadAudioFile: vi.fn((file: File) => new Promise<void>((resolve, reject) => {
-      loads.set(file, { resolve: () => { playback.buffer = file.name === 'next.ogg' ? nextBuffer : { duration: 1 } as AudioBuffer; resolve(); }, reject });
+      const started = ++generation;
+      loads.set(file, { resolve: () => {
+        if (started === generation) playback.buffer = file.name === 'next.ogg' ? nextBuffer : { duration: 1 } as AudioBuffer;
+        resolve();
+      }, reject });
     })),
-    restoreAudioBuffer: vi.fn((buffer: AudioBuffer) => { playback.buffer = buffer; }),
+    restoreAudioBuffer: vi.fn((buffer: AudioBuffer) => { generation++; playback.buffer = buffer; }),
+    cancelAudioLoad: vi.fn(() => { generation++; }),
   };
   const state = { pick: null as MetaAudioPick | null, loading: false, shown: oldBuffer as AudioBuffer | null };
   const onLoadFailed = vi.fn();
@@ -111,5 +118,44 @@ describe('Meta 창 한 번의 음원 선택', () => {
 
     expect(playback.restoreAudioBuffer).not.toHaveBeenCalled();
     expect(playback.audioBufferData).toBe(nextBuffer);
+  });
+
+  it('창을 열 때 음원이 없고 next.ogg를 불러오는 중에 닫으면 재생기의 로드를 무효화해 늦게 끝나도 재생기 음원이 없고 결과는 null이다', async () => {
+    const { session, playback, loads } = harness();
+    playback.buffer = null;
+    const next = new File(['x'], 'next.ogg');
+    const loading = session.load(playback, next);
+
+    session.cancel(playback);
+    loads.get(next)!.resolve();
+
+    await expect(loading).resolves.toBeNull();
+    expect(playback.cancelAudioLoad).toHaveBeenCalledOnce();
+    expect(playback.restoreAudioBuffer).not.toHaveBeenCalled();
+    expect(playback.audioBufferData).toBeNull();
+  });
+
+  it('load는 성공하면 loaded, 실패하면 failed, 뒤에 고른 파일에 밀린 a.ogg면 null을 돌려준다', async () => {
+    const { session, playback, loads } = harness();
+    const first = new File(['a'], 'a.ogg');
+    const next = new File(['x'], 'next.ogg');
+    const broken = new File(['b'], 'broken.ogg');
+    const firstLoading = session.load(playback, first);
+    const nextLoading = session.load(playback, next);
+    loads.get(next)!.resolve();
+    await expect(nextLoading).resolves.toBe('loaded');
+    loads.get(first)!.resolve();
+    await expect(firstLoading).resolves.toBeNull();
+
+    const brokenLoading = session.load(playback, broken);
+    loads.get(broken)!.reject(new Error('decode failed'));
+    await expect(brokenLoading).resolves.toBe('failed');
+  });
+
+  it('재생기가 아직 없으면 load는 파일을 고르지 않고 null을 돌려준다', async () => {
+    const { session, state } = harness();
+
+    await expect(session.load(null, new File(['x'], 'next.ogg'))).resolves.toBeNull();
+    expect(state.pick).toBeNull();
   });
 });

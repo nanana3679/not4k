@@ -9,7 +9,7 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
-import type { EditorSong } from '../songState';
+import type { EditorSong, SongSessionMeta } from '../songState';
 import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
 import type { SavedChartJson } from '../savedChart';
 import type { StoredChartRow } from '../../supabase/chartRows';
@@ -121,6 +121,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   rememberUnconfirmedChartUpload: (generation: number, upload: UnconfirmedChartUpload) => void;
   song: EditorSong | null;
   isSavingSong: boolean;
+  /**
+   * 곡 정보 드로어에서 고른 음원을 불러오는 중인가(src/editor/drawerSongAudio.ts). 불러오면 곡 음원으로 적용되므로 미저장 곡 정보로
+   * 본다. Save의 미저장 표시와 닫기·전환·이탈 확인이 이 값을 함께 읽는다(unsavedChangesFlow). 차트를 새로 열면 끈다.
+   */
+  isLoadingSongAudio: boolean;
   setSong: (song: EditorSong | null) => void;
   /** 곡 행 없이 연 차트의 대기 미디어·구간(src/editor/songlessMedia.ts). 차트를 새로 열면 비운다. */
   songlessMedia: SonglessMedia;
@@ -161,8 +166,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setChart: (chart: ChartDocument, options?: { separateHistory?: boolean; transaction?: symbol }) => void;
   /** 현재 초안에 Meta 편집을 합친다. 곡 행이 있으면 난이도명은 유지하고 레벨은 편집한다. */
   applyMetaEdit: (meta: Partial<ChartMeta>) => void;
-  /** 업로드 결과의 미디어 경로만 반영한다. 편집·Undo 이력·열린 transaction은 만들거나 끝내지 않는다. */
-  reconcileSongMedia: (media: Pick<ChartDocument['meta'], 'audioFile' | 'imageFile' | 'previewAudioFile'>) => void;
+  /**
+   * 곡 세션과 짝을 이루는 차트 사본 값(업로드 결과의 미디어 경로, 곡 정보 변경 취소의 미디어 경로·프리뷰 구간)만 반영한다.
+   * 편집·Undo 이력·열린 transaction은 만들거나 끝내지 않는다.
+   */
+  reconcileSongMedia: (media: Partial<SongSessionMeta>) => void;
   /**
    * 로드 전용 통로 — 위반 차트도 수용해 열람·수리를 허용한다(경고만 표시).
    * 재저장은 저장 게이트(useFileOperations의 editorChartErrors)가 차단하므로
@@ -350,6 +358,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   unconfirmedChartUploads: [],
   song: null,
   isSavingSong: false,
+  isLoadingSongAudio: false,
   songlessMedia: EMPTY_SONGLESS_MEDIA,
   isSavingChart: false,
   chartSaveGeneration: 0,
@@ -488,6 +497,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       unconfirmedChartUploads: [],
       song: null,
       isSavingSong: false,
+      isLoadingSongAudio: false,
       songlessMedia: EMPTY_SONGLESS_MEDIA,
       isSavingChart: false,
       chartSaveGeneration: state.chartSaveGeneration + 1,

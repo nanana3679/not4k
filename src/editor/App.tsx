@@ -27,6 +27,8 @@ import type { LegacyConversionItem, PlaybackRange, ValidationError } from '../sh
 import { OverlayLoading, PageLoading } from '../shared/components/LoadingSpinner';
 import { EventEditModal } from './components/EventEditModal';
 import { MetaEditModal } from './components/MetaEditModal';
+import { SongInfoDrawer, type SongChartList } from './components/SongInfoDrawer';
+import { UnsavedChangesDialog, type UnsavedChangesDialogRequest } from './components/UnsavedChangesDialog';
 import { CustomSnapModal } from './components/CustomSnapModal';
 import { SaveAsModal } from './components/SaveAsModal';
 import { LegacyConversionModal } from './components/LegacyConversionModal';
@@ -45,10 +47,10 @@ import { EditorToolbar } from './components/EditorToolbar';
 import { useTimelineSpace } from './hooks/useTimelineSpace';
 import { useCanvasEvents } from './hooks/useCanvasEvents';
 import { useEditorAudioLoad } from './hooks/useEditorAudioLoad';
-import { useEditorKeyboard } from './hooks/useEditorKeyboard';
+import { isTextEntryTarget, useEditorKeyboard } from './hooks/useEditorKeyboard';
 import { useFileOperations } from './hooks/useFileOperations';
 import { getEditorAudioLoadingSurface } from './editorLoading';
-import { LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
+import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from './editorCopy';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { fetchEditorChart } from './fetchEditorChart';
 import { editorChartViolationIndices } from './documentValidation';
@@ -56,8 +58,24 @@ import { isChartDirty } from './savedChart';
 import { openEditorChart } from './openEditorChart';
 import { restoreSongAudioAfterPlayTest } from './playtest/restoreSongAudioAfterPlayTest';
 import { createMetaAudioSession, type MetaAudioPick } from './metaAudioSession';
+import { fetchChartRows } from '../supabase/chartRows';
+import { isSongTimingDirty } from './songState';
+import { discardSongInfoChanges } from './songInfoEditing';
+import { createDrawerSongAudio } from './drawerSongAudio';
+import {
+  confirmChartSwitch,
+  confirmCloseSongInfo,
+  confirmLeave,
+  hasUnsavedEditorChanges,
+  hasUnsavedSongInfo,
+  type SongInfoDecision,
+  type UnsavedChangesFlow,
+} from './unsavedChangesFlow';
 
 const COMPACT_EDITOR_QUERY = '(max-width: 767px), (pointer: coarse)';
+
+// 페이지는 재생 중 매 프레임 다시 렌더한다(currentTimeMs 구독). 드로어는 받은 값이 바뀔 때만 다시 그린다.
+const SongInfoDrawerPanel = React.memo(SongInfoDrawer);
 
 function getPublicUrl(path: string): string {
   const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
@@ -238,7 +256,20 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const [autoScroll, setAutoScroll] = useState(true);
   const [showCustomSnapModal, setShowCustomSnapModal] = useState(false);
   const [loadedAudioBuffer, setLoadedAudioBuffer] = useState<AudioBuffer | null>(null);
-  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  // 곡 정보 드로어(RFD 0098). 곡 행이 있는 차트만 연다. 열림은 페이지 상태라 테스트 플레이에서 돌아오면 닫혀 있다.
+  const [songInfoOpen, setSongInfoOpen] = useState(false);
+  // 드로어의 같은 곡 차트 목록. 드로어를 열 때마다 다시 불러오며 늦게 온 이전 응답은 버린다.
+  const [songChartList, setSongChartList] = useState<SongChartList>({ status: 'loading' });
+  const chartListRequestRef = useRef(0);
+  // 드로어에서 고른 음원과 로드 결과. 로드에 성공하면 바로 곡 음원으로 적용한다(아래 drawerAudio, src/editor/drawerSongAudio.ts).
+  const [drawerAudioPick, setDrawerAudioPick] = useState<MetaAudioPick | null>(null);
+  // 미저장 변경 확인 창(드로어 닫기·차트 전환·이탈). 열려 있는 동안 unsavedChangesFlow가 사용자의 선택을 기다린다.
+  const [unsavedDialog, setUnsavedDialog] = useState<{
+    request: UnsavedChangesDialogRequest;
+    resolve: (decision: SongInfoDecision) => void;
+  } | null>(null);
+  // 확인 흐름은 한 번에 하나만 돈다(저장 중 같은 요청을 다시 눌러도 겹치지 않게).
+  const unsavedFlowRunningRef = useRef(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showSaveAsModal, setShowSaveAsModal] = useState(false);
   const [saveAsOverwriteTarget, setSaveAsOverwriteTarget] = useState<{ difficulty: string; level: number } | null>(null);
@@ -249,8 +280,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   // 곡 행이 없는 차트의 대기 미디어·구간은 store가 소유하고 Save가 기존 규칙대로 올린 뒤 비운다(src/editor/saveSonglessMedia.ts).
   const songlessMedia = useEditorStore((s) => s.songlessMedia);
   const [localSongGameplayRange, setSongGameplayRange] = useState<PlaybackRange | null>(null);
-  const pendingPreviewRange = song ? song.pendingPreviewRange : songlessMedia.previewRange;
-  const pendingGameplayRange = song ? null : songlessMedia.gameplayRange;
   const songGameplayRange = song ? song.gameplayRange : localSongGameplayRange;
   const pendingJacketFile = song ? song.pendingJacketFile : songlessMedia.jacketFile;
   // Meta 창에서 고른 음원과 로드 결과. 아래 metaAudio가 정한다.
@@ -369,7 +398,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   useEditorKeyboard(
     playbackRef, selectModeRef, bpmChanges,
     editingEvent, showMetaModal, showCustomSnapModal,
-    showDeleteConfirm, showLeaveConfirm, showSaveAsModal, showOffsetToolbar,
+    showDeleteConfirm, unsavedDialog !== null, showSaveAsModal, showOffsetToolbar,
     validationErrors.length,
     legacyConversionDialog !== null,
   );
@@ -440,13 +469,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
     };
-  }, []);
-
-  // Leave 요청 이벤트 처리 (EditorToolbar에서 발행)
-  useEffect(() => {
-    const handler = () => setShowLeaveConfirm(true);
-    window.addEventListener('editor:requestLeave', handler);
-    return () => window.removeEventListener('editor:requestLeave', handler);
   }, []);
 
   // 초기화
@@ -562,6 +584,99 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     setLoadedAudioBuffer,
     onLoadFailed: () => useEditorStore.getState().addToast('Audio load failed', 'error'),
   }));
+  // 곡 정보 드로어의 음원 선택. Meta 창과 따로 두어 서로의 되돌리기에 섞이지 않는다.
+  // 변경 취소는 바꾸기 전 저장된 음원의 버퍼로 재생기를 되돌리고, 그 버퍼가 없으면 재생기를 비운 뒤 저장된 음원을 다시 불러온다.
+  const [drawerAudio] = useState(() => createDrawerSongAudio({
+    setPick: setDrawerAudioPick,
+    setAudioLoading,
+    setLoadedAudioBuffer,
+    onLoadFailed: () => useEditorStore.getState().addToast('Audio load failed', 'error'),
+    reloadSavedAudio: path => useEditorStore.getState().setPendingAudioUrl(getPublicUrl(path)),
+  }));
+  const pickDrawerAudio = useCallback((file: File) => { void drawerAudio.pick(playbackRef.current, file); }, [drawerAudio]);
+  // 곡 저장으로 저장된 음원이 바뀌면 기억해 둔 이전 음원 버퍼를 놓는다(더 쓰지 않는 디코딩 음원을 붙잡지 않게).
+  const savedSongAudioUrl = song?.baseline.audioUrl ?? null;
+  useEffect(() => { drawerAudio.forgetSavedAudioUnless(savedSongAudioUrl); }, [drawerAudio, savedSongAudioUrl]);
+
+  // 미저장 변경 확인 흐름(RFD 0098). 확인 창의 선택을 기다리고, 저장은 툴바의 Save와 같은 저장을 쓴다.
+  // 드로어에서 고른 음원을 불러오는 중이면 미저장 곡 정보로 보고, 변경 취소·닫기는 그 선택을 버려 늦은 로드가 적용되지 않게 한다.
+  const askUnsaved = useCallback((request: UnsavedChangesDialogRequest) =>
+    new Promise<SongInfoDecision>(resolve => setUnsavedDialog({ request, resolve })), []);
+  const handleSaveChart = fileOps.handleSaveChart;
+  const unsavedFlow = useMemo<UnsavedChangesFlow>(() => ({
+    saving: () => {
+      const { isSavingSong, isSavingChart } = useEditorStore.getState();
+      return isSavingSong || isSavingChart;
+    },
+    notifySaving: () => useEditorStore.getState().addToast(SAVE_IN_PROGRESS_COPY.unsavedFlow, 'warn'),
+    // 드로어 입력칸은 포커스 이동으로 적용한다. 포커스를 가진 입력칸이 있으면 포커스를 옮겨 그 값을 먼저 적용한다.
+    commitDrafts: () => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && isTextEntryTarget(active)) active.blur();
+    },
+    // Save의 미저장 표시와 같은 판단이다(불러오는 중인 드로어 음원 포함).
+    songInfoDirty: () => hasUnsavedSongInfo(useEditorStore.getState()),
+    anyDirty: () => hasUnsavedEditorChanges(useEditorStore.getState()),
+    askSongInfo: purpose => askUnsaved({ kind: 'songInfo', purpose }),
+    askLeave: purpose => askUnsaved({ kind: 'leave', purpose }),
+    save: handleSaveChart,
+    discardSongInfo: () => {
+      const result = discardSongInfoChanges();
+      if (!result.discarded) return false;
+      // 불러오는 중인 드로어 음원은 버리고, 바꾼 음원을 버렸으면 재생기·파형을 저장된 음원으로 되돌린다.
+      drawerAudio.discard(playbackRef.current, result.discardedAudio);
+      return true;
+    },
+  }), [askUnsaved, handleSaveChart, drawerAudio]);
+  const runUnsavedFlow = useCallback((flow: () => Promise<void>) => {
+    if (unsavedFlowRunningRef.current) return;
+    unsavedFlowRunningRef.current = true;
+    void flow().finally(() => { unsavedFlowRunningRef.current = false; });
+  }, []);
+
+  const loadSongChartList = useCallback(() => {
+    const songId = useEditorStore.getState().activeSongId;
+    const request = ++chartListRequestRef.current;
+    if (!songId) {
+      setSongChartList({ status: 'failed' });
+      return;
+    }
+    setSongChartList({ status: 'loading' });
+    fetchChartRows(songId).then(
+      rows => { if (request === chartListRequestRef.current) setSongChartList({ status: 'loaded', rows }); },
+      () => { if (request === chartListRequestRef.current) setSongChartList({ status: 'failed' }); },
+    );
+  }, []);
+  const requestCloseSongInfo = useCallback(() => runUnsavedFlow(async () => {
+    if (!(await confirmCloseSongInfo(unsavedFlow))) return;
+    // 닫힌 드로어의 음원 선택이 남지 않게 한다(불러오는 중이면 확인에서 이미 변경 취소로 버렸다).
+    drawerAudio.close(playbackRef.current);
+    setSongInfoOpen(false);
+  }), [runUnsavedFlow, unsavedFlow, drawerAudio]);
+  const toggleSongInfo = useCallback(() => {
+    if (songInfoOpen) {
+      requestCloseSongInfo();
+      return;
+    }
+    setSongInfoOpen(true);
+    loadSongChartList();
+  }, [songInfoOpen, requestCloseSongInfo, loadSongChartList]);
+  // 같은 곡의 다른 차트로 전환한다. 미저장 곡 정보를 저장하거나 변경 취소한 뒤, 남은 차트 변경은 이탈처럼 확인한다.
+  const requestChartSwitch = useCallback((difficulty: string) => runUnsavedFlow(async () => {
+    const songId = useEditorStore.getState().activeSongId;
+    if (!songId || !(await confirmChartSwitch(unsavedFlow))) return;
+    window.location.href = `/editor?songId=${encodeURIComponent(songId)}&difficulty=${encodeURIComponent(difficulty)}`;
+  }), [runUnsavedFlow, unsavedFlow]);
+
+  // Leave 요청 이벤트 처리. EditorToolbar의 Back to Songs가 언제나 발행하고, 미저장 변경이 없으면 묻지 않고 이동한다.
+  useEffect(() => {
+    const handler = () => runUnsavedFlow(async () => {
+      if (await confirmLeave(unsavedFlow)) window.location.href = '/game';
+    });
+    window.addEventListener('editor:requestLeave', handler);
+    return () => window.removeEventListener('editor:requestLeave', handler);
+  }, [runUnsavedFlow, unsavedFlow]);
+
 
   const audioLoadingSurface = getEditorAudioLoadingSurface({ audioLoading, initialAudioPending });
 
@@ -738,8 +853,9 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
 
   return (
     <>
-    {/* 변환 모달이 열린 동안 뒤 화면 전체(툴바·캔버스·다른 모달)는 포커스·클릭을 받지 않는다. 모달은 이 영역 밖에 그린다. */}
-    <div style={styles.container} inert={legacyConversionDialog !== null}>
+    {/* 변환 모달·미저장 변경 확인 창이 열린 동안 뒤 화면 전체(툴바·드로어·캔버스·다른 모달)는 포커스·클릭을 받지 않는다.
+        두 창은 이 영역 밖에 그린다. */}
+    <div style={styles.container} inert={legacyConversionDialog !== null || unsavedDialog !== null}>
       {/* 툴바 */}
       {audioLoadingSurface === 'transparentPage' && (
         <PageLoading message="Loading audio..." background="transparent" />
@@ -755,8 +871,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         setShowPlayTestMenu={setShowPlayTestMenu}
         saving={saving}
         deleting={deleting}
-        pendingPreviewRange={pendingPreviewRange}
-        pendingGameplayRange={pendingGameplayRange}
         onPlayTest={fileOps.handlePlayTest}
         onSaveChart={fileOps.handleSaveChart}
         onSaveAs={() => setShowSaveAsModal(true)}
@@ -764,14 +878,30 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         onDeleteSelected={handleDeleteSelected}
         onOpenMeta={() => setShowMetaModal(true)}
         onOpenCustomSnap={() => setShowCustomSnapModal(true)}
+        songInfoOpen={songInfoOpen}
+        onToggleSongInfo={song ? toggleSongInfo : undefined}
       />
 
       {/* 캔버스 + 변환 검토 목록(데스크톱은 오른쪽 열, 좁은 화면·터치는 아래 칸) */}
       <div style={{ ...styles.workArea, flexDirection: compactEditor ? 'column' : 'row' }}>
+        {/* 곡 정보 드로어: 데스크톱은 캔버스 왼쪽 열, 좁은 화면·터치는 캔버스 위 칸. 열려 있어도 타임라인을 쓴다. */}
+        {songInfoOpen && song && (
+          <SongInfoDrawerPanel
+            compact={compactEditor}
+            audioBuffer={loadedAudioBuffer}
+            audioPick={drawerAudioPick}
+            onPickAudio={pickDrawerAudio}
+            charts={songChartList}
+            onSwitchChart={requestChartSwitch}
+            onRequestClose={requestCloseSongInfo}
+            toPublicUrl={getPublicUrl}
+          />
+        )}
         <div ref={canvasContainerRef} style={styles.canvasContainer}>
           {audioLoadingSurface === 'overlay' && <OverlayLoading message="Loading audio..." />}
           <canvas
             ref={canvasRef}
+            data-testid="timeline-canvas"
             style={styles.canvas}
             onPointerDown={canvasEvents.handlePointerDown}
             onPointerMove={canvasEvents.handlePointerMove}
@@ -812,6 +942,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         <MetaEditModal
           meta={chart.meta}
           hasSongRow={hasSongRow}
+          songInfoInDrawer={song !== null}
           audioBuffer={loadedAudioBuffer}
           initialJacketFile={pendingJacketFile}
           audioLoading={audioLoading}
@@ -822,21 +953,14 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
             metaAudio.apply();
             // 모달을 연 뒤 저장이 끝났어도 현재 경로·리비전·대기 파일을 기준으로 합친다.
             const current = useEditorStore.getState();
-            const currentSong = current.song;
             const prevStart = current.chart.meta.previewStart;
             const prevEnd = current.chart.meta.previewEnd;
             const rangeChanged = previewRange != null && (
               previewRange.startTime !== prevStart || previewRange.endTime !== prevEnd
             );
             current.applyMetaEdit(meta);
-            if (currentSong) {
-              current.setSong({ ...currentSong,
-                duration: audioFile ? loadedAudioBuffer?.duration ?? currentSong.duration : currentSong.duration,
-                pendingJacketFile: jacketFile ?? currentSong.pendingJacketFile,
-                pendingAudioFile: audioFile ?? currentSong.pendingAudioFile,
-                pendingPreviewRange: rangeChanged ? previewRange : currentSong.pendingPreviewRange,
-                gameplayRange: gameplayRange ?? currentSong.gameplayRange,
-              });
+            // 곡 행이 있으면 Meta는 차트별 정보(레벨)만 적용한다. 곡 공통 값은 곡 정보 드로어가 편집한다.
+            if (current.song) {
               setShowMetaModal(false);
               return;
             }
@@ -883,26 +1007,6 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           }}
           onClose={() => setShowCustomSnapModal(false)}
         />
-      )}
-
-      {/* Leave 확인 모달 */}
-      {showLeaveConfirm && (
-        <div style={modalStyles.overlay} onMouseDown={() => setShowLeaveConfirm(false)}>
-          <div style={modalStyles.modal} onMouseDown={(e) => e.stopPropagation()}>
-            <h3 style={modalStyles.title}>{LEAVE_CONFIRM_COPY.title}</h3>
-            <p style={{ fontSize: '14px', margin: '0 0 16px', color: '#ccc' }}>
-              {LEAVE_CONFIRM_COPY.body}
-            </p>
-            <div style={modalStyles.buttons}>
-              <button style={modalStyles.deleteBtn} onClick={() => { setShowLeaveConfirm(false); window.location.href = '/game'; }}>
-                {LEAVE_CONFIRM_COPY.confirm}
-              </button>
-              <button style={modalStyles.cancelBtn} onClick={() => setShowLeaveConfirm(false)}>
-                {LEAVE_CONFIRM_COPY.cancel}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Save As 모달 */}
@@ -1012,6 +1116,18 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
         </div>
       )}
     </div>
+
+    {/* 미저장 변경 확인 창(드로어 닫기·차트 전환·이탈, RFD 0098) — 위의 inert 영역 밖 */}
+    {unsavedDialog && (
+      <UnsavedChangesDialog
+        request={unsavedDialog.request}
+        discardLocked={unsavedDialog.request.kind === 'songInfo' && isPlaying && isSongTimingDirty(chart, song)}
+        onChoose={(decision) => {
+          setUnsavedDialog(null);
+          unsavedDialog.resolve(decision);
+        }}
+      />
+    )}
 
     {/* 구형 차트 변환 모달 — 위의 inert 영역 밖 */}
     {legacyConversionDialog && (

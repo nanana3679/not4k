@@ -121,17 +121,15 @@ test.describe('정지 중 타이밍 값 수정 뒤 커서 박 유지', () => {
     expect(after).toBeLessThan(expected + 1500);
   });
 
-  test('2박(약 1000ms)에 커서를 두고 오프셋을 0→100으로 바꾸면 커서가 100ms 뒤로 옮겨지고 Undo하면 원래 시각으로 돌아온다', async ({ page }) => {
+  test('2박(약 1000ms)에 커서를 두고 곡 정보 드로어의 오프셋을 0→100으로 바꾸면 커서가 100ms 뒤로 옮겨지고 Undo하면 원래 시각으로 돌아온다', async ({ page }) => {
     await openEditor(page, { audio: true });
     const before = await seekOnRail(page, 2);
 
-    await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
-    await page.getByRole('button', { name: 'Offset', exact: true }).click();
-    const offsetInput = page.getByLabel('Audio offset milliseconds', { exact: true });
+    await page.getByRole('button', { name: 'Song Info', exact: true }).click();
+    const offsetInput = page.getByRole('complementary', { name: 'Song Info', exact: true }).getByLabel('Offset (ms)', { exact: true });
     await offsetInput.fill('100');
     await offsetInput.press('Enter');
-    await page.getByRole('button', { name: 'Done', exact: true }).click();
-    await expect(offsetInput).toHaveCount(0);
+    await expect(offsetInput).toHaveValue('100');
 
     await expect.poll(async () => (await cursor(page)).currentTimeMs).toBeCloseTo(before + 100, 3);
 

@@ -4,7 +4,7 @@ import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
 import { useEditorStore } from './stores/editorStore';
 import { isChartDirty, toSavedChartJson } from './savedChart';
-import { createEditorSong, isSongDirty, isSongTimingDirty } from './songState';
+import { createEditorSong, isSongDirty, isSongTimingDirty, restoreSavedSongInfo } from './songState';
 
 const store = () => useEditorStore.getState();
 const base = useEditorStore.getInitialState().chart;
@@ -91,4 +91,66 @@ it('0박 박자표 4→3 변경은 곡만 dirty이며 Undo하면 곡 타이밍�
   store().setChart({ ...chart, events: chart.events.map(e => e.type === 'timeSignature' ? { ...e, beatPerMeasure: beat(3) } : e) });
   expect(dirty()).toBe(false); expect(isSongTimingDirty(store().chart, store().song)).toBe(true);
   store().undo(); expect(isSongTimingDirty(store().chart, store().song)).toBe(false);
+});
+
+describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
+  const tap = { type: 'tap' as const, kind: 'single' as const, lane: 1, beat: beat(2) };
+
+  it('제목·아티스트·오프셋 45·0박 BPM 180·프리뷰 30～40초와 1레인 2박 노트를 바꾼 뒤 복원하면 곡 기준(곡·작곡가·0·120·NULL)으로 돌아가고 노트는 남는다', () => {
+    const edited = store().chart;
+    const chart = { ...edited,
+      meta: { ...edited.meta, title: '새 제목', artist: '새 작곡가', offsetMs: 45, previewStart: 30, previewEnd: 40 },
+      events: edited.events.map(event => event.type === 'bpm' ? { ...event, bpm: 180 } : event),
+      notes: [tap] };
+    const song = { ...store().song!, pendingPreviewRange: { startTime: 30, endTime: 40, fadeInTime: 1, fadeOutTime: 1 } };
+
+    const restored = restoreSavedSongInfo(chart, song);
+
+    expect(restored.chart.meta).toMatchObject({ title: '곡', artist: '작곡가', offsetMs: 0, audioFile: 'audio.ogg' });
+    expect(restored.chart.meta.previewStart).toBeUndefined();
+    expect(restored.chart.meta.previewEnd).toBeUndefined();
+    expect(restored.chart.events.find(event => event.type === 'bpm')).toMatchObject({ bpm: 120, editorLane: 1 });
+    expect(restored.chart.notes).toEqual([tap]);
+    expect(restored.song.pendingPreviewRange).toBeNull();
+    expect(isSongDirty(restored.chart, restored.song)).toBe(false);
+  });
+
+  it('4박에 새로 놓은 BPM 180은 복원하면 사라지고 0박 BPM·박자의 보조 레인 1·2는 그대로다', () => {
+    const chart = store().chart;
+    const added = { ...chart, events: [...chart.events, { type: 'bpm' as const, beat: beat(4), bpm: 180, editorLane: 3 }] };
+
+    const restored = restoreSavedSongInfo(added, store().song!);
+
+    expect(restored.chart.events.map(event => [event.type, event.beat.n, event.editorLane]))
+      .toEqual(chart.events.map(event => [event.type, event.beat.n, event.editorLane]));
+  });
+
+  it('자켓 next.png·음원 next.ogg 대기 파일과 5초 길이·인게임 2～4초를 복원하면 대기 파일이 비고 길이 120·인게임 구간 NULL로 돌아간다', () => {
+    const chart = { ...store().chart, meta: { ...store().chart.meta, audioFile: 'next.ogg' } };
+    const song = { ...store().song!, duration: 5,
+      pendingJacketFile: new File(['j'], 'next.png'), pendingAudioFile: new File(['a'], 'next.ogg'),
+      gameplayRange: { startTime: 2, endTime: 4, fadeInTime: 0, fadeOutTime: 0 } };
+
+    const restored = restoreSavedSongInfo(chart, song);
+
+    expect(restored.chart.meta.audioFile).toBe('audio.ogg');
+    expect(restored.song).toMatchObject({ duration: 120, pendingJacketFile: null, pendingAudioFile: null, gameplayRange: null });
+    expect(isSongDirty(restored.chart, restored.song)).toBe(false);
+  });
+
+  it('인게임 기준 2～110초·페이드 1초에서 5～100초로 바꾼 뒤 복원하면 기준 구간 2～110초·페이드 1초로 돌아간다', () => {
+    const chart = store().chart;
+    const song = createEditorSong({ ...loadedSong, gameplayStart: 2, gameplayEnd: 110, gameplayFadeIn: 1, gameplayFadeOut: 1 }, chart);
+
+    const restored = restoreSavedSongInfo(chart,
+      { ...song, gameplayRange: { startTime: 5, endTime: 100, fadeInTime: 1, fadeOutTime: 1 } });
+
+    expect(restored.song.gameplayRange).toEqual({ startTime: 2, endTime: 110, fadeInTime: 1, fadeOutTime: 1 });
+  });
+
+  it('곡 정보를 바꾸지 않았으면 같은 차트 객체를 돌려줘 이력을 남길 변경이 없다', () => {
+    const chart = { ...store().chart, notes: [tap] };
+
+    expect(restoreSavedSongInfo(chart, store().song!).chart).toBe(chart);
+  });
 });

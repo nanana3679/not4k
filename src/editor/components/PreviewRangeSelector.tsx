@@ -1,21 +1,23 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { getWaveformPeaks } from '../timeline/waveform';
+import { dragRangeAt, initialRangeState, type PreviewRangeState, type RangeDrag } from './previewRangeState';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface PreviewRangeState {
-  startTime: number;
-  endTime: number;
-  enabled: boolean;
-  fadeInTime: number;
-  fadeOutTime: number;
-}
+export type { PreviewRangeState } from './previewRangeState';
 
-interface PreviewRangeSelectorProps {
+export interface PreviewRangeSelectorProps {
   audioBuffer: AudioBuffer;
+  /** 구간이 바뀔 때마다(렌더 뒤) 알린다. 처음 마운트할 때도 처음 구간을 한 번 알린다. */
   onChange: (state: PreviewRangeState | null) => void;
+  /**
+   * 파형에서 손을 뗄 때 놓은 위치로 계산한 마지막 구간을 바로 알린다. onChange는 렌더 뒤에 오므로 손을 떼는 순간에는
+   * 마지막 끌기가 아직 반영되지 않았을 수 있다. 끌기를 마치고 적용하는 쪽은 이 값을 쓴다. 사용을 꺼 두었으면 null이다.
+   * 브라우저가 끌기를 끊으면(pointercancel·lostpointercapture) 놓은 좌표가 없어 마지막으로 끈 구간을 알린다.
+   */
+  onDragEnd?: (state: PreviewRangeState | null) => void;
   initialStart?: number;
   initialEnd?: number;
   initialFadeInTime?: number;
@@ -37,7 +39,6 @@ interface PreviewRangeSelectorProps {
 
 const CANVAS_HEIGHT = 80;
 const DEFAULT_DURATION = 15;
-const DEFAULT_PREVIEW_FADE = 0.5;
 const HANDLE_HIT_PX = 6;
 const COLOR_WAVE = '#4488ff';
 const COLOR_WAVE_SELECTED = '#66aaff';
@@ -69,6 +70,7 @@ function clamp(value: number, min: number, max: number): number {
 export function PreviewRangeSelector({
   audioBuffer,
   onChange,
+  onDragEnd,
   initialStart,
   initialEnd,
   initialFadeInTime,
@@ -87,26 +89,19 @@ export function PreviewRangeSelector({
   const maxRangeDuration = Math.min(maxDuration ?? duration, duration);
   const minRangeDuration = Math.min(minDuration, duration);
 
-  // Compute initial range (use provided initial values if available)
-  const initStart = initialStart != null
-    ? Math.max(0, Math.min(initialStart, duration))
-    : defaultStart != null
-      ? Math.max(0, Math.min(defaultStart, duration))
-      : Math.min(duration * 0.25, Math.max(0, duration - defaultDuration));
-  const initEnd = initialEnd != null
-    ? Math.max(initStart, Math.min(initialEnd, duration))
-    : defaultEnd != null
-      ? Math.max(initStart, Math.min(defaultEnd, duration))
-      : Math.min(initStart + defaultDuration, duration);
+  // 처음 구간은 곡 정보 드로어의 음원 교체도 같은 계산(initialRangeState)을 쓴다. 마운트할 때만 읽는다.
+  const [initial] = useState(() => initialRangeState(duration, {
+    initialStart, initialEnd, initialFadeInTime, initialFadeOutTime,
+    defaultStart, defaultEnd, defaultDuration, showFadeControls,
+  }));
 
-  const [startTime, setStartTime] = useState(initStart);
-  const [endTime, setEndTime] = useState(initEnd);
+  const [startTime, setStartTime] = useState(initial.startTime);
+  const [endTime, setEndTime] = useState(initial.endTime);
   const [enabled, setEnabled] = useState(true);
-  const [fadeInTime, setFadeInTime] = useState(initialFadeInTime ?? (showFadeControls ? 0 : DEFAULT_PREVIEW_FADE));
-  const [fadeOutTime, setFadeOutTime] = useState(initialFadeOutTime ?? (showFadeControls ? 0 : DEFAULT_PREVIEW_FADE));
+  const [fadeInTime, setFadeInTime] = useState(initial.fadeInTime);
+  const [fadeOutTime, setFadeOutTime] = useState(initial.fadeOutTime);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
-  const [dragMode, setDragMode] = useState<DragMode>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -116,9 +111,9 @@ export function PreviewRangeSelector({
   const rafRef = useRef<number>(0);
   const playStartRef = useRef<number>(0);
   const playOffsetRef = useRef<number>(0);
-  const dragStartXRef = useRef<number>(0);
-  const dragStartTimeRef = useRef<number>(0);
-  const dragEndTimeRef = useRef<number>(0);
+  // 누른 동안의 끌기: 잡은 곳과 누른 순간의 x·구간(drag, 구간 밖을 눌러 구간을 옮겼으면 null)과 마지막으로 정한 구간(last).
+  // 누를 때 정하고, 손을 떼거나 브라우저가 끌기를 끊으면(pointercancel·lostpointercapture) 비운다.
+  const pressRef = useRef<{ drag: RangeDrag | null; last: { startTime: number; endTime: number } } | null>(null);
 
   // Notify parent
   useEffect(() => {
@@ -310,6 +305,15 @@ export function PreviewRangeSelector({
     return clamp((px / rect.width) * duration, 0, duration);
   }, [duration]);
 
+  /** 끄는 중이면 포인터 위치의 구간(dragRangeAt), 아니면 null. */
+  const rangeAt = useCallback((clientX: number): { startTime: number; endTime: number } | null => {
+    const drag = pressRef.current?.drag;
+    const canvas = canvasRef.current;
+    if (!drag || !canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    return dragRangeAt(drag, clientX, rect, { duration, minRangeDuration, maxRangeDuration });
+  }, [duration, minRangeDuration, maxRangeDuration]);
+
   const hitTest = useCallback((clientX: number): DragMode => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -332,28 +336,25 @@ export function PreviewRangeSelector({
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
 
     const mode = hitTest(e.clientX);
-    const clickTime = getTimeFromX(e.clientX);
-
     if (mode) {
-      setDragMode(mode);
-      dragStartXRef.current = e.clientX;
-      dragStartTimeRef.current = startTime;
-      dragEndTimeRef.current = endTime;
-    } else {
-      // Click outside → move selection centered on click
-      const selDuration = endTime - startTime;
-      const newStart = clamp(clickTime - selDuration / 2, 0, duration - selDuration);
-      const newEnd = newStart + selDuration;
-      setStartTime(newStart);
-      setEndTime(newEnd);
+      pressRef.current = { drag: { mode, startX: e.clientX, startTime, endTime }, last: { startTime, endTime } };
+      return;
     }
+    // Click outside → move selection centered on click
+    const selDuration = endTime - startTime;
+    const newStart = clamp(getTimeFromX(e.clientX) - selDuration / 2, 0, duration - selDuration);
+    const newEnd = newStart + selDuration;
+    pressRef.current = { drag: null, last: { startTime: newStart, endTime: newEnd } };
+    setStartTime(newStart);
+    setEndTime(newEnd);
   }, [enabled, hitTest, getTimeFromX, startTime, endTime, duration]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!enabled) return;
 
     // Update cursor based on hover
-    if (!dragMode) {
+    const press = pressRef.current;
+    if (!press?.drag) {
       const mode = hitTest(e.clientX);
       const canvas = canvasRef.current;
       if (canvas) {
@@ -364,39 +365,40 @@ export function PreviewRangeSelector({
       return;
     }
 
-    const t = getTimeFromX(e.clientX);
-    const selDuration = dragEndTimeRef.current - dragStartTimeRef.current;
+    const range = rangeAt(e.clientX);
+    if (!range) return;
+    press.last = range;
+    setStartTime(range.startTime);
+    setEndTime(range.endTime);
+  }, [enabled, hitTest, rangeAt]);
 
-    if (dragMode === 'start') {
-      const lower = Math.max(0, dragEndTimeRef.current - maxRangeDuration);
-      const upper = Math.max(lower, dragEndTimeRef.current - minRangeDuration);
-      const newStart = clamp(t, lower, upper);
-      setStartTime(newStart);
-      setEndTime(dragEndTimeRef.current);
-    } else if (dragMode === 'end') {
-      const lower = Math.min(duration, dragStartTimeRef.current + minRangeDuration);
-      const upper = Math.min(duration, dragStartTimeRef.current + maxRangeDuration);
-      const newEnd = clamp(t, lower, Math.max(lower, upper));
-      setStartTime(dragStartTimeRef.current);
-      setEndTime(newEnd);
-    } else if (dragMode === 'move') {
-      // Move entire selection
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      const dx = e.clientX - dragStartXRef.current;
-      const dt = (dx / rect.width) * duration;
-      let newStart = dragStartTimeRef.current + dt;
-      newStart = clamp(newStart, 0, duration - selDuration);
-      setStartTime(newStart);
-      setEndTime(newStart + selDuration);
-    }
-  }, [enabled, dragMode, hitTest, getTimeFromX, duration, minRangeDuration, maxRangeDuration]);
+  /** 끌기를 끝내고 마지막 구간을 정해 알린다(onDragEnd). */
+  const finishPress = useCallback((range: { startTime: number; endTime: number }) => {
+    pressRef.current = null;
+    setStartTime(range.startTime);
+    setEndTime(range.endTime);
+    if (!onDragEnd) return;
+    const maxFade = Math.max(0, (range.endTime - range.startTime) / 2);
+    onDragEnd(enabled ? {
+      ...range,
+      enabled,
+      fadeInTime: clamp(fadeInTime, 0, maxFade),
+      fadeOutTime: clamp(fadeOutTime, 0, maxFade),
+    } : null);
+  }, [enabled, fadeInTime, fadeOutTime, onDragEnd]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-    setDragMode(null);
-  }, []);
+    // 놓은 위치로 마지막 구간을 다시 계산한다. 끌지 않았으면(구간 밖 클릭은 누를 때 옮겼다) 누를 때 정한 구간·지금 구간이다.
+    finishPress(rangeAt(e.clientX) ?? pressRef.current?.last ?? { startTime, endTime });
+  }, [rangeAt, startTime, endTime, finishPress]);
+
+  // 브라우저가 끌기를 끊으면(터치가 스크롤·확대로 넘어간 pointercancel, 손을 떼기 전에 캡처를 잃은 lostpointercapture) 손을 뗀
+  // 좌표가 없다. 마지막으로 정한 구간을 적용해 끝낸다. 이미 손을 떼 끝낸 끌기(pointerup 뒤의 lostpointercapture)는 다시 적용하지 않는다.
+  const handlePointerInterrupted = useCallback(() => {
+    const press = pressRef.current;
+    if (press) finishPress(press.last);
+  }, [finishPress]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -439,10 +441,13 @@ export function PreviewRangeSelector({
         <canvas
           ref={canvasRef}
           height={CANVAS_HEIGHT}
-          style={{ display: 'block', width: '100%', height: `${CANVAS_HEIGHT}px` }}
+          // 끄는 동안 터치가 스크롤·확대로 넘어가지 않게 한다(넘어가면 pointercancel로 끌기가 끊긴다).
+          style={{ display: 'block', width: '100%', height: `${CANVAS_HEIGHT}px`, touchAction: 'none' }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerInterrupted}
+          onLostPointerCapture={handlePointerInterrupted}
         />
       </div>
 

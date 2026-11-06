@@ -1,7 +1,8 @@
 import type { Page } from '@playwright/test';
+import { timelineCanvas } from './editorTestSetup';
 
 export async function canvasPosition(page: Page, lane: number, at: number) {
-  const box = (await page.locator('canvas').boundingBox())!;
+  const box = (await timelineCanvas(page).boundingBox())!;
   return page.evaluate(async ({ box, lane, at }) => {
     const storePath = '/src/editor/stores/editorStore.ts';
     const constantsPath = '/src/editor/timeline/constants.ts';

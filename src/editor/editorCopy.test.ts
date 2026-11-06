@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 import { INITIAL_TIMING_EXISTS_COPY, LEAVE_CONFIRM_COPY, PAUSE_TO_EDIT_COPY } from "./editorCopy";
 
 describe("editor leave confirmation copy", () => {
-  it("uses English copy for leaving with unsaved changes", () => {
-    expect(LEAVE_CONFIRM_COPY.body).toBe(
-      "You have unsaved changes. If you leave now, they will be lost.",
-    );
+  it("미저장 변경이 있는 이탈 확인은 제목 Unsaved Changes와 저장 후 이동·버리고 이동·취소 세 선택을 쓴다", () => {
+    expect(LEAVE_CONFIRM_COPY).toMatchObject({ title: "Unsaved Changes", save: "저장 후 이동", discard: "버리고 이동", cancel: "취소" });
   });
 });
 

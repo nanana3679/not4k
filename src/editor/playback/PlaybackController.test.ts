@@ -159,6 +159,37 @@ describe('PlaybackController.restoreAudioBuffer', () => {
   });
 });
 
+describe('PlaybackController.clearAudio', () => {
+  it('10초 old 음원 재생 중 60초 next.wav 디코딩 중에 비우면 정지하고 음원이 없어 play가 시작하지 않으며 늦은 next 완료도 버린다', async () => {
+    const context = setupAudioContextMock();
+    const oldBuffer = { duration: 10 } as AudioBuffer;
+    let finishNextDecode!: (buffer: AudioBuffer) => void;
+    context.decodeAudioData.mockResolvedValueOnce(oldBuffer)
+      .mockReturnValueOnce(new Promise<AudioBuffer>(resolve => { finishNextDecode = resolve; }));
+    const onAudioLoaded = vi.fn();
+    const onPlayStateChange = vi.fn();
+    const controller = new PlaybackController({ onTimeUpdate: vi.fn(), onPlayStateChange, onAudioLoaded });
+    await controller.loadAudioFile(new File([''], 'old.wav'));
+    onAudioLoaded.mockClear();
+    const nextLoading = controller.loadAudioFile(new File([''], 'next.wav'));
+    await vi.waitFor(() => expect(context.decodeAudioData).toHaveBeenCalledTimes(2));
+    controller.play();
+
+    controller.clearAudio();
+    finishNextDecode({ duration: 60 } as AudioBuffer);
+    await nextLoading;
+    onPlayStateChange.mockClear();
+    controller.play();
+
+    expect(controller.audioBufferData).toBeNull();
+    expect(controller.durationMs).toBe(0);
+    expect(controller.isPlaying).toBe(false);
+    expect(onPlayStateChange).not.toHaveBeenCalled();
+    expect(onAudioLoaded).not.toHaveBeenCalled();
+    controller.dispose();
+  });
+});
+
 describe("PlaybackController 커서 초기화", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);

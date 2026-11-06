@@ -1,4 +1,3 @@
-import { isSongDirty } from '../songState';
 /**
  * EditorToolbar — 에디터 상단 툴바 컴포넌트
  */
@@ -8,12 +7,12 @@ import type { RefObject } from 'react';
 import type { PlaybackController } from '../playback/PlaybackController';
 import type { EntityType } from '../modes';
 import { buildViolationList, mainNotes, isExplicitNote } from '../../shared';
-import type { PlaybackRange } from '../../shared';
 import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
-import { isChartDirty } from '../savedChart';
-import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { hasUnsavedEditorChanges, hasUnsavedSongInfo } from '../unsavedChangesFlow';
+import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY, SONG_INFO_DRAWER_COPY } from '../editorCopy';
+import { editAudioOffset } from '../songInfoEditing';
 import { color, edge } from '../../shared/theme';
 
 const styles = {
@@ -208,6 +207,17 @@ const styles = {
     borderRadius: '50%',
     backgroundColor: '#ffcc66',
     boxShadow: '0 0 0 2px #2f67d8',
+    pointerEvents: 'none' as const,
+  },
+  // Song Info 버튼 글자 뒤의 곡 정보 미저장 점. Save 미저장 점과 같은 색이다.
+  songInfoDirtyDot: {
+    display: 'inline-block',
+    width: '7px',
+    height: '7px',
+    marginLeft: '6px',
+    borderRadius: '50%',
+    backgroundColor: '#ffcc66',
+    verticalAlign: 'middle',
     pointerEvents: 'none' as const,
   },
   compactMoreMenu: {
@@ -569,8 +579,6 @@ interface EditorToolbarProps {
   setShowPlayTestMenu: (v: boolean | ((prev: boolean) => boolean)) => void;
   saving: boolean;
   deleting: boolean;
-  pendingPreviewRange: PlaybackRange | null;
-  pendingGameplayRange: PlaybackRange | null;
   onPlayTest: (fromCursor: boolean) => void;
   onSaveChart: () => void;
   onSaveAs: () => void;
@@ -578,6 +586,13 @@ interface EditorToolbarProps {
   onDeleteSelected: () => void;
   onOpenMeta: () => void;
   onOpenCustomSnap: () => void;
+  /** 곡 정보 드로어가 열려 있는가. */
+  songInfoOpen?: boolean;
+  /**
+   * 곡 정보 드로어를 열거나 닫는다(닫기는 미저장 곡 정보 확인을 거친다). 곡 행이 있는 차트만 넘기며, 이때 오프셋은 드로어에서
+   * 편집하므로 More 메뉴의 Offset 줄을 보이지 않는다. 곡 행이 없는 차트는 넘기지 않아 기존 Offset 줄을 그대로 쓴다.
+   */
+  onToggleSongInfo?: () => void;
 }
 
 const noteTypeOptions: EntityType[] = ['single', 'double', 'long', 'doubleLong', 'release', 'doubleRelease', 'tick', 'trillZone', 'restZone'];
@@ -616,8 +631,6 @@ export function EditorToolbar({
   setShowPlayTestMenu,
   saving,
   deleting,
-  pendingPreviewRange,
-  pendingGameplayRange,
   onPlayTest,
   onSaveChart,
   onSaveAs,
@@ -625,6 +638,8 @@ export function EditorToolbar({
   onDeleteSelected,
   onOpenMeta,
   onOpenCustomSnap,
+  songInfoOpen = false,
+  onToggleSongInfo,
 }: EditorToolbarProps) {
   const masterVolume = useGameStore((s) => s.settings.masterVolume ?? 1);
   const updateSettings = useGameStore((s) => s.updateSettings);
@@ -658,10 +673,11 @@ export function EditorToolbar({
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const chart = useEditorStore((s) => s.chart);
-  const setChart = useEditorStore((s) => s.setChart);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
   const song = useEditorStore((s) => s.song);
   const savingSong = useEditorStore((s) => s.isSavingSong);
+  const isLoadingSongAudio = useEditorStore((s) => s.isLoadingSongAudio);
+  const songlessMedia = useEditorStore((s) => s.songlessMedia);
   const savedChartJson = useEditorStore((s) => s.savedChartJson);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const activeSongId = useEditorStore((s) => s.activeSongId);
@@ -688,14 +704,20 @@ export function EditorToolbar({
   const deleteSelectedDisabled = selectedCount === 0 || isPlaying;
   const [offsetDraft, setOffsetDraft] = useState(String(chart.meta.offsetMs));
 
-  // 현재 차트를 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 store의 savedChartJson과 비교한다 (RFD 0018 ③).
+  // Save의 미저장 표시는 이탈·차트 전환 확인과 같은 판단(hasUnsavedEditorChanges)을 쓴다: 차트·곡 정보 변경, 불러오는 중인
+  // 드로어 음원, 곡 행 없는 차트의 대기 구간. 차트는 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 비교한다(RFD 0018 ③).
   // 재생 중에는 페이지가 currentTimeMs를 구독해 툴바도 매 프레임 다시 렌더된다. 차트 전체 직렬화는 비교 입력이 바뀔 때만 한다.
-  const chartDirty = useMemo(
-    () => isChartDirty(chart, extraLaneCount, savedChartJson, song !== null),
-    [chart, extraLaneCount, savedChartJson, song],
+  const isDirty = useMemo(
+    () => hasUnsavedEditorChanges({ chart, song, extraLaneCount, savedChartJson, songlessMedia, isLoadingSongAudio }),
+    [chart, song, extraLaneCount, savedChartJson, songlessMedia, isLoadingSongAudio],
   );
-  const songDirty = useMemo(() => isSongDirty(chart, song), [chart, song]);
-  const isDirty = chartDirty || songDirty || (!song && (pendingPreviewRange != null || pendingGameplayRange != null));
+  // Save 점은 곡·차트를 합친 표시라 곡 정보만의 미저장은 Song Info 버튼의 점으로 따로 보인다. 드로어 닫기 확인과 같은 판단이다.
+  const songInfoDirty = useMemo(
+    () => hasUnsavedSongInfo({ chart, song, isLoadingSongAudio }),
+    [chart, song, isLoadingSongAudio],
+  );
+  const songInfoTitle = songInfoDirty ? SONG_INFO_DRAWER_COPY.unsavedTitle : undefined;
+  const songInfoDirtyDot = songInfoDirty ? <span aria-hidden="true" style={styles.songInfoDirtyDot} /> : null;
   const saveLocked = saving || savingSong || deleting;
 
   // 낙관적 편집(RFD 0017): 라이브 차트에 위반이 남아 있으면 테스트 플레이 비활성.
@@ -743,25 +765,17 @@ export function EditorToolbar({
     addToast('Redo', 'info');
   };
 
+  // Back to Songs는 언제나 에디터 페이지의 이탈 확인 흐름(editor:requestLeave)에 넘긴다. 미저장 판단·저장 중 안내·이동을 그 흐름
+  // 한 곳이 맡아, 툴바가 따로 판단해 확인 없이 떠나는 경로가 없다(RFD 0098). 미저장 변경이 없으면 흐름이 묻지 않고 /game으로 간다.
   const requestBackToSongs = () => {
-    if (isDirty) {
-      window.dispatchEvent(new CustomEvent('editor:requestLeave'));
-    } else {
-      window.location.href = '/game';
-    }
+    window.dispatchEvent(new CustomEvent('editor:requestLeave'));
   };
 
   const applyOffset = (offsetMs: number) => {
-    const { chart: currentChart, isPlaying: playingNow } = useEditorStore.getState();
     // 오프셋은 타이밍 값이라 재생 중에는 바꾸지 않는다(RFD 0099). 입력·증감 버튼도 비활성이지만 다른 경로까지 막는다.
-    if (playingNow && currentChart.meta.offsetMs !== offsetMs) {
-      setOffsetDraft(String(currentChart.meta.offsetMs));
-      addToast(PAUSE_TO_EDIT_COPY, 'warn');
-      return;
-    }
-    setOffsetDraft(String(offsetMs));
-    if (currentChart.meta.offsetMs === offsetMs) return;
-    setChart({ ...currentChart, meta: { ...currentChart.meta, offsetMs } });
+    // 곡 정보 드로어의 오프셋 입력과 같은 규칙(editAudioOffset)을 쓴다.
+    const applied = editAudioOffset(offsetMs);
+    setOffsetDraft(String(applied ? offsetMs : useEditorStore.getState().chart.meta.offsetMs));
   };
 
   const commitOffsetDraft = () => {
@@ -1163,12 +1177,23 @@ export function EditorToolbar({
                     >
                       Delete selected{selectedCount > 0 ? ` (${selectedCount})` : ''}
                     </button>
-                    <button
-                      style={styles.compactMenuButton}
-                      onClick={() => { setShowMoreMenu(false); openOffsetToolbar(); }}
-                    >
-                      Offset
-                    </button>
+                    {onToggleSongInfo ? (
+                      <button
+                        style={{ ...styles.compactMenuButton, ...(songInfoOpen ? styles.buttonActive : {}) }}
+                        onClick={() => { setShowMoreMenu(false); onToggleSongInfo(); }}
+                        aria-pressed={songInfoOpen}
+                        title={songInfoTitle}
+                      >
+                        {SONG_INFO_DRAWER_COPY.title}{songInfoDirtyDot}
+                      </button>
+                    ) : (
+                      <button
+                        style={styles.compactMenuButton}
+                        onClick={() => { setShowMoreMenu(false); openOffsetToolbar(); }}
+                      >
+                        Offset
+                      </button>
+                    )}
                     <button
                       style={styles.compactMenuButton}
                       onClick={() => { setShowMoreMenu(false); onSaveAs(); }}
@@ -1400,6 +1425,18 @@ export function EditorToolbar({
 
       <div style={{ flex: 1 }} />
 
+      {/* 곡 정보 드로어(RFD 0098) — 곡 행이 있는 차트만. 닫기는 미저장 곡 정보 확인을 거친다. 곡 정보 미저장이면 글자 뒤에 점. */}
+      {onToggleSongInfo && (
+        <button
+          style={{ ...styles.button, ...(songInfoOpen ? styles.buttonActive : {}), flexShrink: 0 }}
+          onClick={onToggleSongInfo}
+          aria-pressed={songInfoOpen}
+          title={songInfoTitle}
+        >
+          {SONG_INFO_DRAWER_COPY.title}{songInfoDirtyDot}
+        </button>
+      )}
+
       {renderConversionReviewButton()}
       {renderViolationBadge()}
 
@@ -1456,12 +1493,14 @@ export function EditorToolbar({
               >
                 Delete selected{selectedCount > 0 ? ` (${selectedCount})` : ''}
               </button>
-              <button
-                style={styles.compactMenuButton}
-                onClick={() => { setShowMoreMenu(false); openOffsetToolbar(); }}
-              >
-                Offset
-              </button>
+              {!onToggleSongInfo && (
+                <button
+                  style={styles.compactMenuButton}
+                  onClick={() => { setShowMoreMenu(false); openOffsetToolbar(); }}
+                >
+                  Offset
+                </button>
+              )}
               <button
                 style={{ ...styles.compactMenuButton, ...((saveLocked || !activeSongId) ? styles.compactButtonDisabled : {}) }}
                 onClick={() => { setShowMoreMenu(false); onSaveAs(); }}

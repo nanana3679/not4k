@@ -8,7 +8,7 @@ import { hitTestNoteAt } from '../timeline/hitTest';
 import { makeFakeSpace } from '../timeline/makeFakeSpace';
 import type { PlaybackController } from '../playback/PlaybackController';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
-import { handleEditorKeyDown } from './useEditorKeyboard';
+import { handleEditorKeyDown, OWN_KEYS_REGION_ATTRIBUTE } from './useEditorKeyboard';
 
 vi.mock('../../shared/toast', () => ({ showToast: vi.fn() }));
 
@@ -49,7 +49,9 @@ function setup(source: DocumentNoteEntity[] = [{ type: 'tap', kind: 'single', la
   // PlaybackController처럼 재생 상태가 바뀌면 store의 setIsPlaying을 부른다(App의 onPlayStateChange 배선).
   const playback = { togglePlay: () => current().setIsPlaying(!current().isPlaying) } as unknown as PlaybackController;
   const toasts: string[] = [];
-  const press = (key: string, modifiers: { ctrlKey?: boolean; shiftKey?: boolean; repeat?: boolean } = {}) => handleEditorKeyDown(
+  const press = (key: string, modifiers: {
+    ctrlKey?: boolean; shiftKey?: boolean; repeat?: boolean; target?: EventTarget; preventDefault?: () => void;
+  } = {}) => handleEditorKeyDown(
     { key, ctrlKey: false, metaKey: false, shiftKey: false, preventDefault: () => {}, ...modifiers },
     {
       mode: current().mode, selectMode: mode, playback, bpmChanges: [], offsetMs: 0, shortcutsBlocked: false,
@@ -282,5 +284,148 @@ describe('재생 중 단축키(RFD 0099)', () => {
     expect(current().selection.notes).toEqual(new Set([0]));
     expect(current().historyPast).toHaveLength(0);
     expect(current().editTransaction).toBeNull();
+  });
+});
+
+/**
+ * DOM 없이 흉내 낸 keydown 대상. region은 대상이 들어 있는 영역이다: 'drawer'는 곡 정보 드로어(OWN_KEYS_REGION_ATTRIBUTE),
+ * 'dialog'는 대화 상자(role="dialog"), 없으면 툴바처럼 영역 밖이다. closest는 그 영역의 선택자에만 답한다.
+ * blur는 입력칸이 값을 적용하는 포커스 이동이다.
+ */
+function keyTarget(tagName: string, options: { type?: string; region?: 'drawer' | 'dialog' } = {}) {
+  const regionSelector = options.region === 'drawer' ? `[${OWN_KEYS_REGION_ATTRIBUTE}]`
+    : options.region === 'dialog' ? '[role="dialog"]' : null;
+  return {
+    tagName, type: options.type, isContentEditable: false, blur: vi.fn(),
+    closest: (selector: string) => regionSelector && selector.split(',').map(part => part.trim()).includes(regionSelector) ? {} : null,
+  };
+}
+const asTarget = (target: ReturnType<typeof keyTarget>) => target as unknown as EventTarget;
+const nextTask = () => new Promise(resolve => setTimeout(resolve, 0));
+
+describe('곡 정보 드로어의 입력칸 포커스', () => {
+  it('Title(text) 입력칸에 포커스가 있으면 Space·S·Delete가 재생·모드·선택 노트를 바꾸지 않는다', async () => {
+    const { mode, press } = setup();
+    mode.selectNote(0);
+    useEditorStore.setState({ mode: 'create' });
+    const title = keyTarget('INPUT', { type: 'text', region: 'drawer' });
+
+    for (const key of [' ', 's', 'Delete']) press(key, { target: asTarget(title) });
+    await nextTask();
+
+    expect(current().isPlaying).toBe(false);
+    expect(current().mode).toBe('create');
+    expect(notes()).toHaveLength(1);
+    expect(title.blur).not.toHaveBeenCalled();
+  });
+
+  it('Offset(number) 입력칸에 포커스가 있으면 S·Delete는 무시하고 Space는 입력값을 적용(blur)한 뒤 다음 작업에서 재생을 시작한다', async () => {
+    const { mode, press } = setup();
+    mode.selectNote(0);
+    useEditorStore.setState({ mode: 'create' });
+    const offset = keyTarget('INPUT', { type: 'number', region: 'drawer' });
+
+    for (const key of ['s', 'Delete']) press(key, { target: asTarget(offset) });
+    press(' ', { target: asTarget(offset) });
+
+    expect(offset.blur).toHaveBeenCalledOnce();
+    expect(current().isPlaying).toBe(false);
+    await nextTask();
+    expect(current().isPlaying).toBe(true);
+    expect(current().mode).toBe('create');
+    expect(notes()).toHaveLength(1);
+  });
+});
+
+describe('곡 정보 드로어·대화 상자 안의 컨트롤 포커스', () => {
+  it.each(['select', 'create'] as const)('%s 모드에서 드로어의 Upload Jacket 버튼에 포커스가 있으면 Space는 재생하지 않고 preventDefault도 하지 않아 버튼이 눌린다', async editorMode => {
+    const { press } = setup();
+    useEditorStore.setState({ mode: editorMode });
+    const preventDefault = vi.fn();
+
+    press(' ', { target: asTarget(keyTarget('BUTTON', { region: 'drawer' })), preventDefault });
+    await nextTask();
+
+    expect(current().isPlaying).toBe(false);
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('select 모드의 8박 붙여넣기 대기 중 드로어 버튼(BREAKTHROUGH)의 Enter는 붙여넣기를 확정하지 않고 preventDefault도 하지 않아 버튼이 눌린다', () => {
+    const { mode, press, pasteCopyOfFirstNoteAt8 } = setup();
+    pasteCopyOfFirstNoteAt8();
+    const preventDefault = vi.fn();
+
+    press('Enter', { target: asTarget(keyTarget('BUTTON', { region: 'drawer' })), preventDefault });
+
+    expect(mode.isPendingPaste).toBe(true);
+    expect(current().historyPast).toHaveLength(0);
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('create 모드에서 드로어 버튼의 Enter는 노트를 바꾸지 않고 preventDefault도 하지 않는다', () => {
+    const { press } = setup();
+    useEditorStore.setState({ mode: 'create' });
+    const preventDefault = vi.fn();
+
+    press('Enter', { target: asTarget(keyTarget('BUTTON', { region: 'drawer' })), preventDefault });
+
+    expect(notes()).toHaveLength(1);
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it.each(['select', 'create'] as const)('%s 모드에서 1박 탭을 고른 채 드로어 버튼에 포커스를 두고 Delete·Backspace를 누르면 탭이 남는다', editorMode => {
+    const { mode, press } = setup();
+    mode.selectNote(0);
+    useEditorStore.setState({ mode: editorMode });
+
+    for (const key of ['Delete', 'Backspace']) press(key, { target: asTarget(keyTarget('BUTTON', { region: 'drawer' })) });
+
+    expect(notes()).toHaveLength(1);
+    expect(current().selection.notes).toEqual(new Set([0]));
+  });
+
+  it('1박 탭을 고르고 history가 1개일 때 드로어 버튼의 S·D·G·Ctrl+Z·Ctrl+A는 모드·노트·history를 바꾸지 않는다', () => {
+    const { mode, press } = setup();
+    mode.selectNote(0);
+    useEditorStore.setState({ mode: 'create', historyPast: [{ chart: chart([]), extraLaneCount: 2 }] });
+    const button = asTarget(keyTarget('BUTTON', { region: 'drawer' }));
+
+    for (const key of ['s', 'd', 'g']) press(key, { target: button });
+    for (const key of ['z', 'a']) press(key, { target: button, ctrlKey: true });
+
+    expect(current().mode).toBe('create');
+    expect(notes()).toEqual([{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }]);
+    expect(current().historyPast).toHaveLength(1);
+  });
+
+  it('드로어의 프리뷰 사용 체크박스에 포커스가 있으면 Space는 재생하지 않고 preventDefault도 하지 않아 체크박스가 바뀐다', () => {
+    const { press } = setup();
+    const preventDefault = vi.fn();
+
+    press(' ', { target: asTarget(keyTarget('INPUT', { type: 'checkbox', region: 'drawer' })), preventDefault });
+
+    expect(current().isPlaying).toBe(false);
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('대화 상자(role="dialog") 안의 버튼에 포커스가 있으면 Delete는 선택한 1박 탭을 지우지 않는다', () => {
+    const { mode, press } = setup();
+    mode.selectNote(0);
+
+    press('Delete', { target: asTarget(keyTarget('BUTTON', { region: 'dialog' })) });
+
+    expect(notes()).toHaveLength(1);
+  });
+
+  it('드로어 밖(툴바)의 버튼에 마우스로 누른 포커스가 남아 있어도 S는 Select 모드로 바꾸고 Space는 재생을 시작한다', () => {
+    const { press } = setup();
+    useEditorStore.setState({ mode: 'create' });
+    const toolbarButton = asTarget(keyTarget('BUTTON'));
+
+    press('s', { target: toolbarButton });
+    press(' ', { target: toolbarButton });
+
+    expect(current().mode).toBe('select');
+    expect(current().isPlaying).toBe(true);
   });
 });

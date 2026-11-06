@@ -32,7 +32,7 @@ const DEFAULT_TIME_SIGNATURE_EDITOR_LANE = 2;
 export function resolveSongChart<T extends ChartDocument>(chart: T, song?: SongSharedData | null): T {
   if (!song) return chart;
   const timing = song.timing === null ? null : parseSongTiming(song.timing);
-  const events = timing ? resolveTimingEvents(chart.events, timing) : chart.events;
+  const events = timing ? applySongTimingEvents(chart.events, timing) : chart.events;
   const imageFile = song.jacketUrl ?? chart.meta.imageFile;
   const offsetMs = timing?.offsetMs ?? chart.meta.offsetMs;
   const sameMeta = chart.meta.title === song.title && chart.meta.artist === song.artist
@@ -41,8 +41,15 @@ export function resolveSongChart<T extends ChartDocument>(chart: T, song?: SongS
   return meta === chart.meta && events === chart.events ? chart : { ...chart, meta, events };
 }
 
-/** 곡 타이밍과 종류·박·값이 같으면 받은 events 참조를, 다르면 파일 레인을 이어받은 교체 결과를 돌려준다. */
-function resolveTimingEvents(events: ChartEvent[], timing: SongTiming): ChartEvent[] {
+/**
+ * 곡 타이밍과 종류·박·값이 같으면 받은 events 참조를, 다르면 파일 레인을 이어받은 교체 결과를 돌려준다.
+ * 값을 검증하지 않으므로 DB 값은 parseSongTiming을 거친 뒤 넘긴다. 에디터의 곡 정보 변경 취소도 마지막 곡 저장 기준을
+ * 이 규칙으로 되돌려, 같은 종류·박의 이벤트는 차트의 보조 레인을 유지한다.
+ *
+ * `laneSources`는 events에 같은 종류·박이 없을 때 레인을 찾을 다른 이벤트 목록이다. 변경 취소는 마지막으로 불러오거나 저장한
+ * 차트의 이벤트를 넘겨, 지우거나 다른 박으로 옮긴 타이밍 이벤트가 기본 레인(BPM 1·박자 2) 대신 저장된 레인으로 돌아오게 한다.
+ */
+export function applySongTimingEvents(events: ChartEvent[], timing: SongTiming, laneSources: readonly ChartEvent[] = []): ChartEvent[] {
   const existing = events.filter(isTimingEvent);
   const songEvents: TimingEvent[] = [
     ...timing.bpmChanges.map(change => ({ type: 'bpm' as const, beat: beatFromString(change.beat), bpm: change.bpm })),
@@ -53,11 +60,16 @@ function resolveTimingEvents(events: ChartEvent[], timing: SongTiming): ChartEve
   const unchanged = existing.length === songEvents.length
     && songEvents.every(songEvent => existing.some(event => sameTimingValue(event, songEvent)));
   if (unchanged) return events;
+  const sourceTimingEvents = laneSources.filter(isTimingEvent);
   const placed = songEvents.map((songEvent): ChartEvent => {
     // 파일에 같은 종류·박이 여럿(중복 위반)이면 배열에서 먼저 나온 것의 레인을 쓰고 나머지는 교체로 빠진다.
     const match = existing.find(event => samePosition(event, songEvent));
-    if (!match) return { ...songEvent, editorLane: songEvent.type === 'bpm'
-      ? DEFAULT_BPM_EDITOR_LANE : DEFAULT_TIME_SIGNATURE_EDITOR_LANE };
+    if (!match) {
+      const source = sourceTimingEvents.find(event => samePosition(event, songEvent));
+      if (source) return source.editorLane === undefined ? songEvent : { ...songEvent, editorLane: source.editorLane };
+      return { ...songEvent, editorLane: songEvent.type === 'bpm'
+        ? DEFAULT_BPM_EDITOR_LANE : DEFAULT_TIME_SIGNATURE_EDITOR_LANE };
+    }
     // songEvent에는 editorLane이 없으므로 파일 이벤트의 레인(생략 포함)이 그대로 남는다.
     return sameTimingValue(match, songEvent) ? match : { ...match, ...songEvent };
   });
