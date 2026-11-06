@@ -3,7 +3,7 @@
  * 음원 교체·변경 취소는 앞뒤 편집과 합치지 않는다. 서버 리비전·저장 기준은 초안 복원과 별개다.
  * 오프셋·BPM·박자표 변경은 정지 중에만 허용한다(RFD 0099).
  */
-import type { PlaybackRange } from '../shared';
+import { beatEq, type ChartEvent, type PlaybackRange } from '../shared';
 import { isPlaybackLockedChange } from './editing/playbackEditLock';
 import { AUDIO_RANGE_RESET_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
 import { rangesForNewAudio, type NewAudioRanges } from './components/previewRangeState';
@@ -114,19 +114,26 @@ export function discardSongInfoChanges(): DiscardSongInfoResult {
   return { discarded: true };
 }
 
+/** 변경 취소 뒤 그 이벤트의 자리. 값이 되돌아간 타이밍 이벤트는 새 객체이므로 같은 객체가 없으면 종류와 박으로 찾는다. 없으면 -1이다. */
+function restoredEventIndex(event: ChartEvent, indexByEvent: ReadonlyMap<ChartEvent, number>, afterEvents: readonly ChartEvent[]): number {
+  return indexByEvent.get(event)
+    ?? afterEvents.findIndex(after => after.type === event.type && beatEq(after.beat, event.beat));
+}
+
 /**
- * 이벤트 배열이 바뀐 뒤에도 고른 이벤트를 같은 객체로 다시 찾는다. setChart는 배열이 줄 때만 객체로 다시 찾으므로,
- * 변경 취소처럼 타이밍 이벤트를 앞에 다시 놓아 순서가 바뀌는 경우는 여기서 맞춘다.
+ * 이벤트 배열이 바뀐 뒤에도 고른 이벤트를 다시 찾는다. setChart는 배열이 줄 때만 객체로 다시 찾으므로,
+ * 변경 취소처럼 타이밍 이벤트를 앞에 다시 놓아 순서가 바뀌거나 값이 되돌아가 객체가 바뀌는 경우는 여기서 맞춘다.
+ * 되돌린 뒤 사라진 이벤트는 선택에서 뺀다.
  */
 function keepEventSelection(
   selection: ReturnType<typeof useEditorStore.getState>['selection'],
-  beforeEvents: readonly unknown[],
-  afterEvents: readonly unknown[],
+  beforeEvents: readonly ChartEvent[],
+  afterEvents: readonly ChartEvent[],
 ): void {
   const indexByEvent = new Map(afterEvents.map((event, index) => [event, index]));
   const events = new Set([...selection.events].flatMap(index => {
-    const next = indexByEvent.get(beforeEvents[index]);
-    return next === undefined ? [] : [next];
+    const next = restoredEventIndex(beforeEvents[index], indexByEvent, afterEvents);
+    return next === -1 ? [] : [next];
   }));
   const state = useEditorStore.getState();
   // 차트 변경이 하는 선택 보정이라 재생 여부와 관계없이 store에 직접 쓴다(setChart·Undo와 같다).

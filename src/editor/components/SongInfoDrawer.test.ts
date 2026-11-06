@@ -20,6 +20,12 @@ vi.mock('../stores', async importOriginal => {
   return { ...actual, useEditorStore: Object.assign(readCurrent, store) };
 });
 vi.mock('../../shared/toast', () => ({ showToast: vi.fn() }));
+// 서버 렌더는 effect를 돌리지 않는다. 입력칸이 store 값을 따라가는 effect를 테스트가 직접 돌리도록 모은다.
+const lifecycle = vi.hoisted(() => ({ effects: [] as Array<() => unknown> }));
+vi.mock('react', async importOriginal => ({
+  ...await importOriginal<typeof import('react')>(),
+  useEffect: (effect: () => unknown) => { lifecycle.effects.push(effect); },
+}));
 
 const store = () => useEditorStore.getState();
 const loadedSong = { title: '곡', artist: '작곡가', jacketUrl: null, audioUrl: 'audio.ogg',
@@ -38,7 +44,9 @@ const render = (overrides: Partial<SongInfoDrawerProps> = {}) => renderToStaticM
 type ElementProps = {
   children?: ReactNode; defaultValue?: string; type?: string; accept?: string; disabled?: boolean; tabIndex?: number;
   hidden?: boolean; 'aria-label'?: string; 'aria-current'?: string; title?: string;
+  ref?: { current: unknown };
   onBlur?: (event: { currentTarget: { value: string } }) => void;
+  onKeyDown?: (event: { key: string; currentTarget: { value: string } }) => void;
   onClick?: () => void;
   onChange?: (event: { currentTarget: { files: File[] } }) => void;
 };
@@ -146,6 +154,91 @@ describe('곡 정보 드로어의 곡 공통 값', () => {
     for (const accept of ['image/*', 'audio/*']) {
       expect(found.find(e => e.type === 'input' && e.props.accept === accept)!.props).toMatchObject({ tabIndex: -1, hidden: true });
     }
+  });
+});
+
+describe('드로어 입력칸의 Enter와 바깥 변경', () => {
+  /** 마운트된 입력칸 하나. 값을 덮어쓴 기록(writes)과 포커스 이동(blur)을 남긴다. */
+  function fakeField(initial: string) {
+    let value = initial;
+    const writes: string[] = [];
+    return { writes, blur: vi.fn(),
+      get value() { return value; },
+      set value(next: string) { writes.push(next); value = next; } };
+  }
+  /** 드로어를 렌더해 Title·Artist·Offset 입력칸을 돌려준다. */
+  const drawerInputs = () => tree().filter(e => e.type === 'input' && (e.props.type === 'text' || e.props.type === 'number'));
+  /** store가 바뀐 뒤 다시 렌더하며 마운트돼 있던 입력칸(field)을 ref로 받아 effect를 돌린다. */
+  function rerenderMounted(index: number, field: ReturnType<typeof fakeField>) {
+    lifecycle.effects.length = 0;
+    drawerInputs()[index].props.ref!.current = field;
+    for (const effect of lifecycle.effects) effect();
+  }
+  const fields = [['Title', '곡', '새 제목', 0], ['Artist', '작곡가', '새 작곡가', 1], ['Offset', '0', '45', 2]] as const;
+  const shown = () => { const { title, artist, offsetMs } = store().chart.meta; return [title, artist, String(offsetMs)]; };
+
+  it.each(fields)('%s 입력칸(%s → %s)에서 Enter를 누르면 포커스를 옮기지 않고 값을 적용한다', (_, __, next, index) => {
+    const field = fakeField(next);
+
+    drawerInputs()[index].props.onKeyDown!({ key: 'Enter', currentTarget: field });
+
+    expect(shown()[index]).toBe(next);
+    expect(field.blur).not.toHaveBeenCalled();
+  });
+
+  it('Title·Artist·Offset의 값이 새 제목·새 작곡가·45로 바뀌어도 세 입력칸의 key가 같아 다시 마운트하지 않는다', () => {
+    const before = drawerInputs().map(e => e.key);
+
+    store().applyMetaEdit({ title: '새 제목', artist: '새 작곡가', offsetMs: 45 });
+
+    expect(drawerInputs().map(e => e.key)).toEqual(before);
+  });
+
+  it.each(fields)('%s 입력칸(%s → %s)을 Enter로 적용한 뒤 Undo하면 마운트된 입력칸이 원래 값을, Redo하면 새 값을 보인다', (_, previous, next, index) => {
+    const field = fakeField(next);
+    drawerInputs()[index].props.onKeyDown!({ key: 'Enter', currentTarget: field });
+
+    store().undo();
+    rerenderMounted(index, field);
+    expect(field.value).toBe(previous);
+
+    store().redo();
+    rerenderMounted(index, field);
+    expect(field.value).toBe(next);
+  });
+
+  it('Title을 Enter로 새 제목에 적용해 같은 값이 store에서 돌아오면 입력칸을 다시 쓰지 않아 캐럿이 움직이지 않는다', () => {
+    const field = fakeField('새 제목');
+    drawerInputs()[0].props.onKeyDown!({ key: 'Enter', currentTarget: field });
+
+    rerenderMounted(0, field);
+
+    expect(field.writes).toEqual([]);
+  });
+
+  it('Title을 Enter로 새 제목에 적용한 뒤 포커스를 옮기면 적용할 것이 없어 Undo 이력이 1개로 남는다', () => {
+    const field = fakeField('새 제목');
+    drawerInputs()[0].props.onKeyDown!({ key: 'Enter', currentTarget: field });
+
+    drawerInputs()[0].props.onBlur!({ currentTarget: field });
+
+    expect(store().historyPast).toHaveLength(1);
+  });
+
+  it('Offset 입력에 abc를 넣고 Enter를 누르면 포커스를 옮기지 않고 오프셋 0을 유지하며 입력칸을 0으로 되돌린다', () => {
+    const field = fakeField('abc');
+
+    drawerInputs()[2].props.onKeyDown!({ key: 'Enter', currentTarget: field });
+
+    expect(store().chart.meta.offsetMs).toBe(0);
+    expect(field.value).toBe('0');
+    expect(field.blur).not.toHaveBeenCalled();
+  });
+
+  it('Title에 새 제목을 입력하던 중 Enter가 아닌 키(S)를 누르면 아직 적용하지 않는다', () => {
+    drawerInputs()[0].props.onKeyDown!({ key: 's', currentTarget: fakeField('새 제목') });
+
+    expect(store().chart.meta.title).toBe('곡');
   });
 });
 

@@ -27,7 +27,7 @@ import { useGameStore } from '../../game/stores';
 import { performPlayTest } from '../playtest/performPlayTest';
 import { editorChartErrors } from '../documentValidation';
 import type { SavedChartJson } from '../savedChart';
-import { CHART_SAVE_COPY, PAUSE_TO_EDIT_COPY, SAVE_AUDIO_LOADING_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
+import { CHART_SAVE_COPY, PAUSE_TO_EDIT_COPY, PLAY_TEST_AUDIO_LOADING_COPY, SAVE_AUDIO_LOADING_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 import { settleSonglessMedia, songlessMediaPaths, uploadSonglessMedia, withSonglessMediaPaths } from '../saveSonglessMedia';
 import { hasSonglessMedia } from '../songlessMedia';
 export { performPlayTest } from '../playtest/performPlayTest';
@@ -372,6 +372,11 @@ export function useFileOperations(
     // 곡·차트 저장 완료 전에 테스트 플레이로 이동하지 않는다. 툴바 밖 호출도 같은 조건을 적용한다.
     if (useEditorStore.getState().isSavingChart || useEditorStore.getState().isSavingSong) {
       addToast(SAVE_IN_PROGRESS_COPY.playTest, 'error');
+      return;
+    }
+    // 드로어에서 고른 음원을 불러오는 중이면 시작하지 않는다. 시작하면 게임이 이전 버퍼로 열리고 고른 음원은 적용되지 않는다.
+    if (useEditorStore.getState().isLoadingSongAudio) {
+      addToast(PLAY_TEST_AUDIO_LOADING_COPY, 'error');
       return;
     }
     const editor = useEditorStore.getState();

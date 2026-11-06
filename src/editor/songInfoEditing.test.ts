@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { beat } from '../shared';
+import { beat, beatEq } from '../shared';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
 import { isChartDirty, toSavedChartJson } from './savedChart';
 import { createSongAudioId, isSongDirty, songValues } from './songState';
-import type { ChartDocument } from '../shared';
+import type { ChartDocument, ChartEvent } from '../shared';
 import type { LoadedSongSharedData } from '../supabase/songSharedData';
 import { useEditorStore } from './stores/editorStore';
 import { AUDIO_RANGE_RESET_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
@@ -474,6 +474,68 @@ describe('곡 정보 변경 취소의 타이밍 이벤트 자리와 선택(RFD 0
     const selected = [...store().selection.events];
     expect(selected).toEqual([3]);
     expect(store().chart.events[selected[0]].type).toBe('auto');
+  });
+
+  /** matches에 맞는 이벤트를 edit로 바꾸고, 바꾼 이벤트와 also 종류의 이벤트를 고른다. */
+  function editAndSelect(matches: (event: ChartEvent) => boolean, edit: (event: ChartEvent) => ChartEvent, also: ChartEvent['type'][] = []) {
+    const events = store().chart.events;
+    const edited = events.findIndex(matches);
+    store().setChart({ ...store().chart, events: events.map((event, index) => index === edited ? edit(event) : event) });
+    store().setSelection({ notes: new Set(), zones: new Set(), restZones: new Set(),
+      events: new Set([edited, ...also.map(type => events.findIndex(event => event.type === type))]) });
+  }
+  const selectedEvents = () => [...store().selection.events].map(index => store().chart.events[index]);
+  const bpmAt = (at: number) => (event: ChartEvent) => event.type === 'bpm' && beatEq(event.beat, beat(at));
+
+  it('저장한 4박 BPM 150을 180으로 바꿔 고른 뒤 변경 취소하면 BPM은 150으로 돌아오고 새 객체인 그 4박 BPM이 선택에 남는다', () => {
+    openWithBpmAt4();
+    editAndSelect(bpmAt(4), event => ({ ...event, bpm: 180 }) as ChartEvent);
+
+    expect(discardSongInfoChanges()).toEqual({ discarded: true });
+
+    expect(selectedEvents()).toEqual([expect.objectContaining({ type: 'bpm', beat: beat(4), bpm: 150, editorLane: 3 })]);
+  });
+
+  it('값을 바꾼 4박 BPM과 auto 이벤트를 함께 고른 뒤 변경 취소하면 둘 다 선택에 남는다', () => {
+    openWithBpmAt4();
+    editAndSelect(bpmAt(4), event => ({ ...event, bpm: 180 }) as ChartEvent, ['auto']);
+
+    discardSongInfoChanges();
+
+    expect(selectedEvents().map(event => event.type).sort()).toEqual(['auto', 'bpm']);
+  });
+
+  it('4박에 BPM과 박자표 3이 함께 저장된 곡에서 박자표를 5로 바꿔 고른 뒤 변경 취소하면 같은 4박의 BPM이 아니라 박자표 3이 선택에 남는다', () => {
+    const signatureAt4 = { type: 'timeSignature' as const, beat: beat(4), beatPerMeasure: beat(3), editorLane: 4 };
+    const chart: ChartDocument = { ...base, events: [...base.events, bpmAt4, signatureAt4] };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(chart, 2).chartJson, null, loadedSong), loadedSong);
+    editAndSelect(event => event.type === 'timeSignature' && beatEq(event.beat, beat(4)),
+      event => ({ ...event, beatPerMeasure: beat(5) }) as ChartEvent);
+
+    discardSongInfoChanges();
+
+    expect(selectedEvents()).toEqual([expect.objectContaining({ type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(3) })]);
+  });
+
+  it('저장한 4박 BPM을 8박으로 옮겨 고른 뒤 변경 취소하면 8박 BPM이 사라져 4박 BPM을 대신 고르지 않고 선택이 빈다', () => {
+    openWithBpmAt4();
+    editAndSelect(bpmAt(4), event => ({ ...event, beat: beat(8) }) as ChartEvent);
+
+    discardSongInfoChanges();
+
+    expect(store().selection.events.size).toBe(0);
+  });
+
+  it('저장에 없는 12박 BPM을 새로 놓아 고른 뒤 변경 취소하면 그 BPM이 사라져 선택이 빈다', () => {
+    openWithBpmAt4();
+    store().setChart({ ...store().chart, events: [...store().chart.events, { type: 'bpm', beat: beat(12), bpm: 200, editorLane: 3 }] });
+    store().setSelection({ notes: new Set(), zones: new Set(), restZones: new Set(),
+      events: new Set([store().chart.events.findIndex(bpmAt(12))]) });
+
+    discardSongInfoChanges();
+
+    expect(store().chart.events.some(bpmAt(12))).toBe(false);
+    expect(store().selection.events.size).toBe(0);
   });
 });
 

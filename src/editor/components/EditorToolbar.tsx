@@ -11,7 +11,7 @@ import { selectCanRedo, selectCanUndo, useEditorStore } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { editorChartErrors } from '../documentValidation';
 import { hasUnsavedEditorChanges, hasUnsavedSongInfo } from '../unsavedChangesFlow';
-import { PAUSE_TO_EDIT_COPY, SAVE_IN_PROGRESS_COPY, SONG_INFO_DRAWER_COPY } from '../editorCopy';
+import { PAUSE_TO_EDIT_COPY, PLAY_TEST_AUDIO_LOADING_COPY, SAVE_IN_PROGRESS_COPY, SONG_INFO_DRAWER_COPY } from '../editorCopy';
 import { editAudioOffset } from '../songInfoEditing';
 import { color, edge } from '../../shared/theme';
 
@@ -735,12 +735,15 @@ export function EditorToolbar({
   // (안 하면 이후 새 위반 발생 시 사용자가 열지 않았는데 팝오버가 열린 채 나타남)
   // 자기 컴포넌트 대상 조건부 보정이라 다음 렌더에 조건이 풀려 무한루프 없음.
   if (violationCount === 0 && showViolationList) setShowViolationList(false);
-  // 저장 중에도 비활성이다 — 저장이 끝나기 전에 /game으로 가지 않게 한다(useFileOperations.handlePlayTest와 같은 조건).
-  const playTestDisabled = violationCount > 0 || saving || savingSong;
+  // 저장 중·드로어 음원 로딩 중에도 비활성이다 — 저장이 끝나기 전에 /game으로 가거나 고른 음원을 버리지 않게 한다
+  // (useFileOperations.handlePlayTest와 같은 조건).
+  const playTestDisabled = violationCount > 0 || saving || savingSong || isLoadingSongAudio;
   const hasExplicitMain = mainNotes(chart.notes).some(isExplicitNote);
   const playTestDisabledTitle = saving || savingSong
     ? SAVE_IN_PROGRESS_COPY.playTest
-    : `배치 제약 위반 ${violationCount}건을 해소한 뒤 플레이할 수 있습니다`;
+    : isLoadingSongAudio
+      ? PLAY_TEST_AUDIO_LOADING_COPY
+      : `배치 제약 위반 ${violationCount}건을 해소한 뒤 플레이할 수 있습니다`;
 
   const compactIconStyle = {
     ...styles.compactButton,

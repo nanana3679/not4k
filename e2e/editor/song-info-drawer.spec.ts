@@ -37,7 +37,8 @@ async function editorState(page: Page) {
     const path = '/src/editor/stores/editorStore.ts';
     const store = (await import(path)).useEditorStore.getState();
     return { title: store.chart.meta.title as string, offsetMs: store.chart.meta.offsetMs as number,
-      notes: store.chart.notes.length as number, isPlaying: store.isPlaying as boolean };
+      notes: store.chart.notes.length as number, selectedNotes: store.selection.notes.size as number,
+      isPlaying: store.isPlaying as boolean };
   });
 }
 
@@ -58,6 +59,16 @@ async function makeChartDirty(page: Page) {
   await page.locator('select').filter({ has: page.locator('option[value="10"]') }).selectOption('3');
   await page.mouse.click(10, 100);
   await expect(unsavedSave(page)).toBeVisible();
+}
+
+/** 1레인 2박에 탭을 놓고 S로 Select 모드에 둔 뒤 그 탭을 고른다. */
+async function placeAndSelectTap(page: Page) {
+  const point = await canvasPosition(page, 1, 2);
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(async () => (await editorState(page)).notes).toBe(1);
+  await page.keyboard.press('s');
+  await page.mouse.click(point.x, point.y);
+  await expect.poll(async () => (await editorState(page)).selectedNotes).toBe(1);
 }
 
 async function requestLeave(page: Page) {
@@ -93,6 +104,67 @@ test.describe('곡 정보 드로어', () => {
     await offset.press('Space');
     await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
     expect(await editorState(page)).toMatchObject({ offsetMs: 50, isPlaying: true });
+  });
+
+  test('Select 모드에서 1레인 2박 탭을 고른 채 Title에 새 제목을 넣고 Enter를 누르면 포커스가 Title에 남아 Backspace는 글자만 지우고 탭과 선택이 남으며, 툴바 Undo는 드로어를 연 채 입력칸을 원래 제목으로 되돌린다', async ({ page }) => {
+    await openEditor(page, { songTiming: timing });
+    await openSongInfo(page);
+    await placeAndSelectTap(page);
+    const title = songInfo(page).getByLabel('Title', { exact: true });
+
+    await fillTitle(page, '새 제목');
+    await expect.poll(async () => (await editorState(page)).title).toBe('새 제목');
+    await expect(title).toBeFocused();
+
+    // 포커스가 BODY로 갔다면 이 Backspace가 고른 탭을 지운다. locator.press는 입력칸에 포커스를 다시 주므로 keyboard로 누른다.
+    await page.keyboard.press('Backspace');
+    await expect(title).toHaveValue('새 제');
+    expect(await editorState(page)).toMatchObject({ title: '새 제목', notes: 1, selectedNotes: 1 });
+
+    await page.keyboard.type('목');
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(title).toHaveValue('E2E 에디터 곡');
+  });
+
+  test('Delete 모드에서 Title에 새 제목을 입력만 한 채 1레인 2박 탭을 클릭하면 탭이 지워지고 제목이 남으며 Ctrl+Z 1회는 탭만, 2회는 제목까지 되돌린다', async ({ page }) => {
+    await openEditor(page, { songTiming: timing });
+    await openSongInfo(page);
+    const point = await canvasPosition(page, 1, 2);
+    await page.mouse.click(point.x, point.y);
+    await expect.poll(async () => (await editorState(page)).notes).toBe(1);
+    await page.keyboard.press('d');
+    const title = songInfo(page).getByLabel('Title', { exact: true });
+
+    await title.fill('새 제목');
+    await page.mouse.click(point.x, point.y);
+    await expect.poll(async () => (await editorState(page)).notes).toBe(0);
+    expect((await editorState(page)).title).toBe('새 제목');
+    await expect(title).toHaveValue('새 제목');
+
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => (await editorState(page)).notes).toBe(1);
+    expect((await editorState(page)).title).toBe('새 제목');
+
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => (await editorState(page)).title).toBe('E2E 에디터 곡');
+    await expect(title).toHaveValue('E2E 에디터 곡');
+  });
+
+  test('음원 없는 곡에서 1레인 2박 탭을 고른 채 Offset에 45를 넣고 Space를 누르면 45를 적용하고 재생되지 않아 포커스가 Offset에 돌아오며 Backspace는 글자만 지우고 탭과 선택이 남는다', async ({ page }) => {
+    await openEditor(page, { songTiming: timing });
+    await openSongInfo(page);
+    await placeAndSelectTap(page);
+    const offset = songInfo(page).getByLabel('Offset (ms)', { exact: true });
+
+    await offset.fill('45');
+    await offset.press('Space');
+    await expect.poll(async () => (await editorState(page)).offsetMs).toBe(45);
+    await expect(offset).toBeFocused();
+
+    // 포커스가 BODY에 남았다면 이 Backspace가 고른 탭을 지운다. locator.press는 입력칸에 포커스를 다시 주므로 keyboard로 누른다.
+    await page.keyboard.press('Backspace');
+    await expect(offset).toHaveValue('4');
+    expect(await editorState(page)).toMatchObject({ offsetMs: 45, notes: 1, selectedNotes: 1, isPlaying: false });
   });
 
   test('Title을 바꾸고 닫기를 누르면 확인 창이 저장 후 닫기에 포커스를 두고 뒤 화면을 막으며, Tab은 창 안에서 돌고 Escape는 취소로 닫은 뒤 포커스를 닫기 버튼에 돌려준다', async ({ page }) => {

@@ -5,7 +5,8 @@
  * 곡이 소유한 값(제목·아티스트·자켓·음원 정렬 오프셋·음원·프리뷰 구간·인게임 구간)을 편집하며, 값은 바로 에디터 초안에
  * 적용되고 Save 하나가 곡 저장으로 확정한다. BPM·박자표는 타임라인의 이벤트로 편집한다(공통 레인은 PR5b).
  *
- * - 입력칸은 포커스를 옮기거나 Enter를 누를 때 적용한다. Undo·변경 취소처럼 바깥에서 값이 바뀌면 입력칸을 새 값으로 다시 그린다.
+ * - 입력칸은 포커스를 옮기거나 Enter를 누를 때 적용한다. Enter는 포커스를 옮기지 않아 키가 계속 드로어의 것이다. Undo·변경 취소처럼
+ *   바깥에서 값이 바뀌면 입력칸을 마운트한 채 새 값을 보인다(useFollowedInput).
  * - 오프셋은 타이밍 값이라 재생 중 입력·증감 버튼이 비활성이고, 다른 경로의 시도도 값을 바꾸지 않는다(RFD 0099).
  * - 구간 선택기는 끌기를 마치고 손을 떼거나 페이드 입력에서 선택기 밖으로 포커스를 옮길 때 적용한다. 선택기가 마운트하며 알리는
  *   처음 구간은 편집이 아니다. 자기가 적용한 값으로는 다시 그리지 않고 바깥 변경(변경 취소·Undo)과 음원 교체 때만 다시 그린다.
@@ -182,9 +183,38 @@ function renderFilePick({ label, accept, disabled = false, inputRef, onPick }: {
   );
 }
 
-const blurOnEnter = (e: KeyboardEvent<HTMLInputElement>) => {
-  if (e.key === 'Enter') e.currentTarget.blur();
+/**
+ * Enter로 입력칸 값을 적용한다. 포커스를 옮기면 BODY로 가 뒤이은 Backspace·S가 고른 노트·모드를 바꾸는 단축키가 되므로 그대로 둔다.
+ * 나중에 포커스가 옮겨 가도 같은 값이라 이력을 더 남기지 않는다.
+ */
+const commitOnEnter = (commit: (field: HTMLInputElement) => void) => (e: KeyboardEvent<HTMLInputElement>) => {
+  if (e.key === 'Enter') commit(e.currentTarget);
 };
+
+/**
+ * 입력칸이 마운트된 채 store 값을 따라가게 하는 ref. 입력 중인 글자는 입력칸이 들고 있고(uncontrolled), Undo·변경 취소·저장 결과로
+ * store 값이 바뀌면 글자를 새 값으로 덮어쓴다. 값을 key로 두면 Enter로 적용하는 순간 입력칸이 다시 마운트돼 포커스를 잃는다.
+ * 방금 적용한 값이 돌아온 경우에는 글자가 같아 쓰지 않으므로 캐럿이 움직이지 않는다.
+ */
+function useFollowedInput(value: string): RefObject<HTMLInputElement | null> {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const field = ref.current;
+    if (field && field.value !== value) field.value = value;
+  }, [value]);
+  return ref;
+}
+
+const commitTitle = (field: HTMLInputElement) => editSongTitle(field.value);
+const commitArtist = (field: HTMLInputElement) => editSongArtist(field.value);
+
+function commitOffset(field: HTMLInputElement) {
+  const parsed = parseFloat(field.value);
+  // 숫자가 아니거나 재생 중이라 막히면 입력칸을 지금 오프셋으로 되돌린다.
+  if (Number.isNaN(parsed) || !editAudioOffset(parsed)) {
+    field.value = String(useEditorStore.getState().chart.meta.offsetMs);
+  }
+}
 
 const OFFSET_STEPS = [-10, -1, 1, 10];
 
@@ -206,6 +236,9 @@ export function SongInfoDrawer({
   const jacketPreviewUrl = useObjectUrl(song?.pendingJacketFile ?? null);
   const jacketInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const titleRef = useFollowedInput(meta.title);
+  const artistRef = useFollowedInput(meta.artist);
+  const offsetRef = useFollowedInput(String(meta.offsetMs));
   // 불러오지 못한 자켓 URL. 다른 URL로 바뀌면 다시 시도한다.
   const [brokenJacketUrl, setBrokenJacketUrl] = useState<string | null>(null);
 
@@ -213,15 +246,6 @@ export function SongInfoDrawer({
   const showJacket = jacketUrl !== null && jacketUrl !== brokenJacketUrl;
   const audioPickLoading = audioPick?.status === 'loading';
   const lockTitle = isPlaying ? PAUSE_TO_EDIT_COPY : undefined;
-
-  const commitOffset = (e: FocusEvent<HTMLInputElement>) => {
-    const field = e.currentTarget;
-    const parsed = parseFloat(field.value);
-    // 숫자가 아니거나 재생 중이라 막히면 입력칸을 지금 오프셋으로 되돌린다.
-    if (Number.isNaN(parsed) || !editAudioOffset(parsed)) {
-      field.value = String(useEditorStore.getState().chart.meta.offsetMs);
-    }
-  };
 
   const isCurrentChart = (row: Pick<StoredChartRow, 'id' | 'difficultyLabel'>) => chartRow
     ? row.id === chartRow.id
@@ -251,23 +275,23 @@ export function SongInfoDrawer({
       <label style={styles.field}>
         <span>Title</span>
         <input
-          key={`title:${meta.title}`}
+          ref={titleRef}
           type="text"
           style={styles.input}
           defaultValue={meta.title}
-          onBlur={(e) => editSongTitle(e.currentTarget.value)}
-          onKeyDown={blurOnEnter}
+          onBlur={(e) => commitTitle(e.currentTarget)}
+          onKeyDown={commitOnEnter(commitTitle)}
         />
       </label>
       <label style={styles.field}>
         <span>Artist</span>
         <input
-          key={`artist:${meta.artist}`}
+          ref={artistRef}
           type="text"
           style={styles.input}
           defaultValue={meta.artist}
-          onBlur={(e) => editSongArtist(e.currentTarget.value)}
-          onKeyDown={blurOnEnter}
+          onBlur={(e) => commitArtist(e.currentTarget)}
+          onKeyDown={commitOnEnter(commitArtist)}
         />
       </label>
 
@@ -275,14 +299,14 @@ export function SongInfoDrawer({
         <label style={styles.field}>
           <span>Offset (ms)</span>
           <input
-            key={`offset:${meta.offsetMs}`}
+            ref={offsetRef}
             type="number"
             style={isPlaying ? { ...styles.input, ...styles.disabled } : styles.input}
             defaultValue={String(meta.offsetMs)}
             disabled={isPlaying}
             title={lockTitle}
-            onBlur={commitOffset}
-            onKeyDown={blurOnEnter}
+            onBlur={(e) => commitOffset(e.currentTarget)}
+            onKeyDown={commitOnEnter(commitOffset)}
           />
         </label>
         <div style={styles.stepRow}>

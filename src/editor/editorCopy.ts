@@ -101,6 +101,12 @@ export const SONG_SAVE_COPY = {
 export const SAVE_AUDIO_LOADING_COPY = "Audio is still loading. Save again after it finishes.";
 
 /**
+ * 드로어에서 고른 음원을 불러오는 중에 테스트 플레이를 시작한 안내. 지금 시작하면 게임이 이전 음원으로 열리고 고른 음원은
+ * 적용되지 않으므로 로드가 끝날 때까지 시작하지 않는다.
+ */
+export const PLAY_TEST_AUDIO_LOADING_COPY = "음원을 불러오는 중에는 테스트 플레이를 시작할 수 없습니다";
+
+/**
  * 차트 저장(Save의 차트 단계·Save As)의 결과 안내(RFD 0107). DB 거부는 이전 파일을 유지한다. 응답 유실은
  * 행 재조회로 성공 여부를 확인하며 확인할 수 없으면 편집과 저장 기준을 유지한다. `failed`는 업로드 등 일반 실패다.
  */
