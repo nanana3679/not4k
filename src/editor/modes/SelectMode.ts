@@ -938,6 +938,9 @@ export class SelectMode implements EditorMode {
 
         const events = this.buildMovedEvents(laneOffset, beatOffset);
         if (!events) return;
+        // BPM·박자만 고른 드래그의 가로 움직임은 아무것도 바꾸지 않는다. 위아래로 갔다 돌아온 프레임은 원위치를 써야 하므로
+        // 지금 차트와 실제로 같을 때만 건너뛴다.
+        if (this.selectsOnlyTimingEvents() && events.every((event, index) => event === this.chart.events[index])) return;
         // Update chart with new positions (preview)
         this.chart = {
           ...this.chart,
@@ -1588,6 +1591,11 @@ export class SelectMode implements EditorMode {
     if (this.originalEventsByIndex.size === 0) return this.chart.events;
     const events = [...this.chart.events];
     for (const [index, origin] of this.originalEventsByIndex) {
+      // 가로 이동에서 BPM·박자는 제자리다. 범위 검사에 세지 않고, 저장된 박 표기도 바꾸지 않도록 원본을 그대로 둔다.
+      if (isTimingEvent(origin) && beatOffset.n === 0) {
+        events[index] = origin;
+        continue;
+      }
       if (isInitialTimingEvent(origin) && beatOffset.n !== 0) {
         this.callbacks.onWarn?.("Cannot move initial event from beat 0");
         return null;

@@ -782,9 +782,9 @@ describe("CreateMode — 곡 공통 열의 BPM·박자 생성", () => {
     expect(callbacks.onChartUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it("0박 BPM이 있을 때 bpm 열 0박을 누르면 그 BPM에 히트해도 만들지 않고 INITIAL_TIMING_EXISTS_COPY를 한 번 띄운다", () => {
+  it("0박 BPM이 있고 누른 자리가 그 BPM이 아니지만 스냅이 0박이면 만들지 않고 INITIAL_TIMING_EXISTS_COPY를 한 번 띄운다", () => {
     const chart = makeChart({ events: [{ type: "bpm", beat: beat(0), bpm: 120 }] });
-    const callbacks = makeTimingCallbacks({ hitTestEvent: () => 0 });
+    const callbacks = makeTimingCallbacks({ hitTestEvent: () => null });
     const mode = new CreateMode(chart, callbacks);
 
     press(mode, BPM_COLUMN_X, 0);
@@ -794,9 +794,9 @@ describe("CreateMode — 곡 공통 열의 BPM·박자 생성", () => {
     expect(callbacks.onWarn).toHaveBeenCalledWith(INITIAL_TIMING_EXISTS_COPY);
   });
 
-  it("4박 BPM이 있을 때 bpm 열 4박을 누르면 만들지 않고 TIMING_EVENT_EXISTS_COPY를 띄운다", () => {
+  it("4박 BPM이 있고 누른 자리가 그 BPM이 아니지만 스냅이 4박이면 만들지 않고 TIMING_EVENT_EXISTS_COPY를 띄운다", () => {
     const chart = makeChart({ events: [{ type: "bpm", beat: beat(4), bpm: 180 }] });
-    const callbacks = makeTimingCallbacks({ hitTestEvent: () => 0 });
+    const callbacks = makeTimingCallbacks({ hitTestEvent: () => null });
     const mode = new CreateMode(chart, callbacks);
 
     press(mode, BPM_COLUMN_X, 4);
@@ -805,15 +805,58 @@ describe("CreateMode — 곡 공통 열의 BPM·박자 생성", () => {
     expect(callbacks.onWarn).toHaveBeenCalledWith(TIMING_EVENT_EXISTS_COPY);
   });
 
-  it("터치 단일 탭 경로로 4박 BPM 자리를 눌러도 만들지 않고 안내한다", () => {
-    const chart = makeChart({ events: [{ type: "bpm", beat: beat(4), bpm: 180 }] });
+  it.each([["0박", 0], ["4박", 4]] as const)("%s BPM을 직접 누르면 더블클릭 편집의 일부라 만들지 않고 안내도 없다", (_name, at) => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(at), bpm: 180 }] });
     const callbacks = makeTimingCallbacks({ hitTestEvent: () => 0 });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, at);
+    press(mode, BPM_COLUMN_X, at);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("터치 단일 탭 경로로 4박 BPM 근처를 누르면 만들지 않고 안내한다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(4), bpm: 180 }] });
+    const callbacks = makeTimingCallbacks({ hitTestEvent: () => null });
     const mode = new CreateMode(chart, callbacks);
 
     mode.onPointerDown(BPM_COLUMN_X, 4);
 
     expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
     expect(callbacks.onWarn).toHaveBeenCalledWith(TIMING_EVENT_EXISTS_COPY);
+  });
+
+  it("스냅이 -2박이면 시간 범위 안이어도 bpm 열에 만들지 않고 안내도 없다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(0), bpm: 120 }] });
+    const callbacks = makeTimingCallbacks({ snapBeat: () => ({ n: -8, d: 4 }) });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 0);
+
+    expect(callbacks.onChartUpdate).not.toHaveBeenCalled();
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("같은 종류가 -2박에 이미 있어도 스냅이 -2박이면 중복 안내 없이 막는다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: { n: -2, d: 1 }, bpm: 120 }] });
+    const callbacks = makeTimingCallbacks({ snapBeat: () => ({ n: -8, d: 4 }) });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 0);
+
+    expect(callbacks.onWarn).not.toHaveBeenCalled();
+  });
+
+  it("스냅 16에서 4박이 {64,16}으로 오면 BPM을 약분한 {4,1}에 저장한다", () => {
+    const chart = makeChart();
+    const callbacks = makeTimingCallbacks({ snapBeat: () => ({ n: 64, d: 16 }) });
+    const mode = new CreateMode(chart, callbacks);
+
+    press(mode, BPM_COLUMN_X, 4);
+
+    expect(callbacks.onChartUpdate.mock.calls[0][0].events[0].beat).toEqual({ n: 4, d: 1 });
   });
 
   it("4박에 박자만 있으면 bpm 열 4박에 BPM을 만들 수 있다", () => {
@@ -853,8 +896,18 @@ describe("CreateMode — 곡 공통 열의 BPM·박자 생성", () => {
     const hit = new CreateMode(chart, makeTimingCallbacks({ hitTestEvent: () => 0 }));
     const empty = new CreateMode(chart, makeTimingCallbacks());
 
-    expect(hit.isPlacementBlocked(BPM_COLUMN_X, 4)).toBe(true);
+    expect(hit.isPlacementBlocked(BPM_COLUMN_X, 8)).toBe(true);
     expect(empty.isPlacementBlocked(BPM_COLUMN_X, 8)).toBe(false);
+  });
+
+  it("isPlacementBlocked는 히트가 없어도 스냅 박에 같은 종류가 있거나 스냅이 -2박이면 true이고 다른 종류만 있으면 false다", () => {
+    const chart = makeChart({ events: [{ type: "bpm", beat: beat(4), bpm: 180 }] });
+    const near = new CreateMode(chart, makeTimingCallbacks());
+    const belowZero = new CreateMode(chart, makeTimingCallbacks({ snapBeat: () => ({ n: -8, d: 4 }) }));
+
+    expect(near.isPlacementBlocked(BPM_COLUMN_X, 4)).toBe(true);
+    expect(near.isPlacementBlocked(SIGNATURE_COLUMN_X, 4)).toBe(false);
+    expect(belowZero.isPlacementBlocked(BPM_COLUMN_X, 4)).toBe(true);
   });
 
   it("도구가 text일 때 보조 레인1을 누르면 BPM·박자가 아니라 text 드래그를 시작한다", () => {

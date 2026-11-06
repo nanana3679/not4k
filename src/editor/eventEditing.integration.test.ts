@@ -7,6 +7,7 @@ import { DeleteMode } from './modes/DeleteMode';
 import { SelectMode } from './modes/SelectMode';
 import { INITIAL_TIMING_EXISTS_COPY } from './editorCopy';
 import { openEditorChart } from './openEditorChart';
+import { isChartDirty, toSavedChartJson } from './savedChart';
 import { selectCanUndo, useEditorStore } from './stores/editorStore';
 import { emptySelection } from './stores/selectionSlice';
 import { createTimelineSpace } from './timeline/TimelineSpace';
@@ -41,13 +42,13 @@ function chartWithoutInitialSignature(): ChartDocument {
     { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(4) }] };
 }
 
-function editor(extraLaneCount = 3, layout?: TimelineLayout) {
+function editor(extraLaneCount = 3, layout?: TimelineLayout, snapDivision = 4) {
   const store = () => useEditorStore.getState();
   const warnings: string[] = [];
   const space = createTimelineSpace({
     getLayout: () => layout ?? editorLayout(extraLaneCount),
     getChart: () => store().chart,
-    getSnapDivision: () => 4,
+    getSnapDivision: () => snapDivision,
     getSelectedNotes: () => store().selection.notes,
     getExtraLaneCount: () => extraLaneCount,
     yToTime: y => y,
@@ -616,6 +617,84 @@ describe('BPM·박자가 섞인 선택의 가로 이동', () => {
     const before = store().chart;
     mode.moveByLane('right');
     expect(store().chart).toBe(before);
+  });
+
+  /** 타임라인 끝(60초, 약 178박)을 넘긴 400박 BPM이 있는 차트. 이벤트 4가 그 BPM이다. */
+  function loadBpmPastTimelineEnd() {
+    useEditorStore.getState().loadChart({ ...chartFixture(),
+      events: [...chartFixture().events, { type: 'bpm', beat: beat(400), bpm: 150 }] });
+  }
+
+  it('타임라인 끝을 넘긴 400박 BPM과 레인1 노트를 함께 고르고 →를 누르면 노트가 레인2로 가고 BPM은 범위 검사에 세지 않는다', () => {
+    loadBpmPastTimelineEnd();
+    const { mode, store } = editor();
+    store().setSelection({ ...emptySelection(), notes: new Set([0]), events: new Set([4]) });
+    mode.moveByLane('right');
+    expect(store().chart.notes[0].lane).toBe(2);
+    expect(store().chart.events[4]).toEqual({ type: 'bpm', beat: beat(400), bpm: 150 });
+  });
+
+  it('타임라인 끝을 넘긴 400박 BPM과 레인1 노트를 함께 고르고 노트를 레인2로 끌면 노트가 옮겨진다', () => {
+    loadBpmPastTimelineEnd();
+    const { mode, store } = editor();
+    store().setSelection({ ...emptySelection(), notes: new Set([0]), events: new Set([4]) });
+    mode.onPointerDown(noteX(1), 2000, false, false);
+    mode.onPointerMove(noteX(2), 2000);
+    mode.onPointerUp(noteX(2), 2000);
+    expect(store().chart.notes[0].lane).toBe(2);
+  });
+
+  it('타임라인 끝을 넘긴 400박 BPM을 ↑로 옮기면 세로 이동이라 범위 검사로 막는다', () => {
+    loadBpmPastTimelineEnd();
+    const { mode, store, selectEvents } = editor();
+    selectEvents(4);
+    mode.moveBySnap('up');
+    expect(store().chart.events[4].beat).toEqual(beat(400));
+  });
+
+  describe('스냅 16으로 {64,16}에 저장된 4박 BPM', () => {
+    const unreducedBpm = { type: 'bpm', beat: { n: 64, d: 16 }, bpm: 180 } as const;
+    function loadUnreducedBpm() {
+      const chart: ChartDocument = { ...chartFixture(), events: [chartFixture().events[0], chartFixture().events[1], unreducedBpm] };
+      useEditorStore.getState().loadChart(chart);
+      return toSavedChartJson(chart, 3);
+    }
+
+    it('bpm 열에서 timeSignature 열로 가로로만 끌면 차트 객체·이력이 그대로이고 곡 행이 없어도 dirty가 아니다', () => {
+      const saved = loadUnreducedBpm();
+      const { mode, store } = editor(3, undefined, 16);
+      const before = store().chart;
+      const historyBefore = history();
+      mode.onPointerDown(BPM_X, 2000, false, false);
+      mode.onPointerMove(SIGNATURE_X, 2000);
+      mode.onPointerUp(SIGNATURE_X, 2000);
+      expect(store().chart).toBe(before);
+      expect(history()).toBe(historyBefore);
+      expect(isChartDirty(store().chart, 3, saved, false)).toBe(false);
+    });
+
+    it('위로 끌었다가 다른 열에서 시작 높이로 돌아오면 원위치 {64,16}로 복귀하고 이력이 없다', () => {
+      const saved = loadUnreducedBpm();
+      const { mode, store } = editor(3, undefined, 16);
+      const historyBefore = history();
+      mode.onPointerDown(BPM_X, 2000, false, false);
+      mode.onPointerMove(BPM_X, 2500);
+      expect(store().chart.events[2].beat).toEqual(beat(11, 2));
+      mode.onPointerMove(SIGNATURE_X, 2000);
+      expect(store().chart.events[2]).toBe(unreducedBpm);
+      mode.onPointerUp(SIGNATURE_X, 2000);
+      expect(history()).toBe(historyBefore);
+      expect(isChartDirty(store().chart, 3, saved, false)).toBe(false);
+    });
+
+    it('레인1 노트와 함께 →로 옮기면 노트만 바뀌고 BPM은 같은 객체로 남는다', () => {
+      loadUnreducedBpm();
+      const { mode, store } = editor(3, undefined, 16);
+      store().setSelection({ ...emptySelection(), notes: new Set([0]), events: new Set([2]) });
+      mode.moveByLane('right');
+      expect(store().chart.notes[0].lane).toBe(2);
+      expect(store().chart.events[2]).toBe(unreducedBpm);
+    });
   });
 
   it('레인1 노트와 BPM을 함께 고르고 ↑를 누르면 둘 다 한 스냅 올라간다', () => {

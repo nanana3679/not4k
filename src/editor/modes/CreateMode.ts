@@ -20,7 +20,7 @@ import type {
   Beat,
   Lane,
 } from "../../shared";
-import { beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, fromAuxIndex, isMainLane, beatEq, deriveExplicitNoteRelations } from "../../shared";
+import { beat as reducedBeat, beatLt, beatGt, beatGte, beatLte, beatMin, beatMax, beatToFloat, fromAuxIndex, isMainLane, beatEq, deriveExplicitNoteRelations } from "../../shared";
 import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { EventPlacementInput } from "../timeline/TimelineLayout";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
@@ -216,7 +216,7 @@ export class CreateMode implements EditorMode {
    * (Create 모드는 gesture의 shift/alt/toggle 수식자를 쓰지 않는다.)
    */
   handlePointerDown(gesture: PointerGesture): void {
-    // 곡 공통 열은 같은 박의 이벤트에 히트해도 막은 이유를 안내하므로 배치 제약이 조용히 막기 전에 넘긴다.
+    // 곡 공통 열은 스냅 박에 같은 종류가 있으면 막은 이유를 안내하므로 배치 제약이 조용히 막기 전에 넘긴다.
     if (this.callbacks.space.xToTimingColumn(gesture.x) === null && this.isPlacementBlocked(gesture.x, gesture.y)) return;
     this.onPointerDown(gesture.x, gesture.y);
   }
@@ -227,9 +227,12 @@ export class CreateMode implements EditorMode {
    */
   isPlacementBlocked(x: number, y: number): boolean {
     if (!this.callbacks.isTimeInBounds(y)) return true;
-    if (this.callbacks.space.xToTimingColumn(x) !== null || isEventEntityType(this.selectedEntityType)) {
-      return this.callbacks.space.hitTestEvent(x, y) !== null;
+    const timingColumn = this.callbacks.space.xToTimingColumn(x);
+    if (timingColumn !== null) {
+      const at = this.timingBeatAt(y);
+      return beatToFloat(at) < 0 || this.callbacks.space.hitTestEvent(x, y) !== null || this.hasTimingEventAt(timingColumn, at);
     }
+    if (isEventEntityType(this.selectedEntityType)) return this.callbacks.space.hitTestEvent(x, y) !== null;
     // 틱·릴리즈는 바디 안에도 놓는다. 중복·소속은 공용 의미 검증으로 표시한다.
     if (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
     const unifiedHit = this.callbacks.space.hitTestUnifiedNote(x, y);
@@ -621,21 +624,34 @@ export class CreateMode implements EditorMode {
     this.commitEvent(newEvent);
   }
 
+  /** 곡 공통 열에 놓을 박. 스냅 결과는 약분되어 있지 않아 저장 전에 약분한다. 그래야 이후 이동의 약분이 값을 바꾸지 않는다. */
+  private timingBeatAt(y: number): Beat {
+    const snapped = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
+    return reducedBeat(snapped.n, snapped.d);
+  }
+
+  private hasTimingEventAt(type: TimingEvent["type"], at: Beat): boolean {
+    return this.chart.events.some(event => event.type === type && beatEq(event.beat, at));
+  }
+
   /**
-   * 곡 공통 열의 스냅 박에 BPM 120·박자 4/4를 만든다. 같은 박에 같은 종류가 이미 있으면 이유를 안내하고 만들지 않고,
-   * 그렇지 않아도 허용 오차 안의 이벤트를 누른 자리면 다른 이벤트처럼 조용히 막는다.
+   * 곡 공통 열의 스냅 박에 BPM 120·박자 4/4를 만든다. 놓을 수 있는지는 `isPlacementBlocked`와 같은 기준이다.
+   * 스냅 박이 비었는지보다 누른 자리의 이벤트를 먼저 본다. 놓인 이벤트를 누른 것은 더블클릭 편집의 일부이지 실패한 생성이
+   * 아니므로 안내하지 않고, 근처를 눌러 스냅이 같은 종류의 박에 걸린 경우만 이유를 안내한다.
    */
   private createTimingEventAt(type: TimingEvent["type"], x: number, y: number): void {
     if (!this.callbacks.isTimeInBounds(y)) return;
-    const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
-    if (this.chart.events.some(event => event.type === type && beatEq(event.beat, beat))) {
-      this.callbacks.onWarn?.(beat.n === 0 ? INITIAL_TIMING_EXISTS_COPY : TIMING_EVENT_EXISTS_COPY);
+    const at = this.timingBeatAt(y);
+    // 오프셋이 양수면 0박 아래 여백도 시간 범위 안이다. 0박 앞의 BPM은 차트 전체의 시간을 밀어낸다.
+    if (beatToFloat(at) < 0) return;
+    if (this.callbacks.space.hitTestEvent(x, y) !== null) return;
+    if (this.hasTimingEventAt(type, at)) {
+      this.callbacks.onWarn?.(at.n === 0 ? INITIAL_TIMING_EXISTS_COPY : TIMING_EVENT_EXISTS_COPY);
       return;
     }
-    if (this.callbacks.space.hitTestEvent(x, y) !== null) return;
     this.commitEvent(type === "bpm"
-      ? { type: "bpm", beat, bpm: 120 }
-      : { type: "timeSignature", beat, beatPerMeasure: { n: 4, d: 1 } });
+      ? { type: "bpm", beat: at, bpm: 120 }
+      : { type: "timeSignature", beat: at, beatPerMeasure: { n: 4, d: 1 } });
   }
 
   private commitEvent(event: ChartEvent): void {

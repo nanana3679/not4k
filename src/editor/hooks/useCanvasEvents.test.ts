@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beat, beatToFloat } from '../../shared';
+import { beat, beatToFloat, beatToMs, extractBpmChanges } from '../../shared';
 import type { ChartDocument, DocumentNoteEntity } from '../../shared';
 import { useEditorStore } from '../stores/editorStore';
 import type { EditorModeName } from '../stores/editorStore';
@@ -188,6 +188,7 @@ it.each(['create', 'select'] as const)('%s 모드에서 bpm 열의 4박 BPM을 �
   expect(notes()).toHaveLength(0);
   expect(current().chart.events).toEqual(document.events);
   expect(isChartDirty(current().chart, 2, saved, true)).toBe(false);
+  expect(showToast).not.toHaveBeenCalled();
 });
 
 describe('Delete 모드 짧은 터치', () => {
@@ -301,9 +302,9 @@ describe('곡 공통 열의 BPM·박자 생성(RFD 0082)', () => {
     ['bpm', BPM_X, '터치', 'touch'],
     ['timeSignature', SIGNATURE_X, '마우스', 'mouse'],
     ['timeSignature', SIGNATURE_X, '터치', 'touch'],
-  ] as const)('single 도구로 %s 열(x=%i)의 0박을 %s로 누르면 만들지 않고 INITIAL_TIMING_EXISTS_COPY 안내를 한 번 띄운다', (_column, x, _input, pointerType) => {
+  ] as const)('single 도구로 %s 열(x=%i)의 0.4박(스냅 0박)을 %s로 누르면 만들지 않고 INITIAL_TIMING_EXISTS_COPY 안내를 한 번 띄운다', (_column, x, _input, pointerType) => {
     const { handlers } = setup(chart([], { events: initialEvents() }), 'create', 'single', { layout: editorLayout });
-    tap(handlers, x, 0, pointerType);
+    tap(handlers, x, 200, pointerType);
 
     expect(current().chart.events).toEqual(initialEvents());
     expect(current().historyPast).toEqual([]);
@@ -327,13 +328,53 @@ describe('곡 공통 열의 BPM·박자 생성(RFD 0082)', () => {
     expect(current().historyPast).toHaveLength(1);
   });
 
-  it('timeSignature 열의 4박 박자 자리를 마우스로 누르면 만들지 않고 TIMING_EVENT_EXISTS_COPY 안내를 띄운다', () => {
+  it('timeSignature 열의 4.4박(스냅 4박)을 마우스로 누르면 4박 박자가 있어 만들지 않고 TIMING_EVENT_EXISTS_COPY 안내를 띄운다', () => {
     const events: ChartDocument['events'] = [...initialEvents(), { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(3) }];
     const { handlers } = setup(chart([], { events }), 'create', 'single', { layout: editorLayout });
-    tap(handlers, SIGNATURE_X, 2000, 'mouse');
+    tap(handlers, SIGNATURE_X, 2200, 'mouse');
 
     expect(current().chart.events).toEqual(events);
     expect(vi.mocked(showToast).mock.calls).toEqual([[TIMING_EVENT_EXISTS_COPY, 'warn']]);
+  });
+
+  it('오프셋 1000ms·120 BPM·스냅 4에서 bpm 열의 100ms(스냅 -2박)를 누르면 시간 범위 안이어도 만들지 않아 4박의 시각이 3000ms로 남는다', () => {
+    const source = chart([], { events: initialEvents() });
+    const document = { ...source, meta: { ...source.meta, offsetMs: 1000 } };
+    const { handlers } = setup(document, 'create', 'single', { layout: editorLayout });
+    tap(handlers, BPM_X, 100, 'mouse');
+
+    expect(current().chart.events).toEqual(initialEvents());
+    expect(beatToMs(beat(4), extractBpmChanges(current().chart.events), 1000)).toBe(3000);
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it.each(['single', 'doubleLong', 'tick', 'trillZone', 'text'] as const)('%s 도구로 bpm 열 4박을 터치해도 누를 때는 만들지 않고 뗄 때 하나만 만든다', tool => {
+    const { handlers } = setup(chart([], { events: initialEvents() }), 'create', tool, { layout: editorLayout });
+    handlers.handlePointerDown(pointer(2000, { x: BPM_X }));
+    expect(current().chart.events).toHaveLength(2);
+    handlers.handlePointerUp(pointer(2000, { x: BPM_X, buttons: 0 }));
+
+    expect(current().chart.events).toHaveLength(3);
+    expect(current().chart.events[2]).toMatchObject({ type: 'bpm', bpm: 120 });
+  });
+
+  it.each(['single', 'doubleLong', 'tick', 'trillZone', 'text'] as const)('%s 도구로 bpm 열 4박을 450ms 길게 눌렀다 떼도 하나만 만들고 Create 모드에 남는다', tool => {
+    const { handlers } = setup(chart([], { events: initialEvents() }), 'create', tool, { layout: editorLayout });
+    handlers.handlePointerDown(pointer(2000, { x: BPM_X }));
+    vi.advanceTimersByTime(450);
+    handlers.handlePointerUp(pointer(2000, { x: BPM_X, buttons: 0 }));
+
+    expect(current().chart.events).toHaveLength(3);
+    expect(current().mode).toBe('create');
+  });
+
+  it.each(['single', 'text'] as const)('%s 도구로 bpm 열을 터치한 채 움직였다 떼면 아무것도 만들지 않는다', tool => {
+    const { handlers } = setup(chart([], { events: initialEvents() }), 'create', tool, { layout: editorLayout });
+    handlers.handlePointerDown(pointer(2000, { x: BPM_X }));
+    handlers.handlePointerMove(pointer(2300, { x: BPM_X }));
+    handlers.handlePointerUp(pointer(2300, { x: BPM_X, buttons: 0 }));
+
+    expect(current().chart.events).toEqual(initialEvents());
   });
 
   /** 마우스 이동을 렌더러 고스트 호출로 관찰하는 최소 렌더러. */
@@ -359,6 +400,28 @@ describe('곡 공통 열의 BPM·박자 생성(RFD 0082)', () => {
 
     expect(renderer.showGhostEvent).toHaveBeenCalledExactlyOnceWith({ type }, 1000);
     expect(renderer.showGhostNote).not.toHaveBeenCalled();
+  });
+
+  it('스냅 4에서 4박 BPM이 있을 때 bpm 열의 4.4박 위에서는 고스트를 그리지 않고 timeSignature 열에서는 그린다', () => {
+    const renderer = hoverRenderer();
+    const events: ChartDocument['events'] = [...initialEvents(), { type: 'bpm', beat: beat(4), bpm: 120 }];
+    const { handlers } = setup(chart([], { events }), 'create', 'single',
+      { layout: editorLayout, renderer: renderer as unknown as TimelineRenderer });
+    handlers.handlePointerMove(pointer(2200, { pointerType: 'mouse', buttons: 0, x: BPM_X }));
+    expect(renderer.showGhostEvent).not.toHaveBeenCalled();
+
+    handlers.handlePointerMove(pointer(2200, { pointerType: 'mouse', buttons: 0, x: SIGNATURE_X }));
+    expect(renderer.showGhostEvent).toHaveBeenCalledExactlyOnceWith({ type: 'timeSignature' }, 2000);
+  });
+
+  it('오프셋 1000ms에서 bpm 열의 100ms(스냅 -2박) 위에서는 고스트를 그리지 않는다', () => {
+    const renderer = hoverRenderer();
+    const source = chart([], { events: initialEvents() });
+    const { handlers } = setup({ ...source, meta: { ...source.meta, offsetMs: 1000 } }, 'create', 'single',
+      { layout: editorLayout, renderer: renderer as unknown as TimelineRenderer });
+    handlers.handlePointerMove(pointer(100, { pointerType: 'mouse', buttons: 0, x: BPM_X }));
+
+    expect(renderer.showGhostEvent).not.toHaveBeenCalled();
   });
 
   it('bpm 열의 0박 BPM 위에서는 고스트를 그리지 않는다', () => {
