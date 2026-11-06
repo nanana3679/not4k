@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { dragRangeAt, followRangeInput, initialRangeState, notifiedRange } from './previewRangeState';
+import { canEncodeWavRange, encodeWavBlob } from '../../shared/audio/encodeWav';
+import { dragRangeAt, followRangeInput, initialRangeState, notifiedRange, rangesForNewAudio } from './previewRangeState';
 
 describe('구간 선택기의 처음 구간(initialRangeState)', () => {
   it('프리뷰 값이 없으면 120초 음원에서 30～45초·페이드 0.5초로 시작한다', () => {
@@ -26,6 +27,93 @@ describe('선택기가 알리는 구간(notifiedRange)', () => {
   it('2초 구간에 페이드 1.5초면 구간 절반인 1초로 자른다', () => {
     expect(notifiedRange({ startTime: 3, endTime: 5, enabled: true, fadeInTime: 1.5, fadeOutTime: 0.2 }))
       .toEqual({ startTime: 3, endTime: 5, fadeInTime: 1, fadeOutTime: 0.2 });
+  });
+});
+
+describe('음원을 바꿀 때의 구간(rangesForNewAudio)', () => {
+  const preview = { startTime: 60, endTime: 75, fadeInTime: 1, fadeOutTime: 2 };
+  const gameplay = { startTime: 5, endTime: 170, fadeInTime: 3, fadeOutTime: 4 };
+  const previewDefault = (startTime: number, endTime: number) => ({ startTime, endTime, fadeInTime: 0.5, fadeOutTime: 0.5 });
+  const gameplayDefault = (endTime: number) => ({ startTime: 0, endTime, fadeInTime: 0, fadeOutTime: 0 });
+
+  it('180초 음원의 프리뷰 60～75초·인게임 5～170초를 180초 음원으로 바꾸면 둘 다 페이드까지 그대로 둔다', () => {
+    expect(rangesForNewAudio(180, preview, gameplay)).toEqual({ preview, gameplay, reset: null });
+  });
+
+  it('같은 구간을 70초 음원으로 바꾸면 프리뷰 17.5～32.5초·페이드 0.5초와 인게임 0～70초·페이드 0초로 돌린다', () => {
+    expect(rangesForNewAudio(70, preview, gameplay))
+      .toEqual({ preview: previewDefault(17.5, 32.5), gameplay: gameplayDefault(70), reset: 'both' });
+  });
+
+  it('같은 구간을 50초 음원으로 바꾸면 프리뷰 12.5～27.5초와 인게임 0～50초로 돌린다', () => {
+    expect(rangesForNewAudio(50, preview, gameplay))
+      .toEqual({ preview: previewDefault(12.5, 27.5), gameplay: gameplayDefault(50), reset: 'both' });
+  });
+
+  it('프리뷰 60～75초·인게임 5～60초를 70초 음원으로 바꾸면 프리뷰만 17.5～32.5초로 돌리고 인게임은 페이드까지 그대로 둔다', () => {
+    const shorterGameplay = { ...gameplay, endTime: 60 };
+
+    expect(rangesForNewAudio(70, preview, shorterGameplay))
+      .toEqual({ preview: previewDefault(17.5, 32.5), gameplay: shorterGameplay, reset: 'preview' });
+  });
+
+  it('프리뷰 10～25초·인게임 5～170초를 70초 음원으로 바꾸면 인게임만 0～70초로 돌리고 프리뷰는 페이드까지 그대로 둔다', () => {
+    const earlierPreview = { ...preview, startTime: 10, endTime: 25 };
+
+    expect(rangesForNewAudio(70, earlierPreview, gameplay))
+      .toEqual({ preview: earlierPreview, gameplay: gameplayDefault(70), reset: 'gameplay' });
+  });
+
+  it('프리뷰 끝 75초가 새 음원 길이 75초와 같으면 들어가는 구간이라 그대로 둔다', () => {
+    expect(rangesForNewAudio(75, preview, null).preview).toEqual(preview);
+  });
+
+  it('프리뷰 끝 75초가 새 음원 길이 74.5초를 넘으면 시작이 들어가도 18.625～33.625초로 돌린다', () => {
+    expect(rangesForNewAudio(74.5, preview, null)).toMatchObject({ preview: previewDefault(18.625, 33.625), reset: 'preview' });
+  });
+
+  it('길이 0인 프리뷰 120～120초는 120초 음원에서도 들어가지 않는 구간이라 30～45초로 돌린다', () => {
+    expect(rangesForNewAudio(120, { startTime: 120, endTime: 120 }, null))
+      .toMatchObject({ preview: previewDefault(30, 45), reset: 'preview' });
+  });
+
+  it('시작이 음수인 프리뷰 -1～10초는 들어가지 않는 구간이라 120초 음원에서 30～45초로 돌린다', () => {
+    expect(rangesForNewAudio(120, { startTime: -1, endTime: 10 }, null))
+      .toMatchObject({ preview: previewDefault(30, 45), reset: 'preview' });
+  });
+
+  it('이전 프리뷰·인게임 구간이 없으면 120초 음원의 기본값 30～45초·0～120초를 쓰고 돌린 구간으로 치지 않는다', () => {
+    expect(rangesForNewAudio(120, {}, null))
+      .toEqual({ preview: previewDefault(30, 45), gameplay: gameplayDefault(120), reset: null });
+  });
+
+  it('프리뷰 시작 60초만 있고 끝이 없으면 이전 구간이 없는 것으로 보아 120초 음원의 기본값 30～45초를 쓰고 돌린 구간으로 치지 않는다', () => {
+    expect(rangesForNewAudio(120, { startTime: 60 }, null)).toMatchObject({ preview: previewDefault(30, 45), reset: null });
+  });
+
+  it.each([
+    [20, 5, 20],
+    [16, 1, 16],
+    [15, 0, 15],
+    [10, 0, 10],
+    [5, 0, 5],
+    [3, 0, 3],
+  ])('프리뷰 60～75초를 %d초 음원으로 바꾸면 끝에서 15초 앞을 넘지 않아 %d～%d초로 돌린다', (duration, startTime, endTime) => {
+    expect(rangesForNewAudio(duration, preview, null).preview).toEqual(previewDefault(startTime, endTime));
+  });
+
+  it('프리뷰 60～75초를 0.6초 음원으로 바꾸면 곡 전체 0～0.6초로 돌리고 페이드 0.5초를 구간 절반 0.3초로 자른다', () => {
+    expect(rangesForNewAudio(0.6, preview, null).preview).toEqual({ startTime: 0, endTime: 0.6, fadeInTime: 0.3, fadeOutTime: 0.3 });
+  });
+
+  it('프리뷰 60～75초를 44100Hz 10초 음원으로 바꾸면 돌린 0～10초가 canEncodeWavRange를 통과하고 encodeWavBlob이 441000샘플 WAV를 만든다', () => {
+    const samples = new Float32Array(441000);
+    const audioBuffer = { length: samples.length, sampleRate: 44100, numberOfChannels: 1, getChannelData: () => samples } as unknown as AudioBuffer;
+
+    const range = rangesForNewAudio(samples.length / 44100, preview, null).preview;
+
+    expect(canEncodeWavRange(audioBuffer, range.startTime, range.endTime)).toBe(true);
+    expect(encodeWavBlob(audioBuffer, range.startTime, range.endTime, range).size).toBe(44 + 441000 * 2);
   });
 });
 

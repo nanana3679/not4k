@@ -32,10 +32,18 @@ function controls(node: ReactNode): ControlProps[] {
     ? [child.props, ...controls(child.props.children)] : []);
 }
 
-function ranges(node: ReactNode): { label: string; onChange: (range: PreviewRangeState | null) => void }[] {
+type SelectorProps = {
+  children?: ReactNode;
+  label: string;
+  onChange: (range: PreviewRangeState | null) => void;
+  initialStart?: number;
+  initialEnd?: number;
+  initialFadeInTime?: number;
+  initialFadeOutTime?: number;
+};
+function ranges(node: ReactNode): SelectorProps[] {
   return Children.toArray(node).flatMap(child => {
-    if (!isValidElement<{ children?: ReactNode; label: string;
-      onChange: (range: PreviewRangeState | null) => void }>(child)) return [];
+    if (!isValidElement<SelectorProps>(child)) return [];
     return child.type === PreviewRangeSelector ? [child.props] : ranges(child.props.children);
   });
 }
@@ -128,6 +136,87 @@ it('이번 Meta에서 next.ogg·next.png를 고르고 음원 로드가 끝나면
     expect.objectContaining({ audioFile: 'next.ogg', previewStart: 0, previewEnd: 5 }), range, jacket, range, audio,
   );
   expect(onLoadAudio).toHaveBeenCalledExactlyOnceWith(audio);
+});
+
+describe('곡 행이 없는 차트의 Meta에서 음원을 고른 뒤의 구간', () => {
+  const previewMeta = { ...meta, previewStart: 60, previewEnd: 75 };
+  const gameplay = { startTime: 5, endTime: 170, fadeInTime: 1, fadeOutTime: 2 };
+  const file = new File(['audio'], 'next.ogg');
+  /** 선택기 두 개가 처음 구간으로 받는 값. */
+  function selectorsOf(duration: number, audioPick: MetaAudioPick | null, modalMeta: ChartMeta = previewMeta, initialGameplayRange: typeof gameplay | null = gameplay) {
+    let selectors: SelectorProps[] = [];
+    function Probe() {
+      const tree = MetaEditModal({ meta: modalMeta, audioBuffer: { duration } as AudioBuffer, audioPick, initialGameplayRange,
+        onSave() {}, onClose() {}, onLoadAudio() {} });
+      selectors = ranges(tree);
+      return tree;
+    }
+    renderToStaticMarkup(createElement(Probe));
+    return { preview: [selectors[0].initialStart, selectors[0].initialEnd],
+      gameplay: [selectors[1].initialStart, selectors[1].initialEnd, selectors[1].initialFadeInTime, selectors[1].initialFadeOutTime] };
+  }
+
+  it('프리뷰 60～75초·인게임 5～170초에 180초 음원을 불러오면 선택기가 두 구간과 페이드를 그대로 받는다', () => {
+    expect(selectorsOf(180, { file, status: 'loaded' })).toEqual({ preview: [60, 75], gameplay: [5, 170, 1, 2] });
+  });
+
+  it('프리뷰 60～75초·인게임 5～170초에 70초 음원을 불러오면 선택기가 17.5～32.5초와 0～70초·페이드 0초를 받는다', () => {
+    expect(selectorsOf(70, { file, status: 'loaded' })).toEqual({ preview: [17.5, 32.5], gameplay: [0, 70, 0, 0] });
+  });
+
+  it('프리뷰 60～75초·인게임 5～170초에 50초 음원을 불러오면 선택기가 12.5～27.5초와 0～50초를 받는다', () => {
+    expect(selectorsOf(50, { file, status: 'loaded' })).toEqual({ preview: [12.5, 27.5], gameplay: [0, 50, 0, 0] });
+  });
+
+  it('인게임 5～60초에 70초 음원을 불러오면 인게임은 그대로이고 프리뷰만 17.5～32.5초를 받는다', () => {
+    expect(selectorsOf(70, { file, status: 'loaded' }, previewMeta, { ...gameplay, endTime: 60 }))
+      .toEqual({ preview: [17.5, 32.5], gameplay: [5, 60, 1, 2] });
+  });
+
+  it('프리뷰 10～25초에 70초 음원을 불러오면 프리뷰는 그대로이고 인게임만 0～70초를 받는다', () => {
+    expect(selectorsOf(70, { file, status: 'loaded' }, { ...meta, previewStart: 10, previewEnd: 25 }))
+      .toEqual({ preview: [10, 25], gameplay: [0, 70, 0, 0] });
+  });
+
+  it('재생기가 새 70초 음원을 먼저 알려 pick이 아직 loading이어도 선택기는 마운트할 때 17.5～32.5초와 0～70초를 받는다', () => {
+    expect(selectorsOf(70, { file, status: 'loading' })).toEqual({ preview: [17.5, 32.5], gameplay: [0, 70, 0, 0] });
+  });
+
+  it('고른 음원 로드가 실패해 이전 70초 음원으로 돌아가면 규칙을 쓰지 않아 들어가지 않는 60～75초·5～170초도 선택기가 그대로 받는다', () => {
+    expect(selectorsOf(70, { file, status: 'failed' })).toEqual({ preview: [60, 75], gameplay: [5, 170, 1, 2] });
+  });
+
+  it('음원을 고르지 않은 창은 70초 음원 위 프리뷰 60～75초·인게임 5～170초를 규칙 없이 선택기에 그대로 넘긴다', () => {
+    expect(selectorsOf(70, null)).toEqual({ preview: [60, 75], gameplay: [5, 170, 1, 2] });
+  });
+
+  it('프리뷰 60～75초에 70초 음원을 불러와 선택기가 알린 17.5～32.5초와 0～70초를 Save가 대기 음원과 함께 적용한다', () => {
+    const onSave = vi.fn();
+    const audioBuffer = { duration: 70 } as AudioBuffer;
+    let notified = false;
+    let save: (() => void) | undefined;
+    function Probe() {
+      const tree = MetaEditModal({ meta: previewMeta, audioBuffer, audioPick: { file, status: 'loaded' },
+        initialGameplayRange: gameplay, onSave, onClose() {}, onLoadAudio() {} });
+      if (!notified) {
+        notified = true;
+        // 선택기는 받은 처음 구간을 마운트할 때 그대로 알린다.
+        for (const selector of ranges(tree)) {
+          selector.onChange({ startTime: selector.initialStart!, endTime: selector.initialEnd!, enabled: true, fadeInTime: 0.5, fadeOutTime: 0.5 });
+        }
+      }
+      save = controls(tree).find(field => field.children === 'Save')!.onClick;
+      return tree;
+    }
+    renderToStaticMarkup(createElement(Probe));
+    save!();
+
+    expect(onSave).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ audioFile: 'next.ogg', previewStart: 17.5, previewEnd: 32.5 }),
+      expect.objectContaining({ startTime: 17.5, endTime: 32.5 }), null,
+      expect.objectContaining({ startTime: 0, endTime: 70 }), file,
+    );
+  });
 });
 
 describe('메타 편집 창의 곡 표시 정보', () => {

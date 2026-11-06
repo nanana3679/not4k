@@ -5,8 +5,9 @@
  */
 import type { PlaybackRange } from '../shared';
 import { isPlaybackLockedChange } from './editing/playbackEditLock';
-import { PAUSE_TO_EDIT_COPY } from './editorCopy';
-import { initialRangeState, notifiedRange } from './components/previewRangeState';
+import { AUDIO_RANGE_RESET_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
+import { rangesForNewAudio, type NewAudioRanges } from './components/previewRangeState';
+import type { MetaAudioPlayback, MetaAudioSession } from './metaAudioSession';
 import { savedChartEvents } from './savedChart';
 import { restoreSavedSongInfo, sameSongDraft, songDraftOf } from './songState';
 import { useEditorStore } from './stores/editorStore';
@@ -67,29 +68,44 @@ export function editGameplayRange(range: PlaybackRange): void {
   if (song && !samePlaybackRange(song.gameplayRange, range)) setChart(chart, { songDraft: { gameplayRange: range } });
 }
 
+function notifyResetRanges({ reset }: NewAudioRanges): void {
+  if (reset) useEditorStore.getState().addToast(AUDIO_RANGE_RESET_COPY[reset], 'warn');
+}
+
 /**
- * 로드에 성공한 음원 파일을 곡 음원으로 둔다. 음원 경로·대기 파일·길이와 함께, 새 길이에 맞춘 프리뷰·인게임 구간을 구간
- * 선택기가 처음 그릴 값(initialRangeState)으로 적용한다. 기존 Meta 창이 음원 교체 때 새 길이의 구간을 함께 적용하던 규칙과 같다.
+ * 로드에 성공한 음원 파일을 곡 음원으로 둔다. 음원 경로·대기 파일·길이와 프리뷰·인게임 구간(`rangesForNewAudio`)을 Undo 한 단위로
+ * 적용하고 기본값으로 돌린 구간을 알린다. 구조 위반으로 적용이 거부되면 바뀐 구간이 없으므로 알리지 않는다.
  */
 export function editSongAudio(file: File, duration: number, audioId: number): void {
   const state = useEditorStore.getState();
   const song = state.song;
   if (!song) return;
   const meta = state.chart.meta;
-  const preview = notifiedRange(initialRangeState(duration, {
-    initialStart: meta.previewStart, initialEnd: meta.previewEnd,
-    initialFadeInTime: song.pendingPreviewRange?.fadeInTime, initialFadeOutTime: song.pendingPreviewRange?.fadeOutTime,
-  }));
-  const gameplay = notifiedRange(initialRangeState(duration, {
-    initialStart: song.gameplayRange?.startTime, initialEnd: song.gameplayRange?.endTime,
-    initialFadeInTime: song.gameplayRange?.fadeInTime, initialFadeOutTime: song.gameplayRange?.fadeOutTime,
-    defaultStart: 0, defaultEnd: duration, defaultDuration: duration, showFadeControls: true,
-  }));
+  const ranges = rangesForNewAudio(duration,
+    { ...song.pendingPreviewRange, startTime: meta.previewStart, endTime: meta.previewEnd }, song.gameplayRange);
   state.setChart({ ...state.chart, meta: { ...meta, audioFile: file.name,
-    previewStart: preview.startTime, previewEnd: preview.endTime } }, {
+    previewStart: ranges.preview.startTime, previewEnd: ranges.preview.endTime } }, {
     isolated: true,
-    songDraft: { audioId, duration, pendingAudioFile: file, pendingPreviewRange: preview, gameplayRange: gameplay },
+    songDraft: { audioId, duration, pendingAudioFile: file, pendingPreviewRange: ranges.preview, gameplayRange: ranges.gameplay },
   });
+  if (useEditorStore.getState().song?.audioId === audioId) notifyResetRanges(ranges);
+}
+
+/**
+ * 곡 행이 없는 차트의 Meta 창에서 고른 음원을 불러온다. 구간은 창의 Save가 적용하지만, 돌린 구간은 선택기가 새 음원으로 다시
+ * 그려지는 지금 알려 창을 닫기 전에 다시 고를 수 있게 한다. 이전 구간은 창이 선택기에 넘기는 값과 같다.
+ */
+export async function pickMetaAudio(
+  session: Pick<MetaAudioSession, 'load'>,
+  playback: MetaAudioPlayback | null,
+  file: File,
+  gameplayRange: PlaybackRange | null,
+): Promise<void> {
+  const status = await session.load(playback, file);
+  const duration = playback?.audioBufferData?.duration;
+  if (status !== 'loaded' || duration === undefined) return;
+  const { previewStart, previewEnd } = useEditorStore.getState().chart.meta;
+  notifyResetRanges(rangesForNewAudio(duration, { startTime: previewStart, endTime: previewEnd }, gameplayRange));
 }
 
 export interface DiscardSongInfoResult {

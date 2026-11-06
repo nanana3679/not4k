@@ -874,10 +874,20 @@ describe('프리뷰 클립을 만들 수 없는 구간의 거부', () => {
     expect(api.rpc.mock.calls[1][1]).toMatchObject({ p_preview_url: 'old.wav', p_preview_start: 240, p_preview_end: 265 });
   });
 
-  it('150～165초 행의 200초 곡을 90초 파일로 바꿔 구간이 90～90초가 되면 음원 업로드·RPC 없이 거부하고 다시 저장해도 업로드가 쌓이지 않는다', async () => {
+  it('150～165초 행의 200초 곡을 90초 파일로 바꾸면 구간이 22.5～37.5초로 돌아가 그 구간의 클립을 만들어 저장한다', async () => {
     reopen({ duration: 200, previewStart: 150, previewEnd: 165 });
     editSongAudio(new File(['short'], 'short.ogg'), 90, createSongAudioId());
-    expect(state().chart.meta).toMatchObject({ previewStart: 90, previewEnd: 90 });
+    expect(state().chart.meta).toMatchObject({ previewStart: 22.5, previewEnd: 37.5 });
+
+    expect(await saveEditorSong(audioBufferOf(90), vi.fn())).toBe('saved');
+
+    expect(api.rpc.mock.calls[0][1]).toMatchObject({ p_preview_start: 22.5, p_preview_end: 37.5 });
+  });
+
+  it('200초 곡을 90초 파일로 바꾼 뒤 프리뷰를 90～90초로 두면 음원 업로드·RPC 없이 거부하고 다시 저장해도 업로드가 쌓이지 않는다', async () => {
+    reopen({ duration: 200, previewStart: 150, previewEnd: 165 });
+    editSongAudio(new File(['short'], 'short.ogg'), 90, createSongAudioId());
+    editPreviewRange(previewRange(90, 90));
     const confirm = vi.fn(() => true);
 
     expect(await saveEditorSong(audioBufferOf(90), confirm)).toBe('aborted');

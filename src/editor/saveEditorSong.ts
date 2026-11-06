@@ -44,7 +44,7 @@ export async function saveEditorSong(
       start.addToast(SONG_SAVE_COPY.previewAudioMissing, 'error');
       return 'aborted';
     }
-    // 음원 교체가 구간을 0초로 줄이면(#444) 샘플이 없고, 구간이 음원 끝을 넘으면 잘린 클립이 된다. 인코더가 던지면 이미 올린 음원이
+    // 구간에 샘플이 없으면 인코더가 던지고, 구간이 음원 끝을 넘으면 잘린 클립이 된다. 인코더가 던지면 이미 올린 음원이
     // 고아가 되고 재시도마다 쌓이므로 음원 업로드 전에 거부한다.
     if (previewRange && audioBuffer && !canEncodeWavRange(audioBuffer, previewRange.startTime, previewRange.endTime)) {
       start.addToast(SONG_SAVE_COPY.previewOutOfRange, 'error');
