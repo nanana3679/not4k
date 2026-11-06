@@ -22,7 +22,7 @@ async function editorState(page: Page) {
     const chart: ChartDocument = state.chart;
     return {
       notes: chart.notes.map(note => ({ type: note.type, lane: note.lane, beat: note.beat.n / note.beat.d })),
-      events: chart.events.map(event => ({ type: event.type, lane: event.editorLane ?? 1,
+      events: chart.events.map(event => ({ type: event.type, lane: ('editorLane' in event ? event.editorLane : undefined) ?? 1,
         beat: event.beat.n / event.beat.d,
         ...('endBeat' in event ? { endBeat: event.endBeat.n / event.endBeat.d } : {}),
       })),

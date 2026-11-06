@@ -50,14 +50,17 @@ test.describe('에디터 툴바', () => {
     await expect(dropdown).toBeVisible();
   });
 
-  test('엔티티 타입 드롭다운에서 double·bpm을 고르면 선택값이 double → bpm으로 바뀐다', async ({ page }) => {
+  test('엔티티 타입 드롭다운에서 double·text를 고르면 선택값이 double → text로 바뀌고 BPM·박자는 항목이 없다', async ({ page }) => {
     const dropdown = entityTypeSelect(page);
 
     await dropdown.selectOption('double');
     await expect(dropdown).toHaveValue('double');
 
-    await dropdown.selectOption('bpm');
-    await expect(dropdown).toHaveValue('bpm');
+    await dropdown.selectOption('text');
+    await expect(dropdown).toHaveValue('text');
+
+    await expect(dropdown.locator('option[value="bpm"]')).toHaveCount(0);
+    await expect(dropdown.locator('option[value="timeSignature"]')).toHaveCount(0);
   });
 
   test('Snap 드롭다운에서 1/8·1/16을 고르면 스냅 값이 4 → 8 → 16으로 바뀐다', async ({ page }) => {

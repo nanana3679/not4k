@@ -18,6 +18,12 @@ export const TIMELINE_WIDTH = LANE_COUNT * LANE_WIDTH; // 240px
 export const EXTRA_LANE_WIDTH = 60; // px per extra lane (same as note lane)
 export const MEASURE_LABEL_WIDTH = 32; // px for measure number labels on the left
 
+// 곡 공통 영역의 전용 열(RFD 0095). GridRenderer의 라벨 자르기 기준으로 BPM은 7자(174.125), 박자는 5자(15/16)까지 온전히 보이는 폭이다.
+export const BPM_COLUMN_WIDTH = 60;
+export const TIME_SIGNATURE_COLUMN_WIDTH = 48;
+/** 곡 공통 영역 헤더의 한 줄 높이(px). 타임라인 위쪽에 고정된다. */
+export const SONG_COMMON_HEADER_ROW_HEIGHT = 14;
+
 export const DEFAULT_MEASURES = 16;
 export const TIMELINE_PADDING = 50; // px of empty space before first / after last measure
 
@@ -64,6 +70,9 @@ export const COLORS = {
 
   EXTRA_LANE_BG_EVEN: 0x1a2e1a,
   EXTRA_LANE_BG_ODD: 0x16291a,
+
+  COMMON_COLUMN_BG_EVEN: 0x2e2a1a,
+  COMMON_COLUMN_BG_ODD: 0x292516,
 
   BOX_SELECT_FILL: 0x4488ff,
   BOX_SELECT_FILL_ALPHA: 0.25,

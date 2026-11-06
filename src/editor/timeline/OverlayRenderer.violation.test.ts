@@ -4,7 +4,8 @@ import { Container } from "pixi.js";
 import type { Graphics, GraphicsPath, Polygon, Rectangle } from "pixi.js";
 import { beat } from "../../shared";
 import type { ChartDocument, BpmChange, DocumentNoteEntity, TrillZone, RestZone, ChartEvent } from "../../shared";
-import { LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
+import { BPM_COLUMN_WIDTH, LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH } from "./constants";
+import { createTimelineLayout, getEditorTimelineLayoutConfig } from "./TimelineLayout";
 import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 
@@ -91,7 +92,7 @@ function makeHost(
 describe("OverlayRenderer.renderViolationOverlay", () => {
   it("보조 레인2의 text [4,8)·auto [6,10) 배치 위반은 양쪽 이벤트의 실제 구간에 해칭을 그린다", () => {
     const chart = makeChart([], [], [
-      { type: "bpm", beat: beat(0), bpm: 120, editorLane: 1 },
+      { type: "bpm", beat: beat(0), bpm: 120 },
       { type: "text", beat: beat(4), endBeat: beat(8), text: "text", editorLane: 2 },
       { type: "auto", beat: beat(6), endBeat: beat(10), editorLane: 2 },
     ]);
@@ -161,19 +162,20 @@ describe("OverlayRenderer.renderViolationOverlay", () => {
     expect(indices.notes.size).toBeGreaterThan(0);
     expect(host.violationLayer.children.length).toBeGreaterThan(0);
   });
-  it("BpmChangeEvent 중복 위반(editorLane 없음→1)은 x=TIMELINE_WIDTH에 포인트 해칭(endMs=null) 2개 (RFD 0017 §7)", () => {
+  it("BpmChangeEvent 중복 위반은 bpm 열(x=0·폭 BPM_COLUMN_WIDTH)에 포인트 해칭(endMs=null) 2개 (RFD 0017 §7)", () => {
     const chart = makeChart([], [], [
       { type: "bpm", beat: beat(2), bpm: 120 },
       { type: "bpm", beat: beat(2), bpm: 180 }, // 같은 박 BPM 중복
     ]);
-    const host = makeHost(chart, new Set(), new Set(), new Set([0, 1]));
+    const host: OverlayHost = { ...makeHost(chart, new Set(), new Set(), new Set([0, 1])),
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig(4)) };
     const r = new OverlayRenderer(host);
     const spy = spyHatchCore(r);
     r.renderViolationOverlay();
     // 120 BPM에서 beat 2 = 1000ms, 포인트 이벤트라 endMs=null
     expect(spy).toHaveBeenCalledTimes(2);
-    expect(spy).toHaveBeenNthCalledWith(1, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
-    expect(spy).toHaveBeenNthCalledWith(2, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
+    expect(spy).toHaveBeenNthCalledWith(1, 0, BPM_COLUMN_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
+    expect(spy).toHaveBeenNthCalledWith(2, 0, BPM_COLUMN_WIDTH, 1000, null, expect.any(Number), expect.any(Number));
     expect(host.violationLayer.children.length).toBe(2);
   });
 

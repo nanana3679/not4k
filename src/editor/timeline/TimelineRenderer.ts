@@ -103,6 +103,7 @@ export class TimelineRenderer {
   private hoverLayer!: Container;
   private ghostLayer!: Container;
   private boxSelectLayer!: Container;
+  private songCommonHeaderLayer!: Container;
   private measureLabelBackground!: Graphics;
   private measureLabels!: Container;
   private playbackCursorLayer!: Container;
@@ -120,6 +121,7 @@ export class TimelineRenderer {
   private _scrollY: number = 0;
   private _horizontalPanX: number = 0;
   private _minimapVisible: boolean = true;
+  private _songCommonLabelVisible: boolean = false;
   private _snap: number = 4; // 1/4 beat snap
   private _selectedNotes: Set<number> = new Set();
   private _selectedTrillZones: Set<number> = new Set();
@@ -287,6 +289,7 @@ export class TimelineRenderer {
     this.hoverLayer = new Container();
     this.ghostLayer = new Container();
     this.boxSelectLayer = new Container();
+    this.songCommonHeaderLayer = new Container();
     this.measureLabelBackground = new Graphics();
     this.measureLabels = new Container();
     this.playbackCursorLayer = new Container();
@@ -312,6 +315,7 @@ export class TimelineRenderer {
     this.app.stage.addChild(this.hoverLayer);
     this.app.stage.addChild(this.ghostLayer);
     this.app.stage.addChild(this.boxSelectLayer);
+    this.app.stage.addChild(this.songCommonHeaderLayer);
     this.app.stage.addChild(this.playbackCursorLayer);
     this.app.stage.addChild(this.measureLabelBackground);
     this.app.stage.addChild(this.measureLabels);
@@ -391,6 +395,8 @@ export class TimelineRenderer {
       get trillZoneLayer() { return self.trillZoneLayer; },
       get restZoneLayer() { return self.restZoneLayer; },
       get measureLabels() { return self.measureLabels; },
+      get songCommonHeaderLayer() { return self.songCommonHeaderLayer; },
+      get songCommonLabelVisible() { return self._songCommonLabelVisible; },
     };
     this.gridRenderer = new GridRenderer(gridHost);
 
@@ -523,6 +529,17 @@ export class TimelineRenderer {
 
   get extraLaneCount(): number {
     return this.layoutConfig.auxiliaryLaneCount;
+  }
+
+  get songCommonLabelVisible(): boolean {
+    return this._songCommonLabelVisible;
+  }
+
+  /** 곡 행이 있는 차트만 곡 공통 영역 헤더에 수정 범위 표기를 그린다(RFD 0095). */
+  setSongCommonLabelVisible(visible: boolean): void {
+    if (this._songCommonLabelVisible === visible) return;
+    this._songCommonLabelVisible = visible;
+    this.render();
   }
 
 
@@ -718,6 +735,7 @@ export class TimelineRenderer {
     for (const layer of this.getScrollableContentLayers()) {
       layer.mask = this.scrollableContentMask;
     }
+    this.songCommonHeaderLayer.mask = this.scrollableContentMask;
   }
 
   private updateScrollableContentMask(): void {
@@ -838,6 +856,8 @@ export class TimelineRenderer {
       layer.x = offsetX;
       layer.y = -this._scrollY;
     }
+    // 곡 공통 영역 헤더는 가로 팬은 따라가고 세로로는 화면 위쪽에 고정된다.
+    this.songCommonHeaderLayer.x = offsetX;
     this.measureLabels.x = getMeasureLabelLayerOffsetX({
       leftRailWidth: this.layout.measureRail.width,
       horizontalPanX: this._horizontalPanX,
@@ -887,6 +907,7 @@ export class TimelineRenderer {
     this.noteRenderer.beginRender();
     this.noteRenderer.renderNotes();
     this.gridRenderer.renderEvents(this.noteLayer, this._eventLabelStyle, (style) => { this._eventLabelStyle = style; });
+    this.gridRenderer.renderSongCommonHeader();
     this.overlayRenderer.renderViolationOverlay();
     this.updateHoverOverlay();
     this.updateScroll();

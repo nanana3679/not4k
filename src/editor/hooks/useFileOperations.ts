@@ -504,7 +504,7 @@ export function useFileOperations(
       newEvt = evt;
     }
 
-    // 편집 창은 값만 바꾼다. 초기 BPM·박자의 보조 레인은 1·2로 고정이라(RFD 0082) values의 레인을 읽지 않는다.
+    // 편집 창은 값만 바꾼다.
     updated.events[editingEvent.index] = newEvt;
 
     setChart(updated);

@@ -38,7 +38,7 @@ function syncTimingChange(cursorMs: number, before: {
       ...chart,
       events: [
         ...chart.events.filter(event => event.type !== 'bpm'),
-        ...timing.bpmChanges.map(change => ({ ...change, type: 'bpm' as const, editorLane: 1 })),
+        ...timing.bpmChanges.map(change => ({ ...change, type: 'bpm' as const })),
       ],
     };
   };
@@ -147,8 +147,8 @@ function chartWith({ offsetMs = 0, events = [], notes = [] }: {
     notes,
     trillZones: [],
     events: [
-      { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
-      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'bpm', beat: beat(0), bpm: 120 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
       ...events,
     ],
   };
@@ -179,7 +179,7 @@ function fakePlayback(cursorMs: number, isPlaying = false) {
 const RANGE_0_TO_60000 = timelineRangeMsOf(0, 60000);
 
 function bpmEvent(at: number, bpm: number): TimingEvent {
-  return { type: 'bpm', beat: beat(at), bpm, editorLane: 1 };
+  return { type: 'bpm', beat: beat(at), bpm };
 }
 
 const tapAtBeat2: ChartDocument['notes'] = [{ type: 'tap', kind: 'single', lane: 1 as Lane, beat: beat(2) }];
@@ -281,7 +281,7 @@ describe('createCursorBeatKeeper', () => {
     const playback = fakePlayback(1000);
 
     keeper.syncToChart({
-      chart: chartWith({ events: [{ type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(3), editorLane: 2 }] }),
+      chart: chartWith({ events: [{ type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(3) }] }),
       loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null,
     });
 
@@ -305,7 +305,7 @@ describe('createCursorBeatKeeper', () => {
     const playback = fakePlayback(1000);
 
     keeper.syncToChart({
-      chart: chartWith({ events: [{ type: 'bpm', beat: beat(8), bpm: 60, editorLane: 1 }] }),
+      chart: chartWith({ events: [{ type: 'bpm', beat: beat(8), bpm: 60 }] }),
       loadGeneration: 1, cursorMs: playback.cursorMs, playback, timelineRange: null,
     });
 

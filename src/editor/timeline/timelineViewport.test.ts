@@ -19,7 +19,7 @@ import {
 
 describe("timeline viewport geometry", () => {
   it("40px 공통 영역과 보조 2개이면 x=0·39·399는 편집 영역, x=-1·400과 고정 레일은 seek 영역이다", () => {
-    const layout = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: "common", width: 40 }] });
+    const layout = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: "bpm", width: 40 }] });
     for (const timelineX of [0, 39, 399]) {
       expect(isPlaybackCursorSeekArea({ layout, screenX: 100, timelineX })).toBe(false);
     }

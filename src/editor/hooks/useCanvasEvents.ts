@@ -566,8 +566,9 @@ export function useCanvasEvents(
 
       if (mode === 'create' && createModeRef.current) {
         // 범위 엔티티(single/double 롱프레스)는 hold가 처리 — down에서 점노트를 배치하지 않는다.
+        // 곡 공통 열의 단일 탭은 뗄 때 createPointClick이 CreateMode.onPointerDown으로 만든다.
         if (getLongPressRangeType(entityType as EntityType)) return;
-        // 점노트·BPM·박자는 아래 다형 디스패치로 폴스루(down 즉시 배치). 배치 제약과 초기 설정 중복 안내는
+        // 점노트·곡 공통 열은 아래 다형 디스패치로 폴스루(down 즉시 배치). 배치 제약과 같은 박 중복 안내는
         // 마우스와 같이 CreateMode.handlePointerDown이 검사한다.
       } else if (mode === 'select' && selectModeRef.current) {
         // grab 우선순위 사다리는 SelectMode.resolveGrabAt(마우스 down과 공유)이 단독 소유한다(#143).
@@ -845,8 +846,13 @@ export function useCanvasEvents(
           }
         } else {
           const snappedBeatFloat = snapped.n / snapped.d;
+          const timingColumn = space.xToTimingColumn(x);
           const extraLane = space.xToExtraLane(x);
-          if (extraLane) {
+          if (timingColumn) {
+            // 곡 공통 열은 도구와 무관하게 그 열의 종류를 만든다. 이미 놓인 이벤트 위에서는 고스트를 그리지 않는다.
+            if (space.hitTestEvent(x, y) === null) rendererRef.current.showGhostEvent({ type: timingColumn }, timeMs);
+            else rendererRef.current.hideGhostNote();
+          } else if (extraLane) {
             if (isEventEntityType(entityType)) {
               // Show ghost event for event entity types on extra lanes
               rendererRef.current.showGhostEvent({ type: entityType, editorLane: extraLane }, timeMs);

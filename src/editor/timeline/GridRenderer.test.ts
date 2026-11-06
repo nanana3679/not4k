@@ -6,7 +6,7 @@ import type { ChartDocument, ChartEvent, RestZone, BpmChange, TimeSignatureChang
 import { NOTE_HEIGHT, LANE_WIDTH, TIMELINE_WIDTH, EXTRA_LANE_WIDTH, COLORS } from "./constants";
 import { GridRenderer } from "./GridRenderer";
 import type { GridHost } from "./GridRenderer";
-import { createTimelineLayout } from "./TimelineLayout";
+import { createTimelineLayout, getEditorTimelineLayoutConfig } from "./TimelineLayout";
 
 // Pixi Text는 node 환경에서 캔버스 텍스트 측정(DOM)을 요구하므로 Container 기반 스텁으로 대체한다.
 // 이 테스트의 관심사는 이벤트 Graphics 기하뿐이다.
@@ -66,8 +66,14 @@ function makeHost(chart: ChartDocument): GridHost {
     trillZoneLayer: new Container(),
     restZoneLayer: new Container(),
     measureLabels: new Container(),
+    songCommonHeaderLayer: new Container(),
+    songCommonLabelVisible: true,
   };
 }
+
+const textsOf = (layer: Container) => layer.children
+  .filter(child => !(child instanceof Graphics))
+  .map(child => (child as unknown as { text: string }).text);
 
 function renderEvents(events: ChartEvent[]): Container {
   const host = makeHost(makeChart(events));
@@ -81,10 +87,10 @@ function renderEvents(events: ChartEvent[]): Container {
 const STROKE = 1.5;
 
 describe("GridRenderer.renderEvents 이벤트 기하", () => {
-  it("40px 공통 영역을 주입하면 메인 배경은 x=40, 보조 배경과 BPM은 x=280에서 시작한다", () => {
+  it("40px 공통 영역을 주입하면 메인 배경은 x=40, 보조 배경과 text는 x=280에서 시작한다", () => {
     const host: GridHost = {
-      ...makeHost(makeChart([{ type: "bpm", beat: beat(0), bpm: 120 }])),
-      layout: createTimelineLayout({ auxiliaryLaneCount: 3, songCommonColumns: [{ id: "common", width: 40 }] }),
+      ...makeHost(makeChart([{ type: "text", beat: beat(0), endBeat: beat(2), text: "hi" }])),
+      layout: createTimelineLayout({ auxiliaryLaneCount: 3, songCommonColumns: [{ id: "bpm", width: 40 }] }),
     };
     const renderer = new GridRenderer(host);
     renderer.renderLaneBackgrounds();
@@ -97,8 +103,8 @@ describe("GridRenderer.renderEvents 이벤트 기하", () => {
     expect((events.children[0] as Graphics).getLocalBounds().minX).toBe(278.5);
   });
 
-  it("editorLane 없는 이벤트는 기본 1로 첫 엑스트라 칸(x=TIMELINE_WIDTH)에 그려진다", () => {
-    const layer = renderEvents([{ type: "bpm", beat: beat(0), bpm: 120 }]);
+  it("editorLane 없는 stop은 기본 1로 첫 엑스트라 칸(x=TIMELINE_WIDTH)에 그려진다", () => {
+    const layer = renderEvents([{ type: "stop", beat: beat(0), endBeat: beat(2) }]);
     const gfx = layer.children[0] as Graphics;
     expect(gfx.getLocalBounds().minX).toBe(TIMELINE_WIDTH - STROKE);
   });
@@ -114,7 +120,10 @@ describe("GridRenderer.renderEvents 이벤트 기하", () => {
   });
 
   it("포인트 이벤트(BpmChangeEvent)는 beat 위치(120 BPM에서 beat 2=1000ms→y100) 중심 NOTE_HEIGHT 높이 이벤트", () => {
-    const layer = renderEvents([{ type: "bpm", beat: beat(2), bpm: 120 }]);
+    const host: GridHost = { ...makeHost(makeChart([{ type: "bpm", beat: beat(2), bpm: 120 }])),
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig(2)) };
+    const layer = new Container();
+    new GridRenderer(host).renderEvents(layer, null, () => undefined);
     const gfx = layer.children[0] as Graphics;
     const b = gfx.getLocalBounds();
     expect(b.minY).toBe(100 - NOTE_HEIGHT / 2 - STROKE);
@@ -131,14 +140,96 @@ describe("GridRenderer.renderEvents 이벤트 기하", () => {
     expect(b.height).toBe(200 + 2 * STROKE);
   });
 
+  it("에디터 배치에서 BPM은 x=0·폭 60px, 박자는 x=60·폭 48px 열에 그리고 값만 표시한다", () => {
+    const host: GridHost = {
+      ...makeHost(makeChart([
+        { type: "bpm", beat: beat(0), bpm: 174.25 },
+        { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(7, 2) },
+      ])),
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig(2)),
+    };
+    const layer = new Container();
+    new GridRenderer(host).renderEvents(layer, null, () => undefined);
+    const shapes = layer.children.filter(child => child instanceof Graphics).map(child => (child as Graphics).getLocalBounds());
+    expect(shapes.map(bounds => [bounds.minX + STROKE, bounds.width - 2 * STROKE])).toEqual([[0, 60], [60, 48]]);
+    expect(textsOf(layer)).toEqual(["174.25", "7/2"]);
+  });
+
+  it("곡 공통 열이 없는 배치에서는 BPM을 그리지 않고 text만 그린다", () => {
+    const host: GridHost = {
+      ...makeHost(makeChart([
+        { type: "bpm", beat: beat(0), bpm: 120 },
+        { type: "text", beat: beat(0), endBeat: beat(2), text: "hi" },
+      ])),
+      layout: createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [] }),
+    };
+    const layer = new Container();
+    new GridRenderer(host).renderEvents(layer, null, () => undefined);
+    expect(textsOf(layer)).toEqual(["hi"]);
+  });
+
+  it("첫 이벤트가 폭 48px 박자여도 이벤트 라벨의 줄바꿈 폭은 보조 레인 기준 56px이다", () => {
+    const host: GridHost = {
+      ...makeHost(makeChart([{ type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) }])),
+      layout: createTimelineLayout(getEditorTimelineLayoutConfig(2)),
+    };
+    const created: { wordWrapWidth: number }[] = [];
+    new GridRenderer(host).renderEvents(new Container(), null, style => created.push(style as unknown as { wordWrapWidth: number }));
+    expect(created[0].wordWrapWidth).toBe(EXTRA_LANE_WIDTH - 4);
+  });
+
   it("가시 범위 밖 이벤트는 이벤트를 그리지 않는다(컬링)", () => {
-    const host = makeHost(makeChart([{ type: "bpm", beat: beat(2), bpm: 120 }]));
+    const host = makeHost(makeChart([{ type: "stop", beat: beat(2), endBeat: beat(2) }]));
     (host as { getVisibleTimeRange: GridHost["getVisibleTimeRange"] }).getVisibleTimeRange =
       () => ({ minTimeMs: 5000, maxTimeMs: 6000 });
     const r = new GridRenderer(host);
     const noteLayer = new Container();
     r.renderEvents(noteLayer, null, () => undefined);
     expect(noteLayer.children.length).toBe(0);
+  });
+});
+
+describe("GridRenderer 곡 공통 영역", () => {
+  const editorHost = (songCommonLabelVisible: boolean): GridHost => ({
+    ...makeHost(makeChart([])),
+    layout: createTimelineLayout(getEditorTimelineLayoutConfig(2)),
+    songCommonLabelVisible,
+  });
+
+  it("에디터 배치의 레인 배경은 메인·보조 뒤에 x=0·폭 60px, x=60·폭 48px 공통 열 배경을 더한다", () => {
+    const host = editorHost(true);
+    new GridRenderer(host).renderLaneBackgrounds();
+    const backgrounds = host.laneBackgrounds.children as Graphics[];
+    expect(backgrounds.slice(-2).map(graphics => {
+      const bounds = graphics.getLocalBounds();
+      return [bounds.minX, bounds.width];
+    })).toEqual([[0, 60], [60, 48]]);
+  });
+
+  it("곡 행이 있으면 헤더에 곡 공통과 BPM·TS 열 제목을 그린다", () => {
+    const host = editorHost(true);
+    new GridRenderer(host).renderSongCommonHeader();
+    expect(textsOf(host.songCommonHeaderLayer)).toEqual(["곡 공통", "BPM", "TS"]);
+  });
+
+  it("곡 행이 없으면 같은 열 제목만 그리고 곡 공통 표기는 없다", () => {
+    const host = editorHost(false);
+    new GridRenderer(host).renderSongCommonHeader();
+    expect(textsOf(host.songCommonHeaderLayer)).toEqual(["BPM", "TS"]);
+  });
+
+  it("다시 그리면 이전 헤더를 지우고 표기만 바꾼다", () => {
+    const host = editorHost(true);
+    new GridRenderer(host).renderSongCommonHeader();
+    new GridRenderer({ ...host, songCommonLabelVisible: false }).renderSongCommonHeader();
+    expect(textsOf(host.songCommonHeaderLayer)).toEqual(["BPM", "TS"]);
+  });
+
+  it("곡 공통 열이 없는 배치에서는 헤더를 그리지 않는다", () => {
+    const host: GridHost = { ...editorHost(true),
+      layout: createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [] }) };
+    new GridRenderer(host).renderSongCommonHeader();
+    expect(host.songCommonHeaderLayer.children).toHaveLength(0);
   });
 });
 

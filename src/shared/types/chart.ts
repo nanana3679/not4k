@@ -197,20 +197,18 @@ export interface RestZone {
 // 차트 이벤트 — 디스크리미네이티드 유니온
 // ---------------------------------------------------------------------------
 
-/** BPM 변경 — 시점 이벤트 */
+/** BPM 변경 — 시점 이벤트. 에디터 전용 열에 그리므로 `editorLane`이 없다(RFD 0082). */
 export interface BpmChangeEvent {
   type: "bpm";
   beat: Beat;
   bpm: number;
-  editorLane?: number; // editor-only: extra lane position (1-based)
 }
 
-/** 박자표 변경 — 시점 이벤트 */
+/** 박자표 변경 — 시점 이벤트. 에디터 전용 열에 그리므로 `editorLane`이 없다(RFD 0082). */
 export interface TimeSignatureChangeEvent {
   type: "timeSignature";
   beat: Beat;
   beatPerMeasure: Beat;
-  editorLane?: number; // editor-only: extra lane position (1-based)
 }
 
 /** 메시지 표시 — 구간 이벤트 */
@@ -272,6 +270,14 @@ export type ChartEvent =
 
 /** 구간 이벤트 (beat + endBeat를 가지는 이벤트) */
 export type RangeEvent = TextEvent | AutoEvent | StopEvent | TutorialInputEvent | TutorialDiagramEvent;
+
+/** 곡 타이밍을 이루는 BPM·박자 이벤트. */
+export type TimingEvent = BpmChangeEvent | TimeSignatureChangeEvent;
+
+/** BPM·박자 이벤트인지. 나머지 이벤트는 모두 `editorLane`으로 보조 레인에 놓인다. */
+export function isTimingEvent(event: ChartEvent): event is TimingEvent {
+  return event.type === "bpm" || event.type === "timeSignature";
+}
 
 // ---------------------------------------------------------------------------
 // 차트 전체

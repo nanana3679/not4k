@@ -12,7 +12,7 @@ const chart = (title: string, notes: NoteEntity[], inputs: TutorialInputEvent[])
   meta: { title, artist: 'not4k', difficultyLabel: 'TUTORIAL', difficultyLevel: 1, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
   notes, trillZones: [], events: [
     { type: 'bpm', beat: beat(0), bpm: 120 },
-    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(8), editorLane: 2 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(8) },
     ...inputs,
   ],
 });

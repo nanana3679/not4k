@@ -27,6 +27,7 @@ import type {
 } from "../types/chart";
 import { beat, beatEq, beatLt, beatGt, beatLte, beatGte, beatToFloat, isWellFormedBeat } from "../types/beat";
 import { isMainLane } from "../chart/laneAxis";
+import { isTimingEvent } from "../types/chart";
 
 export interface ValidationError {
   rule:
@@ -577,7 +578,8 @@ function eventPositionsOverlap(a: ChartEvent, b: ChartEvent): boolean {
 /**
  * 같은 보조 레인의 배치 겹침은 종류와 관계없이 금지한다(RFD 0078).
  * text·auto·stop의 같은 종류 시간 겹침은 레인과 관계없이 기존 의미 제약을 유지한다.
- * BPM·박자 중복과 같은 튜토리얼 입력의 겹침은 각각의 전용 진단에 맡긴다.
+ * BPM·박자는 보조 레인에 놓이지 않으므로 이 검사에서 빠지고(RFD 0082), 그 중복은 validateNoEventDuplicate가 맡는다.
+ * 같은 튜토리얼 입력의 겹침은 전용 진단에 맡긴다.
  */
 export function validateNoEventOverlap(events: readonly ChartEvent[]): ValidationError[] {
   const errors: ValidationError[] = [];
@@ -585,6 +587,7 @@ export function validateNoEventOverlap(events: readonly ChartEvent[]): Validatio
     for (let j = i + 1; j < events.length; j++) {
       const a = events[i];
       const b = events[j];
+      if (isTimingEvent(a) || isTimingEvent(b)) continue;
       const sameEditorLane = (a.editorLane ?? 1) === (b.editorLane ?? 1);
       const sameRangeMeaning = a.type === b.type && (a.type === 'text' || a.type === 'auto' || a.type === 'stop');
       const placementOverlap = sameEditorLane && eventPositionsOverlap(a, b);
@@ -593,7 +596,6 @@ export function validateNoEventOverlap(events: readonly ChartEvent[]): Validatio
       if (!placementOverlap && !meaningOverlap) continue;
 
       // 같은 쌍에 기존의 더 구체적인 진단이 있으면 중복 표시하지 않는다.
-      if (a.type === b.type && (a.type === 'bpm' || a.type === 'timeSignature')) continue;
       if (a.type === 'tutorialInput' && b.type === 'tutorialInput'
         && a.lane === b.lane && a.keyCode === b.keyCode
         && beatLt(a.beat, b.endBeat) && beatLt(b.beat, a.endBeat)) continue;

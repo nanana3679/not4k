@@ -86,7 +86,7 @@ const chart = (notes: ChartDocument['notes'], difficultyLabel = 'NORMAL'): Chart
   meta: { title: '저장 진행', artist: '작곡가', difficultyLabel, difficultyLevel: 5, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
   notes,
   trillZones: [],
-  events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }],
+  events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) }],
 });
 const dirty = () => isChartDirty(current().chart, current().extraLaneCount, current().savedChartJson);
 /** 열린 차트의 charts 행. 결정적 경로(NULL)·리비전 3에서 시작한다. */
@@ -293,8 +293,8 @@ describe('초기 설정 편집 창 저장(RFD 0082)', () => {
   const fixedLanes = (): ChartDocument => ({
     ...chart([single(1, 0)]),
     events: [
-      { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
-      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'bpm', beat: beat(0), bpm: 120 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
     ],
   });
 
@@ -304,7 +304,7 @@ describe('초기 설정 편집 창 저장(RFD 0082)', () => {
 
     renderFileOperations().handleEventSave({ eventBpm: '90', editorLane: '2' });
 
-    expect(current().chart.events[0]).toEqual({ type: 'bpm', beat: beat(0), bpm: 90, editorLane: 1 });
+    expect(current().chart.events[0]).toEqual({ type: 'bpm', beat: beat(0), bpm: 90 });
     expect(current().editingEvent).toBeNull();
     expect(showToast).not.toHaveBeenCalled();
   });
@@ -315,7 +315,7 @@ describe('초기 설정 편집 창 저장(RFD 0082)', () => {
 
     renderFileOperations().handleEventSave({ tsNumerator: '3', tsDenominator: '1', editorLane: '9' });
 
-    expect(current().chart.events[1]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(3), editorLane: 2 });
+    expect(current().chart.events[1]).toEqual({ type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(3) });
     expect(showToast).not.toHaveBeenCalled();
   });
 });
@@ -538,7 +538,7 @@ describe('Save·Save As의 곡 선행 저장', () => {
     '이행=$migrated 곡의 초기 박자 4→3·8박 변박에서 $action하면 차트 변경=$chartEdited여도 timeSigNotAtMeasureStart로 RPC·업로드 0회다',
     async ({ action, chartEdited, migrated }) => {
       const document = chart([single(1, 0)]);
-      document.events.push({ type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(4), editorLane: 2 });
+      document.events.push({ type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(4) });
       open(document); attachSong(migrated);
       current().setChart({ ...current().chart,
         events: current().chart.events.map((event, index) => index === 1
@@ -655,7 +655,7 @@ it('제목만 새 제목으로 바꾸고 Save하면 확인 없이 save_song 1회
 
 it('timing NULL의 4박 BPM 180→150만 편집하고 Save하면 이행 확인 1회·곡 RPC 1회·차트 업로드 0회다', async () => {
   const document = chart([]);
-  document.events.push({ type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 });
+  document.events.push({ type: 'bpm', beat: beat(4), bpm: 180 });
   open(document); attachSong(false);
   harness.charts.mockResolvedValue({ data: [{ id: 'chart-normal', difficulty_label: 'normal' }], error: null });
   current().setEditingEvent({ type: 'event', index: 2 });

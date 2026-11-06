@@ -21,8 +21,8 @@ function document(notes: DocumentNoteEntity[]): ChartDocument {
     trillZones: [{ lane: 3, beat: beat(0), endBeat: beat(4) }],
     restZones: [{ lane: 4, beat: beat(2), endBeat: beat(8) }],
     events: [
-      { type: "bpm", beat: beat(0), bpm: 123, editorLane: 1 },
-      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(7, 2), editorLane: 2 },
+      { type: "bpm", beat: beat(0), bpm: 123 },
+      { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(7, 2) },
       { type: "text", beat: beat(1, 3), endBeat: beat(5, 3), text: "유니코드 설명", editorLane: 3 },
       { type: "auto", beat: beat(2), endBeat: beat(3), editorLane: 4 },
       { type: "stop", beat: beat(4), endBeat: beat(5), editorLane: 5 },

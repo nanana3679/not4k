@@ -321,25 +321,25 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
   });
 });
 
-describe('곡 정보 변경 취소의 타이밍 이벤트 자리와 선택(RFD 0098)', () => {
-  const bpmAt4 = { type: 'bpm' as const, beat: beat(4), bpm: 150, editorLane: 3 };
+describe('곡 정보 변경 취소의 타이밍 이벤트와 선택(RFD 0098)', () => {
+  const bpmAt4 = { type: 'bpm' as const, beat: beat(4), bpm: 150 };
   const auto = { type: 'auto' as const, beat: beat(0), endBeat: beat(4), editorLane: 4 };
-  /** 0박 BPM·박자(보조 레인 1·2)에 4박 BPM 150(보조 레인 3)과 auto 이벤트(보조 레인 4)를 저장한 곡을 연다. */
+  /** 0박 BPM·박자에 4박 BPM 150과 auto 이벤트(보조 레인 4)를 저장한 곡을 연다. */
   function openWithBpmAt4() {
     const chart: ChartDocument = { ...base, events: [...base.events, bpmAt4, auto] };
     openEditorChart(loadEditorChartAsset(toSavedChartJson(chart, 2).chartJson, null, loadedSong), loadedSong);
   }
   const bpmEvents = () => store().chart.events.filter(event => event.type === 'bpm')
-    .map(event => ({ beat: event.beat.n / event.beat.d, editorLane: event.editorLane }));
+    .map(event => event.beat.n / event.beat.d);
 
-  it('저장한 4박 BPM(보조 레인 3)을 8박으로 옮긴 뒤 변경 취소하면 4박 BPM이 기본 레인 1이 아니라 저장된 레인 3으로 돌아온다', () => {
+  it('저장한 4박 BPM을 8박으로 옮긴 뒤 변경 취소하면 8박 BPM은 사라지고 4박 BPM으로 돌아온다', () => {
     openWithBpmAt4();
     store().setChart({ ...store().chart, events: store().chart.events.map(event =>
       event.type === 'bpm' && event.beat.n === 4 ? { ...event, beat: beat(8) } : event) });
 
     discardSongInfoChanges();
 
-    expect(bpmEvents()).toEqual([{ beat: 0, editorLane: 1 }, { beat: 4, editorLane: 3 }]);
+    expect(bpmEvents()).toEqual([0, 4]);
   });
 
   it('저장한 4박 BPM을 지우고 auto 이벤트(index 2)를 고른 뒤 변경 취소하면 4박 BPM이 앞에 돌아와도 선택은 같은 auto 이벤트(index 3)를 가리킨다', () => {

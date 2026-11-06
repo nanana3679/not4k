@@ -65,6 +65,15 @@ export const PAUSE_TO_EDIT_COPY = "Pause playback to edit";
  */
 export const INITIAL_TIMING_EXISTS_COPY = "An initial BPM/time signature already exists at beat 0";
 
+/** 곡 공통 열의 그 박에 같은 종류 BPM·박자가 이미 있어 막은 생성의 안내. 0박은 INITIAL_TIMING_EXISTS_COPY를 쓴다. */
+export const TIMING_EVENT_EXISTS_COPY = "This beat already has a BPM/time signature of that kind";
+
+/** 곡 공통 영역 헤더의 문구(RFD 0095). `scope`는 곡 행이 있는 차트에만 표시해 수정 범위를 알린다. */
+export const SONG_COMMON_AREA_COPY = {
+  scope: "곡 공통",
+  columnTitles: { bpm: "BPM", timeSignature: "TS" },
+} as const;
+
 export const SONG_SAVE_COPY = {
   saved: 'Song saved',
   conflict: '다른 곳에서 곡을 변경했습니다. 편집 내용은 유지됩니다. 곡을 다시 불러온 뒤 저장해주세요.',

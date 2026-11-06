@@ -1,11 +1,10 @@
 import { enclosingXRange, xRangesOverlap, type TimelineXRange } from "../timeline/TimelineLayout";
-import { deleteEvents, eventInBounds, isInitialTimingEvent, translateEvent } from '../editing/eventEditing';
-import { placeEditedInitialTiming, withInitialTimingLane } from '../editing/initialTimingPlacement';
+import { createsDuplicateInitialTiming, deleteEvents, eventInBounds, isInitialTimingEvent, translateEvent } from '../editing/eventEditing';
 import { INITIAL_TIMING_EXISTS_COPY } from '../editorCopy';
 import { bodyCompanionIndices, bodyDeletionBlockReason, reconcileMovedTicks, resizeExplicitBodies } from '../editing/explicitEditing';
 import { editorChartErrors } from "../documentValidation";
 import type { ChartDocument, ChartEvent, DocumentNoteEntity, RangeNote, BodyNote, Beat } from "../../shared";
-import { validateChartDocumentStructural, beatToFloat, isVisibleLane, isMainLane } from "../../shared";
+import { validateChartDocumentStructural, beatToFloat, isTimingEvent, isVisibleLane, isMainLane } from "../../shared";
 import { beatAdd, beatSub, beatLt, beatLte } from "../../shared";
 import {
   deleteChartNotesAtIndices,
@@ -70,7 +69,7 @@ export class SelectMode implements EditorMode {
   private dragType: "move" | "boxSelect" | "resize" | null = null;
   private dragStartBeat: Beat | null = null;
   private dragBeatAtY: ((y: number) => Beat) | null = null;
-  // 이동 앵커 레인 — 통합 lane 공간(1..4+extraLaneCount). 메인·보조 무차별.
+  // 이동 앵커 레인 — 통합 lane 공간(1..4+extraLaneCount). 메인·보조 무차별. 곡 공통 열에서 잡으면 0 이하다.
   private dragStartLane: number | null = null;
   private _boxEndBeat: Beat | null = null;
   private _boxEndRange: TimelineXRange | null = null;
@@ -875,7 +874,12 @@ export class SelectMode implements EditorMode {
 
     if (this.dragType === "move") {
       const currentBeat = this.dragBeatAtY?.(y) ?? this.callbacks.space.yToBeat(y);
-      const currentLane = this.callbacks.space.xToUnifiedLane(x);
+      // 곡 공통 열에서 잡은 드래그는 열까지 세어 함께 고른 항목의 레인 오프셋을 낸다. 레인에서 잡은 드래그에는 곡 공통
+      // 열도 레인 밖이라 마지막 오프셋을 유지한다.
+      const startedOnCommonColumn = this.dragStartLane !== null && this.dragStartLane < 1;
+      const currentLane = startedOnCommonColumn
+        ? this.callbacks.space.xToDragLane(x)
+        : this.callbacks.space.xToUnifiedLane(x);
 
       if (this.dragStartBeat && this.dragStartLane !== null) {
         // Calculate offset
@@ -1096,7 +1100,8 @@ export class SelectMode implements EditorMode {
     this.chart.events.forEach((event, index) => {
       if (isInitialTimingEvent(event)) return;
       const end = 'endBeat' in event ? event.endBeat : event.beat;
-      if ((range === null || xRangesOverlap(this.callbacks.space.layout.eventRange(event), range))
+      const eventRange = range === null ? null : this.callbacks.space.layout.eventRange(event);
+      if ((range === null || (eventRange !== null && xRangesOverlap(eventRange, range)))
         && beatToFloat(event.beat) <= beatToFloat(maxBeat)
         && beatToFloat(end) >= beatToFloat(minBeat)) indices.add(index);
     });
@@ -1125,7 +1130,18 @@ export class SelectMode implements EditorMode {
       this.callbacks.onWarn?.("트릴 노트는 구간을 벗어날 수 없어 레인 이동이 불가합니다");
       return;
     }
+    // BPM·박자는 자기 열에 남으므로(RFD 0082) 그것만 고른 가로 이동은 아무것도 바꾸지 않는다.
+    if (this.selectsOnlyTimingEvents()) return;
     this.moveSelection(direction === "left" ? -1 : 1, { n: 0, d: 1 });
+  }
+
+  /** 모드 차트가 store보다 늦어 아직 없는 이벤트도 옮길 수 없으므로 같이 친다. */
+  private selectsOnlyTimingEvents(): boolean {
+    return this.sel.notes.size + this.sel.zones.size + this.sel.restZones.size === 0
+      && [...this.sel.events].every(index => {
+        const event = this.chart.events[index];
+        return event === undefined || isTimingEvent(event);
+      });
   }
 
   private moveSelection(laneOffset: number, beatOffset: Beat): void {
@@ -1396,7 +1412,7 @@ export class SelectMode implements EditorMode {
   // --- Private helpers ---
 
   private startSelectionMoveDrag(x: number, y: number, selectionBefore?: Selection): void {
-    const lane = this.callbacks.space.xToUnifiedLane(x);
+    const lane = this.callbacks.space.xToDragLane(x);
     // 구간 유닛(빈 구간 포함)·restZone이 선택돼 있으면 노트가 없어도 이동 가능
     if (
       lane === null ||
@@ -1576,19 +1592,17 @@ export class SelectMode implements EditorMode {
         this.callbacks.onWarn?.("Cannot move initial event from beat 0");
         return null;
       }
-      // 0박에 온 BPM·박자는 초기 설정 자리에 둔 위치로 범위를 검사한다. 레인 이동이 만든 임시 레인이 보조 레인 수를
-      // 넘어도 고정 자리로 돌아가므로, 함께 옮기는 노트·이벤트의 이동을 막지 않는다(RFD 0082).
-      const event = withInitialTimingLane(translateEvent(origin, beatOffset, laneOffset));
+      const event = translateEvent(origin, beatOffset, laneOffset);
       if (!eventInBounds(event, this.callbacks.space.getMaxBeatFloat(), this.callbacks.getExtraLaneCount?.() ?? Infinity)) return null;
       events[index] = event;
     }
     // 같은 종류 초기 설정이 이미 있으면 이동 전체를 거부한다(RFD 0082).
-    const placedEvents = placeEditedInitialTiming(events, this.originalEventsByIndex.keys());
-    if (!placedEvents && !this.initialTimingExistsWarned) {
+    if (createsDuplicateInitialTiming(events, this.originalEventsByIndex.keys())) {
+      if (!this.initialTimingExistsWarned) this.callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
       this.initialTimingExistsWarned = true;
-      this.callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+      return null;
     }
-    return placedEvents;
+    return events;
   }
 
   /** 이동 원본 기록(메인·구간·restZone)을 모두 폐기한다. */

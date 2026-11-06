@@ -7,15 +7,18 @@ import { Container, Graphics, Text, TextStyle } from "pixi.js";
 import { beatToMs, measureStartBeat, beat, beatAdd, beatMulInt, isVisibleLane } from "../../shared";
 import type { BpmChange, TimeSignatureChange } from "../../shared";
 import {
+  EXTRA_LANE_WIDTH,
   LANE_COUNT,
   NOTE_HEIGHT,
   COLORS,
   REST_ZONE_STRIPE_WIDTH,
+  SONG_COMMON_HEADER_ROW_HEIGHT,
 } from "./constants";
 import { destroyChildren } from "./utils";
 import { laneToX, laneWidth } from "./laneGeometry";
 import { createTimelineLayout, type TimelineLayout } from "./TimelineLayout";
 import { diagonalStripeBands } from "./restZoneHatch";
+import { SONG_COMMON_AREA_COPY } from "../editorCopy";
 
 /** GridRenderer가 TimelineRenderer에서 필요로 하는 인터페이스 */
 export interface GridHost {
@@ -46,6 +49,9 @@ export interface GridHost {
   readonly trillZoneLayer: Container;
   readonly restZoneLayer: Container;
   readonly measureLabels: Container;
+  readonly songCommonHeaderLayer: Container;
+  /** 곡 행이 있는 차트만 헤더에 곡 공통 표기를 그린다. 열은 곡 행과 무관하게 같다. */
+  readonly songCommonLabelVisible: boolean;
 }
 
 export class GridRenderer {
@@ -87,6 +93,59 @@ export class GridRenderer {
       bg.fill(color);
       this.host.laneBackgrounds.addChild(bg);
     }
+
+    // 곡 공통 열 (left of note lanes)
+    this.layout.songCommonColumns.forEach(({ id }, i) => {
+      const bg = new Graphics();
+      const color = i % 2 === 0 ? COLORS.COMMON_COLUMN_BG_EVEN : COLORS.COMMON_COLUMN_BG_ODD;
+      const { x, width } = this.layout.commonColumnRange(id)!;
+      bg.rect(x, topY, width, laneHeight);
+      bg.fill(color);
+      this.host.laneBackgrounds.addChild(bg);
+    });
+  }
+
+  /**
+   * 곡 공통 영역 헤더. 세로 스크롤과 무관하게 타임라인 위쪽에 고정되어 어느 열이 어떤 종류를 만드는지와 수정 범위를 알린다.
+   */
+  renderSongCommonHeader(): void {
+    const layer = this.host.songCommonHeaderLayer;
+    destroyChildren(layer);
+    const { songCommonColumns, songCommonWidth, commonColumnRange } = this.layout;
+    if (songCommonColumns.length === 0) return;
+
+    const style = this.ensureMeasureLabelStyle();
+    const rows = this.host.songCommonLabelVisible ? 2 : 1;
+    const background = new Graphics();
+    background.rect(0, 0, songCommonWidth, rows * SONG_COMMON_HEADER_ROW_HEIGHT);
+    background.fill({ color: 0x000000, alpha: 0.8 });
+    layer.addChild(background);
+
+    const addTitle = (text: string, x: number, row: number) => {
+      const label = new Text({ text, style });
+      label.anchor.set(0.5, 0.5);
+      label.x = x;
+      label.y = (row + 0.5) * SONG_COMMON_HEADER_ROW_HEIGHT;
+      layer.addChild(label);
+    };
+    if (this.host.songCommonLabelVisible) addTitle(SONG_COMMON_AREA_COPY.scope, songCommonWidth / 2, 0);
+    for (const { id } of songCommonColumns) {
+      const { x, width } = commonColumnRange(id)!;
+      addTitle(SONG_COMMON_AREA_COPY.columnTitles[id], x + width / 2, rows - 1);
+    }
+  }
+
+  private ensureMeasureLabelStyle(): TextStyle {
+    let style = this.host.measureLabelStyle;
+    if (!style) {
+      style = new TextStyle({
+        fontSize: 11,
+        fill: 0x999999,
+        fontFamily: "monospace",
+      });
+      this.host.setMeasureLabelStyle(style);
+    }
+    return style;
   }
 
   /**
@@ -156,16 +215,7 @@ export class GridRenderer {
     const sortedTS = [...timeSignatureChanges].sort((a, b) => a.measure - b.measure);
     const { minTimeMs, maxTimeMs } = this.host.getVisibleTimeRange();
 
-    // Ensure measureLabelStyle is created
-    let measureLabelStyle = this.host.measureLabelStyle;
-    if (!measureLabelStyle) {
-      measureLabelStyle = new TextStyle({
-        fontSize: 11,
-        fill: 0x999999,
-        fontFamily: "monospace",
-      });
-      this.host.setMeasureLabelStyle(measureLabelStyle);
-    }
+    const measureLabelStyle = this.ensureMeasureLabelStyle();
 
     for (let m = 0; ; m++) {
       const mStartBeat = measureStartBeat(m, timeSignatureChanges);
@@ -264,7 +314,9 @@ export class GridRenderer {
 
     for (let i = 0; i < events.length; i++) {
       const evt = events[i];
-      const { x: eventRenderX, width: eventRenderWidth } = this.layout.eventRange(evt);
+      const range = this.layout.eventRange(evt);
+      if (range === null) continue;
+      const { x: eventRenderX, width: eventRenderWidth } = range;
 
       const startMs = beatToMs(evt.beat, bpmChanges, meta.offsetMs);
       const endMs = 'endBeat' in evt ? beatToMs(evt.endBeat, bpmChanges, meta.offsetMs) : startMs;
@@ -287,10 +339,11 @@ export class GridRenderer {
 
       const parts: string[] = [];
       if (evt.type === 'stop') parts.push('STOP');
-      if (evt.type === 'bpm') parts.push(`BPM:${evt.bpm}`);
+      // 곡 공통 열은 헤더가 종류를 알리므로 값만 쓴다.
+      if (evt.type === 'bpm') parts.push(String(evt.bpm));
       if (evt.type === 'timeSignature') {
         const bp = evt.beatPerMeasure;
-        parts.push(`TS:${bp.d === 1 ? bp.n : `${bp.n}/${bp.d}`}`);
+        parts.push(bp.d === 1 ? String(bp.n) : `${bp.n}/${bp.d}`);
       }
       if (evt.type === 'text') parts.push(evt.text);
       if (evt.type === 'auto') parts.push('AUTO');
@@ -303,7 +356,8 @@ export class GridRenderer {
           fill: 0xffffff,
           fontFamily: "monospace",
           wordWrap: true,
-          wordWrapWidth: eventRenderWidth - 4,
+          // 모든 이벤트가 공유하는 스타일이라 처음 그린 이벤트가 아니라 글이 긴 보조 레인 폭에 맞춘다.
+          wordWrapWidth: EXTRA_LANE_WIDTH - 4,
         });
         setEventLabelStyle(eventLabelStyle);
       }

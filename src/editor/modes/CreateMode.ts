@@ -15,6 +15,8 @@ import type {
   TrillZone,
   RestZone,
   ChartEvent,
+  RangeEvent,
+  TimingEvent,
   Beat,
   Lane,
 } from "../../shared";
@@ -23,9 +25,7 @@ import type { EditorMode, PointerGesture, EditResult } from "./editorMode";
 import type { EventPlacementInput } from "../timeline/TimelineLayout";
 import type { TimelineSpace } from "../timeline/TimelineSpace";
 import { isCreatePlacementBlocked } from "./createPlacementGuard";
-import { placeEditedInitialTiming } from "../editing/initialTimingPlacement";
-import { isInitialTimingEvent } from "../editing/eventEditing";
-import { INITIAL_TIMING_EXISTS_COPY } from "../editorCopy";
+import { INITIAL_TIMING_EXISTS_COPY, TIMING_EVENT_EXISTS_COPY } from "../editorCopy";
 
 export type EntityType =
   | "single"
@@ -37,8 +37,6 @@ export type EntityType =
   | "tick"
   | "trillZone"
   | "restZone"
-  | "bpm"
-  | "timeSignature"
   | "text"
   | "auto"
   | "stop"
@@ -58,19 +56,13 @@ const ENTITY_TYPES: readonly EntityType[] = [
   "restZone",
 ] as const;
 
-/** Event entity types (created on extra lanes) */
-const EVENT_ENTITY_TYPES: EntityType[] = ["bpm", "timeSignature", "text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
+/** Event entity types (created on extra lanes, drag for endBeat). BPM·박자는 도구가 아니라 곡 공통 열이 정한다. */
+const EVENT_ENTITY_TYPES: EntityType[] = ["text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
 
 /** Check if an entity type is an event type */
-export function isEventEntityType(t: EntityType): t is ChartEvent["type"] {
+export function isEventEntityType(t: EntityType): t is RangeEvent["type"] {
   return EVENT_ENTITY_TYPES.includes(t);
 }
-
-/** Point event types (no drag needed) */
-const POINT_EVENT_TYPES: EntityType[] = ["bpm", "timeSignature"];
-
-/** Range event types (need drag for endBeat) */
-const RANGE_EVENT_TYPES: EntityType[] = ["text", "auto", "stop", "tutorialInput", "tutorialDiagram"];
 
 /** Internal drag type for tracking what kind of range entity is being created */
 type DragType = "rangeNote" | "trillZone" | "restZone" | "event" | "extraRangeNote" | null;
@@ -97,8 +89,7 @@ export class CreateMode implements EditorMode {
   private dragStartLane: number | null = null;
   private _dragType: DragType = null;
   private _dragExtraLane: number | null = null;
-  private _dragEventType: ChartEvent["type"] | null = null;
-  private _createEventLane: number | null = null;
+  private _dragEventType: RangeEvent["type"] | null = null;
   private _dragEntityTypeOverride: RangeNoteEntityType | null = null;
   // single/double로 시작한 드래그에서, 길이 0이면 점노트로 떨어뜨리기 위한 폴백 타입.
   // 명시적 long/doubleLong 드래그(=beginRangeNoteAt, 또는 long 엔티티)에서는 null로 둔다.
@@ -225,23 +216,9 @@ export class CreateMode implements EditorMode {
    * (Create 모드는 gesture의 shift/alt/toggle 수식자를 쓰지 않는다.)
    */
   handlePointerDown(gesture: PointerGesture): void {
-    // 보조 레인1·2의 0박을 누르면 그 자리의 초기 설정에 히트해 아래 배치 제약이 조용히 막는다. 같은 종류 초기 설정이
-    // 있어 생성을 막는 경우는 그 전에 이유를 안내한다(RFD 0082).
-    if (this.isInitialTimingDuplicateAt(gesture.x, gesture.y)) {
-      this.callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
-      return;
-    }
-    if (this.isPlacementBlocked(gesture.x, gesture.y)) return;
+    // 곡 공통 열은 같은 박의 이벤트에 히트해도 막은 이유를 안내하므로 배치 제약이 조용히 막기 전에 넘긴다.
+    if (this.callbacks.space.xToTimingColumn(gesture.x) === null && this.isPlacementBlocked(gesture.x, gesture.y)) return;
     this.onPointerDown(gesture.x, gesture.y);
-  }
-
-  /** BPM·박자 도구로 보조 레인의 0박을 눌렀는데 같은 종류의 0박 초기 설정이 이미 있는지(RFD 0082). */
-  private isInitialTimingDuplicateAt(x: number, y: number): boolean {
-    const type = this.selectedEntityType;
-    if (type !== "bpm" && type !== "timeSignature") return false;
-    if (!this.callbacks.isTimeInBounds(y) || this.callbacks.space.xToExtraLane(x) === null) return false;
-    if (this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y)).n !== 0) return false;
-    return this.chart.events.some(event => event.type === type && isInitialTimingEvent(event));
   }
 
   /**
@@ -250,7 +227,9 @@ export class CreateMode implements EditorMode {
    */
   isPlacementBlocked(x: number, y: number): boolean {
     if (!this.callbacks.isTimeInBounds(y)) return true;
-    if (isEventEntityType(this.selectedEntityType)) return this.callbacks.space.hitTestEvent(x, y) !== null;
+    if (this.callbacks.space.xToTimingColumn(x) !== null || isEventEntityType(this.selectedEntityType)) {
+      return this.callbacks.space.hitTestEvent(x, y) !== null;
+    }
     // 틱·릴리즈는 바디 안에도 놓는다. 중복·소속은 공용 의미 검증으로 표시한다.
     if (this.selectedEntityType === "tick" || this.selectedEntityType === "release" || this.selectedEntityType === "doubleRelease") return false;
     const unifiedHit = this.callbacks.space.hitTestUnifiedNote(x, y);
@@ -278,6 +257,13 @@ export class CreateMode implements EditorMode {
   }
 
   onPointerDown(x: number, y: number): void {
+    // 곡 공통 열은 도구와 무관하게 그 열의 종류를 만든다(RFD 0082). 터치 단일 탭은 이 진입점을 바로 부른다.
+    const timingColumn = this.callbacks.space.xToTimingColumn(x);
+    if (timingColumn !== null) {
+      this.createTimingEventAt(timingColumn, x, y);
+      return;
+    }
+
     const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
 
     const unifiedLane = this.callbacks.space.xToUnifiedLane(x);
@@ -298,25 +284,14 @@ export class CreateMode implements EditorMode {
     // --- Extra lane detection ---
     const extraLane = this.callbacks.space.xToExtraLane(x);
     if (extraLane !== null) {
-      // Event entity types on extra lanes
+      // Range events (text, auto, stop, ...): start drag
       if (isEventEntityType(this.selectedEntityType)) {
-        if (POINT_EVENT_TYPES.includes(this.selectedEntityType)) {
-          // Point events (bpm, timeSignature): create immediately, no drag
-          this._createEventLane = extraLane;
-          this.createEvent(beat, beat);
-          this._createEventLane = null;
-          return;
-        }
-        if (RANGE_EVENT_TYPES.includes(this.selectedEntityType)) {
-          // Range events (text, auto, stop): start drag
-          this.isDragging = true;
-          this.dragStartBeat = beat;
-          this.dragStartLane = null;
-          this._dragExtraLane = extraLane;
-          this._dragType = "event";
-          this._dragEventType = this.selectedEntityType;
-          return;
-        }
+        this.isDragging = true;
+        this.dragStartBeat = beat;
+        this.dragStartLane = null;
+        this._dragExtraLane = extraLane;
+        this._dragType = "event";
+        this._dragEventType = this.selectedEntityType;
         return;
       }
       if (this.selectedEntityType === "single" || this.selectedEntityType === "double") {
@@ -606,16 +581,10 @@ export class CreateMode implements EditorMode {
       ? endBeat
       : beatMax(startBeat, endBeat);
 
-    const editorLane = this._createEventLane ?? this._dragExtraLane ?? 1;
+    const editorLane = this._dragExtraLane ?? 1;
 
     let newEvent: ChartEvent;
     switch (this.selectedEntityType) {
-      case "bpm":
-        newEvent = { type: "bpm", beat: actualStartBeat, bpm: 120, editorLane };
-        break;
-      case "timeSignature":
-        newEvent = { type: "timeSignature", beat: actualStartBeat, beatPerMeasure: { n: 4, d: 1 }, editorLane };
-        break;
       case "text":
         newEvent = { type: "text", beat: actualStartBeat, endBeat: actualEndBeat, text: "New Message", editorLane };
         break;
@@ -649,19 +618,28 @@ export class CreateMode implements EditorMode {
         throw new Error(`Unexpected entity type for event creation: ${this.selectedEntityType}`);
     }
 
-    // 0박 BPM·박자는 초기 설정 자리(BPM 보조 레인1, 박자 2)에 둔다. 같은 종류 초기 설정이 이미 있으면 만들지 않는다(RFD 0082).
-    const events = placeEditedInitialTiming([...this.chart.events, newEvent], [this.chart.events.length]);
-    if (!events) {
-      this.callbacks.onWarn?.(INITIAL_TIMING_EXISTS_COPY);
+    this.commitEvent(newEvent);
+  }
+
+  /**
+   * 곡 공통 열의 스냅 박에 BPM 120·박자 4/4를 만든다. 같은 박에 같은 종류가 이미 있으면 이유를 안내하고 만들지 않고,
+   * 그렇지 않아도 허용 오차 안의 이벤트를 누른 자리면 다른 이벤트처럼 조용히 막는다.
+   */
+  private createTimingEventAt(type: TimingEvent["type"], x: number, y: number): void {
+    if (!this.callbacks.isTimeInBounds(y)) return;
+    const beat = this.callbacks.space.snapBeat(this.callbacks.space.yToBeat(y));
+    if (this.chart.events.some(event => event.type === type && beatEq(event.beat, beat))) {
+      this.callbacks.onWarn?.(beat.n === 0 ? INITIAL_TIMING_EXISTS_COPY : TIMING_EVENT_EXISTS_COPY);
       return;
     }
+    if (this.callbacks.space.hitTestEvent(x, y) !== null) return;
+    this.commitEvent(type === "bpm"
+      ? { type: "bpm", beat, bpm: 120 }
+      : { type: "timeSignature", beat, beatPerMeasure: { n: 4, d: 1 } });
+  }
 
-    // Create new chart with immutable update
-    const updatedChart: ChartDocument = {
-      ...this.chart,
-      events,
-    };
-
+  private commitEvent(event: ChartEvent): void {
+    const updatedChart: ChartDocument = { ...this.chart, events: [...this.chart.events, event] };
     this.chart = updatedChart;
     this.callbacks.onChartUpdate(updatedChart);
   }

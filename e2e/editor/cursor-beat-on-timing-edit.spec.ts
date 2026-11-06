@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { canvasPosition } from './explicitEditorTestHelpers';
+import { canvasPosition, timingColumnPosition } from './explicitEditorTestHelpers';
 import { editorTestChart, openEditor } from './editorTestSetup';
 
 // 정지 중 타이밍 값(오프셋·BPM)을 바꾸면 커서는 수정 직전 박을 유지하고 그 박의 새 음원 시각으로 옮겨진다(RFD 0099).
@@ -43,15 +43,15 @@ async function timelineEndMs(page: Page): Promise<number | null> {
   });
 }
 
-/** Select 모드에서 0박의 초기 BPM 변경 이벤트(5번째 열)를 더블클릭해 모달에서 BPM을 `bpm`으로 바꾼다. */
+/** Select 모드에서 0박의 초기 BPM 변경 이벤트(bpm 열)를 더블클릭해 모달에서 BPM을 `bpm`으로 바꾼다. */
 async function editInitialBpm(page: Page, bpm: number): Promise<void> {
   await page.getByRole('button', { name: 'Select', exact: true }).click();
-  let position = await canvasPosition(page, 5, 0);
+  let position = await timingColumnPosition(page, 'bpm', 0);
   const canvas = page.locator('canvas');
   const box = (await canvas.boundingBox())!;
   if (position.y < box.y || position.y > box.y + box.height) {
     await canvas.dispatchEvent('wheel', { deltaY: position.y - (box.y + box.height / 2) });
-    position = await canvasPosition(page, 5, 0);
+    position = await timingColumnPosition(page, 'bpm', 0);
   }
   await page.mouse.dblclick(position.x, position.y);
   await expect(page.getByRole('heading', { name: 'Edit BPM Change Event', exact: true })).toBeVisible();

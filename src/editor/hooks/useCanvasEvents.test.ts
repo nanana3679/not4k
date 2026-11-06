@@ -11,11 +11,11 @@ import type { EntityType } from '../modes/CreateMode';
 import { createEditorModes } from '../createEditorModes';
 import { createTimelineSpace } from '../timeline/TimelineSpace';
 import { EXTRA_LANE_WIDTH, TIMELINE_WIDTH } from '../timeline/constants';
-import { createTimelineLayout, type TimelineLayout } from '../timeline/TimelineLayout';
+import { createTimelineLayout, getEditorTimelineLayoutConfig, type TimelineLayout } from '../timeline/TimelineLayout';
 import type { TimelineRenderer } from '../timeline/TimelineRenderer';
 import type { PlaybackController } from '../playback/PlaybackController';
 import { showToast } from '../../shared/toast';
-import { INITIAL_TIMING_EXISTS_COPY, PAUSE_TO_EDIT_COPY } from '../editorCopy';
+import { INITIAL_TIMING_EXISTS_COPY, PAUSE_TO_EDIT_COPY, TIMING_EVENT_EXISTS_COPY } from '../editorCopy';
 import { openEditorChart } from '../openEditorChart';
 import { useCanvasEvents, type CanvasEventHandlers } from './useCanvasEvents';
 import { handleEditorKeyDown } from './useEditorKeyboard';
@@ -37,6 +37,11 @@ vi.mock('../stores', async importOriginal => {
 });
 
 // 실제 TimelineSpace: lane 1 중심 x=30, y=ms 항등이라 120 BPM에서 y=500이 1박이다.
+/** 곡 공통 열까지 있는 에디터 배치. 위 x=30 기준은 이 배치를 넘기지 않은 테스트에만 해당한다. */
+const editorLayout = createTimelineLayout(getEditorTimelineLayoutConfig(2));
+const centerOf = ({ x, width }: { x: number; width: number }) => x + width / 2;
+const BPM_X = centerOf(editorLayout.commonColumnRange('bpm')!);
+const SIGNATURE_X = centerOf(editorLayout.commonColumnRange('timeSignature')!);
 const current = () => useEditorStore.getState();
 const notes = () => current().chart.notes;
 const chart = (source: DocumentNoteEntity[], extra: Partial<ChartDocument> = {}): ChartDocument => ({
@@ -165,23 +170,24 @@ describe('우클릭 삭제', () => {
   });
 });
 
-it.each(['create', 'select'] as const)('%s 모드에서 4박 BPM을 마우스로 더블클릭하면 편집 창이 열리고 Create만 보조 노트 1개로 dirty가 된다', mode => {
+it.each(['create', 'select'] as const)('%s 모드에서 bpm 열의 4박 BPM을 마우스로 더블클릭하면 편집 창이 열리고 아무것도 새로 만들지 않는다', mode => {
   const document = chart([], { events: [
-    { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
-    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
-    { type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 },
+    { type: 'bpm', beat: beat(0), bpm: 120 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+    { type: 'bpm', beat: beat(4), bpm: 180 },
   ] });
-  const { handlers } = setup(document, mode);
+  const { handlers } = setup(document, mode, 'single', { layout: editorLayout });
   const saved = toSavedChartJson(document, 2);
-  const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
+  const x = BPM_X;
   for (let click = 0; click < 2; click++) {
     handlers.handlePointerDown(pointer(2000, { pointerType: 'mouse', x }));
     handlers.handlePointerUp(pointer(2000, { pointerType: 'mouse', x, buttons: 0 }));
   }
   handlers.handleDoubleClick({ clientX: x, clientY: 2000 } as ReactMouseEvent<HTMLCanvasElement>);
   expect(current().editingEvent).toEqual({ type: 'event', index: 2 });
-  expect(notes()).toHaveLength(mode === 'create' ? 1 : 0);
-  expect(isChartDirty(current().chart, 2, saved, true)).toBe(mode === 'create');
+  expect(notes()).toHaveLength(0);
+  expect(current().chart.events).toEqual(document.events);
+  expect(isChartDirty(current().chart, 2, saved, true)).toBe(false);
 });
 
 describe('Delete 모드 짧은 터치', () => {
@@ -280,66 +286,133 @@ describe('Create 모드 터치 롱프레스', () => {
   });
 });
 
-describe('초기 설정이 있는 0박에 BPM·박자 생성(RFD 0082)', () => {
+describe('곡 공통 열의 BPM·박자 생성(RFD 0082)', () => {
   const initialEvents = (): ChartDocument['events'] => [
-    { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
-    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    { type: 'bpm', beat: beat(0), bpm: 120 },
+    { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
   ];
+  const tap = (handlers: CanvasEventHandlers, x: number, y: number, pointerType: 'mouse' | 'touch') => {
+    handlers.handlePointerDown(pointer(y, { pointerType, x }));
+    handlers.handlePointerUp(pointer(y, { pointerType, x, buttons: 0 }));
+  };
 
   it.each([
-    ['BPM', 1, '마우스', 'bpm', 'mouse'],
-    ['BPM', 1, '터치', 'bpm', 'touch'],
-    ['박자', 2, '마우스', 'timeSignature', 'mouse'],
-    ['박자', 2, '터치', 'timeSignature', 'touch'],
-  ] as const)('%s 도구로 같은 종류 초기 설정이 놓인 보조 레인%i의 0박을 %s로 누르면 만들지 않고 INITIAL_TIMING_EXISTS_COPY 안내를 한 번 띄운다', (_tool, lane, _input, entityType, pointerType) => {
-    const { handlers } = setup(chart([], { events: initialEvents() }), 'create', entityType);
-    const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH * (lane - 0.5);
-    handlers.handlePointerDown(pointer(0, { pointerType, x }));
-    handlers.handlePointerUp(pointer(0, { pointerType, x, buttons: 0 }));
+    ['bpm', BPM_X, '마우스', 'mouse'],
+    ['bpm', BPM_X, '터치', 'touch'],
+    ['timeSignature', SIGNATURE_X, '마우스', 'mouse'],
+    ['timeSignature', SIGNATURE_X, '터치', 'touch'],
+  ] as const)('single 도구로 %s 열(x=%i)의 0박을 %s로 누르면 만들지 않고 INITIAL_TIMING_EXISTS_COPY 안내를 한 번 띄운다', (_column, x, _input, pointerType) => {
+    const { handlers } = setup(chart([], { events: initialEvents() }), 'create', 'single', { layout: editorLayout });
+    tap(handlers, x, 0, pointerType);
 
     expect(current().chart.events).toEqual(initialEvents());
     expect(current().historyPast).toEqual([]);
     expect(vi.mocked(showToast).mock.calls).toEqual([[INITIAL_TIMING_EXISTS_COPY, 'warn']]);
   });
-});
 
-describe('[text, 초기 BPM, 초기 박자] 순서 파일을 연 뒤 0박에서 초기 BPM과 겹친 text(RFD 0082)', () => {
-  // 보조 레인1의 0박에 text 0～4박과 초기 BPM이 겹친 파일이다. 열면(openEditorChart) 초기 BPM·박자가 이벤트 목록 맨 앞으로
-  // 와 [초기 BPM 0, 초기 박자 1, text 2]가 되고, text가 초기 BPM 위에 그려져 맨 위 이벤트로 잡힌다.
-  const text: ChartDocument['events'][number] = { type: 'text', beat: beat(0), endBeat: beat(4), text: 'intro', editorLane: 1 };
-  const initialBpm: ChartDocument['events'][number] = { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 };
-  const initialSignature: ChartDocument['events'][number] = { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 };
-  const x = TIMELINE_WIDTH + EXTRA_LANE_WIDTH / 2;
-  const doubleClick = (y: number) => ({ clientX: x, clientY: y }) as unknown as ReactMouseEvent<HTMLCanvasElement>;
+  it.each([
+    ['마우스', 'single', 'mouse'],
+    ['터치', 'single', 'touch'],
+    ['마우스', 'text', 'mouse'],
+    ['터치', 'text', 'touch'],
+  ] as const)('bpm 열의 4박을 %s로 누르면 %s 도구여도 4박 BPM 120을 만든다', (_input, tool, pointerType) => {
+    const { handlers } = setup(chart([], { events: initialEvents() }), 'create', tool, { layout: editorLayout });
+    tap(handlers, BPM_X, 2000, pointerType);
 
-  /** 파일을 openEditorChart로 연 차트로 setup한다. 열 때 뜨는 위반 경고 알림·콘솔 오류는 비운다. */
-  function setupOpened(mode: EditorModeName) {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    openEditorChart({ chart: chart([], { events: [text, initialBpm, initialSignature] }), extraLaneCount: 2, hasExtraLaneCount: true });
-    consoleError.mockRestore();
-    vi.mocked(showToast).mockClear();
-    expect(current().chart.events).toEqual([initialBpm, initialSignature, text]);
-    return setup(current().chart, mode);
+    expect(current().chart.events).toHaveLength(3);
+    expect(current().chart.events[2]).toMatchObject({ type: 'bpm', bpm: 120 });
+    expect(current().chart.events[2]).not.toHaveProperty('editorLane');
+    expect(beatToFloat(current().chart.events[2].beat)).toBe(4);
+    expect(notes()).toEqual([]);
+    expect(current().historyPast).toHaveLength(1);
+  });
+
+  it('timeSignature 열의 4박 박자 자리를 마우스로 누르면 만들지 않고 TIMING_EVENT_EXISTS_COPY 안내를 띄운다', () => {
+    const events: ChartDocument['events'] = [...initialEvents(), { type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(3) }];
+    const { handlers } = setup(chart([], { events }), 'create', 'single', { layout: editorLayout });
+    tap(handlers, SIGNATURE_X, 2000, 'mouse');
+
+    expect(current().chart.events).toEqual(events);
+    expect(vi.mocked(showToast).mock.calls).toEqual([[TIMING_EVENT_EXISTS_COPY, 'warn']]);
+  });
+
+  /** 마우스 이동을 렌더러 고스트 호출로 관찰하는 최소 렌더러. */
+  function hoverRenderer() {
+    return {
+      screenXToTimelineX: (x: number) => x,
+      handleMinimapPointerDown: () => false, handleMinimapPointerMove: () => false, handleMinimapPointerUp: () => {},
+      setHoveredNote: () => {}, setHoveredTrillZone: () => {}, setHoveredRestZone: () => {}, setResizeHoverNote: () => {},
+      showGhostEvent: vi.fn(), showGhostNote: vi.fn(), showGhostExtraNote: vi.fn(), hideGhostNote: vi.fn(),
+      clearMoveOrigins: () => {}, clearBoxSelectRect: () => {},
+      contentCenterShiftX: 0,
+    };
   }
 
-  it('Select 모드로 보조 레인1의 0박을 터치로 짧게 누르면 맨 위에 그린 text 2를 선택하고 차트는 그대로다', () => {
+  it.each([
+    ['bpm', BPM_X],
+    ['timeSignature', SIGNATURE_X],
+  ] as const)('single 도구로 %s 열 위를 움직이면 2박에 그 종류의 고스트를 그린다', (type, x) => {
+    const renderer = hoverRenderer();
+    const { handlers } = setup(chart([], { events: initialEvents() }), 'create', 'single',
+      { layout: editorLayout, renderer: renderer as unknown as TimelineRenderer });
+    handlers.handlePointerMove(pointer(1000, { pointerType: 'mouse', buttons: 0, x }));
+
+    expect(renderer.showGhostEvent).toHaveBeenCalledExactlyOnceWith({ type }, 1000);
+    expect(renderer.showGhostNote).not.toHaveBeenCalled();
+  });
+
+  it('bpm 열의 0박 BPM 위에서는 고스트를 그리지 않는다', () => {
+    const renderer = hoverRenderer();
+    const { handlers } = setup(chart([], { events: initialEvents() }), 'create', 'single',
+      { layout: editorLayout, renderer: renderer as unknown as TimelineRenderer });
+    handlers.handlePointerMove(pointer(0, { pointerType: 'mouse', buttons: 0, x: BPM_X }));
+
+    expect(renderer.showGhostEvent).not.toHaveBeenCalled();
+    expect(renderer.hideGhostNote).toHaveBeenCalled();
+  });
+});
+
+describe('[text, 초기 BPM, 초기 박자] 순서 파일의 0박 입력(RFD 0082)', () => {
+  // 열어도 순서·레인을 옮기지 않는다. text는 보조 레인1, 초기 BPM·박자는 각 전용 열에 있어 서로 겹치지 않는다.
+  const text: ChartDocument['events'][number] = { type: 'text', beat: beat(0), endBeat: beat(4), text: 'intro', editorLane: 1 };
+  const initialBpm: ChartDocument['events'][number] = { type: 'bpm', beat: beat(0), bpm: 120 };
+  const initialSignature: ChartDocument['events'][number] = { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) };
+  const x = centerOf(editorLayout.auxiliaryLaneRange(1));
+  const doubleClick = (y: number, clientX = x) => ({ clientX, clientY: y }) as unknown as ReactMouseEvent<HTMLCanvasElement>;
+
+  function setupOpened(mode: EditorModeName) {
+    openEditorChart({ chart: chart([], { events: [text, initialBpm, initialSignature] }), extraLaneCount: 2, hasExtraLaneCount: true });
+    expect(showToast).not.toHaveBeenCalled();
+    expect(current().chart.events).toEqual([text, initialBpm, initialSignature]);
+    return setup(current().chart, mode, 'single', { layout: editorLayout });
+  }
+
+  it('Select 모드로 보조 레인1의 0박을 터치로 짧게 누르면 text 0을 선택하고 차트는 그대로다', () => {
     const { handlers } = setupOpened('select');
     handlers.handlePointerDown(pointer(0, { x }));
     handlers.handlePointerUp(pointer(0, { x, buttons: 0 }));
 
-    expect(current().selection.events).toEqual(new Set([2]));
-    expect(current().chart.events).toEqual([initialBpm, initialSignature, text]);
+    expect(current().selection.events).toEqual(new Set([0]));
+    expect(current().chart.events).toEqual([text, initialBpm, initialSignature]);
   });
 
-  it('Select 모드로 보조 레인1의 0박을 450ms 눌러 1박까지 끌면 text 2가 1～5박이 되고 초기 BPM 0은 0박에 남는다', () => {
+  it('Select 모드로 bpm 열의 0박을 터치로 짧게 누르면 초기 BPM을 선택하지 않는다', () => {
+    const { handlers } = setupOpened('select');
+    handlers.handlePointerDown(pointer(0, { x: BPM_X }));
+    handlers.handlePointerUp(pointer(0, { x: BPM_X, buttons: 0 }));
+
+    expect(current().selection.events).toEqual(new Set());
+  });
+
+  it('Select 모드로 보조 레인1의 0박을 450ms 눌러 1박까지 끌면 text 0이 1～5박이 되고 초기 BPM은 0박에 남는다', () => {
     const { handlers } = setupOpened('select');
     handlers.handlePointerDown(pointer(0, { x }));
     vi.advanceTimersByTime(450);
     handlers.handlePointerMove(pointer(500, { x }));
     handlers.handlePointerUp(pointer(500, { x, buttons: 0 }));
 
-    expect(current().chart.events[2]).toMatchObject({ type: 'text', beat: beat(1), endBeat: beat(5) });
-    expect(current().chart.events[0]).toEqual(initialBpm);
+    expect(current().chart.events[0]).toMatchObject({ type: 'text', beat: beat(1), endBeat: beat(5) });
+    expect(current().chart.events[1]).toEqual(initialBpm);
   });
 
   it('보조 레인1의 0박을 우클릭하면 text만 지우고 안내 토스트가 없다', () => {
@@ -351,6 +424,15 @@ describe('[text, 초기 BPM, 초기 박자] 순서 파일을 연 뒤 0박에서 
     expect(showToast).not.toHaveBeenCalled();
   });
 
+  it('bpm 열의 0박을 우클릭하면 초기 BPM을 지우지 않고 Cannot delete initial event 안내를 띄운다', () => {
+    const { handlers } = setupOpened('select');
+    handlers.handlePointerDown(pointer(0, { pointerType: 'mouse', button: 2, buttons: 2, x: BPM_X }));
+    handlers.handlePointerUp(pointer(0, { pointerType: 'mouse', button: 2, buttons: 0, x: BPM_X }));
+
+    expect(current().chart.events).toEqual([text, initialBpm, initialSignature]);
+    expect(vi.mocked(showToast).mock.calls[0][0]).toBe('Cannot delete initial event');
+  });
+
   it('Delete 모드로 보조 레인1의 0박을 터치로 짧게 누르면 text만 지우고 안내 토스트가 없다', () => {
     const { handlers } = setupOpened('delete');
     handlers.handlePointerDown(pointer(0, { x }));
@@ -360,29 +442,19 @@ describe('[text, 초기 BPM, 초기 박자] 순서 파일을 연 뒤 0박에서 
     expect(showToast).not.toHaveBeenCalled();
   });
 
-  it('보조 레인1의 0박을 더블클릭하면 맨 위에 그린 text 2 편집을 연다', () => {
+  it('보조 레인1의 0박을 더블클릭하면 text 0 편집을, bpm·timeSignature 열의 0박을 더블클릭하면 초기 BPM 1·박자 2 편집을 연다', () => {
     const { handlers } = setupOpened('select');
     handlers.handleDoubleClick(doubleClick(0));
-
+    expect(current().editingEvent).toEqual({ type: 'event', index: 0 });
+    handlers.handleDoubleClick(doubleClick(0, BPM_X));
+    expect(current().editingEvent).toEqual({ type: 'event', index: 1 });
+    handlers.handleDoubleClick(doubleClick(0, SIGNATURE_X));
     expect(current().editingEvent).toEqual({ type: 'event', index: 2 });
   });
 
-  it('text를 1～5박으로 끌어 옮긴 뒤 보조 레인1의 0박을 더블클릭하면 위에 아무것도 없는 초기 BPM 0 편집을 연다', () => {
-    const { handlers } = setupOpened('select');
-    handlers.handlePointerDown(pointer(0, { x }));
-    vi.advanceTimersByTime(450);
-    handlers.handlePointerMove(pointer(500, { x }));
-    handlers.handlePointerUp(pointer(500, { x, buttons: 0 }));
-    expect(current().chart.events[2]).toMatchObject({ type: 'text', beat: beat(1), endBeat: beat(5) });
-
-    handlers.handleDoubleClick(doubleClick(0));
-
-    expect(current().editingEvent).toEqual({ type: 'event', index: 0 });
-  });
-
-  it('Select 모드로 text 2를 선택한 뒤 보조 레인1의 0박에 마우스를 올리면 커서가 move다', () => {
+  it('Select 모드로 text 0을 선택한 뒤 보조 레인1의 0박에 마우스를 올리면 커서가 move다', () => {
     const { handlers, selectMode, canvas } = setupOpened('select');
-    selectMode.selectEvent(2);
+    selectMode.selectEvent(0);
     handlers.handlePointerMove(pointer(0, { pointerType: 'mouse', buttons: 0, x }));
 
     expect(canvas.style.cursor).toBe('move');
@@ -1111,9 +1183,7 @@ describe('song-common area의 삭제 입력', () => {
   it.each(['mouse', 'touch'] as const)(
     'song-common 열 x=30의 1·2박 BPM을 %s로 연속 삭제하면 초기 0박 BPM만 남고 Undo 1번에 복구된다',
     pointerType => {
-      const base = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'bpm', width: 60 }] });
-      const layout: TimelineLayout = { ...base, isEventAtX: (event, x) =>
-        event.type === 'bpm' ? x >= 0 && x < 60 : base.isEventAtX(event, x) };
+      const layout = createTimelineLayout({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'bpm', width: 60 }] });
       const initial = chart([], { events: [
         { type: 'bpm', beat: beat(0), bpm: 120 },
         { type: 'bpm', beat: beat(1), bpm: 120 },

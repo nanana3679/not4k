@@ -12,9 +12,9 @@ function chart(bpm = 150, difficultyLabel = 'EASY'): ChartDocument {
     notes: [{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }],
     trillZones: [], restZones: [],
     events: [
-      { type: 'bpm', beat: beat(0), bpm, editorLane: 3 },
-      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 1 },
-      { type: 'bpm', beat: beat(8), bpm: 200, editorLane: 4 },
+      { type: 'bpm', beat: beat(0), bpm },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+      { type: 'bpm', beat: beat(8), bpm: 200 },
       { type: 'text', beat: beat(4), endBeat: beat(8), text: 'hello', editorLane: 3 },
     ],
   };
@@ -67,17 +67,17 @@ describe('resolveSongChart', () => {
     expect(resolved.meta).toEqual({ ...original.meta, title: '곡 제목', artist: '곡 작곡가', imageFile: 'old.jpg' });
   });
   it.each([[150, 'EASY'], [160, 'HARD']] as const)(
-    '%i BPM인 %s 사본에 곡 151 BPM을 적용하면 표시 정보·타이밍만 교체하고 박 좌표와 파일에 있던 0박 BPM 레인3·박자 레인1을 유지한다', (bpm, difficulty) => {
+    '%i BPM인 %s 사본에 곡 151 BPM을 적용하면 표시 정보·타이밍만 교체하고 text의 박 좌표·보조 레인3을 유지한다', (bpm, difficulty) => {
       const original = chart(bpm, difficulty);
       const before = structuredClone(original);
       const resolved = resolveSongChart(original, song);
       expect(resolved.meta).toEqual({ ...original.meta, title: '곡 제목', artist: '곡 작곡가',
         imageFile: 'songs/jacket.png', offsetMs: -25 });
       expect(resolved.events).toEqual([
-        { type: 'bpm', beat: beat(0), bpm: 151, editorLane: 3 },
-        { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(3), editorLane: 1 },
-        { type: 'bpm', beat: beat(3, 2), bpm: 180, editorLane: 1 },
-        { type: 'timeSignature', beat: beat(6), beatPerMeasure: beat(7, 2), editorLane: 2 },
+        { type: 'bpm', beat: beat(0), bpm: 151 },
+        { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(3) },
+        { type: 'bpm', beat: beat(3, 2), bpm: 180 },
+        { type: 'timeSignature', beat: beat(6), beatPerMeasure: beat(7, 2) },
         original.events[3],
       ]);
       expect(resolved.events[4]).toBe(original.events[3]);
@@ -90,7 +90,7 @@ describe('resolveSongChart', () => {
   );
 });
 
-/** 보조 레인1의 text [16,24) 안 20박에 BPM 180이 보조 레인3으로 비켜 있는 유효한 차트. */
+/** 보조 레인1의 text [16,24) 안 20박에 BPM 180이 있는 유효한 차트. 타이밍 이벤트는 전용 열이라 text와 겹치지 않는다. */
 function textOverBpmChart(): ChartDocument {
   return {
     meta: { title: '곡 제목', artist: '곡 작곡가', imageFile: '', audioFile: 'audio.ogg', previewAudioFile: '',
@@ -98,10 +98,10 @@ function textOverBpmChart(): ChartDocument {
     notes: [{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }],
     trillZones: [], restZones: [],
     events: [
-      { type: 'bpm', beat: beat(0), bpm: 150, editorLane: 1 },
-      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+      { type: 'bpm', beat: beat(0), bpm: 150 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
       { type: 'text', beat: beat(16), endBeat: beat(24), text: '간주', editorLane: 1 },
-      { type: 'bpm', beat: beat(20), bpm: 180, editorLane: 3 },
+      { type: 'bpm', beat: beat(20), bpm: 180 },
     ],
   };
 }
@@ -113,8 +113,8 @@ function songWithTiming(bpmChanges: { beat: string; bpm: number }[],
 
 const playable = (resolved: ChartDocument) => validateChartDocument(resolved);
 
-describe('resolveSongChart 타이밍 이벤트의 보조 레인', () => {
-  it('보조 레인1 text [16,24)와 보조 레인3의 20박 BPM 180이 있는 차트에 같은 값의 곡 타이밍을 적용하면 같은 차트 참조를 돌려주고 위반 0건으로 플레이할 수 있다', () => {
+describe('resolveSongChart 타이밍 이벤트 교체', () => {
+  it('text [16,24)와 20박 BPM 180이 있는 차트에 같은 값의 곡 타이밍을 적용하면 같은 차트 참조를 돌려주고 위반 0건으로 플레이할 수 있다', () => {
     const original = textOverBpmChart();
     expect(playable(original).canPlayExplicit).toBe(true);
     const resolved = resolveSongChart(original, songWithTiming([{ beat: '0', bpm: 150 }, { beat: '20', bpm: 180 }]));
@@ -123,13 +123,13 @@ describe('resolveSongChart 타이밍 이벤트의 보조 레인', () => {
     expect(playable(resolved).canPlayExplicit).toBe(true);
   });
 
-  it('같은 차트에 20박 BPM만 200으로 바뀐 곡 타이밍을 적용하면 BPM 200은 파일의 보조 레인3에 남고 text는 같은 객체로 레인1에 남아 위반 0건이다', () => {
+  it('같은 차트에 20박 BPM만 200으로 바뀐 곡 타이밍을 적용하면 0박 이벤트와 text는 같은 객체로 남고 위반 0건이다', () => {
     const original = textOverBpmChart();
     const resolved = resolveSongChart(original, songWithTiming([{ beat: '0', bpm: 150 }, { beat: '20', bpm: 200 }]));
     expect(resolved.events).toEqual([
-      { type: 'bpm', beat: beat(0), bpm: 150, editorLane: 1 },
-      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
-      { type: 'bpm', beat: beat(20), bpm: 200, editorLane: 3 },
+      { type: 'bpm', beat: beat(0), bpm: 150 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+      { type: 'bpm', beat: beat(20), bpm: 200 },
       original.events[2],
     ]);
     expect(resolved.events[0]).toBe(original.events[0]);
@@ -138,26 +138,16 @@ describe('resolveSongChart 타이밍 이벤트의 보조 레인', () => {
     expect(playable(resolved).canPlayExplicit).toBe(true);
   });
 
-  it('파일에 없는 12박 BPM 160·8박 박자 3이 곡 타이밍에 있으면 BPM은 보조 레인1, 박자는 보조 레인2에 두고 파일에만 있던 20박 BPM은 뺀다', () => {
+  it('파일에 없는 12박 BPM 160·8박 박자 3이 곡 타이밍에 있으면 editorLane 없이 넣고 파일에만 있던 20박 BPM은 뺀다', () => {
     const resolved = resolveSongChart(textOverBpmChart(), songWithTiming(
       [{ beat: '0', bpm: 150 }, { beat: '12', bpm: 160 }],
       [{ beat: '0', beatPerMeasure: '4' }, { beat: '8', beatPerMeasure: '3' }],
     ));
     expect(resolved.events.filter(event => event.type === 'bpm' || event.type === 'timeSignature')).toEqual([
-      { type: 'bpm', beat: beat(0), bpm: 150, editorLane: 1 },
-      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
-      { type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(3), editorLane: 2 },
-      { type: 'bpm', beat: beat(12), bpm: 160, editorLane: 1 },
-    ]);
-  });
-
-  it('0박 BPM·박자가 보조 레인1·2인 차트에 초기 BPM 151·박자 3의 곡 타이밍을 적용해도 초기 BPM은 레인1, 초기 박자는 레인2에 남는다', () => {
-    const resolved = resolveSongChart(textOverBpmChart(), songWithTiming(
-      [{ beat: '0', bpm: 151 }, { beat: '20', bpm: 180 }], [{ beat: '0', beatPerMeasure: '3' }],
-    ));
-    expect(resolved.events.slice(0, 2)).toEqual([
-      { type: 'bpm', beat: beat(0), bpm: 151, editorLane: 1 },
-      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(3), editorLane: 2 },
+      { type: 'bpm', beat: beat(0), bpm: 150 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
+      { type: 'timeSignature', beat: beat(8), beatPerMeasure: beat(3) },
+      { type: 'bpm', beat: beat(12), bpm: 160 },
     ]);
   });
 
@@ -174,23 +164,19 @@ describe('resolveSongChart 타이밍 이벤트의 보조 레인', () => {
   });
 });
 
-describe('applySongTimingEvents의 레인 출처', () => {
+describe('applySongTimingEvents', () => {
   const timing = { bpmChanges: [{ beat: '0', bpm: 120 }, { beat: '4', bpm: 150 }],
     timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 };
-  const initial = [
-    { type: 'bpm' as const, beat: beat(0), bpm: 120, editorLane: 1 },
-    { type: 'timeSignature' as const, beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
-  ];
 
-  it('events에 없는 4박 BPM은 laneSources에 같은 박 BPM이 보조 레인 3에 있으면 레인 3에 둔다', () => {
-    const events = applySongTimingEvents(initial, timing, [{ type: 'bpm', beat: beat(4), bpm: 999, editorLane: 3 }]);
+  it('events에 없는 4박 BPM 150은 editorLane 없이 넣고 같은 값의 0박 BPM·박자는 같은 객체로 둔다', () => {
+    const initial = [
+      { type: 'bpm' as const, beat: beat(0), bpm: 120 },
+      { type: 'timeSignature' as const, beat: beat(0), beatPerMeasure: beat(4) },
+    ];
+    const events = applySongTimingEvents(initial, timing);
 
-    expect(events.find(event => event.type === 'bpm' && event.beat.n === 4)).toMatchObject({ bpm: 150, editorLane: 3 });
-  });
-
-  it('laneSources에도 4박 BPM이 없으면 기본 보조 레인 1에 둔다', () => {
-    const events = applySongTimingEvents(initial, timing, [{ type: 'timeSignature', beat: beat(4), beatPerMeasure: beat(3), editorLane: 3 }]);
-
-    expect(events.find(event => event.type === 'bpm' && event.beat.n === 4)).toMatchObject({ bpm: 150, editorLane: 1 });
+    expect(events[0]).toBe(initial[0]);
+    expect(events[1]).toBe(initial[1]);
+    expect(events[2]).toEqual({ type: 'bpm', beat: beat(4), bpm: 150 });
   });
 });

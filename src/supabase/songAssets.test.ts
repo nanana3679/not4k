@@ -11,7 +11,7 @@ const chart: ChartDocument = {
   meta: { title: '곡', artist: '', difficultyLabel: 'NORMAL', difficultyLevel: 7, imageFile: '', audioFile: '', previewAudioFile: '', offsetMs: 0 },
   notes: [{ type: 'single', lane: 1, beat: beat(0) }],
   trillZones: [],
-  events: [{ type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 }],
+  events: [{ type: 'bpm', beat: beat(0), bpm: 120 }, { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) }],
 };
 const UUID = '0f8fad5b-d9cb-469f-a165-70867728950e';
 

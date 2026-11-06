@@ -37,8 +37,8 @@ function fullChart(notes: DocumentNoteEntity[], restZones: RestZone[] = []): Cha
     trillZones: [],
     restZones,
     events: [
-      { type: "bpm", beat: beat(0, 1), bpm: 120, editorLane: 1 },
-      { type: "timeSignature", beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 },
+      { type: "bpm", beat: beat(0, 1), bpm: 120 },
+      { type: "timeSignature", beat: beat(0, 1), beatPerMeasure: beat(4, 1) },
     ],
   };
 }

@@ -10,7 +10,7 @@ import { hitTestEventAt } from './hitTest';
  * 가로 배치는 `TimelineLayout`, 세로 시간 투영은 `timelineProjection`이 소유한다.
  */
 
-import { createTimelineLayout, type TimelineLayout } from "./TimelineLayout";
+import { createTimelineLayout, type SongCommonColumnId, type TimelineLayout } from "./TimelineLayout";
 import {
   hitTestNoteAt,
   hitTestExtraNoteAt,
@@ -51,6 +51,10 @@ export interface TimelineSpace {
   xToLane(x: number): Lane | null;
   xToExtraLane(x: number): number | null;
   xToUnifiedLane(x: number): number | null;
+  /** 곡 공통 열 위면 그 열(=놓이는 이벤트 종류), 아니면 null. */
+  xToTimingColumn(x: number): SongCommonColumnId | null;
+  /** 이동 드래그의 앵커 번호. 곡 공통 열에서 시작한 드래그도 레인 차이를 낼 수 있게 열까지 센다. */
+  xToDragLane(x: number): number | null;
   yToBeat(y: number): Beat;
   yToBeatRaw(y: number): Beat;
   snapBeat(beat: Beat): Beat;
@@ -114,6 +118,13 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
   };
 
   const xToUnifiedLane = (x: number): number | null => getLayout().xToNoteLane(x);
+
+  const xToTimingColumn = (x: number): SongCommonColumnId | null => {
+    const column = getLayout().classifyX(x);
+    return column.kind === "common" ? column.column : null;
+  };
+
+  const xToDragLane = (x: number): number | null => getLayout().xToDragLane(x);
 
   const yToBeat = (y: number): Beat => {
     const timeMs = source.yToTime(y);
@@ -291,6 +302,8 @@ export function createTimelineSpace(source: TimelineSpaceSource): TimelineSpace 
     xToLane,
     xToExtraLane,
     xToUnifiedLane,
+    xToTimingColumn,
+    xToDragLane,
     yToBeat,
     yToBeatRaw,
     snapBeat,

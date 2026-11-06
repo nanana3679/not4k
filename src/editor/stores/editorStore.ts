@@ -271,7 +271,7 @@ const createDefaultChart = (): ChartDocument => ({
   },
   notes: [],
   trillZones: [],
-  events: [{ type: "bpm" as const, beat: beat(0, 1), bpm: 120, editorLane: 1 }, { type: "timeSignature" as const, beat: beat(0, 1), beatPerMeasure: beat(4, 1), editorLane: 2 }],
+  events: [{ type: "bpm" as const, beat: beat(0, 1), bpm: 120 }, { type: "timeSignature" as const, beat: beat(0, 1), beatPerMeasure: beat(4, 1) }],
 });
 
 const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;

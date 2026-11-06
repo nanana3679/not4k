@@ -1,32 +1,60 @@
 import { fromAuxIndex, isMainLane, toAuxIndex } from "../../shared";
-import type { ChartEvent } from "../../shared";
-import { EXTRA_LANE_WIDTH, LANE_COUNT, LANE_WIDTH, MEASURE_LABEL_WIDTH } from "./constants";
+import type { ChartEvent, TimingEvent } from "../../shared";
+import {
+  BPM_COLUMN_WIDTH,
+  EXTRA_LANE_WIDTH,
+  LANE_COUNT,
+  LANE_WIDTH,
+  MEASURE_LABEL_WIDTH,
+  TIME_SIGNATURE_COLUMN_WIDTH,
+} from "./constants";
 
 export interface TimelineXRange {
   readonly x: number;
   readonly width: number;
 }
 
-export interface TimelineLayoutConfig {
-  readonly auxiliaryLaneCount: number;
-  readonly songCommonColumns: readonly { readonly id: string; readonly width: number }[];
+/** 곡 공통 영역의 열은 그 열에 놓이는 이벤트 종류로 부른다. */
+export type SongCommonColumnId = TimingEvent["type"];
+
+export interface SongCommonColumn {
+  readonly id: SongCommonColumnId;
+  readonly width: number;
 }
 
-/** 앱·입력·E2E가 공유하는 현재 표시 설정. song-common area는 아직 비어 있다. */
+export interface TimelineLayoutConfig {
+  readonly auxiliaryLaneCount: number;
+  readonly songCommonColumns: readonly SongCommonColumn[];
+}
+
+/** 곡 공통 영역의 열. 배열 순서가 왼쪽부터의 배치이며, 이 목록만 바꿔도 입력·렌더링이 함께 따라간다. */
+const SONG_COMMON_COLUMNS: readonly SongCommonColumn[] = [
+  { id: "bpm", width: BPM_COLUMN_WIDTH },
+  { id: "timeSignature", width: TIME_SIGNATURE_COLUMN_WIDTH },
+];
+
+/** 앱·입력·E2E가 공유하는 현재 표시 설정. */
 export function getEditorTimelineLayoutConfig(auxiliaryLaneCount: number): TimelineLayoutConfig {
-  return { auxiliaryLaneCount, songCommonColumns: [] };
+  return { auxiliaryLaneCount, songCommonColumns: SONG_COMMON_COLUMNS };
 }
 
 export type TimelineColumn =
   | { kind: "main"; lane: number }
   | { kind: "auxiliary"; lane: number }
-  | { kind: "common"; column: string };
+  | { kind: "common"; column: SongCommonColumnId };
 
-export type EventPlacementInput = Pick<ChartEvent, "type" | "editorLane">;
+/** 구형 값이 남은 객체나 고스트처럼 저장되지 않는 입력도 받으므로 `editorLane`을 종류와 무관한 선택 필드로 둔다. */
+export interface EventPlacementInput {
+  readonly type: ChartEvent["type"];
+  readonly editorLane?: number;
+}
 
-/** 현재는 타이밍 이벤트도 저장된 보조 레인 배치를 그대로 따른다. */
-export function eventPlacement(event: EventPlacementInput): { kind: "auxiliary"; lane: number } {
-  return { kind: "auxiliary", lane: event.editorLane ?? 1 };
+/** BPM·박자는 종류가 정한 곡 공통 열에, 나머지 이벤트는 저장된 보조 레인에 놓인다(RFD 0082). */
+export function eventPlacement(event: EventPlacementInput):
+  { kind: "common"; column: SongCommonColumnId } | { kind: "auxiliary"; lane: number } {
+  return event.type === "bpm" || event.type === "timeSignature"
+    ? { kind: "common", column: event.type }
+    : { kind: "auxiliary", lane: event.editorLane ?? 1 };
 }
 
 /** 등간격 레인 투영. 범위 밖이면 null이다. */
@@ -42,9 +70,10 @@ export function createTimelineLayout(input: {
   songCommonColumns?: TimelineLayoutConfig["songCommonColumns"];
 }) {
   const { auxiliaryLaneCount } = input;
-  const rangeByCommonColumn = new Map<string, TimelineXRange>();
+  const songCommonColumns = input.songCommonColumns ?? [];
+  const rangeByCommonColumn = new Map<SongCommonColumnId, TimelineXRange>();
   let songCommonWidth = 0;
-  for (const column of input.songCommonColumns ?? []) {
+  for (const column of songCommonColumns) {
     rangeByCommonColumn.set(column.id, { x: songCommonWidth, width: column.width });
     songCommonWidth += column.width;
   }
@@ -73,18 +102,32 @@ export function createTimelineLayout(input: {
     if (column.kind === "main") return column.lane;
     return column.kind === "auxiliary" ? fromAuxIndex(column.lane) : null;
   };
-  const eventRange = (event: EventPlacementInput) => auxiliaryLaneRange(eventPlacement(event).lane);
+  /** 드래그 앵커 번호. 레인은 통합 레인 번호, 곡 공통 열은 메인 1번 왼쪽으로 이어지는 0 이하 번호다. */
+  const xToDragLane = (x: number): number | null => {
+    const column = classifyX(x);
+    if (column.kind !== "common") return xToNoteLane(x);
+    return songCommonColumns.findIndex(({ id }) => id === column.column) - songCommonColumns.length + 1;
+  };
+  /** 놓일 열이 지금 배치에 없으면 null이다. */
+  const eventRange = (event: EventPlacementInput): TimelineXRange | null => {
+    const placement = eventPlacement(event);
+    return placement.kind === "common"
+      ? rangeByCommonColumn.get(placement.column) ?? null
+      : auxiliaryLaneRange(placement.lane);
+  };
   return {
     auxiliaryLaneCount,
     contentWidth,
     measureRail: { x: -MEASURE_LABEL_WIDTH, width: MEASURE_LABEL_WIDTH },
     mainArea,
     songCommonWidth,
-    commonColumnRange: (column: string) => rangeByCommonColumn.get(column),
+    songCommonColumns,
+    commonColumnRange: (column: SongCommonColumnId) => rangeByCommonColumn.get(column),
     noteLaneRange,
     auxiliaryLaneRange,
     classifyX,
     xToNoteLane,
+    xToDragLane,
     eventPlacement,
     eventRange,
     columnRangeAtX: (x: number): TimelineXRange | null => {
@@ -97,7 +140,8 @@ export function createTimelineLayout(input: {
     isEventAtX: (event: EventPlacementInput, x: number): boolean => {
       const column = classifyX(x);
       const placement = eventPlacement(event);
-      return column.kind === placement.kind && column.lane === placement.lane;
+      if (placement.kind === "common") return column.kind === "common" && column.column === placement.column;
+      return column.kind === "auxiliary" && column.lane === placement.lane;
     },
   };
 }

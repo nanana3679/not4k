@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TimelineRenderer } from "./TimelineRenderer";
+import type { SongCommonColumnId } from "./TimelineLayout";
 
 function renderer() {
   return new TimelineRenderer({
@@ -29,37 +30,44 @@ describe('TimelineRenderer 레이아웃 캐시', () => {
 it('auxiliary lane 2개에서 같은 총폭 120px의 song-common 열 순서를 바꾸면 열 위치 캐시도 바뀐다', () => {
   const timeline = renderer();
   const first = timeline.getLayout({ auxiliaryLaneCount: 2,
-    songCommonColumns: [{ id: 'bpm', width: 40 }, { id: 'signature', width: 80 }] });
+    songCommonColumns: [{ id: 'bpm', width: 40 }, { id: 'timeSignature', width: 80 }] });
   const second = timeline.getLayout({ auxiliaryLaneCount: 2,
-    songCommonColumns: [{ id: 'signature', width: 80 }, { id: 'bpm', width: 40 }] });
+    songCommonColumns: [{ id: 'timeSignature', width: 80 }, { id: 'bpm', width: 40 }] });
   expect(second).not.toBe(first);
   expect(second.contentWidth).toBe(480);
   expect(second.commonColumnRange('bpm')).toEqual({ x: 80, width: 40 });
-  expect(second.commonColumnRange('signature')).toEqual({ x: 0, width: 80 });
+  expect(second.commonColumnRange('timeSignature')).toEqual({ x: 0, width: 80 });
 });
 
-it('song-common 열 객체를 폭 40→80px·id bpm→signature로 수정해 다시 주면 캐시는 이전 배치와 분리된다', () => {
+it('song-common 열 객체를 폭 40→80px·id bpm→timeSignature로 수정해 다시 주면 캐시는 이전 배치와 분리된다', () => {
   const timeline = renderer();
-  const config = { auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'bpm', width: 40 }] };
+  const config = { auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'bpm' as SongCommonColumnId, width: 40 }] };
   const first = timeline.getLayout(config);
   config.songCommonColumns[0].width = 80;
-  config.songCommonColumns[0].id = 'signature';
+  config.songCommonColumns[0].id = 'timeSignature';
   const second = timeline.getLayout(config);
   expect(second).not.toBe(first);
   expect(first.commonColumnRange('bpm')).toEqual({ x: 0, width: 40 });
   expect(second.commonColumnRange('bpm')).toBeUndefined();
-  expect(second.commonColumnRange('signature')).toEqual({ x: 0, width: 80 });
+  expect(second.commonColumnRange('timeSignature')).toEqual({ x: 0, width: 80 });
   expect(second.contentWidth).toBe(440);
 });
 
 it('60px song-common 열에서 auxiliary lane 2→3개 설정을 입력이 먼저 읽고 렌더러에 반영하면 같은 480px 배치를 쓴다', () => {
   const timeline = renderer();
   timeline.setLayoutConfig({ auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'bpm', width: 60 }] });
-  const nextConfig = { auxiliaryLaneCount: 3, songCommonColumns: [{ id: 'bpm', width: 60 }] };
+  const nextConfig = { auxiliaryLaneCount: 3, songCommonColumns: [{ id: 'bpm' as const, width: 60 }] };
   const next = timeline.getLayout(nextConfig);
   expect(next.contentWidth).toBe(480);
   timeline.setLayoutConfig(nextConfig);
   expect(timeline.layout).toBe(next);
   expect(timeline.extraLaneCount).toBe(3);
   expect(timeline.layout.classifyX(450)).toEqual({ kind: 'auxiliary', lane: 3 });
+});
+
+it('곡 공통 표기는 기본으로 꺼져 있고 setSongCommonLabelVisible(true)로 켠다', () => {
+  const timeline = renderer();
+  expect(timeline.songCommonLabelVisible).toBe(false);
+  timeline.setSongCommonLabelVisible(true);
+  expect(timeline.songCommonLabelVisible).toBe(true);
 });

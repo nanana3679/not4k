@@ -193,8 +193,10 @@ export class OverlayRenderer {
   showGhostEvent(event: EventPlacementInput, timeMs: number): void {
     destroyChildren(this.host.ghostLayer);
 
+    const range = this.layout.eventRange(event);
+    if (range === null) return;
     const y = this.host.timeToY(timeMs);
-    const { x, width } = this.layout.eventRange(event);
+    const { x, width } = range;
 
     const ghost = new Graphics();
     ghost.rect(x, y - NOTE_HEIGHT / 2, width, NOTE_HEIGHT);
@@ -426,12 +428,14 @@ export class OverlayRenderer {
       this.drawViolationHatch(zone.lane, startMs, endMs, minTimeMs, maxTimeMs);
     }
 
-    // 이벤트: editorLane 좌표계(엑스트라 레인) — 구간 이벤트('endBeat' 보유)는 endMs까지, 시점 이벤트는 포인트 (RFD 0017 §7).
-    // 폭은 이벤트(GridRenderer.renderEvents)와 같은 layout.eventRange를 따른다.
+    // 이벤트: BPM·박자는 곡 공통 열, 나머지는 editorLane 좌표계(엑스트라 레인) — 구간 이벤트('endBeat' 보유)는 endMs까지,
+    // 시점 이벤트는 포인트 (RFD 0017 §7). 위치·폭은 이벤트(GridRenderer.renderEvents)와 같은 layout.eventRange를 따른다.
     for (const idx of this.host.violatingEventIndices) {
       if (idx >= this.host.chart.events.length) continue;
       const evt = this.host.chart.events[idx];
-      const { x: rectX, width } = this.layout.eventRange(evt);
+      const range = this.layout.eventRange(evt);
+      if (range === null) continue;
+      const { x: rectX, width } = range;
       const startMs = beatToMs(evt.beat, bpmChanges, meta.offsetMs);
       const endMs = "endBeat" in evt ? beatToMs(evt.endBeat, bpmChanges, meta.offsetMs) : null;
       this.drawViolationHatchAt(rectX, width, startMs, endMs, minTimeMs, maxTimeMs);
@@ -450,7 +454,7 @@ export class OverlayRenderer {
   }
 
   /**
-   * x=rectX에서 폭 width인 칸을 채우는 해칭 코어 — 레인(laneToX·laneWidth)과 이벤트 editorLane 칸
+   * x=rectX에서 폭 width인 칸을 채우는 해칭 코어 — 레인(laneToX·laneWidth)과 이벤트 칸
    * (layout.eventRange)이 x와 폭만 달리해 공유한다.
    */
   private drawViolationHatchAt(

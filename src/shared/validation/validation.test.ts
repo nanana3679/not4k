@@ -572,10 +572,10 @@ describe("validateNoEventOverlap", () => {
 
   it("겹치는 두 이벤트의 원본 인덱스가 refs에 담긴다 — 앞에 다른 타입 이벤트가 끼어 인덱스가 밀려도 정확", () => {
     const events: ChartEvent[] = [
-      { type: "bpm", beat: beat(0), bpm: 120, editorLane: 3 },       // 인덱스 0, 다른 레인
+      { type: "bpm", beat: beat(0), bpm: 120 },       // 인덱스 0, 다른 레인
       { type: "tutorialInput", beat: beat(0), endBeat: beat(4), lane: 1, keyCode: "KeyD", editorLane: 4 }, // 인덱스 1
       { type: "text", beat: beat(0), endBeat: beat(4), text: "A", editorLane: 2 }, // 인덱스 2
-      { type: "bpm", beat: beat(1), bpm: 140, editorLane: 3 },       // 인덱스 3, 다른 레인
+      { type: "bpm", beat: beat(1), bpm: 140 },       // 인덱스 3, 다른 레인
       { type: "text", beat: beat(2), endBeat: beat(6), text: "B", editorLane: 2 }, // 인덱스 4
     ];
     const errors = validateNoEventOverlap(events);

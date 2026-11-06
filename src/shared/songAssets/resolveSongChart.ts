@@ -1,5 +1,5 @@
 import { beatCompare, beatEq, beatFromString } from '../types/beat';
-import type { BpmChangeEvent, ChartDocument, ChartEvent, TimeSignatureChangeEvent } from '../types/chart';
+import { isTimingEvent, type ChartDocument, type ChartEvent, type TimingEvent } from '../types/chart';
 import { parseSongTiming, type SongTiming } from './songTiming';
 
 /** DB의 timing은 내용 검증 전이므로 unknown으로 받는다. null만 미이행 상태다. */
@@ -10,24 +10,12 @@ export interface SongSharedData {
   readonly timing: unknown;
 }
 
-type TimingEvent = BpmChangeEvent | TimeSignatureChangeEvent;
-
-/** 파일에 같은 종류·박의 이벤트가 없는 곡 타이밍 BPM의 보조 레인. 0박 초기 BPM 자리와 같다(RFD 0082). */
-const DEFAULT_BPM_EDITOR_LANE = 1;
-/** 파일에 같은 종류·박의 이벤트가 없는 곡 타이밍 박자의 보조 레인. 0박 초기 박자 자리와 같다(RFD 0082). */
-const DEFAULT_TIME_SIGNATURE_EDITOR_LANE = 2;
-
 /**
  * 곡 행의 표시 정보·타이밍을 적용한다. 파일 형식·노트·차트별 이벤트의 박 좌표는 바꾸지 않는다.
  * jacketUrl이 null이면 기존 에디터 동작대로 파일의 imageFile을 유지한다(빈 문자열로 지우지 않는다).
  *
- * 곡 타이밍에는 editorLane이 없고, 보조 레인 배치는 차트 소유다. 차트의 BPM·박자 이벤트가 곡 타이밍과 종류·박·값이
- * 모두 같으면(레인·배열 순서는 보지 않는다) events를 그대로 둔다. 다르면 곡 타이밍으로 교체하되, 파일에 같은 종류·박의
- * 이벤트가 있으면 그 이벤트의 editorLane을 그대로 쓰고 값만 바꾼다. 파일에 없는 박의 이벤트만 BPM은 보조 레인1, 박자는
- * 2에 둔다. 따라서 파일에서 다른 이벤트를 비켜 둔 타이밍 이벤트가 겹침 위반으로 바뀌지 않는다. 0박 초기 설정을
- * 레인1·2로 옮기는 일은 에디터 열기가 맡는다(RFD 0082).
- * 교체할 때 박 순서, 같은 박은 BPM→박자로 앞에 두고, 일반 이벤트의 순서·레인은 그대로 둔다.
- * 파일에 없던 박의 이벤트가 기존 일반 이벤트와 겹친 자리는 숨기거나 자동 수리하지 않는다.
+ * 차트의 BPM·박자 이벤트가 곡 타이밍과 종류·박·값이 모두 같으면(배열 순서는 보지 않는다) events를 그대로 둔다. 다르면
+ * 곡 타이밍으로 교체한다. 교체할 때 박 순서, 같은 박은 BPM→박자로 앞에 두고, 일반 이벤트의 순서·레인은 그대로 둔다.
  */
 export function resolveSongChart<T extends ChartDocument>(chart: T, song?: SongSharedData | null): T {
   if (!song) return chart;
@@ -42,14 +30,12 @@ export function resolveSongChart<T extends ChartDocument>(chart: T, song?: SongS
 }
 
 /**
- * 곡 타이밍과 종류·박·값이 같으면 받은 events 참조를, 다르면 파일 레인을 이어받은 교체 결과를 돌려준다.
+ * 곡 타이밍과 종류·박·값이 같으면 받은 events 참조를, 다르면 교체 결과를 돌려준다. 값이 같은 타이밍 이벤트는 교체해도 같은
+ * 객체로 남겨, 변경 취소가 선택을 객체로 다시 찾을 수 있게 한다.
  * 값을 검증하지 않으므로 DB 값은 parseSongTiming을 거친 뒤 넘긴다. 에디터의 곡 정보 변경 취소도 마지막 곡 저장 기준을
- * 이 규칙으로 되돌려, 같은 종류·박의 이벤트는 차트의 보조 레인을 유지한다.
- *
- * `laneSources`는 events에 같은 종류·박이 없을 때 레인을 찾을 다른 이벤트 목록이다. 변경 취소는 마지막으로 불러오거나 저장한
- * 차트의 이벤트를 넘겨, 지우거나 다른 박으로 옮긴 타이밍 이벤트가 기본 레인(BPM 1·박자 2) 대신 저장된 레인으로 돌아오게 한다.
+ * 이 규칙으로 되돌린다.
  */
-export function applySongTimingEvents(events: ChartEvent[], timing: SongTiming, laneSources: readonly ChartEvent[] = []): ChartEvent[] {
+export function applySongTimingEvents(events: ChartEvent[], timing: SongTiming): ChartEvent[] {
   const existing = events.filter(isTimingEvent);
   const songEvents: TimingEvent[] = [
     ...timing.bpmChanges.map(change => ({ type: 'bpm' as const, beat: beatFromString(change.beat), bpm: change.bpm })),
@@ -60,24 +46,9 @@ export function applySongTimingEvents(events: ChartEvent[], timing: SongTiming, 
   const unchanged = existing.length === songEvents.length
     && songEvents.every(songEvent => existing.some(event => sameTimingValue(event, songEvent)));
   if (unchanged) return events;
-  const sourceTimingEvents = laneSources.filter(isTimingEvent);
-  const placed = songEvents.map((songEvent): ChartEvent => {
-    // 파일에 같은 종류·박이 여럿(중복 위반)이면 배열에서 먼저 나온 것의 레인을 쓰고 나머지는 교체로 빠진다.
-    const match = existing.find(event => samePosition(event, songEvent));
-    if (!match) {
-      const source = sourceTimingEvents.find(event => samePosition(event, songEvent));
-      if (source) return source.editorLane === undefined ? songEvent : { ...songEvent, editorLane: source.editorLane };
-      return { ...songEvent, editorLane: songEvent.type === 'bpm'
-        ? DEFAULT_BPM_EDITOR_LANE : DEFAULT_TIME_SIGNATURE_EDITOR_LANE };
-    }
-    // songEvent에는 editorLane이 없으므로 파일 이벤트의 레인(생략 포함)이 그대로 남는다.
-    return sameTimingValue(match, songEvent) ? match : { ...match, ...songEvent };
-  });
+  const placed = songEvents.map((songEvent): ChartEvent =>
+    existing.find(event => sameTimingValue(event, songEvent)) ?? songEvent);
   return [...placed, ...events.filter(event => !isTimingEvent(event))];
-}
-
-function isTimingEvent(event: ChartEvent): event is TimingEvent {
-  return event.type === 'bpm' || event.type === 'timeSignature';
 }
 
 function samePosition(a: TimingEvent, b: TimingEvent): boolean {
