@@ -105,7 +105,7 @@ describe("TimelineSpace — 라이브 읽기 (no-stale)", () => {
       { type: "timeSignature", beat: beat(0), beatPerMeasure: beat(4) },
       { type: "text", beat: beat(0), endBeat: beat(4), text: "hi", editorLane: 1 },
     ] }) });
-    source.getLayout = () => createTimelineLayout(getEditorTimelineLayoutConfig(state.extraLaneCount));
+    source.getLayout = () => createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: state.extraLaneCount, songCommonCollapsed: false }));
     const space = createTimelineSpace(source);
     expect(space.xToTimingColumn(30)).toBe("bpm");
     expect(space.xToTimingColumn(70)).toBe("timeSignature");

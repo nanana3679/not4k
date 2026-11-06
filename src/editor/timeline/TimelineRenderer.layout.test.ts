@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { TimelineRenderer } from "./TimelineRenderer";
 import type { SongCommonColumnId } from "./TimelineLayout";
 
-function renderer() {
+function renderer(width = 1000) {
   return new TimelineRenderer({
-    canvas: {} as HTMLCanvasElement, width: 1000, height: 600,
+    canvas: {} as HTMLCanvasElement, width, height: 600,
     layoutConfig: { auxiliaryLaneCount: 2, songCommonColumns: [] },
     viewport: {
       get: () => ({ zoom: 200, snapDivision: 4, scrollY: 0, horizontalPanX: 0 }),
@@ -70,4 +70,68 @@ it('곡 공통 표기는 기본으로 꺼져 있고 setSongCommonLabelVisible(tr
   expect(timeline.songCommonLabelVisible).toBe(false);
   timeline.setSongCommonLabelVisible(true);
   expect(timeline.songCommonLabelVisible).toBe(true);
+});
+
+describe('곡 공통 영역을 접고 펼칠 때의 가로 배치(RFD 0095)', () => {
+  const expanded = { auxiliaryLaneCount: 2, songCommonColumns: [{ id: 'bpm' as const, width: 60 }, { id: 'timeSignature' as const, width: 48 }] };
+  const collapsed = { auxiliaryLaneCount: 2, songCommonColumns: [], collapsedSongCommonWidth: 108 };
+  const withPan = (timeline: TimelineRenderer, panX: number) =>
+    Object.assign(timeline as unknown as { _horizontalPanX: number }, { _horizontalPanX: panX });
+  const laneOneScreenX = (timeline: TimelineRenderer) => timeline.contentOffsetX + timeline.layout.noteLaneRange(1).x;
+
+  it('너비 300px에서 팬 150px로 곡 공통 108px를 접으면 팬 42px가 되어 메인 레인 1이 화면 x=-10에 남는다', () => {
+    const timeline = renderer(300);
+    timeline.setLayoutConfig(expanded);
+    withPan(timeline, 150);
+    expect(laneOneScreenX(timeline)).toBe(-10);
+    timeline.setLayoutConfig(collapsed);
+    expect(timeline.horizontalPanX).toBe(42);
+    expect(laneOneScreenX(timeline)).toBe(-10);
+  });
+
+  it('너비 300px에서 접은 채 팬 100px로 펼치면 팬 0으로 돌아가 bpm 열이 마디 레일 바로 오른쪽 x=32에 보인다', () => {
+    const timeline = renderer(300);
+    timeline.setLayoutConfig(collapsed);
+    withPan(timeline, 100);
+    timeline.setLayoutConfig(expanded);
+    expect(timeline.horizontalPanX).toBe(0);
+    expect(timeline.contentOffsetX + timeline.layout.commonColumnRange('bpm')!.x).toBe(32);
+  });
+
+  it('너비 1000px에서 접어도 중앙 정렬 여백이 234px로 같아 마디 레일과 버튼이 움직이지 않고 메인 레인 1만 108px 왼쪽으로 온다', () => {
+    const timeline = renderer(1000);
+    timeline.setLayoutConfig(expanded);
+    expect(timeline.contentCenterShiftX).toBe(234);
+    const before = laneOneScreenX(timeline);
+    timeline.setLayoutConfig(collapsed);
+    expect(timeline.contentCenterShiftX).toBe(234);
+    expect(laneOneScreenX(timeline)).toBe(before - 108);
+    expect(timeline.horizontalPanX).toBe(0);
+  });
+
+  it('너비 500px에서 펼친 폭이 가용 폭보다 넓으면 접어도 중앙 정렬 여백이 0px라 왼쪽 빈칸이 생기지 않는다', () => {
+    const timeline = renderer(500);
+    timeline.setLayoutConfig(expanded);
+    expect(timeline.contentCenterShiftX).toBe(0);
+    timeline.setLayoutConfig(collapsed);
+    expect(timeline.contentCenterShiftX).toBe(0);
+    expect(laneOneScreenX(timeline)).toBe(32);
+  });
+
+  it('보조 레인 수만 바꾸면 곡 공통 폭이 같아 팬 150px를 범위 안에서 유지한다', () => {
+    const timeline = renderer(300);
+    timeline.setLayoutConfig(expanded);
+    withPan(timeline, 150);
+    timeline.setLayoutConfig({ ...expanded, auxiliaryLaneCount: 3 });
+    expect(timeline.horizontalPanX).toBe(150);
+  });
+
+  it('접힌 배치를 입력이 먼저 읽어 캐시를 바꿔도 렌더러 배치는 setLayoutConfig 뒤 같은 객체를 쓴다', () => {
+    const timeline = renderer();
+    timeline.setLayoutConfig(expanded);
+    const next = timeline.getLayout(collapsed);
+    expect(next.songCommonWidth).toBe(0);
+    timeline.setLayoutConfig(collapsed);
+    expect(timeline.layout).toBe(next);
+  });
 });

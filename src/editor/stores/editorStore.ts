@@ -11,6 +11,7 @@ import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
 import { previewClipIdentity, songDraftOf, sameSongDraft, type EditorSong, type SongDraft } from '../songState';
 import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
+import { initialSongCommonCollapsed, storeSongCommonCollapsed } from '../songCommonCollapse';
 import type { SavedChartJson } from '../savedChart';
 import type { SongValues } from '../../supabase/saveSong';
 import type { StoredChartRow } from '../../supabase/chartRows';
@@ -105,6 +106,12 @@ interface EditorState extends ViewportSlice, SelectionSlice {
 
   // Extra lanes — 보조 노트는 chart.notes(lane 5+)로 이주(RFD 0018 ③), extraLaneCount만 순수 설정으로 유지(§8-3)
   extraLaneCount: number;
+
+  /**
+   * 곡 공통 영역(BPM·박자 열)이 접혀 있는가. 브라우저별 표시 상태로 차트·history·저장 파일에 들어가지 않고 loadChart가 바꾸지 않는다
+   * (src/editor/songCommonCollapse.ts, RFD 0095).
+   */
+  songCommonCollapsed: boolean;
 
   // Undo/redo history
   historyPast: HistorySnapshot[];
@@ -220,6 +227,13 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setIsPlaying: (isPlaying: boolean) => void;
   setCurrentTimeMs: (timeMs: number) => void;
   setExtraLaneCount: (count: number, transaction?: symbol) => void;
+  /**
+   * 사용자가 곡 공통 영역을 접거나 펼친다. 값을 브라우저에 저장하고, 접으면 숨는 BPM·박자를 선택에서 뺀다.
+   * 가로 배치가 바뀌는 독립 명령이라 보조 레인 수 변경처럼 열린 transaction을 먼저 확정한다. 재생 중에도 쓸 수 있다.
+   */
+  setSongCommonCollapsed: (collapsed: boolean) => void;
+  /** 붙여넣은 BPM·박자가 보이게 펼친다. 사용자가 고른 값이 아니라 저장하지 않고, 붙여넣기 transaction을 끝내지 않는다. */
+  revealSongCommon: () => void;
   /** 재생 중이면 no-op(RFD 0099). */
   undo: () => void;
   /** 재생 중이면 no-op(RFD 0099). */
@@ -365,6 +379,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   cursorMoveCount: 0,
   cursorBeatKeeperState: null,
   extraLaneCount: 2,
+  songCommonCollapsed: initialSongCommonCollapsed(),
   historyPast: [],
   historyFuture: [],
   historyLastCaptureAt: 0,
@@ -467,7 +482,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         zones: remap(state.selection.zones, state.chart.trillZones, chart.trillZones),
         restZones: remap(state.selection.restZones, state.chart.restZones ?? [], chart.restZones ?? []),
         events: remap(state.selection.events, state.chart.events, chart.events),
-      }, chart);
+      }, chart, state.songCommonCollapsed);
       const song = state.song && options?.songDraft ? { ...state.song, ...options.songDraft } : state.song;
       return {
         ...captureHistory(state, options?.isolated || options?.separateHistory, options?.transaction, options?.reopensSongInfo),
@@ -629,6 +644,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ...(fullyValid ? { lastValidSnapshot: { chart: state.chart, extraLaneCount, songDraft: state.song ? songDraftOf(state.song) : null } } : {}),
       };
     });
+  },
+  setSongCommonCollapsed: (collapsed) => {
+    if (get().songCommonCollapsed === collapsed) return;
+    get().commitEditTransaction();
+    storeSongCommonCollapsed(collapsed);
+    set((state) => {
+      const selection = normalizeSelection(state.selection, state.chart, collapsed);
+      return {
+        songCommonCollapsed: collapsed,
+        selection: selectionEquals(selection, state.selection) ? state.selection : selection,
+      };
+    });
+  },
+  revealSongCommon: () => {
+    if (get().songCommonCollapsed) set({ songCommonCollapsed: false });
   },
   undo: () => {
     if (get().isPlaying) return; // 재생 중 Undo 금지(RFD 0099)

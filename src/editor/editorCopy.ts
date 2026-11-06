@@ -82,6 +82,8 @@ export const TIMING_EVENT_EXISTS_COPY = "This beat already has a BPM/time signat
 export const SONG_COMMON_AREA_COPY = {
   scope: "곡 공통",
   columnTitles: { bpm: "BPM", timeSignature: "TS" },
+  collapse: "BPM·박자표 열 접기",
+  expand: "BPM·박자표 열 펼치기",
 } as const;
 
 export const SONG_SAVE_COPY = {

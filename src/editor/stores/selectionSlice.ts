@@ -19,13 +19,15 @@
  *   개별 트릴 선택만 구간 유닛과 배타로 남는다.
  * - 모든 인덱스는 해당 배열 범위 안이다(차트 변이에 따른 보정은 변이 액션이 한다).
  * - events는 0박 초기 BPM·박자를 포함하지 않는다. 초기 설정은 속성 모달에서만 편집한다.
+ * - 곡 공통 영역이 접혀 있으면 events는 BPM·박자를 포함하지 않는다(RFD 0095). Ctrl+A는 화면 배치를 읽지 않으므로
+ *   이 게이트가 빼고, 박스·클릭은 열이 없어 애초에 잡지 못한다.
  *
  * 재생 중 잠금(RFD 0099): 재생 중에는 선택을 바꾸지 않는다. 캔버스·키보드·변환 검토 목록이 먼저 막고 안내하며,
  * setSelection·clearSelection이 마지막에 한 번 더 막는다. 차트 변이·Undo·transaction 취소가 하는 선택 보정은
  * 이 액션을 거치지 않고 store가 직접 쓰므로 막히지 않는다.
  */
 import type { ChartDocument, DocumentNoteEntity, TrillZone } from '../../shared';
-import { beatToFloat } from '../../shared';
+import { beatToFloat, isTimingEvent } from '../../shared';
 import { isInitialTimingEvent } from '../editing/eventEditing';
 import { classifySelection, filterHomogeneousSelection } from '../modes/trillZoneSelection';
 
@@ -110,6 +112,7 @@ function pruneBounds(indices: ReadonlySet<number>, length: number): Set<number> 
 export function normalizeSelection(
   input: Selection,
   chart: Pick<ChartDocument, 'notes' | 'trillZones' | 'restZones' | 'events'>,
+  songCommonCollapsed: boolean,
 ): Selection {
   const zones = pruneBounds(input.zones, chart.trillZones.length);
 
@@ -130,7 +133,8 @@ export function normalizeSelection(
   const kind = classifySelection(chart.trillZones, chart.notes, kept);
   const events = pruneBounds(input.events, chart.events.length);
   for (const index of events) {
-    if (isInitialTimingEvent(chart.events[index])) events.delete(index);
+    const event = chart.events[index];
+    if (isInitialTimingEvent(event) || (songCommonCollapsed && isTimingEvent(event))) events.delete(index);
   }
   return {
     notes: kept,
@@ -156,10 +160,11 @@ export interface SelectionSlice {
   clearSelection: () => boolean;
 }
 
-/** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 차트(보조 노트도 chart.notes에 포함)와 재생 여부. */
+/** 게이트가 읽는 외부 사실 — 선택 인덱스가 가리키는 차트(보조 노트도 chart.notes에 포함)·재생 여부·곡 공통 영역 접힘. */
 interface SelectionHost {
   chart: ChartDocument;
   isPlaying: boolean;
+  songCommonCollapsed: boolean;
 }
 
 type SliceSet = (
@@ -176,13 +181,13 @@ export function createSelectionSlice(
     setSelection: (input) => {
       if (get().isPlaying) return false;
       // RFD 0037 §6-3: 의미 위반도 선택 해제·교체하며 수리할 수 있다.
-      const normalized = normalizeSelection(input, get().chart);
-      set({ selection: normalized });
+      const { chart, songCommonCollapsed } = get();
+      set({ selection: normalizeSelection(input, chart, songCommonCollapsed) });
       return true;
     },
     setSelectionTransient: (input) => {
-      const { chart } = get();
-      set({ selection: normalizeSelection(input, chart) });
+      const { chart, songCommonCollapsed } = get();
+      set({ selection: normalizeSelection(input, chart, songCommonCollapsed) });
     },
     clearSelection: () => {
       // 전체 비우기도 같은 정규화 통로를 쓴다.

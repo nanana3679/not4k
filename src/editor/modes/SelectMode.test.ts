@@ -82,11 +82,11 @@ function makeCallbacks(
     setSelection: (s: Selection) => {
       // ③: normalizeSelection은 chart.notes에서 auxCount를 파생한다 — 페이크의 메인 차트와
       // 보조 배열을 통합 차트로 합쳐 넘겨 프로덕션과 동일 의미론을 유지한다 (RFD 0018).
-      selection = normalizeSelection(s, selectionChart());
+      selection = normalizeSelection(s, selectionChart(), false);
       return true; // 페이크는 §3-5 게이트 없음(항상 통과) — 게이트 결합 검증은 integration 테스트 담당
     },
     setSelectionTransient: (s: Selection) => {
-      selection = normalizeSelection(s, selectionChart());
+      selection = normalizeSelection(s, selectionChart(), false);
     },
     /** 테스트 검증용 — 페이크가 소유한 선택 상태를 읽는다 */
     getSelectionState: () => selection,

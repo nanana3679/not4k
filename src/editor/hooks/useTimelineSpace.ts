@@ -36,7 +36,7 @@ export function useTimelineSpace(rendererRef: RefObject<TimelineRenderer | null>
       getSelectedNotes: () => useEditorStore.getState().selection.notes,
       getExtraLaneCount: () => useEditorStore.getState().extraLaneCount,
       getLayout: () => {
-        const config = getEditorTimelineLayoutConfig(useEditorStore.getState().extraLaneCount);
+        const config = getEditorTimelineLayoutConfig(useEditorStore.getState());
         return rendererRef.current?.getLayout(config)
           ?? createTimelineLayout(config);
       },

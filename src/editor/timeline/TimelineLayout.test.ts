@@ -2,6 +2,51 @@ import { describe, expect, it } from "vitest";
 import { createTimelineLayout, eventPlacement, getEditorTimelineLayoutConfig } from "./TimelineLayout";
 import type { RangeEvent } from "../../shared";
 
+describe("곡 공통 영역을 접은 배치(RFD 0095)", () => {
+  const collapsed = createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: true }));
+  const expanded = createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: false }));
+
+  it("접으면 곡 공통 폭이 108→0px이고 콘텐츠 폭이 468→360px, 메인 레인 1이 x=108→0으로 온다", () => {
+    expect(expanded.songCommonWidth).toBe(108);
+    expect(expanded.contentWidth).toBe(468);
+    expect(expanded.noteLaneRange(1).x).toBe(108);
+    expect(collapsed.songCommonWidth).toBe(0);
+    expect(collapsed.contentWidth).toBe(360);
+    expect(collapsed.noteLaneRange(1).x).toBe(0);
+    expect(collapsed.auxiliaryLaneRange(1).x).toBe(240);
+  });
+
+  it("접어도 중앙 정렬 폭은 펼친 콘텐츠 폭 468px 그대로다", () => {
+    expect(expanded.centeringWidth).toBe(468);
+    expect(collapsed.centeringWidth).toBe(468);
+  });
+
+  it("접으면 x=10이 bpm 열이 아니라 메인 레인 1이고 x<0은 콘텐츠 밖이다", () => {
+    expect(expanded.classifyX(10)).toEqual({ kind: "common", column: "bpm" });
+    expect(collapsed.classifyX(10)).toEqual({ kind: "main", lane: 1 });
+    expect(collapsed.classifyX(-1)).toEqual({ kind: "outside" });
+  });
+
+  it("접으면 BPM·박자의 eventRange가 null이고 x=10 위에도 없지만 보조 레인 text는 x=240에 남는다", () => {
+    expect(collapsed.eventRange({ type: "bpm" })).toBeNull();
+    expect(collapsed.eventRange({ type: "timeSignature" })).toBeNull();
+    expect(collapsed.isEventAtX({ type: "bpm" }, 10)).toBe(false);
+    expect(collapsed.isEventAtX({ type: "timeSignature" }, 10)).toBe(false);
+    expect(collapsed.eventRange({ type: "text" })).toEqual({ x: 240, width: 60 });
+  });
+
+  it("접으면 드래그 앵커 번호에 0 이하 곡 공통 번호가 없고 x=10은 레인 1이다", () => {
+    expect(expanded.xToDragLane(10)).toBe(-1);
+    expect(collapsed.xToDragLane(10)).toBe(1);
+  });
+
+  it("접고 펼쳐도 저장 레인 번호와 보조 레인 수는 그대로다", () => {
+    expect(collapsed.auxiliaryLaneCount).toBe(expanded.auxiliaryLaneCount);
+    expect(collapsed.xToNoteLane(collapsed.noteLaneRange(5).x)).toBe(5);
+    expect(expanded.xToNoteLane(expanded.noteLaneRange(5).x)).toBe(5);
+  });
+});
+
 describe("TimelineLayout", () => {
   it("보조 레인 2개에서 editorLane 0·1.5·3인 text는 메인·보조·숨겨진 위치에서 히트하지 않는다", () => {
     const layout = createTimelineLayout({ auxiliaryLaneCount: 2 });
@@ -85,7 +130,7 @@ describe("TimelineLayout", () => {
   });
 
   describe("곡 공통 영역의 BPM·박자 열", () => {
-    const layout = createTimelineLayout(getEditorTimelineLayoutConfig(2));
+    const layout = createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount: 2, songCommonCollapsed: false }));
 
     it("에디터 설정의 곡 공통 영역은 왼쪽부터 bpm 60px·timeSignature 48px이고 메인 영역은 x=108에서 시작한다", () => {
       expect(layout.songCommonColumns).toEqual([{ id: "bpm", width: 60 }, { id: "timeSignature", width: 48 }]);

@@ -37,6 +37,7 @@ import {
   getPlaybackCursorLineEndX,
   getTimelineContentViewportRect,
   getTimelineContentOffsetX,
+  panAfterSongCommonResize,
   panToRevealRange,
   screenXToTimelineX as mapScreenXToTimelineX,
   shouldRenderPlaybackCursorHandle,
@@ -51,7 +52,7 @@ import { OverlayRenderer } from "./OverlayRenderer";
 import type { OverlayHost } from "./OverlayRenderer";
 import { destroyChildren } from "./utils";
 import { laneToX, laneWidth } from "./laneGeometry";
-import { createTimelineLayout, type TimelineLayout, type EventPlacementInput, type TimelineLayoutConfig } from "./TimelineLayout";
+import { createTimelineLayout, songCommonWidthOf, type TimelineLayout, type EventPlacementInput, type TimelineLayoutConfig } from "./TimelineLayout";
 import { clampToCursorRange, cursorRangeMsOf } from "./timelineRange";
 
 export interface TimelineRendererOptions {
@@ -515,9 +516,15 @@ export class TimelineRenderer {
 
   /** 가로 배치 전체를 갱신하고 팬·커서·렌더링을 같은 설정으로 맞춘다. */
   setLayoutConfig(config: TimelineLayoutConfig): void {
+    // 옛 폭은 설정에서 읽는다. this.layout을 읽으면 입력이 먼저 만든 새 배치 캐시를 옛 배치로 밀어낸다.
+    const previousWidth = songCommonWidthOf(this.layoutConfig);
     this.layoutConfig = this.copyLayoutConfig(config);
     this._horizontalPanX = clampHorizontalPan({
-      requestedPanX: this._horizontalPanX,
+      requestedPanX: panAfterSongCommonResize({
+        panX: this._horizontalPanX,
+        previousWidth,
+        nextWidth: songCommonWidthOf(this.layoutConfig),
+      }),
       timelineWidth: this.currentTimelineWidth,
       viewportWidth: this.options.width,
       leftRailWidth: this.layout.measureRail.width,
@@ -574,7 +581,8 @@ export class TimelineRenderer {
 
   private copyLayoutConfig(config: TimelineLayoutConfig): TimelineLayoutConfig {
     return { auxiliaryLaneCount: config.auxiliaryLaneCount,
-      songCommonColumns: config.songCommonColumns.map(column => ({ ...column })) };
+      songCommonColumns: config.songCommonColumns.map(column => ({ ...column })),
+      collapsedSongCommonWidth: config.collapsedSongCommonWidth };
   }
 
   /** 입력도 최신 설정 전체를 넘겨 렌더 동기화 지연 없이 같은 배치를 읽는다. */
@@ -582,6 +590,7 @@ export class TimelineRenderer {
     const cached = this.cachedLayoutConfig;
     if (!this.cachedLayout || !cached
       || cached.auxiliaryLaneCount !== config.auxiliaryLaneCount
+      || cached.collapsedSongCommonWidth !== config.collapsedSongCommonWidth
       || cached.songCommonColumns.length !== config.songCommonColumns.length
       || cached.songCommonColumns.some((column, index) =>
         column.id !== config.songCommonColumns[index].id || column.width !== config.songCommonColumns[index].width)) {
@@ -682,7 +691,7 @@ export class TimelineRenderer {
     return getContentCenterShiftX({
       viewportWidth: this.options.width,
       leftRailWidth: this.layout.measureRail.width,
-      timelineWidth: this.currentTimelineWidth,
+      timelineWidth: this.layout.centeringWidth,
       rightRailWidth: this.rightRailWidth,
     });
   }

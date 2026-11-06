@@ -12,7 +12,7 @@ import { selectCanUndo, useEditorStore } from './stores/editorStore';
 import { emptySelection } from './stores/selectionSlice';
 import { createTimelineSpace } from './timeline/TimelineSpace';
 
-const editorLayout = (extraLaneCount = 3) => createTimelineLayout(getEditorTimelineLayoutConfig(extraLaneCount));
+const editorLayout = (extraLaneCount = 3) => createTimelineLayout(getEditorTimelineLayoutConfig({ extraLaneCount, songCommonCollapsed: false }));
 const centerOf = ({ x, width }: { x: number; width: number }) => x + width / 2;
 /** 에디터 배치의 bpm·timeSignature 열 가운데 x. */
 const BPM_X = centerOf(editorLayout().commonColumnRange('bpm')!);
