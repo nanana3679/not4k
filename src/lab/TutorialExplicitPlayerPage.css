@@ -1,0 +1,101 @@
+.tutorial-explicit-player-lab {
+  --tep-bg: #0b1018;
+  --tep-panel: #121a26;
+  --tep-line: rgba(157, 238, 244, 0.18);
+  --tep-text: #e6edf5;
+  --tep-muted: #9aa8b8;
+  --tep-accent: #6fe3ee;
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 32px;
+  background: var(--tep-bg);
+  color: var(--tep-text);
+}
+
+.tutorial-explicit-player-lab a {
+  color: var(--tep-accent);
+}
+
+.tutorial-explicit-player-lab__header {
+  max-width: 920px;
+}
+
+.tutorial-explicit-player-lab__header h1 {
+  margin: 12px 0 8px;
+  font-size: 24px;
+}
+
+.tutorial-explicit-player-lab__header p,
+.tutorial-explicit-player-lab__panel p {
+  color: var(--tep-muted);
+  line-height: 1.6;
+}
+
+.tutorial-explicit-player-lab__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  max-width: 920px;
+  margin-top: 24px;
+}
+
+.tutorial-explicit-player-lab__panel {
+  padding: 16px;
+  border: 1px solid var(--tep-line);
+  border-radius: 8px;
+  background: var(--tep-panel);
+}
+
+.tutorial-explicit-player-lab__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tutorial-explicit-player-lab__choices button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--tep-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tep-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tutorial-explicit-player-lab__choices button[aria-pressed="true"] {
+  border-color: var(--tep-accent);
+  color: var(--tep-accent);
+}
+
+.tutorial-explicit-player-lab__result {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.tutorial-explicit-player-lab__result div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.tutorial-explicit-player-lab__result dt {
+  color: var(--tep-muted);
+}
+
+.tutorial-explicit-player-lab__result dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .tutorial-explicit-player-lab {
+    padding: 16px;
+  }
+
+  .tutorial-explicit-player-lab__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

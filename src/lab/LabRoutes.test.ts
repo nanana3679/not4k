@@ -25,6 +25,12 @@ describe('LabRoutes', () => {
     expect(markup).toContain('자동 입력');
     expect(markup).toContain('href="/lab"');
   });
+  it('/lab/tutorial-explicit-player 직접 진입은 명시 정의를 건 튜토리얼 재생기 캔버스와 Lab 복귀 링크를 표시한다', async () => {
+    const markup = await renderLabPath('/lab/tutorial-explicit-player');
+    expect(markup).toContain('data-lab-page="tutorial-explicit-player"');
+    expect(markup).toContain('data-tutorial-preview-canvas="true"');
+    expect(markup).toContain('href="/lab"');
+  });
   it('/lab/explicit-renderer를 직접 열면 명시 노트 fixture와 실제 M1 세션 시연이 표시된다', async () => {
     const markup = await renderLabPath('/lab/explicit-renderer');
     expect(markup).toContain('data-lab-page="explicit-renderer"');

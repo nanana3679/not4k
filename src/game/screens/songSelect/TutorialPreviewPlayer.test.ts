@@ -341,7 +341,7 @@ describe('TutorialPreviewPlayer', () => {
   it('레슨을 넘기면(preview·previewInstanceId 변경) 차트 effect만 다시 돌아 같은 렌더러를 resetTransientState → setChart → 키보드·레인 라벨 교체 → 첫 프레임 → 렌더 사이클 0 초기화 → 준비 알림 순서로 재사용', () => {
     const contentDeps = '  }, [diagramTimings, keyboardAreaHeight, keys, preview, previewInstanceId, timings, tutorialKeyboardKeys]);';
     expect(tutorialPreviewPlayerSource).toContain(contentDeps);
-    const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer) => {');
+    const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {');
     expect(attachStart).toBeGreaterThan(-1);
     const order = [
       'renderer.resetTransientState();',
@@ -369,7 +369,7 @@ describe('TutorialPreviewPlayer', () => {
   });
 
   it('렌더러 준비·실패·재생성은 차트 effect가 구독해 처리하고, 실패하면 이후 레슨도 준비 완료로 알려 캐러셀이 멈추지 않음', () => {
-    expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'ready', renderer });");
+    expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'ready', renderer, loadExplicitSkin });");
     expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'failed' });");
     expect(tutorialPreviewPlayerSource).toContain("publishRendererState({ status: 'loading' });");
     expect(tutorialPreviewPlayerSource).toContain('rendererStateListenerRef.current = handleRendererState;');
@@ -390,6 +390,128 @@ describe('TutorialPreviewPlayer', () => {
   });
 
 
+});
+
+describe('TutorialPreviewPlayer 명시 판정 엔진 seam', () => {
+  const attachStart = tutorialPreviewPlayerSource.indexOf('const attachRenderer = (renderer: GameRenderer, explicitSkin: ExplicitSkinLoader | null = null) => {');
+  const renderLoopStart = tutorialPreviewPlayerSource.indexOf('const renderLoop = ');
+  const renderLoopEnd = tutorialPreviewPlayerSource.indexOf('        };\n\n        animationFrameId = requestAnimationFrame(renderLoop);', renderLoopStart);
+  const renderLoopBody = tutorialPreviewPlayerSource.slice(renderLoopStart, renderLoopEnd);
+
+  it('preview prop은 구형 정의와 명시 정의를 모두 받고 정의 내용(isExplicitTutorialPreview)으로 판정 엔진을 고름', () => {
+    expect(tutorialPreviewPlayerSource).toContain('preview?: TutorialPreviewDefinition | ExplicitTutorialPreviewDefinition;');
+    expect(tutorialPreviewPlayerSource).toContain('if (isExplicitTutorialPreview(preview)) {');
+    expect(tutorialPreviewPlayerSource).not.toMatch(/engine\??: ['"]legacy/);
+  });
+
+  it('명시 정의는 같은 attachRenderer에서 resetTransientState → setExplicitChart → 키보드·레인 라벨 → 첫 프레임 순서로 걸고, 차트는 걸 때 한 번만 건다', () => {
+    expect(attachStart).toBeGreaterThan(-1);
+    const order = [
+      'renderer.resetTransientState();',
+      'renderer.setExplicitChart(',
+      'renderer.updateTutorialKeyboardKeys(tutorialKeyboardKeys);',
+      'renderer.setLaneKeyLabels(getLaneKeyLabels(keys, [], {})',
+      'renderer.renderFrame(preview.renderStartMs, 0);',
+    ].map((snippet) => tutorialPreviewPlayerSource.indexOf(snippet, attachStart));
+    expect(order.every((index) => index > attachStart)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(tutorialPreviewPlayerSource.split('renderer.setExplicitChart(').length - 1).toBe(1);
+    expect(tutorialPreviewPlayerSource).toContain('() => explicitPlayback.renderSnapshot(activeRenderCycle)');
+    expect(tutorialPreviewPlayerSource).toContain('preview.renderDurationMs,');
+  });
+
+  it('명시 판정은 바인딩으로 옮긴 같은 timings를 시연 입력 계획으로 쓰고 설정의 판정 모드(judgmentMode)를 따르지 않음', () => {
+    expect(tutorialPreviewPlayerSource).toContain('createExplicitTutorialPreviewPlayback(preview, createTutorialTimingsInputPlan(timings), {');
+    expect(tutorialPreviewPlayerSource).not.toContain('judgmentMode');
+    expect(tutorialPreviewPlayerSource).not.toContain('getJudgmentWindows');
+  });
+
+  it('명시 확정 효과는 판정 글자 묶음·고도·타격을 렌더러로 보내고 타격은 구형과 같은 onBombEffect·showRendererBomb 경로를 공유', () => {
+    expect(tutorialPreviewPlayerSource).toContain('showJudgmentGroup: (state) => renderer.showJudgmentGroup(state),');
+    expect(tutorialPreviewPlayerSource).toContain('recordFlightJudgment: (grade) => renderer.recordFlightJudgment(grade),');
+    expect(tutorialPreviewPlayerSource.split('showBombEffect: showPreviewBomb').length - 1).toBe(2);
+    expect(tutorialPreviewPlayerSource).toContain('onBombEffectRef.current?.(lane, getTutorialBombPosition(lane, keyboardAreaHeight));');
+  });
+
+  it('반복 경계는 엔진별 finishLoop가 맡고, 렌더 루프는 resetTransientState·setExplicitChart를 다시 부르지 않으며 명시 결과는 onPatternFinished로 알림', () => {
+    expect(renderLoopBody).toContain('if (loopTimeMs < previousLoopTime) {');
+    expect(renderLoopBody).toContain('previewJudgment.finishLoop();');
+    expect(renderLoopBody).toContain('previewJudgment.advanceTo(loopTimeMs);');
+    expect(renderLoopBody).not.toContain('resetTransientState');
+    expect(renderLoopBody).not.toContain('setExplicitChart');
+    // `callback?.(finishPattern())`처럼 쓰면 콜백이 없을 때 인자도 평가하지 않아 반복을 정산하지 않는다. 정산을 먼저 한다.
+    const finishPattern = tutorialPreviewPlayerSource.indexOf('const pattern = explicitPlayback.finishPattern();');
+    expect(finishPattern).toBeGreaterThan(-1);
+    expect(tutorialPreviewPlayerSource.indexOf('onPatternFinishedRef.current?.(pattern);', finishPattern)).toBeGreaterThan(finishPattern);
+    expect(tutorialPreviewPlayerSource).not.toMatch(/\?\.\([^)]*finishPattern\(\)/);
+    expect(tutorialPreviewPlayerSource).toContain('onPatternFinished?: (pattern: ExplicitTutorialPatternResult) => void;');
+  });
+
+  it('구형 경계 정산은 그대로 loopMs까지 진행 → adapter reset → setChart로 노트 표시 캐시를 다시 만듦', () => {
+    expect(tutorialPreviewPlayerSource.indexOf('advanceTo: (loopTimeMs) => controller.advanceTo(loopTimeMs),')).toBeGreaterThan(-1);
+    const legacyBoundary = [
+      'controller.advanceTo(preview.loopMs);',
+      'sessionAdapter.reset();',
+      'renderer.setChart(',
+    ].map((snippet) => tutorialPreviewPlayerSource.indexOf(snippet, tutorialPreviewPlayerSource.indexOf('advanceTo: (loopTimeMs) => controller.advanceTo(loopTimeMs),')));
+    expect(legacyBoundary.every((index) => index > -1)).toBe(true);
+    expect([...legacyBoundary].sort((a, b) => a - b)).toEqual(legacyBoundary);
+  });
+
+  it('명시 경계는 paused·이미 걸린 도식 대기가 아니면 경과 시간의 차수로 한 번 정산하고, 이 프레임에 새로 걸린 도식은 정산을 막지 않으며 구형은 loopTimeMs 감소만 검사', () => {
+    const explicitStart = renderLoopBody.indexOf('if (isExplicitTutorialPreview(preview)) {');
+    const legacyStart = renderLoopBody.indexOf('} else if (loopTimeMs < previousLoopTime) {', explicitStart);
+    expect(explicitStart).toBeGreaterThan(renderLoopBody.indexOf('if (clock.frozen) {'));
+    expect(explicitStart).toBeGreaterThan(renderLoopBody.indexOf('loopTimeMs = resolveDiagramPauseTime(loopTimeMs);'));
+    expect(legacyStart).toBeGreaterThan(explicitStart);
+    const explicitBoundary = renderLoopBody.slice(explicitStart, legacyStart);
+    expect(explicitBoundary).toContain('stepExplicitTutorialLoop({');
+    expect(explicitBoundary).toContain('elapsedMs: now - loopStartNow,');
+    expect(explicitBoundary).toContain('loopMs: preview.loopMs,');
+    expect(explicitBoundary).toContain('previousIteration: previousExplicitLoopIteration,');
+    expect(explicitBoundary).toContain('frozen: clock.frozen || diagramHeldBeforeFrame,');
+    // 도식 대기 여부는 resolveDiagramPauseTime이 이 프레임의 새 도식을 걸기 전에 읽는다.
+    const heldIndex = renderLoopBody.indexOf('const diagramHeldBeforeFrame = activeDiagramPause !== null;');
+    expect(heldIndex).toBeGreaterThan(-1);
+    expect(heldIndex).toBeLessThan(renderLoopBody.indexOf('loopTimeMs = resolveDiagramPauseTime(loopTimeMs);'));
+    expect(explicitBoundary).toContain('previousExplicitLoopIteration = loop.iteration;');
+    expect(explicitBoundary).toContain('if (loop.finished) previewJudgment.finishLoop();');
+    expect(explicitBoundary.match(/previewJudgment\.finishLoop\(\)/g)).toHaveLength(1);
+    expect(explicitBoundary).not.toMatch(/\b(for|while)\s*\(/);
+    expect(renderLoopBody.slice(legacyStart)).toContain([
+      '} else if (loopTimeMs < previousLoopTime) {',
+      '            previewJudgment.finishLoop();',
+      '          }',
+      '          previewJudgment.advanceTo(loopTimeMs);',
+    ].join('\n'));
+  });
+
+  it('도식 OK와 차트 재연결은 loopStartNow를 다시 잡을 때 명시 차수도 0으로 초기화', () => {
+    const resumeStart = tutorialPreviewPlayerSource.indexOf('resumeDiagramRef.current = () => {');
+    const resumeEnd = tutorialPreviewPlayerSource.indexOf('    resolveDiagramPauseTime(0);', resumeStart);
+    const resumeBody = tutorialPreviewPlayerSource.slice(resumeStart, resumeEnd);
+    expect(resumeBody).toContain('loopStartNow = resumeNow - activeDiagramPause.timing.endMs;');
+    expect(resumeBody).toContain('previousExplicitLoopIteration = 0;');
+    const attachBody = tutorialPreviewPlayerSource.slice(attachStart, renderLoopStart);
+    expect(attachBody).toContain('loopStartNow = previousNow;');
+    expect(attachBody).toContain('previousExplicitLoopIteration = 0;');
+  });
+
+  it('명시 노트 도안은 렌더러마다 명시 정의를 처음 걸 때만 ExplicitSkinLoader로 불러오고, 정리는 렌더러 dispose 뒤에 함', () => {
+    expect(tutorialPreviewPlayerSource).toContain("import('../../skin/ExplicitSkinLoader')");
+    expect(tutorialPreviewPlayerSource).toContain('state.loadExplicitSkin().then(');
+    const disposeStart = tutorialPreviewPlayerSource.indexOf('const disposeResources = () => {');
+    const rendererDispose = tutorialPreviewPlayerSource.indexOf('disposeTutorialPreviewRenderer(renderer);', disposeStart);
+    const explicitSkinDispose = tutorialPreviewPlayerSource.indexOf('explicitSkin?.dispose();', disposeStart);
+    expect(disposeStart).toBeGreaterThan(-1);
+    expect(rendererDispose).toBeGreaterThan(disposeStart);
+    expect(explicitSkinDispose).toBeGreaterThan(rendererDispose);
+  });
+
+  it('차트 effect는 명시 판정 세션을 stop으로만 놓고 렌더러·도안은 렌더러 effect가 정리', () => {
+    expect(tutorialPreviewPlayerSource).toContain('attachedJudgment?.stop();');
+    expect(tutorialPreviewPlayerSource).toContain('stop: () => explicitPlayback.stop(),');
+  });
 });
 
 describe('프리뷰 렌더 오류 표면화', () => {
