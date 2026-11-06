@@ -17,8 +17,9 @@ import { showToast } from '../../shared/toast';
 import { INITIAL_TIMING_EXISTS_COPY, PAUSE_TO_EDIT_COPY } from '../editorCopy';
 import { openEditorChart } from '../openEditorChart';
 import { useCanvasEvents, type CanvasEventHandlers } from './useCanvasEvents';
-import { handleEditorKeyDown } from './useEditorKeyboard';
+import { handleEditorKeyDown, OWN_KEYS_REGION_ATTRIBUTE } from './useEditorKeyboard';
 import { isChartDirty, toSavedChartJson } from '../savedChart';
+import { editSongTitle } from '../songInfoEditing';
 
 // DOM 대신 훅의 실제 effect를 마운트·해제한다. store 구독·타이머·모드·recognizer는 실제 구현을 쓴다.
 const lifecycle = vi.hoisted(() => ({ effects: [] as Array<() => void | (() => void)> }));
@@ -69,6 +70,7 @@ let unsubscribe = () => {};
 let unmountEffects = () => {};
 beforeEach(() => {
   vi.stubGlobal('window', globalThis);
+  vi.stubGlobal('document', { activeElement: null });
   const events = new EventTarget();
   vi.stubGlobal('addEventListener', events.addEventListener.bind(events));
   vi.stubGlobal('removeEventListener', events.removeEventListener.bind(events));
@@ -383,6 +385,59 @@ describe('[text, 초기 BPM, 초기 박자] 순서 파일을 연 뒤 0박에서 
     handlers.handlePointerMove(pointer(0, { pointerType: 'mouse', buttons: 0, x }));
 
     expect(canvas.style.cursor).toBe('move');
+  });
+});
+
+describe('드로어에 입력 중인 값과 타임라인 누름', () => {
+  const tapAt = (at: number): DocumentNoteEntity => ({ type: 'tap', kind: 'single', lane: 1, beat: beat(at) });
+  const mouse = (y: number) => pointer(y, { pointerType: 'mouse' });
+  /** Title에 draft를 입력 중인 포커스. blur는 브라우저처럼 포커스를 거두고 입력칸의 onBlur(적용)를 부른다. */
+  function focusDrawerTitle(draft: string) {
+    const field = {
+      closest: (selector: string) => selector.includes(`[${OWN_KEYS_REGION_ATTRIBUTE}]`) ? {} : null,
+      blur: () => {
+        if (document.activeElement !== (field as unknown as Element)) return;
+        vi.stubGlobal('document', { activeElement: null });
+        editSongTitle(draft);
+      },
+    };
+    vi.stubGlobal('document', { activeElement: field });
+  }
+  /** 브라우저가 pointerdown 뒤 mousedown에서 하는 포커스 이동. 포커스가 입력칸에 남아 있으면 이때 입력칸이 적용한다. */
+  const browserMouseDownBlur = () => (document.activeElement as HTMLElement | null)?.blur();
+
+  it('Title에 새 제목을 입력하던 중 Select 모드에서 고른 1박 탭을 3박까지 끌면 제목이 적용되고 탭도 3박으로 옮겨지며 Undo 1회는 이동만 되돌린다', () => {
+    const { handlers } = setup(chart([tapAt(1)]), 'select');
+    current().setSelection({ ...emptySelection(), notes: new Set([0]) });
+    focusDrawerTitle('새 제목');
+
+    handlers.handlePointerDown(mouse(500));
+    browserMouseDownBlur();
+    handlers.handlePointerMove(mouse(1500));
+    handlers.handlePointerUp(mouse(1500));
+
+    expect(notes()[0].beat).toEqual(beat(3));
+    expect(current().chart.meta.title).toBe('새 제목');
+    expect(current().editTransaction).toBeNull();
+    current().undo();
+    expect(notes()[0].beat).toEqual(beat(1));
+    expect(current().chart.meta.title).toBe('새 제목');
+  });
+
+  it('Title에 새 제목을 입력하던 중 1박 탭을 우클릭해 2박 탭 위로 끌면 제목이 적용되고 끊기지 않아 두 탭이 모두 지워지며 Undo 1회로 둘 다 돌아온다', () => {
+    const { handlers } = setup(chart([tapAt(1), tapAt(2)]), 'select');
+    focusDrawerTitle('새 제목');
+
+    handlers.handlePointerDown(rightPointer(500));
+    browserMouseDownBlur();
+    handlers.handlePointerMove(rightPointer(1000));
+    handlers.handlePointerUp(rightPointer(1000));
+
+    expect(notes()).toHaveLength(0);
+    expect(current().chart.meta.title).toBe('새 제목');
+    current().undo();
+    expect(notes()).toHaveLength(2);
+    expect(current().chart.meta.title).toBe('새 제목');
   });
 });
 

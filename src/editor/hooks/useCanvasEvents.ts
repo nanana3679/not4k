@@ -37,6 +37,7 @@ import {
   type HoldHits,
 } from './touchEditRouting';
 import { resolveContextMenuDelete } from './contextMenuRouting';
+import { commitFocusedDrawerInput } from './useEditorKeyboard';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
 
 export interface CanvasEventHandlers {
@@ -451,6 +452,8 @@ export function useCanvasEvents(
   }, [canvasRef, handlePointerCancel]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    // 드로어에 입력 중인 값은 이 누름이 편집 transaction을 열기 전에 적용한다. 적용이 token 없는 독립 명령이라 뒤에 오면 드래그가 끊긴다.
+    commitFocusedDrawerInput();
     activePointerIdsRef.current.add(e.pointerId);
     deferredPauseToastPointerIdsRef.current.delete(e.pointerId);
     // 캔버스 밖에서 뗀 우클릭은 Windows에서 그 contextmenu가 뗀 자리의 다른 요소로 가 대기가 남는다.

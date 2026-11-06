@@ -108,6 +108,37 @@ export function dragRangeAt(
   return { startTime: drag.startTime, endTime: clamp(t, lower, Math.max(lower, upper)) };
 }
 
+/**
+ * 누른 x에서 이만큼(px) 벗어나야 끌기다. 그보다 적게 움직이고 떼면 클릭이다. 터치 탭의 손 떨림이 핸들을 옮기지 않게 한다.
+ * 터치 탭의 슬롭(TOUCH_MOVE_CANCEL_PX 10px)은 폭 270px 안팎인 파형에서 곡의 3%가 넘어 쓰지 않는다.
+ */
+export const RANGE_CLICK_SLOP_PX = 3;
+
+/**
+ * 구간 선택기를 누른 동안의 상태. 잡은 곳(drag, 구간 밖을 눌러 구간을 옮겼으면 null)과 마지막으로 정한 구간(last),
+ * 포인터가 누른 x에서 RANGE_CLICK_SLOP_PX 이상 벗어난 적이 있는지(moved)다.
+ */
+export interface RangePress {
+  drag: RangeDrag | null;
+  last: { startTime: number; endTime: number };
+  moved: boolean;
+}
+
+/**
+ * 누른 동안 포인터가 `clientX`에 왔을 때의 다음 상태. 핸들은 몇 px 옆을 눌러도 잡히므로, 클릭을 위치로 계산하면 핸들이 누른 곳으로
+ * 튀어 구간이 바뀐다. 그래서 누른 x에서 RANGE_CLICK_SLOP_PX 이상 벗어난 적이 없으면 받은 상태를 그대로 돌려준다. 한 번 벗어난 뒤에는
+ * 누른 x 근처로 돌아와도 끌기이므로 놓은 위치로 계산한다. 잡은 곳이 없으면 누를 때 정한 구간을 유지한다.
+ */
+export function pressRangeAt(
+  press: RangePress,
+  clientX: number,
+  rect: { left: number; width: number },
+  limits: RangeDragLimits,
+): RangePress {
+  if (!press.drag || (!press.moved && Math.abs(clientX - press.drag.startX) < RANGE_CLICK_SLOP_PX)) return press;
+  return { drag: press.drag, last: dragRangeAt(press.drag, clientX, rect, limits), moved: true };
+}
+
 /** 구간 선택기에 넘기는 처음 구간(store 값). 선택기는 마운트할 때만 이 값을 읽는다. */
 export interface RangeInput {
   initialStart?: number;

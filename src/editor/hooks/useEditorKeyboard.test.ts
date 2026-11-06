@@ -8,7 +8,7 @@ import { hitTestNoteAt } from '../timeline/hitTest';
 import { makeFakeSpace } from '../timeline/makeFakeSpace';
 import type { PlaybackController } from '../playback/PlaybackController';
 import { PAUSE_TO_EDIT_COPY } from '../editorCopy';
-import { handleEditorKeyDown, OWN_KEYS_REGION_ATTRIBUTE } from './useEditorKeyboard';
+import { commitFocusedDrawerInput, handleEditorKeyDown, OWN_KEYS_REGION_ATTRIBUTE } from './useEditorKeyboard';
 
 vi.mock('../../shared/toast', () => ({ showToast: vi.fn() }));
 
@@ -24,7 +24,7 @@ const chart = (source: DocumentNoteEntity[]): ChartDocument => ({
 let unsubscribe = () => {};
 afterEach(() => unsubscribe());
 
-function setup(source: DocumentNoteEntity[] = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }]) {
+function setup(source: DocumentNoteEntity[] = [{ type: 'tap', kind: 'single', lane: 1, beat: beat(1) }], { hasAudio = true } = {}) {
   useEditorStore.setState({
     chart: chart(source), mode: 'select', selection: emptySelection(), extraLaneCount: 2, isPlaying: false,
     historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null,
@@ -47,7 +47,8 @@ function setup(source: DocumentNoteEntity[] = [{ type: 'tap', kind: 'single', la
   // App.tsx의 [chart] effect처럼 store 차트가 바뀌면 모드에 넘긴다.
   unsubscribe = useEditorStore.subscribe(state => mode.setChart(state.chart));
   // PlaybackController처럼 재생 상태가 바뀌면 store의 setIsPlaying을 부른다(App의 onPlayStateChange 배선).
-  const playback = { togglePlay: () => current().setIsPlaying(!current().isPlaying) } as unknown as PlaybackController;
+  // 음원이 없으면 PlaybackController.play()처럼 아무것도 하지 않는다.
+  const playback = { togglePlay: () => { if (hasAudio) current().setIsPlaying(!current().isPlaying); } } as unknown as PlaybackController;
   const toasts: string[] = [];
   const press = (key: string, modifiers: {
     ctrlKey?: boolean; shiftKey?: boolean; repeat?: boolean; target?: EventTarget; preventDefault?: () => void;
@@ -296,7 +297,7 @@ function keyTarget(tagName: string, options: { type?: string; region?: 'drawer' 
   const regionSelector = options.region === 'drawer' ? `[${OWN_KEYS_REGION_ATTRIBUTE}]`
     : options.region === 'dialog' ? '[role="dialog"]' : null;
   return {
-    tagName, type: options.type, isContentEditable: false, blur: vi.fn(),
+    tagName, type: options.type, isContentEditable: false, blur: vi.fn(), focus: vi.fn(),
     closest: (selector: string) => regionSelector && selector.split(',').map(part => part.trim()).includes(regionSelector) ? {} : null,
   };
 }
@@ -319,6 +320,20 @@ describe('곡 정보 드로어의 입력칸 포커스', () => {
     expect(title.blur).not.toHaveBeenCalled();
   });
 
+  it('select 모드에서 1박 탭을 고르고 Enter로 적용한 뒤 Title에 포커스가 남아 있으면 Backspace·Enter·Escape는 노트·선택을 바꾸지 않고 preventDefault도 하지 않아 입력칸의 키로 남는다', () => {
+    const { mode, press } = setup();
+    mode.selectNote(0);
+    const title = keyTarget('INPUT', { type: 'text', region: 'drawer' });
+    const preventDefault = vi.fn();
+
+    for (const key of ['Backspace', 'Enter', 'Escape']) press(key, { target: asTarget(title), preventDefault });
+
+    expect(notes()).toHaveLength(1);
+    expect(current().selection.notes).toEqual(new Set([0]));
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(title.blur).not.toHaveBeenCalled();
+  });
+
   it('Offset(number) 입력칸에 포커스가 있으면 S·Delete는 무시하고 Space는 입력값을 적용(blur)한 뒤 다음 작업에서 재생을 시작한다', async () => {
     const { mode, press } = setup();
     mode.selectNote(0);
@@ -334,6 +349,80 @@ describe('곡 정보 드로어의 입력칸 포커스', () => {
     expect(current().isPlaying).toBe(true);
     expect(current().mode).toBe('create');
     expect(notes()).toHaveLength(1);
+  });
+});
+
+describe('숫자 입력칸의 Space 뒤 포커스', () => {
+  const offsetField = () => keyTarget('INPUT', { type: 'number', region: 'drawer' });
+
+  it('음원이 없어 재생이 시작되지 않으면 Offset의 Space는 값을 적용(blur)한 뒤 다음 작업에서 포커스를 Offset에 돌려준다', async () => {
+    const { press } = setup(undefined, { hasAudio: false });
+    const offset = offsetField();
+
+    press(' ', { target: asTarget(offset) });
+    expect(offset.blur).toHaveBeenCalledOnce();
+    expect(offset.focus).not.toHaveBeenCalled();
+    await nextTask();
+
+    expect(current().isPlaying).toBe(false);
+    expect(offset.focus).toHaveBeenCalledOnce();
+    expect(offset.blur.mock.invocationCallOrder[0]).toBeLessThan(offset.focus.mock.invocationCallOrder[0]);
+  });
+
+  it('음원이 있어 재생이 시작되면 Offset의 Space는 포커스를 돌려주지 않는다(재생 중 Offset은 비활성이다)', async () => {
+    const { press } = setup();
+    const offset = offsetField();
+
+    press(' ', { target: asTarget(offset) });
+    await nextTask();
+
+    expect(current().isPlaying).toBe(true);
+    expect(offset.focus).not.toHaveBeenCalled();
+  });
+
+  it('재생 중 페이드 입력칸의 Space로 일시정지하면 시작 실패가 아니므로 포커스를 돌려주지 않는다', async () => {
+    const { press } = setup();
+    current().setIsPlaying(true);
+    const fade = offsetField();
+
+    press(' ', { target: asTarget(fade) });
+    await nextTask();
+
+    expect(current().isPlaying).toBe(false);
+    expect(fade.focus).not.toHaveBeenCalled();
+  });
+});
+
+describe('타임라인을 누르기 전 드로어 입력 적용(commitFocusedDrawerInput)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const focus = (activeElement: unknown) => vi.stubGlobal('document', { activeElement });
+
+  it.each([
+    ['Title 입력칸', 'INPUT', 'text'],
+    ['페이드 숫자 입력칸', 'INPUT', 'number'],
+    ['페이드를 바꾼 뒤 옮겨 간 프리뷰 사용 체크박스', 'INPUT', 'checkbox'],
+  ])('포커스가 드로어의 %s에 있으면 blur해 입력 중인 값을 지금 적용하게 한다', (_, tagName, type) => {
+    const active = keyTarget(tagName, { type, region: 'drawer' });
+    focus(active);
+
+    commitFocusedDrawerInput();
+
+    expect(active.blur).toHaveBeenCalledOnce();
+  });
+
+  it.each([['툴바 버튼', undefined], ['대화 상자 버튼', 'dialog']] as const)('포커스가 드로어 밖 %s에 있으면 blur하지 않는다', (_, region) => {
+    const active = keyTarget('BUTTON', { region });
+    focus(active);
+
+    commitFocusedDrawerInput();
+
+    expect(active.blur).not.toHaveBeenCalled();
+  });
+
+  it('포커스가 없으면(activeElement null) 아무것도 하지 않는다', () => {
+    focus(null);
+
+    expect(() => commitFocusedDrawerInput()).not.toThrow();
   });
 });
 

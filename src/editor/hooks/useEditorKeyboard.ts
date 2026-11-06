@@ -47,8 +47,18 @@ function isInOwnKeysRegion(target: EventTarget | null | undefined): boolean {
   return typeof element.closest === 'function' && element.closest(OWN_KEYS_REGION_SELECTOR) != null;
 }
 
+/**
+ * 포커스가 곡 정보 드로어 안에 있으면 포커스를 거두어 입력 중인 값을 지금 적용한다(입력칸·구간 선택기는 blur에서 적용한다).
+ * 타임라인 누름이 편집 transaction을 열기 전에 부른다. 포커스를 남겨 두면 뒤따르는 mousedown의 blur가 token 없는 setChart를 불러
+ * 방금 연 드래그를 끊는다.
+ */
+export function commitFocusedDrawerInput(): void {
+  const active = document.activeElement;
+  if (active?.closest(`[${OWN_KEYS_REGION_ATTRIBUTE}]`)) (active as HTMLElement).blur();
+}
+
 /** 키 입력 대상이 숫자 입력칸인가(오프셋·페이드). 숫자 입력칸에는 Space가 글자를 넣지 않는다. */
-function isNumberEntryTarget(target: EventTarget | null | undefined): target is EventTarget & { blur?: () => void } {
+function isNumberEntryTarget(target: EventTarget | null | undefined): target is EventTarget & { blur?: () => void; focus?: () => void } {
   if (!isTextEntryTarget(target)) return false;
   const element = target as unknown as { tagName: string; type?: string };
   return element.tagName === 'INPUT' && (element.type ?? '').toLowerCase() === 'number';
@@ -94,11 +104,17 @@ export function handleEditorKeyDown(e: EditorKeyEvent, context: EditorKeyboardCo
   // Space·Enter로 눌린다. 숫자 입력칸(Offset·페이드)의 Space만은 재생·정지로 쓴다(RFD 0099: 오프셋 입력을 연 채 재생·일시정지).
   // 입력한 값은 포커스를 옮겨(blur) 먼저 적용하고, 적용이 커서 박 유지까지 반영된 다음 작업에서 재생을 토글한다.
   // 재생 중에는 Offset 입력이 비활성이라 값이 남은 채 잠기지 않는다.
+  // 음원이 없어 재생이 시작되지 않으면 포커스를 입력칸에 돌려준다. BODY에 남기면 뒤이은 Backspace가 고른 노트를 지운다.
   if (isTextEntryTarget(e.target) || isInOwnKeysRegion(e.target)) {
     if (e.key === ' ' && isNumberEntryTarget(e.target)) {
       e.preventDefault();
-      e.target.blur?.();
-      setTimeout(() => playback?.togglePlay(), 0);
+      const field = e.target;
+      field.blur?.();
+      setTimeout(() => {
+        const wasPlaying = useEditorStore.getState().isPlaying;
+        playback?.togglePlay();
+        if (!wasPlaying && !useEditorStore.getState().isPlaying) field.focus?.();
+      }, 0);
     }
     return;
   }
