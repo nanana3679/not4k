@@ -232,6 +232,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   revertToLastValid: () => void;
   resetHistory: () => void;
   /**
+   * 지금까지의 편집을 Undo 한 단위로 끝낸다. 다음 편집은 병합창(600ms) 안이어도 앞 편집과 합치지 않는다.
+   * 타임라인 누름이 드로어 입력을 먼저 적용했을 때처럼, 서로 다른 조작이 잇달아 쓰는 자리에서 부른다.
+   */
+  endHistoryCoalescing: () => void;
+  /**
    * 한 gesture의 편집을 Undo 1개로 묶는다. 소유자 token 없는 편집·모드 전환·Undo 등
    * 독립 명령이 transaction을 먼저 확정하거나 재생 시작이 취소하면 onInterrupt로 소유자에게 알린다.
    * 소유자는 그 뒤 옛 token으로 쓰지 말고 진행 중 조작을 정리해야 한다.
@@ -685,6 +690,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // lastValidSnapshot은 의도적으로 유지한다 — 씨앗은 loadChart가 검증 통과 시 세팅하고
   // resetHistory는 그 직후 호출되므로 여기서 밀면 씨앗이 날아간다. 현재 곡 전환은 전체 페이지
   // 내비게이션이라 크로스-곡 잔존 경로가 없다. SPA 내 곡 전환을 도입하면 이 계약을 재검토할 것.
+  endHistoryCoalescing: () => set({ historyLastCaptureAt: 0 }),
   resetHistory: () => {
     const transaction = get().editTransaction;
     set({ historyPast: [], historyFuture: [], historyLastCaptureAt: 0, editTransaction: null });

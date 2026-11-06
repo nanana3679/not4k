@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dragRangeAt, followRangeInput, initialRangeState, notifiedRange } from './previewRangeState';
+import { dragRangeAt, followRangeInput, initialRangeState, notifiedRange, pressRangeAt, type RangePress } from './previewRangeState';
 
 describe('구간 선택기의 처음 구간(initialRangeState)', () => {
   it('프리뷰 값이 없으면 120초 음원에서 30～45초·페이드 0.5초로 시작한다', () => {
@@ -48,6 +48,49 @@ describe('구간 선택기를 끈 위치의 구간(dragRangeAt)', () => {
     const drag = { mode: 'move' as const, startX: 30, startTime: 10, endTime: 20 };
     expect(dragRangeAt(drag, 90, rect, limits)).toEqual({ startTime: 40, endTime: 50 });
     expect(dragRangeAt(drag, 1000, rect, limits)).toEqual({ startTime: 110, endTime: 120 });
+  });
+});
+
+describe('누른 동안 포인터 위치의 구간(pressRangeAt)', () => {
+  /** 120초 음원을 폭 240px(1px = 0.5초)에 그린 선택기. 최소 1초, 최대는 음원 길이다. */
+  const rect = { left: 0, width: 240 };
+  const limits = { duration: 120, minRangeDuration: 1, maxRangeDuration: 120 };
+  /** 10～20초의 끝 핸들(40px)을 2px 옆 42px에서 잡은 누름. */
+  const heldEnd: RangePress = { drag: { mode: 'end', startX: 42, startTime: 10, endTime: 20 },
+    last: { startTime: 10, endTime: 20 }, moved: false };
+
+  it('10～20초의 끝 핸들 2px 옆 42px을 눌러 42px에 그대로 있으면 끝이 21초로 튀지 않고 10～20초를 유지한다', () => {
+    expect(pressRangeAt(heldEnd, 42, rect, limits).last).toEqual({ startTime: 10, endTime: 20 });
+  });
+
+  it.each([[44.9], [39.1]])('42px에서 누른 끝 핸들이 3px 미만으로 떨려 %spx에 있으면 클릭으로 보아 10～20초를 유지한다', clientX => {
+    expect(pressRangeAt(heldEnd, clientX, rect, limits)).toBe(heldEnd);
+  });
+
+  it.each([[45, 22.5], [39, 19.5]])('42px에서 누른 끝 핸들이 정확히 3px 움직여 %spx에 이르면 끌기가 되어 끝이 %s초다', (clientX, endTime) => {
+    expect(pressRangeAt(heldEnd, clientX, rect, limits)).toMatchObject({ last: { startTime: 10, endTime }, moved: true });
+  });
+
+  it('42px에서 누른 끝 핸들을 100px까지 끈 뒤 누른 자리에서 2px 떨어진 44px로 돌아오면 3px 안이어도 끌기이므로 끝이 22초다', () => {
+    const dragged = pressRangeAt(heldEnd, 100, rect, limits);
+
+    expect(pressRangeAt(dragged, 44, rect, limits).last).toEqual({ startTime: 10, endTime: 22 });
+  });
+
+  it('42px에서 누른 끝 핸들을 100px로 끌면 끝이 50초가 되고 움직인 누름이 된다', () => {
+    expect(pressRangeAt(heldEnd, 100, rect, limits)).toMatchObject({ last: { startTime: 10, endTime: 50 }, moved: true });
+  });
+
+  it('42px에서 누른 끝 핸들을 100px까지 끈 뒤 누른 자리 42px로 돌아오면 끌기이므로 놓은 위치의 끝 21초다', () => {
+    const dragged = pressRangeAt(heldEnd, 100, rect, limits);
+
+    expect(pressRangeAt(dragged, 42, rect, limits).last).toEqual({ startTime: 10, endTime: 21 });
+  });
+
+  it('구간 밖을 눌러 95～105초로 옮긴 누름은 잡은 곳이 없어 포인터가 움직여도 95～105초를 유지한다', () => {
+    const press: RangePress = { drag: null, last: { startTime: 95, endTime: 105 }, moved: false };
+
+    expect(pressRangeAt(press, 10, rect, limits).last).toEqual({ startTime: 95, endTime: 105 });
   });
 });
 

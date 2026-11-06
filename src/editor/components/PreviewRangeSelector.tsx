@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { getWaveformPeaks } from '../timeline/waveform';
-import { dragRangeAt, initialRangeState, type PreviewRangeState, type RangeDrag } from './previewRangeState';
+import { initialRangeState, pressRangeAt, type PreviewRangeState, type RangePress } from './previewRangeState';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -111,9 +111,8 @@ export function PreviewRangeSelector({
   const rafRef = useRef<number>(0);
   const playStartRef = useRef<number>(0);
   const playOffsetRef = useRef<number>(0);
-  // 누른 동안의 끌기: 잡은 곳과 누른 순간의 x·구간(drag, 구간 밖을 눌러 구간을 옮겼으면 null)과 마지막으로 정한 구간(last).
-  // 누를 때 정하고, 손을 떼거나 브라우저가 끌기를 끊으면(pointercancel·lostpointercapture) 비운다.
-  const pressRef = useRef<{ drag: RangeDrag | null; last: { startTime: number; endTime: number } } | null>(null);
+  // 누른 동안의 끌기. 누를 때 정하고, 손을 떼거나 브라우저가 끌기를 끊으면(pointercancel·lostpointercapture) 비운다.
+  const pressRef = useRef<RangePress | null>(null);
 
   // Notify parent
   useEffect(() => {
@@ -305,13 +304,15 @@ export function PreviewRangeSelector({
     return clamp((px / rect.width) * duration, 0, duration);
   }, [duration]);
 
-  /** 끄는 중이면 포인터 위치의 구간(dragRangeAt), 아니면 null. */
+  /** 끄는 중이면 포인터 위치로 누른 상태를 갱신해(pressRangeAt) 그 구간을, 아니면 null을 돌려준다. */
   const rangeAt = useCallback((clientX: number): { startTime: number; endTime: number } | null => {
-    const drag = pressRef.current?.drag;
+    const press = pressRef.current;
     const canvas = canvasRef.current;
-    if (!drag || !canvas) return null;
+    if (!press?.drag || !canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    return dragRangeAt(drag, clientX, rect, { duration, minRangeDuration, maxRangeDuration });
+    const next = pressRangeAt(press, clientX, rect, { duration, minRangeDuration, maxRangeDuration });
+    pressRef.current = next;
+    return next.last;
   }, [duration, minRangeDuration, maxRangeDuration]);
 
   const hitTest = useCallback((clientX: number): DragMode => {
@@ -337,14 +338,14 @@ export function PreviewRangeSelector({
 
     const mode = hitTest(e.clientX);
     if (mode) {
-      pressRef.current = { drag: { mode, startX: e.clientX, startTime, endTime }, last: { startTime, endTime } };
+      pressRef.current = { drag: { mode, startX: e.clientX, startTime, endTime }, last: { startTime, endTime }, moved: false };
       return;
     }
     // Click outside → move selection centered on click
     const selDuration = endTime - startTime;
     const newStart = clamp(getTimeFromX(e.clientX) - selDuration / 2, 0, duration - selDuration);
     const newEnd = newStart + selDuration;
-    pressRef.current = { drag: null, last: { startTime: newStart, endTime: newEnd } };
+    pressRef.current = { drag: null, last: { startTime: newStart, endTime: newEnd }, moved: false };
     setStartTime(newStart);
     setEndTime(newEnd);
   }, [enabled, hitTest, getTimeFromX, startTime, endTime, duration]);
@@ -367,7 +368,6 @@ export function PreviewRangeSelector({
 
     const range = rangeAt(e.clientX);
     if (!range) return;
-    press.last = range;
     setStartTime(range.startTime);
     setEndTime(range.endTime);
   }, [enabled, hitTest, rangeAt]);
@@ -389,7 +389,8 @@ export function PreviewRangeSelector({
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-    // 놓은 위치로 마지막 구간을 다시 계산한다. 끌지 않았으면(구간 밖 클릭은 누를 때 옮겼다) 누를 때 정한 구간·지금 구간이다.
+    // 놓은 위치로 마지막 구간을 다시 계산한다. 핸들·구간 안의 클릭은 구간을 바꾸지 않고, 끌지 않았으면(구간 밖 클릭은 누를 때 옮겼다)
+    // 누를 때 정한 구간·지금 구간이다.
     finishPress(rangeAt(e.clientX) ?? pressRef.current?.last ?? { startTime, endTime });
   }, [rangeAt, startTime, endTime, finishPress]);
 
