@@ -5,23 +5,21 @@ import { applySongTimingEvents } from '../shared/songAssets/resolveSongChart';
 
 import type { SongValues } from '../supabase/saveSong';
 
-/**
- * 차트 사본에 있지만 곡 세션(대기 파일·음원 길이)과 짝을 이루는 값: 미디어 경로와 프리뷰 구간. 곡 정보 변경 취소는 이 값을 이력 없이
- * 되돌려, 변경 취소의 Undo가 버린 음원 경로나 그 음원 길이에 맞춘 프리뷰 구간을 저장된 음원 위에 되살리지 않게 한다(통합 이력 PR6 전).
- */
-export const SONG_SESSION_META_KEYS = ['audioFile', 'imageFile', 'previewAudioFile', 'previewStart', 'previewEnd'] as const;
-export type SongSessionMeta = Pick<ChartMeta, typeof SONG_SESSION_META_KEYS[number]>;
-
-/** meta에서 곡 세션과 짝을 이루는 값만 고른다. */
-export function songSessionMetaOf(meta: ChartMeta): SongSessionMeta {
-  return { audioFile: meta.audioFile, imageFile: meta.imageFile, previewAudioFile: meta.previewAudioFile,
-    previewStart: meta.previewStart, previewEnd: meta.previewEnd };
+/** 프리뷰 클립을 잘라 낸 음원과 구간. */
+export interface PreviewClipIdentity {
+  audioId: number;
+  startTime: number;
+  endTime: number;
 }
 
-export interface EditorSong {
-  revision: number;
-  needsTimingMigration: boolean;
-  baseline: SongValues;
+export interface SongDraft {
+  /** 세션 내 음원 정체성. 저장해 경로가 바뀌어도 유지한다. */
+  audioId: number;
+  /**
+   * 지금 차트의 프리뷰 클립(`meta.previewAudioFile`)의 출처. 프리뷰 구간이 없는 곡은 null이다.
+   * 지금 음원·프리뷰 구간과 다르면 다음 곡 저장이 클립을 다시 만든다.
+   */
+  previewClip: PreviewClipIdentity | null;
   duration: number | null;
   gameplayRange: PlaybackRange | null;
   pendingPreviewRange: PlaybackRange | null;
@@ -29,24 +27,80 @@ export interface EditorSong {
   pendingAudioFile: File | null;
 }
 
+export interface EditorSong extends SongDraft {
+  revision: number;
+  needsTimingMigration: boolean;
+  baseline: SongValues;
+  /** 마지막 저장 음원의 정체성. 초안과 별도로 유지해 Undo 후 변경 취소도 저장 음원으로 돌아간다. */
+  baselineAudioId: number;
+}
+
+type GameplayValueKey = 'gameplayStart' | 'gameplayEnd' | 'gameplayFadeIn' | 'gameplayFadeOut';
+
+let nextSongAudioId = 0;
+export function createSongAudioId(): number { return ++nextSongAudioId; }
+
+/** File·구간 참조는 유지한다. 초안의 필드는 직접 수정하지 않고 새 객체로 교체한다. */
+export function songDraftOf(song: SongDraft): SongDraft {
+  const { audioId, previewClip, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile } = song;
+  return { audioId, previewClip, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile };
+}
+
+function sameRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
+  return a === b || (a !== null && b !== null
+    && a.startTime === b.startTime && a.endTime === b.endTime
+    && a.fadeInTime === b.fadeInTime && a.fadeOutTime === b.fadeOutTime);
+}
+
+/** 이 음원·프리뷰 구간에서 잘라 낼 클립의 identity. 시작·끝이 모두 있어야 구간이며 없으면 null이다. */
+export function previewClipIdentity(audioId: number, startTime: number | null | undefined, endTime: number | null | undefined): PreviewClipIdentity | null {
+  return startTime != null && endTime != null ? { audioId, startTime, endTime } : null;
+}
+
+export function samePreviewClip(a: PreviewClipIdentity | null, b: PreviewClipIdentity | null): boolean {
+  return a === b || (a !== null && b !== null
+    && a.audioId === b.audioId && a.startTime === b.startTime && a.endTime === b.endTime);
+}
+
+export function sameSongDraft(a: SongDraft | null, b: SongDraft | null): boolean {
+  if (!a || !b) return a === b;
+  return a.audioId === b.audioId && samePreviewClip(a.previewClip, b.previewClip) && a.duration === b.duration
+    && a.pendingAudioFile === b.pendingAudioFile && a.pendingJacketFile === b.pendingJacketFile
+    && sameRange(a.gameplayRange, b.gameplayRange)
+    && sameRange(a.pendingPreviewRange, b.pendingPreviewRange);
+}
+
+/**
+ * 초안 구간의 저장 값. 초안 null은 "구간 없음"이라 저장 기준에 구간이 있으면(Undo가 저장을 넘어 돌아옴) 시작·끝·페이드를 NULL로 보낸다.
+ * 시작·끝 중 하나만 있는 부분 행은 구간 없이 열리므로 행의 값을 그대로 둬 열자마자 dirty가 되지 않게 한다.
+ */
+function gameplayValues({ gameplayRange: range, baseline }: EditorSong): Pick<SongValues, GameplayValueKey> {
+  if (!range) {
+    const { gameplayStart, gameplayEnd, gameplayFadeIn, gameplayFadeOut } = baseline;
+    return gameplayRangeOf(baseline)
+      ? { gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null, gameplayFadeOut: null }
+      : { gameplayStart, gameplayEnd, gameplayFadeIn, gameplayFadeOut };
+  }
+  return {
+    gameplayStart: range.startTime, gameplayEnd: range.endTime,
+    gameplayFadeIn: range.fadeInTime !== (baseline.gameplayFadeIn ?? 0) ? range.fadeInTime : baseline.gameplayFadeIn,
+    gameplayFadeOut: range.fadeOutTime !== (baseline.gameplayFadeOut ?? 0) ? range.fadeOutTime : baseline.gameplayFadeOut,
+  };
+}
+
 export function songValues(chart: ChartDocument, song: EditorSong): SongValues {
-  const range = song.gameplayRange;
   return {
     title: chart.meta.title, artist: chart.meta.artist,
     jacketUrl: chart.meta.imageFile || null, audioUrl: chart.meta.audioFile,
     duration: song.duration, previewUrl: chart.meta.previewAudioFile || null,
     previewStart: chart.meta.previewStart ?? null, previewEnd: chart.meta.previewEnd ?? null,
-    gameplayStart: range?.startTime ?? song.baseline.gameplayStart, gameplayEnd: range?.endTime ?? song.baseline.gameplayEnd,
-    gameplayFadeIn: range && range.fadeInTime !== (song.baseline.gameplayFadeIn ?? 0)
-      ? range.fadeInTime : song.baseline.gameplayFadeIn,
-    gameplayFadeOut: range && range.fadeOutTime !== (song.baseline.gameplayFadeOut ?? 0)
-      ? range.fadeOutTime : song.baseline.gameplayFadeOut,
+    ...gameplayValues(song),
     timing: toSongTiming(chart),
   };
 }
 
 /** 저장된 플레이 구간 값. 시작·끝이 모두 있어야 구간이며 NULL 페이드는 0초다. */
-function gameplayRangeOf(values: Pick<SongValues, 'gameplayStart' | 'gameplayEnd' | 'gameplayFadeIn' | 'gameplayFadeOut'>): PlaybackRange | null {
+function gameplayRangeOf(values: Pick<SongValues, GameplayValueKey>): PlaybackRange | null {
   return values.gameplayStart != null && values.gameplayEnd != null ? {
     startTime: values.gameplayStart, endTime: values.gameplayEnd,
     fadeInTime: values.gameplayFadeIn ?? 0, fadeOutTime: values.gameplayFadeOut ?? 0,
@@ -56,7 +110,10 @@ function gameplayRangeOf(values: Pick<SongValues, 'gameplayStart' | 'gameplayEnd
 /** resolveSongChart·초기 레인 배치·곡 음원 정보 적용 후에 기준을 만든다. */
 export function createEditorSong(loaded: LoadedSongSharedData, chart: ChartDocument): EditorSong {
   const gameplayRange = gameplayRangeOf(loaded);
+  const audioId = createSongAudioId();
   const song: EditorSong = {
+    audioId, baselineAudioId: audioId,
+    previewClip: previewClipIdentity(audioId, chart.meta.previewStart, chart.meta.previewEnd),
     revision: loaded.revision, needsTimingMigration: loaded.timing === null,
     duration: loaded.duration, gameplayRange,
     pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null,
@@ -112,7 +169,10 @@ export function restoreSavedSongInfo(
     : { ...chart, meta: sameMeta ? chart.meta : savedMeta, events };
   return {
     chart: restoredChart,
-    song: { ...song, duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
+    // 저장 기준의 클립은 저장할 때 그 음원·구간으로 맞췄다.
+    song: { ...song, audioId: song.baselineAudioId,
+      previewClip: previewClipIdentity(song.baselineAudioId, baseline.previewStart, baseline.previewEnd),
+      duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
       pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null },
   };
 }

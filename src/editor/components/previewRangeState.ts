@@ -10,7 +10,8 @@ export interface PreviewRangeState {
 }
 
 const DEFAULT_RANGE_DURATION = 15;
-const DEFAULT_PREVIEW_FADE = 0.5;
+/** 프리뷰 구간의 기본 페이드(초). 대기 구간 없이 클립을 만드는 곡 저장도 이 값을 쓴다. */
+export const DEFAULT_PREVIEW_FADE = 0.5;
 
 /** 선택기가 처음 구간을 정하는 입력. 저장된 값(initial*)이 없으면 기본값(default*)을 쓴다. */
 export interface RangeInitOptions {

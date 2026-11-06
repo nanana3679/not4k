@@ -1,3 +1,19 @@
+type WavSampleSource = Pick<AudioBuffer, 'sampleRate' | 'length'>;
+
+/** 구간의 시작 샘플과, 음원 길이로 자르기 전의 끝 샘플. 인코더와 범위 검사가 같은 내림을 쓴다. */
+function sampleRangeOf({ sampleRate }: WavSampleSource, startTime: number, endTime: number) {
+  return { startSample: Math.max(0, Math.floor(startTime * sampleRate)), endSample: Math.floor(endTime * sampleRate) };
+}
+
+/**
+ * 구간을 클립으로 잘라 낼 수 있는가. 샘플이 하나도 없거나 끝이 음원 끝을 한 샘플보다 더 넘으면 false다.
+ * 끝이 한 샘플까지 넘는 것은 허용한다. 구간 선택기의 끝은 부동소수 오차로 음원 길이를 아주 조금 넘을 수 있고 인코더가 음원 길이로 자른다.
+ */
+export function canEncodeWavRange(audioBuffer: WavSampleSource, startTime: number, endTime: number): boolean {
+  const { startSample, endSample } = sampleRangeOf(audioBuffer, startTime, endTime);
+  return Math.min(audioBuffer.length, endSample) > startSample && endSample <= audioBuffer.length + 1;
+}
+
 /**
  * AudioBuffer 구간을 16-bit PCM WAV Blob으로 인코딩한다.
  * 외부 라이브러리 없이 순수 JS로 동작.
@@ -11,9 +27,8 @@ export function encodeWavBlob(
   const sampleRate = audioBuffer.sampleRate;
   const numChannels = audioBuffer.numberOfChannels;
 
-  const startSample = Math.max(0, Math.floor(startTime * sampleRate));
-  const endSample = Math.min(audioBuffer.length, Math.floor(endTime * sampleRate));
-  const numSamples = endSample - startSample;
+  const { startSample, endSample } = sampleRangeOf(audioBuffer, startTime, endTime);
+  const numSamples = Math.min(audioBuffer.length, endSample) - startSample;
 
   if (numSamples <= 0) {
     throw new Error('Invalid preview range: no samples');

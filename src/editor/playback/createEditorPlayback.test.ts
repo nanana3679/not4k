@@ -20,7 +20,8 @@ function setupPlayback() {
   const cursorBeatKeeper = createCursorBeatKeeper(store);
   let totalTimelineMs = 60000;
   const renderer = {
-    setWaveformData: vi.fn((_peaks: Float32Array, durationMs: number) => { totalTimelineMs = durationMs; }),
+    // 실제 렌더러처럼 파형이 없으면(길이 0) 기본 길이로 돌아간다.
+    setWaveformData: vi.fn((_peaks: Float32Array | null, durationMs: number) => { totalTimelineMs = durationMs > 0 ? durationMs : 16000; }),
     getTotalTimelineMs: () => totalTimelineMs,
     setChart: vi.fn(),
     updatePlaybackCursor: vi.fn(),
@@ -108,6 +109,72 @@ describe('createEditorPlayback — 음원 로드 완료', () => {
     expect(store.getState().currentTimeMs).toBe(20000);
     expect(playback.currentTimeMs).toBe(20000);
     expect(renderer.updatePlaybackCursor).toHaveBeenLastCalledWith(20000);
+    playback.dispose();
+  });
+});
+
+describe('createEditorPlayback — 음원 비우기', () => {
+  function stubDecoder(duration: number) {
+    vi.stubGlobal('AudioContext', function () {
+      return {
+        createGain: () => ({ gain: { value: 1 }, connect: () => {} }),
+        decodeAudioData: vi.fn().mockResolvedValue(audioBuffer(duration)), close: () => {},
+      };
+    });
+  }
+
+  it('곡 길이 60초인 음원을 비우면 파형만 비우고 타임라인 끝 60000ms·스크롤 900·커서 30000ms를 유지한다', async () => {
+    stubDecoder(60);
+    const { store, playback, waveformFeed, renderer } = setupPlayback();
+    waveformFeed.rendererReady();
+    await playback.loadAudioFile(new File([''], 'a.wav'));
+    useEditorStore.setState({ song: { duration: 60 } as NonNullable<ReturnType<typeof useEditorStore.getState>['song']> });
+    store.getState().setViewportHeightPx(600);
+    store.getState().setScrollY(900);
+    const scrollY = store.getState().scrollY;
+    expect(scrollY).toBe(900);
+
+    playback.clearAudio();
+
+    expect(renderer.setWaveformData).toHaveBeenLastCalledWith(null, 60000);
+    expect(store.getState().timelineRangeMs?.totalTimelineMs).toBe(60000);
+    expect(store.getState().scrollY).toBe(scrollY);
+    expect(store.getState().currentTimeMs).toBe(30000);
+    playback.dispose();
+  });
+
+  it('Undo가 곡 길이를 120초로 되돌린 뒤 60초 음원을 비우면 타임라인 끝이 복원한 곡 길이 120000ms다', async () => {
+    stubDecoder(60);
+    const { store, playback, waveformFeed, renderer } = setupPlayback();
+    waveformFeed.rendererReady();
+    await playback.loadAudioFile(new File([''], 'a.wav'));
+    useEditorStore.setState({ song: { duration: 120 } as NonNullable<ReturnType<typeof useEditorStore.getState>['song']> });
+
+    playback.clearAudio();
+
+    expect(renderer.setWaveformData).toHaveBeenLastCalledWith(null, 120000);
+    expect(store.getState().timelineRangeMs?.totalTimelineMs).toBe(120000);
+    playback.dispose();
+  });
+
+  it('곡 길이를 모르는 곡의 음원을 비우면 타임라인이 기본 16000ms로 돌아가 커서를 자르고, 60초를 다시 불러오면 30000ms를 복원한다', async () => {
+    stubDecoder(60);
+    const { store, playback, waveformFeed, renderer } = setupPlayback();
+    waveformFeed.rendererReady();
+    await playback.loadAudioFile(new File([''], 'a.wav'));
+    expect(store.getState().timelineRangeMs?.totalTimelineMs).toBe(60000);
+
+    playback.clearAudio();
+
+    expect(renderer.setWaveformData).toHaveBeenLastCalledWith(null, 0);
+    expect(store.getState().timelineRangeMs?.totalTimelineMs).toBe(16000);
+    expect(store.getState().currentTimeMs).toBe(16000);
+    expect(renderer.updatePlaybackCursor).toHaveBeenLastCalledWith(16000);
+
+    await playback.loadAudioFile(new File([''], 'a.wav'));
+
+    expect(store.getState().timelineRangeMs?.totalTimelineMs).toBe(60000);
+    expect(store.getState().currentTimeMs).toBe(30000);
     playback.dispose();
   });
 });

@@ -6,6 +6,7 @@ import { editorChartErrors } from './documentValidation';
 import { openEditorChart } from './openEditorChart';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { isChartDirty, toSavedChartJson } from './savedChart';
+import { songDraftOf } from './songState';
 import { selectCanRedo, selectCanUndo, useEditorStore } from './stores/editorStore';
 
 vi.mock('../shared/toast', () => ({ showToast: vi.fn() }));
@@ -209,7 +210,21 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(JSON.parse(store().savedChartJson!.extraJson).extraLaneCount).toBe(2);
     expect(dirty()).toBe(false);
     expect(selectCanUndo(store())).toBe(false);
-    expect(store().lastValidSnapshot).toEqual({ chart: store().chart, extraLaneCount: 2 });
+    expect(store().lastValidSnapshot).toEqual({ chart: store().chart, extraLaneCount: 2, songDraft: null });
+  });
+
+  it('곡 행 음원 audio.ogg와 함께 열면 lastValidSnapshot이 열린 차트·보조 레인 수 2·곡 초안을 함께 담는다', () => {
+    openEditorChart({ chart: chart([
+      { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
+      { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
+    ]), extraLaneCount: 2, hasExtraLaneCount: true }, {
+      title: 'Test', artist: '', jacketUrl: null, audioUrl: 'audio.ogg', previewUrl: null, previewStart: null, previewEnd: null,
+      duration: 120, gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null, gameplayFadeOut: null,
+      timing: null, revision: 1,
+    });
+
+    expect(store().song).not.toBeNull();
+    expect(store().lastValidSnapshot).toEqual({ chart: store().chart, extraLaneCount: 2, songDraft: songDraftOf(store().song!) });
   });
 
   it('옮길 것이 없어도 파일의 보조 레인 수 5를 적용하고 Undo가 없다', () => {

@@ -4,7 +4,8 @@ import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
 import { useEditorStore } from './stores/editorStore';
 import { isChartDirty, toSavedChartJson } from './savedChart';
-import { createEditorSong, isSongDirty, isSongTimingDirty, restoreSavedSongInfo } from './songState';
+import { editGameplayRange } from './songInfoEditing';
+import { createEditorSong, isSongDirty, isSongTimingDirty, restoreSavedSongInfo, sameSongDraft, songDraftOf, songValues } from './songState';
 
 const store = () => useEditorStore.getState();
 const base = useEditorStore.getInitialState().chart;
@@ -54,6 +55,74 @@ describe('곡·차트 저장 기준 분리', () => {
   it('곡 리비전 42로 기준을 만들면 길이 120초와 NULL 프리뷰·구간을 보존한다', () => {
     expect(createEditorSong(loadedSong, store().chart)).toMatchObject({ revision: 42, duration: 120,
       baseline: { duration: 120, previewUrl: null, gameplayStart: null, gameplayEnd: null } });
+  });
+});
+
+describe('프리뷰 클립 identity', () => {
+  it.each([
+    ['음원 id', { audioId: 2, startTime: 10, endTime: 20 }],
+    ['시작', { audioId: 1, startTime: 11, endTime: 20 }],
+    ['끝', { audioId: 1, startTime: 10, endTime: 21 }],
+  ])('다른 값이 같아도 클립의 %s 값이 다르면 같은 곡 초안이 아니다', (_field, other) => {
+    const draft = { ...songDraftOf(store().song!), previewClip: { audioId: 1, startTime: 10, endTime: 20 } };
+    expect(sameSongDraft(draft, { ...draft, previewClip: { audioId: 1, startTime: 10, endTime: 20 } })).toBe(true);
+    expect(sameSongDraft(draft, { ...draft, previewClip: other })).toBe(false);
+    expect(sameSongDraft(draft, { ...draft, previewClip: null })).toBe(false);
+  });
+
+  it('프리뷰 10～20초 행을 열면 클립 identity가 그 음원 id와 10～20초다', () => {
+    const row = { ...loadedSong, previewStart: 10, previewEnd: 20, previewUrl: 'clip.wav' };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
+    const song = store().song!;
+    expect(song.previewClip).toEqual({ audioId: song.audioId, startTime: 10, endTime: 20 });
+  });
+
+  it.each([
+    ['시작·끝이 모두 NULL', null, null],
+    ['시작 10·끝 NULL의 부분 구간', 10, null],
+  ])('%s인 행을 열면 프리뷰 구간이 없어 클립 identity가 null이다', (_row, previewStart, previewEnd) => {
+    const row = { ...loadedSong, previewStart, previewEnd };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
+    expect(store().song?.previewClip).toBeNull();
+  });
+
+  it('프리뷰 10～20초 저장 기준에서 클립 identity가 다른 초안을 변경 취소로 되돌리면 저장 기준의 음원 id와 10～20초를 쓴다', () => {
+    const row = { ...loadedSong, previewStart: 10, previewEnd: 20, previewUrl: 'clip.wav' };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
+    const song = { ...store().song!, audioId: 999, previewClip: { audioId: 7, startTime: 50, endTime: 65 } };
+    expect(restoreSavedSongInfo(store().chart, song).song.previewClip)
+      .toEqual({ audioId: song.baselineAudioId, startTime: 10, endTime: 20 });
+  });
+
+  it('프리뷰 구간이 없는 저장 기준으로 변경 취소하면 클립 identity가 null이다', () => {
+    const song = { ...store().song!, previewClip: { audioId: 7, startTime: 50, endTime: 65 } };
+    expect(restoreSavedSongInfo(store().chart, song).song.previewClip).toBeNull();
+  });
+});
+
+describe('곡 초안의 플레이 구간 null(songValues)', () => {
+  it('구간 NULL 곡에 3～100초·페이드 1·2초를 저장한 뒤 Undo하면 곡이 dirty이고 저장 값의 시작·끝·페이드가 모두 NULL이다', () => {
+    editGameplayRange({ startTime: 3, endTime: 100, fadeInTime: 1, fadeOutTime: 2 });
+    const song = store().song!;
+    store().completeSongSave(songDraftOf(song), songValues(store().chart, song), 43);
+    expect(isSongDirty(store().chart, store().song)).toBe(false);
+
+    store().undo();
+
+    expect(store().song?.gameplayRange).toBeNull();
+    expect(isSongDirty(store().chart, store().song)).toBe(true);
+    expect(songValues(store().chart, store().song!)).toMatchObject({
+      gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null, gameplayFadeOut: null });
+  });
+
+  it('시작 5·끝 NULL·페이드 1의 부분 구간 행은 초안 구간이 null이어도 열자마자 깨끗하고 저장 값은 행의 값 그대로다', () => {
+    const partial = { ...loadedSong, gameplayStart: 5, gameplayFadeIn: 1 };
+    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, partial), partial);
+
+    expect(store().song?.gameplayRange).toBeNull();
+    expect(isSongDirty(store().chart, store().song)).toBe(false);
+    expect(songValues(store().chart, store().song!)).toMatchObject({
+      gameplayStart: 5, gameplayEnd: null, gameplayFadeIn: 1, gameplayFadeOut: null });
   });
 });
 

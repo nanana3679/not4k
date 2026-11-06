@@ -2,7 +2,7 @@ import { existsSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-function generateSilentWav(durationSeconds: number, sampleRate = 44100): Buffer {
+export function generateSilentWav(durationSeconds: number, sampleRate = 44100): Buffer {
   const numChannels = 1;
   const bitsPerSample = 16;
   const bytesPerSample = bitsPerSample / 8;

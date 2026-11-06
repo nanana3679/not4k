@@ -18,7 +18,7 @@ export const SONG_INFO_UNSAVED_COPY = {
   title: "Unsaved Song Info",
   closeBody: "저장하지 않은 곡 정보 변경이 있습니다. 저장하거나 변경을 취소해야 곡 정보를 닫을 수 있습니다.",
   switchBody: "저장하지 않은 곡 정보 변경이 있습니다. 저장하거나 변경을 취소해야 다른 차트로 전환할 수 있습니다.",
-  discardNote: "변경 취소는 마지막으로 저장한 곡 정보로 되돌리며 노트·차트 이벤트 편집은 그대로 둡니다. Undo는 제목·아티스트·오프셋·BPM·박자표만 되살리고 자켓·음원·구간은 되살리지 않습니다.",
+  discardNote: "변경 취소는 마지막으로 저장한 곡 정보로 되돌리며 노트·차트 이벤트 편집은 그대로 둡니다. Undo하면 자켓·음원·구간을 포함한 곡 정보를 복원하고 드로어를 다시 엽니다.",
   saveClose: "저장 후 닫기",
   discardClose: "변경 취소 후 닫기",
   saveSwitch: "저장 후 전환",
@@ -65,12 +65,6 @@ export const PAUSE_TO_EDIT_COPY = "Pause playback to edit";
  */
 export const INITIAL_TIMING_EXISTS_COPY = "An initial BPM/time signature already exists at beat 0";
 
-/**
- * 테스트 플레이에서 돌아온 에디터가 곡 행을 다시 읽지 못해 음원을 불러오지 못한 안내. 대기 음원 파일이 없을 때만 띄우며,
- * 편집 초안·저장 기준은 그대로 두고 오류 화면으로 바꾸지 않는다.
- */
-export const PLAY_TEST_RETURN_AUDIO_FAILED_COPY = "Could not reload the song, so the audio was not loaded. Your edits are kept.";
-
 export const SONG_SAVE_COPY = {
   saved: 'Song saved',
   conflict: '다른 곳에서 곡을 변경했습니다. 편집 내용은 유지됩니다. 곡을 다시 불러온 뒤 저장해주세요.',
@@ -84,10 +78,10 @@ export const SONG_SAVE_COPY = {
   uncomparedCharts: '파일을 읽지 못해 비교하지 못한 차트',
   /** 곡 행이 있는 차트의 곡 저장은 곡 추가(AddSongModal)처럼 비어 있지 않은 제목·아티스트를 요구한다. */
   titleArtistRequired: '제목과 아티스트는 비워 둘 수 없습니다.',
-  /** 프리뷰 구간·음원을 바꿔 프리뷰 클립을 다시 만들어야 하는데 재생 음원이 없을 때(음원 로드 실패 등). */
+  /** 프리뷰 클립을 다시 만들어야 하는데 재생 음원이 없을 때(음원 로드 실패 등). */
   previewAudioMissing: '음원이 불러와지지 않아 프리뷰 클립을 만들 수 없습니다. Song Info에서 음원을 불러온 뒤 다시 저장해주세요.',
-  /** 다시 만들 프리뷰 구간이 재생 음원 길이를 넘을 때(Undo가 다른 음원에 맞춘 구간을 되살린 경우 등). */
-  previewOutOfRange: '프리뷰 구간이 음원 길이를 넘습니다. Song Info에서 프리뷰 구간을 다시 정한 뒤 저장해주세요.',
+  /** 다시 만들 프리뷰 구간에서 샘플을 얻을 수 없거나 구간이 음원 끝을 넘을 때. */
+  previewOutOfRange: '프리뷰 구간이 음원 범위를 벗어났습니다. Song Info에서 프리뷰 구간을 다시 정한 뒤 저장해주세요.',
 } as const;
 
 /**

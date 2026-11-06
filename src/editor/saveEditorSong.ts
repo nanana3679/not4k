@@ -1,7 +1,8 @@
 import { parseSongTiming } from '../shared/songAssets/songTiming';
-import { encodeWavBlob } from '../shared';
+import { canEncodeWavRange, encodeWavBlob } from '../shared';
 import { countOtherSongCharts, findDifferingSongCharts, saveSong, uploadSongMedia } from '../supabase/saveSong';
-import { isSongTimingDirty, songValues } from './songState';
+import { DEFAULT_PREVIEW_FADE } from './components/previewRangeState';
+import { isSongTimingDirty, previewClipIdentity, samePreviewClip, songDraftOf, songValues } from './songState';
 import { useEditorStore } from './stores/editorStore';
 import { SONG_SAVE_COPY, SAVE_IN_PROGRESS_COPY } from './editorCopy';
 
@@ -31,18 +32,21 @@ export async function saveEditorSong(
   try {
     const values = songValues(start.chart, song);
     parseSongTiming(values.timing);
-    const previewChanged = values.previewStart !== song.baseline.previewStart || values.previewEnd !== song.baseline.previewEnd;
-    const previewRange = (previewChanged || song.pendingAudioFile) && values.previewStart != null && values.previewEnd != null
-      ? { startTime: values.previewStart, endTime: values.previewEnd,
-        fadeInTime: song.pendingPreviewRange?.fadeInTime ?? 0, fadeOutTime: song.pendingPreviewRange?.fadeOutTime ?? 0 } : null;
+    // 저장 기준이 아니라 초안이 가진 클립과 비교한다. Undo가 저장을 넘으면 구간이 기준과 달라도 그 구간의 클립을 가지고 있을 수 있고,
+    // 기준과 같아도 다른 음원·구간의 클립일 수 있다. 구간이 없으면 만들 클립이 없다.
+    const wantedClip = previewClipIdentity(song.audioId, values.previewStart, values.previewEnd);
+    const previewRange = wantedClip && !samePreviewClip(song.previewClip, wantedClip)
+      ? { startTime: wantedClip.startTime, endTime: wantedClip.endTime,
+        fadeInTime: song.pendingPreviewRange?.fadeInTime ?? DEFAULT_PREVIEW_FADE,
+        fadeOutTime: song.pendingPreviewRange?.fadeOutTime ?? DEFAULT_PREVIEW_FADE } : null;
     // 프리뷰 클립은 재생 중인 음원으로 만든다. 만들 수 없으면 확인·파일·행보다 먼저 거부한다(음원 로딩 중이면 Save가 먼저 막는다).
     if (previewRange && !audioBuffer) {
       start.addToast(SONG_SAVE_COPY.previewAudioMissing, 'error');
       return 'aborted';
     }
-    // 프리뷰 구간은 차트 사본(Undo 대상)에 있고 음원 파일·길이는 곡 세션 값이라, Undo가 다른 음원 길이에 맞춘 구간을 되살릴 수
-    // 있다(통합 이력 PR6 전). 재생 음원 밖의 구간으로 클립을 만들거나 저장하지 않는다.
-    if (previewRange && audioBuffer && previewRange.endTime > audioBuffer.duration) {
+    // 음원 교체가 구간을 0초로 줄이면(#444) 샘플이 없고, 구간이 음원 끝을 넘으면 잘린 클립이 된다. 인코더가 던지면 이미 올린 음원이
+    // 고아가 되고 재시도마다 쌓이므로 음원 업로드 전에 거부한다.
+    if (previewRange && audioBuffer && !canEncodeWavRange(audioBuffer, previewRange.startTime, previewRange.endTime)) {
       start.addToast(SONG_SAVE_COPY.previewOutOfRange, 'error');
       return 'aborted';
     }
@@ -72,22 +76,7 @@ export async function saveEditorSong(
     const revision = await saveSong(start.activeSongId, song.revision, values);
     const current = useEditorStore.getState();
     if (current.chartLoadGeneration !== start.chartLoadGeneration || !current.song) return 'aborted';
-    const sameJacket = current.song.pendingJacketFile === song.pendingJacketFile;
-    const sameAudio = current.song.pendingAudioFile === song.pendingAudioFile;
-    const samePreview = current.song.pendingPreviewRange === song.pendingPreviewRange && sameAudio;
-    const meta = { ...current.chart.meta };
-    if (sameJacket && meta.imageFile === start.chart.meta.imageFile) meta.imageFile = values.jacketUrl ?? '';
-    if (sameAudio && meta.audioFile === start.chart.meta.audioFile) meta.audioFile = values.audioUrl;
-    if (samePreview && meta.previewAudioFile === start.chart.meta.previewAudioFile) meta.previewAudioFile = values.previewUrl ?? '';
-    if (meta.imageFile !== current.chart.meta.imageFile || meta.audioFile !== current.chart.meta.audioFile
-      || meta.previewAudioFile !== current.chart.meta.previewAudioFile) {
-      current.reconcileSongMedia({ audioFile: meta.audioFile, imageFile: meta.imageFile, previewAudioFile: meta.previewAudioFile });
-    }
-    current.setSong({ ...current.song, revision, baseline: values, needsTimingMigration: false,
-      pendingJacketFile: sameJacket ? null : current.song.pendingJacketFile,
-      pendingAudioFile: sameAudio ? null : current.song.pendingAudioFile,
-      pendingPreviewRange: samePreview ? null : current.song.pendingPreviewRange,
-    });
+    current.completeSongSave(songDraftOf(song), values, revision);
     current.addToast(SONG_SAVE_COPY.saved, 'info');
     return 'saved';
   } catch (error) {
