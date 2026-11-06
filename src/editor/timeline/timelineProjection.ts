@@ -1,22 +1,4 @@
-import { xToLaneInRange } from "./TimelineLayout";
-import type { Beat, Lane } from "../../shared";
-
-export function timelineXToLane(input: {
-  timelineX: number;
-  laneWidth: number;
-  laneCount: number;
-}): Lane | null {
-  return xToLaneInRange(input.timelineX, 0, input.laneWidth, input.laneCount) as Lane | null;
-}
-
-export function timelineXToExtraLane(input: {
-  timelineX: number;
-  timelineWidth: number;
-  extraLaneWidth: number;
-  extraLaneCount: number;
-}): number | null {
-  return xToLaneInRange(input.timelineX, input.timelineWidth, input.extraLaneWidth, input.extraLaneCount);
-}
+import type { Beat } from "../../shared";
 
 export function getTimelineTotalHeight(input: {
   totalTimelineMs: number;

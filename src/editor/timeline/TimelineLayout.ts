@@ -29,8 +29,8 @@ export function eventPlacement(event: EventPlacementInput): { kind: "auxiliary";
   return { kind: "auxiliary", lane: event.editorLane ?? 1 };
 }
 
-/** 기존 projection 어댑터도 이 등간격 레인 투영을 사용한다. */
-export function xToLaneInRange(x: number, startX: number, width: number, count: number): number | null {
+/** 등간격 레인 투영. 범위 밖이면 null이다. */
+function xToLaneInRange(x: number, startX: number, width: number, count: number): number | null {
   if (x < startX || width <= 0 || count <= 0) return null;
   const lane = Math.floor((x - startX) / width) + 1;
   return lane >= 1 && lane <= count ? lane : null;

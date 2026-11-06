@@ -129,20 +129,18 @@ export function panToRevealRange(input: {
 export function isPlaybackCursorSeekArea(input: {
   screenX: number;
   timelineX: number;
+  layout: TimelineLayout;
   railStartX?: number;
-} & ({ layout: TimelineLayout; timelineWidth?: never; leftRailWidth?: never }
-  | { layout?: undefined; timelineWidth: number; leftRailWidth: number })): boolean {
-  // 레인 영역(0 ≤ timelineX < timelineWidth) 밖이면 seek 영역.
-  // - 왼쪽: 레인 왼쪽 전체(중앙 정렬로 생긴 좌측 여백 + 마디 레일)
-  // - 오른쪽: 레인 오른쪽 전체
+}): boolean {
+  // 콘텐츠 영역 밖이면 seek 영역.
+  // - 왼쪽: 콘텐츠 왼쪽 전체(중앙 정렬로 생긴 좌측 여백 + 마디 레일)
+  // - 오른쪽: 콘텐츠 오른쪽 전체
   // 가로 팬 중에는 화면 고정 레일도 seek 영역으로 인정한다.
   return isFixedRailX({
     screenX: input.screenX,
-    leftRailWidth: input.layout ? input.layout.measureRail.width : input.leftRailWidth,
+    leftRailWidth: input.layout.measureRail.width,
     railStartX: input.railStartX,
-  }) || (input.layout
-    ? input.layout.classifyX(input.timelineX).kind === "outside"
-    : input.timelineX < 0 || input.timelineX >= input.timelineWidth);
+  }) || input.layout.classifyX(input.timelineX).kind === "outside";
 }
 
 export function clampVerticalScroll(input: {
