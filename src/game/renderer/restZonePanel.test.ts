@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { beat } from '../../shared/types/beat';
+import { describe, expect, it, vi } from 'vitest';
+import { createChartTiming } from '../../shared/timing/chartTiming';
+import { BEAT_ZERO, beat, type Beat } from '../../shared/types/beat';
 import type { RestZone } from '../../shared/types/chart';
 import {
-  ESTIMATED_DWELL_HIGHEST_LEVEL, ESTIMATED_DWELL_LOWEST_LEVEL, depthFadeAlpha, estimatedDwellMs, fallenHeightRatio, groupRestPanels,
-  mergeTouchingRestZones, minRestZoneMs, neighborProgress, noteDwellMs, panelCorners, restPanelState, restPanelTiming, separatorTop,
-  sharedCameraLane,
+  ESTIMATED_DWELL_HIGHEST_LEVEL, ESTIMATED_DWELL_LOWEST_LEVEL, REST_PANEL_LOOK, REST_PANEL_OUTLINE_WIDTH, REST_PANEL_RIM_BRIGHTNESS,
+  brightenColor, depthFadeAlpha, estimatedDwellMs, fallenHeightRatio, groupRestPanels, mergeTouchingRestZones, minRestZoneMs, mixColor,
+  neighborProgress, noteDwellMs, panelCorners, panelEdgeStrip, restPanelState, restPanelTiming, rimColor, separatorTop, sharedCameraLane,
+  toLaneRestZones,
 } from './restZonePanel';
 
 describe('restZone 판넬 시각', () => {
@@ -154,44 +156,44 @@ describe('restZone 판넬 깊이 어둠', () => {
 describe('인접 레인 restZone 판넬 묶기', () => {
   it('레인 3·4가 같은 8→24박이면 묶기를 켰을 때 레인 3부터 2칸 폭의 판넬 하나가 된다', () => {
     expect(groupRestPanels([
-      { lane: 4, beat: 8, endBeat: 24 }, { lane: 3, beat: 8, endBeat: 24 },
-    ], true)).toEqual([{ firstLane: 3, laneCount: 2, beat: 8, endBeat: 24 }]);
+      { lane: 4, start: 8, end: 24 }, { lane: 3, start: 8, end: 24 },
+    ], true)).toEqual([{ firstLane: 3, laneCount: 2, start: 8, end: 24 }]);
   });
   it('레인 3은 8→24박·레인 4는 12→24박처럼 시작 박이 다르면 묶기를 켜도 판넬이 레인마다 따로다', () => {
     expect(groupRestPanels([
-      { lane: 3, beat: 8, endBeat: 24 }, { lane: 4, beat: 12, endBeat: 24 },
+      { lane: 3, start: 8, end: 24 }, { lane: 4, start: 12, end: 24 },
     ], true)).toEqual([
-      { firstLane: 3, laneCount: 1, beat: 8, endBeat: 24 },
-      { firstLane: 4, laneCount: 1, beat: 12, endBeat: 24 },
+      { firstLane: 3, laneCount: 1, start: 8, end: 24 },
+      { firstLane: 4, laneCount: 1, start: 12, end: 24 },
     ]);
   });
   it('레인 3·4가 시작 박은 같고 끝 박만 24·26으로 다르면 따로다', () => {
     expect(groupRestPanels([
-      { lane: 3, beat: 8, endBeat: 24 }, { lane: 4, beat: 8, endBeat: 26 },
+      { lane: 3, start: 8, end: 24 }, { lane: 4, start: 8, end: 26 },
     ], true)).toHaveLength(2);
   });
   it('레인 1·2·4가 같은 구간이면 붙어 있는 1·2만 묶고 떨어진 4는 따로다', () => {
     expect(groupRestPanels([
-      { lane: 1, beat: 8, endBeat: 24 }, { lane: 2, beat: 8, endBeat: 24 }, { lane: 4, beat: 8, endBeat: 24 },
+      { lane: 1, start: 8, end: 24 }, { lane: 2, start: 8, end: 24 }, { lane: 4, start: 8, end: 24 },
     ], true)).toEqual([
-      { firstLane: 1, laneCount: 2, beat: 8, endBeat: 24 },
-      { firstLane: 4, laneCount: 1, beat: 8, endBeat: 24 },
+      { firstLane: 1, laneCount: 2, start: 8, end: 24 },
+      { firstLane: 4, laneCount: 1, start: 8, end: 24 },
     ]);
   });
   it('묶기를 끄면 같은 구간인 레인 3·4도 레인마다 판넬 하나다', () => {
     expect(groupRestPanels([
-      { lane: 3, beat: 8, endBeat: 24 }, { lane: 4, beat: 8, endBeat: 24 },
+      { lane: 3, start: 8, end: 24 }, { lane: 4, start: 8, end: 24 },
     ], false)).toEqual([
-      { firstLane: 3, laneCount: 1, beat: 8, endBeat: 24 },
-      { firstLane: 4, laneCount: 1, beat: 8, endBeat: 24 },
+      { firstLane: 3, laneCount: 1, start: 8, end: 24 },
+      { firstLane: 4, laneCount: 1, start: 8, end: 24 },
     ]);
   });
   it('한 레인에 구간이 8→12박·16→24박 둘이면 묶기를 켜도 시간 순서대로 판넬 두 개다', () => {
     expect(groupRestPanels([
-      { lane: 2, beat: 16, endBeat: 24 }, { lane: 2, beat: 8, endBeat: 12 },
+      { lane: 2, start: 16, end: 24 }, { lane: 2, start: 8, end: 12 },
     ], true)).toEqual([
-      { firstLane: 2, laneCount: 1, beat: 8, endBeat: 12 },
-      { firstLane: 2, laneCount: 1, beat: 16, endBeat: 24 },
+      { firstLane: 2, laneCount: 1, start: 8, end: 12 },
+      { firstLane: 2, laneCount: 1, start: 16, end: 24 },
     ]);
   });
 });
@@ -386,5 +388,118 @@ describe('같은 레인에서 맞닿은 restZone 잇기', () => {
   });
   it('restZone이 없으면 빈 배열이다', () => {
     expect(mergeTouchingRestZones([])).toEqual([]);
+  });
+});
+
+describe('판넬 테두리 색 계산', () => {
+  it('0x26263f를 2.6배 밝히면 채널마다 반올림해 0x6363a4다', () => {
+    expect(brightenColor(0x26263f, 2.6)).toBe(0x6363a4);
+  });
+  it('0x808080을 2.6배 밝히면 채널마다 255에서 멈춰 0xffffff다', () => {
+    expect(brightenColor(0x808080, 2.6)).toBe(0xffffff);
+  });
+  it('0x000000에서 0xffffff로 0.5만큼 섞으면 127.5를 반올림해 0x808080이다', () => {
+    expect(mixColor(0x000000, 0xffffff, 0.5)).toBe(0x808080);
+  });
+  it('0xff3344에서 0x333355로 0만큼 섞으면 0xff3344, 1만큼 섞으면 0x333355 그대로다', () => {
+    expect(mixColor(0xff3344, 0x333355, 0)).toBe(0xff3344);
+    expect(mixColor(0xff3344, 0x333355, 1)).toBe(0x333355);
+  });
+  it('밝은 레인색 둘레는 레인색을 2.6배 밝힌 색이라 짝수 레인 0x26263f → 0x6363a4, 홀수 레인 0x202038 → 0x535392다', () => {
+    expect(REST_PANEL_RIM_BRIGHTNESS).toBe(2.6);
+    expect(rimColor(0x26263f)).toBe(0x6363a4);
+    expect(rimColor(0x202038)).toBe(0x535392);
+  });
+});
+
+describe('판넬 좌우 변 띠', () => {
+  const base = { separatorColor: 0x333355, outlineWidth: 2, separatorWidth: 3 };
+
+  it('변 띠 테두리 폭 상수 REST_PANEL_OUTLINE_WIDTH는 2다', () => {
+    expect(REST_PANEL_OUTLINE_WIDTH).toBe(2);
+  });
+  it('테두리가 있고 옆에 맞닿은 판넬이 없으면(seam 0) 진행도 0.5에서 폭 2·테두리 색 그대로·불투명도 0.5다', () => {
+    expect(panelEdgeStrip({ ...base, progress: 0.5, seam: 0, outlineColor: 0x6363a4 })).toEqual({
+      visible: true, width: 2, tint: 0x6363a4, alpha: 0.5,
+    });
+  });
+  it('테두리가 있고 옆 판넬이 다 넘어가 있으면(seam 1) 폭이 구분선 절반 1.5·색이 구분선 0x333355·불투명도는 자기 진행도 0.8이다', () => {
+    expect(panelEdgeStrip({ ...base, progress: 0.8, seam: 1, outlineColor: 0x6363a4 })).toEqual({
+      visible: true, width: 1.5, tint: 0x333355, alpha: 0.8,
+    });
+  });
+  it('테두리가 있고 옆 판넬이 반쯤 넘어가 있으면(seam 0.5) 폭 2와 1.5의 중간 1.75·색은 테두리와 구분선을 반씩 섞는다', () => {
+    expect(panelEdgeStrip({ ...base, progress: 1, seam: 0.5, outlineColor: 0x6363a4 })).toEqual({
+      visible: true, width: 1.75, tint: 0x4b4b7d, alpha: 1,
+    });
+  });
+  it('테두리가 있고 옆 판넬이 0.25만큼 넘어가 있으면 폭 2 + (1.5 − 2) × 0.25 = 1.875·색은 테두리 0x6363a4 쪽 75% 섞음 0x575790이다', () => {
+    expect(panelEdgeStrip({ ...base, progress: 1, seam: 0.25, outlineColor: 0x6363a4 })).toEqual({
+      visible: true, width: 1.875, tint: 0x575790, alpha: 1,
+    });
+  });
+  it('테두리가 없고(outlineColor null) 옆 판넬도 없으면 띠를 그리지 않고 불투명도 0이다', () => {
+    const strip = panelEdgeStrip({ ...base, progress: 1, seam: 0, outlineColor: null });
+    expect(strip.visible).toBe(false);
+    expect(strip.alpha).toBe(0);
+  });
+  it('테두리가 없고 옆 판넬이 0.25만큼 넘어가 있으면 구분선 폭 절반 1.5·구분선 색으로 그리고 불투명도는 진행도 0.8 × 0.25 = 0.2다', () => {
+    const strip = panelEdgeStrip({ ...base, progress: 0.8, seam: 0.25, outlineColor: null });
+    expect(strip).toEqual({ visible: true, width: 1.5, tint: 0x333355, alpha: expect.closeTo(0.2, 12) });
+  });
+});
+
+describe('게임 판넬 시각 값', () => {
+  it('RFD 0034 결정 4대로 밝은 레인색 둘레·60°·원근 1.5·눈높이 0.5·300ms·빗금 밝기 1·간격 8·어둠 시작 0.4·윗변 밝기 0·묶기 켬·틈 메우기 켬이다', () => {
+    expect(REST_PANEL_LOOK).toEqual({
+      edge: 'rim', maxAngleDeg: 60, cameraDistance: 1.5, eyeHeight: 0.5, animMs: 300,
+      hatchBrightness: 1, stripeWidth: 8, fadeStart: 0.4, topBrightness: 0, mergeAdjacent: true, fillGaps: true,
+    });
+  });
+  it('게임 값으로 60° 넘어간 판넬의 화면 높이는 원래 높이의 50%다', () => {
+    expect(fallenHeightRatio(REST_PANEL_LOOK.maxAngleDeg * Math.PI / 180, REST_PANEL_LOOK)).toBeCloseTo(0.5, 12);
+  });
+});
+
+describe('차트 restZone을 판넬 입력으로 바꾸기', () => {
+  const zone = (lane: RestZone['lane'], start: [number, number?], end: [number, number?]): RestZone => ({
+    lane, beat: beat(...start), endBeat: beat(...end),
+  });
+  // 120 BPM(1박 500ms)에 차트 오프셋 1000ms.
+  const timing = { beatToMs: (target: Beat) => 1000 + (target.n / target.d) * 500 };
+
+  it('차트 레인 2의 8→12박과 12→16박이 맞닿으면 120 BPM·오프셋 1000ms에서 판넬 레인 1의 5000→9000ms 하나가 된다', () => {
+    expect(toLaneRestZones([zone(2, [8], [12]), zone(2, [12], [16])], timing)).toEqual([{ lane: 1, start: 5000, end: 9000 }]);
+  });
+  it('차트 레인 1～4는 판넬 레인 0～3이 되고 결과는 레인 순서다', () => {
+    expect(toLaneRestZones([zone(4, [0], [2]), zone(1, [0], [2]), zone(3, [0], [2]), zone(2, [0], [2])], timing).map(lane => lane.lane))
+      .toEqual([0, 1, 2, 3]);
+  });
+  it('차트 레인 1의 0→4박·4→8박과 레인 2의 0→8박은 먼저 이어져 묶기(groupRestPanels 켬) 뒤 판넬 레인 0부터 2칸 판넬 하나 1000→5000ms가 된다', () => {
+    const lanes = toLaneRestZones([zone(1, [0], [4]), zone(1, [4], [8]), zone(2, [0], [8])], timing);
+    expect(groupRestPanels(lanes, true)).toEqual([{ firstLane: 0, laneCount: 2, start: 1000, end: 5000 }]);
+  });
+  it('차트 레인 4의 1/2→7/4박처럼 정수가 아닌 박이면 판넬 레인 3의 1250→1875ms다', () => {
+    expect(toLaneRestZones([zone(4, [1, 2], [7, 4])], timing)).toEqual([{ lane: 3, start: 1250, end: 1875 }]);
+  });
+  it('beatToMs는 이은 뒤의 시작·끝 박으로만 불려 맞닿은 2개 구간이면 2번 불린다', () => {
+    const beatToMs = vi.fn(timing.beatToMs);
+    toLaneRestZones([zone(2, [8], [12]), zone(2, [12], [16])], { beatToMs });
+    expect(beatToMs.mock.calls).toEqual([[beat(8)], [beat(16)]]);
+  });
+  it('실제 ChartTiming(120 BPM·offsetMs 100)을 넘기면 차트 레인 3의 2→6박이 판넬 레인 2의 1100→3100ms다', () => {
+    const chartTiming = createChartTiming({
+      notes: [], trillZones: [], events: [{ type: 'bpm', beat: BEAT_ZERO, bpm: 120 }], meta: { offsetMs: 100 },
+    });
+    expect(toLaneRestZones([zone(3, [2], [6])], chartTiming)).toEqual([{ lane: 2, start: 1100, end: 3100 }]);
+  });
+  it('입력 배열과 그 안의 restZone 객체를 바꾸지 않는다', () => {
+    const input = [zone(2, [12], [16]), zone(2, [8], [12])];
+    const snapshot = structuredClone(input);
+    toLaneRestZones(input, timing);
+    expect(input).toEqual(snapshot);
+  });
+  it('restZone이 없으면 빈 배열이다', () => {
+    expect(toLaneRestZones([], timing)).toEqual([]);
   });
 });
