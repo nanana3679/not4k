@@ -74,4 +74,11 @@ export const labPreviewCatalog = Object.freeze<readonly LabPreviewEntry[]>([
     category: "Gameplay",
     path: "/lab/judgment-playtest",
   },
+  {
+    id: "observer-slowdown",
+    title: "옵저버 감속 청음 비교",
+    description: "음높이를 유지하는 감속 방식(브라우저 내장·Signalsmith Stretch·SoundTouchJS)을 0.25x～1.0x에서 같은 곡 위치로 바꿔 들으며 비교합니다.",
+    category: "Gameplay",
+    path: "/lab/observer-slowdown",
+  },
 ]);

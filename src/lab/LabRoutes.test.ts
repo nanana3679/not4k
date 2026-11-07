@@ -31,6 +31,13 @@ describe('LabRoutes', () => {
     expect(markup).toContain('실제 M1 세션');
     expect(markup).toContain('href="/lab"');
   });
+  it('/lab/observer-slowdown을 직접 열면 감속 방식 3개와 1.0x가 선택된 재생 속도 버튼·Lab 복귀 링크가 표시된다', async () => {
+    const markup = await renderLabPath('/lab/observer-slowdown');
+    expect(markup).toContain('data-lab-page="observer-slowdown"');
+    expect(markup.match(/data-method="/g)).toHaveLength(3);
+    expect(markup).toContain('aria-pressed="true">1.0x</button>');
+    expect(markup).toContain('href="/lab"');
+  });
   it.each(['/lab', '/lab/'])('%s에 접근하면 에셋과 비행 시연을 모두 열 수 있는 공통 Lab 목록을 표시한다', async (path) => {
     const markup = await renderLabPath(path);
 
