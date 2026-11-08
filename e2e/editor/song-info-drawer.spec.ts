@@ -46,7 +46,7 @@ async function songAudioState(page: Page) {
   return page.evaluate(async () => {
     const path = '/src/editor/stores/editorStore.ts';
     const store = (await import(path)).useEditorStore.getState();
-    return { audioFile: store.chart.meta.audioFile as string, audioId: store.song.audioId as number,
+    return { audioFile: store.chart.meta.audioFile as string,
       duration: store.song.duration as number | null, pendingAudioName: (store.song.pendingAudioFile?.name ?? null) as string | null,
       timelineEndMs: store.timelineRangeMs?.totalTimelineMs as number };
   });
@@ -184,23 +184,33 @@ test.describe('곡 정보 드로어', () => {
     await expect(songInfoButton(page)).toHaveAttribute('title', SONG_INFO_DRAWER_COPY.unsavedTitle);
   });
 
-  test('0.5초 음원을 3초 next.wav로 바꾼 뒤 Ctrl+Z를 누르면 곡 음원 경로·id·길이와 재생기를 따르는 타임라인 끝이 원래 음원으로 돌아온다', async ({ page }) => {
+  test('1레인 2박에 탭을 놓고 0.5초 음원을 3초 next.wav로 바꾼 뒤 Ctrl+Z를 누르면 탭만 사라지고 음원은 next.wav로 남으며, 변경 취소 후 닫기를 고르면 저장된 음원을 다시 불러와 원래 음원·타임라인 끝으로 돌아온다', async ({ page }) => {
     await openEditor(page, { audio: true, songTiming: timing });
     await openSongInfo(page);
     const original = await songAudioState(page);
     expect(original.pendingAudioName).toBeNull();
+    const point = await canvasPosition(page, 1, 2);
+    await page.mouse.click(point.x, point.y);
+    await expect.poll(async () => (await editorState(page)).notes).toBe(1);
 
     await songInfo(page).locator('input[type="file"][accept="audio/*"]').setInputFiles({
       name: 'next.wav', mimeType: 'audio/wav', buffer: generateSilentWav(3) });
     await expect.poll(async () => (await songAudioState(page)).pendingAudioName).toBe('next.wav');
+    await expect.poll(async () => (await songAudioState(page)).timelineEndMs).toBeGreaterThan(original.timelineEndMs);
     const replaced = await songAudioState(page);
     expect(replaced.duration).toBeGreaterThan(1);
-    expect(replaced.timelineEndMs).toBeGreaterThan(original.timelineEndMs);
 
     await page.keyboard.press('Control+z');
 
+    await expect.poll(async () => (await editorState(page)).notes).toBe(0);
+    expect(await songAudioState(page)).toEqual(replaced);
+
+    await songInfo(page).getByRole('button', { name: 'Close song info', exact: true }).click();
+    await songInfoDialog(page).getByRole('button', { name: '변경 취소 후 닫기', exact: true }).click();
+
+    await expect(songInfo(page)).toHaveCount(0);
     await expect.poll(() => songAudioState(page)).toEqual(original);
-    await expect(songInfo(page).getByText('Replace Audio', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   });
 
   test('Title을 바꾼 뒤 저장 후 닫기를 고르면 save_song 1회 뒤 드로어가 닫히고 Save 표시가 깨끗하다', async ({ page }) => {

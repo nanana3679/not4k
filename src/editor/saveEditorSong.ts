@@ -2,7 +2,7 @@ import { parseSongTiming } from '../shared/songAssets/songTiming';
 import { canEncodeWavRange, encodeWavBlob } from '../shared';
 import { countOtherSongCharts, findDifferingSongCharts, saveSong, uploadSongMedia } from '../supabase/saveSong';
 import { DEFAULT_PREVIEW_FADE } from './components/previewRangeState';
-import { isSongTimingDirty, previewClipIdentity, samePreviewClip, songDraftOf, songValues } from './songState';
+import { isSongTimingDirty, songValues } from './songState';
 import { useEditorStore } from './stores/editorStore';
 import { SONG_SAVE_COPY, SAVE_IN_PROGRESS_COPY } from './editorCopy';
 
@@ -32,11 +32,12 @@ export async function saveEditorSong(
   try {
     const values = songValues(start.chart, song);
     parseSongTiming(values.timing);
-    // 저장 기준이 아니라 초안이 가진 클립과 비교한다. Undo가 저장을 넘으면 구간이 기준과 달라도 그 구간의 클립을 가지고 있을 수 있고,
-    // 기준과 같아도 다른 음원·구간의 클립일 수 있다. 구간이 없으면 만들 클립이 없다.
-    const wantedClip = previewClipIdentity(song.audioId, values.previewStart, values.previewEnd);
-    const previewRange = wantedClip && !samePreviewClip(song.previewClip, wantedClip)
-      ? { startTime: wantedClip.startTime, endTime: wantedClip.endTime,
+    // 지금 프리뷰 클립(차트 사본의 프리뷰 경로)은 늘 저장 기준의 음원·구간에서 잘라 낸 것이다. 음원·구간은 Undo 이력 밖이라 기준과 달라지는 길은
+    // 대기 음원을 고르거나 구간을 바꾸는 것뿐이므로, 그때만 다시 만든다(사용자 확인, 2026-11-08). 구간이 없으면 만들 클립이 없다.
+    const { previewStart, previewEnd } = values;
+    const previewChanged = previewStart !== song.baseline.previewStart || previewEnd !== song.baseline.previewEnd;
+    const previewRange = previewStart != null && previewEnd != null && (song.pendingAudioFile || previewChanged)
+      ? { startTime: previewStart, endTime: previewEnd,
         fadeInTime: song.pendingPreviewRange?.fadeInTime ?? DEFAULT_PREVIEW_FADE,
         fadeOutTime: song.pendingPreviewRange?.fadeOutTime ?? DEFAULT_PREVIEW_FADE } : null;
     // 프리뷰 클립은 재생 중인 음원으로 만든다. 만들 수 없으면 확인·파일·행보다 먼저 거부한다(음원 로딩 중이면 Save가 먼저 막는다).
@@ -76,7 +77,7 @@ export async function saveEditorSong(
     const revision = await saveSong(start.activeSongId, song.revision, values);
     const current = useEditorStore.getState();
     if (current.chartLoadGeneration !== start.chartLoadGeneration || !current.song) return 'aborted';
-    current.completeSongSave(songDraftOf(song), values, revision);
+    current.completeSongSave(song, values, revision);
     current.addToast(SONG_SAVE_COPY.saved, 'info');
     return 'saved';
   } catch (error) {

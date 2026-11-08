@@ -84,7 +84,7 @@ beforeEach(() => {
   useEditorStore.setState({
     song: null, isSavingSong: false, isLoadingSongAudio: false, savedChartJson: toSavedChartJson(chart(), 2),
     chart: chart(), extraLaneCount: 2, selection: emptySelection(), mode: 'select', isPlaying: false, editTransaction: null,
-    historyPast: [{ chart: chart(), extraLaneCount: 2, songDraft: null }], historyFuture: [{ chart: chart(), extraLaneCount: 2, songDraft: null }],
+    historyPast: [{ chart: chart(), extraLaneCount: 2 }], historyFuture: [{ chart: chart(), extraLaneCount: 2 }],
   });
 });
 

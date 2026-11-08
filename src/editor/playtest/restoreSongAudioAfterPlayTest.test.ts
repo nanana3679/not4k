@@ -23,9 +23,9 @@ beforeEach(() => {
 });
 
 describe('restoreSongAudioAfterPlayTest', () => {
-  it('곡 행은 songs/b/audio.ogg여도 Undo한 초안이 songs/a/audio.ogg이면 곡 행 조회 없이 A의 공개 URL을 요청한다', () => {
+  it('songs/b/audio.ogg 행으로 연 뒤 이 세션의 곡 저장으로 초안 음원이 songs/a/audio.ogg가 됐으면 곡 행 조회 없이 A의 공개 URL을 요청한다', () => {
     openChart(songRow);
-    store().applyMetaEdit({ audioFile: 'songs/a/audio.ogg' });
+    store().applySongMedia({ audioFile: 'songs/a/audio.ogg' }, {});
 
     restoreSongAudioAfterPlayTest(toPublicUrl);
 

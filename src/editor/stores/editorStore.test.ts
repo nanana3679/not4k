@@ -276,18 +276,6 @@ describe('editorStore 차트 변이 게이트', () => {
 // ---------------------------------------------------------------------------
 
 describe('editorStore lastValidSnapshot·revertToLastValid', () => {
-  it('곡 초안이 있는 유효 차트에서 보조 레인 수를 3으로 바꾸면 씨앗이 레인 수 3과 그 초안을 함께 담는다', () => {
-    const song = { audioId: 1, baselineAudioId: 1, previewClip: null, revision: 1, needsTimingMigration: false, duration: 120,
-      gameplayRange: null, pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null,
-      baseline: {} as NonNullable<ReturnType<typeof useEditorStore.getState>['song']>['baseline'] };
-    useEditorStore.setState({ chart: makeChart(), song });
-
-    useEditorStore.getState().setExtraLaneCount(3);
-
-    expect(useEditorStore.getState().lastValidSnapshot).toMatchObject({ extraLaneCount: 3, songDraft: {
-      audioId: 1, previewClip: null, duration: 120, gameplayRange: null } });
-  });
-
   beforeEach(() => {
     useEditorStore.setState({
       chart: makeChart(),
@@ -438,7 +426,7 @@ describe('editorStore lastValidSnapshot·revertToLastValid', () => {
     useEditorStore.getState().setChart(invalid);
     useEditorStore.setState({
       selection: { events: new Set(), notes: new Set([0]), zones: new Set(), restZones: new Set() },
-      historyFuture: [{ chart: makeChart(), extraLaneCount: 2, songDraft: null }],
+      historyFuture: [{ chart: makeChart(), extraLaneCount: 2 }],
     });
 
     useEditorStore.getState().revertToLastValid();
@@ -956,7 +944,7 @@ describe('editorStore 재생 중 편집 제한', () => {
     expect(state().chart).toBe(edited);
     expect(state().historyPast).toHaveLength(1);
 
-    useEditorStore.setState({ historyFuture: [{ chart: makeChart([tap(1), tap(3), tap(5)]), extraLaneCount: 2, songDraft: null }] });
+    useEditorStore.setState({ historyFuture: [{ chart: makeChart([tap(1), tap(3), tap(5)]), extraLaneCount: 2 }] });
     state().redo();
     expect(state().chart).toBe(edited);
     expect(state().historyFuture).toHaveLength(1);
@@ -969,7 +957,7 @@ describe('editorStore 재생 중 편집 제한', () => {
   it('재생 중 revertToLastValid는 위반 차트를 마지막 유효 차트로 되돌리지 않는다', () => {
     const valid = state().chart;
     state().setChart(makeChart([tap(2), tap(2)]));
-    useEditorStore.setState({ lastValidSnapshot: { chart: valid, extraLaneCount: 2, songDraft: null } });
+    useEditorStore.setState({ lastValidSnapshot: { chart: valid, extraLaneCount: 2 } });
     const invalid = state().chart;
     state().setIsPlaying(true);
 
@@ -980,8 +968,8 @@ describe('editorStore 재생 중 편집 제한', () => {
 
   it('history가 1개·Redo 기록이 1개 있어도 재생 중 selectCanUndo·selectCanRedo는 false이고 정지하면 true다', () => {
     useEditorStore.setState({
-      historyPast: [{ chart: makeChart(), extraLaneCount: 2, songDraft: null }],
-      historyFuture: [{ chart: makeChart([tap(1), tap(3)]), extraLaneCount: 2, songDraft: null }],
+      historyPast: [{ chart: makeChart(), extraLaneCount: 2 }],
+      historyFuture: [{ chart: makeChart([tap(1), tap(3)]), extraLaneCount: 2 }],
       isPlaying: true,
     });
     expect(selectCanUndo(state())).toBe(false);
@@ -1209,5 +1197,110 @@ describe('editorStore 곡 행 없는 차트의 대기 미디어', () => {
       gameplayRange: null, jacketFile: new File(['A'], 'A.png'), audioFile: null });
     useEditorStore.getState().loadChart(makeChart());
     expect(useEditorStore.getState().songlessMedia).toEqual({ previewRange: null, gameplayRange: null, jacketFile: null, audioFile: null });
+  });
+});
+
+describe('editorStore 곡 행이 있는 차트의 이력 밖 값(RFD 0098, 2026-11-08)', () => {
+  const tapAt = (n: number) => ({ type: 'tap' as const, kind: 'single' as const, lane: 1 as Lane, beat: beat(n) });
+  const state = () => useEditorStore.getState();
+  /** 곡 행이 있는 차트: 음원 A.ogg·프리뷰 10～20초. */
+  function openSongChart() {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    const chart = { ...makeChart(), meta: { ...makeChart().meta, audioFile: 'A.ogg', previewStart: 10, previewEnd: 20 } };
+    state().loadChart(chart);
+    state().setSong(createEditorSong({ title: 'Test', artist: '', jacketUrl: null, audioUrl: 'A.ogg', duration: 180,
+      previewUrl: null, previewStart: 10, previewEnd: 20, gameplayStart: null, gameplayEnd: null,
+      gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 1 }, chart));
+    state().resetHistory();
+  }
+
+  it('노트 1개를 놓은 뒤 applySongMedia로 음원 B.ogg·길이 120초를 적용하면 Undo 이력 1개·병합 시각이 그대로이고 Undo해도 B.ogg·120초가 남는다', () => {
+    openSongChart();
+    state().setChart({ ...state().chart, notes: [tapAt(1)] });
+    const { historyPast, historyLastCaptureAt } = state();
+
+    state().applySongMedia({ audioFile: 'B.ogg' }, { duration: 120 });
+
+    expect(state().historyPast).toBe(historyPast);
+    expect(state().historyLastCaptureAt).toBe(historyLastCaptureAt);
+    state().undo();
+    expect(state().chart.notes).toEqual([]);
+    expect(state().chart.meta.audioFile).toBe('B.ogg');
+    expect(state().song?.duration).toBe(120);
+  });
+
+  it('노트 배치를 Undo한 뒤 applySongMedia로 프리뷰 30～40초를 적용해도 Redo 기록 1개가 남고 Redo는 노트만 다시 놓는다', () => {
+    openSongChart();
+    state().setChart({ ...state().chart, notes: [tapAt(1)] });
+    state().undo();
+
+    state().applySongMedia({ previewStart: 30, previewEnd: 40 }, {});
+
+    expect(state().historyFuture).toHaveLength(1);
+    state().redo();
+    expect(state().chart.notes).toEqual([tapAt(1)]);
+    expect(state().chart.meta).toMatchObject({ previewStart: 30, previewEnd: 40 });
+  });
+
+  it('빈 편집 transaction 중 applySongMedia로 음원 경로를 바꾸면 Undo 가능으로 보이지 않고 확정해도 이력 0개다', () => {
+    openSongChart();
+    const token = state().beginEditTransaction('selectModeEdit')!;
+
+    state().applySongMedia({ audioFile: 'songs/x/audio.ogg' }, {});
+
+    expect(selectCanUndo(state())).toBe(false);
+    state().commitEditTransaction(token);
+    expect(state().historyPast).toHaveLength(0);
+  });
+
+  it.each(['cancelEditTransaction', 'cancelEditTransactionForPlaybackStart'] as const)(
+    '노트를 둔 transaction 중 applySongMedia로 음원 B.ogg·프리뷰 30～40초를 적용하고 %s하면 노트만 되돌리고 B.ogg·30～40초는 남는다', cancel => {
+      openSongChart();
+      const token = state().beginEditTransaction('selectModeEdit')!;
+      state().setChart({ ...state().chart, notes: [tapAt(1)] }, { transaction: token });
+
+      state().applySongMedia({ audioFile: 'B.ogg', previewStart: 30, previewEnd: 40 }, {});
+      state()[cancel]();
+
+      expect(state().chart.notes).toEqual([]);
+      expect(state().chart.meta).toMatchObject({ audioFile: 'B.ogg', previewStart: 30, previewEnd: 40 });
+      expect(state().historyPast).toHaveLength(0);
+    },
+  );
+
+  it('유효 상태에서 중복 노트 2개를 놓고 applySongMedia로 자켓 경로 J.png를 적용한 뒤 revertToLastValid하면 노트만 비우고 J.png는 남는다', () => {
+    openSongChart();
+    state().setChart({ ...state().chart, notes: [tapAt(1), tapAt(1)] });
+
+    state().applySongMedia({ imageFile: 'J.png' }, {});
+    state().revertToLastValid();
+
+    expect(state().chart.notes).toEqual([]);
+    expect(state().chart.meta.imageFile).toBe('J.png');
+    state().undo();
+    expect(state().chart.notes).toHaveLength(2);
+    expect(state().chart.meta.imageFile).toBe('J.png');
+  });
+
+  it('유효 차트에서 applySongMedia로 음원 경로만 바꾸면 마지막 유효 상태도 새 차트를 가리켜 revertToLastValid가 이력을 남기지 않는다', () => {
+    openSongChart();
+    state().setChart({ ...state().chart, notes: [tapAt(1)] });
+
+    state().applySongMedia({ audioFile: 'B.ogg' }, {});
+    state().revertToLastValid();
+
+    expect(state().lastValidSnapshot?.chart).toBe(state().chart);
+    expect(state().historyPast).toHaveLength(1);
+  });
+
+  it('곡 행이 없는 차트에서 applySongMedia는 차트·이력을 바꾸지 않는다', () => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    state().loadChart(makeChart());
+    const before = state().chart;
+
+    state().applySongMedia({ audioFile: 'B.ogg' }, { duration: 120 });
+
+    expect(state().chart).toBe(before);
+    expect(state().song).toBeNull();
   });
 });

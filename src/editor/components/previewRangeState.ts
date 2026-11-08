@@ -163,7 +163,7 @@ function sameRangeInput(a: RangeInput, b: RangeInput): boolean {
 
 /**
  * store 값이 바뀌었을 때 선택기를 다시 그릴지 정한다. 선택기가 보이는 값과 같으면(선택기가 방금 적용한 값) 그대로 두고,
- * 다르면(변경 취소·Undo처럼 바깥에서 바꾼 값) 새 값으로 다시 그린다. 같으면 받은 객체를 그대로 돌려준다.
+ * 다르면(변경 취소처럼 바깥에서 바꾼 값) 새 값으로 다시 그린다. 같으면 받은 객체를 그대로 돌려준다.
  */
 export function followRangeInput(mount: RangeFieldMount, input: RangeInput): RangeFieldMount {
   return sameRangeInput(mount.shown, input) ? mount : { shown: input, generation: mount.generation + 1 };
