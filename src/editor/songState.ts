@@ -7,22 +7,22 @@ import type { SongValues } from '../supabase/saveSong';
 
 /**
  * 곡 행이 있는 차트의 사본 값 가운데 Undo 이력 밖에 두는 값: 음원·자켓·프리뷰 클립 경로와 프리뷰 구간(RFD 0098, 사용자 확인 2026-11-08).
- * 곡 세션 값(`SongSession`: 길이·인게임 구간·대기 파일·프리뷰 페이드)과 짝을 이룬다. Undo·Redo·편집 취소·마지막 유효 상태 복원은
- * 이 값을 지금 값으로 유지한다. 곡 행이 없는 차트(Meta 창 경로)는 이 규칙을 쓰지 않는다.
+ * 곡 상태(`EditorSong`)의 이력 밖 값(`SongMediaState`: 길이·인게임 구간·대기 파일·프리뷰 페이드)과 짝을 이룬다.
+ * Undo·Redo·편집 취소·마지막 유효 상태 복원은 이 값을 지금 값으로 유지한다. 곡 행이 없는 차트(Meta 창 경로)는 이 규칙을 쓰지 않는다.
  */
-export const SONG_SESSION_META_KEYS = ['audioFile', 'imageFile', 'previewAudioFile', 'previewStart', 'previewEnd'] as const;
-export type SongSessionMeta = Pick<ChartMeta, typeof SONG_SESSION_META_KEYS[number]>;
+export const SONG_MEDIA_META_KEYS = ['audioFile', 'imageFile', 'previewAudioFile', 'previewStart', 'previewEnd'] as const;
+export type SongMediaMeta = Pick<ChartMeta, typeof SONG_MEDIA_META_KEYS[number]>;
 
-/** meta에서 곡 세션과 짝을 이루는 값만 고른다. */
-export function songSessionMetaOf(meta: ChartMeta): SongSessionMeta {
+/** meta에서 이력 밖 값(`SongMediaMeta`)만 고른다. */
+export function songMediaMetaOf(meta: ChartMeta): SongMediaMeta {
   return { audioFile: meta.audioFile, imageFile: meta.imageFile, previewAudioFile: meta.previewAudioFile,
     previewStart: meta.previewStart, previewEnd: meta.previewEnd };
 }
 
-/** 차트 사본의 음원·자켓·프리뷰 값을 `media`로 바꾼다. 이미 같으면 받은 차트를 그대로 돌려준다. */
-export function withSongSessionMeta(chart: ChartDocument, media: SongSessionMeta): ChartDocument {
-  if (SONG_SESSION_META_KEYS.every(key => chart.meta[key] === media[key])) return chart;
-  return { ...chart, meta: { ...chart.meta, ...media } };
+/** 차트 사본의 음원·자켓·프리뷰 값을 `mediaMeta`로 바꾼다. 이미 같으면 받은 차트를 그대로 돌려준다. */
+export function withSongMediaMeta(chart: ChartDocument, mediaMeta: SongMediaMeta): ChartDocument {
+  if (SONG_MEDIA_META_KEYS.every(key => chart.meta[key] === mediaMeta[key])) return chart;
+  return { ...chart, meta: { ...chart.meta, ...mediaMeta } };
 }
 
 export interface EditorSong {
@@ -36,8 +36,8 @@ export interface EditorSong {
   pendingAudioFile: File | null;
 }
 
-/** 곡 세션 값. 차트 사본의 음원·자켓·프리뷰 값(`SongSessionMeta`)과 함께 Undo 이력 밖에 둔다. */
-export type SongSession = Pick<EditorSong, 'duration' | 'gameplayRange' | 'pendingPreviewRange' | 'pendingJacketFile' | 'pendingAudioFile'>;
+/** 곡 상태(`EditorSong`)의 이력 밖 값. 차트 사본의 음원·자켓·프리뷰 값(`SongMediaMeta`)과 함께 Undo 이력 밖에 둔다. */
+export type SongMediaState = Pick<EditorSong, 'duration' | 'gameplayRange' | 'pendingPreviewRange' | 'pendingJacketFile' | 'pendingAudioFile'>;
 
 export function samePlaybackRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
   return a === b || (a !== null && b !== null
@@ -45,8 +45,8 @@ export function samePlaybackRange(a: PlaybackRange | null, b: PlaybackRange | nu
     && a.fadeInTime === b.fadeInTime && a.fadeOutTime === b.fadeOutTime);
 }
 
-/** 곡 세션 값이 같은가. 파일은 같은 File 객체여야 하고 구간은 값으로 비교한다. */
-export function sameSongSession(a: SongSession, b: SongSession): boolean {
+/** 곡 상태의 이력 밖 값(`SongMediaState`)이 같은가. 파일은 같은 File 객체여야 하고 구간은 값으로 비교한다. */
+export function sameSongMediaState(a: SongMediaState, b: SongMediaState): boolean {
   return a.duration === b.duration && a.pendingAudioFile === b.pendingAudioFile && a.pendingJacketFile === b.pendingJacketFile
     && samePlaybackRange(a.gameplayRange, b.gameplayRange) && samePlaybackRange(a.pendingPreviewRange, b.pendingPreviewRange);
 }
@@ -123,7 +123,8 @@ export function isSongDirty(chart: ChartDocument, song: EditorSong | null): bool
  *
  * - `chart`: 제목·아티스트·오프셋·BPM·박자표를 되돌린 차트. 음원·자켓·프리뷰 경로·프리뷰 구간은 받은 차트 그대로다.
  *   이 값들이 이미 기준과 같으면 받은 차트 객체를 그대로 돌려준다.
- * - `media`·`session`: 이력 밖 값의 저장 기준. 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간과 길이·인게임 구간이며 대기 파일·프리뷰 페이드는 비운다.
+ * - `mediaMeta`·`mediaState`: 이력 밖 값의 저장 기준. 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간(`mediaMeta`)과 곡 상태의 길이·인게임 구간
+ *   (`mediaState`)이며 대기 파일·프리뷰 페이드는 비운다.
  *
  * 타이밍 이벤트는 열 때와 같은 규칙(applySongTimingEvents)으로 되돌려 같은 종류·박의 이벤트는 차트의 보조 레인을 유지하고,
  * 기준에 없는 박의 타이밍 이벤트는 사라진다. 지금 차트에 없는 기준의 타이밍 이벤트는 `savedEvents`(마지막으로 불러오거나 저장한
@@ -133,16 +134,16 @@ export function restoreSavedSongInfo(
   chart: ChartDocument,
   song: EditorSong,
   savedEvents: readonly ChartEvent[] = [],
-): { chart: ChartDocument; media: SongSessionMeta; session: SongSession } {
+): { chart: ChartDocument; mediaMeta: SongMediaMeta; mediaState: SongMediaState } {
   const baseline = song.baseline;
   const savedMeta: ChartMeta = { ...chart.meta, title: baseline.title, artist: baseline.artist, offsetMs: baseline.timing.offsetMs };
   const sameMeta = (Object.keys(savedMeta) as (keyof ChartMeta)[]).every(key => savedMeta[key] === chart.meta[key]);
   const events = applySongTimingEvents(chart.events, baseline.timing, savedEvents);
   return {
     chart: sameMeta && events === chart.events ? chart : { ...chart, meta: sameMeta ? chart.meta : savedMeta, events },
-    media: { imageFile: baseline.jacketUrl ?? '', audioFile: baseline.audioUrl, previewAudioFile: baseline.previewUrl ?? '',
+    mediaMeta: { imageFile: baseline.jacketUrl ?? '', audioFile: baseline.audioUrl, previewAudioFile: baseline.previewUrl ?? '',
       previewStart: baseline.previewStart ?? undefined, previewEnd: baseline.previewEnd ?? undefined },
-    session: { duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
+    mediaState: { duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
       pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null },
   };
 }

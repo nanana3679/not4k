@@ -158,4 +158,19 @@ describe('Meta 창 한 번의 음원 선택', () => {
     await expect(session.load(null, new File(['x'], 'next.ogg'))).resolves.toBeNull();
     expect(state.pick).toBeNull();
   });
+
+  it('next.ogg를 불러오는 중에 닫으면 cancel이 true, 고른 음원 없이 닫거나 적용한 뒤 닫으면 false를 돌려준다', async () => {
+    const { session, playback, loads } = harness();
+    expect(session.cancel(playback)).toBe(false);
+
+    void session.load(playback, new File(['x'], 'next.ogg'));
+    expect(session.cancel(playback)).toBe(true);
+
+    const other = new File(['x'], 'other.ogg');
+    const loading = session.load(playback, other);
+    loads.get(other)!.resolve();
+    await loading;
+    session.apply();
+    expect(session.cancel(playback)).toBe(false);
+  });
 });

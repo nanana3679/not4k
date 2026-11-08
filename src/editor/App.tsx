@@ -60,7 +60,7 @@ import { openEditorChart } from './openEditorChart';
 import { restoreSongAudioAfterPlayTest } from './playtest/restoreSongAudioAfterPlayTest';
 import { createMetaAudioSession, type MetaAudioPick } from './metaAudioSession';
 import { fetchChartRows } from '../supabase/chartRows';
-import { isSongTimingDirty } from './songState';
+import { isSongTimingDirty, samePlaybackRange } from './songState';
 import { createDrawerSongAudio } from './drawerSongAudio';
 import { createSongInfoDrawerControl, subscribeSongInfoReopen } from './songInfoDrawerControl';
 import {
@@ -97,14 +97,6 @@ function useCompactEditorLayout(): boolean {
   }, []);
 
   return compact;
-}
-
-function samePlaybackRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
-  if (a === null || b === null) return a === b;
-  return a.startTime === b.startTime
-    && a.endTime === b.endTime
-    && a.fadeInTime === b.fadeInTime
-    && a.fadeOutTime === b.fadeOutTime;
 }
 
 export default function EditorApp() {

@@ -6,6 +6,7 @@
  * - 음원은 Undo 이력 밖이라(사용자 확인, 2026-11-08) Undo·Redo는 재생기 음원을 바꾸지 않는다. 디코딩한 이전 음원도 보관하지 않는다.
  * - 변경 취소가 대기 음원을 버리면 재생기 음원을 비워 버린 음원으로 재생·테스트 플레이·프리뷰 생성을 하지 않게 하고, 저장된 음원을
  *   다시 불러온다(`reloadSavedAudio`). 실제 로드는 useEditorAudioLoad가 맡는다.
+ * - 고른 음원이 실패하거나 버려진 뒤 재생기가 비어 있으면 저장된 음원을 다시 불러온다(`reloadSavedAudioIfEmpty`).
  */
 import { createMetaAudioSession, type MetaAudioPick, type MetaAudioPlayback } from './metaAudioSession';
 import type { PlaybackController } from './playback/PlaybackController';
@@ -30,6 +31,17 @@ export function createDrawerSongAudio(deps: {
     },
   });
 
+  /**
+   * 고른 음원이 실패하거나 버려진 뒤 재생기가 비어 있으면 저장된 음원을 다시 불러온다. 변경 취소 뒤(또는 처음 열 때) 저장된 음원을
+   * 다시 불러오는 동안 다른 음원을 고르면 그 로드가 저장된 음원의 로드를 버린다. 그대로 두면 곡 음원은 저장된 음원인데 재생기·파형이 비어
+   * 재생이 무음이고, 프리뷰 클립이 필요한 Save가 실패한다. 대기 음원이 있으면 곡 음원이 저장된 음원이 아니라 다시 불러오지 않는다.
+   */
+  const reloadSavedAudioIfEmpty = (playback: DrawerSongAudioPlayback | null) => {
+    if (!playback || playback.audioBufferData) return;
+    const { song, chart } = useEditorStore.getState();
+    if (song && !song.pendingAudioFile && chart.meta.audioFile) deps.reloadSavedAudio(chart.meta.audioFile);
+  };
+
   return {
     /** 고른 음원을 불러와 성공하면 곡 음원으로 적용하고 새 길이에 맞춘 구간도 적용한다. 실패하면 이전 음원을 계속 쓴다. */
     async pick(playback: DrawerSongAudioPlayback | null, file: File): Promise<void> {
@@ -38,10 +50,14 @@ export function createDrawerSongAudio(deps: {
       const buffer = playback?.audioBufferData;
       if (status === 'loaded' && buffer) editSongAudio(file, buffer.duration);
       loader.apply();
+      if (status === 'failed') reloadSavedAudioIfEmpty(playback);
     },
-    /** 불러오는 중인 음원 선택을 버리고 재생기를 고르기 전 음원으로 되돌린다. 이미 적용한 음원은 그대로 둔다. */
+    /**
+     * 불러오는 중인 음원 선택을 버리고 재생기를 고르기 전 음원으로 되돌린다. 고르기 전 재생기가 비어 있었으면 저장된 음원을 다시
+     * 불러온다. 이미 적용한 음원은 그대로 둔다.
+     */
     close(playback: DrawerSongAudioPlayback | null): void {
-      loader.cancel(playback);
+      if (loader.cancel(playback)) reloadSavedAudioIfEmpty(playback);
     },
     /**
      * 곡 정보를 변경 취소한다. 막혔으면 false다. 불러오는 중인 선택은 늘 버려 늦은 로드가 적용되지 않게 한다.
@@ -52,7 +68,7 @@ export function createDrawerSongAudio(deps: {
       if (!discardSongInfoChanges().discarded) return false;
       if (!discardedAudio) {
         // 바꾼 음원이 없다. 불러오는 중인 선택만 버리고 재생기를 고르기 전(저장된) 음원으로 되돌린다.
-        loader.cancel(playback);
+        if (loader.cancel(playback)) reloadSavedAudioIfEmpty(playback);
         return true;
       }
       // 불러오는 중인 선택은 버리되 재생기는 아래에서 저장된 음원으로 맞춘다(비우기가 진행 중인 로드도 버린다).

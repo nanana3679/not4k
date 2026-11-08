@@ -5,7 +5,7 @@ import { openEditorChart } from './openEditorChart';
 import { useEditorStore } from './stores/editorStore';
 import { isChartDirty, toSavedChartJson } from './savedChart';
 import { editPreviewRange } from './songInfoEditing';
-import { createEditorSong, isSongDirty, isSongTimingDirty, restoreSavedSongInfo, songValues, withSongSessionMeta } from './songState';
+import { createEditorSong, isSongDirty, isSongTimingDirty, restoreSavedSongInfo, songValues, withSongMediaMeta } from './songState';
 
 const store = () => useEditorStore.getState();
 const base = useEditorStore.getInitialState().chart;
@@ -58,18 +58,18 @@ describe('곡·차트 저장 기준 분리', () => {
   });
 });
 
-describe('곡 세션 값을 차트 사본에 반영(withSongSessionMeta)', () => {
+describe('음원·자켓·프리뷰 값을 차트 사본에 반영(withSongMediaMeta)', () => {
   it('음원 경로·프리뷰 구간이 이미 같으면 같은 차트 객체를 돌려준다', () => {
     const chart = store().chart;
     const { audioFile, imageFile, previewAudioFile, previewStart, previewEnd } = chart.meta;
 
-    expect(withSongSessionMeta(chart, { audioFile, imageFile, previewAudioFile, previewStart, previewEnd })).toBe(chart);
+    expect(withSongMediaMeta(chart, { audioFile, imageFile, previewAudioFile, previewStart, previewEnd })).toBe(chart);
   });
 
   it('음원 B.ogg·프리뷰 30～40초를 반영하면 그 값만 바꾸고 제목·노트는 그대로 둔다', () => {
     const chart = { ...store().chart, notes: [{ type: 'tap' as const, kind: 'single' as const, lane: 1, beat: beat(2) }] };
 
-    const next = withSongSessionMeta(chart, { ...chart.meta, audioFile: 'B.ogg', previewStart: 30, previewEnd: 40 });
+    const next = withSongMediaMeta(chart, { ...chart.meta, audioFile: 'B.ogg', previewStart: 30, previewEnd: 40 });
 
     expect(next.meta).toMatchObject({ title: '곡', audioFile: 'B.ogg', previewStart: 30, previewEnd: 40 });
     expect(next.notes).toBe(chart.notes);
@@ -141,11 +141,11 @@ describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
     expect(restored.chart.meta).toMatchObject({ title: '곡', artist: '작곡가', offsetMs: 0, audioFile: 'audio.ogg' });
     expect(restored.chart.events.find(event => event.type === 'bpm')).toMatchObject({ bpm: 120, editorLane: 1 });
     expect(restored.chart.notes).toEqual([tap]);
-    // 프리뷰 구간은 이력 밖 값이라 차트가 아니라 media로 돌려준다.
+    // 프리뷰 구간은 이력 밖 값이라 차트가 아니라 mediaMeta로 돌려준다.
     expect(restored.chart.meta).toMatchObject({ previewStart: 30, previewEnd: 40 });
-    expect(restored.media).toMatchObject({ previewStart: undefined, previewEnd: undefined });
-    expect(restored.session.pendingPreviewRange).toBeNull();
-    expect(isSongDirty(withSongSessionMeta(restored.chart, restored.media), { ...song, ...restored.session })).toBe(false);
+    expect(restored.mediaMeta).toMatchObject({ previewStart: undefined, previewEnd: undefined });
+    expect(restored.mediaState.pendingPreviewRange).toBeNull();
+    expect(isSongDirty(withSongMediaMeta(restored.chart, restored.mediaMeta), { ...song, ...restored.mediaState })).toBe(false);
   });
 
   it('4박에 새로 놓은 BPM 180은 복원하면 사라지고 0박 BPM·박자의 보조 레인 1·2는 그대로다', () => {
@@ -158,7 +158,7 @@ describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
       .toEqual(chart.events.map(event => [event.type, event.beat.n, event.editorLane]));
   });
 
-  it('자켓 next.png·음원 next.ogg 대기 파일과 5초 길이·인게임 2～4초만 바꿨으면 차트 객체는 그대로이고 media·session이 음원 audio.ogg·길이 120·인게임 구간 NULL을 돌려준다', () => {
+  it('자켓 next.png·음원 next.ogg 대기 파일과 5초 길이·인게임 2～4초만 바꿨으면 차트 객체는 그대로이고 mediaMeta·mediaState가 음원 audio.ogg·길이 120·인게임 구간 NULL을 돌려준다', () => {
     const chart = { ...store().chart, meta: { ...store().chart.meta, audioFile: 'next.ogg' } };
     const song = { ...store().song!, duration: 5,
       pendingJacketFile: new File(['j'], 'next.png'), pendingAudioFile: new File(['a'], 'next.ogg'),
@@ -167,10 +167,10 @@ describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
     const restored = restoreSavedSongInfo(chart, song);
 
     expect(restored.chart).toBe(chart);
-    expect(restored.media.audioFile).toBe('audio.ogg');
-    expect(restored.session).toEqual({ duration: 120, pendingJacketFile: null, pendingAudioFile: null,
+    expect(restored.mediaMeta.audioFile).toBe('audio.ogg');
+    expect(restored.mediaState).toEqual({ duration: 120, pendingJacketFile: null, pendingAudioFile: null,
       pendingPreviewRange: null, gameplayRange: null });
-    expect(isSongDirty(withSongSessionMeta(restored.chart, restored.media), { ...song, ...restored.session })).toBe(false);
+    expect(isSongDirty(withSongMediaMeta(restored.chart, restored.mediaMeta), { ...song, ...restored.mediaState })).toBe(false);
   });
 
   it('인게임 기준 2～110초·페이드 1초에서 5～100초로 바꾼 뒤 복원하면 기준 구간 2～110초·페이드 1초로 돌아간다', () => {
@@ -180,7 +180,7 @@ describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
     const restored = restoreSavedSongInfo(chart,
       { ...song, gameplayRange: { startTime: 5, endTime: 100, fadeInTime: 1, fadeOutTime: 1 } });
 
-    expect(restored.session.gameplayRange).toEqual({ startTime: 2, endTime: 110, fadeInTime: 1, fadeOutTime: 1 });
+    expect(restored.mediaState.gameplayRange).toEqual({ startTime: 2, endTime: 110, fadeInTime: 1, fadeOutTime: 1 });
   });
 
   it('곡 정보를 바꾸지 않았으면 같은 차트 객체를 돌려줘 이력을 남길 변경이 없다', () => {

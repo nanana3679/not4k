@@ -9,7 +9,7 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
-import { samePlaybackRange, songSessionMetaOf, withSongSessionMeta, type EditorSong, type SongSession, type SongSessionMeta } from '../songState';
+import { samePlaybackRange, songMediaMetaOf, withSongMediaMeta, type EditorSong, type SongMediaMeta, type SongMediaState } from '../songState';
 import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
 import type { SavedChartJson } from '../savedChart';
 import type { SongValues } from '../../supabase/saveSong';
@@ -44,7 +44,7 @@ type EditTransaction = {
 
 /**
  * Undo 이력·마지막 유효 상태·열린 편집 transaction이 기억하는 상태. 곡 행이 있으면 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간
- * (`SongSessionMeta`)과 곡 상태(`song`)는 이력 밖이라(RFD 0098, 사용자 확인 2026-11-08) 복원할 때 지금 값을 유지한다(`restoreSnapshot`).
+ * (`SongMediaMeta`)과 곡 상태(`song`)는 이력 밖이라(RFD 0098, 사용자 확인 2026-11-08) 복원할 때 지금 값을 유지한다(`restoreSnapshot`).
  */
 type HistorySnapshot = {
   chart: ChartDocument;
@@ -184,11 +184,11 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   /** 현재 초안에 Meta 편집을 합친다. 곡 행이 있으면 난이도명은 유지하고 레벨은 편집한다. */
   applyMetaEdit: (meta: Partial<ChartMeta>) => void;
   /**
-   * 곡 행이 있는 차트의 이력 밖 값을 바꾼다: 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간(`media`)과 길이·인게임 구간·대기 파일·
-   * 프리뷰 페이드(`session`)(RFD 0098, 사용자 확인 2026-11-08).
+   * 곡 행이 있는 차트의 이력 밖 값을 바꾼다: 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간(`mediaMeta`)과 곡 상태의 길이·인게임 구간·
+   * 대기 파일·프리뷰 페이드(`mediaState`)(RFD 0098, 사용자 확인 2026-11-08).
    * Undo 이력·Redo·600ms 병합 창을 건드리지 않고 열린 transaction도 끝내지 않는다. 곡 행이 없으면 아무것도 하지 않는다.
    */
-  applySongMedia: (media: Partial<SongSessionMeta>, session: Partial<SongSession>) => void;
+  applySongMedia: (mediaMeta: Partial<SongMediaMeta>, mediaState: Partial<SongMediaState>) => void;
   /**
    * 곡 저장 성공을 반영한다. `saved`는 저장을 시작할 때의 곡이다. 그 뒤 바뀌지 않은 대기 파일만 업로드 경로로 바꿔 비우고, 프리뷰 클립 경로와
    * 리비전·저장 기준·이행 여부를 저장 결과로 바꾼다. 이력 밖 값이라 이력·Redo는 그대로 둔다.
@@ -301,7 +301,7 @@ function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraLaneCoun
  * 곡 행이 없는 차트는 차트 전체를 되돌린다(Meta 창 경로, #442에서 지운다).
  */
 function restoreSnapshot(state: EditorState, snapshot: HistorySnapshot): Partial<EditorState> {
-  return { chart: state.song ? withSongSessionMeta(snapshot.chart, songSessionMetaOf(state.chart.meta)) : snapshot.chart,
+  return { chart: state.song ? withSongMediaMeta(snapshot.chart, songMediaMetaOf(state.chart.meta)) : snapshot.chart,
     extraLaneCount: snapshot.extraLaneCount };
 }
 
@@ -311,22 +311,24 @@ function restoreSnapshot(state: EditorState, snapshot: HistorySnapshot): Partial
  * 음원·자켓·프리뷰 값만 지금 값으로 맞추며, 같은 차트를 가리키던 스냅샷은 바뀐 뒤에도 같은 차트를 가리킨다. Undo·Redo 스냅샷은
  * 복원할 때 지금 값을 덮으므로(`restoreSnapshot`) 고치지 않는다.
  */
-function songMediaUpdate(state: EditorState, media: Partial<SongSessionMeta>, session: Partial<SongSession>): Partial<EditorState> {
+function songMediaUpdate(
+  state: EditorState, mediaMeta: Partial<SongMediaMeta>, mediaState: Partial<SongMediaState>,
+): Partial<EditorState> {
   if (!state.song) return {};
-  const chart = withSongSessionMeta(state.chart, { ...songSessionMetaOf(state.chart.meta), ...media });
-  const current = songSessionMetaOf(chart.meta);
-  const followed = new Map([[state.chart, chart]]);
+  const chart = withSongMediaMeta(state.chart, { ...songMediaMetaOf(state.chart.meta), ...mediaMeta });
+  const current = songMediaMetaOf(chart.meta);
+  const nextChartByChart = new Map([[state.chart, chart]]);
   const follow = (snapshot: HistorySnapshot): HistorySnapshot => {
-    let next = followed.get(snapshot.chart);
+    let next = nextChartByChart.get(snapshot.chart);
     if (!next) {
-      next = withSongSessionMeta(snapshot.chart, current);
-      followed.set(snapshot.chart, next);
+      next = withSongMediaMeta(snapshot.chart, current);
+      nextChartByChart.set(snapshot.chart, next);
     }
     return next === snapshot.chart ? snapshot : { ...snapshot, chart: next };
   };
   const transaction = state.editTransaction;
   return {
-    chart, song: { ...state.song, ...session },
+    chart, song: { ...state.song, ...mediaState },
     lastValidSnapshot: state.lastValidSnapshot ? follow(state.lastValidSnapshot) : null,
     editTransaction: transaction ? { ...transaction, before: follow(transaction.before),
       lastValidSnapshot: transaction.lastValidSnapshot ? follow(transaction.lastValidSnapshot) : null } : null,
@@ -516,7 +518,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     });
   },
-  applySongMedia: (media, session) => set(state => songMediaUpdate(state, media, session)),
+  applySongMedia: (mediaMeta, mediaState) => set(state => songMediaUpdate(state, mediaMeta, mediaState)),
   completeSongSave: (saved, values, revision) => set(state => {
     if (!state.song) return {};
     // 저장 중 다시 고른 파일은 다음 저장에 남긴다. 프리뷰 클립은 저장 기준의 음원·구간 것이라 늘 저장한 경로를 쓴다.

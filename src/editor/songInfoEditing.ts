@@ -2,9 +2,11 @@
  * 곡 정보 드로어 편집(RFD 0098).
  *
  * - 제목·아티스트·오프셋(과 타임라인의 BPM·박자표)은 차트 사본을 setChart로 바꿔 노트와 같은 시간순 Undo·Redo 이력을 쓴다.
- * - 음원·자켓·프리뷰 구간·인게임 구간은 Undo 이력에 넣지 않는다(사용자 확인, 2026-11-08). 차트 사본의 경로·프리뷰 구간과 곡 세션 값을
- *   `applySongMedia`로 바꾸며, Undo·Redo·변경 취소의 Undo는 이 값의 지금 상태를 유지한다. 잘못 고른 음원은 다시 고른다.
- * - 드로어의 편집은 독립 명령이라 열린 편집 transaction(붙여넣기 대기 등)을 먼저 확정한다.
+ * - 음원·자켓·프리뷰 구간·인게임 구간은 Undo 이력에 넣지 않는다(사용자 확인, 2026-11-08). 차트 사본의 경로·프리뷰 구간(`SongMediaMeta`)과
+ *   곡 상태의 길이·구간·대기 파일(`SongMediaState`)을 `applySongMedia`로 바꾸며, Undo·Redo·변경 취소의 Undo는 이 값의 지금 상태를
+ *   유지한다. 잘못 고른 음원은 다시 고른다.
+ * - 드로어에서 바로 하는 편집은 독립 명령이라 열린 편집 transaction(붙여넣기 대기 등)을 먼저 확정한다. 음원 교체(`editSongAudio`)는
+ *   로드가 끝날 때 비동기로 적용되므로 확정하지 않아 그 사이 시작한 캔버스 드래그를 끊지 않는다.
  *
  * 오프셋·BPM·박자표 변경은 정지 중에만 허용한다(RFD 0099).
  */
@@ -16,18 +18,18 @@ import { savedChartEvents } from './savedChart';
 import {
   restoreSavedSongInfo,
   samePlaybackRange,
-  sameSongSession,
-  SONG_SESSION_META_KEYS,
-  type SongSession,
-  type SongSessionMeta,
+  sameSongMediaState,
+  SONG_MEDIA_META_KEYS,
+  type SongMediaMeta,
+  type SongMediaState,
 } from './songState';
 import { useEditorStore } from './stores/editorStore';
 import { normalizeSelection } from './stores/selectionSlice';
 
-/** 이력 밖 값을 바꾸는 드로어 편집. 열린 transaction을 먼저 확정한 뒤 이력·Redo·병합 창을 건드리지 않고 바꾼다. */
-function editSongMedia(media: Partial<SongSessionMeta>, session: Partial<SongSession>): void {
+/** 사용자가 드로어에서 바로 바꾼 이력 밖 값. 열린 transaction을 먼저 확정한 뒤 이력·Redo·병합 창을 건드리지 않고 바꾼다. */
+function editSongMedia(mediaMeta: Partial<SongMediaMeta>, mediaState: Partial<SongMediaState>): void {
   useEditorStore.getState().commitEditTransaction();
-  useEditorStore.getState().applySongMedia(media, session);
+  useEditorStore.getState().applySongMedia(mediaMeta, mediaState);
 }
 
 /** 곡 제목을 바꾼다. 같은 값이면 이력을 남기지 않는다. */
@@ -85,14 +87,18 @@ function notifyResetRanges({ reset }: NewAudioRanges): void {
 /**
  * 로드에 성공한 음원 파일을 곡 음원으로 둔다. 음원 경로·대기 파일·길이와 프리뷰·인게임 구간(`rangesForNewAudio`, #444)을 함께 바꾸고
  * 기본값으로 돌린 구간을 알린다. 음원 교체와 구간 조정 모두 Undo 이력을 남기지 않는다(사용자 확인, 2026-11-08).
+ *
+ * 드로어 음원(drawerSongAudio)이 로드가 끝날 때 부르므로 열린 transaction을 확정하지 않는다. 고른 뒤 디코딩을 기다리는 동안 시작한
+ * 캔버스 드래그가 끊기지 않고, `applySongMedia`가 transaction의 시작 상태도 새 음원으로 맞춰 드래그를 확정하면 드래그만 Undo 한 단위가 된다.
  */
 export function editSongAudio(file: File, duration: number): void {
-  const { chart, song } = useEditorStore.getState();
+  const state = useEditorStore.getState();
+  const { chart, song } = state;
   if (!song) return;
   const meta = chart.meta;
   const ranges = rangesForNewAudio(duration,
     { ...song.pendingPreviewRange, startTime: meta.previewStart, endTime: meta.previewEnd }, song.gameplayRange);
-  editSongMedia({ audioFile: file.name, previewStart: ranges.preview.startTime, previewEnd: ranges.preview.endTime },
+  state.applySongMedia({ audioFile: file.name, previewStart: ranges.preview.startTime, previewEnd: ranges.preview.endTime },
     { duration, pendingAudioFile: file, pendingPreviewRange: ranges.preview, gameplayRange: ranges.gameplay });
   notifyResetRanges(ranges);
 }
@@ -121,8 +127,8 @@ export function discardSongInfoChanges(): DiscardSongInfoResult {
     state.addToast(PAUSE_TO_EDIT_COPY, 'warn');
     return { discarded: false };
   }
-  const mediaChanged = SONG_SESSION_META_KEYS.some(key => target.media[key] !== state.chart.meta[key])
-    || !sameSongSession(song, target.session);
+  const mediaChanged = SONG_MEDIA_META_KEYS.some(key => target.mediaMeta[key] !== state.chart.meta[key])
+    || !sameSongMediaState(song, target.mediaState);
   if (target.chart === state.chart && !mediaChanged) return { discarded: true };
   state.commitEditTransaction();
   if (target.chart !== state.chart) {
@@ -131,7 +137,7 @@ export function discardSongInfoChanges(): DiscardSongInfoResult {
     if (useEditorStore.getState().chart !== target.chart) return { discarded: false };
     if (target.chart.events !== before.chart.events) keepEventSelection(before.selection, before.chart.events, target.chart.events);
   }
-  if (mediaChanged) useEditorStore.getState().applySongMedia(target.media, target.session);
+  if (mediaChanged) useEditorStore.getState().applySongMedia(target.mediaMeta, target.mediaState);
   return { discarded: true };
 }
 
