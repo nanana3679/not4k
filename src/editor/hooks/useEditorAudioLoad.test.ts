@@ -202,7 +202,7 @@ it('대기 File이 있는 채 복귀하면 곡 행 조회 없이 대기 File로 
   expect(fetch).not.toHaveBeenCalled();
 });
 
-it('재마운트 뒤 Undo의 saved.wav 재로드 중 Redo가 캐시의 B를 복원하고 옛 fetch가 실패하면 표시 음원을 비우지 않고 알림도 없다', async () => {
+it('재마운트 뒤 saved.wav 재로드 중 Meta 창 선택 취소가 restoreAudioBuffer로 B를 되돌리고 옛 fetch가 실패하면 표시 음원을 비우지 않고 알림도 없다', async () => {
   let failFetch!: (reason: Error) => void;
   vi.mocked(fetch).mockReturnValue(new Promise<Response>((_resolve, reject) => { failFetch = reject; }));
   const restored = await returnToEditor();
