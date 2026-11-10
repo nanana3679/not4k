@@ -75,13 +75,18 @@ export function createMetaAudioSession(deps: {
     apply(): void {
       finish();
     },
-    /** 적용하지 않고 창을 닫았다(곡 정보 드로어는 닫기·변경 취소). 진행 중인 선택의 결과는 null이 된다. */
-    cancel(playback: MetaAudioPlayback | null): void {
+    /**
+     * 적용하지 않고 창을 닫았다(곡 정보 드로어는 닫기·변경 취소). 진행 중인 선택의 결과는 null이 된다.
+     * 이번 창에서 고른 음원을 버렸으면 true, 고른 음원이 없었으면 false다.
+     */
+    cancel(playback: MetaAudioPlayback | null): boolean {
+      const picked = bufferAtOpen !== undefined;
       if (playback) {
         if (bufferAtOpen) playback.restoreAudioBuffer(bufferAtOpen);
         else if (loading) playback.cancelAudioLoad();
       }
       finish();
+      return picked;
     },
   };
 }

@@ -5,21 +5,30 @@ import { applySongTimingEvents } from '../shared/songAssets/resolveSongChart';
 
 import type { SongValues } from '../supabase/saveSong';
 
-/** 프리뷰 클립을 잘라 낸 음원과 구간. */
-export interface PreviewClipIdentity {
-  audioId: number;
-  startTime: number;
-  endTime: number;
+/**
+ * 곡 행이 있는 차트의 사본 값 가운데 Undo 이력 밖에 두는 값: 음원·자켓·프리뷰 클립 경로와 프리뷰 구간(RFD 0098, 사용자 확인 2026-11-08).
+ * 곡 상태(`EditorSong`)의 이력 밖 값(`SongMediaState`: 길이·인게임 구간·대기 파일·프리뷰 페이드)과 짝을 이룬다.
+ * Undo·Redo·편집 취소·마지막 유효 상태 복원은 이 값을 지금 값으로 유지한다. 곡 행이 없는 차트(Meta 창 경로)는 이 규칙을 쓰지 않는다.
+ */
+export const SONG_MEDIA_META_KEYS = ['audioFile', 'imageFile', 'previewAudioFile', 'previewStart', 'previewEnd'] as const;
+export type SongMediaMeta = Pick<ChartMeta, typeof SONG_MEDIA_META_KEYS[number]>;
+
+/** meta에서 이력 밖 값(`SongMediaMeta`)만 고른다. */
+export function songMediaMetaOf(meta: ChartMeta): SongMediaMeta {
+  return { audioFile: meta.audioFile, imageFile: meta.imageFile, previewAudioFile: meta.previewAudioFile,
+    previewStart: meta.previewStart, previewEnd: meta.previewEnd };
 }
 
-export interface SongDraft {
-  /** 세션 내 음원 정체성. 저장해 경로가 바뀌어도 유지한다. */
-  audioId: number;
-  /**
-   * 지금 차트의 프리뷰 클립(`meta.previewAudioFile`)의 출처. 프리뷰 구간이 없는 곡은 null이다.
-   * 지금 음원·프리뷰 구간과 다르면 다음 곡 저장이 클립을 다시 만든다.
-   */
-  previewClip: PreviewClipIdentity | null;
+/** 차트 사본의 음원·자켓·프리뷰 값을 `mediaMeta`로 바꾼다. 이미 같으면 받은 차트를 그대로 돌려준다. */
+export function withSongMediaMeta(chart: ChartDocument, mediaMeta: SongMediaMeta): ChartDocument {
+  if (SONG_MEDIA_META_KEYS.every(key => chart.meta[key] === mediaMeta[key])) return chart;
+  return { ...chart, meta: { ...chart.meta, ...mediaMeta } };
+}
+
+export interface EditorSong {
+  revision: number;
+  needsTimingMigration: boolean;
+  baseline: SongValues;
   duration: number | null;
   gameplayRange: PlaybackRange | null;
   pendingPreviewRange: PlaybackRange | null;
@@ -27,74 +36,39 @@ export interface SongDraft {
   pendingAudioFile: File | null;
 }
 
-export interface EditorSong extends SongDraft {
-  revision: number;
-  needsTimingMigration: boolean;
-  baseline: SongValues;
-  /** 마지막 저장 음원의 정체성. 초안과 별도로 유지해 Undo 후 변경 취소도 저장 음원으로 돌아간다. */
-  baselineAudioId: number;
-}
+/** 곡 상태(`EditorSong`)의 이력 밖 값. 차트 사본의 음원·자켓·프리뷰 값(`SongMediaMeta`)과 함께 Undo 이력 밖에 둔다. */
+export type SongMediaState = Pick<EditorSong, 'duration' | 'gameplayRange' | 'pendingPreviewRange' | 'pendingJacketFile' | 'pendingAudioFile'>;
 
-type GameplayValueKey = 'gameplayStart' | 'gameplayEnd' | 'gameplayFadeIn' | 'gameplayFadeOut';
-
-let nextSongAudioId = 0;
-export function createSongAudioId(): number { return ++nextSongAudioId; }
-
-/** File·구간 참조는 유지한다. 초안의 필드는 직접 수정하지 않고 새 객체로 교체한다. */
-export function songDraftOf(song: SongDraft): SongDraft {
-  const { audioId, previewClip, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile } = song;
-  return { audioId, previewClip, duration, gameplayRange, pendingPreviewRange, pendingJacketFile, pendingAudioFile };
-}
-
-function sameRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
+export function samePlaybackRange(a: PlaybackRange | null, b: PlaybackRange | null): boolean {
   return a === b || (a !== null && b !== null
     && a.startTime === b.startTime && a.endTime === b.endTime
     && a.fadeInTime === b.fadeInTime && a.fadeOutTime === b.fadeOutTime);
 }
 
-/** 이 음원·프리뷰 구간에서 잘라 낼 클립의 identity. 시작·끝이 모두 있어야 구간이며 없으면 null이다. */
-export function previewClipIdentity(audioId: number, startTime: number | null | undefined, endTime: number | null | undefined): PreviewClipIdentity | null {
-  return startTime != null && endTime != null ? { audioId, startTime, endTime } : null;
+/** 곡 상태의 이력 밖 값(`SongMediaState`)이 같은가. 파일은 같은 File 객체여야 하고 구간은 값으로 비교한다. */
+export function sameSongMediaState(a: SongMediaState, b: SongMediaState): boolean {
+  return a.duration === b.duration && a.pendingAudioFile === b.pendingAudioFile && a.pendingJacketFile === b.pendingJacketFile
+    && samePlaybackRange(a.gameplayRange, b.gameplayRange) && samePlaybackRange(a.pendingPreviewRange, b.pendingPreviewRange);
 }
 
-export function samePreviewClip(a: PreviewClipIdentity | null, b: PreviewClipIdentity | null): boolean {
-  return a === b || (a !== null && b !== null
-    && a.audioId === b.audioId && a.startTime === b.startTime && a.endTime === b.endTime);
-}
-
-export function sameSongDraft(a: SongDraft | null, b: SongDraft | null): boolean {
-  if (!a || !b) return a === b;
-  return a.audioId === b.audioId && samePreviewClip(a.previewClip, b.previewClip) && a.duration === b.duration
-    && a.pendingAudioFile === b.pendingAudioFile && a.pendingJacketFile === b.pendingJacketFile
-    && sameRange(a.gameplayRange, b.gameplayRange)
-    && sameRange(a.pendingPreviewRange, b.pendingPreviewRange);
-}
+type GameplayValueKey = 'gameplayStart' | 'gameplayEnd' | 'gameplayFadeIn' | 'gameplayFadeOut';
 
 /**
- * 초안 구간의 저장 값. 초안 null은 "구간 없음"이라 저장 기준에 구간이 있으면(Undo가 저장을 넘어 돌아옴) 시작·끝·페이드를 NULL로 보낸다.
- * 시작·끝 중 하나만 있는 부분 행은 구간 없이 열리므로 행의 값을 그대로 둬 열자마자 dirty가 되지 않게 한다.
+ * 초안 구간이 없으면(구간 없는 행을 열었거나 시작·끝 중 하나만 있는 부분 행) 저장 기준의 값을 그대로 보내 열자마자 dirty가 되지 않게 한다.
+ * 저장 기준에 구간이 있으면 초안 구간도 늘 있다(변경 취소는 기준 구간으로 돌리고 Undo는 구간을 바꾸지 않는다).
  */
-function gameplayValues({ gameplayRange: range, baseline }: EditorSong): Pick<SongValues, GameplayValueKey> {
-  if (!range) {
-    const { gameplayStart, gameplayEnd, gameplayFadeIn, gameplayFadeOut } = baseline;
-    return gameplayRangeOf(baseline)
-      ? { gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null, gameplayFadeOut: null }
-      : { gameplayStart, gameplayEnd, gameplayFadeIn, gameplayFadeOut };
-  }
-  return {
-    gameplayStart: range.startTime, gameplayEnd: range.endTime,
-    gameplayFadeIn: range.fadeInTime !== (baseline.gameplayFadeIn ?? 0) ? range.fadeInTime : baseline.gameplayFadeIn,
-    gameplayFadeOut: range.fadeOutTime !== (baseline.gameplayFadeOut ?? 0) ? range.fadeOutTime : baseline.gameplayFadeOut,
-  };
-}
-
 export function songValues(chart: ChartDocument, song: EditorSong): SongValues {
+  const range = song.gameplayRange;
   return {
     title: chart.meta.title, artist: chart.meta.artist,
     jacketUrl: chart.meta.imageFile || null, audioUrl: chart.meta.audioFile,
     duration: song.duration, previewUrl: chart.meta.previewAudioFile || null,
     previewStart: chart.meta.previewStart ?? null, previewEnd: chart.meta.previewEnd ?? null,
-    ...gameplayValues(song),
+    gameplayStart: range?.startTime ?? song.baseline.gameplayStart, gameplayEnd: range?.endTime ?? song.baseline.gameplayEnd,
+    gameplayFadeIn: range && range.fadeInTime !== (song.baseline.gameplayFadeIn ?? 0)
+      ? range.fadeInTime : song.baseline.gameplayFadeIn,
+    gameplayFadeOut: range && range.fadeOutTime !== (song.baseline.gameplayFadeOut ?? 0)
+      ? range.fadeOutTime : song.baseline.gameplayFadeOut,
     timing: toSongTiming(chart),
   };
 }
@@ -110,10 +84,7 @@ function gameplayRangeOf(values: Pick<SongValues, GameplayValueKey>): PlaybackRa
 /** resolveSongChart·초기 레인 배치·곡 음원 정보 적용 후에 기준을 만든다. */
 export function createEditorSong(loaded: LoadedSongSharedData, chart: ChartDocument): EditorSong {
   const gameplayRange = gameplayRangeOf(loaded);
-  const audioId = createSongAudioId();
   const song: EditorSong = {
-    audioId, baselineAudioId: audioId,
-    previewClip: previewClipIdentity(audioId, chart.meta.previewStart, chart.meta.previewEnd),
     revision: loaded.revision, needsTimingMigration: loaded.timing === null,
     duration: loaded.duration, gameplayRange,
     pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null,
@@ -147,32 +118,32 @@ export function isSongDirty(chart: ChartDocument, song: EditorSong | null): bool
 }
 
 /**
- * 곡 정보 변경 취소(RFD 0098)의 결과. 곡이 소유한 값(제목·아티스트·자켓·음원·프리뷰 구간·오프셋·BPM·박자표 값과
- * 플레이 구간·길이·대기 파일)만 마지막 곡 저장 기준으로 되돌리고, 노트·차트별 이벤트·난이도·보조 레인 수는 그대로 둔다.
+ * 곡 정보 변경 취소(RFD 0098)가 되돌릴 값. 곡이 소유한 값만 마지막 곡 저장 기준으로 되돌리고 노트·차트별 이벤트·난이도·보조 레인 수는
+ * 그대로 둔다. Undo 이력에 남는 값과 이력 밖 값을 나눠 돌려준다(사용자 확인, 2026-11-08).
+ *
+ * - `chart`: 제목·아티스트·오프셋·BPM·박자표를 되돌린 차트. 음원·자켓·프리뷰 경로·프리뷰 구간은 받은 차트 그대로다.
+ *   이 값들이 이미 기준과 같으면 받은 차트 객체를 그대로 돌려준다.
+ * - `mediaMeta`·`mediaState`: 이력 밖 값의 저장 기준. 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간(`mediaMeta`)과 곡 상태의 길이·인게임 구간
+ *   (`mediaState`)이며 대기 파일·프리뷰 페이드는 비운다.
+ *
  * 타이밍 이벤트는 열 때와 같은 규칙(applySongTimingEvents)으로 되돌려 같은 종류·박의 이벤트는 차트의 보조 레인을 유지하고,
  * 기준에 없는 박의 타이밍 이벤트는 사라진다. 지금 차트에 없는 기준의 타이밍 이벤트는 `savedEvents`(마지막으로 불러오거나 저장한
- * 차트의 이벤트)에 같은 종류·박이 있으면 그 보조 레인으로 돌아온다. 곡 정보가 기준과 같으면 받은 차트 객체를 그대로 돌려준다.
+ * 차트의 이벤트)에 같은 종류·박이 있으면 그 보조 레인으로 돌아온다.
  */
 export function restoreSavedSongInfo(
   chart: ChartDocument,
   song: EditorSong,
   savedEvents: readonly ChartEvent[] = [],
-): { chart: ChartDocument; song: EditorSong } {
+): { chart: ChartDocument; mediaMeta: SongMediaMeta; mediaState: SongMediaState } {
   const baseline = song.baseline;
-  const savedMeta: ChartMeta = { ...chart.meta, title: baseline.title, artist: baseline.artist,
-    imageFile: baseline.jacketUrl ?? '', audioFile: baseline.audioUrl, previewAudioFile: baseline.previewUrl ?? '',
-    previewStart: baseline.previewStart ?? undefined, previewEnd: baseline.previewEnd ?? undefined,
-    offsetMs: baseline.timing.offsetMs };
+  const savedMeta: ChartMeta = { ...chart.meta, title: baseline.title, artist: baseline.artist, offsetMs: baseline.timing.offsetMs };
   const sameMeta = (Object.keys(savedMeta) as (keyof ChartMeta)[]).every(key => savedMeta[key] === chart.meta[key]);
   const events = applySongTimingEvents(chart.events, baseline.timing, savedEvents);
-  const restoredChart = sameMeta && events === chart.events ? chart
-    : { ...chart, meta: sameMeta ? chart.meta : savedMeta, events };
   return {
-    chart: restoredChart,
-    // 저장 기준의 클립은 저장할 때 그 음원·구간으로 맞췄다.
-    song: { ...song, audioId: song.baselineAudioId,
-      previewClip: previewClipIdentity(song.baselineAudioId, baseline.previewStart, baseline.previewEnd),
-      duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
+    chart: sameMeta && events === chart.events ? chart : { ...chart, meta: sameMeta ? chart.meta : savedMeta, events },
+    mediaMeta: { imageFile: baseline.jacketUrl ?? '', audioFile: baseline.audioUrl, previewAudioFile: baseline.previewUrl ?? '',
+      previewStart: baseline.previewStart ?? undefined, previewEnd: baseline.previewEnd ?? undefined },
+    mediaState: { duration: baseline.duration, gameplayRange: gameplayRangeOf(baseline),
       pendingPreviewRange: null, pendingJacketFile: null, pendingAudioFile: null },
   };
 }

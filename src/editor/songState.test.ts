@@ -4,8 +4,8 @@ import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
 import { useEditorStore } from './stores/editorStore';
 import { isChartDirty, toSavedChartJson } from './savedChart';
-import { editGameplayRange } from './songInfoEditing';
-import { createEditorSong, isSongDirty, isSongTimingDirty, restoreSavedSongInfo, sameSongDraft, songDraftOf, songValues } from './songState';
+import { editPreviewRange } from './songInfoEditing';
+import { createEditorSong, isSongDirty, isSongTimingDirty, restoreSavedSongInfo, songValues, withSongMediaMeta } from './songState';
 
 const store = () => useEditorStore.getState();
 const base = useEditorStore.getInitialState().chart;
@@ -58,63 +58,25 @@ describe('곡·차트 저장 기준 분리', () => {
   });
 });
 
-describe('프리뷰 클립 identity', () => {
-  it.each([
-    ['음원 id', { audioId: 2, startTime: 10, endTime: 20 }],
-    ['시작', { audioId: 1, startTime: 11, endTime: 20 }],
-    ['끝', { audioId: 1, startTime: 10, endTime: 21 }],
-  ])('다른 값이 같아도 클립의 %s 값이 다르면 같은 곡 초안이 아니다', (_field, other) => {
-    const draft = { ...songDraftOf(store().song!), previewClip: { audioId: 1, startTime: 10, endTime: 20 } };
-    expect(sameSongDraft(draft, { ...draft, previewClip: { audioId: 1, startTime: 10, endTime: 20 } })).toBe(true);
-    expect(sameSongDraft(draft, { ...draft, previewClip: other })).toBe(false);
-    expect(sameSongDraft(draft, { ...draft, previewClip: null })).toBe(false);
+describe('음원·자켓·프리뷰 값을 차트 사본에 반영(withSongMediaMeta)', () => {
+  it('음원 경로·프리뷰 구간이 이미 같으면 같은 차트 객체를 돌려준다', () => {
+    const chart = store().chart;
+    const { audioFile, imageFile, previewAudioFile, previewStart, previewEnd } = chart.meta;
+
+    expect(withSongMediaMeta(chart, { audioFile, imageFile, previewAudioFile, previewStart, previewEnd })).toBe(chart);
   });
 
-  it('프리뷰 10～20초 행을 열면 클립 identity가 그 음원 id와 10～20초다', () => {
-    const row = { ...loadedSong, previewStart: 10, previewEnd: 20, previewUrl: 'clip.wav' };
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
-    const song = store().song!;
-    expect(song.previewClip).toEqual({ audioId: song.audioId, startTime: 10, endTime: 20 });
-  });
+  it('음원 B.ogg·프리뷰 30～40초를 반영하면 그 값만 바꾸고 제목·노트는 그대로 둔다', () => {
+    const chart = { ...store().chart, notes: [{ type: 'tap' as const, kind: 'single' as const, lane: 1, beat: beat(2) }] };
 
-  it.each([
-    ['시작·끝이 모두 NULL', null, null],
-    ['시작 10·끝 NULL의 부분 구간', 10, null],
-  ])('%s인 행을 열면 프리뷰 구간이 없어 클립 identity가 null이다', (_row, previewStart, previewEnd) => {
-    const row = { ...loadedSong, previewStart, previewEnd };
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
-    expect(store().song?.previewClip).toBeNull();
-  });
+    const next = withSongMediaMeta(chart, { ...chart.meta, audioFile: 'B.ogg', previewStart: 30, previewEnd: 40 });
 
-  it('프리뷰 10～20초 저장 기준에서 클립 identity가 다른 초안을 변경 취소로 되돌리면 저장 기준의 음원 id와 10～20초를 쓴다', () => {
-    const row = { ...loadedSong, previewStart: 10, previewEnd: 20, previewUrl: 'clip.wav' };
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
-    const song = { ...store().song!, audioId: 999, previewClip: { audioId: 7, startTime: 50, endTime: 65 } };
-    expect(restoreSavedSongInfo(store().chart, song).song.previewClip)
-      .toEqual({ audioId: song.baselineAudioId, startTime: 10, endTime: 20 });
-  });
-
-  it('프리뷰 구간이 없는 저장 기준으로 변경 취소하면 클립 identity가 null이다', () => {
-    const song = { ...store().song!, previewClip: { audioId: 7, startTime: 50, endTime: 65 } };
-    expect(restoreSavedSongInfo(store().chart, song).song.previewClip).toBeNull();
+    expect(next.meta).toMatchObject({ title: '곡', audioFile: 'B.ogg', previewStart: 30, previewEnd: 40 });
+    expect(next.notes).toBe(chart.notes);
   });
 });
 
 describe('곡 초안의 플레이 구간 null(songValues)', () => {
-  it('구간 NULL 곡에 3～100초·페이드 1·2초를 저장한 뒤 Undo하면 곡이 dirty이고 저장 값의 시작·끝·페이드가 모두 NULL이다', () => {
-    editGameplayRange({ startTime: 3, endTime: 100, fadeInTime: 1, fadeOutTime: 2 });
-    const song = store().song!;
-    store().completeSongSave(songDraftOf(song), songValues(store().chart, song), 43);
-    expect(isSongDirty(store().chart, store().song)).toBe(false);
-
-    store().undo();
-
-    expect(store().song?.gameplayRange).toBeNull();
-    expect(isSongDirty(store().chart, store().song)).toBe(true);
-    expect(songValues(store().chart, store().song!)).toMatchObject({
-      gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null, gameplayFadeOut: null });
-  });
-
   it('시작 5·끝 NULL·페이드 1의 부분 구간 행은 초안 구간이 null이어도 열자마자 깨끗하고 저장 값은 행의 값 그대로다', () => {
     const partial = { ...loadedSong, gameplayStart: 5, gameplayFadeIn: 1 };
     openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, partial), partial);
@@ -126,16 +88,17 @@ describe('곡 초안의 플레이 구간 null(songValues)', () => {
   });
 });
 
-it('프리뷰 10～20초를 30～40초로 바꾼 뒤 원래 구간으로 Undo하면 대기 구간이 남아도 곡은 깨끗하다', () => {
-  const chart = { ...store().chart, meta: { ...store().chart.meta, previewStart: 10, previewEnd: 20 } };
-  store().setChart(chart);
-  store().setSong(createEditorSong({ ...loadedSong, previewStart: 10, previewEnd: 20 }, chart));
-  store().resetHistory();
-  store().setSong({ ...store().song!, pendingPreviewRange: { startTime: 30, endTime: 40, fadeInTime: 0, fadeOutTime: 0 } });
-  store().setChart({ ...chart, meta: { ...chart.meta, previewStart: 30, previewEnd: 40 } });
-  expect(isSongDirty(store().chart, store().song)).toBe(true);
+it('프리뷰 10～20초 곡에서 1레인 2박 노트를 놓고 프리뷰를 30～40초로 바꾼 뒤 Undo하면 노트만 지우고 프리뷰 30～40초가 남아 곡은 미저장이다', () => {
+  const row = { ...loadedSong, previewStart: 10, previewEnd: 20 };
+  openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, row), row);
+  store().setChart({ ...store().chart, notes: [{ type: 'tap', kind: 'single', lane: 1, beat: beat(2) }] });
+  editPreviewRange({ startTime: 30, endTime: 40, fadeInTime: 0, fadeOutTime: 0 });
+
   store().undo();
-  expect(isSongDirty(store().chart, store().song)).toBe(false);
+
+  expect(store().chart.notes).toEqual([]);
+  expect(store().chart.meta).toMatchObject({ previewStart: 30, previewEnd: 40 });
+  expect(isSongDirty(store().chart, store().song)).toBe(true);
 });
 
 it.each(['artist', 'imageFile', 'audioFile', 'previewAudioFile'] as const)('%s를 changed로 바꾸면 곡만 dirty이고 차트는 깨끗하다', field => {
@@ -176,12 +139,13 @@ describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
     const restored = restoreSavedSongInfo(chart, song);
 
     expect(restored.chart.meta).toMatchObject({ title: '곡', artist: '작곡가', offsetMs: 0, audioFile: 'audio.ogg' });
-    expect(restored.chart.meta.previewStart).toBeUndefined();
-    expect(restored.chart.meta.previewEnd).toBeUndefined();
     expect(restored.chart.events.find(event => event.type === 'bpm')).toMatchObject({ bpm: 120, editorLane: 1 });
     expect(restored.chart.notes).toEqual([tap]);
-    expect(restored.song.pendingPreviewRange).toBeNull();
-    expect(isSongDirty(restored.chart, restored.song)).toBe(false);
+    // 프리뷰 구간은 이력 밖 값이라 차트가 아니라 mediaMeta로 돌려준다.
+    expect(restored.chart.meta).toMatchObject({ previewStart: 30, previewEnd: 40 });
+    expect(restored.mediaMeta).toMatchObject({ previewStart: undefined, previewEnd: undefined });
+    expect(restored.mediaState.pendingPreviewRange).toBeNull();
+    expect(isSongDirty(withSongMediaMeta(restored.chart, restored.mediaMeta), { ...song, ...restored.mediaState })).toBe(false);
   });
 
   it('4박에 새로 놓은 BPM 180은 복원하면 사라지고 0박 BPM·박자의 보조 레인 1·2는 그대로다', () => {
@@ -194,7 +158,7 @@ describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
       .toEqual(chart.events.map(event => [event.type, event.beat.n, event.editorLane]));
   });
 
-  it('자켓 next.png·음원 next.ogg 대기 파일과 5초 길이·인게임 2～4초를 복원하면 대기 파일이 비고 길이 120·인게임 구간 NULL로 돌아간다', () => {
+  it('자켓 next.png·음원 next.ogg 대기 파일과 5초 길이·인게임 2～4초만 바꿨으면 차트 객체는 그대로이고 mediaMeta·mediaState가 음원 audio.ogg·길이 120·인게임 구간 NULL을 돌려준다', () => {
     const chart = { ...store().chart, meta: { ...store().chart.meta, audioFile: 'next.ogg' } };
     const song = { ...store().song!, duration: 5,
       pendingJacketFile: new File(['j'], 'next.png'), pendingAudioFile: new File(['a'], 'next.ogg'),
@@ -202,9 +166,11 @@ describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
 
     const restored = restoreSavedSongInfo(chart, song);
 
-    expect(restored.chart.meta.audioFile).toBe('audio.ogg');
-    expect(restored.song).toMatchObject({ duration: 120, pendingJacketFile: null, pendingAudioFile: null, gameplayRange: null });
-    expect(isSongDirty(restored.chart, restored.song)).toBe(false);
+    expect(restored.chart).toBe(chart);
+    expect(restored.mediaMeta.audioFile).toBe('audio.ogg');
+    expect(restored.mediaState).toEqual({ duration: 120, pendingJacketFile: null, pendingAudioFile: null,
+      pendingPreviewRange: null, gameplayRange: null });
+    expect(isSongDirty(withSongMediaMeta(restored.chart, restored.mediaMeta), { ...song, ...restored.mediaState })).toBe(false);
   });
 
   it('인게임 기준 2～110초·페이드 1초에서 5～100초로 바꾼 뒤 복원하면 기준 구간 2～110초·페이드 1초로 돌아간다', () => {
@@ -214,7 +180,7 @@ describe('곡 정보 변경 취소의 복원 값(restoreSavedSongInfo)', () => {
     const restored = restoreSavedSongInfo(chart,
       { ...song, gameplayRange: { startTime: 5, endTime: 100, fadeInTime: 1, fadeOutTime: 1 } });
 
-    expect(restored.song.gameplayRange).toEqual({ startTime: 2, endTime: 110, fadeInTime: 1, fadeOutTime: 1 });
+    expect(restored.mediaState.gameplayRange).toEqual({ startTime: 2, endTime: 110, fadeInTime: 1, fadeOutTime: 1 });
   });
 
   it('곡 정보를 바꾸지 않았으면 같은 차트 객체를 돌려줘 이력을 남길 변경이 없다', () => {

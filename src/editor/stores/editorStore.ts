@@ -9,7 +9,7 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
-import { previewClipIdentity, songDraftOf, sameSongDraft, type EditorSong, type SongDraft } from '../songState';
+import { samePlaybackRange, songMediaMetaOf, withSongMediaMeta, type EditorSong, type SongMediaMeta, type SongMediaState } from '../songState';
 import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
 import type { SavedChartJson } from '../savedChart';
 import type { SongValues } from '../../supabase/saveSong';
@@ -42,18 +42,20 @@ type EditTransaction = {
   onInterrupt?: () => void;
 };
 
+/**
+ * Undo 이력·마지막 유효 상태·열린 편집 transaction이 기억하는 상태. 곡 행이 있으면 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간
+ * (`SongMediaMeta`)과 곡 상태(`song`)는 이력 밖이라(RFD 0098, 사용자 확인 2026-11-08) 복원할 때 지금 값을 유지한다(`restoreSnapshot`).
+ */
 type HistorySnapshot = {
   chart: ChartDocument;
   extraLaneCount: number;
-  /** File을 JSON 복제하지 않는다. 초안·구간은 불변 객체로 취급해 참조를 유지한다. */
-  songDraft: SongDraft | null;
+  /** 곡 정보 변경 취소 직전의 스냅샷이다. 이 스냅샷으로 Undo하면 곡 정보 드로어를 다시 연다. */
   reopensSongInfo?: boolean;
 };
 
 interface SetChartOptions {
   separateHistory?: boolean;
   transaction?: symbol;
-  songDraft?: Partial<SongDraft>;
   /** 앞뒤 편집 모두 600ms 병합에서 제외한다. */
   isolated?: boolean;
   reopensSongInfo?: boolean;
@@ -137,7 +139,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   song: EditorSong | null;
   isSavingSong: boolean;
   /**
-   * 드로어에서 고르거나 이력으로 복원한 대기 File을 불러오는 중인가(src/editor/drawerSongAudio.ts).
+   * 곡 정보 드로어에서 고른 음원을 불러오는 중인가(src/editor/drawerSongAudio.ts). 불러오면 곡 음원으로 적용되므로 미저장 곡 정보로 본다.
    * Save 차단·미저장 표시와 닫기·전환·이탈 확인이 이 값을 함께 읽는다. 차트를 새로 열면 끈다.
    */
   isLoadingSongAudio: boolean;
@@ -181,8 +183,17 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   setChart: (chart: ChartDocument, options?: SetChartOptions) => void;
   /** 현재 초안에 Meta 편집을 합친다. 곡 행이 있으면 난이도명은 유지하고 레벨은 편집한다. */
   applyMetaEdit: (meta: Partial<ChartMeta>) => void;
-  /** 저장한 File·음원 id·프리뷰 구간이 같은 초안의 경로를 현재 상태와 모든 스냅샷에 반영한다. 이력·Redo는 유지한다. */
-  completeSongSave: (savedDraft: SongDraft, values: SongValues, revision: number) => void;
+  /**
+   * 곡 행이 있는 차트의 이력 밖 값을 바꾼다: 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간(`mediaMeta`)과 곡 상태의 길이·인게임 구간·
+   * 대기 파일·프리뷰 페이드(`mediaState`)(RFD 0098, 사용자 확인 2026-11-08).
+   * Undo 이력·Redo·600ms 병합 창을 건드리지 않고 열린 transaction도 끝내지 않는다. 곡 행이 없으면 아무것도 하지 않는다.
+   */
+  applySongMedia: (mediaMeta: Partial<SongMediaMeta>, mediaState: Partial<SongMediaState>) => void;
+  /**
+   * 곡 저장 성공을 반영한다. `saved`는 저장을 시작할 때의 곡이다. 그 뒤 바뀌지 않은 대기 파일만 업로드 경로로 바꿔 비우고, 프리뷰 클립 경로와
+   * 리비전·저장 기준·이행 여부를 저장 결과로 바꾼다. 이력 밖 값이라 이력·Redo는 그대로 둔다.
+   */
+  completeSongSave: (saved: EditorSong, values: SongValues, revision: number) => void;
   /** 곡 행 없는 차트의 업로드 경로만 반영한다. 현재 차트와 같은 참조의 복원 씨앗만 갱신하고 과거·미래 이력은 유지한다. */
   reconcileSonglessMedia: (media: Partial<Pick<ChartMeta, 'audioFile' | 'imageFile' | 'previewAudioFile'>>) => void;
   /**
@@ -276,18 +287,52 @@ const createDefaultChart = (): ChartDocument => ({
 
 const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraLaneCount' | 'song'>): HistorySnapshot {
+function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraLaneCount'>): HistorySnapshot {
   return {
     chart: cloneJson(state.chart),
     extraLaneCount: state.extraLaneCount,
-    songDraft: state.song ? songDraftOf(state.song) : null,
   };
 }
 
-/** 모든 복원 경로는 초안만 되돌리고 서버 리비전·이행 여부·저장 기준을 유지한다. */
+/**
+ * 모든 복원 경로(Undo·Redo·마지막 유효 상태·편집 취소·재생 시작 취소)는 차트와 보조 레인 수만 되돌린다. 곡 행이 있으면 차트 사본의
+ * 음원·자켓·프리뷰 경로·프리뷰 구간은 지금 값을 유지하고 곡 상태(`song`)는 건드리지 않는다(RFD 0098, 사용자 확인 2026-11-08).
+ * 서버 리비전·이행 여부·저장 기준도 `song`에 있어 그대로다.
+ * 곡 행이 없는 차트는 차트 전체를 되돌린다(Meta 창 경로, #442에서 지운다).
+ */
 function restoreSnapshot(state: EditorState, snapshot: HistorySnapshot): Partial<EditorState> {
-  return { chart: snapshot.chart, extraLaneCount: snapshot.extraLaneCount,
-    ...(state.song && snapshot.songDraft ? { song: { ...state.song, ...snapshot.songDraft } } : {}) };
+  return { chart: state.song ? withSongMediaMeta(snapshot.chart, songMediaMetaOf(state.chart.meta)) : snapshot.chart,
+    extraLaneCount: snapshot.extraLaneCount };
+}
+
+/**
+ * 이력 밖 값만 바꾼 상태. 지금 차트를 가리키던 마지막 유효 상태·열린 transaction의 시작 상태도 같은 새 차트를 가리키게 해, 빈 gesture가
+ * 편집으로 보이거나(`hasUncommittedEdit`·확정) 마지막 유효 상태 복원이 no-op 판정을 놓치지 않게 한다. 다른 차트를 가리키던 이 스냅샷들도
+ * 음원·자켓·프리뷰 값만 지금 값으로 맞추며, 같은 차트를 가리키던 스냅샷은 바뀐 뒤에도 같은 차트를 가리킨다. Undo·Redo 스냅샷은
+ * 복원할 때 지금 값을 덮으므로(`restoreSnapshot`) 고치지 않는다.
+ */
+function songMediaUpdate(
+  state: EditorState, mediaMeta: Partial<SongMediaMeta>, mediaState: Partial<SongMediaState>,
+): Partial<EditorState> {
+  if (!state.song) return {};
+  const chart = withSongMediaMeta(state.chart, { ...songMediaMetaOf(state.chart.meta), ...mediaMeta });
+  const current = songMediaMetaOf(chart.meta);
+  const nextChartByChart = new Map([[state.chart, chart]]);
+  const follow = (snapshot: HistorySnapshot): HistorySnapshot => {
+    let next = nextChartByChart.get(snapshot.chart);
+    if (!next) {
+      next = withSongMediaMeta(snapshot.chart, current);
+      nextChartByChart.set(snapshot.chart, next);
+    }
+    return next === snapshot.chart ? snapshot : { ...snapshot, chart: next };
+  };
+  const transaction = state.editTransaction;
+  return {
+    chart, song: { ...state.song, ...mediaState },
+    lastValidSnapshot: state.lastValidSnapshot ? follow(state.lastValidSnapshot) : null,
+    editTransaction: transaction ? { ...transaction, before: follow(transaction.before),
+      lastValidSnapshot: transaction.lastValidSnapshot ? follow(transaction.lastValidSnapshot) : null } : null,
+  };
 }
 
 function captureHistory(state: EditorState, separateHistory = false, transaction?: symbol, reopensSongInfo?: boolean): Partial<EditorState> {
@@ -307,8 +352,8 @@ function captureHistory(state: EditorState, separateHistory = false, transaction
 }
 
 /**
- * 열린 편집 transaction이 아직 history에 넣지 않은 변경을 가졌는가.
- * 곡 초안은 비교하지 않는다. 초안을 쓰는 편집은 transaction 없이 setChart를 불러 열린 transaction을 먼저 확정한다.
+ * 열린 편집 transaction이 아직 history에 넣지 않은 변경을 가졌는가. 참조만 비교하므로
+ * 버튼 상태처럼 store가 바뀔 때마다 계산해도 된다. 이력 밖 값의 변경은 시작 상태도 함께 옮긴다(`songMediaUpdate`).
  */
 export function hasUncommittedEdit(state: Pick<EditorState, 'editTransaction' | 'chart' | 'extraLaneCount'>): boolean {
   const transaction = state.editTransaction;
@@ -463,61 +508,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         restZones: remap(state.selection.restZones, state.chart.restZones ?? [], chart.restZones ?? []),
         events: remap(state.selection.events, state.chart.events, chart.events),
       }, chart);
-      const song = state.song && options?.songDraft ? { ...state.song, ...options.songDraft } : state.song;
       return {
         ...captureHistory(state, options?.isolated || options?.separateHistory, options?.transaction, options?.reopensSongInfo),
         ...(options?.isolated ? { historyLastCaptureAt: 0 } : {}),
-        chart, song,
+        chart,
         selection: selectionEquals(normalized, state.selection) ? state.selection : normalized,
         // 전체 valid일 때만 갱신 — 위반 커밋이면 이전 valid 스냅샷 유지(탈출 목적지 보존)
-        ...(fullyValid ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount, songDraft: song ? songDraftOf(song) : null } } : {}),
+        ...(fullyValid ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } } : {}),
       };
     });
   },
-  completeSongSave: (savedDraft, values, revision) => set(state => {
+  applySongMedia: (mediaMeta, mediaState) => set(state => songMediaUpdate(state, mediaMeta, mediaState)),
+  completeSongSave: (saved, values, revision) => set(state => {
     if (!state.song) return {};
-    const mapSnapshot = (snapshot: HistorySnapshot): HistorySnapshot => {
-      const draft = snapshot.songDraft;
-      if (!draft) return snapshot;
-      const meta = { ...snapshot.chart.meta };
-      const nextDraft = { ...draft };
-      if (savedDraft.pendingAudioFile && draft.pendingAudioFile === savedDraft.pendingAudioFile) {
-        meta.audioFile = values.audioUrl;
-        nextDraft.pendingAudioFile = null;
-      }
-      if (savedDraft.pendingJacketFile && draft.pendingJacketFile === savedDraft.pendingJacketFile) {
-        meta.imageFile = values.jacketUrl ?? '';
-        nextDraft.pendingJacketFile = null;
-      }
-      if (draft.audioId === savedDraft.audioId && (meta.previewStart ?? null) === values.previewStart
-        && (meta.previewEnd ?? null) === values.previewEnd) {
-        meta.previewAudioFile = values.previewUrl ?? '';
-        nextDraft.previewClip = previewClipIdentity(savedDraft.audioId, values.previewStart, values.previewEnd);
-        if ((draft.pendingPreviewRange?.fadeInTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeInTime ?? 0)
-          && (draft.pendingPreviewRange?.fadeOutTime ?? 0) === (savedDraft.pendingPreviewRange?.fadeOutTime ?? 0)) {
-          nextDraft.pendingPreviewRange = null;
-        }
-      }
-      const chart = meta.audioFile === snapshot.chart.meta.audioFile && meta.imageFile === snapshot.chart.meta.imageFile
-        && meta.previewAudioFile === snapshot.chart.meta.previewAudioFile ? snapshot.chart : { ...snapshot.chart, meta };
-      const songDraft = sameSongDraft(draft, nextDraft) ? draft : nextDraft;
-      return chart === snapshot.chart && songDraft === draft ? snapshot : { ...snapshot, chart, songDraft };
-    };
-    const current = mapSnapshot({ chart: state.chart, extraLaneCount: state.extraLaneCount, songDraft: songDraftOf(state.song) });
-    // 빈 transaction과 현재 유효 상태는 같은 차트 참조를 유지해야 저장 응답이 가짜 편집을 만들지 않는다.
-    const rewrite = (snapshot: HistorySnapshot): HistorySnapshot =>
-      snapshot.chart === state.chart && sameSongDraft(snapshot.songDraft, state.song)
-        ? { ...snapshot, chart: current.chart, songDraft: current.songDraft } : mapSnapshot(snapshot);
-    const transaction = state.editTransaction;
-    return {
-      chart: current.chart,
-      song: { ...state.song, ...current.songDraft, revision, baseline: values,
-        baselineAudioId: savedDraft.audioId, needsTimingMigration: false },
-      historyPast: state.historyPast.map(rewrite), historyFuture: state.historyFuture.map(rewrite),
-      lastValidSnapshot: state.lastValidSnapshot ? rewrite(state.lastValidSnapshot) : null,
-      editTransaction: transaction ? { ...transaction, before: rewrite(transaction.before),
-        lastValidSnapshot: transaction.lastValidSnapshot ? rewrite(transaction.lastValidSnapshot) : null } : null,
-    };
+    // 저장 중 다시 고른 파일은 다음 저장에 남긴다. 프리뷰 클립은 저장 기준의 음원·구간 것이라 늘 저장한 경로를 쓴다.
+    // 다음 저장은 대기 음원이 있거나 구간이 이 기준과 다를 때 클립을 다시 만든다(saveEditorSong).
+    const sameAudio = state.song.pendingAudioFile === saved.pendingAudioFile;
+    const sameJacket = state.song.pendingJacketFile === saved.pendingJacketFile;
+    const update = songMediaUpdate(state, {
+      ...(saved.pendingAudioFile && sameAudio ? { audioFile: values.audioUrl } : {}),
+      ...(saved.pendingJacketFile && sameJacket ? { imageFile: values.jacketUrl ?? '' } : {}),
+      previewAudioFile: values.previewUrl ?? '',
+    }, {
+      pendingAudioFile: sameAudio ? null : state.song.pendingAudioFile,
+      pendingJacketFile: sameJacket ? null : state.song.pendingJacketFile,
+      ...(sameAudio && samePlaybackRange(state.song.pendingPreviewRange, saved.pendingPreviewRange) ? { pendingPreviewRange: null } : {}),
+    });
+    return { ...update, song: { ...update.song!, revision, baseline: values, needsTimingMigration: false } };
   }),
   reconcileSonglessMedia: (media) => set(state => {
     const chart = { ...state.chart, meta: { ...state.chart.meta, ...media } };
@@ -568,7 +585,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       legacyConversionReview: null,
       legacyConversionReviewOpen: false,
       ...(errors.length === 0
-        ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount, songDraft: null } }
+        ? { lastValidSnapshot: { chart, extraLaneCount: state.extraLaneCount } }
         : {}),
     }));
   },
@@ -621,7 +638,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         ...captureHistory(state, false, transaction),
         extraLaneCount,
-        ...(fullyValid ? { lastValidSnapshot: { chart: state.chart, extraLaneCount, songDraft: state.song ? songDraftOf(state.song) : null } } : {}),
+        ...(fullyValid ? { lastValidSnapshot: { chart: state.chart, extraLaneCount } } : {}),
       };
     });
   },
@@ -696,7 +713,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (state.editTransaction || state.isPlaying) return null;
     const token = Symbol("editor transaction");
     set({ editTransaction: {
-      token, kind, before: { chart: state.chart, extraLaneCount: state.extraLaneCount, songDraft: state.song ? songDraftOf(state.song) : null },
+      token, kind, before: { chart: state.chart, extraLaneCount: state.extraLaneCount },
       selection: state.selection, selectionBeforePress: selectionBefore ?? state.selection,
       lastValidSnapshot: state.lastValidSnapshot, onInterrupt,
     } });

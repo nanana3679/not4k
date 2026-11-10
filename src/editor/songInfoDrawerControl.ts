@@ -1,5 +1,6 @@
 import type { SongChartList } from './components/SongInfoDrawer';
 import type { StoredChartRow } from '../supabase/chartRows';
+import { useEditorStore } from './stores/editorStore';
 
 /**
  * 곡 정보 드로어의 열림과 같은 곡 차트 목록(RFD 0098). 드로어 상태는 페이지 것이라 테스트 플레이에서 돌아오면 닫히고 목록도 비어 있다.
@@ -40,4 +41,14 @@ export function createSongInfoDrawerControl(deps: {
       deps.setOpen(false);
     },
   };
+}
+
+/**
+ * 곡 정보 변경 취소의 Undo가 요청하면(`songInfoReopenRequest`) 드로어를 다시 열어 되살린 곡 정보를 보여준다(RFD 0098).
+ * 곡 행이 없는 차트는 드로어가 없어 열지 않는다. 구독 해제 함수를 돌려준다.
+ */
+export function subscribeSongInfoReopen(reopen: () => void): () => void {
+  return useEditorStore.subscribe((state, before) => {
+    if (state.song && state.songInfoReopenRequest !== before.songInfoReopenRequest) reopen();
+  });
 }
