@@ -6,12 +6,12 @@ function sampleRangeOf({ sampleRate }: WavSampleSource, startTime: number, endTi
 }
 
 /**
- * 구간을 클립으로 잘라 낼 수 있는가. 샘플이 하나도 없거나 끝이 음원 끝을 한 샘플보다 더 넘으면 false다.
- * 끝이 한 샘플까지 넘는 것은 허용한다. 구간 선택기의 끝은 부동소수 오차로 음원 길이를 아주 조금 넘을 수 있고 인코더가 음원 길이로 자른다.
+ * 구간을 클립으로 잘라 낼 수 있는가. 샘플이 하나도 없거나 끝 샘플이 음원 길이를 넘으면 false다.
+ * 구간 선택기의 끝이 부동소수 오차로 음원 길이를 아주 조금 넘어도, 한 샘플이 안 되는 초과는 끝 샘플을 내릴 때 사라진다.
  */
 export function canEncodeWavRange(audioBuffer: WavSampleSource, startTime: number, endTime: number): boolean {
   const { startSample, endSample } = sampleRangeOf(audioBuffer, startTime, endTime);
-  return Math.min(audioBuffer.length, endSample) > startSample && endSample <= audioBuffer.length + 1;
+  return endSample > startSample && endSample <= audioBuffer.length;
 }
 
 /**
