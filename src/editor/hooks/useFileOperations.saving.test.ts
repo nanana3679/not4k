@@ -5,7 +5,7 @@ import type { RefObject } from 'react';
 import { Children, createElement, isValidElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beat } from '../../shared';
-import type { ChartDocument, ChartRowCreate, ChartRowRef, ChartRowSave, Lane, SongAssetPersistenceAdapter } from '../../shared';
+import type { ChartDocument, ChartRowCreate, ChartRowRef, ChartRowSave, Lane, SongAssetSaveAdapter } from '../../shared';
 import { showToast } from '../../shared/toast';
 import type { PlaybackController } from '../playback/PlaybackController';
 import { CHART_SAVE_COPY, PAUSE_TO_EDIT_COPY, SAVE_AUDIO_LOADING_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
@@ -49,7 +49,7 @@ vi.mock('../../supabase/client', () => ({
 vi.mock('../../supabase', async importOriginal => {
   const actual = await importOriginal<typeof import('../../supabase')>();
   const { saveChartAsset, createChartAsset, saveSonglessChartAsset } = await import('../../shared');
-  const adapter: SongAssetPersistenceAdapter = {
+  const adapter: SongAssetSaveAdapter = {
     uploadText: async ({ path, content }) => { harness.uploads.set(path, content); },
     remove: async paths => { harness.removals.push(paths); },
     saveChartRow: row => new Promise<number>((resolve, reject) => {

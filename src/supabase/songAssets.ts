@@ -16,7 +16,7 @@ import type {
   DeleteSongAssetInput,
   SaveChartAssetInput,
   SaveSonglessChartAssetInput,
-  SongAssetPersistenceAdapter,
+  SongAssetSaveAdapter,
 } from "../shared/songAssets";
 
 /** PostgREST 오류를 일반 Error로 전달하되 호출자가 SQLSTATE로 안내를 고를 수 있게 한다. */
@@ -30,7 +30,7 @@ export class ChartRowError extends Error {
   }
 }
 
-const supabaseSongAssetAdapter: SongAssetPersistenceAdapter = {
+const supabaseSongAssetAdapter: SongAssetSaveAdapter = {
   uploadText: async (asset) => {
     const { error } = await supabase.storage
       .from(STORAGE_BUCKET)

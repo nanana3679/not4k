@@ -534,8 +534,10 @@ T 앞부분의 음악만 재생하는 **실제 시간 3초의 준비 → T부터
 편집한 뒤 저장하는 값이 거치는 세 단계다. 문서와 식별자 모두 단계를 이 이름으로만 부른다([RFD 0108](../rfd/0108-edit-value-stage-names.md)).
 
 - **초안(`draft`)**: 입력칸에만 있고 아직 store에 적용하지 않은 값이다(`offsetDraft`, `useRangeDraft`). store에 적용하는 동작은 commit이다(`commitDrafts`).
-- **지금 값(`current`)**: store에 적용했지만 아직 DB에 저장하지 않은 값이다. 곡의 지금 값은 store의 `chart.meta`와 `song`에 나뉘어 있고 `currentSongValues(chart, song)`가 모은다. DB에 저장하는 동작은 save다.
-- **마지막 저장 값(`lastSaved`)**: 마지막으로 불러오거나 저장한 DB 행·파일의 값이다. 곡은 `song.lastSaved`, 차트는 `lastSavedChartJson`이며 둘 다 store에 있다. 불러올 때와 저장이 성공할 때만 바뀐다.
+- **지금 값(`current`)**: store에 적용했지만 아직 외부 저장소에 저장하지 않은 값이다. 곡의 지금 값은 store의 `chart.meta`와 `song`에 나뉘어 있고 `currentSongValues(chart, song)`가 모은다. 외부 저장소에 쓰는 동작은 저장소와 관계없이 save다(`saveChartAsset`, `saveTutorialViewedIds`).
+- **마지막 저장 값(`lastSaved`)**: 외부 저장소에서 마지막으로 불러오거나 외부 저장소에 마지막으로 저장한 값이다. 곡은 `song.lastSaved`, 차트는 `lastSavedChartJson`이며 둘 다 store에 있다. 불러올 때와 저장이 성공할 때만 바뀐다.
+
+외부 저장소는 Supabase DB·Storage와 브라우저 저장소(localStorage)를 모두 가리킨다. 게임 설정과 튜토리얼 본 기록처럼 값이 바뀔 때 바로 저장하는 값은 지금 값이 곧 마지막 저장 값이라 마지막 저장 값을 따로 두지 않는다. zustand `persist` 미들웨어와 그 옵션 이름(`partializePersistedSettings`·`mergePersistedSettings`)은 라이브러리 API 이름이라 그대로 쓴다.
 
 dirty(저장 안 됨)는 지금 값이 마지막 저장 값과 다르다는 뜻이다. 저장할 때 올릴 파일이나 다시 만들 프리뷰 클립의 구간처럼 저장 때 처리를 기다리는 값은 지금 값에 속하며, `pending`에 대상을 붙여 부른다(`pendingAudioFile`·`pendingJacketFile`·`pendingPreviewRange`). `pending`은 '무언가를 기다린다'는 일반 뜻이고 단계 이름이 아니다. 단계를 가리키지 않는 쓰임(`currentTime`, `ref.current` 등)은 이 규칙의 대상이 아니다.
 

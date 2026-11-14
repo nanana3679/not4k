@@ -16,10 +16,10 @@ import {
 } from '../../shared';
 import type { ChartAssetFiles, ChartAssetWriteResult, ChartDocument, ChartRowRef, Lane, TutorialDiagramId, ValidationError } from '../../shared';
 import {
-  createChartAsset as persistNewChartAsset,
-  deleteChartAsset as persistDeleteChartAsset,
-  saveChartAsset as persistChartAsset,
-  saveSonglessChartAsset as persistSonglessChartAsset,
+  createChartAsset,
+  deleteChartAsset,
+  saveChartAsset,
+  saveSonglessChartAsset,
 } from '../../supabase';
 import { fetchChartRows, findChartRow, type StoredChartRow } from '../../supabase/chartRows';
 import { selectHasSongRow, useEditorStore, type UnconfirmedChartUpload } from '../stores';
@@ -165,8 +165,8 @@ async function writeChartWithRecovery(
 ): Promise<ChartAssetWriteResult> {
   try {
     return write.row
-      ? await persistChartAsset({ ...write, row: write.row })
-      : await persistNewChartAsset(write);
+      ? await saveChartAsset({ ...write, row: write.row })
+      : await createChartAsset(write);
   } catch (error) {
     if (!(error instanceof ChartSaveError)) throw error;
     if (!error.code || error.code === (write.row ? 'PT409' : '23505')) {
@@ -263,7 +263,7 @@ export function useFileOperations(
       } else {
         // 곡 행이 없으면 행 없이 결정적 경로에 차트를 덮어쓴 뒤 대기 미디어를 고정 경로에 올린다(기존 규칙).
         const mediaPaths = songlessMedia ? songlessMediaPaths(activeSongId, songlessMedia) : null;
-        const written = await persistSonglessChartAsset({ songId: activeSongId, difficulty,
+        const written = await saveSonglessChartAsset({ songId: activeSongId, difficulty,
           chart: mediaPaths ? withSonglessMediaPaths(chart, mediaPaths) : chart, extraLaneCount });
         if (songlessMedia && mediaPaths) {
           await uploadSonglessMedia({ songId: activeSongId, media: songlessMedia, paths: mediaPaths, meta: chart.meta,
@@ -344,7 +344,7 @@ export function useFileOperations(
         writtenRow = writtenChartRow(written, target?.difficultyLabel ?? written.difficulty);
       } else {
         // 곡 행이 없으면 행을 만들 수 없어(FK) 대상 난이도의 결정적 경로에 덮어쓴다(기존 규칙).
-        const written = await persistSonglessChartAsset({ songId: activeSongId, difficulty, chart: chartToSave, extraLaneCount });
+        const written = await saveSonglessChartAsset({ songId: activeSongId, difficulty, chart: chartToSave, extraLaneCount });
         uploadedJson = { chartJson: written.chartJson, extraJson: written.extraJson };
       }
 
@@ -412,7 +412,7 @@ export function useFileOperations(
       addToast('No song selected — cannot delete', 'error');
       return;
     }
-    // 열린 UUID로 삭제한다. persistence가 삭제 응답의 파일 경로를 읽고 다른 행의 참조를 보호한다.
+    // 열린 UUID로 삭제한다. `deleteChartAsset`이 삭제 응답의 파일 경로를 읽고 다른 행의 참조를 보호한다.
     const difficulty = activeChartDifficulty(useEditorStore.getState());
     if (!difficulty) {
       addToast('Difficulty label is empty', 'error');
@@ -422,7 +422,7 @@ export function useFileOperations(
     setDeleting(true);
     setShowDeleteConfirm(false);
     try {
-      await persistDeleteChartAsset({
+      await deleteChartAsset({
         songId: activeSongId,
         difficulty,
         chartId: useEditorStore.getState().chartRow?.id,

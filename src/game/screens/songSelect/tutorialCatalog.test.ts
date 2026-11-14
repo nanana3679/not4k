@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_TUTORIAL_PREVIEWS, TUTORIAL_SECTIONS, getAdjacentTutorialIndex, getTutorialSection } from './tutorialCatalog';
-import { persistTutorialViewedIds, readTutorialViewedIdsFromStorage } from './tutorialViewedCache';
+import { saveTutorialViewedIds, readTutorialViewedIdsFromStorage } from './tutorialViewedCache';
 
 describe('튜토리얼 Basic / Advanced 분류', () => {
   it('Basic 17개와 Advanced 12개는 중복 ID 없이 기존 Basic 순서 다음에 배치된다', () => {
@@ -27,7 +27,7 @@ describe('튜토리얼 Basic / Advanced 분류', () => {
     const viewed = new Set(readTutorialViewedIdsFromStorage(storage));
     viewed.add('advanced-recovery');
     viewed.add('unknown-id');
-    persistTutorialViewedIds(storage, viewed);
+    saveTutorialViewedIds(storage, viewed);
     expect(JSON.parse(value!)).toEqual(['hand-placement', 'single-note', 'advanced-recovery']);
     expect([...readTutorialViewedIdsFromStorage(storage)]).toEqual(['hand-placement', 'single-note', 'advanced-recovery']);
   });

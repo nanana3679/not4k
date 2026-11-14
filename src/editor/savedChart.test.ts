@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { beat, saveChartAsset, deserializeChartDocument } from '../shared';
-import type { ChartDocument, Lane, SongAssetPersistenceAdapter } from '../shared';
+import type { ChartDocument, Lane, SongAssetSaveAdapter } from '../shared';
 import { isChartDirty, toChartSaveJson } from './savedChart';
 import { toSongTiming } from '../shared/songAssets/toSongTiming';
 
@@ -110,7 +110,7 @@ describe('toChartSaveJson', () => {
     const chart = makeChart([mainNote, auxNote]);
     chart.trillZones = [{ lane: 1, beat: beat(10), endBeat: beat(12) }, { lane: 7, beat: beat(2), endBeat: beat(4) }];
     const uploads = new Map<string, string>();
-    const adapter: SongAssetPersistenceAdapter = {
+    const adapter: SongAssetSaveAdapter = {
       uploadText: async ({ path, content }) => { uploads.set(path, content); },
       remove: async () => {},
       saveChartRow: async (row) => row.expectedRevision + 1,

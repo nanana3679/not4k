@@ -12,8 +12,8 @@ import {
   type ChartAssetRow,
   type ChartRowCreate,
   type ChartRowSave,
-  type SongAssetPersistenceAdapter,
-} from "./chartAssetPersistence";
+  type SongAssetSaveAdapter,
+} from "./chartAssetSave";
 
 function makeChart(input: {
   difficultyLabel?: string;
@@ -51,7 +51,7 @@ function makeAdapter(input: { songFiles?: string[]; tokens?: string[]; surviving
   const songDeletes: string[] = [];
   const tokens = [...(input.tokens ?? ["token-1", "token-2"])];
 
-  const adapter: SongAssetPersistenceAdapter = {
+  const adapter: SongAssetSaveAdapter = {
     uploadText: async (asset) => {
       calls.push(`upload:${asset.path}`);
       uploads.push(asset);

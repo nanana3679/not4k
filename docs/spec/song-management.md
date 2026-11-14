@@ -57,7 +57,7 @@
 - 곡 삭제 순서는 **DB 행 먼저, Storage 파일 나중**이다. 클라이언트가 아는 차트 수가
   낡았더라도 FK가 행 삭제 단계에서 거부하므로, 거부 시점에 파일은 무손상이다.
   Storage 파일 목록은 100개씩 마지막 페이지까지 읽은 뒤 삭제한다. 일부 페이지 조회가 실패하면 불완전한 목록으로 파일을 지우지 않는다.
-  구현: `src/shared/songAssets/chartAssetPersistence.ts`의 `deleteSongAsset`
+  구현: `src/shared/songAssets/chartAssetSave.ts`의 `deleteSongAsset`
 
 ### 삭제 후 플레이 기록 `[미구현]`
 

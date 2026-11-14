@@ -6,7 +6,7 @@ import {
   TUTORIAL_VIEWED_STORAGE_KEY,
   canShowTutorialCacheInvalidationButton,
   clearTutorialViewedIds,
-  persistTutorialViewedIds,
+  saveTutorialViewedIds,
   readTutorialViewedIdsFromStorage,
 } from './tutorialViewedCache';
 import { TUTORIAL_PREVIEWS } from './tutorialPreviewChart';
@@ -64,7 +64,7 @@ describe('TutorialHelpModal', () => {
       },
     };
 
-    persistTutorialViewedIds(storage, new Set(['double-note', 'hand-placement', 'unknown-tutorial']));
+    saveTutorialViewedIds(storage, new Set(['double-note', 'hand-placement', 'unknown-tutorial']));
 
     expect(JSON.parse(writes[TUTORIAL_VIEWED_STORAGE_KEY])).toEqual([
       'hand-placement',
@@ -147,7 +147,7 @@ describe('TutorialHelpModal', () => {
   it('튜토리얼 팝업은 본 튜토리얼 id를 localStorage에서 읽고 변경될 때 다시 저장', () => {
     expect(tutorialViewedCacheSource).toContain('TUTORIAL_VIEWED_STORAGE_KEY');
     expect(tutorialHelpModalSource).toContain('readTutorialViewedIdsFromStorage(getTutorialViewedStorage())');
-    expect(tutorialHelpModalSource).toContain('persistTutorialViewedIds(getTutorialViewedStorage(), viewedTutorialIds)');
+    expect(tutorialHelpModalSource).toContain('saveTutorialViewedIds(getTutorialViewedStorage(), viewedTutorialIds)');
     expect(tutorialHelpModalSource).toContain('[viewedTutorialIds]');
   });
 

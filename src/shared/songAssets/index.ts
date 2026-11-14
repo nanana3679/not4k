@@ -18,8 +18,8 @@ export {
   type DeleteChartAssetInput,
   type SaveChartAssetInput,
   type SaveSonglessChartAssetInput,
-  type SongAssetPersistenceAdapter,
+  type SongAssetSaveAdapter,
   type TextAssetUpload,
-} from "./chartAssetPersistence";
+} from "./chartAssetSave";
 export { parseSongTiming, SongTimingError, type SongTiming } from './songTiming';
 export { resolveSongChart, type SongSharedData } from './resolveSongChart';
