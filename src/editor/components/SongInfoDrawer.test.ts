@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadEditorChartAsset } from '../chartAssetLoad';
 import { openEditorChart } from '../openEditorChart';
-import { toSavedChartJson } from '../savedChart';
+import { toChartSaveJson } from '../savedChart';
 import { isSongDirty } from '../songState';
 import { useEditorStore } from '../stores/editorStore';
 import { PAUSE_TO_EDIT_COPY, SONG_INFO_DRAWER_COPY } from '../editorCopy';
@@ -66,7 +66,7 @@ const inputOf = (markup: string, name: string) => markup.match(new RegExp(`<span
 beforeEach(() => {
   useEditorStore.setState(useEditorStore.getInitialState(), true);
   const base = useEditorStore.getInitialState().chart;
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loadedSong), loadedSong,
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, loadedSong), loadedSong,
     { id: 'row-normal', difficultyLabel: 'normal', revision: 3, chartPath: null, chartExtraPath: null });
 });
 

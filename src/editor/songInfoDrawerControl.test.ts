@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SongChartList } from './components/SongInfoDrawer';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
-import { toSavedChartJson } from './savedChart';
+import { toChartSaveJson } from './savedChart';
 import { discardSongInfoChanges } from './songInfoEditing';
 import { createSongInfoDrawerControl, subscribeSongInfoReopen } from './songInfoDrawerControl';
 import { useEditorStore } from './stores/editorStore';
@@ -140,5 +140,5 @@ function openSongChart() {
     duration: 120, gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 };
   useEditorStore.setState(useEditorStore.getInitialState(), true);
   const chart = useEditorStore.getInitialState().chart;
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(chart, 2).chartJson, null, song), song);
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(chart, 2).chartJson, null, song), song);
 }

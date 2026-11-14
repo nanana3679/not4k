@@ -43,7 +43,7 @@ export function resolveSongChart<T extends ChartDocument>(chart: T, song?: SongS
 
 /**
  * 곡 타이밍과 종류·박·값이 같으면 받은 events 참조를, 다르면 파일 레인을 이어받은 교체 결과를 돌려준다.
- * 값을 검증하지 않으므로 DB 값은 parseSongTiming을 거친 뒤 넘긴다. 에디터의 곡 정보 변경 취소도 마지막 곡 저장 기준을
+ * 값을 검증하지 않으므로 DB 값은 parseSongTiming을 거친 뒤 넘긴다. 에디터의 곡 정보 변경 취소도 곡의 마지막 저장 값을
  * 이 규칙으로 되돌려, 같은 종류·박의 이벤트는 차트의 보조 레인을 유지한다.
  *
  * `laneSources`는 events에 같은 종류·박이 없을 때 레인을 찾을 다른 이벤트 목록이다. 변경 취소는 마지막으로 불러오거나 저장한

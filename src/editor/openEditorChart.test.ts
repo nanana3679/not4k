@@ -5,7 +5,7 @@ import { showToast } from '../shared/toast';
 import { editorChartErrors } from './documentValidation';
 import { openEditorChart } from './openEditorChart';
 import { loadEditorChartAsset } from './chartAssetLoad';
-import { isChartDirty, toSavedChartJson } from './savedChart';
+import { isChartDirty, toChartSaveJson } from './savedChart';
 import { selectCanRedo, selectCanUndo, useEditorStore } from './stores/editorStore';
 
 vi.mock('../shared/toast', () => ({ showToast: vi.fn() }));
@@ -21,7 +21,7 @@ function chart(events: ChartEvent[]): ChartDocument {
 }
 
 const store = () => useEditorStore.getState();
-const dirty = () => isChartDirty(store().chart, store().extraLaneCount, store().savedChartJson);
+const dirty = () => isChartDirty(store().chart, store().extraLaneCount, store().lastSavedChartJson);
 
 beforeEach(() => {
   useEditorStore.setState(useEditorStore.getInitialState(), true);
@@ -39,7 +39,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(store().chartRow).toBeNull();
   });
 
-  it('파일 150 BPM을 곡 151 BPM·offsetMs 25로 열면 고정 레인 1·2와 곡 표시 정보가 dirty·Undo 없는 기준이다', () => {
+  it('파일 150 BPM을 곡 151 BPM·offsetMs 25로 열면 고정 레인 1·2와 곡 표시 정보가 dirty·Undo 없는 기본 상태다', () => {
     const source = chart([
       { type: 'bpm', beat: beat(0), bpm: 150, editorLane: 3 },
       { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 1 },
@@ -56,16 +56,16 @@ describe('openEditorChart 불러온 기본 상태', () => {
       { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(3), editorLane: 2 },
     ]);
     expect(store().chart.meta).toMatchObject({ title: '곡 제목', artist: '곡 작곡가', imageFile: 'new.png', offsetMs: 25 });
-    expect(store().savedChartJson).toEqual(toSavedChartJson(store().chart, store().extraLaneCount));
+    expect(store().lastSavedChartJson).toEqual(toChartSaveJson(store().chart, store().extraLaneCount));
     expect(dirty()).toBe(false);
     expect(selectCanUndo(store())).toBe(false);
     expect(selectCanRedo(store())).toBe(false);
     expect(serializeChart(source)).toBe(text);
-    const baseline = store().chart;
-    store().setChart({ ...baseline, meta: { ...baseline.meta, difficultyLevel: 2 } });
+    const openedChart = store().chart;
+    store().setChart({ ...openedChart, meta: { ...openedChart.meta, difficultyLevel: 2 } });
     expect(dirty()).toBe(true);
     store().undo();
-    expect(store().chart).toEqual(baseline);
+    expect(store().chart).toEqual(openedChart);
     expect(dirty()).toBe(false);
   });
   it('editorLane 없는 0박 BPM·박자를 열면 BPM은 그대로·박자는 보조 레인2인 상태가 기본이라 위반 0건·dirty 아님·Undo·Redo 없음', () => {
@@ -77,7 +77,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(store().chart.events.map(event => event.editorLane)).toEqual([undefined, 2]);
     expect(editorChartErrors(store().chart)).toEqual([]);
     expect(store().extraLaneCount).toBe(2);
-    expect(store().savedChartJson).toEqual(toSavedChartJson(store().chart, 2));
+    expect(store().lastSavedChartJson).toEqual(toChartSaveJson(store().chart, 2));
     expect(dirty()).toBe(false);
     expect(selectCanUndo(store())).toBe(false);
     expect(selectCanRedo(store())).toBe(false);
@@ -103,7 +103,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     ]);
     expect(showToast).toHaveBeenCalledWith('이 차트에 배치 제약 위반 2건이 있습니다 — 수리 후 저장할 수 있습니다', 'warn');
     expect(store().extraLaneCount).toBe(2);
-    expect(JSON.parse(store().savedChartJson!.extraJson).extraLaneCount).toBe(2);
+    expect(JSON.parse(store().lastSavedChartJson!.extraJson).extraLaneCount).toBe(2);
     expect(dirty()).toBe(false);
     expect(selectCanUndo(store())).toBe(false);
     expect(selectCanRedo(store())).toBe(false);
@@ -129,7 +129,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(store().chart.events[3]).toBe(events[1]);
     expect(editorChartErrors(store().chart).map(error => error.rule)).toEqual(['eventOverlap', 'eventOverlap']);
     expect(store().extraLaneCount).toBe(3);
-    expect(store().savedChartJson).toEqual(toSavedChartJson(store().chart, 3));
+    expect(store().lastSavedChartJson).toEqual(toChartSaveJson(store().chart, 3));
     expect(dirty()).toBe(false);
     expect(selectCanUndo(store())).toBe(false);
     consoleError.mockRestore();
@@ -170,13 +170,13 @@ describe('openEditorChart 불러온 기본 상태', () => {
       { type: 'bpm', beat: beat(0), bpm: 120 },
       { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4) },
     ]), extraLaneCount: 0, hasExtraLaneCount: false });
-    const baseline = store().chart;
+    const openedChart = store().chart;
 
-    store().setChart({ ...baseline, events: [...baseline.events, { type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 }] });
+    store().setChart({ ...openedChart, events: [...openedChart.events, { type: 'bpm', beat: beat(4), bpm: 180, editorLane: 1 }] });
     expect(dirty()).toBe(true);
     store().undo();
 
-    expect(store().chart).toEqual(baseline);
+    expect(store().chart).toEqual(openedChart);
     expect(store().chart.events[1].editorLane).toBe(2);
     expect(dirty()).toBe(false);
     expect(selectCanUndo(store())).toBe(false);
@@ -196,7 +196,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
     expect(dirty()).toBe(false);
   });
 
-  it('옮길 것이 없어도 파일의 보조 레인 수 1은 보조 레인2가 보이게 2로 열고 savedChartJson도 2라 dirty·Undo가 없다', () => {
+  it('옮길 것이 없어도 파일의 보조 레인 수 1은 보조 레인2가 보이게 2로 열고 lastSavedChartJson도 2라 dirty·Undo가 없다', () => {
     const events: ChartEvent[] = [
       { type: 'bpm', beat: beat(0), bpm: 120, editorLane: 1 },
       { type: 'timeSignature', beat: beat(0), beatPerMeasure: beat(4), editorLane: 2 },
@@ -206,7 +206,7 @@ describe('openEditorChart 불러온 기본 상태', () => {
 
     expect(store().chart.events).toBe(events);
     expect(store().extraLaneCount).toBe(2);
-    expect(JSON.parse(store().savedChartJson!.extraJson).extraLaneCount).toBe(2);
+    expect(JSON.parse(store().lastSavedChartJson!.extraJson).extraLaneCount).toBe(2);
     expect(dirty()).toBe(false);
     expect(selectCanUndo(store())).toBe(false);
     expect(store().lastValidSnapshot).toEqual({ chart: store().chart, extraLaneCount: 2 });
@@ -236,7 +236,7 @@ describe('openEditorChart 곡 타이밍 이벤트의 파일 레인 유지', () =
     timing: { bpmChanges: [{ beat: '0', bpm: 120 }, { beat: '20', bpm: 180 }],
       timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 0 },
   };
-  const songDirty = () => isChartDirty(store().chart, store().extraLaneCount, store().savedChartJson, true);
+  const songDirty = () => isChartDirty(store().chart, store().extraLaneCount, store().lastSavedChartJson, true);
 
   it('보조 레인1 text [16,24)와 보조 레인3의 20박 BPM 180 차트를 같은 값의 곡 타이밍으로 열면 BPM이 레인3에 남아 위반 0건·dirty 아님이다', () => {
     openEditorChart(loadEditorChartAsset(serializeChart(chart(textOverBpmEvents)), null, song));
@@ -254,10 +254,10 @@ describe('openEditorChart 곡 타이밍 이벤트의 파일 레인 유지', () =
     store().setChart({ ...opened, events: opened.events.map(event =>
       event.type === 'bpm' && event.bpm === 180 ? { ...event, editorLane: 4 } : event) });
     expect(songDirty()).toBe(true);
-    const saved = toSavedChartJson(store().chart, store().extraLaneCount);
+    const chartSaveJson = toChartSaveJson(store().chart, store().extraLaneCount);
 
     useEditorStore.setState(useEditorStore.getInitialState(), true);
-    openEditorChart(loadEditorChartAsset(saved.chartJson, saved.extraJson, song));
+    openEditorChart(loadEditorChartAsset(chartSaveJson.chartJson, chartSaveJson.extraJson, song));
 
     expect(store().chart.events.find(event => event.type === 'bpm' && event.bpm === 180)?.editorLane).toBe(4);
     expect(editorChartErrors(store().chart)).toEqual([]);

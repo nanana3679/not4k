@@ -5,9 +5,9 @@ import { loadEditorChartAsset } from './chartAssetLoad';
 import { createDrawerSongAudio, type DrawerSongAudioPlayback } from './drawerSongAudio';
 import type { MetaAudioPick } from './metaAudioSession';
 import { openEditorChart } from './openEditorChart';
-import { toSavedChartJson } from './savedChart';
+import { toChartSaveJson } from './savedChart';
 import { editSongAudio } from './songInfoEditing';
-import { songValues } from './songState';
+import { currentSongValues } from './songState';
 import { useEditorStore } from './stores/editorStore';
 
 vi.mock('../shared/toast', () => ({ showToast: vi.fn() }));
@@ -19,19 +19,19 @@ const loadedSong = { title: '곡', artist: '작곡가', jacketUrl: null, audioUr
   previewUrl: null, previewStart: 10, previewEnd: 20, duration: 120,
   gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null, gameplayFadeOut: null,
   timing: null, revision: 42 };
-const savedBuffer = { duration: 120 } as AudioBuffer;
+const lastSavedBuffer = { duration: 120 } as AudioBuffer;
 const bufferOf = (file: File) => ({ duration: file.name === 'next.ogg' ? 5 : 30 }) as AudioBuffer;
 
 /**
  * 재생기처럼 로드에 성공하면 버퍼를 바꾸고, restoreAudioBuffer·cancelAudioLoad·clearAudio는 진행 중인 로드를 버린다.
  * 실제 재생기의 onAudioLoaded처럼 로드 성공·복원은 표시 음원(state.shown)도 바꾼다. clearAudio는 표시 음원을 건드리지 않는다.
- * 실패한 로드(`failures`)는 버퍼를 바꾸지 않는다. 저장된 음원 다시 불러오기(`reloadSavedAudio`)도 useEditorAudioLoad의 로드처럼
- * 재생기 세대를 올리며, 끝나기(`savedReloads`) 전에 다른 로드가 세대를 올리면 버려진다.
+ * 실패한 로드(`failures`)는 버퍼를 바꾸지 않는다. 저장된 음원 다시 불러오기(`reloadLastSavedAudio`)도 useEditorAudioLoad의 로드처럼
+ * 재생기 세대를 올리며, 끝나기(`lastSavedReloads`) 전에 다른 로드가 세대를 올리면 버려진다.
  */
-function harness(initialBuffer: AudioBuffer | null = savedBuffer) {
+function harness(initialBuffer: AudioBuffer | null = lastSavedBuffer) {
   const loads = new Map<string, () => Promise<void>>();
   const failures = new Map<string, () => Promise<void>>();
-  const savedReloads: (() => void)[] = [];
+  const lastSavedReloads: (() => void)[] = [];
   let generation = 0;
   const state = { pick: null as MetaAudioPick | null, shown: initialBuffer as AudioBuffer | null };
   const decoded = new Map<string, AudioBuffer>();
@@ -55,12 +55,12 @@ function harness(initialBuffer: AudioBuffer | null = savedBuffer) {
     cancelAudioLoad: vi.fn(() => { generation++; }),
     clearAudio: vi.fn(() => { generation++; playback.buffer = null; }),
   };
-  const reloadSavedAudio = vi.fn(() => {
+  const reloadLastSavedAudio = vi.fn(() => {
     const started = ++generation;
-    savedReloads.push(() => {
+    lastSavedReloads.push(() => {
       if (started !== generation) return;
-      playback.buffer = savedBuffer;
-      state.shown = savedBuffer;
+      playback.buffer = lastSavedBuffer;
+      state.shown = lastSavedBuffer;
     });
   });
   const audio = createDrawerSongAudio({
@@ -68,7 +68,7 @@ function harness(initialBuffer: AudioBuffer | null = savedBuffer) {
     setAudioLoading: () => {},
     setLoadedAudioBuffer: buffer => { state.shown = buffer; },
     onLoadFailed: vi.fn(),
-    reloadSavedAudio,
+    reloadLastSavedAudio,
   });
   /** 파일을 골라 불러오기를 끝까지 마친다. */
   const pickAndLoad = async (name: string) => {
@@ -78,7 +78,7 @@ function harness(initialBuffer: AudioBuffer | null = savedBuffer) {
     await picking;
     return file;
   };
-  return { audio, playback, loads, failures, savedReloads, state, reloadSavedAudio, pickAndLoad };
+  return { audio, playback, loads, failures, lastSavedReloads, state, reloadLastSavedAudio, pickAndLoad };
 }
 
 /** 곡 정보 변경 취소를 실행하고 막히지 않았는지 확인한다. */
@@ -89,7 +89,7 @@ function discard(audio: ReturnType<typeof harness>['audio'], playback: DrawerSon
 beforeEach(() => {
   vi.mocked(showToast).mockClear();
   useEditorStore.setState(useEditorStore.getInitialState(), true);
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loadedSong), loadedSong);
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, loadedSong), loadedSong);
 });
 
 afterEach(() => { vi.restoreAllMocks(); });
@@ -114,7 +114,7 @@ describe('곡 정보 드로어의 음원 교체', () => {
     audio.close(playback);
 
     expect(store().isLoadingSongAudio).toBe(false);
-    expect(playback.restoreAudioBuffer).toHaveBeenCalledExactlyOnceWith(savedBuffer);
+    expect(playback.restoreAudioBuffer).toHaveBeenCalledExactlyOnceWith(lastSavedBuffer);
   });
 
   it('1박→0박 역전 restZone이 남은 차트에서도 30초 F.ogg를 고르면 곡 음원으로 적용하고 재생기는 F 버퍼를 유지한다', async () => {
@@ -132,7 +132,7 @@ describe('곡 정보 드로어의 음원 교체', () => {
 
 describe('Undo·Redo와 재생기 음원(음원은 이력 밖, 2026-11-08)', () => {
   it('1레인 2박 노트를 놓고 next.ogg(5초)를 고른 뒤 Undo·Redo해도 재생기는 next의 5초 버퍼를 유지하고 다시 불러오거나 비우지 않는다', async () => {
-    const { playback, pickAndLoad, reloadSavedAudio } = harness();
+    const { playback, pickAndLoad, reloadLastSavedAudio } = harness();
     store().setChart({ ...store().chart, notes: [{ type: 'tap', kind: 'single', lane: 1, beat: beat(2) }] });
     await pickAndLoad('next.ogg');
     const next = playback.audioBufferData;
@@ -144,11 +144,11 @@ describe('Undo·Redo와 재생기 음원(음원은 이력 밖, 2026-11-08)', () 
     expect(playback.loadAudioFile).toHaveBeenCalledOnce();
     expect(playback.restoreAudioBuffer).not.toHaveBeenCalled();
     expect(playback.clearAudio).not.toHaveBeenCalled();
-    expect(reloadSavedAudio).not.toHaveBeenCalled();
+    expect(reloadLastSavedAudio).not.toHaveBeenCalled();
   });
 
   it('제목과 next.ogg를 바꾸고 변경 취소한 뒤 Undo하면 제목만 돌아오고 재생기 요청은 변경 취소 때의 audio.ogg 다시 불러오기 1번뿐이다', async () => {
-    const { audio, playback, pickAndLoad, reloadSavedAudio } = harness();
+    const { audio, playback, pickAndLoad, reloadLastSavedAudio } = harness();
     store().applyMetaEdit({ title: '새 제목' });
     await pickAndLoad('next.ogg');
     discard(audio, playback);
@@ -156,7 +156,7 @@ describe('Undo·Redo와 재생기 음원(음원은 이력 밖, 2026-11-08)', () 
     store().undo();
 
     expect(store().chart.meta).toMatchObject({ title: '새 제목', audioFile: 'audio.ogg' });
-    expect(reloadSavedAudio).toHaveBeenCalledExactlyOnceWith('audio.ogg');
+    expect(reloadLastSavedAudio).toHaveBeenCalledExactlyOnceWith('audio.ogg');
     expect(playback.clearAudio).toHaveBeenCalledOnce();
     expect(playback.loadAudioFile).toHaveBeenCalledOnce();
   });
@@ -164,7 +164,7 @@ describe('Undo·Redo와 재생기 음원(음원은 이력 밖, 2026-11-08)', () 
 
 describe('곡 정보 변경 취소 뒤 재생기 음원', () => {
   it('저장된 120초 audio.ogg 위에서 next.ogg(5초)를 적용하고 변경 취소하면 이전 버퍼를 보관하지 않으므로 재생기·표시 음원을 비우고 audio.ogg를 다시 불러온다', async () => {
-    const { audio, playback, state, reloadSavedAudio, pickAndLoad } = harness();
+    const { audio, playback, state, reloadLastSavedAudio, pickAndLoad } = harness();
     await pickAndLoad('next.ogg');
     expect(playback.audioBufferData?.duration).toBe(5);
 
@@ -174,11 +174,11 @@ describe('곡 정보 변경 취소 뒤 재생기 음원', () => {
     expect(playback.audioBufferData).toBeNull();
     expect(state.shown).toBeNull();
     expect(playback.restoreAudioBuffer).not.toHaveBeenCalled();
-    expect(reloadSavedAudio).toHaveBeenCalledExactlyOnceWith('audio.ogg');
+    expect(reloadLastSavedAudio).toHaveBeenCalledExactlyOnceWith('audio.ogg');
   });
 
   it('next.ogg를 적용하고 other.ogg를 불러오는 중에 변경 취소하면 늦게 끝난 other도 반영하지 않고 audio.ogg를 다시 불러온다', async () => {
-    const { audio, playback, loads, reloadSavedAudio, pickAndLoad } = harness();
+    const { audio, playback, loads, reloadLastSavedAudio, pickAndLoad } = harness();
     await pickAndLoad('next.ogg');
     const picking = audio.pick(playback, new File(['a'], 'other.ogg'));
 
@@ -187,7 +187,7 @@ describe('곡 정보 변경 취소 뒤 재생기 음원', () => {
     await picking;
 
     expect(playback.audioBufferData).toBeNull();
-    expect(reloadSavedAudio).toHaveBeenCalledExactlyOnceWith('audio.ogg');
+    expect(reloadLastSavedAudio).toHaveBeenCalledExactlyOnceWith('audio.ogg');
     expect(store().isLoadingSongAudio).toBe(false);
     expect(store().song?.pendingAudioFile).toBeNull();
   });
@@ -195,18 +195,18 @@ describe('곡 정보 변경 취소 뒤 재생기 음원', () => {
   it('대기 음원 next.ogg가 남은 채 페이지를 다시 열어(새 세션) 변경 취소하면 재생기의 next를 비우고 audio.ogg를 다시 불러온다', () => {
     const next = new File(['a'], 'next.ogg');
     editSongAudio(next, 5);
-    const { audio, playback, reloadSavedAudio } = harness(bufferOf(next));
+    const { audio, playback, reloadLastSavedAudio } = harness(bufferOf(next));
 
     discard(audio, playback);
 
     expect(playback.audioBufferData).toBeNull();
-    expect(reloadSavedAudio).toHaveBeenCalledExactlyOnceWith('audio.ogg');
+    expect(reloadLastSavedAudio).toHaveBeenCalledExactlyOnceWith('audio.ogg');
   });
 
   it('저장된 곡에 음원이 없고 next.ogg를 적용한 뒤 변경 취소하면 재생기·표시 음원을 비우고 다시 불러올 음원은 없다', async () => {
     const silent = { ...loadedSong, audioUrl: '', duration: null };
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, silent), silent);
-    const { audio, playback, state, reloadSavedAudio, pickAndLoad } = harness(null);
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, silent), silent);
+    const { audio, playback, state, reloadLastSavedAudio, pickAndLoad } = harness(null);
     await pickAndLoad('next.ogg');
     expect(state.shown?.duration).toBe(5);
 
@@ -214,19 +214,19 @@ describe('곡 정보 변경 취소 뒤 재생기 음원', () => {
 
     expect(playback.audioBufferData).toBeNull();
     expect(state.shown).toBeNull();
-    expect(reloadSavedAudio).not.toHaveBeenCalled();
+    expect(reloadLastSavedAudio).not.toHaveBeenCalled();
   });
 
   it('곡 저장으로 next.ogg가 저장된 음원 songs/x/audio-2.ogg가 된 뒤 other.ogg로 바꾸고 변경 취소하면 songs/x/audio-2.ogg를 다시 불러온다', async () => {
-    const { audio, playback, reloadSavedAudio, pickAndLoad } = harness();
+    const { audio, playback, reloadLastSavedAudio, pickAndLoad } = harness();
     await pickAndLoad('next.ogg');
-    savedAudioBecomes('songs/x/audio-2.ogg');
+    lastSavedAudioBecomes('songs/x/audio-2.ogg');
     await pickAndLoad('other.ogg');
 
     discard(audio, playback);
 
     expect(store().chart.meta.audioFile).toBe('songs/x/audio-2.ogg');
-    expect(reloadSavedAudio).toHaveBeenCalledExactlyOnceWith('songs/x/audio-2.ogg');
+    expect(reloadLastSavedAudio).toHaveBeenCalledExactlyOnceWith('songs/x/audio-2.ogg');
   });
 
   it('제목만 바꾼 채 next.ogg를 불러오는 중 변경 취소하면 로드를 버려 늦게 끝나도 적용하지 않고 120초 버퍼에 머문다', async () => {
@@ -239,7 +239,7 @@ describe('곡 정보 변경 취소 뒤 재생기 음원', () => {
     await picking;
 
     expect(store().song?.pendingAudioFile).toBeNull();
-    expect(playback.audioBufferData).toBe(savedBuffer);
+    expect(playback.audioBufferData).toBe(lastSavedBuffer);
     expect(store().isLoadingSongAudio).toBe(false);
   });
 
@@ -257,12 +257,12 @@ describe('곡 정보 변경 취소 뒤 재생기 음원', () => {
   });
 
   it('next.ogg를 적용하고 변경 취소해 audio.ogg를 다시 불러오는 중 broken.ogg를 골라 디코딩이 실패하면 비어 있는 재생기에 audio.ogg를 다시 불러온다', async () => {
-    const { audio, playback, failures, savedReloads, state, reloadSavedAudio, pickAndLoad } = harness();
+    const { audio, playback, failures, lastSavedReloads, state, reloadLastSavedAudio, pickAndLoad } = harness();
     await pickAndLoad('next.ogg');
     discard(audio, playback);
     const picking = audio.pick(playback, new File(['x'], 'broken.ogg'));
     // broken.ogg의 로드가 재생기 세대를 올려 진행 중이던 audio.ogg 다시 불러오기는 버려진다.
-    savedReloads[0]();
+    lastSavedReloads[0]();
     expect(playback.audioBufferData).toBeNull();
 
     await failures.get('broken.ogg')!();
@@ -270,19 +270,19 @@ describe('곡 정보 변경 취소 뒤 재생기 음원', () => {
 
     expect(store().song?.pendingAudioFile).toBeNull();
     expect(store().chart.meta.audioFile).toBe('audio.ogg');
-    expect(reloadSavedAudio).toHaveBeenCalledTimes(2);
-    expect(reloadSavedAudio).toHaveBeenLastCalledWith('audio.ogg');
-    savedReloads[1]();
-    expect(playback.audioBufferData).toBe(savedBuffer);
-    expect(state.shown).toBe(savedBuffer);
+    expect(reloadLastSavedAudio).toHaveBeenCalledTimes(2);
+    expect(reloadLastSavedAudio).toHaveBeenLastCalledWith('audio.ogg');
+    lastSavedReloads[1]();
+    expect(playback.audioBufferData).toBe(lastSavedBuffer);
+    expect(state.shown).toBe(lastSavedBuffer);
   });
 
   it('next.ogg를 적용하고 변경 취소해 audio.ogg를 다시 불러오는 중 other.ogg를 불러오다 다시 변경 취소하면 비어 있는 재생기에 audio.ogg를 다시 불러온다', async () => {
-    const { audio, playback, loads, savedReloads, reloadSavedAudio, pickAndLoad } = harness();
+    const { audio, playback, loads, lastSavedReloads, reloadLastSavedAudio, pickAndLoad } = harness();
     await pickAndLoad('next.ogg');
     discard(audio, playback);
     const picking = audio.pick(playback, new File(['x'], 'other.ogg'));
-    savedReloads[0]();
+    lastSavedReloads[0]();
 
     discard(audio, playback);
     await loads.get('other.ogg')!();
@@ -290,60 +290,60 @@ describe('곡 정보 변경 취소 뒤 재생기 음원', () => {
 
     expect(playback.cancelAudioLoad).toHaveBeenCalledOnce();
     expect(store().song?.pendingAudioFile).toBeNull();
-    expect(reloadSavedAudio).toHaveBeenCalledTimes(2);
-    expect(reloadSavedAudio).toHaveBeenLastCalledWith('audio.ogg');
-    savedReloads[1]();
-    expect(playback.audioBufferData).toBe(savedBuffer);
+    expect(reloadLastSavedAudio).toHaveBeenCalledTimes(2);
+    expect(reloadLastSavedAudio).toHaveBeenLastCalledWith('audio.ogg');
+    lastSavedReloads[1]();
+    expect(playback.audioBufferData).toBe(lastSavedBuffer);
   });
 
   it('next.ogg를 적용하고 변경 취소해 audio.ogg를 다시 불러오는 중 other.ogg를 불러오다 드로어를 닫으면 비어 있는 재생기에 audio.ogg를 다시 불러온다', async () => {
-    const { audio, playback, loads, savedReloads, reloadSavedAudio, pickAndLoad } = harness();
+    const { audio, playback, loads, lastSavedReloads, reloadLastSavedAudio, pickAndLoad } = harness();
     await pickAndLoad('next.ogg');
     discard(audio, playback);
     const picking = audio.pick(playback, new File(['x'], 'other.ogg'));
-    savedReloads[0]();
+    lastSavedReloads[0]();
 
     audio.close(playback);
     await loads.get('other.ogg')!();
     await picking;
 
-    expect(reloadSavedAudio).toHaveBeenCalledTimes(2);
-    expect(reloadSavedAudio).toHaveBeenLastCalledWith('audio.ogg');
-    savedReloads[1]();
-    expect(playback.audioBufferData).toBe(savedBuffer);
+    expect(reloadLastSavedAudio).toHaveBeenCalledTimes(2);
+    expect(reloadLastSavedAudio).toHaveBeenLastCalledWith('audio.ogg');
+    lastSavedReloads[1]();
+    expect(playback.audioBufferData).toBe(lastSavedBuffer);
   });
 
   it('next.ogg를 적용하고 변경 취소해 audio.ogg를 다시 불러오는 중 음원을 고르지 않고 드로어를 닫으면 다시 불러오기를 더 요청하지 않는다', async () => {
-    const { audio, playback, reloadSavedAudio, pickAndLoad } = harness();
+    const { audio, playback, reloadLastSavedAudio, pickAndLoad } = harness();
     await pickAndLoad('next.ogg');
     discard(audio, playback);
 
     audio.close(playback);
 
-    expect(reloadSavedAudio).toHaveBeenCalledOnce();
+    expect(reloadLastSavedAudio).toHaveBeenCalledOnce();
   });
 
   it('저장된 120초 audio.ogg를 들고 있는 재생기에서 broken.ogg 디코딩이 실패하면 120초 버퍼를 유지하고 audio.ogg를 다시 불러오지 않는다', async () => {
-    const { audio, playback, failures, reloadSavedAudio } = harness();
+    const { audio, playback, failures, reloadLastSavedAudio } = harness();
     const picking = audio.pick(playback, new File(['x'], 'broken.ogg'));
 
     await failures.get('broken.ogg')!();
     await picking;
 
-    expect(playback.audioBufferData).toBe(savedBuffer);
-    expect(reloadSavedAudio).not.toHaveBeenCalled();
+    expect(playback.audioBufferData).toBe(lastSavedBuffer);
+    expect(reloadLastSavedAudio).not.toHaveBeenCalled();
   });
 
   it('음원을 바꾸지 않고 제목만 바꾼 변경 취소는 재생기 음원을 건드리지 않는다', () => {
-    const { audio, playback, reloadSavedAudio } = harness();
+    const { audio, playback, reloadLastSavedAudio } = harness();
     store().applyMetaEdit({ title: '새 제목' });
 
     discard(audio, playback);
 
-    expect(playback.audioBufferData).toBe(savedBuffer);
+    expect(playback.audioBufferData).toBe(lastSavedBuffer);
     expect(playback.restoreAudioBuffer).not.toHaveBeenCalled();
     expect(playback.clearAudio).not.toHaveBeenCalled();
-    expect(reloadSavedAudio).not.toHaveBeenCalled();
+    expect(reloadLastSavedAudio).not.toHaveBeenCalled();
   });
 });
 
@@ -379,7 +379,7 @@ describe('음원 로드 완료와 열린 편집 transaction', () => {
 });
 
 /** 곡 저장이 끝난 상태를 흉내 낸다: 대기 음원을 올린 경로가 저장된 음원이 되고 대기 파일이 비워진다. */
-function savedAudioBecomes(audioUrl: string) {
+function lastSavedAudioBecomes(audioUrl: string) {
   const song = store().song!;
-  store().completeSongSave(song, { ...songValues(store().chart, song), audioUrl }, 43);
+  store().completeSongSave(song, { ...currentSongValues(store().chart, song), audioUrl }, 43);
 }

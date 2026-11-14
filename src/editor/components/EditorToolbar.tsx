@@ -678,7 +678,7 @@ export function EditorToolbar({
   const savingSong = useEditorStore((s) => s.isSavingSong);
   const isLoadingSongAudio = useEditorStore((s) => s.isLoadingSongAudio);
   const songlessMedia = useEditorStore((s) => s.songlessMedia);
-  const savedChartJson = useEditorStore((s) => s.savedChartJson);
+  const lastSavedChartJson = useEditorStore((s) => s.lastSavedChartJson);
   const setExtraLaneCount = useEditorStore((s) => s.setExtraLaneCount);
   const activeSongId = useEditorStore((s) => s.activeSongId);
   const selectedNotes = useEditorStore((s) => s.selection.notes);
@@ -708,8 +708,8 @@ export function EditorToolbar({
   // 드로어 음원, 곡 행 없는 차트의 대기 구간. 차트는 저장 분리(saveChartAsset)처럼 메인/보조로 나눠 직렬화해 비교한다(RFD 0018 ③).
   // 재생 중에는 페이지가 currentTimeMs를 구독해 툴바도 매 프레임 다시 렌더된다. 차트 전체 직렬화는 비교 입력이 바뀔 때만 한다.
   const isDirty = useMemo(
-    () => hasUnsavedEditorChanges({ chart, song, extraLaneCount, savedChartJson, songlessMedia, isLoadingSongAudio }),
-    [chart, song, extraLaneCount, savedChartJson, songlessMedia, isLoadingSongAudio],
+    () => hasUnsavedEditorChanges({ chart, song, extraLaneCount, lastSavedChartJson, songlessMedia, isLoadingSongAudio }),
+    [chart, song, extraLaneCount, lastSavedChartJson, songlessMedia, isLoadingSongAudio],
   );
   // Save 점은 곡·차트를 합친 표시라 곡 정보만의 미저장은 Song Info 버튼의 점으로 따로 보인다. 드로어 닫기 확인과 같은 판단이다.
   const songInfoDirty = useMemo(

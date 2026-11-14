@@ -107,12 +107,12 @@ it('2초 음원을 Meta에 적용하고 미저장 테스트 플레이에서 복�
   const file = new File(['replacement'], 'replacement.wav');
   const before = newPlayback();
   await before.playback.loadAudioFile(file);
-  // Meta 적용 후의 초안: 파일은 다음 곡 저장까지 store에 남는다.
+  // Meta 적용 후의 지금 값: 파일은 다음 곡 저장까지 store에 남는다.
   state().setChart({ ...state().chart, meta: { ...state().chart.meta, audioFile: file.name } });
   state().setSong({ ...state().song!, pendingAudioFile: file, duration: 2 });
   const draft = state().chart;
-  const baseline = state().song!.baseline;
-  const savedChartJson = state().savedChartJson;
+  const lastSaved = state().song!.lastSaved;
+  const lastSavedChartJson = state().lastSavedChartJson;
   expect(performPlayTest({
     fromCursor: false, audioBuffer: before.playback.audioBufferData, isPlaying: false,
     pause: () => before.playback.pause(), chart: draft, currentTimeMs: 0,
@@ -134,13 +134,13 @@ it('2초 음원을 Meta에 적용하고 미저장 테스트 플레이에서 복�
   expect(encodeWavBlob(restored.playback.audioBufferData!, 0, 1).size).toBe(52);
   expect(state().song?.pendingAudioFile).toBe(file);
   expect(state().song?.revision).toBe(42);
-  expect(state().song?.baseline).toBe(baseline);
+  expect(state().song?.lastSaved).toBe(lastSaved);
   expect(state().chart).toBe(draft);
-  expect(state().savedChartJson).toBe(savedChartJson);
+  expect(state().lastSavedChartJson).toBe(lastSavedChartJson);
   expect(isSongDirty(state().chart, state().song)).toBe(true);
 });
 
-it('대기 File 없이 복귀하면 곡 행을 조회하지 않고 초안의 stale.wav를 1회 로드하며 초안·저장 기준은 유지한다', async () => {
+it('대기 File 없이 복귀하면 곡 행을 조회하지 않고 지금 값의 stale.wav를 1회 로드하며 지금 값·마지막 저장 값은 유지한다', async () => {
   state().setChart({ ...state().chart, meta: { ...state().chart.meta, audioFile: 'stale.wav' } });
   const draft = state().chart;
   const song = state().song;
@@ -185,7 +185,7 @@ it('곡 행이 없는 차트(song=null)에 Meta에서 고른 local.wav로 복귀
   expect(showToast).not.toHaveBeenCalled();
 });
 
-it('대기 File이 있는 채 복귀하면 곡 행 조회 없이 대기 File로 음원을 복원하고 알림 없이 초안을 유지한다', async () => {
+it('대기 File이 있는 채 복귀하면 곡 행 조회 없이 대기 File로 음원을 복원하고 알림 없이 지금 값을 유지한다', async () => {
   const file = new File(['replacement'], 'replacement.wav');
   state().setChart({ ...state().chart, meta: { ...state().chart.meta, audioFile: file.name } });
   state().setSong({ ...state().song!, pendingAudioFile: file, duration: 2 });

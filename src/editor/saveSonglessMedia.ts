@@ -71,10 +71,10 @@ export async function uploadSonglessMedia({ songId, media, paths, meta, audioBuf
  * 저장한 대기 값만 비우고 올린 경로를 현재 차트에 반영한다. 저장 중에 새로 고른 값은 다음 Save에 남긴다.
  * 경로 반영은 편집이 아니므로 Undo 이력을 남기지 않는다.
  */
-export function settleSonglessMedia(saved: SonglessMedia, paths: SonglessMediaPaths): void {
+export function settleSonglessMedia(mediaAtSaveStart: SonglessMedia, paths: SonglessMediaPaths): void {
   const state = useEditorStore.getState();
   const current = state.songlessMedia;
-  const same = <K extends keyof SonglessMedia>(key: K) => current[key] === saved[key];
+  const same = <K extends keyof SonglessMedia>(key: K) => current[key] === mediaAtSaveStart[key];
   const { meta } = state.chart;
   const imageFile = paths.jacketPath && same('jacketFile') ? paths.jacketPath : meta.imageFile;
   const audioFile = paths.audioPath && same('audioFile') ? paths.audioPath : meta.audioFile;

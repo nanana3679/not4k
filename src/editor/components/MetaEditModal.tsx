@@ -17,17 +17,17 @@ function getPublicUrl(path: string): string {
 /** Selector의 첫 알림은 정규화한 초기값이다. 그 뒤 달라진 구간만 모달 편집으로 취급한다. */
 function useRangeDraft() {
   const [draft, setDraft] = useState<{
-    initial: PreviewRangeState | null; current: PreviewRangeState | null;
+    initial: PreviewRangeState | null; value: PreviewRangeState | null;
   } | null>(null);
-  const onChange = useCallback((current: PreviewRangeState | null) => {
-    setDraft(previous => ({ initial: previous ? previous.initial : current, current }));
+  const onChange = useCallback((value: PreviewRangeState | null) => {
+    setDraft(previous => ({ initial: previous ? previous.initial : value, value }));
   }, []);
   const initial = draft?.initial;
-  const current = draft?.current;
-  const changed = current != null && (initial == null
-    || current.startTime !== initial.startTime || current.endTime !== initial.endTime
-    || current.fadeInTime !== initial.fadeInTime || current.fadeOutTime !== initial.fadeOutTime);
-  return { current: current ?? null, changed, onChange };
+  const value = draft?.value;
+  const changed = value != null && (initial == null
+    || value.startTime !== initial.startTime || value.endTime !== initial.endTime
+    || value.fadeInTime !== initial.fadeInTime || value.fadeOutTime !== initial.fadeOutTime);
+  return { value: value ?? null, changed, onChange };
 }
 
 export interface MetaEditModalProps {
@@ -145,8 +145,8 @@ export function MetaEditModal({
     // 저장 완료로 바뀐 경로를 모달을 열 때의 파일명으로 되돌리지 않는다.
     if (audioFile) updatedMeta.audioFile = audioFile.name;
     // 음원을 교체했다면 새 길이로 정규화한 구간도 적용한다.
-    const previewRange = previewDraft.changed || audioFile ? previewDraft.current : null;
-    const gameplayRange = gameplayDraft.changed || audioFile ? gameplayDraft.current : null;
+    const previewRange = previewDraft.changed || audioFile ? previewDraft.value : null;
+    const gameplayRange = gameplayDraft.changed || audioFile ? gameplayDraft.value : null;
     if (previewRange) {
       updatedMeta.previewStart = previewRange.startTime;
       updatedMeta.previewEnd = previewRange.endTime;

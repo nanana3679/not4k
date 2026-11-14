@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat } from '../shared';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
-import { isChartDirty, toSavedChartJson } from './savedChart';
-import { isSongDirty, songValues } from './songState';
+import { isChartDirty, toChartSaveJson } from './savedChart';
+import { isSongDirty, currentSongValues } from './songState';
 import type { ChartDocument } from '../shared';
 import type { LoadedSongSharedData } from '../supabase/songSharedData';
 import { useEditorStore } from './stores/editorStore';
@@ -29,14 +29,14 @@ const loadedSong = { title: '곡', artist: '작곡가', jacketUrl: null, audioUr
   gameplayStart: null, gameplayEnd: null, gameplayFadeIn: null, gameplayFadeOut: null,
   timing: null, revision: 42 };
 const songDirty = () => isSongDirty(store().chart, store().song);
-const chartDirty = () => isChartDirty(store().chart, store().extraLaneCount, store().savedChartJson, store().song !== null);
+const chartDirty = () => isChartDirty(store().chart, store().extraLaneCount, store().lastSavedChartJson, store().song !== null);
 const tap = { type: 'tap' as const, kind: 'single' as const, lane: 1, beat: beat(2) };
 
 beforeEach(() => {
   useEditorStore.setState(useEditorStore.getInitialState(), true);
   vi.restoreAllMocks();
   showToast.mockClear();
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loadedSong), loadedSong);
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, loadedSong), loadedSong);
 });
 
 describe('드로어의 곡 표시 정보 편집', () => {
@@ -117,9 +117,9 @@ describe('드로어의 오프셋 편집(재생 중 제한, RFD 0099)', () => {
 
 describe('드로어의 음원·구간 편집은 Undo 이력 밖(RFD 0098, 2026-11-08)', () => {
   it('180초 A의 프리뷰 150～165초에서 1레인 2박 노트를 놓고 120초 B로 바꾼 뒤 Undo하면 노트만 지우고 음원 B·길이 120초·프리뷰 30～45초는 남는다', () => {
-    const saved = { ...loadedSong, audioUrl: 'A.ogg', duration: 180, previewStart: 150, previewEnd: 165,
+    const songRow = { ...loadedSong, audioUrl: 'A.ogg', duration: 180, previewStart: 150, previewEnd: 165,
       gameplayStart: 2, gameplayEnd: 175, gameplayFadeIn: 1, gameplayFadeOut: 2 };
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, saved), saved);
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, songRow), songRow);
     store().setChart({ ...store().chart, notes: [tap] });
     const file = new File(['B'], 'B.ogg');
     editSongAudio(file, 120);
@@ -220,9 +220,9 @@ describe('드로어의 음원·구간 편집은 Undo 이력 밖(RFD 0098, 2026-1
 describe('음원을 바꿀 때 구간마다 유지하거나 기본값으로 돌림', () => {
   /** 180초 음원에 프리뷰·인게임 구간을 저장한 곡을 연다. 기본은 프리뷰 60～75초·인게임 5～170초·페이드 1·2초다. */
   function openSong(row: Partial<LoadedSongSharedData> = {}) {
-    const saved: LoadedSongSharedData = { ...loadedSong, audioUrl: 'A.ogg', duration: 180, previewStart: 60, previewEnd: 75,
+    const songRow: LoadedSongSharedData = { ...loadedSong, audioUrl: 'A.ogg', duration: 180, previewStart: 60, previewEnd: 75,
       gameplayStart: 5, gameplayEnd: 170, gameplayFadeIn: 1, gameplayFadeOut: 2, ...row };
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, saved), saved);
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, songRow), songRow);
   }
   const replaceAudio = (duration: number) => editSongAudio(new File(['B'], 'B.ogg'), duration);
   const ranges = () => ({ previewStart: store().chart.meta.previewStart, previewEnd: store().chart.meta.previewEnd,
@@ -426,7 +426,7 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
 
   it('저장된 곡에 음원이 없으면 next.ogg를 바꾼 변경 취소는 빈 경로로 돌아간다', () => {
     const silent = { ...loadedSong, audioUrl: '', duration: null };
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, silent), silent);
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, silent), silent);
     editSongAudio(new File(['a'], 'next.ogg'), 5);
 
     expect(discardSongInfoChanges()).toEqual({ discarded: true });
@@ -451,8 +451,8 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
   });
 
   it('저장 음원 250초·프리뷰 10～20초에서 265초 음원을 고르고 프리뷰 250～265초·새 제목을 적용한 뒤 변경 취소하고 Undo하면 제목만 돌아오고 음원·길이 250초·프리뷰 10～20초는 저장된 값으로 남는다', () => {
-    const saved = { ...loadedSong, duration: 250 };
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, saved), saved);
+    const songRow = { ...loadedSong, duration: 250 };
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, songRow), songRow);
     editSongAudio(new File(['a'], 'long.ogg'), 265);
     editPreviewRange({ startTime: 250, endTime: 265, fadeInTime: 1, fadeOutTime: 1 });
     editSongTitle('새 제목');
@@ -462,7 +462,7 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
 
     expect(store().chart.meta).toMatchObject({ title: '새 제목', audioFile: 'audio.ogg', previewStart: 10, previewEnd: 20 });
     expect(store().song).toMatchObject({ duration: 250, pendingAudioFile: null, pendingPreviewRange: null });
-    const values = songValues(store().chart, store().song!);
+    const values = currentSongValues(store().chart, store().song!);
     expect(values.previewEnd).toBeLessThanOrEqual(values.duration!);
   });
 
@@ -492,7 +492,7 @@ describe('곡 정보 변경 취소(RFD 0098)', () => {
   });
 
   it('곡 행 없이 연 차트는 변경 취소할 곡 정보가 없어 아무것도 바꾸지 않는다', () => {
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null));
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null));
     store().setChart({ ...store().chart, meta: { ...store().chart.meta, title: '새 제목' } });
 
     expect(discardSongInfoChanges()).toEqual({ discarded: false });
@@ -506,7 +506,7 @@ describe('곡 정보 변경 취소의 타이밍 이벤트 자리와 선택(RFD 0
   /** 0박 BPM·박자(보조 레인 1·2)에 4박 BPM 150(보조 레인 3)과 auto 이벤트(보조 레인 4)를 저장한 곡을 연다. */
   function openWithBpmAt4() {
     const chart: ChartDocument = { ...base, events: [...base.events, bpmAt4, auto] };
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(chart, 2).chartJson, null, loadedSong), loadedSong);
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(chart, 2).chartJson, null, loadedSong), loadedSong);
   }
   const bpmEvents = () => store().chart.events.filter(event => event.type === 'bpm')
     .map(event => ({ beat: event.beat.n / event.beat.d, editorLane: event.editorLane }));
@@ -552,10 +552,10 @@ it('BPM 120→180→2박 노트 배치→변경 취소에서 Undo 1회는 BPM 18
   expect(store().chart.notes).toEqual([]);
 });
 
-it('제목 편집 뒤 리비전 57·이행 완료·새 기준·대기 자켓 a.png를 적용하고 Undo·Redo하면 차트만 바뀌고 곡 상태 객체는 그대로다', () => {
+it('제목 편집 뒤 리비전 57·이행 완료·새 마지막 저장 값·대기 자켓 a.png를 적용하고 Undo·Redo하면 차트만 바뀌고 곡 상태 객체는 그대로다', () => {
   editSongTitle('새 제목');
   const song = { ...store().song!, revision: 57, needsTimingMigration: false,
-    baseline: { ...store().song!.baseline, title: '저장 제목' }, pendingJacketFile: new File(['a'], 'a.png') };
+    lastSaved: { ...store().song!.lastSaved, title: '저장 제목' }, pendingJacketFile: new File(['a'], 'a.png') };
   store().setSong(song);
   store().undo();
   expect(store().chart.meta.title).toBe('곡');
@@ -565,7 +565,7 @@ it('제목 편집 뒤 리비전 57·이행 완료·새 기준·대기 자켓 a.p
   expect(store().song).toBe(song);
 });
 
-it('1박→0박 역전 restZone이 남은 상태에서 곡 정보 변경 취소가 구조 거부되면 초안·차트·이력은 그대로이고 discarded는 false다', () => {
+it('1박→0박 역전 restZone이 남은 상태에서 곡 정보 변경 취소가 구조 거부되면 곡 상태·차트·이력은 그대로이고 discarded는 false다', () => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   editSongTitle('새 제목');
   editSongJacket(new File(['a'], 'a.png'));
@@ -578,7 +578,7 @@ it('1박→0박 역전 restZone이 남은 상태에서 곡 정보 변경 취소�
 });
 
 it('곡 행이 없으면 음원 A→B를 Undo할 때 경로는 A로 돌아가지만 songlessMedia의 대기 B 파일은 그대로다', () => {
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null));
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null));
   const before = store().chart.meta.audioFile;
   const media = { ...store().songlessMedia, audioFile: new File(['B'], 'B.ogg') };
   store().setSonglessMedia(media);
@@ -589,9 +589,9 @@ it('곡 행이 없으면 음원 A→B를 Undo할 때 경로는 A로 돌아가지
   expect(store().songlessMedia).toBe(media);
 });
 
-it('저장 구간 2～110초·페이드 1초와 필드 순서만 다른 초안을 변경 취소하면 Undo 이력 0개를 유지한다', () => {
+it('저장 구간 2～110초·페이드 1초와 필드 순서만 다른 지금 값을 변경 취소하면 Undo 이력 0개를 유지한다', () => {
   const loaded = { ...loadedSong, gameplayStart: 2, gameplayEnd: 110, gameplayFadeIn: 1, gameplayFadeOut: 1 };
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loaded), loaded);
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, loaded), loaded);
   store().setSong({ ...store().song!, gameplayRange: { fadeOutTime: 1, fadeInTime: 1, endTime: 110, startTime: 2 } });
   expect(discardSongInfoChanges()).toEqual({ discarded: true });
   expect(store().historyPast).toHaveLength(0);

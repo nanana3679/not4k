@@ -1,26 +1,26 @@
 /**
- * `savedChartJson` 만들기와 dirty 비교.
+ * `lastSavedChartJson` 만들기와 dirty 비교.
  *
- * `savedChartJson`은 마지막으로 불러오거나 저장한 차트를 Save가 쓰는 방식(메인·보조 JSON)으로 직렬화한 값이다.
+ * `lastSavedChartJson`은 마지막으로 불러오거나 저장한 차트를 Save가 쓰는 방식(메인·보조 JSON)으로 직렬화한 값이다.
  * 불러올 때는 불러온(메인·보조를 합친) 차트를 그때의 보조 레인 수로 직렬화하고, 저장(Save·Save As)이 성공하면
  * 업로드한 메인·보조 JSON으로 바꾼다. 서버에서 받은 파일 텍스트가 아니다. 예를 들어 `.extra.json`도 `extraLaneCount`도
  * 없는 차트는 보조 레인 수 기본값 2로 직렬화하므로 불러온 직후 dirty가 아니지만, Save하면 보조 레인 수 2인
  * `.extra.json`을 새로 만든다. 받은 텍스트를 그대로 비교 대상으로 쓰면 이런 차트가 불러오자마자 dirty가 된다.
  *
- * `savedChartJson`은 에디터 store가 차트와 함께 소유한다. 페이지 컴포넌트가 마운트될 때 현재 차트로 만들면 테스트
+ * `lastSavedChartJson`은 에디터 store가 차트와 함께 소유한다. 페이지 컴포넌트가 마운트될 때 현재 차트로 만들면 테스트
  * 플레이에서 돌아와 다시 마운트될 때 저장하지 않은 편집이 비교 대상이 되어 dirty 표시·나가기 확인이 사라진다.
  */
 import type { ChartDocument, ChartEvent } from '../shared';
 import { deserializeChartDocument, serializeChart, serializeExtraNotes, mainNotes, mainTrillZones, auxNotesAsExtra } from '../shared';
 
 /** Save가 새 경로에 올리는 메인·보조 JSON 문자열(RFD 0107). */
-export interface SavedChartJson {
+export interface ChartSaveJson {
   chartJson: string;
   extraJson: string;
 }
 
 /** 저장 분리(saveChartAsset)와 같게 메인/보조를 나눠 직렬화한다 (RFD 0018 ③). */
-export function toSavedChartJson(chart: ChartDocument, extraLaneCount: number): SavedChartJson {
+export function toChartSaveJson(chart: ChartDocument, extraLaneCount: number): ChartSaveJson {
   return {
     chartJson: serializeChart({ ...chart, notes: mainNotes(chart.notes), trillZones: mainTrillZones(chart.trillZones) }),
     extraJson: serializeExtraNotes(auxNotesAsExtra(chart.notes), extraLaneCount, chart.trillZones),
@@ -29,39 +29,39 @@ export function toSavedChartJson(chart: ChartDocument, extraLaneCount: number): 
 
 /**
  * 마지막으로 불러오거나 저장한 차트의 이벤트. 곡 정보 변경 취소가 BPM·박자 이벤트의 저장된 보조 레인을 찾는 데 쓴다.
- * 기준이 없거나 읽지 못하면 빈 배열이다(그러면 기본 레인을 쓴다).
+ * 마지막 저장 값이 없거나 읽지 못하면 빈 배열이다(그러면 기본 레인을 쓴다).
  */
-export function savedChartEvents(saved: SavedChartJson | null): ChartEvent[] {
-  if (!saved) return [];
+export function lastSavedChartEvents(lastSaved: ChartSaveJson | null): ChartEvent[] {
+  if (!lastSaved) return [];
   try {
-    return deserializeChartDocument(saved.chartJson).events;
+    return deserializeChartDocument(lastSaved.chartJson).events;
   } catch {
     return [];
   }
 }
 
 /**
- * 현재 차트·보조 레인 수를 같은 방식으로 직렬화해 `savedChartJson`과 다르면 dirty다.
- * `savedChartJson`이 없으면(null, 아직 불러온 차트가 없음) 비교할 대상이 없으므로 dirty로 본다 — 확인 없이 나가 편집을 잃지 않게 한다.
+ * 현재 차트·보조 레인 수를 같은 방식으로 직렬화해 `lastSavedChartJson`과 다르면 dirty다.
+ * `lastSavedChartJson`이 없으면(null, 아직 불러온 차트가 없음) 비교할 대상이 없으므로 dirty로 본다 — 확인 없이 나가 편집을 잃지 않게 한다.
  */
-export function isChartDirty(chart: ChartDocument, extraLaneCount: number, saved: SavedChartJson | null, hasSongRow = false): boolean {
-  if (saved === null) return true;
-  const current = toSavedChartJson(chart, extraLaneCount);
+export function isChartDirty(chart: ChartDocument, extraLaneCount: number, lastSaved: ChartSaveJson | null, hasSongRow = false): boolean {
+  if (lastSaved === null) return true;
+  const current = toChartSaveJson(chart, extraLaneCount);
   return (hasSongRow
-    ? chartOnlyJson(current.chartJson) !== savedChartOnlyJson(saved)
-    : current.chartJson !== saved.chartJson) || current.extraJson !== saved.extraJson;
+    ? chartOnlyJson(current.chartJson) !== lastSavedChartOnlyJson(lastSaved)
+    : current.chartJson !== lastSaved.chartJson) || current.extraJson !== lastSaved.extraJson;
 }
 
 /**
- * 저장 기준 쪽 정리 결과. 기준은 불러오기·저장 성공 때만 새 객체로 바뀌므로 객체마다 한 번만 해석한다.
+ * 마지막 저장 값 쪽 정리 결과. 마지막 저장 값은 불러오기·저장 성공 때만 새 객체로 바뀌므로 객체마다 한 번만 해석한다.
  * 편집마다 다시 계산하는 것은 현재 차트 쪽뿐이다.
  */
-const chartOnlyJsonBySaved = new WeakMap<SavedChartJson, string>();
-function savedChartOnlyJson(saved: SavedChartJson): string {
-  let stripped = chartOnlyJsonBySaved.get(saved);
+const chartOnlyJsonByLastSaved = new WeakMap<ChartSaveJson, string>();
+function lastSavedChartOnlyJson(lastSaved: ChartSaveJson): string {
+  let stripped = chartOnlyJsonByLastSaved.get(lastSaved);
   if (stripped === undefined) {
-    stripped = chartOnlyJson(saved.chartJson);
-    chartOnlyJsonBySaved.set(saved, stripped);
+    stripped = chartOnlyJson(lastSaved.chartJson);
+    chartOnlyJsonByLastSaved.set(lastSaved, stripped);
   }
   return stripped;
 }

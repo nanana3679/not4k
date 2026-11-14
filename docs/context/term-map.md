@@ -156,6 +156,9 @@
 | modifier 키 | modifier 키 상태(`shiftKey`·`altKey`)와 선택 토글 플래그(`toggleSelection`) | 수식자, 보조키(게임 용어) | `PointerGesture`(`src/editor/modes/editorMode.ts`) |
 | 히트테스트 우선순위 | `resolveGrab`의 히트테스트 우선순위(z-order 8단계). 롱프레스도 `resolveLongPressAction`의 우선순위 | 우선순위 사다리, 사다리 N단계 | `src/editor/modes/resolveGrab.ts`, `src/editor/modes/longPressRouting.ts` |
 | 오프셋 | 어느 오프셋인지 이름을 붙인다: 입력 오프셋(`inputOffsetMs`)·시각 오프셋(`visualOffsetMs`)은 실제 시간(ms)(곡 시간으로 바꿀 때 배속 r을 곱함, 오디오 오프셋은 제거됨), 판정선 오프셋(`judgmentLineOffset`, 아래에서 위로)·기어 y 오프셋(`gearOffsetY`, +가 아래)은 화면 위치(논리 px)다. 차트 메타데이터 `offsetMs`는 차트 오프셋 | 이름 없는 "오프셋", offset | [glossary 오프셋 구분](glossary.md#오프셋-구분), `GameClock.ts`, `constants.ts` |
+| 편집 값의 단계: 입력칸에만 있는 값 | 초안(`draft`). store에 적용하는 동작은 commit | 지금 값을 가리키는 초안 | [glossary 편집 값의 단계](glossary.md#편집-값의-단계), `offsetDraft`, `useRangeDraft`, `commitDrafts` |
+| 편집 값의 단계: store에 적용했고 DB에 저장하기 전인 값 | 지금 값(`current`). DB에 저장하는 동작은 save | 편집 초안, 에디터 초안, 이 단계를 `store`로 부르기 | [RFD 0108](../rfd/0108-edit-value-stage-names.md), `currentSongValues` |
+| 편집 값의 단계: DB에 저장된 값 | 마지막 저장 값(`lastSaved`). 마지막으로 불러오거나 저장한 행·파일 | 저장 기준, 이 뜻의 bare "기준", `baseline`, 이 단계를 가리키는 bare `saved`·`initial`·`persisted` | `song.lastSaved`, `lastSavedChartJson` |
 
 버퍼나 객체를 다시 쓴다고 적을 때는 구조 이름(double buffer, object pool)이나 다시 쓰는 대상의 식별자(`createApproachLightFrames()`의 결과 등)를 쓴다.
 

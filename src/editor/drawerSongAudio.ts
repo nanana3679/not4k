@@ -5,8 +5,8 @@
  *   `isLoadingSongAudio`를 켜, Save의 미저장 표시와 닫기·전환·이탈 확인이 같은 값을 읽는다(unsavedChangesFlow).
  * - 음원은 Undo 이력 밖이라(사용자 확인, 2026-11-08) Undo·Redo는 재생기 음원을 바꾸지 않는다. 디코딩한 이전 음원도 보관하지 않는다.
  * - 변경 취소가 대기 음원을 버리면 재생기 음원을 비워 버린 음원으로 재생·테스트 플레이·프리뷰 생성을 하지 않게 하고, 저장된 음원을
- *   다시 불러온다(`reloadSavedAudio`). 실제 로드는 useEditorAudioLoad가 맡는다.
- * - 고른 음원이 실패하거나 버려진 뒤 재생기가 비어 있으면 저장된 음원을 다시 불러온다(`reloadSavedAudioIfEmpty`).
+ *   다시 불러온다(`reloadLastSavedAudio`). 실제 로드는 useEditorAudioLoad가 맡는다.
+ * - 고른 음원이 실패하거나 버려진 뒤 재생기가 비어 있으면 저장된 음원을 다시 불러온다(`reloadLastSavedAudioIfEmpty`).
  */
 import { createMetaAudioSession, type MetaAudioPick, type MetaAudioPlayback } from './metaAudioSession';
 import type { PlaybackController } from './playback/PlaybackController';
@@ -21,7 +21,7 @@ export function createDrawerSongAudio(deps: {
   setLoadedAudioBuffer: (buffer: AudioBuffer | null) => void;
   onLoadFailed: () => void;
   /** 저장 경로를 공개 URL로 바꿔 pendingAudioUrl에 넣는다. 실제 로드는 useEditorAudioLoad가 맡는다. */
-  reloadSavedAudio: (audioUrl: string) => void;
+  reloadLastSavedAudio: (audioUrl: string) => void;
 }) {
   const loader = createMetaAudioSession({
     ...deps,
@@ -36,10 +36,10 @@ export function createDrawerSongAudio(deps: {
    * 다시 불러오는 동안 다른 음원을 고르면 그 로드가 저장된 음원의 로드를 버린다. 그대로 두면 곡 음원은 저장된 음원인데 재생기·파형이 비어
    * 재생이 무음이고, 프리뷰 클립이 필요한 Save가 실패한다. 대기 음원이 있으면 곡 음원이 저장된 음원이 아니라 다시 불러오지 않는다.
    */
-  const reloadSavedAudioIfEmpty = (playback: DrawerSongAudioPlayback | null) => {
+  const reloadLastSavedAudioIfEmpty = (playback: DrawerSongAudioPlayback | null) => {
     if (!playback || playback.audioBufferData) return;
     const { song, chart } = useEditorStore.getState();
-    if (song && !song.pendingAudioFile && chart.meta.audioFile) deps.reloadSavedAudio(chart.meta.audioFile);
+    if (song && !song.pendingAudioFile && chart.meta.audioFile) deps.reloadLastSavedAudio(chart.meta.audioFile);
   };
 
   return {
@@ -50,14 +50,14 @@ export function createDrawerSongAudio(deps: {
       const buffer = playback?.audioBufferData;
       if (status === 'loaded' && buffer) editSongAudio(file, buffer.duration);
       loader.apply();
-      if (status === 'failed') reloadSavedAudioIfEmpty(playback);
+      if (status === 'failed') reloadLastSavedAudioIfEmpty(playback);
     },
     /**
      * 불러오는 중인 음원 선택을 버리고 재생기를 고르기 전 음원으로 되돌린다. 고르기 전 재생기가 비어 있었으면 저장된 음원을 다시
      * 불러온다. 이미 적용한 음원은 그대로 둔다.
      */
     close(playback: DrawerSongAudioPlayback | null): void {
-      if (loader.cancel(playback)) reloadSavedAudioIfEmpty(playback);
+      if (loader.cancel(playback)) reloadLastSavedAudioIfEmpty(playback);
     },
     /**
      * 곡 정보를 변경 취소한다. 막혔으면 false다. 불러오는 중인 선택은 늘 버려 늦은 로드가 적용되지 않게 한다.
@@ -68,7 +68,7 @@ export function createDrawerSongAudio(deps: {
       if (!discardSongInfoChanges().discarded) return false;
       if (!discardedAudio) {
         // 바꾼 음원이 없다. 불러오는 중인 선택만 버리고 재생기를 고르기 전(저장된) 음원으로 되돌린다.
-        if (loader.cancel(playback)) reloadSavedAudioIfEmpty(playback);
+        if (loader.cancel(playback)) reloadLastSavedAudioIfEmpty(playback);
         return true;
       }
       // 불러오는 중인 선택은 버리되 재생기는 아래에서 저장된 음원으로 맞춘다(비우기가 진행 중인 로드도 버린다).
@@ -76,8 +76,8 @@ export function createDrawerSongAudio(deps: {
       if (!playback) return true;
       playback.clearAudio();
       deps.setLoadedAudioBuffer(null);
-      const savedAudioUrl = useEditorStore.getState().chart.meta.audioFile;
-      if (savedAudioUrl) deps.reloadSavedAudio(savedAudioUrl);
+      const lastSavedAudioUrl = useEditorStore.getState().chart.meta.audioFile;
+      if (lastSavedAudioUrl) deps.reloadLastSavedAudio(lastSavedAudioUrl);
       return true;
     },
   };

@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MetaEditModal } from './components/MetaEditModal';
 import { openEditorChart } from './openEditorChart';
 import { loadEditorChartAsset } from './chartAssetLoad';
-import { toSavedChartJson } from './savedChart';
+import { toChartSaveJson } from './savedChart';
 import { selectCanUndo, useEditorStore } from './stores/editorStore';
 import { isSongDirty } from './songState';
 import { saveEditorSong } from './saveEditorSong';
@@ -27,7 +27,7 @@ const song = { title: '곡', artist: '작곡가', jacketUrl: 'old.jpg', audioUrl
     timeSignatureChanges: [{ beat: '0', beatPerMeasure: '4' }], offsetMs: 25 }, revision: 42 };
 function open(timing: unknown = song.timing) {
   const loaded = { ...song, timing };
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loaded), loaded);
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, loaded), loaded);
   state().setActiveSongId('song');
 }
 const editTitle = (title: string) => state().setChart({ ...state().chart, meta: { ...state().chart.meta, title } });
@@ -38,7 +38,7 @@ const previewRange = (startTime: number, endTime: number) => ({ startTime, endTi
 /** 곡 행을 다시 열어 그 행의 값으로 시작한다. */
 function reopen(row: Partial<LoadedSongSharedData>) {
   const loaded = { ...song, ...row };
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loaded), loaded);
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, loaded), loaded);
   state().setActiveSongId('song');
 }
 
@@ -76,7 +76,7 @@ describe('saveEditorSong', () => {
     expect(dirty()).toBe(true);
   });
 
-  it('리비전 42로 제목을 바꿔 저장하면 전체 곡 값으로 save_song을 호출하고 반환 리비전 57을 새 기준으로 삼는다', async () => {
+  it('리비전 42로 제목을 바꿔 저장하면 전체 곡 값으로 save_song을 호출하고 반환 리비전 57을 다음 저장의 기대 리비전으로 삼는다', async () => {
     editTitle('새 제목');
     await saveEditorSong(null, vi.fn());
     expect(api.rpc).toHaveBeenCalledExactlyOnceWith('save_song', {
@@ -134,7 +134,7 @@ it('오디오 A.ogg와 10～20초 프리뷰를 저장하면 새 파일 2개를 �
   expect(dirty()).toBe(false);
 });
 
-it('자켓 업로드가 실패하면 RPC 0회이고 대기 파일·기준 리비전 42를 보존한다', async () => {
+it('자켓 업로드가 실패하면 RPC 0회이고 대기 파일·리비전 42를 보존한다', async () => {
   const file = new File(['A'], 'A.png');
   state().setSong({ ...state().song!, pendingJacketFile: file });
   api.upload.mockResolvedValue({ error: { message: 'upload failed' } });
@@ -148,7 +148,7 @@ it.each([false, true])('timing NULL에서 확인=%s이면 BPM 180인 hard만 목
   open(null);
   state().setSong({ ...state().song!, pendingJacketFile: new File(['A'], 'A.png') });
   const before = state();
-  const raw = JSON.parse(toSavedChartJson(state().chart, 2).chartJson);
+  const raw = JSON.parse(toChartSaveJson(state().chart, 2).chartJson);
   api.eq.mockResolvedValue({ data: [
     { difficulty_label: base.meta.difficultyLabel.toLowerCase(), chart_path: null },
     { difficulty_label: 'easy', chart_path: null },
@@ -179,7 +179,7 @@ it.each([false, true])('timing NULL에서 확인=%s이면 BPM 180인 hard만 목
   vi.unstubAllGlobals();
 });
 
-it('timing NULL에서 다른 차트 조회가 실패하면 확인·RPC 0회이고 초안이 남는다', async () => {
+it('timing NULL에서 다른 차트 조회가 실패하면 확인·RPC 0회이고 지금 값이 남는다', async () => {
   open(null); editTitle('보존');
   api.eq.mockResolvedValue({ data: null, error: { message: 'read failed' } });
   const confirm = vi.fn(() => true);
@@ -202,7 +202,7 @@ it('자켓 A.png 업로드 중 B.png로 교체하면 A 경로만 저장하고 B 
   expect(state().chart.meta.title).toBe('저장 중 수정');
   expect(state().chart.meta.imageFile).toBe('old.jpg');
   expect(state().song?.pendingJacketFile).toBe(fileB);
-  expect(state().song?.baseline.title).toBe('곡');
+  expect(state().song?.lastSaved.title).toBe('곡');
   expect(state().song?.revision).toBe(57);
   expect(dirty()).toBe(true);
 });
@@ -256,19 +256,19 @@ it.each(['완료 전', '완료 후'])('replacement.ogg 저장 중 Meta를 열고
   if (when === '완료 전') apply!();
   finish({ error: null });
   expect(await saving).toBe('saved');
-  const savedMedia = { p_jacket_url: api.upload.mock.calls[0][0],
+  const uploadedMediaUrls = { p_jacket_url: api.upload.mock.calls[0][0],
     p_audio_url: api.upload.mock.calls[1][0], p_preview_url: api.upload.mock.calls[2][0] };
 
   if (when === '완료 후') apply!();
   expect(state().song).toMatchObject({ revision: 57, pendingAudioFile: null, pendingJacketFile: null });
   expect(state().chart.meta.title).toBe('저장 뒤 제목');
   expect(await saveEditorSong(buffer, vi.fn())).toBe('saved');
-  expect(api.rpc.mock.calls[1][1]).toMatchObject(savedMedia);
+  expect(api.rpc.mock.calls[1][1]).toMatchObject(uploadedMediaUrls);
   expect(api.upload).toHaveBeenCalledTimes(3);
   expect(dirty()).toBe(false);
 });
 
-it('리비전 42 저장 응답 중 제목을 다시 고치면 응답 57은 저장 시작 제목의 기준이 되고 최신 편집은 dirty다', async () => {
+it('리비전 42 저장 응답 중 제목을 다시 고치면 응답 57 뒤 마지막 저장 값의 제목은 저장 시작 때의 제목이고 최신 편집은 dirty다', async () => {
   editTitle('저장할 제목');
   let finish!: (result: { data: number; error: null }) => void;
   api.rpc.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
@@ -278,11 +278,11 @@ it('리비전 42 저장 응답 중 제목을 다시 고치면 응답 57은 저�
   expect(api.rpc).toHaveBeenCalledOnce();
   finish({ data: 57, error: null }); await saving;
   expect(state().chart.meta.title).toBe('그 뒤 제목');
-  expect(state().song?.baseline.title).toBe('저장할 제목');
+  expect(state().song?.lastSaved.title).toBe('저장할 제목');
   expect(dirty()).toBe(true);
 });
 
-it('곡 저장 응답 전에 새 차트를 열면 늦은 리비전 57이 새 차트의 리비전 42·제목·기준을 바꾸지 않는다', async () => {
+it('곡 저장 응답 전에 새 차트를 열면 늦은 리비전 57이 새 차트의 리비전 42·제목·마지막 저장 값을 바꾸지 않는다', async () => {
   editTitle('이전 차트');
   let finish!: (result: { data: number; error: null }) => void;
   api.rpc.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
@@ -371,7 +371,7 @@ it('프리뷰를 0～8초·페이드 1초로 바꾸면 자켓·음원 업로드 
 it('0박 BPM 2개가 있는 미이행 곡도 깨끗하게 열리지만 saveEditorSong은 업로드·RPC 전에 거부한다', async () => {
   const loaded = { ...song, timing: null };
   const chart = { ...base, events: [...base.events, base.events.find(e => e.type === 'bpm')!] };
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(chart, 2).chartJson, null, loaded), loaded);
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(chart, 2).chartJson, null, loaded), loaded);
   expect(dirty()).toBe(false);
   await saveEditorSong(null, vi.fn());
   expect(api.rpc).not.toHaveBeenCalled(); expect(api.upload).not.toHaveBeenCalled();
@@ -415,11 +415,11 @@ it('chart-HARD 행으로 연 차트에서 Offset 25→45를 저장하면 대소�
 it('timing NULL에서 chart-HARD 행으로 연 차트의 JSON 난이도명이 expert여도 이행 확인은 UUID로 열린 차트만 빼고 BPM 180인 expert를 타이밍이 다른 차트로 보인다', async () => {
   const loaded = { ...song, timing: null };
   const document = { ...base, meta: { ...base.meta, difficultyLabel: 'expert' } };
-  openEditorChart(loadEditorChartAsset(toSavedChartJson(document, 2).chartJson, null, loaded), loaded);
+  openEditorChart(loadEditorChartAsset(toChartSaveJson(document, 2).chartJson, null, loaded), loaded);
   state().setActiveSongId('song');
   state().setChartRow({ id: 'chart-HARD', difficultyLabel: 'HARD', revision: 3, chartPath: null, chartExtraPath: null });
   state().setActiveDifficulty('HARD');
-  const raw = JSON.parse(toSavedChartJson(state().chart, 2).chartJson);
+  const raw = JSON.parse(toChartSaveJson(state().chart, 2).chartJson);
   api.eq.mockResolvedValue({ data: [
     { id: 'chart-HARD', difficulty_label: 'HARD', chart_path: null },
     { id: 'chart-expert', difficulty_label: 'expert', chart_path: null },
@@ -453,7 +453,7 @@ it.each([
 
 it('timing NULL에서 다른 차트 hard는 BPM 180, expert는 파일 없음, easy는 깨진 JSON이면 확인에 hard를 타이밍이 다른 차트로, easy·expert를 비교하지 못한 차트로 보이고 승인하면 RPC 1회다', async () => {
   open(null);
-  const raw = JSON.parse(toSavedChartJson(state().chart, 2).chartJson);
+  const raw = JSON.parse(toChartSaveJson(state().chart, 2).chartJson);
   api.eq.mockResolvedValue({ data: [
     { difficulty_label: base.meta.difficultyLabel.toLowerCase(), chart_path: null },
     { difficulty_label: 'hard', chart_path: null },
@@ -560,7 +560,7 @@ it('B.ogg 업로드 중 C.ogg로 바꾸면 저장 뒤에도 C의 대기 File·�
   const uploaded = api.upload.mock.calls[0][0];
 
   expect(state().chart.meta.audioFile).toBe('C.ogg');
-  expect(state().song).toMatchObject({ pendingAudioFile: fileC, duration: 90, baseline: { audioUrl: uploaded, duration: 120 } });
+  expect(state().song).toMatchObject({ pendingAudioFile: fileC, duration: 90, lastSaved: { audioUrl: uploaded, duration: 120 } });
   expect(dirty()).toBe(true);
   discardSongInfoChanges();
   expect(state().chart.meta.audioFile).toBe(uploaded);
@@ -662,7 +662,7 @@ describe('Undo 뒤 곡 저장 값과 프리뷰 클립 다시 만들기(음원·�
     expect(dirty()).toBe(false);
   });
 
-  it('프리뷰 10～20초에서 30～40초로 저장한 뒤 다시 10～20초로 끌어 저장하면 저장 기준 30～40초와 달라 다시 만든다', async () => {
+  it('프리뷰 10～20초에서 30～40초로 저장한 뒤 다시 10～20초로 끌어 저장하면 마지막 저장 값 30～40초와 달라 다시 만든다', async () => {
     editPreviewRange(previewRange(30, 40));
     expect(await saveEditorSong(audioBufferOf(120), vi.fn())).toBe('saved');
     editPreviewRange(previewRange(10, 20));
@@ -734,7 +734,7 @@ describe('Undo 뒤 곡 저장 값과 프리뷰 클립 다시 만들기(음원·�
     expect(api.upload).toHaveBeenCalledOnce();
   });
 
-  it('대기 구간 없이 프리뷰 구간만 0～8초로 바뀐 초안을 저장하면 구간 선택기 기본 페이드 0.5초로 클립을 만든다', async () => {
+  it('대기 구간 없이 프리뷰 구간만 0～8초로 바뀐 지금 값을 저장하면 구간 선택기 기본 페이드 0.5초로 클립을 만든다', async () => {
     state().setChart({ ...state().chart, meta: { ...state().chart.meta, previewStart: 0, previewEnd: 8 } });
     const buffer = { ...audioBufferOf(120), getChannelData: () => new Float32Array(1200).fill(1) } as unknown as AudioBuffer;
 
@@ -761,7 +761,7 @@ describe('Undo 뒤 곡 저장 값과 프리뷰 클립 다시 만들기(음원·�
 });
 
 describe('프리뷰 클립을 만들 수 없는 구간의 거부', () => {
-  /** 구간이 250초 음원의 끝을 넘은 초안. 클립은 행의 10～20초 것이라 Save가 이 구간으로 다시 만들려 한다. */
+  /** 구간이 250초 음원의 끝을 넘은 지금 값. 클립은 행의 10～20초 것이라 Save가 이 구간으로 다시 만들려 한다. */
   const setPreview = (previewStart: number, previewEnd: number) =>
     state().setChart({ ...state().chart, meta: { ...state().chart.meta, previewStart, previewEnd, offsetMs: 45 } });
 

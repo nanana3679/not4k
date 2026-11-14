@@ -2,8 +2,8 @@
  * 곡 정보 드로어 편집(RFD 0098).
  *
  * - 제목·아티스트·오프셋(과 타임라인의 BPM·박자표)은 차트 사본을 setChart로 바꿔 노트와 같은 시간순 Undo·Redo 이력을 쓴다.
- * - 음원·자켓·프리뷰 구간·인게임 구간은 Undo 이력에 넣지 않는다(사용자 확인, 2026-11-08). 차트 사본의 경로·프리뷰 구간(`SongMediaMeta`)과
- *   곡 상태의 길이·구간·대기 파일(`SongMediaState`)을 `applySongMedia`로 바꾸며, Undo·Redo·변경 취소의 Undo는 이 값의 지금 상태를
+ * - 음원·자켓·프리뷰 구간·인게임 구간은 Undo 이력에 넣지 않는다(사용자 확인, 2026-11-08). 차트 사본의 경로·프리뷰 구간(`ChartMetaMedia`)과
+ *   곡 상태의 길이·구간·대기 파일(`EditorSongMedia`)을 `applySongMedia`로 바꾸며, Undo·Redo·변경 취소의 Undo는 이 값을 지금 값으로
  *   유지한다. 잘못 고른 음원은 다시 고른다.
  * - 드로어에서 바로 하는 편집은 독립 명령이라 열린 편집 transaction(붙여넣기 대기 등)을 먼저 확정한다. 음원 교체(`editSongAudio`)는
  *   로드가 끝날 때 비동기로 적용되므로 확정하지 않아 그 사이 시작한 캔버스 드래그를 끊지 않는다.
@@ -14,22 +14,22 @@ import type { PlaybackRange } from '../shared';
 import { isPlaybackLockedChange } from './editing/playbackEditLock';
 import { AUDIO_RANGE_RESET_COPY, PAUSE_TO_EDIT_COPY } from './editorCopy';
 import { rangesForNewAudio, type NewAudioRanges } from './components/previewRangeState';
-import { savedChartEvents } from './savedChart';
+import { lastSavedChartEvents } from './savedChart';
 import {
-  restoreSavedSongInfo,
+  restoreLastSavedSongInfo,
   samePlaybackRange,
-  sameSongMediaState,
-  SONG_MEDIA_META_KEYS,
-  type SongMediaMeta,
-  type SongMediaState,
+  sameEditorSongMedia,
+  CHART_META_MEDIA_KEYS,
+  type ChartMetaMedia,
+  type EditorSongMedia,
 } from './songState';
 import { useEditorStore } from './stores/editorStore';
 import { normalizeSelection } from './stores/selectionSlice';
 
 /** 사용자가 드로어에서 바로 바꾼 이력 밖 값. 열린 transaction을 먼저 확정한 뒤 이력·Redo·병합 창을 건드리지 않고 바꾼다. */
-function editSongMedia(mediaMeta: Partial<SongMediaMeta>, mediaState: Partial<SongMediaState>): void {
+function editSongMedia(chartMetaMedia: Partial<ChartMetaMedia>, editorSongMedia: Partial<EditorSongMedia>): void {
   useEditorStore.getState().commitEditTransaction();
-  useEditorStore.getState().applySongMedia(mediaMeta, mediaState);
+  useEditorStore.getState().applySongMedia(chartMetaMedia, editorSongMedia);
 }
 
 /** 곡 제목을 바꾼다. 같은 값이면 이력을 남기지 않는다. */
@@ -104,16 +104,16 @@ export function editSongAudio(file: File, duration: number): void {
 }
 
 export interface DiscardSongInfoResult {
-  /** 곡 정보를 마지막 저장 상태로 되돌렸는가. 재생 중 타이밍 복원·구조 위반·곡 행 없음이면 false다. */
+  /** 곡 정보를 마지막 저장 값으로 되돌렸는가. 재생 중 타이밍 복원·구조 위반·곡 행 없음이면 false다. */
   discarded: boolean;
 }
 
 /**
- * 곡 소유 값만 마지막 곡 저장 상태로 되돌린다(RFD 0098). 노트·차트별 이벤트·난이도·보조 레인 수는 그대로 둔다.
+ * 곡 소유 값만 곡의 마지막 저장 값으로 되돌린다(RFD 0098). 노트·차트별 이벤트·난이도·보조 레인 수는 그대로 둔다.
  *
  * - 제목·아티스트·오프셋·BPM·박자표의 되돌림은 앞뒤 편집과 합치지 않는 Undo 한 단위다. Undo하면 이 값만 취소 직전으로 돌아오고
- *   드로어를 다시 연다. 이 값이 이미 기준과 같으면 이력을 남기지 않는다.
- * - 음원·자켓·프리뷰 구간·인게임 구간과 대기 파일은 이력 없이 기준으로 돌린다. 변경 취소의 Undo도 이 값을 되살리지 않는다(사용자 확인,
+ *   드로어를 다시 연다. 이 값이 이미 마지막 저장 값과 같으면 이력을 남기지 않는다.
+ * - 음원·자켓·프리뷰 구간·인게임 구간과 대기 파일은 이력 없이 마지막 저장 값으로 돌린다. 변경 취소의 Undo도 이 값을 되살리지 않는다(사용자 확인,
  *   2026-11-08). 저장된 음원으로 재생기를 되돌리는 일은 드로어 음원(drawerSongAudio)이 맡는다.
  * - 재생 중 오프셋·BPM·박자표를 되돌려야 하면 아무것도 바꾸지 않고 정지 안내를 띄운다(RFD 0099). 구조 위반으로 되돌림이 거부되면
  *   이력 밖 값도 그대로 둔다.
@@ -122,13 +122,13 @@ export function discardSongInfoChanges(): DiscardSongInfoResult {
   const state = useEditorStore.getState();
   const song = state.song;
   if (!song) return { discarded: false };
-  const target = restoreSavedSongInfo(state.chart, song, savedChartEvents(state.savedChartJson));
+  const target = restoreLastSavedSongInfo(state.chart, song, lastSavedChartEvents(state.lastSavedChartJson));
   if (state.isPlaying && isPlaybackLockedChange(state.chart, target.chart)) {
     state.addToast(PAUSE_TO_EDIT_COPY, 'warn');
     return { discarded: false };
   }
-  const mediaChanged = SONG_MEDIA_META_KEYS.some(key => target.mediaMeta[key] !== state.chart.meta[key])
-    || !sameSongMediaState(song, target.mediaState);
+  const mediaChanged = CHART_META_MEDIA_KEYS.some(key => target.chartMetaMedia[key] !== state.chart.meta[key])
+    || !sameEditorSongMedia(song, target.editorSongMedia);
   if (target.chart === state.chart && !mediaChanged) return { discarded: true };
   state.commitEditTransaction();
   if (target.chart !== state.chart) {
@@ -137,7 +137,7 @@ export function discardSongInfoChanges(): DiscardSongInfoResult {
     if (useEditorStore.getState().chart !== target.chart) return { discarded: false };
     if (target.chart.events !== before.chart.events) keepEventSelection(before.selection, before.chart.events, target.chart.events);
   }
-  if (mediaChanged) useEditorStore.getState().applySongMedia(target.mediaMeta, target.mediaState);
+  if (mediaChanged) useEditorStore.getState().applySongMedia(target.chartMetaMedia, target.editorSongMedia);
   return { discarded: true };
 }
 

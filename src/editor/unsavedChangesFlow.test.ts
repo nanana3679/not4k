@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { beat } from '../shared';
 import { loadEditorChartAsset } from './chartAssetLoad';
 import { openEditorChart } from './openEditorChart';
-import { toSavedChartJson } from './savedChart';
+import { toChartSaveJson } from './savedChart';
 import { useEditorStore } from './stores/editorStore';
 import {
   confirmChartSwitch,
@@ -294,7 +294,7 @@ describe('미저장 여부 판단', () => {
   beforeEach(() => { useEditorStore.setState(useEditorStore.getInitialState(), true); });
 
   it('곡 행이 있는 차트에서 1레인 2박 노트만 놓으면 곡 정보는 깨끗하고 에디터는 미저장이다', () => {
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loadedSong), loadedSong);
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, loadedSong), loadedSong);
     store().setChart({ ...store().chart, notes: [{ type: 'tap', kind: 'single', lane: 1, beat: beat(2) }] });
 
     expect(hasUnsavedSongInfo(store())).toBe(false);
@@ -302,7 +302,7 @@ describe('미저장 여부 판단', () => {
   });
 
   it('곡 정보가 깨끗해도 드로어에서 고른 음원을 불러오는 중(isLoadingSongAudio)이면 곡 정보와 에디터가 모두 미저장이다', () => {
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loadedSong), loadedSong);
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, loadedSong), loadedSong);
     expect(hasUnsavedSongInfo(store())).toBe(false);
 
     useEditorStore.setState({ isLoadingSongAudio: true });
@@ -314,14 +314,14 @@ describe('미저장 여부 판단', () => {
   it('드로어 음원을 불러오는 중 차트를 새로 열면 isLoadingSongAudio가 꺼져 깨끗하다', () => {
     useEditorStore.setState({ isLoadingSongAudio: true });
 
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null, loadedSong), loadedSong);
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null, loadedSong), loadedSong);
 
     expect(store().isLoadingSongAudio).toBe(false);
     expect(hasUnsavedEditorChanges(store())).toBe(false);
   });
 
   it('곡 행 없는 차트에 프리뷰 0～8초가 대기 중이면 에디터는 미저장이다', () => {
-    openEditorChart(loadEditorChartAsset(toSavedChartJson(base, 2).chartJson, null));
+    openEditorChart(loadEditorChartAsset(toChartSaveJson(base, 2).chartJson, null));
     store().setSonglessMedia({ ...store().songlessMedia, previewRange: { startTime: 0, endTime: 8, fadeInTime: 0, fadeOutTime: 0 } });
 
     expect(hasUnsavedSongInfo(store())).toBe(false);

@@ -72,14 +72,14 @@ describe('명시 노트의 실제 store·history·파일 경계', () => {
     expect(useEditorStore.getState().extraLaneCount).toBe(4);
   });
 
-  it('구형 main+신형 aux의 독립 v3/v4 저장을 두 번 왕복하면 Grace false·holdOnly·수량·메타·이벤트·dirty 기준이 같다', () => {
+  it('구형 main+신형 aux의 독립 v3/v4 저장을 두 번 왕복하면 Grace false·holdOnly·수량·메타·이벤트·dirty 비교에 쓰는 저장 JSON이 같다', () => {
     const mode = create(7); mode.entityType = 'doubleRelease'; mode.graceMode = true; mode.onPointerDown(7, 2);
-    const saved = snapshots();
-    expect(JSON.parse(saved.main).version).toBe(3); expect(JSON.parse(saved.aux).version).toBe(4);
+    const serialized = snapshots();
+    expect(JSON.parse(serialized.main).version).toBe(3); expect(JSON.parse(serialized.aux).version).toBe(4);
     for (let i = 0; i < 2; i++) {
-      const loaded = loadEditorChartAsset(saved.main, saved.aux);
+      const loaded = loadEditorChartAsset(serialized.main, serialized.aux);
       useEditorStore.getState().loadChart(loaded.chart); useEditorStore.getState().setExtraLaneCount(loaded.extraLaneCount);
-      expect(snapshots()).toEqual(saved); expect(loaded.extraLaneCount).toBe(4);
+      expect(snapshots()).toEqual(serialized); expect(loaded.extraLaneCount).toBe(4);
       expect(loaded.chart.meta).toEqual(seed().meta); expect(loaded.chart.events).toEqual(seed().events);
     }
     expect(useEditorStore.getState().chart.notes).toEqual([
