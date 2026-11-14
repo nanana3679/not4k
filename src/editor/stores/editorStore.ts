@@ -9,9 +9,9 @@ import { showToast, type ToastType } from '../../shared/toast';
 import type { EntityType } from '../modes';
 import { editorChartErrors } from '../documentValidation';
 import { isPlaybackLockedChange } from '../editing/playbackEditLock';
-import { samePlaybackRange, songMediaMetaOf, withSongMediaMeta, type EditorSong, type SongMediaMeta, type SongMediaState } from '../songState';
+import { samePlaybackRange, chartMetaMediaOf, withChartMetaMedia, type EditorSong, type ChartMetaMedia, type EditorSongMedia } from '../songState';
 import { EMPTY_SONGLESS_MEDIA, type SonglessMedia } from '../songlessMedia';
-import type { SavedChartJson } from '../savedChart';
+import type { ChartSaveJson } from '../savedChart';
 import type { SongValues } from '../../supabase/saveSong';
 import type { StoredChartRow } from '../../supabase/chartRows';
 import type { CursorBeatKeeperState } from '../playback/cursorBeatKeeper';
@@ -44,7 +44,7 @@ type EditTransaction = {
 
 /**
  * Undo 이력·마지막 유효 상태·열린 편집 transaction이 기억하는 상태. 곡 행이 있으면 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간
- * (`SongMediaMeta`)과 곡 상태(`song`)는 이력 밖이라(RFD 0098, 사용자 확인 2026-11-08) 복원할 때 지금 값을 유지한다(`restoreSnapshot`).
+ * (`ChartMetaMedia`)과 곡 상태(`song`)는 이력 밖이라(RFD 0098, 사용자 확인 2026-11-08) 복원할 때 지금 값을 유지한다(`restoreSnapshot`).
  */
 type HistorySnapshot = {
   chart: ChartDocument;
@@ -125,7 +125,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // 마지막으로 불러오거나 저장한 차트를 Save가 쓰는 방식(메인·보조 JSON)으로 직렬화한 값(src/editor/savedChart.ts).
   // dirty 표시·나가기 확인이 이것과 현재 차트를 비교한다. 차트를 새로 불러올 때와 저장(Save·Save As) 성공 때만 정한다.
   // 편집·Undo·테스트 플레이는 바꾸지 않는다. 페이지 컴포넌트가 아니라 store가 소유해, 테스트 플레이에서 돌아와 페이지가 다시 마운트돼도 유지된다.
-  savedChartJson: SavedChartJson | null;
+  lastSavedChartJson: ChartSaveJson | null;
   // 열린 차트의 `charts` 행(ID·충돌 검사 리비전·파일 경로, RFD 0107). 차트 저장은 이 ID·리비전으로 `save_chart`를 부른다.
   // 행 없이 연 차트는 null이며, 곡 행이 있으면 첫 저장이 `create_chart`로 행을 만든다. 곡 행이 없으면 행을 만들 수 없어(FK)
   // 계속 null이다. 불러올 때와 차트 저장 성공 때만 바뀌고 편집·Undo는 바꾸지 않는다. Save As는 `adoptChartIdentity`로 바꾼다.
@@ -152,7 +152,7 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   // 진행 중인 저장을 잊지 않는다. 진행 중에는 두 번째 저장과 테스트 플레이를 시작하지 않는다.
   isSavingChart: boolean;
   // 저장을 시작할 때와 차트를 새로 불러올 때 1씩 오른다. 저장은 시작할 때 받은 값으로 끝을 알리고,
-  // 그 사이 값이 바뀌었으면(차트를 새로 불러옴) 늦게 끝난 그 저장은 savedChartJson·isSavingChart를 바꾸지 않는다.
+  // 그 사이 값이 바뀌었으면(차트를 새로 불러옴) 늦게 끝난 그 저장은 lastSavedChartJson·isSavingChart를 바꾸지 않는다.
   chartSaveGeneration: number;
   // loadChart로 차트를 새로 열 때만 1씩 오른다. 편집·Undo·Redo·저장은 바꾸지 않는다.
   // 차트 교체를 보는 쪽이 새로 불러온 차트를 편집과 구별할 때 쓴다(타이밍 값 수정 뒤 커서 박 유지, RFD 0099).
@@ -181,33 +181,33 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   adoptChartIdentity: (difficultyLabel: string, difficultyLevel: number, row: StoredChartRow | null) => void;
   setPendingAudioUrl: (url: string | null) => void;
   setChart: (chart: ChartDocument, options?: SetChartOptions) => void;
-  /** 현재 초안에 Meta 편집을 합친다. 곡 행이 있으면 난이도명은 유지하고 레벨은 편집한다. */
+  /** 지금 값에 Meta 편집을 합친다. 곡 행이 있으면 난이도명은 유지하고 레벨은 편집한다. */
   applyMetaEdit: (meta: Partial<ChartMeta>) => void;
   /**
-   * 곡 행이 있는 차트의 이력 밖 값을 바꾼다: 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간(`mediaMeta`)과 곡 상태의 길이·인게임 구간·
-   * 대기 파일·프리뷰 페이드(`mediaState`)(RFD 0098, 사용자 확인 2026-11-08).
+   * 곡 행이 있는 차트의 이력 밖 값을 바꾼다: 차트 사본의 음원·자켓·프리뷰 경로·프리뷰 구간(`chartMetaMedia`)과 곡 상태의 길이·인게임 구간·
+   * 대기 파일·프리뷰 페이드(`editorSongMedia`)(RFD 0098, 사용자 확인 2026-11-08).
    * Undo 이력·Redo·600ms 병합 창을 건드리지 않고 열린 transaction도 끝내지 않는다. 곡 행이 없으면 아무것도 하지 않는다.
    */
-  applySongMedia: (mediaMeta: Partial<SongMediaMeta>, mediaState: Partial<SongMediaState>) => void;
+  applySongMedia: (chartMetaMedia: Partial<ChartMetaMedia>, editorSongMedia: Partial<EditorSongMedia>) => void;
   /**
-   * 곡 저장 성공을 반영한다. `saved`는 저장을 시작할 때의 곡이다. 그 뒤 바뀌지 않은 대기 파일만 업로드 경로로 바꿔 비우고, 프리뷰 클립 경로와
-   * 리비전·저장 기준·이행 여부를 저장 결과로 바꾼다. 이력 밖 값이라 이력·Redo는 그대로 둔다.
+   * 곡 저장 성공을 반영한다. 저장을 시작할 때의 곡(`songAtSaveStart`)에서 바뀌지 않은 대기 파일만 업로드 경로로 바꿔 비우고, 프리뷰 클립
+   * 경로와 리비전·마지막 저장 값·이행 여부를 저장 결과로 바꾼다. 이력 밖 값이라 이력·Redo는 그대로 둔다.
    */
-  completeSongSave: (saved: EditorSong, values: SongValues, revision: number) => void;
+  completeSongSave: (songAtSaveStart: EditorSong, values: SongValues, revision: number) => void;
   /** 곡 행 없는 차트의 업로드 경로만 반영한다. 현재 차트와 같은 참조의 복원 씨앗만 갱신하고 과거·미래 이력은 유지한다. */
   reconcileSonglessMedia: (media: Partial<Pick<ChartMeta, 'audioFile' | 'imageFile' | 'previewAudioFile'>>) => void;
   /**
    * 로드 전용 통로 — 위반 차트도 수용해 열람·수리를 허용한다(경고만 표시).
    * 재저장은 저장 게이트(useFileOperations의 editorChartErrors)가 차단하므로
    * 위반 상태가 저장·전파되지는 않는다. 로드 외의 경로에서 쓰지 말 것.
-   * 다른 차트를 여는 것이므로 이전 차트의 savedChartJson을 지운다. 불러온 쪽이 setSavedChartJson으로 불러온 차트의 값을 정한다.
+   * 다른 차트를 여는 것이므로 이전 차트의 lastSavedChartJson을 지운다. 불러온 쪽이 setLastSavedChartJson으로 불러온 차트의 값을 정한다.
    * 진행 중이던 저장은 이전 차트의 것이므로 chartSaveGeneration을 올려 그 결과가 새 차트에 닿지 않게 하고 isSavingChart를 끈다.
    * 이전 차트의 변환 검토 목록(legacyConversionReview)도 비우고 닫는다.
    * chartLoadGeneration을 1 올리고 cursorBeatKeeperState를 비워 새 차트에 이전 커서 박을 적용하지 않는다.
    */
   loadChart: (chart: ChartDocument) => void;
-  /** 불러온 차트의 savedChartJson을 정한다. loadChart 직후에만 부른다. 저장 결과는 finishChartSave로 정한다. */
-  setSavedChartJson: (saved: SavedChartJson) => void;
+  /** 불러온 차트의 lastSavedChartJson을 정한다. loadChart 직후에만 부른다. 저장 결과는 finishChartSave로 정한다. */
+  setLastSavedChartJson: (lastSavedChartJson: ChartSaveJson) => void;
   /** 불러온 차트의 `charts` 행을 정한다. loadChart 직후에만 부른다. Save 결과는 finishChartSave, Save As 결과는 adoptChartIdentity로 정한다. */
   setChartRow: (row: StoredChartRow | null) => void;
   /**
@@ -217,10 +217,10 @@ interface EditorState extends ViewportSlice, SelectionSlice {
   beginChartSave: () => number | null;
   /**
    * beginChartSave가 준 세대 번호로 저장을 끝낸다. 성공이면 업로드한 메인·보조 JSON과 확정된 `charts` 행을, 실패면 null을 넘긴다.
-   * 세대 번호가 지금 값과 같을 때만 isSavingChart를 끄고, 성공이면 savedChartJson·chartRow를 넘긴 값으로 바꾼다.
+   * 세대 번호가 지금 값과 같을 때만 isSavingChart를 끄고, 성공이면 lastSavedChartJson·chartRow를 넘긴 값으로 바꾼다.
    * 다르면(그 사이 차트를 새로 불러옴) 늦게 끝난 저장이므로 아무것도 바꾸지 않는다.
    */
-  finishChartSave: (generation: number, saved: SavedChartJson | null, row?: StoredChartRow) => void;
+  finishChartSave: (generation: number, uploadedJson: ChartSaveJson | null, row?: StoredChartRow) => void;
   setMode: (mode: EditorModeName) => void;
   setEntityType: (entityType: EntityType) => void;
   setGraceMode: (graceMode: boolean) => void;
@@ -297,11 +297,11 @@ function createHistorySnapshot(state: Pick<EditorState, 'chart' | 'extraLaneCoun
 /**
  * 모든 복원 경로(Undo·Redo·마지막 유효 상태·편집 취소·재생 시작 취소)는 차트와 보조 레인 수만 되돌린다. 곡 행이 있으면 차트 사본의
  * 음원·자켓·프리뷰 경로·프리뷰 구간은 지금 값을 유지하고 곡 상태(`song`)는 건드리지 않는다(RFD 0098, 사용자 확인 2026-11-08).
- * 서버 리비전·이행 여부·저장 기준도 `song`에 있어 그대로다.
+ * 서버 리비전·이행 여부·마지막 저장 값도 `song`에 있어 그대로다.
  * 곡 행이 없는 차트는 차트 전체를 되돌린다(Meta 창 경로, #442에서 지운다).
  */
 function restoreSnapshot(state: EditorState, snapshot: HistorySnapshot): Partial<EditorState> {
-  return { chart: state.song ? withSongMediaMeta(snapshot.chart, songMediaMetaOf(state.chart.meta)) : snapshot.chart,
+  return { chart: state.song ? withChartMetaMedia(snapshot.chart, chartMetaMediaOf(state.chart.meta)) : snapshot.chart,
     extraLaneCount: snapshot.extraLaneCount };
 }
 
@@ -312,23 +312,23 @@ function restoreSnapshot(state: EditorState, snapshot: HistorySnapshot): Partial
  * 복원할 때 지금 값을 덮으므로(`restoreSnapshot`) 고치지 않는다.
  */
 function songMediaUpdate(
-  state: EditorState, mediaMeta: Partial<SongMediaMeta>, mediaState: Partial<SongMediaState>,
+  state: EditorState, chartMetaMedia: Partial<ChartMetaMedia>, editorSongMedia: Partial<EditorSongMedia>,
 ): Partial<EditorState> {
   if (!state.song) return {};
-  const chart = withSongMediaMeta(state.chart, { ...songMediaMetaOf(state.chart.meta), ...mediaMeta });
-  const current = songMediaMetaOf(chart.meta);
+  const chart = withChartMetaMedia(state.chart, { ...chartMetaMediaOf(state.chart.meta), ...chartMetaMedia });
+  const current = chartMetaMediaOf(chart.meta);
   const nextChartByChart = new Map([[state.chart, chart]]);
   const follow = (snapshot: HistorySnapshot): HistorySnapshot => {
     let next = nextChartByChart.get(snapshot.chart);
     if (!next) {
-      next = withSongMediaMeta(snapshot.chart, current);
+      next = withChartMetaMedia(snapshot.chart, current);
       nextChartByChart.set(snapshot.chart, next);
     }
     return next === snapshot.chart ? snapshot : { ...snapshot, chart: next };
   };
   const transaction = state.editTransaction;
   return {
-    chart, song: { ...state.song, ...mediaState },
+    chart, song: { ...state.song, ...editorSongMedia },
     lastValidSnapshot: state.lastValidSnapshot ? follow(state.lastValidSnapshot) : null,
     editTransaction: transaction ? { ...transaction, before: follow(transaction.before),
       lastValidSnapshot: transaction.lastValidSnapshot ? follow(transaction.lastValidSnapshot) : null } : null,
@@ -411,7 +411,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   songInfoReopenRequest: 0,
   editTransaction: null,
   lastValidSnapshot: null,
-  savedChartJson: null,
+  lastSavedChartJson: null,
   chartRow: null,
   unconfirmedChartUploads: [],
   song: null,
@@ -518,23 +518,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     });
   },
-  applySongMedia: (mediaMeta, mediaState) => set(state => songMediaUpdate(state, mediaMeta, mediaState)),
-  completeSongSave: (saved, values, revision) => set(state => {
+  applySongMedia: (chartMetaMedia, editorSongMedia) => set(state => songMediaUpdate(state, chartMetaMedia, editorSongMedia)),
+  completeSongSave: (songAtSaveStart, values, revision) => set(state => {
     if (!state.song) return {};
-    // 저장 중 다시 고른 파일은 다음 저장에 남긴다. 프리뷰 클립은 저장 기준의 음원·구간 것이라 늘 저장한 경로를 쓴다.
-    // 다음 저장은 대기 음원이 있거나 구간이 이 기준과 다를 때 클립을 다시 만든다(saveEditorSong).
-    const sameAudio = state.song.pendingAudioFile === saved.pendingAudioFile;
-    const sameJacket = state.song.pendingJacketFile === saved.pendingJacketFile;
+    // 저장 중 다시 고른 파일은 다음 저장에 남긴다. 프리뷰 클립은 마지막 저장 값의 음원·구간 것이라 늘 저장한 경로를 쓴다.
+    // 다음 저장은 대기 음원이 있거나 구간이 이 마지막 저장 값과 다를 때 클립을 다시 만든다(saveEditorSong).
+    const sameAudio = state.song.pendingAudioFile === songAtSaveStart.pendingAudioFile;
+    const sameJacket = state.song.pendingJacketFile === songAtSaveStart.pendingJacketFile;
     const update = songMediaUpdate(state, {
-      ...(saved.pendingAudioFile && sameAudio ? { audioFile: values.audioUrl } : {}),
-      ...(saved.pendingJacketFile && sameJacket ? { imageFile: values.jacketUrl ?? '' } : {}),
+      ...(songAtSaveStart.pendingAudioFile && sameAudio ? { audioFile: values.audioUrl } : {}),
+      ...(songAtSaveStart.pendingJacketFile && sameJacket ? { imageFile: values.jacketUrl ?? '' } : {}),
       previewAudioFile: values.previewUrl ?? '',
     }, {
       pendingAudioFile: sameAudio ? null : state.song.pendingAudioFile,
       pendingJacketFile: sameJacket ? null : state.song.pendingJacketFile,
-      ...(sameAudio && samePlaybackRange(state.song.pendingPreviewRange, saved.pendingPreviewRange) ? { pendingPreviewRange: null } : {}),
+      ...(sameAudio && samePlaybackRange(state.song.pendingPreviewRange, songAtSaveStart.pendingPreviewRange) ? { pendingPreviewRange: null } : {}),
     });
-    return { ...update, song: { ...update.song!, revision, baseline: values, needsTimingMigration: false } };
+    return { ...update, song: { ...update.song!, revision, lastSaved: values, needsTimingMigration: false } };
   }),
   reconcileSonglessMedia: (media) => set(state => {
     const chart = { ...state.chart, meta: { ...state.chart.meta, ...media } };
@@ -569,7 +569,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       chart,
       selection: emptySelection(),
-      savedChartJson: null,
+      lastSavedChartJson: null,
       chartRow: null,
       unconfirmedChartUploads: [],
       song: null,
@@ -591,7 +591,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setSong: (song) => set({ song }),
   setSonglessMedia: (songlessMedia) => set({ songlessMedia }),
-  setSavedChartJson: (savedChartJson) => set({ savedChartJson }),
+  setLastSavedChartJson: (lastSavedChartJson) => set({ lastSavedChartJson }),
   setChartRow: (chartRow) => set({ chartRow }),
   rememberUnconfirmedChartUpload: (generation, upload) => {
     if (get().chartSaveGeneration !== generation) return;
@@ -604,10 +604,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ isSavingChart: true, chartSaveGeneration: generation });
     return generation;
   },
-  finishChartSave: (generation, saved, row) => {
+  finishChartSave: (generation, uploadedJson, row) => {
     if (get().chartSaveGeneration !== generation) return;
-    if (saved === null) { set({ isSavingChart: false }); return; }
-    set(row ? { isSavingChart: false, savedChartJson: saved, chartRow: row } : { isSavingChart: false, savedChartJson: saved });
+    if (uploadedJson === null) { set({ isSavingChart: false }); return; }
+    set(row ? { isSavingChart: false, lastSavedChartJson: uploadedJson, chartRow: row } : { isSavingChart: false, lastSavedChartJson: uploadedJson });
   },
   setMode: (mode) => { get().commitEditTransaction(); set({ mode }); },
   setEntityType: (entityType) => { get().commitEditTransaction(); set({ entityType }); },
@@ -759,7 +759,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const before = get().chart;
     const result = convertLegacyChart(before);
     if (result.chart === before) return null;
-    // 변환 하나가 Undo 한 단위다. savedChartJson은 바꾸지 않는다 — 불러온 구형 차트의 직렬화와 비교해
+    // 변환 하나가 Undo 한 단위다. lastSavedChartJson은 바꾸지 않는다 — 불러온 구형 차트의 직렬화와 비교해
     // 변환 뒤 dirty, Undo로 구형 차트에 돌아가면 clean이 된다.
     get().setChart(result.chart, { separateHistory: true });
     if (get().chart !== result.chart) return null;

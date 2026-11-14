@@ -132,10 +132,10 @@ export default function EditorApp() {
     }
 
     // Skip chart fetch if already loaded for this song (e.g., returning from test play).
-    // savedChartJson도 store에 그대로 남아, 저장하지 않은 편집은 돌아와도 dirty다.
+    // lastSavedChartJson도 store에 그대로 남아, 저장하지 않은 편집은 돌아와도 dirty다.
     const existingStore = useEditorStore.getState();
     if (existingStore.activeSongId === songId) {
-      // 열린 곡의 초안·리비전·대기 파일을 그대로 두고 초안의 음원만 다시 요청한다. 요청을 정한 뒤 페이지를 마운트해 첫 로드로 표시한다.
+      // 열린 곡의 지금 값·리비전·대기 파일을 그대로 두고 지금 값의 음원만 다시 요청한다. 요청을 정한 뒤 페이지를 마운트해 첫 로드로 표시한다.
       restoreSongAudioAfterPlayTest(getPublicUrl);
       queueMicrotask(() => setChartLoading(false));
       return;
@@ -285,7 +285,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   // 음원을 불러오는 중에는 Save·Save As를 시작하지 않는다. 아래 useEditorAudioLoad의 상태를 저장 핸들러가 읽는다.
   const audioLoadingRef = useRef(false);
   const isAudioLoading = useCallback(() => audioLoadingRef.current || isStoreAudioLoading(useEditorStore.getState()), []);
-  // 구형 차트 변환 모달(RFD 0037 §8-1). 불러올 때 store의 savedChartJson을 구형 차트로 정했으므로 변환하면 dirty가 된다.
+  // 구형 차트 변환 모달(RFD 0037 §8-1). 불러올 때 store의 lastSavedChartJson을 구형 차트로 정했으므로 변환하면 dirty가 된다.
   // 변환 전 개수는 같은 순수 함수의 dry-run이다. 지금 차트에 구형 노트가 없으면 묻지 않는다.
   const [legacyConversionDialog, setLegacyConversionDialog] = useState<LegacyConversionDialog | null>(
     () => offerLegacyConversion ? legacyConversionOfferFor(chart) : null,
@@ -300,7 +300,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
   const setSnapDivision = useEditorStore((s) => s.setSnapDivision);
   const setScrollY = useEditorStore((s) => s.setScrollY);
   const extraLaneCount = useEditorStore((s) => s.extraLaneCount);
-  const savedChartJson = useEditorStore((s) => s.savedChartJson);
+  const lastSavedChartJson = useEditorStore((s) => s.lastSavedChartJson);
   // 저장 진행은 store가 소유한다 — 테스트 플레이 복귀로 페이지가 다시 마운트돼도 진행 중인 저장을 잊지 않는다.
   const saving = useEditorStore((s) => s.isSavingChart);
   const addToast = useEditorStore((s) => s.addToast);
@@ -590,7 +590,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
     setAudioLoading,
     setLoadedAudioBuffer,
     onLoadFailed: () => useEditorStore.getState().addToast('Audio load failed', 'error'),
-    reloadSavedAudio: path => useEditorStore.getState().setPendingAudioUrl(getPublicUrl(path)),
+    reloadLastSavedAudio: path => useEditorStore.getState().setPendingAudioUrl(getPublicUrl(path)),
   }));
   const pickDrawerAudio = useCallback((file: File) => { void drawerAudio.pick(playbackRef.current, file); }, [drawerAudio]);
   // 변경 취소의 Undo가 곡 정보를 되살리면 드로어를 다시 연다.
@@ -993,7 +993,7 @@ function ChartEditorPage({ offerLegacyConversion, onLegacyConversionAnswered }: 
           currentDifficulty={chart.meta.difficultyLabel}
           title={chart.meta.title}
           level={chart.meta.difficultyLevel}
-          isDirty={isChartDirty(chart, extraLaneCount, savedChartJson, song !== null)}
+          isDirty={isChartDirty(chart, extraLaneCount, lastSavedChartJson, song !== null)}
           onSave={async (targetDifficulty, targetLevel) => {
             const { data: existing, error } = await supabase
               .from('charts')

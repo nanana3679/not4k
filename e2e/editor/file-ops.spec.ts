@@ -131,8 +131,8 @@ test.describe('에디터 차트 저장·불러오기와 음원 로드', () => {
     const uploaded = await saveChart(page, editor);
 
     expect(uploaded.meta).toMatchObject({ difficultyLabel: 'NORMAL', difficultyLevel: 9 });
-    const saved = editor.supabaseWrites.find(write => write.path === '/rest/v1/rpc/save_chart')!;
-    expect(JSON.parse(saved.body!)).toMatchObject({ p_chart_id: editorTestChartId('normal'), p_difficulty_level: 9 });
+    const saveChartWrite = editor.supabaseWrites.find(write => write.path === '/rest/v1/rpc/save_chart')!;
+    expect(JSON.parse(saveChartWrite.body!)).toMatchObject({ p_chart_id: editorTestChartId('normal'), p_difficulty_level: 9 });
     expect(editor.supabaseWrites.filter(write => write.path === '/rest/v1/rpc/create_chart')).toHaveLength(0);
     await expect(page).toHaveURL(/difficulty=normal/);
     expect(editor.unexpectedSupabaseRequests).toEqual([]);
@@ -383,7 +383,7 @@ test('chart_extra_path가 normal-stored.extra.json인데 파일이 404면 Error�
 test('리비전 3 차트를 저장한 뒤 옛 리비전 3·없는 UUID·중복 normal로 RPC를 요청하면 PT409·PT404·23505를 반환한다', async ({ page }) => {
   const editor = await openEditor(page);
   await saveChart(page, editor);
-  const savedArgs = JSON.parse(editor.supabaseWrites.find(write => write.path === '/rest/v1/rpc/save_chart')!.body!);
+  const saveChartArgs = JSON.parse(editor.supabaseWrites.find(write => write.path === '/rest/v1/rpc/save_chart')!.body!);
   const result = await page.evaluate(async args => {
     const clientPath = '/src/supabase/client.ts';
     const { supabase } = await import(clientPath);
@@ -394,7 +394,7 @@ test('리비전 3 차트를 저장한 뒤 옛 리비전 3·없는 UUID·중복 n
     const plain = await supabase.from('songs').select('title').maybeSingle();
     const embedded = await supabase.from('songs').select('title,charts(id,revision)').maybeSingle();
     return { codes: [stale.error?.code, missing.error?.code, duplicate.error?.code], plain: plain.data, embedded: embedded.data };
-  }, savedArgs);
+  }, saveChartArgs);
   expect(result.codes).toEqual(['PT409', 'PT404', '23505']);
   expect(result.plain).not.toHaveProperty('charts');
   expect(result.embedded.charts).toEqual([{ id: editorTestChartId('normal'), revision: 4 }]);

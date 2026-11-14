@@ -53,7 +53,7 @@ export interface ChartAssetRow {
   chartExtraPath: string | null;
 }
 
-export interface SongAssetPersistenceAdapter {
+export interface SongAssetSaveAdapter {
   uploadText: (asset: TextAssetUpload) => Promise<void>;
   remove: (paths: string[]) => Promise<void>;
   /** 예상 리비전이 맞을 때만 행이 새 경로를 가리키게 하고 새 리비전을 돌려준다. 거부 오류의 `code`(SQLSTATE)를 보존한다. */
@@ -123,7 +123,7 @@ export class ChartSaveError extends Error {
  * 이전 저장의 파일은 지우지 않는다(정리는 #160).
  */
 export async function saveChartAsset(
-  adapter: SongAssetPersistenceAdapter,
+  adapter: SongAssetSaveAdapter,
   input: SaveChartAssetInput,
 ): Promise<ChartAssetWriteResult> {
   const asset = await uploadChartAsset(adapter, input);
@@ -143,7 +143,7 @@ export async function saveChartAsset(
 
 /** 새 차트 행을 만든다. 기존 행을 덮어쓰지 않으며, 응답 유실 확인을 위해 실패 시 업로드 경로를 보존한다. */
 export async function createChartAsset(
-  adapter: SongAssetPersistenceAdapter,
+  adapter: SongAssetSaveAdapter,
   input: CreateChartAssetInput,
 ): Promise<ChartAssetWriteResult> {
   const asset = await uploadChartAsset(adapter, { ...input, extraLaneCount: input.extraLaneCount ?? 0 });
@@ -167,7 +167,7 @@ export async function createChartAsset(
  * 보조 정보가 없으면 결정적 경로의 보조 파일을 지운다. 곡 행이 있는 차트는 `saveChartAsset`·`createChartAsset`을 쓴다.
  */
 export async function saveSonglessChartAsset(
-  adapter: SongAssetPersistenceAdapter,
+  adapter: SongAssetSaveAdapter,
   input: SaveSonglessChartAssetInput,
 ): Promise<ChartAssetFiles> {
   const difficulty = normalizeDifficulty(input.difficulty);
@@ -212,7 +212,7 @@ export class SongHasChartsError extends Error {
  * 아직 아무 파일도 파괴되지 않은 상태다.
  */
 export async function deleteSongAsset(
-  adapter: SongAssetPersistenceAdapter,
+  adapter: SongAssetSaveAdapter,
   input: DeleteSongAssetInput,
 ): Promise<{ removedPaths: string[] }> {
   if (input.chartCount > 0) {
@@ -234,7 +234,7 @@ export async function deleteSongAsset(
  * 로더가 고정 경로로 폴백해 옛 내용을 열고 다음 Save의 `create_chart`가 삭제한 차트를 되살린다.
  */
 export async function deleteChartAsset(
-  adapter: SongAssetPersistenceAdapter,
+  adapter: SongAssetSaveAdapter,
   input: DeleteChartAssetInput,
 ): Promise<{ removedPaths: string[]; difficulty: string }> {
   const difficulty = normalizeDifficulty(input.difficulty);
@@ -264,7 +264,7 @@ function chartAssetRowPaths(songId: string, row: ChartAssetRow): string[] {
  * 항상 두 파일을 가리키게 한다(NULL은 기존 결정적 경로라 "보조 없음" 표시로 쓸 수 없다).
  */
 async function uploadChartAsset(
-  adapter: SongAssetPersistenceAdapter,
+  adapter: SongAssetSaveAdapter,
   input: ChartAssetTarget & { chart: ChartDocument; extraLaneCount: number },
 ): Promise<ChartAssetFiles> {
   const difficulty = normalizeDifficulty(input.difficulty);

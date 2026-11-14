@@ -13,7 +13,7 @@ import { getTutorialKeyboardLabel, type TutorialKeyBindings } from './tutorialKe
 import {
   canShowTutorialCacheInvalidationButton,
   clearTutorialViewedIds,
-  persistTutorialViewedIds,
+  saveTutorialViewedIds,
   readTutorialViewedIdsFromStorage,
 } from './tutorialViewedCache';
 
@@ -188,7 +188,7 @@ export function TutorialHelpModal({ onClose, onCloseRequested, isAdmin = false }
   }, []);
 
   useEffect(() => {
-    persistTutorialViewedIds(getTutorialViewedStorage(), viewedTutorialIds);
+    saveTutorialViewedIds(getTutorialViewedStorage(), viewedTutorialIds);
   }, [viewedTutorialIds]);
 
   const handlePreviewSlotReady = useCallback((

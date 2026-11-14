@@ -81,7 +81,7 @@ test('음원 저장 중 드로어에서 제목을 저장 뒤 제목으로 바꾸
   await replaceAudio(page);
   await save(page).click();
   await expect.poll(() => blocked).toBe(true);
-  // 진행 중인 저장은 시작 당시의 초안을 확정하고, 저장 중 편집은 다음 Save에 남는다.
+  // 진행 중인 저장은 시작 당시의 지금 값을 확정하고, 저장 중 편집은 다음 Save에 남는다.
   await fillSongInfo(page, 'Title', '저장 뒤 제목');
   release();
   await expect(page.getByText('Song saved', { exact: true })).toBeVisible();

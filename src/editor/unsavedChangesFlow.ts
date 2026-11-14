@@ -13,7 +13,7 @@
  * 일부만 저장하거나 저장하지 못한 경우를 같은 방식으로 다룬다.
  *
  * 다른 Save·Save As가 진행 중이면(곡 저장과 차트 저장 사이 포함) 닫기·전환·이탈·변경 취소를 시작하지 않고 안내만 한다.
- * 진행 중인 저장이 끝나면 저장 기준이 바뀌므로, 그 전에 되돌리거나 떠나면 저장된 값과 화면이 어긋난다. 확인 창에 답한 뒤에도
+ * 진행 중인 저장이 끝나면 마지막 저장 값이 바뀌므로, 그 전에 되돌리거나 떠나면 저장된 값과 화면이 어긋난다. 확인 창에 답한 뒤에도
  * 한 번 더 확인한다. 드로어 입력칸은 포커스 이동·Enter로 적용하므로, 흐름을 시작할 때와 흐름의 Save가 끝난 뒤 포커스를 가진
  * 입력칸의 값을 먼저 적용해 미저장 판단에 넣는다(저장 중에 친 값이 닫기·이동으로 사라지지 않게).
  */
@@ -60,10 +60,10 @@ export function hasUnsavedSongInfo(state: Pick<EditorStoreState, 'chart' | 'song
  * 불러오는 중인 드로어 음원, 곡 행이 없는 차트의 대기 프리뷰·인게임 구간.
  */
 export function hasUnsavedEditorChanges(
-  state: Pick<EditorStoreState, 'chart' | 'song' | 'extraLaneCount' | 'savedChartJson' | 'songlessMedia' | 'isLoadingSongAudio'>,
+  state: Pick<EditorStoreState, 'chart' | 'song' | 'extraLaneCount' | 'lastSavedChartJson' | 'songlessMedia' | 'isLoadingSongAudio'>,
 ): boolean {
   return hasUnsavedSongInfo(state)
-    || isChartDirty(state.chart, state.extraLaneCount, state.savedChartJson, state.song !== null)
+    || isChartDirty(state.chart, state.extraLaneCount, state.lastSavedChartJson, state.song !== null)
     || (!state.song && (state.songlessMedia.previewRange !== null || state.songlessMedia.gameplayRange !== null));
 }
 

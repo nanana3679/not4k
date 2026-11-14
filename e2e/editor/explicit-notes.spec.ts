@@ -31,11 +31,11 @@ test('Grace 더블 드래그는 Esc 취소·생성·Undo·Redo·v4 저장과 재
   await page.screenshot({ path: info.outputPath('grace-double-explicit.png') });
   await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-  const saved = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
+  const uploaded = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
   const extra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
-  expect(saved.version).toBe(4);
+  expect(uploaded.version).toBe(4);
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
-  await openEditor(page, { chart: saved, extra }); expect(await notes(page)).toEqual(created);
+  await openEditor(page, { chart: uploaded, extra }); expect(await notes(page)).toEqual(created);
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
 
@@ -58,10 +58,10 @@ test('v4 혼합 main과 aux를 저장·재로드하면 구형 false·holdOnly와
   await page.screenshot({ path: info.outputPath('mixed-explicit-main-aux.png') });
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-  const savedMain = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
-  const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
-  expect(savedMain).toEqual(chart); expect(savedExtra).toEqual(extra);
-  await openEditor(page, { chart: savedMain, extra: savedExtra }); expect(await notes(page)).toEqual(before);
+  const uploadedMain = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
+  const uploadedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
+  expect(uploadedMain).toEqual(chart); expect(uploadedExtra).toEqual(extra);
+  await openEditor(page, { chart: uploadedMain, extra: uploadedExtra }); expect(await notes(page)).toEqual(before);
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   expect(editor.unexpectedSupabaseRequests).toEqual([]);
 });
@@ -104,7 +104,7 @@ test('보조 레인 수 3인 혼합 main과 명시 aux는 열자마자 Save에 �
     { type: 'tick', count: 2, extraLane: 3, beat: '2' },
   ] };
   const editor = await openEditor(page, { chart, extra });
-  // 보조 레인 수 3을 정한 뒤 savedChartJson을 만들어야 편집 전 차트가 dirty가 아니다(기본 2로 만들면 'Save, unsaved changes').
+  // 보조 레인 수 3을 정한 뒤 lastSavedChartJson을 만들어야 편집 전 차트가 dirty가 아니다(기본 2로 만들면 'Save, unsaved changes').
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
   await page.route('**/rest/v1/charts?*', route => route.fulfill({ json: [] }));
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();
@@ -112,11 +112,11 @@ test('보조 레인 수 3인 혼합 main과 명시 aux는 열자마자 Save에 �
   await page.getByLabel('Target Difficulty').selectOption('LIFTOFF');
   await page.getByRole('heading', { name: 'Save As (다른 이름으로 저장)', exact: true }).locator('..').getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(/difficulty=liftoff$/);
-  const saved = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path, 'liftoff'))!) as ChartJsonV4;
-  const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path, 'liftoff'))!) as ExtraNotesJson;
-  expect(saved.notes).toEqual(chart.notes); expect(saved.version).toBe(4);
-  expect(saved.meta).toEqual({ ...chart.meta, difficultyLabel: 'LIFTOFF' });
-  expect(savedExtra).toEqual(extra);
+  const uploaded = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path, 'liftoff'))!) as ChartJsonV4;
+  const uploadedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path, 'liftoff'))!) as ExtraNotesJson;
+  expect(uploaded.notes).toEqual(chart.notes); expect(uploaded.version).toBe(4);
+  expect(uploaded.meta).toEqual({ ...chart.meta, difficultyLabel: 'LIFTOFF' });
+  expect(uploadedExtra).toEqual(extra);
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
 });
 

@@ -16,17 +16,17 @@ import {
 } from '../../shared';
 import type { ChartAssetFiles, ChartAssetWriteResult, ChartDocument, ChartRowRef, Lane, TutorialDiagramId, ValidationError } from '../../shared';
 import {
-  createChartAsset as persistNewChartAsset,
-  deleteChartAsset as persistDeleteChartAsset,
-  saveChartAsset as persistChartAsset,
-  saveSonglessChartAsset as persistSonglessChartAsset,
+  createChartAsset,
+  deleteChartAsset,
+  saveChartAsset,
+  saveSonglessChartAsset,
 } from '../../supabase';
 import { fetchChartRows, findChartRow, type StoredChartRow } from '../../supabase/chartRows';
 import { selectHasSongRow, useEditorStore, type UnconfirmedChartUpload } from '../stores';
 import { useGameStore } from '../../game/stores';
 import { performPlayTest } from '../playtest/performPlayTest';
 import { editorChartErrors } from '../documentValidation';
-import type { SavedChartJson } from '../savedChart';
+import type { ChartSaveJson } from '../savedChart';
 import { CHART_SAVE_COPY, PAUSE_TO_EDIT_COPY, SAVE_AUDIO_LOADING_COPY, SAVE_IN_PROGRESS_COPY } from '../editorCopy';
 import { settleSonglessMedia, songlessMediaPaths, uploadSonglessMedia, withSonglessMediaPaths } from '../saveSonglessMedia';
 import { hasSonglessMedia } from '../songlessMedia';
@@ -58,7 +58,7 @@ function canStartSave(state: EditorStoreState, isAudioLoading: () => boolean): b
 }
 
 /**
- * Save·Save As는 같은 시작 초안을 사용한다. 기다리는 동안 추가한 편집은 저장 기준에 넣지 않는다.
+ * Save·Save As는 곡과 차트를 저장을 시작할 때의 같은 지금 값으로 저장한다. 기다리는 동안 추가한 편집은 마지막 저장 값에 넣지 않는다.
  * 곡을 저장하기 전에 저장 중·음원 로딩·저장별 조건(precheck)·차트 검증을 모두 확인해, 곡만 저장되고 차트 저장이 막히는 일을 줄인다.
  */
 async function prepareSave(
@@ -72,7 +72,7 @@ async function prepareSave(
   if (!canStartSave(beforeCheck, isAudioLoading)) return null;
   const checked = precheck(beforeCheck);
   if (!(typeof checked === 'boolean' ? checked : await checked)) return null;
-  // 대상 조회 동안 편집할 수 있으므로, 실제 곡 저장이 시작할 때 곡·차트의 공통 초안을 잡는다.
+  // 대상 조회 동안 편집할 수 있으므로, 실제 곡 저장이 시작할 때 곡·차트에 함께 쓸 지금 값을 잡는다.
   const start = useEditorStore.getState();
   if (start.chartLoadGeneration !== beforeCheck.chartLoadGeneration) return null;
   if (start !== beforeCheck && !canStartSave(start, isAudioLoading)) return null;
@@ -83,16 +83,16 @@ async function prepareSave(
     return null;
   }
   const songDirty = isSongDirty(start.chart, start.song);
-  const chartDirty = isChartDirty(start.chart, start.extraLaneCount, start.savedChartJson, start.song !== null);
+  const chartDirty = isChartDirty(start.chart, start.extraLaneCount, start.lastSavedChartJson, start.song !== null);
   const songSaveResult = songDirty || start.song?.needsTimingMigration
     ? await saveEditorSong(audioBuffer, message => window.confirm(message)) : null;
   if (songSaveResult === 'aborted') return null;
   const current = useEditorStore.getState();
   if (current.chartLoadGeneration !== start.chartLoadGeneration) return null;
   // 업로드로 확정된 곡 경로만 사본에 반영한다. 저장 중의 노트·타이밍 편집은 다음 저장에 남긴다.
-  const savedSong = songSaveResult === 'saved' ? current.song?.baseline : null;
-  const chart = savedSong ? { ...start.chart, meta: { ...start.chart.meta,
-    imageFile: savedSong.jacketUrl ?? '', audioFile: savedSong.audioUrl, previewAudioFile: savedSong.previewUrl ?? '',
+  const lastSavedSong = songSaveResult === 'saved' ? current.song?.lastSaved : null;
+  const chart = lastSavedSong ? { ...start.chart, meta: { ...start.chart.meta,
+    imageFile: lastSavedSong.jacketUrl ?? '', audioFile: lastSavedSong.audioUrl, previewAudioFile: lastSavedSong.previewUrl ?? '',
   } } : start.chart;
   return { chart, activeSongId: start.activeSongId, extraLaneCount: start.extraLaneCount,
     chartLoadGeneration: start.chartLoadGeneration, difficulty: activeChartDifficulty(start),
@@ -165,8 +165,8 @@ async function writeChartWithRecovery(
 ): Promise<ChartAssetWriteResult> {
   try {
     return write.row
-      ? await persistChartAsset({ ...write, row: write.row })
-      : await persistNewChartAsset(write);
+      ? await saveChartAsset({ ...write, row: write.row })
+      : await createChartAsset(write);
   } catch (error) {
     if (!(error instanceof ChartSaveError)) throw error;
     if (!error.code || error.code === (write.row ? 'PT409' : '23505')) {
@@ -188,7 +188,7 @@ async function writeChartWithRecovery(
 }
 
 /** 저장으로 확정된 행. 행의 난이도명은 저장으로 바뀌지 않으므로 대상 행의 이름을 유지한다. */
-function savedChartRow(written: ChartAssetWriteResult, difficultyLabel: string): StoredChartRow {
+function writtenChartRow(written: ChartAssetWriteResult, difficultyLabel: string): StoredChartRow {
   return { id: written.row.chartId, difficultyLabel, revision: written.row.revision,
     chartPath: written.chartPath, chartExtraPath: written.extraPath };
 }
@@ -249,8 +249,8 @@ export function useFileOperations(
       addToast(SAVE_IN_PROGRESS_COPY.secondSave, 'error');
       return;
     }
-    let uploadedJson: SavedChartJson | null = null;
-    let savedRow: StoredChartRow | undefined;
+    let uploadedJson: ChartSaveJson | null = null;
+    let writtenRow: StoredChartRow | undefined;
     try {
       if (prepared.hasSongRow) {
         // 새 경로에 올린 뒤 save_chart(열 때 본 리비전) 한 번으로 행을 확정한다. 실패하면 행은 이전 파일을 가리킨다(RFD 0107).
@@ -259,11 +259,11 @@ export function useFileOperations(
         useEditorStore.getState().unconfirmedChartUploads,
         upload => useEditorStore.getState().rememberUnconfirmedChartUpload(saveGeneration, upload));
         uploadedJson = { chartJson: written.chartJson, extraJson: written.extraJson };
-        savedRow = savedChartRow(written, chartRow?.difficultyLabel ?? written.difficulty);
+        writtenRow = writtenChartRow(written, chartRow?.difficultyLabel ?? written.difficulty);
       } else {
         // 곡 행이 없으면 행 없이 결정적 경로에 차트를 덮어쓴 뒤 대기 미디어를 고정 경로에 올린다(기존 규칙).
         const mediaPaths = songlessMedia ? songlessMediaPaths(activeSongId, songlessMedia) : null;
-        const written = await persistSonglessChartAsset({ songId: activeSongId, difficulty,
+        const written = await saveSonglessChartAsset({ songId: activeSongId, difficulty,
           chart: mediaPaths ? withSonglessMediaPaths(chart, mediaPaths) : chart, extraLaneCount });
         if (songlessMedia && mediaPaths) {
           await uploadSonglessMedia({ songId: activeSongId, media: songlessMedia, paths: mediaPaths, meta: chart.meta,
@@ -277,8 +277,8 @@ export function useFileOperations(
       console.error('useFileOperations:', err);
       addToast(chartSaveErrorCopy(err, prepared.hasSongRow && !chartRow ? 'create' : 'save'), 'error');
     } finally {
-      // 실패(uploadedJson null)면 savedChartJson·리비전을 그대로 둬 dirty가 남는다. 그 사이 차트를 새로 불러왔으면 store가 무시한다.
-      finishChartSave(saveGeneration, uploadedJson, savedRow);
+      // 실패(uploadedJson null)면 lastSavedChartJson·리비전을 그대로 둬 dirty가 남는다. 그 사이 차트를 새로 불러왔으면 store가 무시한다.
+      finishChartSave(saveGeneration, uploadedJson, writtenRow);
     }
   }, [playbackRef, addToast, beginChartSave, finishChartSave, setValidationErrors, isAudioLoading]);
 
@@ -319,7 +319,7 @@ export function useFileOperations(
     }
     setShowSaveAsModal(false);
     setSaveAsOverwriteTarget(null);
-    let uploadedJson: SavedChartJson | null = null;
+    let uploadedJson: ChartSaveJson | null = null;
     try {
       const difficulty = targetDifficulty.toLowerCase();
 
@@ -332,7 +332,7 @@ export function useFileOperations(
         },
       };
 
-      let savedRow: StoredChartRow | null = null;
+      let writtenRow: StoredChartRow | null = null;
       if (prepared.hasSongRow) {
         const target = confirmed.row;
         // 확인한 행만 갱신한다. 확인 없는 새 난이도는 create_chart가 중복을 23505로 거부한다.
@@ -341,10 +341,10 @@ export function useFileOperations(
         useEditorStore.getState().unconfirmedChartUploads,
         upload => useEditorStore.getState().rememberUnconfirmedChartUpload(saveGeneration, upload));
         uploadedJson = { chartJson: written.chartJson, extraJson: written.extraJson };
-        savedRow = savedChartRow(written, target?.difficultyLabel ?? written.difficulty);
+        writtenRow = writtenChartRow(written, target?.difficultyLabel ?? written.difficulty);
       } else {
         // 곡 행이 없으면 행을 만들 수 없어(FK) 대상 난이도의 결정적 경로에 덮어쓴다(기존 규칙).
-        const written = await persistSonglessChartAsset({ songId: activeSongId, difficulty, chart: chartToSave, extraLaneCount });
+        const written = await saveSonglessChartAsset({ songId: activeSongId, difficulty, chart: chartToSave, extraLaneCount });
         uploadedJson = { chartJson: written.chartJson, extraJson: written.extraJson };
       }
 
@@ -354,7 +354,7 @@ export function useFileOperations(
         // 열린 차트의 정체성(난이도·`charts` 행) 변경은 편집이 아니다. 한 번에 바꾸고 Undo 이력에 남기지 않아,
         // Undo가 이전 난이도를 되살리거나 다음 Save가 원래 차트의 행에 쓰지 않게 한다.
         // 다음 곡 이행·공통 타이밍 확인도 이 행(없으면 열린 난이도)을 열린 차트로 보고 비교 대상에서 제외한다.
-        current.adoptChartIdentity(targetDifficulty, targetLevel, savedRow);
+        current.adoptChartIdentity(targetDifficulty, targetLevel, writtenRow);
         window.history.replaceState(null, '', `?songId=${encodeURIComponent(activeSongId)}&difficulty=${encodeURIComponent(useEditorStore.getState().activeDifficulty!)}`);
       }
 
@@ -363,7 +363,7 @@ export function useFileOperations(
       console.error('useFileOperations:', err);
       addToast(chartSaveErrorCopy(err, 'saveAs'), 'error');
     } finally {
-      // 저장 대상 행(새 ID 또는 덮어쓴 행)은 위 adoptChartIdentity가 난이도와 함께 바꿨다. 여기서는 저장 기준만 정한다.
+      // 저장 대상 행(새 ID 또는 덮어쓴 행)은 위 adoptChartIdentity가 난이도와 함께 바꿨다. 여기서는 차트의 마지막 저장 값(`lastSavedChartJson`)만 정한다.
       finishChartSave(saveGeneration, uploadedJson);
     }
   }, [playbackRef, addToast, beginChartSave, finishChartSave, setValidationErrors, setShowSaveAsModal, setSaveAsOverwriteTarget, isAudioLoading]);
@@ -412,7 +412,7 @@ export function useFileOperations(
       addToast('No song selected — cannot delete', 'error');
       return;
     }
-    // 열린 UUID로 삭제한다. persistence가 삭제 응답의 파일 경로를 읽고 다른 행의 참조를 보호한다.
+    // 열린 UUID로 삭제한다. `deleteChartAsset`이 삭제 응답의 파일 경로를 읽고 다른 행의 참조를 보호한다.
     const difficulty = activeChartDifficulty(useEditorStore.getState());
     if (!difficulty) {
       addToast('Difficulty label is empty', 'error');
@@ -422,7 +422,7 @@ export function useFileOperations(
     setDeleting(true);
     setShowDeleteConfirm(false);
     try {
-      await persistDeleteChartAsset({
+      await deleteChartAsset({
         songId: activeSongId,
         difficulty,
         chartId: useEditorStore.getState().chartRow?.id,

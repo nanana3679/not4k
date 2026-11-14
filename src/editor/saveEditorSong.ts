@@ -2,7 +2,7 @@ import { parseSongTiming } from '../shared/songAssets/songTiming';
 import { canEncodeWavRange, encodeWavBlob } from '../shared';
 import { countOtherSongCharts, findDifferingSongCharts, saveSong, uploadSongMedia } from '../supabase/saveSong';
 import { DEFAULT_PREVIEW_FADE } from './components/previewRangeState';
-import { isSongTimingDirty, songValues } from './songState';
+import { isSongTimingDirty, currentSongValues } from './songState';
 import { useEditorStore } from './stores/editorStore';
 import { SONG_SAVE_COPY, SAVE_IN_PROGRESS_COPY } from './editorCopy';
 
@@ -11,7 +11,7 @@ const extension = (file: File, fallback: string) => file.name.includes('.') ? fi
 /** 이행 거절만 차트 저장을 계속하며, 나머지 취소·실패·차트 전환은 전체 저장을 중단한다. */
 export type SaveEditorSongResult = 'saved' | 'migration-declined' | 'aborted';
 
-/** 시작 초안의 곡 저장 결과. 저장 성공 때만 곡 기준·리비전·대기 파일을 갱신한다. */
+/** 저장을 시작할 때의 지금 값으로 곡을 저장한 결과. 저장 성공 때만 곡의 마지막 저장 값·리비전·대기 파일을 갱신한다. */
 export async function saveEditorSong(
   audioBuffer: AudioBuffer | null,
   confirm: (message: string) => boolean,
@@ -30,12 +30,12 @@ export async function saveEditorSong(
   }
   useEditorStore.setState({ isSavingSong: true });
   try {
-    const values = songValues(start.chart, song);
+    const values = currentSongValues(start.chart, song);
     parseSongTiming(values.timing);
-    // 지금 프리뷰 클립(차트 사본의 프리뷰 경로)은 늘 저장 기준의 음원·구간에서 잘라 낸 것이다. 음원·구간은 Undo 이력 밖이라 기준과 달라지는 길은
-    // 대기 음원을 고르거나 구간을 바꾸는 것뿐이므로, 그때만 다시 만든다(사용자 확인, 2026-11-08). 구간이 없으면 만들 클립이 없다.
+    // 지금 프리뷰 클립(차트 사본의 프리뷰 경로)은 늘 마지막 저장 값의 음원·구간에서 잘라 낸 것이다. 음원·구간은 Undo 이력 밖이라 마지막 저장
+    // 값과 달라지는 길은 대기 음원을 고르거나 구간을 바꾸는 것뿐이므로, 그때만 다시 만든다(사용자 확인, 2026-11-08). 구간이 없으면 만들 클립이 없다.
     const { previewStart, previewEnd } = values;
-    const previewChanged = previewStart !== song.baseline.previewStart || previewEnd !== song.baseline.previewEnd;
+    const previewChanged = previewStart !== song.lastSaved.previewStart || previewEnd !== song.lastSaved.previewEnd;
     const previewRange = previewStart != null && previewEnd != null && (song.pendingAudioFile || previewChanged)
       ? { startTime: previewStart, endTime: previewEnd,
         fadeInTime: song.pendingPreviewRange?.fadeInTime ?? DEFAULT_PREVIEW_FADE,

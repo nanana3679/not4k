@@ -380,7 +380,7 @@ for (const replaceAudio of [false, true]) test(`${replaceAudio ? '음원 교체�
   await expect(page.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   expect(await notes(page)).toEqual(edited);
-  // 페이지가 다시 마운트돼도 savedChartJson은 불러온 차트의 값이다. 돌아온 차트로 다시 만들면 여기서 'Save'가 된다.
+  // 페이지가 다시 마운트돼도 lastSavedChartJson은 불러온 차트의 값이다. 돌아온 차트로 다시 만들면 여기서 'Save'가 된다.
   await expect(unsavedSave).toBeVisible();
 
   await page.getByRole('button', { name: 'More editor actions', exact: true }).click();

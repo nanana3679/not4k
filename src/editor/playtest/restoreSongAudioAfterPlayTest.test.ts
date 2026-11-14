@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 
 describe('restoreSongAudioAfterPlayTest', () => {
-  it('songs/b/audio.ogg 행으로 연 뒤 이 세션의 곡 저장으로 초안 음원이 songs/a/audio.ogg가 됐으면 곡 행 조회 없이 A의 공개 URL을 요청한다', () => {
+  it('songs/b/audio.ogg 행으로 연 뒤 이 세션의 곡 저장으로 지금 값의 음원이 songs/a/audio.ogg가 됐으면 곡 행 조회 없이 A의 공개 URL을 요청한다', () => {
     openChart(songRow);
     store().applySongMedia({ audioFile: 'songs/a/audio.ogg' }, {});
 
@@ -43,7 +43,7 @@ describe('restoreSongAudioAfterPlayTest', () => {
     expect(store().pendingAudioUrl).toBeNull();
   });
 
-  it('초안의 음원 경로가 빈 문자열이면 요청할 음원이 없어 URL을 요청하지 않는다', () => {
+  it('지금 값의 음원 경로가 빈 문자열이면 요청할 음원이 없어 URL을 요청하지 않는다', () => {
     openChart({ ...songRow, audioUrl: '' });
 
     restoreSongAudioAfterPlayTest(toPublicUrl);

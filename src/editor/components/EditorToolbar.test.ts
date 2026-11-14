@@ -1,5 +1,5 @@
 import { createEditorSong } from '../songState';
-import { isChartDirty, toSavedChartJson } from '../savedChart';
+import { isChartDirty, toChartSaveJson } from '../savedChart';
 import { isSongDirty } from '../songState';
 import { Children, createElement, isValidElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -82,7 +82,7 @@ function backToSongs(props: Parameters<typeof toolbarProps>[0] = {}): () => void
 
 beforeEach(() => {
   useEditorStore.setState({
-    song: null, isSavingSong: false, isLoadingSongAudio: false, savedChartJson: toSavedChartJson(chart(), 2),
+    song: null, isSavingSong: false, isLoadingSongAudio: false, lastSavedChartJson: toChartSaveJson(chart(), 2),
     chart: chart(), extraLaneCount: 2, selection: emptySelection(), mode: 'select', isPlaying: false, editTransaction: null,
     historyPast: [{ chart: chart(), extraLaneCount: 2 }], historyFuture: [{ chart: chart(), extraLaneCount: 2 }],
   });
@@ -133,13 +133,13 @@ describe('저장 버튼 하나의 표시', () => {
     const song = createEditorSong({ title: '툴바', artist: '', jacketUrl: null, audioUrl: '', duration: null,
       previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
       gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 }, document);
-    useEditorStore.setState({ song, chart: document, savedChartJson: toSavedChartJson(document, 2) });
+    useEditorStore.setState({ song, chart: document, lastSavedChartJson: toChartSaveJson(document, 2) });
     useEditorStore.getState().setChart({ ...document,
       events: document.events.map((event, index) => index === 2 ? { ...event, editorLane: 2 } : event),
     });
     const state = useEditorStore.getState();
     expect(isSongDirty(state.chart, state.song)).toBe(false);
-    expect(isChartDirty(state.chart, 2, state.savedChartJson, true)).toBe(true);
+    expect(isChartDirty(state.chart, 2, state.lastSavedChartJson, true)).toBe(true);
     expect(buttonTag(render(), 'Save, unsaved changes')).not.toBe('');
 
     const dispatchEvent = vi.fn();
@@ -198,7 +198,7 @@ describe('저장 버튼 하나의 표시', () => {
     const song = createEditorSong({ title: '툴바', artist: '', jacketUrl: null, audioUrl: '', duration: null,
       previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
       gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 }, document);
-    useEditorStore.setState({ song, savedChartJson: toSavedChartJson(document, 2),
+    useEditorStore.setState({ song, lastSavedChartJson: toChartSaveJson(document, 2),
       chart: { ...document, meta: { ...document.meta, title: '새 제목' } } });
     const markup = render({ compact });
     expect(buttonTag(markup, 'Save, unsaved changes')).not.toBe('');
@@ -278,7 +278,7 @@ function renderWithMoreMenu(props: Parameters<typeof toolbarProps>[0]): { names:
 }
 
 /** chart()와 같은 제목·타이밍으로 저장된 곡(revision 42). */
-const savedSong = (document: ChartDocument) => createEditorSong({ title: document.meta.title, artist: '', jacketUrl: null, audioUrl: '',
+const songWithLastSaved = (document: ChartDocument) => createEditorSong({ title: document.meta.title, artist: '', jacketUrl: null, audioUrl: '',
   duration: null, previewUrl: null, previewStart: null, previewEnd: null, gameplayStart: null, gameplayEnd: null,
   gameplayFadeIn: null, gameplayFadeOut: null, timing: null, revision: 42 }, document);
 
@@ -288,7 +288,7 @@ const UNSAVED_SONG_INFO_BUTTON = /<button[^>]*title="Song Info \(unsaved changes
 describe('Song Info 버튼의 곡 정보 미저장 표시', () => {
   it.each([false, true])('곡 Title을 "새 제목"으로 바꾸면(compact=%s) Song Info 버튼에 미저장 title과 점을 달고 버튼 이름은 Song Info로 둔다', compact => {
     const document = chart();
-    useEditorStore.setState({ song: savedSong(document), chart: { ...document, meta: { ...document.meta, title: '새 제목' } } });
+    useEditorStore.setState({ song: songWithLastSaved(document), chart: { ...document, meta: { ...document.meta, title: '새 제목' } } });
 
     const { names, markup } = renderWithMoreMenu({ compact, onToggleSongInfo: () => {} });
 
@@ -299,7 +299,7 @@ describe('Song Info 버튼의 곡 정보 미저장 표시', () => {
 
   it.each([false, true])('노트만 2박에 추가하면(compact=%s) Save만 미저장 표시이고 Song Info 버튼에는 점·미저장 title이 없다', compact => {
     const document = chart();
-    useEditorStore.setState({ song: savedSong(document),
+    useEditorStore.setState({ song: songWithLastSaved(document),
       chart: { ...document, notes: [...document.notes, { type: 'tap', kind: 'single', lane: 2, beat: beat(2) }] } });
 
     const { markup } = renderWithMoreMenu({ compact, onToggleSongInfo: () => {} });
@@ -311,7 +311,7 @@ describe('Song Info 버튼의 곡 정보 미저장 표시', () => {
 
   it('곡 정보가 저장된 그대로여도 드로어 음원을 불러오는 중(isLoadingSongAudio)이면 Song Info 버튼에 점을 단다', () => {
     const document = chart();
-    useEditorStore.setState({ song: savedSong(document), isLoadingSongAudio: true });
+    useEditorStore.setState({ song: songWithLastSaved(document), isLoadingSongAudio: true });
 
     expect(render({ onToggleSongInfo: () => {} })).toMatch(UNSAVED_SONG_INFO_BUTTON);
   });

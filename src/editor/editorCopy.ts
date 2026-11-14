@@ -102,7 +102,7 @@ export const SAVE_AUDIO_LOADING_COPY = "Audio is still loading. Save again after
 
 /**
  * 차트 저장(Save의 차트 단계·Save As)의 결과 안내(RFD 0107). DB 거부는 이전 파일을 유지한다. 응답 유실은
- * 행 재조회로 성공 여부를 확인하며 확인할 수 없으면 편집과 저장 기준을 유지한다. `failed`는 업로드 등 일반 실패다.
+ * 행 재조회로 성공 여부를 확인하며 확인할 수 없으면 편집과 마지막 저장 값을 유지한다. `failed`는 업로드 등 일반 실패다.
  */
 export const CHART_SAVE_COPY = {
   saved: 'Chart saved',

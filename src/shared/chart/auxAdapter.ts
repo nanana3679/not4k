@@ -6,7 +6,7 @@
  * 구분된다. 편집 모드는 ④에서 통합 축으로 전환됐고(이원 축 소멸 — RFD 0018 ④d),
  * 이 어댑터는 저장/로드 분리·병합과 dirty 스냅샷 등 `ExtraNoteEntity` 파일 포맷 경계에만 남는다.
  *
- * shared에 두는 이유: 저장 분리(`chartAssetPersistence`, shared)와 에디터 배선이 모두
+ * shared에 두는 이유: 저장 분리(`chartAssetSave`, shared)와 에디터 배선이 모두
  * 이 매핑을 쓴다 — editor→shared 단방향 의존을 지키려면 매핑이 shared에 살아야 한다.
  */
 

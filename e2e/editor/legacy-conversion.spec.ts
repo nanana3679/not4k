@@ -107,7 +107,7 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
     '2. 보조 레인 2 · 1마디 4박 (박 3) · 트릴 바디 끝 · 릴리즈 없음 · 옮기지 못한 구형 점수 항목 1개',
   ].join('\n'));
 
-  // 변환은 Undo 한 단위이고 store의 savedChartJson은 불러온 구형 차트의 직렬화라 변환 상태가 dirty다.
+  // 변환은 Undo 한 단위이고 store의 lastSavedChartJson은 불러온 구형 차트의 직렬화라 변환 상태가 dirty다.
   await expect(page.getByRole('button', { name: 'Save, unsaved changes', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   expect(await notes(page)).toEqual(legacyNotes);
@@ -125,10 +125,10 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
 
   await page.getByRole('button', { name: 'Save, unsaved changes', exact: true }).click();
   await expect(page.getByText('Chart saved', { exact: true })).toBeVisible();
-  const savedMain = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
-  const savedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
-  expect(savedMain.version).toBe(4);
-  expect(savedMain.notes).toEqual([
+  const uploadedMain = readUploadedJson(editor.supabaseWrites.find(write => isChartUploadPath(write.path))!) as ChartJsonV4;
+  const uploadedExtra = readUploadedJson(editor.supabaseWrites.find(write => isExtraUploadPath(write.path))!) as ExtraNotesJson;
+  expect(uploadedMain.version).toBe(4);
+  expect(uploadedMain.notes).toEqual([
     { type: 'tap', kind: 'single', lane: 1, beat: '0' },
     { type: 'body', holdCount: 1, lane: 1, beat: '0', endBeat: '2' },
     { type: 'release', count: 1, lane: 1, beat: '2' },
@@ -137,7 +137,7 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
     { type: 'body', holdCount: 1, lane: 2, beat: '6', endBeat: '8' },
     { type: 'release', count: 1, lane: 2, beat: '8' },
   ]);
-  expect(savedExtra).toEqual({ version: 4, extraLaneCount: 2, extraTrillZones: legacyExtra.extraTrillZones, extraNotes: [
+  expect(uploadedExtra).toEqual({ version: 4, extraLaneCount: 2, extraTrillZones: legacyExtra.extraTrillZones, extraNotes: [
     { type: 'tap', kind: 'single', extraLane: 1, beat: '1' },
     { type: 'tap', kind: 'trill', extraLane: 2, beat: '2' },
     { type: 'body', holdCount: 1, trill: true, extraLane: 2, beat: '2', endBeat: '3' },
@@ -148,7 +148,7 @@ test('구형 노트 차트를 열면 dry-run 개수를 묻고, 변환하면 결�
 
   // 저장한 차트에는 구형 노트가 없으므로 다시 열어도 묻지 않고, 새로 열면 이전 세션의 검토 목록도 없다.
   // 나중에 등록한 route가 먼저 받으므로 다시 연 세션의 요청은 reopened가 모은다.
-  const reopened = await openEditor(page, { chart: savedMain, extra: savedExtra, legacyConversion: 'manual' });
+  const reopened = await openEditor(page, { chart: uploadedMain, extra: uploadedExtra, legacyConversion: 'manual' });
   await expect(legacyConversionOffer(page)).toHaveCount(0);
   expect(await notes(page)).toEqual(converted);
   await expect(page.getByRole('button', { name: '변환 검토 2건', exact: true })).toHaveCount(0);

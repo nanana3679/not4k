@@ -41,7 +41,7 @@ async function editorState(page: Page) {
   });
 }
 
-/** 곡 초안의 음원과, 재생기가 파형으로 알린 음원 길이로 정해지는 타임라인 끝. */
+/** 곡 음원의 지금 값과, 재생기가 파형으로 알린 음원 길이로 정해지는 타임라인 끝. */
 async function songAudioState(page: Page) {
   return page.evaluate(async () => {
     const path = '/src/editor/stores/editorStore.ts';

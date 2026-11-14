@@ -34,7 +34,7 @@ export function readTutorialViewedIdsFromStorage(
   return viewedIds;
 }
 
-export function persistTutorialViewedIds(
+export function saveTutorialViewedIds(
   storage: TutorialViewedWriteStorage | null | undefined,
   viewedIds: ReadonlySet<string>,
 ): void {
